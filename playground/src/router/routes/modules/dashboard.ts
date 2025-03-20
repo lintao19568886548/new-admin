@@ -31,6 +31,15 @@ const routes: RouteRecordRaw[] = [
           title: $t('page.dashboard.workspace'),
         },
       },
+      {
+        name: 'Rental',
+        path: '/Rental',
+        component: () => import('#/views/dashboard/rental/index.vue'),
+        meta: {
+          icon: 'carbon:workspace',
+          title: '租赁管理',
+        },
+      },
     ],
   },
 ];

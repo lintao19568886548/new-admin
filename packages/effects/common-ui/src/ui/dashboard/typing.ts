@@ -8,6 +8,17 @@ interface AnalysisOverviewItem {
   value: number;
 }
 
+interface RentalProjectItem {
+  color?: string;
+  content: string;
+  date: string;
+  group: string;
+  icon: Component | string;
+  imgUrl?: string;
+  title: string;
+  url?: string;
+}
+
 interface WorkbenchProjectItem {
   color?: string;
   content: string;
@@ -38,9 +49,9 @@ interface WorkbenchQuickNavItem {
   title: string;
   url?: string;
 }
-
 export type {
   AnalysisOverviewItem,
+  RentalProjectItem,
   WorkbenchProjectItem,
   WorkbenchQuickNavItem,
   WorkbenchTodoItem,
