@@ -49,6 +49,26 @@
     },
     "badgeVariants": "Badge Style"
   },
+  "rental": {
+    "list": "Rental List",
+    "name": "Rental Item",
+    "title": "Item Name",
+    "price": "Price",
+    "area": "Area",
+    "address": "Address",
+    "contact": "Contact",
+    "status": {
+      "label": "Status",
+      "vacant": "Vacant",
+      "rented": "Rented",
+      "maintenance": "Maintenance"
+    },
+    "createTime": "Create Time",
+    "updateTime": "Update Time",
+    "description": "Description",
+    "features": "Features",
+    "operation": "Operation"
+  },
   "role": {
     "title": "Role Management",
     "list": "Role List",

@@ -6,7 +6,7 @@ const routes: RouteRecordRaw[] = [
   {
     meta: {
       icon: 'lucide:layout-dashboard',
-      order: -1,
+      order: -999,
       title: $t('page.dashboard.title'),
     },
     name: 'Dashboard',
@@ -29,15 +29,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
           icon: 'carbon:workspace',
           title: $t('page.dashboard.workspace'),
-        },
-      },
-      {
-        name: 'Rental',
-        path: '/Rental',
-        component: () => import('#/views/dashboard/rental/index.vue'),
-        meta: {
-          icon: 'carbon:workspace',
-          title: '租赁管理',
         },
       },
     ],

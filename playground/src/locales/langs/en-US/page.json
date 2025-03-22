@@ -12,5 +12,13 @@
     "title": "Dashboard",
     "analytics": "Analytics",
     "workspace": "Workspace"
+  },
+  "rental": {
+    "title": "Rental Management",
+    "list": "Rental List",
+    "detail": "Rental Detail",
+    "create": "Create Rental",
+    "edit": "Edit Rental",
+    "view": "View Rental"
   }
 }

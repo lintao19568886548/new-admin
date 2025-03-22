@@ -9,12 +9,14 @@ interface AnalysisOverviewItem {
 }
 
 interface RentalProjectItem {
+  id: number;
   color?: string;
   content: string;
   date: string;
   group: string;
   icon: Component | string;
   imgUrl?: string;
+  tag: string;
   title: string;
   url?: string;
 }

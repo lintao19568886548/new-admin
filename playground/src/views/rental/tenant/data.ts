@@ -1,0 +1,211 @@
+import type { RentalManagementItem } from './types';
+
+import type { VbenFormSchema } from '#/adapter/form';
+import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
+
+import { z } from '#/adapter/form';
+import { $t } from '#/locales';
+
+/**
+ * 获取标签颜色
+ */
+export function getTagTypeOptions() {
+  return [
+    {
+      color: 'green',
+      label: $t('system.rental.status.vacant'),
+      value: '空闲',
+    },
+    {
+      color: 'red',
+      label: $t('system.rental.status.rented'),
+      value: '已租',
+    },
+    {
+      color: 'processing',
+      label: $t('system.rental.status.maintenance'),
+      value: '维护',
+    },
+  ];
+}
+
+/**
+ * 获取表单的字段配置
+ */
+export function useFormSchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      fieldName: 'title',
+      label: $t('system.rental.title'),
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      fieldName: 'price',
+      label: $t('system.rental.price'),
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      fieldName: 'area',
+      label: $t('system.rental.area'),
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      fieldName: 'address',
+      label: $t('system.rental.address'),
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      fieldName: 'contact',
+      label: $t('system.rental.contact'),
+      rules: 'required',
+    },
+    {
+      component: 'RadioGroup',
+      componentProps: {
+        buttonStyle: 'solid',
+        options: [
+          { label: $t('system.rental.status.vacant'), value: '空闲' },
+          { label: $t('system.rental.status.rented'), value: '已租' },
+          { label: $t('system.rental.status.maintenance'), value: '维护' },
+        ],
+        optionType: 'button',
+      },
+      defaultValue: '空闲',
+      fieldName: 'tag',
+      label: $t('system.rental.status.label'),
+    },
+    {
+      component: 'Textarea',
+      componentProps: {
+        maxLength: 300,
+        rows: 5,
+        showCount: true,
+        style: {
+          width: '100%',
+        },
+      },
+      fieldName: 'description',
+      label: $t('system.rental.description'),
+      rules: z
+        .string()
+        .max(
+          300,
+          $t('ui.formRules.maxLength', [$t('system.rental.description'), 300]),
+        )
+        .optional(),
+    },
+  ];
+}
+
+/**
+ * 获取表格查询表单配置
+ */
+export function useGridFormSchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      fieldName: 'title',
+      label: $t('system.rental.title'),
+    },
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        options: [
+          { label: $t('system.rental.status.vacant'), value: '空闲' },
+          { label: $t('system.rental.status.rented'), value: '已租' },
+          { label: $t('system.rental.status.maintenance'), value: '维护' },
+        ],
+      },
+      fieldName: 'tag',
+      label: $t('system.rental.status.label'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'address',
+      label: $t('system.rental.address'),
+    },
+    {
+      component: 'RangePicker',
+      fieldName: 'createTime',
+      label: $t('system.rental.createTime'),
+    },
+  ];
+}
+
+/**
+ * 获取表格列配置
+ */
+export function useColumns<T = RentalManagementItem>(
+  onActionClick: OnActionClickFn<T>,
+): VxeTableGridOptions['columns'] {
+  return [
+    {
+      field: 'title',
+      title: $t('system.rental.title'),
+      width: 150,
+    },
+    {
+      field: 'price',
+      title: $t('system.rental.price'),
+      width: 120,
+    },
+    {
+      field: 'area',
+      title: $t('system.rental.area'),
+      width: 120,
+    },
+    {
+      cellRender: {
+        name: 'CellTag',
+        options: getTagTypeOptions(),
+      },
+      field: 'tag',
+      title: $t('system.rental.status.label'),
+      width: 100,
+    },
+    {
+      field: 'address',
+      minWidth: 200,
+      title: $t('system.rental.address'),
+    },
+    {
+      field: 'contact',
+      title: $t('system.rental.contact'),
+      width: 150,
+    },
+    {
+      field: 'createTime',
+      title: $t('system.rental.createTime'),
+      width: 120,
+    },
+    {
+      align: 'center',
+      cellRender: {
+        attrs: {
+          nameField: 'title',
+          nameTitle: $t('system.rental.name'),
+          onClick: onActionClick,
+        },
+        name: 'CellOperation',
+        options: [
+          {
+            code: 'view',
+            text: '查看',
+          },
+          'edit', // 默认的编辑按钮
+          'delete', // 默认的删除按钮
+        ],
+      },
+      field: 'operation',
+      fixed: 'right',
+      title: $t('system.rental.operation'),
+      width: 150,
+    },
+  ];
+}

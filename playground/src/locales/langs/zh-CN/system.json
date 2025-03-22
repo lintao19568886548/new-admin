@@ -50,6 +50,28 @@
     "typeLink": "外链",
     "typeMenu": "菜单"
   },
+  "rental": {
+    "id": "项目ID",
+    "management": "租赁管理",
+    "list": "租赁列表",
+    "name": "租赁",
+    "title": "租赁项目",
+    "price": "价格",
+    "area": "面积",
+    "address": "地址",
+    "contact": "联系方式",
+    "status": {
+      "label": "状态",
+      "vacant": "空闲",
+      "rented": "已租",
+      "maintenance": "维护"
+    },
+    "createTime": "创建时间",
+    "updateTime": "更新时间",
+    "description": "项目描述",
+    "features": "项目特点",
+    "operation": "操作"
+  },
   "role": {
     "title": "角色管理",
     "list": "角色列表",
