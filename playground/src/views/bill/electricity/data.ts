@@ -1,3 +1,7 @@
+import type { Dayjs } from 'dayjs';
+
+import type { Ref } from 'vue';
+
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
@@ -9,19 +13,22 @@ import { z } from '#/adapter/form';
 export interface ElectricityItem {
   actualUsage: number; // 本月实际度数
   amount: number; // 电费金额（元）
-  companyName: string; // 公司名称
   currentMonthReading: number; // 本月电表数
-
   id: number;
+  key: string;
   lastMonthReading: number; // 上月电表数
   monthlyUsage: number; // 本月度数
   multiplier: number; // 倍数
-  // 详情数据
   name: string; // 名称
-  paymentTime: string; // 收款时间
-  projectName: string; // 项目名称
   remark: string; // 备注
   unitPrice: number; // 单价元/度
+}
+
+export interface ElectricityBill {
+  companyName: string; // 公司名称
+  electricityItems: ElectricityItem[]; // 电费项目列表
+  paymentTime: Ref<Dayjs>; // 收款时间
+  projectName: string; // 项目名称
 }
 
 /**
@@ -49,16 +56,8 @@ export function useFormSchema(): VbenFormSchema[] {
     },
     {
       component: 'DatePicker',
-      componentProps: {
-        disabledDate: (current) => {
-          if (!current) return false;
-          // 使用 valueOf() 确保比较的是时间戳
-          return current.valueOf() > Date.now();
-        },
-        format: 'YYYY-MM-DD',
-      },
-      fieldName: 'paymentTime',
-      label: '收款时间',
+      fieldName: 'datePicker',
+      label: '日期选择框',
       rules: 'required',
     },
     {
