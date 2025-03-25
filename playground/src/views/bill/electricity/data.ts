@@ -27,7 +27,9 @@ export interface ElectricityItem {
 export interface ElectricityBill {
   companyName: string; // 公司名称
   electricityItems: ElectricityItem[]; // 电费项目列表
+  id: number;
   paymentTime: Ref<Dayjs>; // 收款时间
+  position: string; // 位置
   projectName: string; // 项目名称
 }
 
@@ -192,13 +194,18 @@ export function useColumns<T = ElectricityItem>(
   return [
     {
       field: 'companyName',
-      minWidth: 160,
+      minWidth: 150,
       title: '公司名称',
     },
     {
       field: 'projectName',
-      minWidth: 160,
+      minWidth: 150,
       title: '项目名称',
+    },
+    {
+      field: 'position',
+      minWidth: 100,
+      title: '位置',
     },
     {
       field: 'paymentTime',
@@ -206,7 +213,7 @@ export function useColumns<T = ElectricityItem>(
         return formatDateTime(cellValue);
       },
       title: '收款时间',
-      width: 120,
+      width: 150,
     },
     {
       align: 'center',
