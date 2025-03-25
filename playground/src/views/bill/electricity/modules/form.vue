@@ -130,7 +130,9 @@ const dataSource = ref<ElectricityItem[]>([
 const billData = ref<ElectricityBill>({
   companyName: '示例公司一',
   electricityItems: dataSource.value,
+  id: 0,
   paymentTime: ref(dayjs()),
+  position: '广东',
   projectName: '项目A',
 });
 
@@ -219,8 +221,10 @@ const updateTotalRowInRealtime = () => {
   const totalRowIndex = dataSource.value.findIndex(
     (item) => item.name === '合计',
   );
-  if (totalRowIndex !== -1) {
-    // 更新现有合计行
+  if (
+    totalRowIndex !== -1 && // 更新现有合计行
+    dataSource.value[totalRowIndex]
+  ) {
     dataSource.value[totalRowIndex].actualUsage = roundedTotalActualUsage;
     dataSource.value[totalRowIndex].amount = totalAmount;
   }
