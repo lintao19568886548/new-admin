@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -24,29 +23,29 @@ export const db = createDatabase(
   }),
 );
 
-// 初始化数据库表
-export async function initDatabase() {
-  // 确保 .data 目录存在
-  console.log('检查数据目录是否存在:', dataDir);
+// // 初始化数据库表
+// export async function initDatabase() {
+//   // 确保 .data 目录存在
+//   console.log('检查数据目录是否存在:', dataDir);
 
-  if (fs.existsSync(dataDir)) {
-    console.log('数据目录已存在');
-  } else {
-    console.log('数据目录不存在，正在创建...');
-    fs.mkdirSync(dataDir, { recursive: true });
-    console.log('数据目录创建成功');
-  }
+//   if (fs.existsSync(dataDir)) {
+//     console.log('数据目录已存在');
+//   } else {
+//     console.log('数据目录不存在，正在创建...');
+//     fs.mkdirSync(dataDir, { recursive: true });
+//     console.log('数据目录创建成功');
+//   }
 
-  // 创建用户表示例
-  console.log('开始创建用户表...');
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT NOT NULL UNIQUE,
-      email TEXT NOT NULL UNIQUE,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+//   // 创建用户表示例
+//   console.log('开始创建用户表...');
+//   await db.exec(`
+//     CREATE TABLE IF NOT EXISTS users (
+//       id INTEGER PRIMARY KEY AUTOINCREMENT,
+//       username TEXT NOT NULL UNIQUE,
+//       email TEXT NOT NULL UNIQUE,
+//       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+//     )
+//   `);
 
-  console.log('数据库初始化完成');
-}
+//   console.log('数据库初始化完成');
+// }

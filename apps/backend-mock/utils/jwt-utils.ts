@@ -25,7 +25,7 @@ export function generateRefreshToken(user: UserInfo) {
 
 export function verifyAccessToken(
   event: H3Event<EventHandlerRequest>,
-): null | Omit<UserInfo, 'password'> {
+): null | Promise<Omit<UserInfo, 'password'>> {
   const authHeader = getHeader(event, 'Authorization');
   if (!authHeader?.startsWith('Bearer')) {
     return null;
@@ -36,9 +36,26 @@ export function verifyAccessToken(
     const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET) as UserPayload;
 
     const username = decoded.username;
-    const user = MOCK_USERS.find((item) => item.username === username);
-    const { password: _pwd, ...userinfo } = user;
-    return userinfo;
+    // 使用数据库查询替代硬编码的用户查找
+    return db.sql`
+      SELECT * FROM users 
+      WHERE username = ${username}
+      LIMIT 1
+    `.then((result) => {
+      const user = result.rows?.[0];
+      if (!user) return null;
+
+      // 转换为 UserInfo 类型并排除密码
+      const userInfo: Omit<UserInfo, 'password'> = {
+        id: Number(user.id),
+        username: String(user.username),
+        realName: String(user.realName),
+        roles: Array.isArray(user.roles) ? user.roles : [String(user.roles)],
+        homePath: user.homePath ? String(user.homePath) : undefined,
+      };
+
+      return userInfo;
+    });
   } catch {
     return null;
   }
@@ -46,13 +63,31 @@ export function verifyAccessToken(
 
 export function verifyRefreshToken(
   token: string,
-): null | Omit<UserInfo, 'password'> {
+): null | Promise<Omit<UserInfo, 'password'>> {
   try {
     const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET) as UserPayload;
     const username = decoded.username;
-    const user = MOCK_USERS.find((item) => item.username === username);
-    const { password: _pwd, ...userinfo } = user;
-    return userinfo;
+
+    // 使用数据库查询替代硬编码的用户查找
+    return db.sql`
+      SELECT * FROM users 
+      WHERE username = ${username}
+      LIMIT 1
+    `.then((result) => {
+      const user = result.rows?.[0];
+      if (!user) return null;
+
+      // 转换为 UserInfo 类型并排除密码
+      const userInfo: Omit<UserInfo, 'password'> = {
+        id: Number(user.id),
+        username: String(user.username),
+        realName: String(user.realName),
+        roles: Array.isArray(user.roles) ? user.roles : [String(user.roles)],
+        homePath: user.homePath ? String(user.homePath) : undefined,
+      };
+
+      return userInfo;
+    });
   } catch {
     return null;
   }

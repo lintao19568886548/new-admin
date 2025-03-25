@@ -1,9 +1,9 @@
-import { initDatabase } from '../../utils/db';
+// import { initDatabase } from '../../utils/db';
 import { useResponseError, useResponseSuccess } from '../../utils/response';
 
 export default defineEventHandler(async () => {
   try {
-    await initDatabase();
+    // await initDatabase();
     return useResponseSuccess({
       message: '数据库初始化成功',
     });

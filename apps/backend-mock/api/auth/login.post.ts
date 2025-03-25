@@ -15,14 +15,29 @@ export default defineEventHandler(async (event) => {
     );
   }
 
-  const findUser = MOCK_USERS.find(
-    (item) => item.username === username && item.password === password,
-  );
+  // 使用数据库查询替代硬编码的用户查找
+  const userResult = await db.sql`
+    SELECT * FROM users 
+    WHERE username = ${username} AND password = ${password}
+    LIMIT 1
+  `.then((result) => result.rows?.[0] || null);
 
-  if (!findUser) {
+  if (!userResult) {
     clearRefreshTokenCookie(event);
     return forbiddenResponse(event, 'Username or password is incorrect.');
   }
+
+  // 将数据库结果转换为 UserInfo 类型
+  const findUser: UserInfo = {
+    id: Number(userResult.id),
+    username: String(userResult.username),
+    password: String(userResult.password),
+    realName: String(userResult.realName),
+    roles: Array.isArray(userResult.roles)
+      ? userResult.roles
+      : [String(userResult.roles)],
+    homePath: userResult.homePath ? String(userResult.homePath) : undefined,
+  };
 
   const accessToken = generateAccessToken(findUser);
   const refreshToken = generateRefreshToken(findUser);
