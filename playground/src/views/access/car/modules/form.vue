@@ -11,7 +11,7 @@ import { useVbenForm } from '#/adapter/form';
 import { createDept, updateDept } from '#/api/system/dept';
 import { $t } from '#/locales';
 
-import { useSchema } from '../data';
+import { useFormSchema } from '../data';
 
 const emit = defineEmits(['success']);
 const formData = ref<SystemDeptApi.SystemDept>();
@@ -23,7 +23,7 @@ const getTitle = computed(() => {
 
 const [Form, formApi] = useVbenForm({
   layout: 'vertical',
-  schema: useSchema(),
+  schema: useFormSchema(),
   showDefaultActions: false,
 });
 
