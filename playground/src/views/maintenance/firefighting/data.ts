@@ -41,43 +41,70 @@ export function useFormSchema(): VbenFormSchema[] {
       rules: 'required',
     },
     {
-      component: 'Input',
-      fieldName: 'price',
-      label: $t('system.rental.price'),
-      rules: 'required',
-    },
-    {
-      component: 'Input',
-      fieldName: 'area',
-      label: $t('system.rental.area'),
-      rules: 'required',
-    },
-    {
-      component: 'Input',
-      fieldName: 'address',
-      label: $t('system.rental.address'),
-      rules: 'required',
-    },
-    {
-      component: 'Input',
-      fieldName: 'contact',
-      label: $t('system.rental.contact'),
-      rules: 'required',
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        filterOptions: true,
+        options: [
+          { label: '东莞', value: '正常' },
+          { label: '深圳', value: '异常' },
+          { label: '广州', value: '维护中' },
+        ],
+      },
+      fieldName: 'adress',
+      label: '地址',
     },
     {
       component: 'RadioGroup',
       componentProps: {
         buttonStyle: 'solid',
         options: [
-          { label: $t('system.rental.status.vacant'), value: '空闲' },
-          { label: $t('system.rental.status.rented'), value: '已租' },
-          { label: $t('system.rental.status.maintenance'), value: '维护' },
+          { label: '正常', value: '正常' },
+          { label: '异常', value: '异常' },
+          { label: '维护中', value: '维护中' },
         ],
         optionType: 'button',
       },
       defaultValue: '空闲',
-      fieldName: 'tag',
+      fieldName: 'firestatus',
+      label: '灭火器检查',
+    },
+    {
+      component: 'RadioGroup',
+      componentProps: {
+        buttonStyle: 'solid',
+        options: [
+          { label: '正常', value: '正常' },
+          { label: '异常', value: '异常' },
+          { label: '维护中', value: '维护中' },
+        ],
+        optionType: 'button',
+      },
+      defaultValue: '空闲',
+      fieldName: 'safetychanneltag',
+      label: '安全通道检查',
+    },
+
+    {
+      component: 'RadioGroup',
+      componentProps: {
+        buttonStyle: 'solid',
+        options: [
+          { label: '正常', value: '正常' },
+          { label: '异常', value: '异常' },
+          { label: '维护中', value: '维护中' },
+        ],
+        optionType: 'button',
+      },
+      defaultValue: '空闲',
+      fieldName: 'passagewaytag',
       label: $t('system.rental.status.label'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'contact',
+      label: $t('system.rental.contact'),
+      rules: 'required',
     },
     {
       component: 'Textarea',
@@ -105,6 +132,9 @@ export function useFormSchema(): VbenFormSchema[] {
 /**
  * 获取表格查询表单配置
  */
+/**
+ * 获取表格查询表单配置
+ */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
@@ -117,16 +147,43 @@ export function useGridFormSchema(): VbenFormSchema[] {
       componentProps: {
         allowClear: true,
         options: [
-          { label: $t('system.rental.status.vacant'), value: '空闲' },
-          { label: $t('system.rental.status.rented'), value: '已租' },
-          { label: $t('system.rental.status.maintenance'), value: '维护' },
+          { label: '正常', value: '正常' },
+          { label: '异常', value: '异常' },
+          { label: '维护中', value: '维护中' },
         ],
       },
-      fieldName: 'tag',
+      fieldName: 'firestatus',
+      label: '灭火器检查',
+    },
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        filterOptions: true,
+        options: [
+          { label: '正常', value: '正常' },
+          { label: '异常', value: '异常' },
+          { label: '维护中', value: '维护中' },
+        ],
+      },
+      fieldName: 'safetychanneltag',
+      label: '安全通道检查',
+    },
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        options: [
+          { label: '正常', value: '正常' },
+          { label: '异常', value: '异常' },
+          { label: '维护中', value: '维护中' },
+        ],
+      },
+      fieldName: 'passagewaytag',
       label: $t('system.rental.status.label'),
     },
     {
-      component: 'Input',
+      component: 'Select',
       fieldName: 'address',
       label: $t('system.rental.address'),
     },
@@ -151,23 +208,43 @@ export function useColumns<T = RentalManagementItem>(
       width: 150,
     },
     {
-      field: 'price',
-      title: $t('system.rental.price'),
-      width: 120,
-    },
-    {
-      field: 'area',
-      title: $t('system.rental.area'),
+      cellRender: {
+        name: 'CellTag',
+        options: [
+          { color: 'green', label: '正常', value: '正常' },
+          { color: 'red', label: '异常', value: '异常' },
+          { color: 'processing', label: '维护中', value: '维护中' },
+        ],
+      },
+      field: 'firestatus',
+      title: '灭火器检查',
       width: 120,
     },
     {
       cellRender: {
         name: 'CellTag',
-        options: getTagTypeOptions(),
+        options: [
+          { color: 'green', label: '正常', value: '正常' },
+          { color: 'red', label: '异常', value: '异常' },
+          { color: 'processing', label: '维护中', value: '维护中' },
+        ],
       },
-      field: 'tag',
+      field: 'safetychanneltag',
+      title: '安全通道检查',
+      width: 120,
+    },
+    {
+      cellRender: {
+        name: 'CellTag',
+        options: [
+          { color: 'green', label: '正常', value: '正常' },
+          { color: 'red', label: '异常', value: '异常' },
+          { color: 'processing', label: '维护中', value: '维护中' },
+        ],
+      },
+      field: 'passagewaytag',
       title: $t('system.rental.status.label'),
-      width: 100,
+      width: 120,
     },
     {
       field: 'address',

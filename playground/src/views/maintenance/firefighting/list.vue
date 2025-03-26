@@ -93,10 +93,10 @@ function onActionClick({
 // 模拟的数据
 const rentalItems = [
   {
-    address: '北京市朝阳区建国路88号',
-    area: '120平方米',
+    address: '北京市朝阳区建国路888888号',
     contact: '张先生 13800138000',
     createTime: '2021-04-01',
+    firestatus: '',
     id: 1,
     price: '2000元/月',
     tag: '空闲',

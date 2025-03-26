@@ -56,12 +56,16 @@
     "list": "租赁列表",
     "name": "租赁",
     "title": "租赁项目",
-    "price": "价格",
+    "price": "月租金",
     "area": "面积",
+    "floor": "楼层",
+    "type": "类型",
+    "firestatus": "灭火器检查",
+    "safetychanneltag": "安全通道检查",
     "address": "地址",
     "contact": "联系方式",
     "status": {
-      "label": "状态",
+      "label": "楼道、墙体检查",
       "vacant": "空闲",
       "rented": "已租",
       "maintenance": "维护"
