@@ -55,6 +55,7 @@ export function useFormSchema(): VbenFormSchema[] {
         placeholder: '请选择登记时间',
         showTime: true,
         style: { width: '100%' },
+        valueFormat: 'YYYY-MM-DD HH:mm:ss', // 使用valueFormat指定输出格式
       },
       fieldName: 'registerTime',
       label: '登记时间',
@@ -122,6 +123,11 @@ export function useGridFormSchema(): VbenFormSchema[] {
     },
     {
       component: 'RangePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD',
+        placeholder: ['开始日期', '结束日期'],
+        valueFormat: 'YYYY-MM-DD', // 使用valueFormat指定输出格式
+      },
       fieldName: 'registerTime',
       label: '登记时间',
     },
@@ -139,13 +145,13 @@ export function useColumns<T = SystemDeptApi.SystemDept>(
   return [
     {
       align: 'center',
-      field: 'visitorName', // 从 carNumber 改为 visitorName
+      field: 'visitorName',
       fixed: 'left',
       title: '姓名',
       width: 150,
     },
     {
-      field: 'phoneNumber', // 从 accessStatus 改为 phoneNumber
+      field: 'phoneNumber',
       title: '手机号',
       width: 150,
     },
@@ -164,14 +170,14 @@ export function useColumns<T = SystemDeptApi.SystemDept>(
       width: 180,
     },
     {
-      field: 'visitReason', // 从 remark 改为 visitReason
+      field: 'visitReason',
       title: '来访原因',
     },
     {
       align: 'center',
       cellRender: {
         attrs: {
-          nameField: 'visitorName', // 从 name 改为 visitorName
+          nameField: 'visitorName',
           nameTitle: '姓名',
           onClick: onActionClick,
         },
@@ -181,8 +187,8 @@ export function useColumns<T = SystemDeptApi.SystemDept>(
             code: 'view',
             text: '查看',
           },
-          'edit', // 默认的编辑按钮
-          'delete', // 默认的删除按钮
+          'edit',
+          'delete',
         ],
       },
       field: 'operation',
