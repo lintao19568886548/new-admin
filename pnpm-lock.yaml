@@ -632,7 +632,7 @@ importers:
         specifier: 'catalog:'
         version: 9.0.2
       nitropack:
-        specifier: 'catalog:'
+        specifier: latest
         version: 2.11.7(better-sqlite3@11.9.1)(encoding@0.1.13)(typescript@5.8.2)
     devDependencies:
       '@types/jsonwebtoken':

@@ -14,7 +14,7 @@
     "better-sqlite3": "^11.9.1",
     "db0": "^0.3.1",
     "jsonwebtoken": "catalog:",
-    "nitropack": "catalog:"
+    "nitropack": "latest"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "catalog:",

@@ -4,13 +4,33 @@ import { $t } from '#/locales';
 
 const routes: RouteRecordRaw[] = [
   {
-    component: () => import('#/views/access/manage/list.vue'),
     meta: {
-      icon: 'lucide:copyright',
+      icon: 'lucide:key-square',
+      order: 1000,
       title: $t('page.access.title'),
     },
-    name: 'AccessManage',
-    path: '/access/manage',
+    name: 'Access',
+    path: '/access',
+    children: [
+      {
+        name: 'CarAccess',
+        path: '/access/car',
+        component: () => import('#/views/access/car/list.vue'),
+        meta: {
+          icon: 'carbon:car',
+          title: '车辆出入管理',
+        },
+      },
+      {
+        name: 'VisitorAccess',
+        path: '/access/visitor',
+        component: () => import('#/views/access/visitor/list.vue'),
+        meta: {
+          icon: 'carbon:user-profile',
+          title: '访客管理',
+        },
+      },
+    ],
   },
 ];
 

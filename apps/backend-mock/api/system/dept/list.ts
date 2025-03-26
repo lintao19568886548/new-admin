@@ -20,8 +20,14 @@ function generateMockDataList(count: number) {
       id: faker.string.uuid(),
       pid: 0,
       name: faker.commerce.department(),
+      carNumber: faker.vehicle.vrm(), // 添加车牌号字段
       status: faker.helpers.arrayElement([0, 1]),
+      accessStatus: faker.helpers.arrayElement([0, 1]), // 添加出入状态字段
       createTime: formatterCN.format(
+        faker.date.between({ from: '2021-01-01', to: '2022-12-31' }),
+      ),
+      registerTime: formatterCN.format(
+        // 添加登记时间字段
         faker.date.between({ from: '2021-01-01', to: '2022-12-31' }),
       ),
       remark: faker.lorem.sentence(),
@@ -33,8 +39,14 @@ function generateMockDataList(count: number) {
           id: faker.string.uuid(),
           pid: dataItem.id,
           name: faker.commerce.department(),
+          carNumber: faker.vehicle.vrm(), // 添加车牌号字段
           status: faker.helpers.arrayElement([0, 1]),
+          accessStatus: faker.helpers.arrayElement([0, 1]), // 添加出入状态字段
           createTime: formatterCN.format(
+            faker.date.between({ from: '2023-01-01', to: '2023-12-31' }),
+          ),
+          registerTime: formatterCN.format(
+            // 添加登记时间字段
             faker.date.between({ from: '2023-01-01', to: '2023-12-31' }),
           ),
           remark: faker.lorem.sentence(),

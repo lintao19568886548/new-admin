@@ -1,14 +1,47 @@
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import { unAuthorizedResponse } from '~/utils/response';
 
-export default eventHandler((event) => {
-  const userinfo = verifyAccessToken(event);
+export default eventHandler(async (event) => {
+  const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
 
-  const codes =
-    MOCK_CODES.find((item) => item.username === userinfo.username)?.codes ?? [];
+  // 使用用户ID从user_code表中查询权限码
+  const codeResult = await db.sql`
+    SELECT code FROM user_code 
+    WHERE id = ${userinfo.id}
+    LIMIT 1
+  `.then((result) => result.rows?.[0]?.code || '[]');
+
+  // 添加日志查看数据类型和内容
+  console.log('codeResult type:', typeof codeResult);
+  console.log('codeResult value:', codeResult);
+
+  // 将字符串形式的权限码转换为数组
+  let codes = [];
+  if (typeof codeResult === 'string') {
+    try {
+      codes = JSON.parse(codeResult);
+    } catch (error) {
+      console.error('JSON解析错误:', error);
+      console.log('尝试解析的字符串:', codeResult);
+
+      // 尝试处理可能的特殊格式
+      if (codeResult.startsWith('[') && codeResult.includes(',')) {
+        // 可能是带单引号而不是双引号的数组字符串
+        try {
+          // 将单引号替换为双引号
+          const fixedString = codeResult.replaceAll("'", '"');
+          codes = JSON.parse(fixedString);
+        } catch (error_) {
+          console.error('修复后仍然解析失败:', error_);
+        }
+      }
+    }
+  } else if (Array.isArray(codeResult)) {
+    codes = codeResult;
+  }
 
   return useResponseSuccess(codes);
 });
