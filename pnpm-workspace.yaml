@@ -178,10 +178,10 @@ catalog:
   vue-i18n: ^11.1.2
   vue-json-viewer: ^3.0.4
   vue-router: ^4.5.0
-  vue-tippy: ^6.7.0
-  vue-tsc: 2.2.8
-  vxe-pc-ui: ^4.4.21
-  vxe-table: 4.11.28
+  vue-tippy: ^6.6.0
+  vue-tsc: 2.1.10
+  vxe-pc-ui: ^4.4.8
+  vxe-table: 4.10.0
   watermark-js-plus: ^1.5.8
   zod: ^3.24.2
   zod-defaults: ^0.1.3

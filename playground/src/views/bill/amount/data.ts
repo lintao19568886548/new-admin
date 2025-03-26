@@ -12,6 +12,40 @@ import { formatDateTime } from '@vben/utils';
 
 import { z } from '#/adapter/form';
 
+/**
+ * 总账单项目接口
+ */
+export interface BillSummaryItem {
+  amount: number; // 金额（元）
+  id: number;
+  key: string;
+  name: string; // 名称
+  remark: string; // 备注
+}
+
+/**
+ * 总账单接口
+ */
+export interface BillSummary {
+  billMonth: string; // 账单月份，格式如：2023-05
+  companyName: string; // 公司名称
+  electricityBillId?: number; // 电费账单ID
+  electricityItems?: any[]; // 电费项目（详情用）
+  electricityTotal: number; // 电费合计
+  factoryRent: number; // 厂房租金
+  id: number;
+  invoiceTax: number; // 开票税金
+  managementFee: number; // 基本管理费
+  otherItems?: BillSummaryItem[]; // 其他费用项目
+  paymentTime: Ref<Dayjs>; // 收款时间
+  projectName: string; // 项目名称
+  serviceFee: number; // 服务费
+  totalAmount: number; // 本月收费金额合计
+  waterBillId?: number; // 水费账单ID
+  waterItems?: any[]; // 水费项目（详情用）
+  waterTotal: number; // 水费合计
+}
+
 // 修改为新的数据接口
 export interface ElectricityItem {
   actualUsage: number; // 本月实际度数
@@ -35,6 +69,34 @@ export interface ElectricityBill {
   position: string; // 位置
   projectName: string; // 项目名称
 }
+
+/**
+ * 总账单详情配置
+ */
+export const summaryDetailConfig: BillDetailConfig = {
+  amountLabel: '金额',
+  defaultItemName: '电费',
+  defaultSubItemName: '水费',
+  modalClass: 'summary-bill-detail-modal max-w-[90%] w-auto',
+  modalTitle: '账单详情',
+  readingLabel: '读数',
+  unitLabel: '单位',
+  usageLabel: '用量',
+  itemsField: 'items',
+};
+
+/**
+ * 总账单表单配置
+ */
+export const summaryFormConfig: BillFormConfig = {
+  amountLabel: '金额',
+  modalClass: 'summary-bill-form-modal max-w-[90%] w-auto',
+  modalTitle: '账单表单',
+  readingLabel: '读数',
+  unitLabel: '单位',
+  usageLabel: '用量',
+  itemsField: 'otherItems',
+};
 
 /**
  * 电费账单详情配置
@@ -62,6 +124,34 @@ export const electricityFormConfig: BillFormConfig = {
   unitLabel: '度',
   usageLabel: '度数',
   itemsField: 'electricityItems',
+};
+
+/**
+ * 水费账单详情配置
+ */
+export const waterDetailConfig: BillDetailConfig = {
+  amountLabel: '水费金额',
+  defaultItemName: '主楼水费',
+  defaultSubItemName: '附楼水费',
+  modalClass: 'water-bill-detail-modal max-w-[90%] w-auto',
+  modalTitle: '水费账单详情',
+  readingLabel: '水表数',
+  unitLabel: '吨',
+  usageLabel: '用量',
+  itemsField: 'waterItems',
+};
+
+/**
+ * 水费账单表单配置
+ */
+export const waterFormConfig: BillFormConfig = {
+  amountLabel: '水费金额',
+  modalClass: 'water-bill-form-modal max-w-[90%] w-auto',
+  modalTitle: '水费账单表单',
+  readingLabel: '水表数',
+  unitLabel: '吨',
+  usageLabel: '用量',
+  itemsField: 'waterItems',
 };
 
 /**
@@ -219,10 +309,15 @@ export function useGridFormSchema(): VbenFormSchema[] {
 /**
  * 获取表格列配置
  */
-export function useColumns<T = ElectricityItem>(
+export function useColumns<T = BillSummary>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
   return [
+    {
+      field: 'billMonth',
+      minWidth: 120,
+      title: '账单月份',
+    },
     {
       field: 'companyName',
       minWidth: 150,
@@ -234,9 +329,60 @@ export function useColumns<T = ElectricityItem>(
       title: '项目名称',
     },
     {
-      field: 'position',
-      minWidth: 100,
-      title: '位置',
+      field: 'electricityTotal',
+      formatter: ({ cellValue }) => {
+        return `${cellValue.toFixed(2)} 元`;
+      },
+      minWidth: 120,
+      title: '电费合计',
+    },
+    {
+      field: 'waterTotal',
+      formatter: ({ cellValue }) => {
+        return `${cellValue.toFixed(2)} 元`;
+      },
+      minWidth: 120,
+      title: '水费合计',
+    },
+    {
+      field: 'factoryRent',
+      formatter: ({ cellValue }) => {
+        return `${cellValue.toFixed(2)} 元`;
+      },
+      minWidth: 120,
+      title: '厂房租金',
+    },
+    {
+      field: 'managementFee',
+      formatter: ({ cellValue }) => {
+        return `${cellValue.toFixed(2)} 元`;
+      },
+      minWidth: 120,
+      title: '基本管理费',
+    },
+    {
+      field: 'serviceFee',
+      formatter: ({ cellValue }) => {
+        return `${cellValue.toFixed(2)} 元`;
+      },
+      minWidth: 120,
+      title: '服务费',
+    },
+    {
+      field: 'invoiceTax',
+      formatter: ({ cellValue }) => {
+        return `${cellValue.toFixed(2)} 元`;
+      },
+      minWidth: 120,
+      title: '开票税金',
+    },
+    {
+      field: 'totalAmount',
+      formatter: ({ cellValue }) => {
+        return `${cellValue.toFixed(2)} 元`;
+      },
+      minWidth: 140,
+      title: '本月收费金额合计',
     },
     {
       field: 'paymentTime',
@@ -251,7 +397,7 @@ export function useColumns<T = ElectricityItem>(
       cellRender: {
         attrs: {
           nameField: 'companyName',
-          nameTitle: '电费账单',
+          nameTitle: '总账单',
           onClick: onActionClick,
         },
         name: 'CellOperation',
