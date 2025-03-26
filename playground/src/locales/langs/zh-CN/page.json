@@ -61,5 +61,8 @@
     "view": "查看维修",
     "transformer": "变压器管理",
     "firefighting": "消防管理"
+  },
+  "tools": {
+    "title": "应用工具"
   }
 }
