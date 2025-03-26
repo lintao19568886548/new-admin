@@ -5,7 +5,6 @@ import type { OnActionClickFn } from '#/adapter/vxe-table';
 import type { SystemDeptApi } from '#/api/system/dept';
 
 import { z } from '#/adapter/form';
-import { getDeptList } from '#/api/system/dept';
 import { $t } from '#/locales';
 
 /**
@@ -15,42 +14,37 @@ export function useSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'name',
-      label: $t('system.dept.deptName'),
+      fieldName: 'carNumber',
+      label: '车牌号',
       rules: z
         .string()
-        .min(2, $t('ui.formRules.minLength', [$t('system.dept.deptName'), 2]))
-        .max(
-          20,
-          $t('ui.formRules.maxLength', [$t('system.dept.deptName'), 20]),
-        ),
+        .min(2, $t('ui.formRules.minLength', ['车牌号', 2]))
+        .max(20, $t('ui.formRules.maxLength', ['车牌号', 20])),
     },
     {
-      component: 'ApiTreeSelect',
+      component: 'DatePicker',
       componentProps: {
-        allowClear: true,
-        api: getDeptList,
-        class: 'w-full',
-        labelField: 'name',
-        valueField: 'id',
-        childrenField: 'children',
+        format: 'YYYY-MM-DD HH:mm:ss',
+        placeholder: '请选择登记时间',
+        showTime: true,
+        style: { width: '100%' },
       },
-      fieldName: 'pid',
-      label: $t('system.dept.parentDept'),
+      fieldName: 'registerTime',
+      label: '登记时间',
     },
     {
       component: 'RadioGroup',
       componentProps: {
         buttonStyle: 'solid',
         options: [
-          { label: $t('common.enabled'), value: 1 },
-          { label: $t('common.disabled'), value: 0 },
+          { label: '进入', value: 1 },
+          { label: '离开', value: 0 },
         ],
         optionType: 'button',
       },
       defaultValue: 1,
-      fieldName: 'status',
-      label: $t('system.dept.status'),
+      fieldName: 'accessStatus',
+      label: '出入状态',
     },
     {
       component: 'Textarea',
@@ -79,22 +73,22 @@ export function useColumns(
 ): VxeTableGridOptions<SystemDeptApi.SystemDept>['columns'] {
   return [
     {
-      align: 'left',
-      field: 'name',
+      align: 'center',
+      field: 'carNumber', // 从 name 改为 carNumber
       fixed: 'left',
-      title: $t('system.dept.deptName'),
+      title: '车牌号',
       treeNode: true,
       width: 150,
     },
     {
       cellRender: { name: 'CellTag' },
-      field: 'status',
-      title: $t('system.dept.status'),
+      field: 'accessStatus', // 从 status 改为 accessStatus
+      title: '出入状态',
       width: 100,
     },
     {
-      field: 'createTime',
-      title: $t('system.dept.createTime'),
+      field: 'registerTime', // 从 createTime 改为 registerTime
+      title: '登记时间',
       width: 180,
     },
     {
@@ -102,7 +96,7 @@ export function useColumns(
       title: $t('system.dept.remark'),
     },
     {
-      align: 'right',
+      align: 'center',
       cellRender: {
         attrs: {
           nameField: 'name',
@@ -111,10 +105,6 @@ export function useColumns(
         },
         name: 'CellOperation',
         options: [
-          {
-            code: 'append',
-            text: '新增下级',
-          },
           'edit', // 默认的编辑按钮
           {
             code: 'delete', // 默认的删除按钮

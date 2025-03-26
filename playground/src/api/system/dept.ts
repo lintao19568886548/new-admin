@@ -3,9 +3,12 @@ import { requestClient } from '#/api/request';
 export namespace SystemDeptApi {
   export interface SystemDept {
     [key: string]: any;
-    children?: SystemDept[];
+    accessStatus?: 0 | 1; // 添加出入状态字段
+    carNumber?: string; // 添加车牌号字段
+    createTime?: string;
     id: string;
     name: string;
+    registerTime?: string; // 添加登记时间字段
     remark?: string;
     status: 0 | 1;
   }
