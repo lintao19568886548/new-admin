@@ -131,11 +131,11 @@ function refreshGrid() {
 <template>
   <Page auto-content-height>
     <FormModal @success="refreshGrid" />
-    <Grid table-title="部门列表">
+    <Grid table-title="出入信息列表">
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">
           <Plus class="size-5" />
-          {{ $t('ui.actionTitle.create', [$t('system.dept.name')]) }}
+          {{ $t('ui.actionTitle.create', [$t('记录')]) }}
         </Button>
       </template>
     </Grid>
