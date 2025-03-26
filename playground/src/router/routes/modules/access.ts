@@ -5,7 +5,7 @@ import { $t } from '#/locales';
 const routes: RouteRecordRaw[] = [
   {
     meta: {
-      icon: 'lucide:copyright',
+      icon: 'lucide:key-square',
       order: 1000,
       title: $t('page.access.title'),
     },
