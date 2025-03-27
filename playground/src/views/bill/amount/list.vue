@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { WaterBill } from './data';
+import type { BillSummary } from './data';
 
 import type {
   OnActionClickParams,
@@ -17,16 +17,18 @@ import dayjs, { Dayjs } from 'dayjs';
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
 
-import BillDetail from '../modules/BillDetail.vue';
-import BillForm from '../modules/BillForm.vue';
+import MultipageBillDetail from '../modules/MultipageBillDetail.vue';
+import MultipageBillForm from '../modules/MultipageBillForm.vue';
 import {
+  electricityFormConfig,
+  summaryDetailConfig,
+  summaryFormConfig,
   useColumns,
   useGridFormSchema,
-  waterDetailConfig,
   waterFormConfig,
 } from './data';
 
-// 添加Area接口定义
+// 区域定义
 interface Area {
   key: string;
   name: string;
@@ -51,8 +53,16 @@ const billFormRef = ref();
 // 账单详情组件引用
 const billDetailRef = ref();
 
-// 当前选中的账单数据
-const currentBill = ref<null | WaterBill>(null);
+// 配置对象，用于传递给组件
+const detailConfig = {
+  ...summaryDetailConfig,
+};
+
+const formConfig = {
+  ...summaryFormConfig,
+  electricityConfig: electricityFormConfig,
+  waterConfig: waterFormConfig,
+};
 
 /**
  * 切换区域
@@ -77,33 +87,42 @@ function switchArea(area: Area) {
 }
 
 /**
- * 编辑水费账单
+ * 编辑账单
  * @param row
  */
-function onEdit(row: WaterBill) {
+function onEdit(row: BillSummary) {
   billFormRef.value?.open(row);
 }
 
 /**
- * 创建新水费账单
+ * 创建新账单
  */
 function onCreate() {
-  const newBill: WaterBill = {
+  const newBill: BillSummary = {
+    billMonth: dayjs().format('YYYY-MM'),
     companyName: '',
+    electricityItems: [],
+    electricityTotal: 0,
+    factoryRent: 0,
     id: 0,
+    invoiceTax: 0,
+    managementFee: 0,
+    otherItems: [],
     paymentTime: ref<Dayjs>(dayjs()),
-    position: '',
     projectName: '',
+    serviceFee: 0,
+    totalAmount: 0,
     waterItems: [],
+    waterTotal: 0,
   };
   billFormRef.value?.open(newBill);
 }
 
 /**
- * 删除水费账单
+ * 删除账单
  * @param row
  */
-function onDelete(row: WaterBill) {
+function onDelete(row: BillSummary) {
   message.loading({
     content: $t('ui.actionMessage.deleting', [row.companyName]),
     duration: 0,
@@ -121,18 +140,17 @@ function onDelete(row: WaterBill) {
 }
 
 /**
- * 查看水费账单详情
+ * 查看账单详情
  * @param row
  */
-function onView(row: WaterBill) {
-  currentBill.value = row;
+function onView(row: BillSummary) {
   billDetailRef.value?.open(row);
 }
 
 /**
  * 表格操作按钮的回调函数
  */
-function onActionClick({ code, row }: OnActionClickParams<WaterBill>) {
+function onActionClick({ code, row }: OnActionClickParams<BillSummary>) {
   switch (code) {
     case 'delete': {
       onDelete(row);
@@ -150,14 +168,12 @@ function onActionClick({ code, row }: OnActionClickParams<WaterBill>) {
 }
 
 // 模拟的数据
-const waterBills: WaterBill[] = [
+const billSummaries: BillSummary[] = [
   {
+    billMonth: '2023-05',
     companyName: '示例公司一',
-    id: 0,
-    paymentTime: ref<Dayjs>(dayjs('2023-05-01')),
-    position: '东莞',
-    projectName: '项目A',
-    waterItems: [
+    electricityBillId: 1,
+    electricityItems: [
       {
         actualUsage: 500,
         amount: 490,
@@ -167,7 +183,7 @@ const waterBills: WaterBill[] = [
         lastMonthReading: 5000,
         monthlyUsage: 500,
         multiplier: 1,
-        name: '主楼水费',
+        name: '主楼电费',
         remark: '正常缴费',
         unitPrice: 0.98,
       },
@@ -180,19 +196,56 @@ const waterBills: WaterBill[] = [
         lastMonthReading: 3000,
         monthlyUsage: 300,
         multiplier: 1,
-        name: '附楼水费',
+        name: '附楼电费',
         remark: '新增区域',
         unitPrice: 0.95,
       },
+      {
+        actualUsage: 800,
+        amount: 775,
+        currentMonthReading: 0,
+        id: 3,
+        key: '3',
+        lastMonthReading: 0,
+        monthlyUsage: 0,
+        multiplier: 0,
+        name: '合计',
+        remark: '',
+        unitPrice: 0,
+      },
     ],
+    electricityTotal: 980,
+    factoryRent: 12_000,
+    id: 1,
+    invoiceTax: 680,
+    managementFee: 2000,
+    paymentTime: ref<Dayjs>(dayjs('2023-05-15')),
+    projectName: '项目A',
+    serviceFee: 1500,
+    totalAmount: 17_445,
+    waterBillId: 1,
+    waterItems: [
+      {
+        actualUsage: 150,
+        amount: 285,
+        currentMonthReading: 850,
+        id: 1,
+        key: '1',
+        lastMonthReading: 700,
+        monthlyUsage: 150,
+        multiplier: 1,
+        name: '主楼水费',
+        remark: '正常缴费',
+        unitPrice: 1.9,
+      },
+    ],
+    waterTotal: 285,
   },
   {
+    billMonth: '2023-06',
     companyName: '示例公司二',
-    id: 0,
-    paymentTime: ref<Dayjs>(dayjs('2023-05-02')),
-    position: '广州',
-    projectName: '项目B',
-    waterItems: [
+    electricityBillId: 2,
+    electricityItems: [
       {
         actualUsage: 1000,
         amount: 950,
@@ -202,11 +255,37 @@ const waterBills: WaterBill[] = [
         lastMonthReading: 2300,
         monthlyUsage: 500,
         multiplier: 2,
-        name: '主楼水费',
+        name: '主楼电费',
         remark: '双倍计费',
         unitPrice: 0.95,
       },
     ],
+    electricityTotal: 1250,
+    factoryRent: 15_000,
+    id: 2,
+    invoiceTax: 750,
+    managementFee: 2200,
+    paymentTime: ref<Dayjs>(dayjs('2023-06-15')),
+    projectName: '项目B',
+    serviceFee: 1800,
+    totalAmount: 21_540,
+    waterBillId: 2,
+    waterItems: [
+      {
+        actualUsage: 300,
+        amount: 540,
+        currentMonthReading: 1200,
+        id: 2,
+        key: '1',
+        lastMonthReading: 900,
+        monthlyUsage: 300,
+        multiplier: 1,
+        name: '主楼水费',
+        remark: '水价上调',
+        unitPrice: 1.8,
+      },
+    ],
+    waterTotal: 540,
   },
 ];
 
@@ -227,16 +306,11 @@ const [Grid, gridApi] = useVbenVxeGrid({
         query: async () => {
           // 模拟API请求返回数据
           // 根据当前选中的区域筛选数据
-          let filteredData = [...waterBills];
+          let filteredData = [...billSummaries];
 
-          // 如果不是"全部区域"，则根据position进行筛选
+          // 如果不是"全部区域"，则按照一些规则进行筛选
           if (currentArea.value.key !== 'all') {
-            // 对于演示，我们使用区域名称来匹配position字段
-            // 实际应用中可能需要更复杂的匹配逻辑
-            const areaName = currentArea.value.name;
-            filteredData = waterBills.filter(
-              (bill) => bill.position === areaName,
-            );
+            filteredData = billSummaries.filter((_, index) => index % 2 === 0);
           }
 
           return {
@@ -275,17 +349,25 @@ const [Grid, gridApi] = useVbenVxeGrid({
 function refreshGrid() {
   gridApi.query();
 }
+
+/**
+ * 表单提交成功回调
+ */
+function handleFormSuccess(_data: any) {
+  message.success('保存成功');
+  refreshGrid();
+}
 </script>
 
 <template>
-  <Page auto-content-height class="water-bill-page">
-    <BillForm
+  <Page auto-content-height class="amount-bill-page">
+    <MultipageBillForm
       ref="billFormRef"
-      :config="waterFormConfig"
-      @success="refreshGrid"
+      :config="formConfig"
+      @success="handleFormSuccess"
     />
-    <BillDetail ref="billDetailRef" :config="waterDetailConfig" />
-    <Grid table-title="水费账单" class="water-bill-grid">
+    <MultipageBillDetail ref="billDetailRef" :config="detailConfig" />
+    <Grid table-title="总账单" class="amount-bill-grid">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <Dropdown class="ml-3">
@@ -309,7 +391,7 @@ function refreshGrid() {
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">
           <Plus class="size-5" />
-          {{ $t('ui.actionTitle.create', ['水费账单']) }}
+          {{ $t('ui.actionTitle.create', ['总账单']) }}
         </Button>
       </template>
     </Grid>
