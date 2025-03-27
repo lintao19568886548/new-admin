@@ -11,6 +11,6 @@ export const overridesPreferences = defineOverridesPreferences({
     name: import.meta.env.VITE_APP_TITLE,
   },
   logo: {
-    source: '../public/assets/favicon.png',
+    source: '/assets/favicon.png',
   },
 });
