@@ -73,5 +73,19 @@
     "finance": {
       "billName": "账单名称"
     }
+  },
+  "tools": {
+    "title": "应用工具",
+    "apptitle": "票据整理",
+    "upload": "上传文件",
+    "uploadSuccess": "上传成功",
+    "uploadFailed": "上传失败",
+    "uploadTips": "请上传PDF文件",
+    "uploadFileSizeLimit": "文件大小不能超过{0}",
+    "uploadFileTypeLimit": "文件类型只能是{0}",
+    "uploadFileCountLimit": "文件数量不能超过{0}",
+    "uploadFileList": "文件列表",
+    "uploadFileListEmptyText": "拖拽文件到此处，或点击上传",
+    "uploadFileListEmptyDescription": "支持单个或批量上传"
   }
 }
