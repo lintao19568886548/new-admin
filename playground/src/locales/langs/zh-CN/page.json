@@ -3,64 +3,76 @@
     "title": "出入管理"
   },
   "auth": {
-    "login": "登录",
-    "register": "注册",
     "codeLogin": "验证码登录",
-    "qrcodeLogin": "二维码登录",
+    "codeSentTo": "验证码已发送至{0}",
     "forgetPassword": "忘记密码",
-    "sendingCode": "正在发送验证码",
-    "codeSentTo": "验证码已发送至{0}"
+    "login": "登录",
+    "qrcodeLogin": "二维码登录",
+    "register": "注册",
+    "sendingCode": "正在发送验证码"
   },
   "bill": {
-    "title": "账单管理",
-    "list": "账单列表",
-    "detail": "账单详情",
     "create": "新增账单",
+    "detail": "账单详情",
     "edit": "修改账单",
-    "view": "查看账单",
-    "water": "水费",
     "electricity": "电费",
     "gas": "燃气费",
+    "list": "账单列表",
+    "other": "其他费用",
     "rent": "房租",
-    "other": "其他费用"
+    "title": "账单管理",
+    "view": "查看账单",
+    "water": "水费"
   },
   "dashboard": {
-    "title": "概览",
     "analytics": "分析页",
+    "title": "概览",
     "workspace": "工作台"
   },
   "finance": {
-    "title": "财务管理",
-    "income": "收入管理",
-    "expense": "支出管理",
-    "list": "收支列表",
-    "detail": "收支详情",
     "create": "新增收支",
+    "detail": "收支详情",
     "edit": "修改收支",
-    "view": "查看收支",
+    "expense": "支出管理",
+    "expenseType": "支出类型",
+    "income": "收入管理",
     "incomeType": "收入类型",
-    "expenseType": "支出类型"
-  },
-  "rental": {
-    "title": "租赁管理",
-    "tenant": "租户管理",
-    "management": "厂房管理",
-    "list": "厂房列表",
-    "detail": "厂房详情",
-    "create": "新增租赁",
-    "createTenant": "新增租户",
-    "edit": "修改租赁",
-    "view": "查看租赁"
+    "list": "收支列表",
+    "title": "财务管理",
+    "list-title": "财务信息列表",
+    "view": "查看收支",
+    "billName": "账单名称",
+    "billCategory": "账单分类",
+    "transactionType": "收支类型",
+    "amount": "账单金额",
+    "name": "账单",
+    "transactionTime": "交易时间"
   },
   "maintenance": {
-    "title": "维护管理",
-    "list": "维修列表",
-    "detail": "维修详情",
     "create": "新增维修",
+    "detail": "维修详情",
     "edit": "修改维修",
-    "view": "查看维修",
+    "firefighting": "消防管理",
+    "list": "维修列表",
+    "title": "维护管理",
     "transformer": "变压器管理",
-    "firefighting": "消防管理"
+    "view": "查看维修"
+  },
+  "rental": {
+    "create": "新增租赁",
+    "createTenant": "新增租户",
+    "detail": "厂房详情",
+    "edit": "修改租赁",
+    "list": "厂房列表",
+    "management": "厂房管理",
+    "tenant": "租户管理",
+    "title": "租赁管理",
+    "view": "查看租赁"
+  },
+  "system": {
+    "finance": {
+      "billName": "账单名称"
+    }
   },
   "tools": {
     "title": "应用工具",

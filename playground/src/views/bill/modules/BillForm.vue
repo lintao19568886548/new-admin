@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import type { ElectricityBill, ElectricityItem } from '../data';
-
 import { computed, reactive, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
@@ -9,22 +7,88 @@ import { Button, DatePicker, Input, Popconfirm, Table } from 'ant-design-vue';
 import dayjs from 'dayjs';
 import { cloneDeep } from 'lodash-es';
 
-// 定义editableData的类型
+/**
+ * 通用账单项目接口
+ */
+export interface BillItem {
+  actualUsage: number; // 实际用量
+  amount: number; // 金额（元）
+  currentMonthReading: number; // 本月读数
+  id: number;
+  key: string;
+  lastMonthReading: number; // 上月读数
+  monthlyUsage: number; // 本月用量
+  multiplier: number; // 倍数
+  name: string; // 名称
+  remark: string; // 备注
+  unitPrice: number; // 单价
+}
+
+/**
+ * 通用账单接口
+ */
+export interface Bill {
+  [key: string]: any; // 其他可能的属性
+  companyName: string; // 公司名称
+  id: number;
+  paymentTime: any; // 收款时间
+  position: string; // 位置
+  projectName: string; // 项目名称
+}
+
+/**
+ * 表单配置接口
+ */
+export interface BillFormConfig {
+  [key: string]: any; // 支持任意额外属性
+  amountLabel?: string; // 金额标签（如"电费金额"或"水费金额"）
+  itemsField?: string; // 账单项目字段名（如"electricityItems"或"waterItems"）
+  modalClass?: string; // 模态窗口CSS类名
+  modalTitle?: string; // 模态窗口标题
+  readingLabel?: string; // 读数标签（如"电表数"或"水表数"）
+  unitLabel?: string; // 单位标签（如"度"或"吨"）
+  usageLabel?: string; // 用量标签（如"度数"或"用水量"）
+}
+
+// 组件属性定义
+const props = defineProps<{
+  config?: BillFormConfig;
+}>();
+
+// 定义事件
+const emit = defineEmits<{
+  (e: 'close'): void;
+  (e: 'success', data: any): void;
+}>();
+
+// 提取配置值
+const config = computed<BillFormConfig>(() => props.config || {});
+
+// 设置默认值
+const modalTitle = computed(() => config.value.modalTitle || '账单详情');
+const modalClass = computed(() => 'bill-form-modal max-w-[90%] w-auto');
+const unitLabel = computed(() => config.value.unitLabel || '单位');
+const usageLabel = computed(() => config.value.usageLabel || '用量');
+const readingLabel = computed(() => config.value.readingLabel || '读数');
+const amountLabel = computed(() => config.value.amountLabel || '金额');
+const itemsField = computed(() => config.value.itemsField || 'items');
+
+// 定义编辑数据类型
 interface EditableDataType {
-  [key: string]: ElectricityItem;
+  [key: string]: BillItem;
 }
 
 // 修改模态窗口配置，添加取消按钮配置
 const [Modal, modalApi] = useVbenModal({
   cancelText: '关闭',
   // 通过class控制弹窗宽度，使用Tailwind宽度类
-  class: 'electricity-bill-modal max-w-[90%] w-auto', // 允许响应式宽度
+  class: modalClass.value,
   footer: true,
   onCancel: () => {
     modalApi.close();
   },
   showConfirmButton: false, // 不显示确认按钮，只需要关闭按钮
-  title: '电费账单详情',
+  title: modalTitle.value,
 });
 
 // 关闭模态窗口的方法
@@ -33,83 +97,83 @@ function handleClose() {
 }
 
 // 表格列配置
-const columns = [
+const columns = computed(() => [
   {
-    dataIndex: 'name' as string,
+    dataIndex: 'name',
     key: 'name',
     title: '名称',
     width: 150,
   },
   {
-    dataIndex: 'lastMonthReading' as string,
+    dataIndex: 'lastMonthReading',
     key: 'lastMonthReading',
-    title: '上月电表数',
+    title: `上月${readingLabel.value}`,
     width: 120,
   },
   {
-    dataIndex: 'currentMonthReading' as string,
+    dataIndex: 'currentMonthReading',
     key: 'currentMonthReading',
-    title: '本月电表数',
+    title: `本月${readingLabel.value}`,
     width: 120,
   },
   {
-    dataIndex: 'monthlyUsage' as string,
+    dataIndex: 'monthlyUsage',
     key: 'monthlyUsage',
-    title: '本月度数',
+    title: `本月${usageLabel.value}`,
     width: 100,
   },
   {
-    dataIndex: 'multiplier' as string,
+    dataIndex: 'multiplier',
     key: 'multiplier',
     title: '倍数',
     width: 80,
   },
   {
-    dataIndex: 'actualUsage' as string,
+    dataIndex: 'actualUsage',
     key: 'actualUsage',
-    title: '本月实际度数',
+    title: `本月实际${usageLabel.value}`,
     width: 120,
   },
   {
-    dataIndex: 'unitPrice' as string,
+    dataIndex: 'unitPrice',
     key: 'unitPrice',
-    title: '单价(元/度)',
+    title: `单价(元/${unitLabel.value})`,
     width: 120,
   },
   {
-    dataIndex: 'amount' as string,
+    dataIndex: 'amount',
     key: 'amount',
     render: (text: any) => (text ? Number.parseFloat(text).toFixed(2) : '0.00'),
-    title: '电费金额(元)',
+    title: `${amountLabel.value}(元)`,
     width: 120,
   },
   {
-    dataIndex: 'remark' as string,
+    dataIndex: 'remark',
     key: 'remark',
     title: '备注',
     width: 160,
   },
   {
-    dataIndex: 'operation' as string,
+    dataIndex: 'operation',
     key: 'operation',
     title: '操作',
     width: 80,
   },
-];
+]);
 
-const dataSource = ref<ElectricityItem[]>([
+const dataSource = ref<BillItem[]>([
   {
-    actualUsage: 0, // 本月实际度数
-    amount: 0, // 电费金额（元）
-    currentMonthReading: 0, // 本月电表数
+    actualUsage: 0,
+    amount: 0,
+    currentMonthReading: 0,
     id: 0,
     key: '1',
-    lastMonthReading: 0, // 上月电表数
-    monthlyUsage: 0, // 本月度数
-    multiplier: 1, // 倍数
-    name: '', // 名称
-    remark: '', // 备注
-    unitPrice: 0, // 单价元/度
+    lastMonthReading: 0,
+    monthlyUsage: 0,
+    multiplier: 1,
+    name: '',
+    remark: '',
+    unitPrice: 0,
   },
   // 添加默认的合计行
   {
@@ -127,14 +191,63 @@ const dataSource = ref<ElectricityItem[]>([
   },
 ]);
 
-const billData = ref<ElectricityBill>({
-  companyName: '示例公司一',
-  electricityItems: dataSource.value,
+const billData = ref<Bill>({
+  companyName: '',
   id: 0,
   paymentTime: ref(dayjs()),
-  position: '广东',
-  projectName: '项目A',
+  position: '',
+  projectName: '',
 });
+
+// 初始化数据
+function initData(data: any) {
+  if (!data) return;
+
+  // 复制账单基础信息
+  billData.value = {
+    companyName: data.companyName || '',
+    id: data.id || 0,
+    paymentTime: data.paymentTime || ref(dayjs()),
+    position: data.position || '',
+    projectName: data.projectName || '',
+    ...data, // 保留原始数据中的其他字段
+  };
+
+  // 获取账单项目数据
+  const items: any[] = data[itemsField.value] || [];
+
+  if (items.length > 0) {
+    // 使用提供的项目数据
+    const regularItems = items.map((item: any, index: number) => ({
+      ...item,
+      key: item.key || String(index + 1),
+    }));
+
+    // 添加合计行
+    const totalRow: BillItem = {
+      actualUsage: 0,
+      amount: 0,
+      currentMonthReading: 0,
+      id: -1,
+      key: 'total',
+      lastMonthReading: 0,
+      monthlyUsage: 0,
+      multiplier: 1,
+      name: '合计',
+      remark: '',
+      unitPrice: 0,
+    };
+
+    dataSource.value = [...regularItems, totalRow];
+    // 初始计算合计
+    updateTotalRow();
+  }
+
+  // 初始化编辑模式
+  setTimeout(() => {
+    initEditModeForAllRows();
+  }, 0);
+}
 
 const count = computed(() => dataSource.value.length + 1);
 const editableData = reactive<EditableDataType>({});
@@ -143,8 +256,7 @@ const editableData = reactive<EditableDataType>({});
 const edit = (key: string) => {
   const foundItem = dataSource.value.find((item) => key === item.key);
   if (foundItem) {
-    (editableData as Record<string, ElectricityItem>)[key] =
-      cloneDeep(foundItem);
+    editableData[key] = cloneDeep(foundItem);
   }
 };
 
@@ -245,7 +357,7 @@ const onDelete = (key: string) => {
     // 如果需要，可以在这里添加后端API调用
     // await api.deleteElectricityItem(key);
 
-    // 可能需要重新计算合计行
+    // 更新合计行
     updateTotalRow();
   } catch (error) {
     console.error('删除行时出错:', error);
@@ -276,7 +388,7 @@ const updateTotalRow = () => {
   );
 
   // 创建新的合计行
-  const updatedTotalRow: ElectricityItem = {
+  const updatedTotalRow: BillItem = {
     actualUsage: roundedTotalActualUsage,
     amount: totalAmount,
     currentMonthReading: 0,
@@ -297,20 +409,17 @@ const updateTotalRow = () => {
 // 修改handleAdd函数，添加新行时自动开启编辑模式
 const handleAdd = () => {
   const newData = {
-    actualUsage: 0, // 本月实际度数
-    amount: 0, // 电费金额（元）
-    companyName: '', // 公司名称
-    currentMonthReading: 0, // 本月电表数
+    actualUsage: 0,
+    amount: 0,
+    currentMonthReading: 0,
     id: 0,
     key: `${count.value}`,
-    lastMonthReading: 0, // 上月电表数
-    monthlyUsage: 0, // 本月度数 (将自动计算)
-    multiplier: 1, // 倍数
-    name: '', // 名称
-    paymentTime: '', // 收款时间
-    projectName: '', // 项目名称
-    remark: '', // 备注
-    unitPrice: 0, // 单价元/度
+    lastMonthReading: 0,
+    monthlyUsage: 0,
+    multiplier: 1,
+    name: '',
+    remark: '',
+    unitPrice: 0,
   };
 
   // 先移除合计行
@@ -337,23 +446,37 @@ const initEditModeForAllRows = () => {
   });
 };
 
-// 在组件挂载时初始化编辑状态
-setTimeout(() => {
-  initEditModeForAllRows();
-}, 0);
-
 // 底部保存按钮的处理函数
 const handleSave = () => {
-  // 实际应用中可能需要调用API保存数据
-  // 使用允许的console方法
-  console.warn('保存账单数据:', {
-    billData: billData.value,
-    dataSource: dataSource.value.filter((item) => item.name !== '合计'),
-  });
+  // 过滤掉合计行
+  const regularItems = dataSource.value.filter((item) => item.name !== '合计');
 
-  // 可以在这里添加保存成功的提示或其他逻辑
-  // message.success('保存成功');
+  // 准备保存的数据
+  const saveData = {
+    ...billData.value,
+    [itemsField.value]: regularItems,
+  };
+
+  // 触发成功事件，将数据传递回父组件
+  emit('success', saveData);
+
+  // 关闭模态窗口
+  modalApi.close();
 };
+
+// 暴露组件实例的方法和对象
+defineExpose({
+  close: () => {
+    modalApi.close();
+    emit('close');
+  },
+  modalApi,
+  open: (data: any) => {
+    modalApi.setData(data);
+    initData(data);
+    modalApi.open();
+  },
+});
 </script>
 
 <template>
@@ -394,7 +517,7 @@ const handleSave = () => {
               'multiplier',
               'unitPrice',
               'remark',
-            ].includes(column.dataIndex as string) &&
+            ].includes(column.dataIndex) &&
             record.name !== '合计'
           "
         >
@@ -433,9 +556,7 @@ const handleSave = () => {
         <template
           v-else-if="
             column.dataIndex &&
-            ['monthlyUsage', 'actualUsage', 'amount'].includes(
-              column.dataIndex as string,
-            )
+            ['monthlyUsage', 'actualUsage', 'amount'].includes(column.dataIndex)
           "
         >
           <div>
@@ -516,84 +637,4 @@ const handleSave = () => {
   </Modal>
 </template>
 
-<style lang="less" scoped>
-.editable-row-operations a {
-  margin-right: 8px;
-}
-
-// 修复编辑单元格样式
-.editable-cell {
-  position: relative;
-
-  .cell-input {
-    width: 100%; // 改为100%宽度以适应单元格
-    margin: 0; // 移除外边距
-    padding: 2px 4px; // 减小内边距
-    box-sizing: border-box; // 确保盒模型包含内边距和边框
-  }
-}
-
-// 确保表格单元格不会因为编辑状态而改变大小
-:deep(.ant-table-cell) {
-  padding: 8px;
-  vertical-align: middle;
-  overflow: visible; // 改为visible，允许编辑控件显示
-  position: relative; // 添加相对定位
-  white-space: nowrap; // 防止文本换行
-}
-
-// 编辑状态下的单元格样式
-:deep(.ant-table-cell-fix-left),
-:deep(.ant-table-cell-fix-right) {
-  z-index: 2; // 确保固定列在编辑时不被其他内容覆盖
-}
-
-// 限制输入框在单元格内的显示
-:deep(.ant-input-number),
-:deep(.ant-input) {
-  width: 100%;
-  max-width: 100%;
-}
-
-// 添加计算字段样式
-.calculated-cell {
-  padding: 5px;
-  background-color: #f9f9f9;
-  border-radius: 2px;
-  color: #1890ff;
-}
-
-// 禁止操作栏文本选择
-.no-select {
-  user-select: none;
-  -webkit-user-select: none; /* Safari */
-  -moz-user-select: none; /* Firefox */
-  -ms-user-select: none; /* IE10+/Edge */
-}
-
-// 确保模态窗口内容可以横向滚动
-:deep(.electricity-bill-modal) {
-  .ant-table-wrapper {
-    overflow-x: auto;
-  }
-
-  .ant-table-container {
-    min-width: 1200px; // 确保表格有最小宽度
-  }
-
-  // 增强表格滚动区域样式
-  .ant-table-body {
-    overflow-x: auto !important;
-    &::-webkit-scrollbar {
-      height: 8px; // 设置横向滚动条高度
-    }
-    &::-webkit-scrollbar-thumb {
-      background-color: #d9d9d9; // 滚动条颜色
-      border-radius: 4px; // 滚动条圆角
-    }
-    &::-webkit-scrollbar-track {
-      background-color: #f1f1f1; // 滚动条轨道颜色
-    }
-  }
-}
-</style>
+<style lang="less" scoped></style>

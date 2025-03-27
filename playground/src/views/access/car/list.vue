@@ -11,10 +11,10 @@ import { Plus } from '@vben/icons';
 import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { deleteDept, getDeptList } from '#/api/system/dept';
+import { deleteDept } from '#/api/system/dept';
 import { $t } from '#/locales';
 
-import { useColumns } from './data';
+import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 const [FormModal, formModalApi] = useVbenModal({
@@ -23,7 +23,7 @@ const [FormModal, formModalApi] = useVbenModal({
 });
 
 /**
- * 编辑部门
+ * 编辑记录
  * @param row
  */
 function onEdit(row: SystemDeptApi.SystemDept) {
@@ -31,34 +31,26 @@ function onEdit(row: SystemDeptApi.SystemDept) {
 }
 
 /**
- * 添加下级部门
- * @param row
- */
-function onAppend(row: SystemDeptApi.SystemDept) {
-  formModalApi.setData({ pid: row.id }).open();
-}
-
-/**
- * 创建新部门
+ * 创建新记录
  */
 function onCreate() {
   formModalApi.setData(null).open();
 }
 
 /**
- * 删除部门
+ * 删除记录
  * @param row
  */
 function onDelete(row: SystemDeptApi.SystemDept) {
   const hideLoading = message.loading({
-    content: $t('ui.actionMessage.deleting', [row.name]),
+    content: $t('ui.actionMessage.deleting', [row.carNumber]),
     duration: 0,
     key: 'action_process_msg',
   });
   deleteDept(row.id)
     .then(() => {
       message.success({
-        content: $t('ui.actionMessage.deleteSuccess', [row.name]),
+        content: $t('ui.actionMessage.deleteSuccess', [row.carNumber]),
         key: 'action_process_msg',
       });
       refreshGrid();
@@ -76,10 +68,6 @@ function onActionClick({
   row,
 }: OnActionClickParams<SystemDeptApi.SystemDept>) {
   switch (code) {
-    case 'append': {
-      onAppend(row);
-      break;
-    }
     case 'delete': {
       onDelete(row);
       break;
@@ -91,8 +79,55 @@ function onActionClick({
   }
 }
 
+// 模拟的车辆数据
+const carItems = [
+  {
+    accessStatus: 1,
+    carNumber: '京A12345',
+    createTime: '2023-05-01 08:25:00',
+    id: '1',
+    registerTime: '2023-05-01 08:30:00',
+    remark: '公司领导车辆',
+  },
+  {
+    accessStatus: 0,
+    carNumber: '京B67890',
+    createTime: '2023-05-01 09:10:00',
+    id: '2',
+    registerTime: '2023-05-01 09:15:00',
+    remark: '访客车辆',
+  },
+  {
+    accessStatus: 1,
+    carNumber: '京C13579',
+    createTime: '2023-05-02 10:40:00',
+    id: '3',
+    registerTime: '2023-05-02 10:45:00',
+    remark: '送货车辆',
+  },
+  {
+    accessStatus: 1,
+    carNumber: '京D24680',
+    createTime: '2023-05-03 14:15:00',
+    id: '4',
+    registerTime: '2023-05-03 14:20:00',
+    remark: '员工车辆',
+  },
+  {
+    accessStatus: 0,
+    carNumber: '京E11223',
+    createTime: '2023-05-03 17:25:00',
+    id: '5',
+    registerTime: '2023-05-03 17:30:00',
+    remark: '维修车辆',
+  },
+];
+
 const [Grid, gridApi] = useVbenVxeGrid({
-  gridEvents: {},
+  formOptions: {
+    schema: useGridFormSchema(),
+    submitOnChange: true,
+  },
   gridOptions: {
     columns: useColumns(onActionClick),
     height: 'auto',
@@ -102,8 +137,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     proxyConfig: {
       ajax: {
-        query: async (_params) => {
-          return await getDeptList();
+        query: async () => {
+          // 使用模拟数据
+          return carItems;
         },
       },
     },
@@ -131,7 +167,7 @@ function refreshGrid() {
 <template>
   <Page auto-content-height>
     <FormModal @success="refreshGrid" />
-    <Grid table-title="出入信息列表">
+    <Grid table-title="车辆出入信息列表">
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">
           <Plus class="size-5" />

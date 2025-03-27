@@ -76,6 +76,15 @@
     "features": "项目特点",
     "operation": "操作"
   },
+  "access": {
+    "visitor": {
+      "status": {
+        "label": "状态",
+        "in": "进入",
+        "left": "离开"
+      }
+    }
+  },
   "role": {
     "title": "角色管理",
     "list": "角色列表",

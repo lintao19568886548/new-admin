@@ -8,9 +8,27 @@ import { z } from '#/adapter/form';
 import { $t } from '#/locales';
 
 /**
- * 获取编辑表单的字段配置。如果没有使用多语言，可以直接export一个数组常量
+ * 获取标签颜色
  */
-export function useSchema(): VbenFormSchema[] {
+export function getTagTypeOptions() {
+  return [
+    {
+      color: 'green',
+      label: '进入',
+      value: 1,
+    },
+    {
+      color: 'processing',
+      label: '离开',
+      value: 0,
+    },
+  ];
+}
+
+/**
+ * 获取表单的字段配置
+ */
+export function useFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
@@ -52,13 +70,46 @@ export function useSchema(): VbenFormSchema[] {
         maxLength: 50,
         rows: 3,
         showCount: true,
+        style: {
+          width: '100%',
+        },
       },
       fieldName: 'remark',
-      label: $t('system.dept.remark'),
+      label: '备注',
       rules: z
         .string()
-        .max(50, $t('ui.formRules.maxLength', [$t('system.dept.remark'), 50]))
+        .max(50, $t('ui.formRules.maxLength', ['备注', 50]))
         .optional(),
+    },
+  ];
+}
+
+/**
+ * 获取表格查询表单配置
+ */
+export function useGridFormSchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      fieldName: 'carNumber',
+      label: '车牌号',
+    },
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        options: [
+          { label: '进入', value: 1 },
+          { label: '离开', value: 0 },
+        ],
+      },
+      fieldName: 'accessStatus',
+      label: '出入状态',
+    },
+    {
+      component: 'RangePicker',
+      fieldName: 'registerTime',
+      label: '登记时间',
     },
   ];
 }
@@ -74,51 +125,52 @@ export function useColumns(
   return [
     {
       align: 'center',
-      field: 'carNumber', // 从 name 改为 carNumber
+      field: 'carNumber',
       fixed: 'left',
       title: '车牌号',
-      treeNode: true,
       width: 150,
     },
     {
-      cellRender: { name: 'CellTag' },
-      field: 'accessStatus', // 从 status 改为 accessStatus
+      cellRender: {
+        name: 'CellTag',
+        options: getTagTypeOptions(),
+      },
+      field: 'accessStatus',
       title: '出入状态',
       width: 100,
     },
     {
-      field: 'registerTime', // 从 createTime 改为 registerTime
+      field: 'registerTime',
       title: '登记时间',
       width: 180,
     },
     {
       field: 'remark',
-      title: $t('system.dept.remark'),
+      title: '备注',
     },
     {
       align: 'center',
       cellRender: {
         attrs: {
-          nameField: 'name',
-          nameTitle: $t('system.dept.name'),
+          nameField: 'carNumber',
+          nameTitle: '车牌号',
           onClick: onActionClick,
         },
         name: 'CellOperation',
         options: [
-          'edit', // 默认的编辑按钮
           {
-            code: 'delete', // 默认的删除按钮
-            disabled: (row: SystemDeptApi.SystemDept) => {
-              return !!(row.children && row.children.length > 0);
-            },
+            code: 'view',
+            text: '查看',
           },
+          'edit',
+          'delete',
         ],
       },
       field: 'operation',
       fixed: 'right',
       headerAlign: 'center',
       showOverflow: false,
-      title: $t('system.dept.operation'),
+      title: '操作',
       width: 200,
     },
   ];
