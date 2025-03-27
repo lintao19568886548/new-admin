@@ -19,11 +19,11 @@ import BillForm from './BillForm.vue';
  * 多页账单表单配置接口
  */
 export interface MultipageBillFormConfig {
-  [key: string]: any; // 支持任意额外属性
-  electricityConfig?: any; // 电费配置
-  modalClass?: string; // 模态窗口CSS类名
-  modalTitle?: string; // 模态窗口标题
-  waterConfig?: any; // 水费配置
+  [key: string]: any;
+  electricityConfig?: any;
+  modalClass?: string;
+  modalTitle?: string;
+  waterConfig?: any;
 }
 
 // 组件属性定义
@@ -41,30 +41,38 @@ const emit = defineEmits<{
 const config = computed<MultipageBillFormConfig>(() => props.config || {});
 
 // 设置默认值
-const electricityConfig = computed(() => config.value.electricityConfig || {});
-const waterConfig = computed(() => config.value.waterConfig || {});
+const electricityConfig = computed(() => ({
+  ...config.value.electricityConfig,
+  modalClass: 'bill-form-modal billform-specific-dialog',
+}));
+
+const waterConfig = computed(() => ({
+  ...config.value.waterConfig,
+  modalClass: 'bill-form-modal billform-specific-dialog',
+}));
 
 // 当前激活的页签
 const activeKey = ref('1');
 
-// 电费表单和水费表单引用
+// 表单引用
 const electricityFormRef = ref();
 const waterFormRef = ref();
 
-// 创建引用来存储模态窗口参数
+// 模态窗口参数
 const modalProps = ref({
   class:
-    config.value.modalClass || 'multipage-bill-form-modal max-w-[90%] w-auto',
-  closeOnClickModal: false, // 防止点击模态窗口外部关闭
-  closeOnPressEscape: false, // 防止ESC键关闭
+    config.value.modalClass ||
+    'multipage-bill-form-modal max-w-[90%] w-[1000px]',
+  closeOnClickModal: false,
+  closeOnPressEscape: false,
   footer: true,
   onCancel: _handleClose,
-  showCancelButton: false, // 不显示取消按钮
-  showConfirmButton: false, // 不显示确认按钮
+  showCancelButton: false,
+  showConfirmButton: false,
   title: config.value.modalTitle || '账单表单',
 });
 
-// 修改模态窗口配置
+// 创建模态窗口
 const [Modal, modalApi] = useVbenModal(modalProps.value);
 
 // 关闭处理函数
@@ -75,7 +83,7 @@ function _handleClose() {
 
 // 账单数据
 const billData = reactive({
-  billMonth: dayjs().format('YYYY-MM'), // 默认为当前年月
+  billMonth: dayjs().format('YYYY-MM'),
   companyName: '',
   electricityBillId: 0,
   electricityItems: [],
@@ -94,7 +102,7 @@ const billData = reactive({
   waterTotal: 0,
 });
 
-// 提交的电费数据和水费数据
+// 提交数据引用
 const electricityData = ref(null);
 const waterData = ref(null);
 
@@ -109,7 +117,6 @@ watch(
     () => billData.invoiceTax,
   ],
   () => {
-    // 计算本月收费金额合计
     billData.totalAmount =
       Number(billData.electricityTotal || 0) +
       Number(billData.waterTotal || 0) +
@@ -120,34 +127,27 @@ watch(
   },
 );
 
-// 下一页方法
+// 下一页
 function handleNext() {
   const key = Number(activeKey.value);
 
-  // 在跳转前验证当前页的数据
+  // 验证当前页数据
   switch (key) {
     case 1: {
-      // 验证租户信息
       if (!billData.companyName || !billData.projectName) {
         message.warning('请填写公司名称和项目名称');
         return;
       }
-
       break;
     }
     case 2: {
-      // 验证电费表单
       electricityFormRef.value?.modalApi.getData();
-
       break;
     }
     case 3: {
-      // 验证水费表单
       waterFormRef.value?.modalApi.getData();
-
       break;
     }
-    // No default
   }
 
   if (key < 4) {
@@ -155,7 +155,7 @@ function handleNext() {
   }
 }
 
-// 上一页方法
+// 上一页
 function handlePrev() {
   const key = Number(activeKey.value);
   if (key > 1) {
@@ -165,10 +165,8 @@ function handlePrev() {
 
 // 电费表单提交回调
 function handleElectricitySuccess(data: any) {
-  // 保存电费数据
   electricityData.value = data;
 
-  // 更新总表单数据
   if (data) {
     billData.companyName = data.companyName || billData.companyName;
     billData.projectName = data.projectName || billData.projectName;
@@ -178,7 +176,6 @@ function handleElectricitySuccess(data: any) {
     // 计算电费合计
     let total = 0;
     if (Array.isArray(data.electricityItems)) {
-      // 过滤掉合计行
       const items = data.electricityItems.filter(
         (item: any) => item.name !== '合计',
       );
@@ -193,17 +190,14 @@ function handleElectricitySuccess(data: any) {
 
 // 水费表单提交回调
 function handleWaterSuccess(data: any) {
-  // 保存水费数据
   waterData.value = data;
 
-  // 更新总表单数据
   if (data) {
     billData.waterItems = data.waterItems || [];
 
     // 计算水费合计
     let total = 0;
     if (Array.isArray(data.waterItems)) {
-      // 过滤掉合计行
       const items = data.waterItems.filter((item: any) => item.name !== '合计');
       total = items.reduce(
         (sum: number, item: any) => sum + (Number(item.amount) || 0),
@@ -232,12 +226,7 @@ function handleSave() {
   }
 
   // 提交数据
-  const submitData = { ...billData };
-
-  // 提交账单
-  emit('success', submitData);
-
-  // 关闭模态框
+  emit('success', { ...billData });
   _handleClose();
 }
 
@@ -271,7 +260,7 @@ function initData(data: any) {
     Object.assign(billData, data);
   }
 
-  // 初始化电费表单和水费表单
+  // 初始化子表单
   nextTick(() => {
     // 准备电费数据
     const electricityBillData = {
@@ -289,7 +278,7 @@ function initData(data: any) {
       waterItems: billData.waterItems || [],
     };
 
-    // 打开电费表单和水费表单
+    // 设置子表单数据
     if (electricityFormRef.value) {
       electricityFormRef.value.modalApi.setData(electricityBillData);
     }
@@ -303,7 +292,7 @@ function initData(data: any) {
   activeKey.value = '1';
 }
 
-// 暴露组件实例的方法和对象
+// 暴露组件实例方法
 defineExpose({
   close: () => {
     _handleClose();
@@ -314,7 +303,7 @@ defineExpose({
     modalProps.value = {
       class:
         config.value.modalClass ||
-        'multipage-bill-form-modal max-w-[90%] w-auto',
+        'multipage-bill-form-modal max-w-[90%] w-[900px]',
       closeOnClickModal: false,
       closeOnPressEscape: false,
       footer: true,
@@ -324,10 +313,8 @@ defineExpose({
       title: config.value.modalTitle || '账单表单',
     };
 
-    // 重新设置关闭前拦截
-    (modalApi as any).onBeforeClose = () => {
-      return false; // 阻止除了右上角X之外的所有关闭方式
-    };
+    // 设置关闭前拦截
+    (modalApi as any).onBeforeClose = () => false;
 
     // 设置数据并打开
     modalApi.setData(data);
@@ -339,7 +326,6 @@ defineExpose({
 
 <template>
   <Modal>
-    <!-- 步骤条 -->
     <Steps class="mb-6" :current="Number(activeKey) - 1">
       <Steps.Step title="租户信息" />
       <Steps.Step title="电费信息" />
@@ -347,7 +333,6 @@ defineExpose({
       <Steps.Step title="费用合计" />
     </Steps>
 
-    <!-- 页签内容 -->
     <div class="tab-content">
       <!-- 租户信息 -->
       <div v-show="activeKey === '1'" class="tab-pane">
@@ -358,30 +343,24 @@ defineExpose({
           </div>
 
           <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div
-              class="relative rounded border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
-            >
-              <div class="mb-2 text-gray-500">公司名称</div>
+            <div class="rounded border bg-white p-4 shadow-sm">
+              <div class="text-gray-500">公司名称</div>
               <Input
                 v-model:value="billData.companyName"
                 class="mt-1"
                 placeholder="请输入公司名称"
               />
             </div>
-            <div
-              class="relative rounded border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
-            >
-              <div class="mb-2 text-gray-500">项目名称</div>
+            <div class="rounded border bg-white p-4 shadow-sm">
+              <div class="text-gray-500">项目名称</div>
               <Input
                 v-model:value="billData.projectName"
                 class="mt-1"
                 placeholder="请输入项目名称"
               />
             </div>
-            <div
-              class="relative rounded border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
-            >
-              <div class="mb-2 text-gray-500">收款时间</div>
+            <div class="rounded border bg-white p-4 shadow-sm">
+              <div class="text-gray-500">收款时间</div>
               <DatePicker
                 v-model:value="billData.paymentTime"
                 class="mt-1 w-full"
@@ -417,13 +396,9 @@ defineExpose({
           >
             打开电费表单
           </Button>
-          <div v-if="billData.electricityTotal > 0" class="mt-4">
-            <div class="text-green-600">
-              已添加电费明细，合计金额：{{
-                billData.electricityTotal.toFixed(2)
-              }}
-              元
-            </div>
+          <div v-if="billData.electricityTotal > 0" class="mt-4 text-green-600">
+            已添加电费明细，合计金额：{{ billData.electricityTotal.toFixed(2) }}
+            元
           </div>
         </div>
       </div>
@@ -452,10 +427,8 @@ defineExpose({
           >
             打开水费表单
           </Button>
-          <div v-if="billData.waterTotal > 0" class="mt-4">
-            <div class="text-green-600">
-              已添加水费明细，合计金额：{{ billData.waterTotal.toFixed(2) }} 元
-            </div>
+          <div v-if="billData.waterTotal > 0" class="mt-4 text-green-600">
+            已添加水费明细，合计金额：{{ billData.waterTotal.toFixed(2) }} 元
           </div>
         </div>
       </div>
@@ -474,6 +447,7 @@ defineExpose({
                 class="mt-1 w-full"
                 :precision="2"
                 addon-after="元"
+                :controls="false"
               />
             </div>
 
@@ -485,6 +459,7 @@ defineExpose({
                 class="mt-1 w-full"
                 :precision="2"
                 addon-after="元"
+                :controls="false"
               />
             </div>
 
@@ -495,6 +470,7 @@ defineExpose({
                 class="mt-1 w-full"
                 :precision="2"
                 addon-after="元"
+                :controls="false"
               />
             </div>
 
@@ -505,6 +481,7 @@ defineExpose({
                 class="mt-1 w-full"
                 :precision="2"
                 addon-after="元"
+                :controls="false"
               />
             </div>
 
@@ -515,6 +492,7 @@ defineExpose({
                 class="mt-1 w-full"
                 :precision="2"
                 addon-after="元"
+                :controls="false"
               />
             </div>
 
@@ -525,6 +503,7 @@ defineExpose({
                 class="mt-1 w-full"
                 :precision="2"
                 addon-after="元"
+                :controls="false"
               />
             </div>
 
@@ -536,6 +515,7 @@ defineExpose({
                 class="mt-1 w-full"
                 :precision="2"
                 addon-after="元"
+                :controls="false"
               />
             </div>
           </div>
@@ -543,16 +523,11 @@ defineExpose({
       </div>
     </div>
 
-    <!-- 底部按钮 -->
     <template #footer>
       <div class="footer-buttons">
         <div class="left-buttons">
-          <Button
-            v-if="Number(activeKey) > 1"
-            class="prev-button"
-            @click="handlePrev"
-          >
-            <span class="button-icon">←</span> 上一页
+          <Button v-if="Number(activeKey) > 1" @click="handlePrev">
+            <span>←</span> 上一页
           </Button>
           <div v-else class="placeholder-button"></div>
         </div>
@@ -562,7 +537,7 @@ defineExpose({
             v-for="page in 4"
             :key="page"
             class="page-dot"
-            :class="[{ active: Number(activeKey) === page }]"
+            :class="{ active: Number(activeKey) === page }"
           ></span>
           <span class="page-text">{{ activeKey }}/4</span>
         </div>
@@ -571,15 +546,13 @@ defineExpose({
           <Button
             v-if="Number(activeKey) < 4"
             type="primary"
-            class="next-button"
             @click="handleNext"
           >
-            下一页 <span class="button-icon">→</span>
+            下一页 <span>→</span>
           </Button>
           <Button
             v-if="Number(activeKey) === 4"
             type="primary"
-            class="save-button"
             @click="handleSave"
           >
             保存
@@ -629,48 +602,22 @@ defineExpose({
   .right-buttons {
     display: flex;
     align-items: center;
-    width: 100px; // 固定宽度，确保中间部分居中
+    width: 100px;
   }
 
   .right-buttons {
-    justify-content: flex-end; // 右侧按钮靠右对齐
+    justify-content: flex-end;
   }
 
   .placeholder-button {
-    width: 90px; // 与按钮宽度相同
-    height: 32px; // 与按钮高度相同
-  }
-
-  .button-icon {
-    display: inline-block;
-    margin: 0 2px;
-  }
-
-  .next-button,
-  .prev-button {
-    min-width: 90px;
-    transition: all 0.3s;
-
-    &:hover {
-      transform: translateY(-2px);
-    }
-  }
-
-  .save-button {
-    min-width: 90px;
-    font-weight: 500;
-    transition: all 0.3s;
-
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    }
+    width: 90px;
+    height: 32px;
   }
 
   .page-indicator {
     display: flex;
     flex: 1;
-    justify-content: center; // 确保水平居中
+    justify-content: center;
     align-items: center;
 
     .page-dot {
@@ -692,34 +639,6 @@ defineExpose({
       margin-left: 8px;
       font-size: 14px;
       color: #666;
-    }
-  }
-}
-
-// 添加 passive wheel 相关样式
-:deep(.ant-table-wrapper) {
-  overflow-x: auto;
-  scroll-behavior: smooth;
-}
-
-// 确保模态窗口内容可以横向滚动
-:deep(.multipage-bill-form-modal) {
-  .ant-table-wrapper {
-    overflow-x: auto;
-  }
-
-  // 增强表格滚动区域样式
-  .ant-table-body {
-    overflow-x: auto !important;
-    &::-webkit-scrollbar {
-      height: 8px; // 设置横向滚动条高度
-    }
-    &::-webkit-scrollbar-thumb {
-      background-color: #d9d9d9; // 滚动条颜色
-      border-radius: 4px; // 滚动条圆角
-    }
-    &::-webkit-scrollbar-track {
-      background-color: #f1f1f1; // 滚动条轨道颜色
     }
   }
 }

@@ -1,9 +1,7 @@
 <script lang="ts" setup>
 import { computed, reactive, ref, watch } from 'vue';
 
-import { useVbenModal } from '@vben/common-ui';
-
-import { Button, DatePicker, Input, Popconfirm, Table } from 'ant-design-vue';
+import { Button, Input, Modal, Popconfirm, Table } from 'ant-design-vue';
 import dayjs from 'dayjs';
 import { cloneDeep } from 'lodash-es';
 
@@ -28,26 +26,26 @@ export interface BillItem {
  * 通用账单接口
  */
 export interface Bill {
-  [key: string]: any; // 其他可能的属性
-  companyName: string; // 公司名称
+  [key: string]: any;
+  companyName: string;
   id: number;
-  paymentTime: any; // 收款时间
-  position: string; // 位置
-  projectName: string; // 项目名称
+  paymentTime: any;
+  position: string;
+  projectName: string;
 }
 
 /**
  * 表单配置接口
  */
 export interface BillFormConfig {
-  [key: string]: any; // 支持任意额外属性
-  amountLabel?: string; // 金额标签（如"电费金额"或"水费金额"）
-  itemsField?: string; // 账单项目字段名（如"electricityItems"或"waterItems"）
-  modalClass?: string; // 模态窗口CSS类名
-  modalTitle?: string; // 模态窗口标题
-  readingLabel?: string; // 读数标签（如"电表数"或"水表数"）
-  unitLabel?: string; // 单位标签（如"度"或"吨"）
-  usageLabel?: string; // 用量标签（如"度数"或"用水量"）
+  [key: string]: any;
+  amountLabel?: string;
+  itemsField?: string;
+  modalClass?: string;
+  modalTitle?: string;
+  readingLabel?: string;
+  unitLabel?: string;
+  usageLabel?: string;
 }
 
 // 组件属性定义
@@ -66,34 +64,24 @@ const config = computed<BillFormConfig>(() => props.config || {});
 
 // 设置默认值
 const modalTitle = computed(() => config.value.modalTitle || '账单详情');
-const modalClass = computed(() => 'bill-form-modal max-w-[90%] w-auto');
 const unitLabel = computed(() => config.value.unitLabel || '单位');
 const usageLabel = computed(() => config.value.usageLabel || '用量');
 const readingLabel = computed(() => config.value.readingLabel || '读数');
 const amountLabel = computed(() => config.value.amountLabel || '金额');
 const itemsField = computed(() => config.value.itemsField || 'items');
 
+// 控制modal显示/隐藏的状态
+const visible = ref(false);
+
 // 定义编辑数据类型
 interface EditableDataType {
   [key: string]: BillItem;
 }
 
-// 修改模态窗口配置，添加取消按钮配置
-const [Modal, modalApi] = useVbenModal({
-  cancelText: '关闭',
-  // 通过class控制弹窗宽度，使用Tailwind宽度类
-  class: modalClass.value,
-  footer: true,
-  onCancel: () => {
-    modalApi.close();
-  },
-  showConfirmButton: false, // 不显示确认按钮，只需要关闭按钮
-  title: modalTitle.value,
-});
-
 // 关闭模态窗口的方法
 function handleClose() {
-  modalApi.close();
+  visible.value = false;
+  emit('close');
 }
 
 // 表格列配置
@@ -289,81 +277,15 @@ watch(
       }
     });
 
-    // 在每次编辑数据变化时实时更新合计行
-    updateTotalRowInRealtime();
+    // 更新合计行
+    updateTotalRow();
   },
   { deep: true },
 );
 
-// 添加一个新的函数用于编辑过程中实时更新合计行
-const updateTotalRowInRealtime = () => {
-  // 找出非合计行
-  const regularRows = dataSource.value.filter((item) => item.name !== '合计');
-
-  // 获取所有编辑中的行
-  const editingRows = Object.keys(editableData).map((key) => editableData[key]);
-
-  // 创建一个临时数组，包含所有常规行的当前值
-  const tempRows = [...regularRows];
-
-  // 更新临时数组中对应正在编辑的行的值
-  editingRows.forEach((editRow) => {
-    if (!editRow) return;
-
-    const index = tempRows.findIndex((row) => row.key === editRow.key);
-    if (index !== -1) {
-      // 替换为编辑中的值
-      tempRows[index] = { ...editRow };
-    }
-  });
-
-  // 计算合计值
-  const totalActualUsage = tempRows.reduce(
-    (sum, row) => sum + (Number(row.actualUsage) || 0),
-    0,
-  );
-  const roundedTotalActualUsage = Math.round(totalActualUsage);
-
-  const totalAmount = tempRows.reduce(
-    (sum, row) => sum + (Number(row.amount) || 0),
-    0,
-  );
-
-  // 查找合计行
-  const totalRowIndex = dataSource.value.findIndex(
-    (item) => item.name === '合计',
-  );
-  if (
-    totalRowIndex !== -1 && // 更新现有合计行
-    dataSource.value[totalRowIndex]
-  ) {
-    dataSource.value[totalRowIndex].actualUsage = roundedTotalActualUsage;
-    dataSource.value[totalRowIndex].amount = totalAmount;
-  }
-};
-
 const onDelete = (key: string) => {
-  try {
-    // 先检查是否存在该行
-    const itemToDelete = dataSource.value.find((item) => item.key === key);
-    if (!itemToDelete) {
-      console.error('要删除的行不存在:', key);
-      return;
-    }
-
-    // 过滤掉要删除的行
-    dataSource.value = dataSource.value.filter((item) => item.key !== key);
-
-    // 如果需要，可以在这里添加后端API调用
-    // await api.deleteElectricityItem(key);
-
-    // 更新合计行
-    updateTotalRow();
-  } catch (error) {
-    console.error('删除行时出错:', error);
-    // 可以添加用户提示
-    // message.error('删除失败，请重试');
-  }
+  dataSource.value = dataSource.value.filter((item) => item.key !== key);
+  updateTotalRow();
 };
 
 // 更新合计行的函数
@@ -371,15 +293,11 @@ const updateTotalRow = () => {
   // 找出非合计行
   const regularRows = dataSource.value.filter((item) => item.name !== '合计');
 
-  // 移除当前合计行
-  dataSource.value = regularRows;
-
   // 计算合计值
   const totalActualUsage = regularRows.reduce(
     (sum, row) => sum + (Number(row.actualUsage) || 0),
     0,
   );
-  // 合计行的实际度数也四舍五入为整数
   const roundedTotalActualUsage = Math.round(totalActualUsage);
 
   const totalAmount = regularRows.reduce(
@@ -392,7 +310,7 @@ const updateTotalRow = () => {
     actualUsage: roundedTotalActualUsage,
     amount: totalAmount,
     currentMonthReading: 0,
-    id: -1, // 使用特殊ID标识合计行
+    id: -1,
     key: 'total',
     lastMonthReading: 0,
     monthlyUsage: 0,
@@ -402,11 +320,11 @@ const updateTotalRow = () => {
     unitPrice: 0,
   };
 
-  // 将合计行添加到末尾
-  dataSource.value.push(updatedTotalRow);
+  // 更新数据源，移除原合计行，添加新合计行
+  dataSource.value = [...regularRows, updatedTotalRow];
 };
 
-// 修改handleAdd函数，添加新行时自动开启编辑模式
+// 添加新行
 const handleAdd = () => {
   const newData = {
     actualUsage: 0,
@@ -422,13 +340,10 @@ const handleAdd = () => {
     unitPrice: 0,
   };
 
-  // 先移除合计行
+  // 添加新行并更新合计
   const regularRows = dataSource.value.filter((item) => item.name !== '合计');
-  // 添加新行
   regularRows.push(newData);
-  // 更新dataSource
   dataSource.value = regularRows;
-  // 更新合计行
   updateTotalRow();
 
   // 添加行后自动开启编辑模式
@@ -437,16 +352,16 @@ const handleAdd = () => {
   }, 0);
 };
 
-// 添加一个初始化函数，让所有非合计行自动进入编辑状态
+// 让所有非合计行自动进入编辑状态
 const initEditModeForAllRows = () => {
-  // 过滤掉合计行，只对普通行启用编辑模式
-  const regularRows = dataSource.value.filter((item) => item.name !== '合计');
-  regularRows.forEach((row) => {
-    edit(row.key);
-  });
+  dataSource.value
+    .filter((item) => item.name !== '合计')
+    .forEach((row) => {
+      edit(row.key);
+    });
 };
 
-// 底部保存按钮的处理函数
+// 保存按钮的处理函数
 const handleSave = () => {
   // 过滤掉合计行
   const regularItems = dataSource.value.filter((item) => item.name !== '合计');
@@ -459,45 +374,41 @@ const handleSave = () => {
 
   // 触发成功事件，将数据传递回父组件
   emit('success', saveData);
+  handleClose();
+};
 
-  // 关闭模态窗口
-  modalApi.close();
+// 创建一个类似modalApi的接口，保持与原来组件的兼容性
+const modalApi = {
+  close: handleClose,
+  getData: () => billData.value,
+  open: () => {
+    visible.value = true;
+  },
+  setData: (data: any) => {
+    initData(data);
+  },
 };
 
 // 暴露组件实例的方法和对象
 defineExpose({
-  close: () => {
-    modalApi.close();
-    emit('close');
-  },
+  close: handleClose,
   modalApi,
   open: (data: any) => {
     modalApi.setData(data);
-    initData(data);
-    modalApi.open();
+    visible.value = true;
   },
 });
 </script>
 
 <template>
-  <Modal>
-    <!-- 第一行信息：公司名称、项目名称、收款时间 - 始终可编辑 -->
-    <div class="mb-4 grid grid-cols-3 gap-4">
-      <div class="relative rounded border p-3">
-        <div class="text-gray-500">公司名称</div>
-        <Input v-model:value="billData.companyName" class="mt-1" />
-      </div>
-      <div class="relative rounded border p-3">
-        <div class="text-gray-500">项目名称</div>
-        <Input v-model:value="billData.projectName" class="mt-1" />
-      </div>
-      <div class="relative rounded border p-3">
-        <div class="text-gray-500">收款时间</div>
-        <DatePicker v-model:value="billData.paymentTime" class="mt-1" />
-      </div>
-    </div>
-
-    <!-- 表格数据 -->
+  <Modal
+    :body-style="{ maxHeight: '80vh', overflow: 'auto' }"
+    :title="modalTitle"
+    :open="visible"
+    :width="1500"
+    style="margin-top: 100px"
+    @cancel="handleClose"
+  >
     <Table
       :columns="columns"
       :data-source="dataSource"
@@ -507,6 +418,7 @@ defineExpose({
       style="margin-bottom: 8px"
     >
       <template #bodyCell="{ column, text, record }">
+        <!-- 可编辑字段 -->
         <template
           v-if="
             column.dataIndex &&
@@ -517,7 +429,7 @@ defineExpose({
               'multiplier',
               'unitPrice',
               'remark',
-            ].includes(column.dataIndex) &&
+            ].includes(String(column.dataIndex)) &&
             record.name !== '合计'
           "
         >
@@ -530,7 +442,9 @@ defineExpose({
                 v-if="column.dataIndex"
                 :value="
                   record.key && editableData[record.key] && column.dataIndex
-                    ? (editableData[record.key] as any)[column.dataIndex]
+                    ? (editableData[record.key] as any)[
+                        String(column.dataIndex)
+                      ]
                     : ''
                 "
                 @update:value="
@@ -540,7 +454,9 @@ defineExpose({
                       editableData[record.key] &&
                       column.dataIndex
                     ) {
-                      (editableData[record.key] as any)[column.dataIndex] = val;
+                      (editableData[record.key] as any)[
+                        String(column.dataIndex)
+                      ] = val;
                     }
                   }
                 "
@@ -552,16 +468,18 @@ defineExpose({
             </template>
           </div>
         </template>
-        <!-- 显示自动计算字段 -->
+
+        <!-- 自动计算字段 -->
         <template
           v-else-if="
             column.dataIndex &&
-            ['monthlyUsage', 'actualUsage', 'amount'].includes(column.dataIndex)
+            ['monthlyUsage', 'actualUsage', 'amount'].includes(
+              String(column.dataIndex),
+            )
           "
         >
           <div>
             <template v-if="record.key && editableData[record.key]">
-              <!-- 编辑模式下显示计算结果 -->
               <div v-if="column.dataIndex" class="calculated-cell">
                 {{
                   column.dataIndex === 'amount'
@@ -570,7 +488,7 @@ defineExpose({
                           editableData[record.key] &&
                           column.dataIndex
                           ? (editableData[record.key] as any)[
-                              column.dataIndex
+                              String(column.dataIndex)
                             ] || 0
                           : 0,
                       ).toFixed(2)
@@ -580,20 +498,21 @@ defineExpose({
                             editableData[record.key] &&
                             column.dataIndex
                             ? (editableData[record.key] as any)[
-                                column.dataIndex
+                                String(column.dataIndex)
                               ] || 0
                             : 0,
                         )
                       : record.key &&
                           editableData[record.key] &&
                           column.dataIndex
-                        ? (editableData[record.key] as any)[column.dataIndex]
+                        ? (editableData[record.key] as any)[
+                            String(column.dataIndex)
+                          ]
                         : ''
                 }}
               </div>
             </template>
             <template v-else>
-              <!-- 非编辑模式显示计算结果 -->
               {{
                 column.dataIndex === 'amount'
                   ? text
@@ -606,6 +525,8 @@ defineExpose({
             </template>
           </div>
         </template>
+
+        <!-- 操作列 -->
         <template v-else-if="column.dataIndex === 'operation'">
           <div class="editable-row-operations">
             <Popconfirm
@@ -613,28 +534,66 @@ defineExpose({
               title="确定删除此行?"
               @confirm="onDelete(record.key)"
             >
-              <a class="no-select" style="color: #ff4d4f"> 删除 </a>
+              <a class="no-select" style="color: #ff4d4f">删除</a>
             </Popconfirm>
           </div>
         </template>
       </template>
     </Table>
 
-    <!-- 底部按钮 -->
     <template #footer>
       <div class="flex w-full items-center justify-between">
-        <div>
-          <Button type="primary" class="editable-add-btn" @click="handleAdd">
-            添加行
-          </Button>
-        </div>
+        <Button type="primary" class="editable-add-btn" @click="handleAdd">
+          添加行
+        </Button>
         <div class="flex gap-2">
           <Button type="primary" @click="handleSave">保存</Button>
-          <Button type="primary" @click="handleClose">关闭</Button>
+          <Button @click="handleClose">关闭</Button>
         </div>
       </div>
     </template>
   </Modal>
 </template>
 
-<style lang="less" scoped></style>
+<style lang="less" scoped>
+.bill-form-modal {
+  min-width: 800px !important;
+}
+
+/* Ant Design表格样式增强 */
+:deep(.ant-table-wrapper) {
+  overflow-x: auto !important;
+}
+
+:deep(.ant-table-body) {
+  overflow-x: auto !important;
+
+  &::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: #d9d9d9;
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: #f1f1f1;
+  }
+}
+
+/* 编辑单元格样式 */
+.editable-cell {
+  position: relative;
+
+  .cell-input {
+    width: 100%;
+  }
+}
+
+.calculated-cell {
+  padding: 5px 8px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+}
+</style>

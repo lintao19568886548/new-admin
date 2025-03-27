@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { BillSummary } from './data';
+import type { BillSummary } from './modules/data';
 
 import type {
   OnActionClickParams,
@@ -17,8 +17,6 @@ import dayjs, { Dayjs } from 'dayjs';
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
 
-import MultipageBillDetail from '../modules/MultipageBillDetail.vue';
-import MultipageBillForm from '../modules/MultipageBillForm.vue';
 import {
   electricityFormConfig,
   summaryDetailConfig,
@@ -26,7 +24,9 @@ import {
   useColumns,
   useGridFormSchema,
   waterFormConfig,
-} from './data';
+} from './modules/data';
+import MultipageBillDetail from './MultipageBillDetail.vue';
+import MultipageBillForm from './MultipageBillForm.vue';
 
 // 区域定义
 interface Area {
