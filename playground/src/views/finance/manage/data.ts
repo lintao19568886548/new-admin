@@ -1,6 +1,6 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { SystemRoleApi } from '#/api';
+import type { SystemFinanceApi } from '#/api';
 
 import { $t } from '#/locales';
 
@@ -8,35 +8,58 @@ export function useFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'name',
-      label: $t('system.role.roleName'),
+      fieldName: 'billName',
+      label: $t('page.finance.billName'),
       rules: 'required',
+    },
+    {
+      component: 'Select',
+      componentProps: {
+        options: [
+          { label: '房租', value: '房租' },
+          { label: '水费', value: '水费' },
+          { label: '电费', value: '电费' },
+          { label: '燃气费', value: '燃气费' },
+          { label: '其他费用', value: '其他费用' },
+        ],
+      },
+      fieldName: 'billCategory',
+      label: $t('page.finance.billCategory'),
     },
     {
       component: 'RadioGroup',
       componentProps: {
         buttonStyle: 'solid',
         options: [
-          { label: $t('common.enabled'), value: 1 },
-          { label: $t('common.disabled'), value: 0 },
+          { label: '收入', value: '收入' },
+          { label: '支出', value: '支出' },
         ],
         optionType: 'button',
       },
-      defaultValue: 1,
-      fieldName: 'status',
-      label: $t('system.role.status'),
+      defaultValue: '支出',
+      fieldName: 'transactionType',
+      label: $t('page.finance.transactionType'),
     },
     {
-      component: 'Textarea',
-      fieldName: 'remark',
-      label: $t('system.role.remark'),
+      component: 'InputNumber',
+      componentProps: {
+        addonBefore: '¥',
+        min: 0,
+        precision: 2,
+        style: { width: '100%' },
+      },
+      fieldName: 'amount',
+      label: $t('page.finance.amount'),
     },
     {
-      component: 'Input',
-      fieldName: 'permissions',
-      formItemClass: 'items-start',
-      label: $t('system.role.setPermissions'),
-      modelPropName: 'modelValue',
+      component: 'DatePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD HH:mm:ss',
+        showTime: true,
+        style: { width: '100%' },
+      },
+      fieldName: 'transactionTime',
+      label: $t('page.finance.transactionTime'),
     },
   ];
 }
@@ -45,78 +68,96 @@ export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'name',
-      label: $t('system.role.roleName'),
+      fieldName: 'billName',
+      label: $t('page.finance.billName'),
     },
-    { component: 'Input', fieldName: 'id', label: $t('system.role.id') },
     {
       component: 'Select',
       componentProps: {
         allowClear: true,
         options: [
-          { label: $t('common.enabled'), value: 1 },
-          { label: $t('common.disabled'), value: 0 },
+          { label: '房租', value: '房租' },
+          { label: '水费', value: '水费' },
+          { label: '电费', value: '电费' },
+          { label: '燃气费', value: '燃气费' },
+          { label: '其他费用', value: '其他费用' },
         ],
       },
-      fieldName: 'status',
-      label: $t('system.role.status'),
+      fieldName: 'billCategory',
+      label: $t('page.finance.billCategory'),
     },
     {
-      component: 'Input',
-      fieldName: 'remark',
-      label: $t('system.role.remark'),
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        options: [
+          { label: '收入', value: '收入' },
+          { label: '支出', value: '支出' },
+        ],
+      },
+      fieldName: 'transactionType',
+      label: $t('page.finance.transactionType'),
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        min: 0,
+        precision: 2,
+        style: { width: '100%' },
+      },
+      fieldName: 'amount',
+      label: $t('page.finance.amount'),
     },
     {
       component: 'RangePicker',
-      fieldName: 'createTime',
-      label: $t('system.role.createTime'),
+      fieldName: 'transactionTime',
+      label: $t('page.finance.transactionTime'),
     },
   ];
 }
 
-export function useColumns<T = SystemRoleApi.SystemRole>(
+export function useColumns<T = SystemFinanceApi.SystemFinance>(
   onActionClick: OnActionClickFn<T>,
-  onStatusChange?: (newStatus: any, row: T) => PromiseLike<boolean | undefined>,
 ): VxeTableGridOptions['columns'] {
   return [
     {
-      field: 'name',
-      title: $t('system.role.roleName'),
+      field: 'billName',
+      title: $t('page.finance.billName'),
       width: 200,
     },
     {
-      field: 'id',
-      title: $t('system.role.id'),
+      field: 'billCategory',
+      title: $t('page.finance.billCategory'),
       width: 200,
     },
     {
-      cellRender: {
-        attrs: { beforeChange: onStatusChange },
-        name: onStatusChange ? 'CellSwitch' : 'CellTag',
-      },
-      field: 'status',
-      title: $t('system.role.status'),
+      field: 'transactionType',
+      title: $t('page.finance.transactionType'),
       width: 100,
     },
     {
-      field: 'remark',
+      field: 'amount',
+      formatter: ({ cellValue }) => {
+        return cellValue ? `¥${cellValue.toFixed(2)}` : '';
+      },
       minWidth: 100,
-      title: $t('system.role.remark'),
+      title: $t('page.finance.amount'),
     },
     {
-      field: 'createTime',
-      title: $t('system.role.createTime'),
+      field: 'transactionTime',
+      title: $t('page.finance.transactionTime'),
       width: 200,
     },
     {
       align: 'center',
       cellRender: {
         attrs: {
-          nameField: 'name',
-          nameTitle: $t('system.role.name'),
+          nameField: 'billName',
+          nameTitle: $t('page.finance.billName'),
           onClick: onActionClick,
         },
         name: 'CellOperation',
+        options: ['edit', 'delete'],
       },
       field: 'operation',
       fixed: 'right',

@@ -1,35 +1,25 @@
 <script lang="ts" setup>
-import type { DataNode } from 'ant-design-vue/es/tree';
-
-import type { Recordable } from '@vben/types';
-
-import type { SystemRoleApi } from '#/api/system/role';
+import type { SystemFinanceApi } from '#/api';
 
 import { computed, ref } from 'vue';
 
-import { useVbenDrawer, VbenTree } from '@vben/common-ui';
-import { IconifyIcon } from '@vben/icons';
+import { useVbenDrawer } from '@vben/common-ui';
 
-import { Spin } from 'ant-design-vue';
+import { message } from 'ant-design-vue'; // 添加 message 导入
 
 import { useVbenForm } from '#/adapter/form';
-import { getMenuList } from '#/api/system/menu';
-import { createRole, updateRole } from '#/api/system/role';
 import { $t } from '#/locales';
 
 import { useFormSchema } from '../data';
 
 const emits = defineEmits(['success']);
 
-const formData = ref<SystemRoleApi.SystemRole>();
+const formData = ref<SystemFinanceApi.SystemFinance>();
 
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(),
   showDefaultActions: false,
 });
-
-const permissions = ref<DataNode[]>([]);
-const loadingPermissions = ref(false);
 
 const id = ref();
 const [Drawer, drawerApi] = useVbenDrawer({
@@ -37,87 +27,50 @@ const [Drawer, drawerApi] = useVbenDrawer({
     const { valid } = await formApi.validate();
     if (!valid) return;
     const values = await formApi.getValues();
+    console.warn('提交表单数据', values); // 将 console.log 改为 console.warn
     drawerApi.lock();
-    (id.value ? updateRole(id.value, values) : createRole(values))
-      .then(() => {
-        emits('success');
-        drawerApi.close();
-      })
-      .catch(() => {
-        drawerApi.unlock();
+
+    // 模拟保存操作
+    setTimeout(() => {
+      message.success({
+        content: id.value
+          ? $t('ui.actionMessage.operationSuccess', [values.billName])
+          : $t('ui.actionMessage.operationFailed', [values.billName]),
       });
+      emits('success');
+      drawerApi.close();
+    }, 1000);
   },
   onOpenChange(isOpen) {
     if (isOpen) {
-      const data = drawerApi.getData<SystemRoleApi.SystemRole>();
+      const data = drawerApi.getData<SystemFinanceApi.SystemFinance>();
+      console.warn('打开表单，数据:', data); // 将 console.log 改为 console.warn
       formApi.resetForm();
-      if (data) {
+      if (data && Object.keys(data).length > 0) {
         formData.value = data;
         id.value = data.id;
         formApi.setValues(data);
       } else {
         id.value = undefined;
-      }
-
-      if (permissions.value.length === 0) {
-        loadPermissions();
+        // 设置默认值
+        formApi.setValues({
+          transactionTime: new Date().toISOString(),
+          transactionType: '支出',
+        });
       }
     }
   },
 });
 
-async function loadPermissions() {
-  loadingPermissions.value = true;
-  try {
-    const res = await getMenuList();
-    permissions.value = res as unknown as DataNode[];
-  } finally {
-    loadingPermissions.value = false;
-  }
-}
-
 const getDrawerTitle = computed(() => {
   return formData.value?.id
-    ? $t('common.edit', $t('system.role.name'))
-    : $t('common.create', $t('system.role.name'));
+    ? $t('page.finance.edit')
+    : $t('page.finance.create');
 });
-
-function getNodeClass(node: Recordable<any>) {
-  const classes: string[] = [];
-  if (node.value?.type === 'button') {
-    classes.push('inline-flex');
-    if (node.index % 3 >= 1) {
-      classes.push('!pl-0');
-    }
-  }
-
-  return classes.join(' ');
-}
 </script>
 <template>
   <Drawer :title="getDrawerTitle">
-    <Form>
-      <template #permissions="slotProps">
-        <Spin :spinning="loadingPermissions">
-          <VbenTree
-            :tree-data="permissions"
-            multiple
-            bordered
-            :default-expanded-level="2"
-            :get-node-class="getNodeClass"
-            v-bind="slotProps"
-            value-field="id"
-            label-field="meta.title"
-            icon-field="meta.icon"
-          >
-            <template #node="{ value }">
-              <IconifyIcon v-if="value.meta.icon" :icon="value.meta.icon" />
-              {{ $t(value.meta.title) }}
-            </template>
-          </VbenTree>
-        </Spin>
-      </template>
-    </Form>
+    <Form />
   </Drawer>
 </template>
 <style lang="css" scoped>

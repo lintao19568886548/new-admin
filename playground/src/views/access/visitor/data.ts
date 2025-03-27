@@ -182,14 +182,6 @@ export function useColumns<T = SystemDeptApi.SystemDept>(
           onClick: onActionClick,
         },
         name: 'CellOperation',
-        options: [
-          {
-            code: 'view',
-            text: '查看',
-          },
-          'edit',
-          'delete',
-        ],
       },
       field: 'operation',
       fixed: 'right',
