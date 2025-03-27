@@ -16,8 +16,8 @@ const emit = defineEmits(['success']);
 const formData = ref<RentalManagementItem>();
 const getTitle = computed(() => {
   return formData.value?.id
-    ? $t('ui.actionTitle.edit', [$t('system.rental.name')])
-    : $t('ui.actionTitle.create', [$t('system.rental.name')]);
+    ? $t('ui.actionTitle.edit', [$t('system.rental.tenant.item')])
+    : $t('ui.actionTitle.create', [$t('system.rental.tenant.item')]);
 });
 
 const [Form, formApi] = useVbenForm({

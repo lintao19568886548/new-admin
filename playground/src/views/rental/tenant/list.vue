@@ -127,58 +127,53 @@ function handleAreaChange(area: Area) {
 const rentalItems = [
   {
     address: '北京市朝阳区建国路88号',
-    area: '120平方米',
-    contact: '张先生 13800138000',
-    createTime: '2021-04-01',
+    contractDate: '2023-01-01 至 2028-01-01',
     id: 1,
-    price: '2000元/月',
-    tag: '空闲',
-    title: 'Github',
-    updateTime: '2021-04-01',
+    increaseDate: '2024-01-01',
+    increaseRate: 5,
+    name: '张三',
+    phoneNumber: '13800138000',
+    tag: '当期',
   },
   {
     address: '上海市徐汇区淮海路100号',
-    area: '150平方米',
-    contact: '李女士 13900139000',
-    createTime: '2021-04-02',
+    contractDate: '2023-02-15 至 2028-02-15',
     id: 2,
-    price: '3000元/月',
-    tag: '维护',
-    title: 'Vue',
-    updateTime: '2021-04-02',
+    increaseDate: '2024-02-15',
+    increaseRate: 3,
+    name: '李四',
+    phoneNumber: '13900139000',
+    tag: '当期',
   },
   {
     address: '广州市天河区体育西路123号',
-    area: '100平方米',
-    contact: '王先生 13700137000',
-    createTime: '2021-04-03',
+    contractDate: '2023-03-10 至 2028-03-10',
     id: 3,
-    price: '1800元/月',
-    tag: '空闲',
-    title: 'Html5',
-    updateTime: '2021-04-03',
+    increaseDate: '2024-03-10',
+    increaseRate: 4,
+    name: '王五',
+    phoneNumber: '13700137000',
+    tag: '当期',
   },
   {
     address: '深圳市南山区科技园456号',
-    area: '130平方米',
-    contact: '刘女士 13600136000',
-    createTime: '2021-04-04',
+    contractDate: '2023-04-20 至 2028-04-20',
     id: 4,
-    price: '2500元/月',
-    tag: '维护',
-    title: 'Angular',
-    updateTime: '2021-04-04',
+    increaseDate: '2024-04-20',
+    increaseRate: 5,
+    name: '赵六',
+    phoneNumber: '13600136000',
+    tag: '过期',
   },
   {
     address: '成都市武侯区人民南路789号',
-    area: '160平方米',
-    contact: '赵先生 13500135000',
-    createTime: '2021-04-05',
+    contractDate: '2023-05-05 至 2028-05-05',
     id: 5,
-    price: '3200元/月',
-    tag: '已租',
-    title: 'React',
-    updateTime: '2021-04-05',
+    increaseDate: '2024-05-05',
+    increaseRate: 3.5,
+    name: '钱七',
+    phoneNumber: '13500135000',
+    tag: '过期',
   },
 ];
 
@@ -229,7 +224,7 @@ function refreshGrid() {
 <template>
   <Page auto-content-height>
     <FormModal @success="refreshGrid" />
-    <Grid :table-title="$t('system.rental.list')">
+    <Grid :table-title="$t('system.rental.tenant.list')">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector
@@ -242,7 +237,7 @@ function refreshGrid() {
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">
           <Plus class="size-5" />
-          {{ $t('ui.actionTitle.create', [$t('system.rental.name')]) }}
+          {{ $t('ui.actionTitle.create', [$t('system.rental.tenant.item')]) }}
         </Button>
       </template>
     </Grid>

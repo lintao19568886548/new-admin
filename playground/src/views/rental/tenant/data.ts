@@ -13,18 +13,13 @@ export function getTagTypeOptions() {
   return [
     {
       color: 'green',
-      label: $t('system.rental.status.vacant'),
-      value: '空闲',
+      label: $t('system.rental.tenant.status.current'),
+      value: '当期',
     },
     {
       color: 'red',
-      label: $t('system.rental.status.rented'),
-      value: '已租',
-    },
-    {
-      color: 'processing',
-      label: $t('system.rental.status.maintenance'),
-      value: '维护',
+      label: $t('system.rental.tenant.status.expired'),
+      value: '过期',
     },
   ];
 }
@@ -36,32 +31,57 @@ export function useFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'title',
-      label: $t('system.rental.title'),
+      fieldName: 'name',
+      label: $t('system.rental.tenant.name'),
       rules: 'required',
     },
     {
       component: 'Input',
-      fieldName: 'price',
-      label: $t('system.rental.price'),
+      fieldName: 'phoneNumber',
+      label: $t('system.rental.tenant.phone'),
       rules: 'required',
     },
     {
-      component: 'Input',
-      fieldName: 'area',
-      label: $t('system.rental.area'),
+      component: 'RangePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD',
+        placeholder: ['合同开始日期', '合同结束日期'],
+        separator: ' 至 ',
+        style: { width: '100%' },
+        valueFormat: 'YYYY-MM-DD',
+      },
+      fieldName: 'contractDateRange',
+      label: $t('system.rental.tenant.contractDate'),
+      rules: 'required',
+    },
+    {
+      component: 'DatePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD',
+        style: { width: '100%' },
+        valueFormat: 'YYYY-MM-DD',
+      },
+      fieldName: 'increaseDate',
+      label: $t('system.rental.tenant.increaseDate'),
+      rules: 'required',
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '%',
+        max: 100,
+        min: 0,
+        precision: 1,
+        style: { width: '100%' },
+      },
+      fieldName: 'increaseRate',
+      label: $t('system.rental.tenant.increaseRate'),
       rules: 'required',
     },
     {
       component: 'Input',
       fieldName: 'address',
-      label: $t('system.rental.address'),
-      rules: 'required',
-    },
-    {
-      component: 'Input',
-      fieldName: 'contact',
-      label: $t('system.rental.contact'),
+      label: $t('system.rental.tenant.address'),
       rules: 'required',
     },
     {
@@ -69,15 +89,14 @@ export function useFormSchema(): VbenFormSchema[] {
       componentProps: {
         buttonStyle: 'solid',
         options: [
-          { label: $t('system.rental.status.vacant'), value: '空闲' },
-          { label: $t('system.rental.status.rented'), value: '已租' },
-          { label: $t('system.rental.status.maintenance'), value: '维护' },
+          { label: $t('system.rental.tenant.status.current'), value: '当期' },
+          { label: $t('system.rental.tenant.status.expired'), value: '过期' },
         ],
         optionType: 'button',
       },
-      defaultValue: '空闲',
+      defaultValue: '当期',
       fieldName: 'tag',
-      label: $t('system.rental.status.label'),
+      label: $t('system.rental.tenant.status.label'),
     },
     {
       component: 'Textarea',
@@ -109,31 +128,60 @@ export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'title',
-      label: $t('system.rental.title'),
+      fieldName: 'name',
+      label: $t('system.rental.tenant.name'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'phoneNumber',
+      label: $t('system.rental.tenant.phone'),
     },
     {
       component: 'Select',
       componentProps: {
         allowClear: true,
         options: [
-          { label: $t('system.rental.status.vacant'), value: '空闲' },
-          { label: $t('system.rental.status.rented'), value: '已租' },
-          { label: $t('system.rental.status.maintenance'), value: '维护' },
+          { label: $t('system.rental.tenant.status.current'), value: '当期' },
+          { label: $t('system.rental.tenant.status.expired'), value: '过期' },
         ],
       },
       fieldName: 'tag',
-      label: $t('system.rental.status.label'),
+      label: $t('system.rental.tenant.status.label'),
+    },
+    {
+      component: 'RangePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD',
+        valueFormat: 'YYYY-MM-DD',
+      },
+      fieldName: 'contractDate',
+      label: $t('system.rental.tenant.contractDate'),
+    },
+    {
+      component: 'DatePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD',
+        valueFormat: 'YYYY-MM-DD',
+      },
+      fieldName: 'increaseDate',
+      label: $t('system.rental.tenant.increaseDate'),
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '%',
+        max: 100,
+        min: 0,
+        precision: 1,
+        style: { width: '100%' },
+      },
+      fieldName: 'increaseRate',
+      label: $t('system.rental.tenant.increaseRate'),
     },
     {
       component: 'Input',
       fieldName: 'address',
-      label: $t('system.rental.address'),
-    },
-    {
-      component: 'RangePicker',
-      fieldName: 'createTime',
-      label: $t('system.rental.createTime'),
+      label: $t('system.rental.tenant.address'),
     },
   ];
 }
@@ -146,19 +194,14 @@ export function useColumns<T = RentalManagementItem>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
-      field: 'title',
-      title: $t('system.rental.title'),
-      width: 150,
+      field: 'name',
+      title: $t('system.rental.tenant.name'),
+      width: 100,
     },
     {
-      field: 'price',
-      title: $t('system.rental.price'),
-      width: 120,
-    },
-    {
-      field: 'area',
-      title: $t('system.rental.area'),
-      width: 120,
+      field: 'phoneNumber',
+      title: $t('system.rental.tenant.phone'),
+      width: 130,
     },
     {
       cellRender: {
@@ -166,30 +209,49 @@ export function useColumns<T = RentalManagementItem>(
         options: getTagTypeOptions(),
       },
       field: 'tag',
-      title: $t('system.rental.status.label'),
+      title: $t('system.rental.tenant.status.label'),
+      width: 80,
+    },
+    {
+      cellRender: {
+        name: 'CellText',
+        props: {
+          style: {
+            'line-height': '1.2',
+            'white-space': 'pre-wrap',
+            'word-break': 'break-word',
+          },
+        },
+      },
+      field: 'contractDate',
+      showOverflow: false,
+      title: $t('system.rental.tenant.contractDate'),
+      width: 180,
+    },
+    {
+      field: 'increaseDate',
+      title: $t('system.rental.tenant.increaseDate'),
+      width: 120,
+    },
+    {
+      field: 'increaseRate',
+      formatter: ({ cellValue }) => {
+        return cellValue ? `${cellValue}%` : '';
+      },
+      title: $t('system.rental.tenant.increaseRate'),
       width: 100,
     },
     {
       field: 'address',
-      minWidth: 200,
-      title: $t('system.rental.address'),
-    },
-    {
-      field: 'contact',
-      title: $t('system.rental.contact'),
-      width: 150,
-    },
-    {
-      field: 'createTime',
-      title: $t('system.rental.createTime'),
-      width: 120,
+      minWidth: 180,
+      title: $t('system.rental.tenant.address'),
     },
     {
       align: 'center',
       cellRender: {
         attrs: {
-          nameField: 'title',
-          nameTitle: $t('system.rental.name'),
+          nameField: 'name',
+          nameTitle: $t('system.rental.tenant.name'),
           onClick: onActionClick,
         },
         name: 'CellOperation',
