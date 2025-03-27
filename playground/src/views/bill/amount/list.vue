@@ -5,16 +5,18 @@ import type {
   OnActionClickParams,
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
+import type { Area } from '#/components/AreaSelector.vue';
 
 import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
-import { ChevronDown, Plus } from '@vben/icons';
+import { Plus } from '@vben/icons';
 
-import { Button, Dropdown, Menu, message } from 'ant-design-vue';
+import { Button, message } from 'ant-design-vue';
 import dayjs, { Dayjs } from 'dayjs';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
 import {
@@ -28,12 +30,6 @@ import {
 import MultipageBillDetail from './MultipageBillDetail.vue';
 import MultipageBillForm from './MultipageBillForm.vue';
 
-// 区域定义
-interface Area {
-  key: string;
-  name: string;
-}
-
 // 区域列表
 const areaList = [
   { key: 'all', name: '全部区域' },
@@ -46,6 +42,24 @@ const areaList = [
 
 // 当前选中的区域
 const currentArea = ref(areaList[0]) as any;
+
+const areaSelectorRef = ref();
+
+function handleAreaChange(area: Area) {
+  // 更新当前选中的区域
+  currentArea.value = area;
+
+  // 延迟关闭提示
+  setTimeout(() => {
+    message.success({
+      content: `已切换到${area.name}`,
+      duration: 2,
+      key: 'area_change_msg',
+    });
+    // 刷新表格数据
+    refreshGrid();
+  }, 500);
+}
 
 // 账单表单组件引用
 const billFormRef = ref();
@@ -63,28 +77,6 @@ const formConfig = {
   electricityConfig: electricityFormConfig,
   waterConfig: waterFormConfig,
 };
-
-/**
- * 切换区域
- */
-function switchArea(area: Area) {
-  currentArea.value = area;
-
-  message.loading({
-    content: `正在切换到${area.name}...`,
-    duration: 0,
-    key: 'area_change_msg',
-  });
-
-  // 模拟API请求延迟
-  setTimeout(() => {
-    refreshGrid();
-    message.success({
-      content: `已切换到${area.name}`,
-      key: 'area_change_msg',
-    });
-  }, 800);
-}
 
 /**
  * 编辑账单
@@ -370,23 +362,12 @@ function handleFormSuccess(_data: any) {
     <Grid table-title="总账单" class="amount-bill-grid">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
-        <Dropdown class="ml-3">
-          <template #overlay>
-            <Menu>
-              <Menu.Item
-                v-for="area in areaList"
-                :key="area.key"
-                @click="() => switchArea(area)"
-              >
-                {{ area.name }}
-              </Menu.Item>
-            </Menu>
-          </template>
-          <Button :type="currentArea.key !== 'all' ? 'primary' : 'default'">
-            {{ currentArea.name }}
-            <ChevronDown class="ml-1 size-4" />
-          </Button>
-        </Dropdown>
+        <AreaSelector
+          :area-list="areaList"
+          :default-area="currentArea"
+          @change="handleAreaChange"
+          ref="areaSelectorRef"
+        />
       </template>
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">
