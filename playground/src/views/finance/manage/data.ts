@@ -4,6 +4,24 @@ import type { SystemFinanceApi } from '#/api';
 
 import { $t } from '#/locales';
 
+/**
+ * 获取标签颜色
+ */
+export function getTagTypeOptions() {
+  return [
+    {
+      color: 'red',
+      label: $t('system.finance.transactionType.expense'),
+      value: '支出',
+    },
+    {
+      color: 'green',
+      label: $t('system.finance.transactionType.income'),
+      value: '收入',
+    },
+  ];
+}
+
 export function useFormSchema(): VbenFormSchema[] {
   return [
     {
@@ -138,6 +156,10 @@ export function useColumns<T = SystemFinanceApi.SystemFinance>(
       width: 200,
     },
     {
+      cellRender: {
+        name: 'CellTag',
+        options: getTagTypeOptions(),
+      },
       field: 'transactionType',
       title: $t('page.finance.transactionType'),
       width: 100,

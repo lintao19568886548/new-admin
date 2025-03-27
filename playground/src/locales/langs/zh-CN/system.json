@@ -85,6 +85,12 @@
       }
     }
   },
+  "finance": {
+    "transactionType": {
+      "expense": "支出",
+      "income": "收入"
+    }
+  },
   "role": {
     "title": "角色管理",
     "list": "角色列表",
