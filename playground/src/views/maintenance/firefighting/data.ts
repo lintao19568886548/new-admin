@@ -98,7 +98,7 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       defaultValue: '空闲',
       fieldName: 'passagewaytag',
-      label: $t('system.rental.status.label'),
+      label: '楼道、墙体检查',
     },
     {
       component: 'Input',

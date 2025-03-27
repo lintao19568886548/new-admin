@@ -65,7 +65,7 @@
     "address": "地址",
     "contact": "联系方式",
     "status": {
-      "label": "楼道、墙体检查",
+      "label": "租赁状态",
       "vacant": "空闲",
       "rented": "已租",
       "maintenance": "维护"
@@ -83,6 +83,12 @@
         "in": "进入",
         "left": "离开"
       }
+    }
+  },
+  "finance": {
+    "transactionType": {
+      "expense": "支出",
+      "income": "收入"
     }
   },
   "role": {
