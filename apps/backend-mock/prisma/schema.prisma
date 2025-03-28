@@ -1,0 +1,111 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model AmountBill {
+  bill_id               Int       @id @default(autoincrement())
+  ele_fee               Decimal?  @db.Decimal(10, 2)  
+  water_fee             Decimal?  @db.Decimal(10, 2)
+  factory_rent          Decimal?  @db.Decimal(10, 2)
+  management_fee        Decimal?  @db.Decimal(10, 2)
+  service_fee           Decimal?  @db.Decimal(10, 2)
+  invoice_tax           Decimal?  @db.Decimal(10, 2)
+  monthly_total_fee     Decimal?  @db.Decimal(10, 2)
+  create_time           DateTime?
+  receipt_time          DateTime?
+  tenant_id             Int
+  tenant                Tenant @relation(fields: [tenant_id], references: [tenant_id])
+  ele_bills             EleBill[]
+  water_bills           WaterBill[]
+
+  @@map("amount_bill")
+}
+
+model Car {
+  car_id   Int     @id
+  car_num  String  @db.LongText
+  status   Int
+  time     Int
+  remark   String? @db.LongText
+
+  @@map("car")
+}
+
+model EleBill {
+  ele_id           Int       @id @default(autoincrement()) @db.Int
+  bill_id          Int
+  meter_name       String?
+  previous_reading Decimal?  @db.Decimal(10, 2)
+  current_reading  Decimal?  @db.Decimal(10, 2)
+  monthly_usage    Decimal?  @db.Decimal(10, 2)
+  multiplier       Decimal?  @db.Decimal(10, 2)
+  total_usage      Decimal?  @db.Decimal(10, 2)
+  unit_price       Float?    @db.Float
+  amount           Decimal?  @db.Decimal(10, 2)
+  remarks          String?
+  create_time      DateTime?
+  receipt_time     DateTime?
+  amount_bill      AmountBill @relation(fields: [bill_id], references: [bill_id])
+
+  @@map("ele_bill")
+}
+
+model Tenant {
+  tenant_id   Int     @id
+  tenant_name String? @db.VarChar(30)
+  amount_bills AmountBill[]
+
+  @@map("tenant")
+}
+
+model UserCode {
+  id   Int    @id
+  code String @db.VarChar(100)
+  user Users  @relation(fields: [id], references: [id], onUpdate: Cascade)
+
+  @@map("user_code")
+}
+
+model Users {
+  id       Int       @id
+  password String    @db.VarChar(100)
+  realName String    @db.VarChar(30)
+  roles    String    @db.VarChar(20)
+  username String    @db.VarChar(50)
+  homePath String?   @db.VarChar(100)
+  userCode UserCode?
+
+  @@map("users")
+}
+
+model WaterBill {
+  water_id         Int       @id @default(autoincrement())
+  bill_id          Int?
+  meter_name       String?
+  previous_reading Decimal?  @db.Decimal(10, 2)
+  current_reading  Decimal?  @db.Decimal(10, 2)
+  monthly_usage    Decimal?  @db.Decimal(10, 2)
+  multiplier       Decimal?  @db.Decimal(10, 2)
+  total_usage      Decimal?  @db.Decimal(10, 2)
+  unit_price       Float?    @db.Float
+  amount           Decimal?  @db.Decimal(10, 2)
+  remarks          String?
+  create_time      DateTime?
+  receipt_time     DateTime?
+  amount_bill      AmountBill? @relation(fields: [bill_id], references: [bill_id])
+
+  @@map("water_bill")
+}
+
