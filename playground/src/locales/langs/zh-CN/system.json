@@ -57,7 +57,7 @@
     "name": "租赁",
     "title": "租赁项目",
     "price": "月租金",
-    "area": "面积",
+    "area": "总面积",
     "floor": "楼层",
     "type": "类型",
     "firestatus": "灭火器检查",
@@ -65,7 +65,7 @@
     "address": "地址",
     "contact": "联系方式",
     "status": {
-      "label": "租赁状态",
+      "label": "空闲面积",
       "vacant": "空闲",
       "rented": "已租",
       "maintenance": "维护"
