@@ -49,6 +49,15 @@ export function useFormSchema(): VbenFormSchema[] {
         .max(11, $t('ui.formRules.maxLength', ['手机号', 11])),
     },
     {
+      component: 'Input',
+      fieldName: 'carNumber',
+      label: '车牌号',
+      rules: z
+        .string()
+        .max(10, $t('ui.formRules.maxLength', ['车牌号', 10]))
+        .optional(),
+    },
+    {
       component: 'DatePicker',
       componentProps: {
         format: 'YYYY-MM-DD HH:mm:ss',
@@ -110,6 +119,11 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: '手机号',
     },
     {
+      component: 'Input',
+      fieldName: 'carNumber',
+      label: '车牌号',
+    },
+    {
       component: 'Select',
       componentProps: {
         allowClear: true,
@@ -151,9 +165,8 @@ export function useColumns<T = SystemDeptApi.SystemDept>(
       width: 150,
     },
     {
-      field: 'phoneNumber',
-      title: '手机号',
-      width: 150,
+      field: 'visitReason',
+      title: '来访原因',
     },
     {
       cellRender: {
@@ -165,13 +178,19 @@ export function useColumns<T = SystemDeptApi.SystemDept>(
       width: 100,
     },
     {
+      field: 'carNumber',
+      title: '车牌号',
+      width: 150,
+    },
+    {
+      field: 'phoneNumber',
+      title: '手机号',
+      width: 150,
+    },
+    {
       field: 'registerTime',
       title: '登记时间',
       width: 180,
-    },
-    {
-      field: 'visitReason',
-      title: '来访原因',
     },
     {
       align: 'center',
