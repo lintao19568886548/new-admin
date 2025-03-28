@@ -48,10 +48,10 @@ export function useFormSchema(): VbenFormSchema[] {
         options: [
           { label: '东莞', value: '正常' },
           { label: '深圳', value: '异常' },
-          { label: '广州', value: '维护中' },
+          { label: '广州', value: '维护' },
         ],
       },
-      fieldName: 'adress',
+      fieldName: 'address',
       label: '地址',
     },
     {
@@ -61,7 +61,7 @@ export function useFormSchema(): VbenFormSchema[] {
         options: [
           { label: '正常', value: '正常' },
           { label: '异常', value: '异常' },
-          { label: '维护中', value: '维护中' },
+          { label: '维护', value: '维护' },
         ],
         optionType: 'button',
       },
@@ -76,7 +76,7 @@ export function useFormSchema(): VbenFormSchema[] {
         options: [
           { label: '正常', value: '正常' },
           { label: '异常', value: '异常' },
-          { label: '维护中', value: '维护中' },
+          { label: '维护', value: '维护' },
         ],
         optionType: 'button',
       },
@@ -92,7 +92,7 @@ export function useFormSchema(): VbenFormSchema[] {
         options: [
           { label: '正常', value: '正常' },
           { label: '异常', value: '异常' },
-          { label: '维护中', value: '维护中' },
+          { label: '维护', value: '维护' },
         ],
         optionType: 'button',
       },
@@ -140,7 +140,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
     {
       component: 'Input',
       fieldName: 'title',
-      label: $t('system.rental.title'),
+      label: '厂房名称',
     },
     {
       component: 'Select',
@@ -149,7 +149,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
         options: [
           { label: '正常', value: '正常' },
           { label: '异常', value: '异常' },
-          { label: '维护中', value: '维护中' },
+          { label: '维护', value: '维护' },
         ],
       },
       fieldName: 'firestatus',
@@ -163,7 +163,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
         options: [
           { label: '正常', value: '正常' },
           { label: '异常', value: '异常' },
-          { label: '维护中', value: '维护中' },
+          { label: '维护', value: '维护' },
         ],
       },
       fieldName: 'safetychanneltag',
@@ -176,11 +176,11 @@ export function useGridFormSchema(): VbenFormSchema[] {
         options: [
           { label: '正常', value: '正常' },
           { label: '异常', value: '异常' },
-          { label: '维护中', value: '维护中' },
+          { label: '维护', value: '维护' },
         ],
       },
       fieldName: 'passagewaytag',
-      label: $t('system.rental.status.label'),
+      label: '楼道、墙体检查',
     },
     {
       component: 'Select',
@@ -204,7 +204,7 @@ export function useColumns<T = RentalManagementItem>(
   return [
     {
       field: 'title',
-      title: $t('system.rental.title'),
+      title: '厂房名称',
       width: 150,
     },
     {
@@ -213,7 +213,7 @@ export function useColumns<T = RentalManagementItem>(
         options: [
           { color: 'green', label: '正常', value: '正常' },
           { color: 'red', label: '异常', value: '异常' },
-          { color: 'processing', label: '维护中', value: '维护中' },
+          { color: 'processing', label: '维护', value: '维护' },
         ],
       },
       field: 'firestatus',
@@ -226,7 +226,7 @@ export function useColumns<T = RentalManagementItem>(
         options: [
           { color: 'green', label: '正常', value: '正常' },
           { color: 'red', label: '异常', value: '异常' },
-          { color: 'processing', label: '维护中', value: '维护中' },
+          { color: 'processing', label: '维护', value: '维护' },
         ],
       },
       field: 'safetychanneltag',
@@ -239,11 +239,11 @@ export function useColumns<T = RentalManagementItem>(
         options: [
           { color: 'green', label: '正常', value: '正常' },
           { color: 'red', label: '异常', value: '异常' },
-          { color: 'processing', label: '维护中', value: '维护中' },
+          { color: 'processing', label: '维护', value: '维护' },
         ],
       },
       field: 'passagewaytag',
-      title: $t('system.rental.status.label'),
+      title: '楼道、墙体检查',
       width: 120,
     },
     {

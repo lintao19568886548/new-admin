@@ -14,7 +14,7 @@ export default eventHandler(async (event) => {
 
     // 插入数据到数据库
     const insertResult = await db.sql`
-      INSERT INTO tenant_all (tenant_id, tenant_name)
+      INSERT INTO amount_bill (tenant_id, tenant_name)
       VALUES (${tenantId}, ${tenantName});
     `;
     console.log('插入数据成功:', insertResult);
