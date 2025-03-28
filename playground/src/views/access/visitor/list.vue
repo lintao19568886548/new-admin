@@ -128,6 +128,7 @@ function handleAreaChange(area: Area) {
 // 模拟的访客数据
 const visitorItems = [
   {
+    carNumber: '粤B 12345',
     createTime: '2023-05-01 08:50:00',
     id: '1',
     phoneNumber: '13800138001',
@@ -137,6 +138,7 @@ const visitorItems = [
     visitReason: '业务洽谈',
   },
   {
+    carNumber: '粤A 67890',
     createTime: '2023-05-01 10:20:00',
     id: '2',
     phoneNumber: '13900139002',
@@ -146,6 +148,7 @@ const visitorItems = [
     visitReason: '面试',
   },
   {
+    carNumber: '粤C 54321',
     createTime: '2023-05-02 13:50:00',
     id: '3',
     phoneNumber: '13700137003',
@@ -155,6 +158,7 @@ const visitorItems = [
     visitReason: '送货',
   },
   {
+    carNumber: '粤D 98765',
     createTime: '2023-05-03 11:00:00',
     id: '4',
     phoneNumber: '13600136004',
@@ -164,6 +168,7 @@ const visitorItems = [
     visitReason: '参观',
   },
   {
+    carNumber: '粤E 24680',
     createTime: '2023-05-03 16:20:00',
     id: '5',
     phoneNumber: '13500135005',
