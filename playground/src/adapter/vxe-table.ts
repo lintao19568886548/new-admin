@@ -94,6 +94,39 @@ setupVbenVxeTable({
       },
     });
 
+    // 根据可用面积比例显示不同颜色的Tag
+    vxeUI.renderer.add('CellAreaTag', {
+      renderTableDefault({ props }, { column, row }) {
+        const value = get(row, column.field);
+        // 提取数值部分
+        const availableArea = Number.parseFloat(
+          String(value).replaceAll(/[^0-9.]/g, ''),
+        );
+        const totalArea = Number.parseFloat(
+          String(row.area).replaceAll(/[^0-9.]/g, ''),
+        );
+
+        let color = 'red';
+        if (totalArea) {
+          const ratio = availableArea / totalArea;
+          if (ratio > 2 / 3) {
+            color = 'green';
+          } else if (ratio > 1 / 3) {
+            color = 'orange';
+          }
+        }
+
+        return h(
+          Tag,
+          {
+            ...props,
+            color,
+          },
+          { default: () => value },
+        );
+      },
+    });
+
     vxeUI.renderer.add('CellSwitch', {
       renderTableDefault({ attrs, props }, { column, row }) {
         const loadingKey = `__loading_${column.field}`;
