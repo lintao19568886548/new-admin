@@ -14,6 +14,7 @@
     "better-sqlite3": "^11.9.1",
     "db0": "^0.3.1",
     "jsonwebtoken": "catalog:",
+    "mysql2": "^3.14.0",
     "nitropack": "latest"
   },
   "devDependencies": {
