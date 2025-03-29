@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
 
   // 使用数据库查询替代硬编码的用户查找
   const userResult = await db.sql`
-    SELECT * FROM users 
+    SELECT * FROM user 
     WHERE username = ${username} AND password = ${password}
     LIMIT 1
   `.then((result) => result.rows?.[0] || null);

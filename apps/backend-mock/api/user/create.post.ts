@@ -10,9 +10,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     // 插入新用户
-    const stmt = db.prepare(
-      'INSERT INTO users (username, email) VALUES (?, ?)',
-    );
+    const stmt = db.prepare('INSERT INTO user (username, email) VALUES (?, ?)');
     const result = await stmt.run(body.username, body.email);
 
     return useResponseSuccess({

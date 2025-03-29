@@ -4,7 +4,7 @@ import { useResponseSuccess } from '../../utils/response';
 export default defineEventHandler(async () => {
   try {
     // 获取所有用户
-    const stmt = db.prepare('SELECT * FROM users');
+    const stmt = db.prepare('SELECT * FROM user');
     const users = await stmt.all();
 
     return useResponseSuccess({

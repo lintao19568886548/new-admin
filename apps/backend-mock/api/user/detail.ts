@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     // 获取用户详情
-    const stmt = db.prepare('SELECT * FROM users WHERE id = ?');
+    const stmt = db.prepare('SELECT * FROM user WHERE id = ?');
     const user = await stmt.get(id);
 
     if (!user) {

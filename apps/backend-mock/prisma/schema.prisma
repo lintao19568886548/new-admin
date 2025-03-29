@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "./prisma"
 }
 
 datasource db {
@@ -14,98 +13,98 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id       Int        @id @default(autoincrement())
+  realName String     @db.VarChar(30) @map("real_name")
+  username String     @db.VarChar(50)
+  password String     @db.VarChar(100)
+  roles    String     @db.VarChar(20)
+  homePath String?    @db.VarChar(100) @map("home_path")
+  userCodes UserCode[] @relation("UserToUserCode")
+
+  @@map("user")
+}
+
+model UserCode {
+  id        Int      @id @default(autoincrement())
+  code      String   @db.VarChar(100)
+  userId    Int      @map("user_id")
+  user      User     @relation("UserToUserCode", map: "user_code_no_fk", fields: [userId], references: [id])
+
+  @@map("user_code")
+}
+
+model Tenant {
+  tenantId    Int     @id @map("tenant_id")
+  tenantName  String? @db.VarChar(30) @map("tenant_name")
+  amountBills AmountBill[] @relation("AmountBillToTenant")
+
+  @@map("tenant")
+}
+
 model AmountBill {
-  bill_id               Int       @id @default(autoincrement())
-  ele_fee               Decimal?  @db.Decimal(10, 2)  
-  water_fee             Decimal?  @db.Decimal(10, 2)
-  factory_rent          Decimal?  @db.Decimal(10, 2)
-  management_fee        Decimal?  @db.Decimal(10, 2)
-  service_fee           Decimal?  @db.Decimal(10, 2)
-  invoice_tax           Decimal?  @db.Decimal(10, 2)
-  monthly_total_fee     Decimal?  @db.Decimal(10, 2)
-  create_time           DateTime?
-  receipt_time          DateTime?
-  tenant_id             Int
-  tenant                Tenant @relation(fields: [tenant_id], references: [tenant_id])
-  ele_bills             EleBill[]
-  water_bills           WaterBill[]
+  billId               Int       @id @default(autoincrement()) @map("bill_id")
+  eleFee               Decimal?  @db.Decimal(10, 2) @map("ele_fee")
+  waterFee             Decimal?  @db.Decimal(10, 2) @map("water_fee")
+  factoryRent          Decimal?  @db.Decimal(10, 2) @map("factory_rent")
+  managementFee        Decimal?  @db.Decimal(10, 2) @map("management_fee")
+  serviceFee           Decimal?  @db.Decimal(10, 2) @map("service_fee")
+  invoiceTax           Decimal?  @db.Decimal(10, 2) @map("invoice_tax")
+  totalFee             Decimal?  @db.Decimal(10, 2) @map("total_fee")
+  createTime           DateTime? @map("create_time")
+  receiptTime          DateTime? @map("receipt_time")
+  tenantId             Int       @map("tenant_id")
+  tenant               Tenant    @relation("AmountBillToTenant", map: "tenant_no_fk", fields: [tenantId], references: [tenantId])
+  eleBills             EleBill[] @relation("EleBillToAmountBill")
+  waterBills           WaterBill[] @relation("WaterBillToAmountBill")
 
   @@map("amount_bill")
 }
 
+model EleBill {
+  eleId           Int       @id @default(autoincrement()) @db.Int @map("ele_id")
+  billId          Int       @map("bill_id")
+  meterName       String?   @map("meter_name")
+  previousReading Decimal?  @db.Decimal(10, 2) @map("previous_reading")
+  currentReading  Decimal?  @db.Decimal(10, 2) @map("current_reading")
+  monthlyUsage    Decimal?  @db.Decimal(10, 2) @map("monthly_usage")
+  multiplier      Decimal?  @db.Decimal(10, 2)
+  totalUsage      Decimal?  @db.Decimal(10, 2) @map("total_usage")
+  unitPrice       Float?    @db.Float @map("unit_price")
+  amount          Decimal?  @db.Decimal(10, 2)
+  remarks         String?
+  createTime      DateTime? @map("create_time")
+  receiptTime     DateTime? @map("receipt_time")
+  amountBill      AmountBill @relation("EleBillToAmountBill", map: "ele_bill_no_fk", fields: [billId], references: [billId])
+
+  @@map("ele_bill")
+}
+
+model WaterBill {
+  waterId         Int       @id @default(autoincrement()) @map("water_id")
+  billId          Int?      @map("bill_id")
+  meterName       String?   @map("meter_name")
+  previousReading Decimal?  @db.Decimal(10, 2) @map("previous_reading")
+  currentReading  Decimal?  @db.Decimal(10, 2) @map("current_reading")
+  monthlyUsage    Decimal?  @db.Decimal(10, 2) @map("monthly_usage")
+  multiplier      Decimal?  @db.Decimal(10, 2)
+  totalUsage      Decimal?  @db.Decimal(10, 2) @map("total_usage")
+  unitPrice       Float?    @db.Float @map("unit_price")
+  amount          Decimal?  @db.Decimal(10, 2)
+  remarks         String?
+  createTime      DateTime? @map("create_time")
+  receiptTime     DateTime? @map("receipt_time")
+  amountBill      AmountBill? @relation("WaterBillToAmountBill", map: "water_bill_no_fk", fields: [billId], references: [billId])
+
+  @@map("water_bill")
+}
+
 model Car {
-  car_id   Int     @id
-  car_num  String  @db.LongText
+  carId    Int     @id @map("car_id")
+  carNum   String  @db.LongText @map("car_num")
   status   Int
   time     Int
   remark   String? @db.LongText
 
   @@map("car")
 }
-
-model EleBill {
-  ele_id           Int       @id @default(autoincrement()) @db.Int
-  bill_id          Int
-  meter_name       String?
-  previous_reading Decimal?  @db.Decimal(10, 2)
-  current_reading  Decimal?  @db.Decimal(10, 2)
-  monthly_usage    Decimal?  @db.Decimal(10, 2)
-  multiplier       Decimal?  @db.Decimal(10, 2)
-  total_usage      Decimal?  @db.Decimal(10, 2)
-  unit_price       Float?    @db.Float
-  amount           Decimal?  @db.Decimal(10, 2)
-  remarks          String?
-  create_time      DateTime?
-  receipt_time     DateTime?
-  amount_bill      AmountBill @relation(fields: [bill_id], references: [bill_id])
-
-  @@map("ele_bill")
-}
-
-model Tenant {
-  tenant_id   Int     @id
-  tenant_name String? @db.VarChar(30)
-  amount_bills AmountBill[]
-
-  @@map("tenant")
-}
-
-model UserCode {
-  id   Int    @id
-  code String @db.VarChar(100)
-  user Users  @relation(fields: [id], references: [id], onUpdate: Cascade)
-
-  @@map("user_code")
-}
-
-model Users {
-  id       Int       @id
-  password String    @db.VarChar(100)
-  realName String    @db.VarChar(30)
-  roles    String    @db.VarChar(20)
-  username String    @db.VarChar(50)
-  homePath String?   @db.VarChar(100)
-  userCode UserCode?
-
-  @@map("users")
-}
-
-model WaterBill {
-  water_id         Int       @id @default(autoincrement())
-  bill_id          Int?
-  meter_name       String?
-  previous_reading Decimal?  @db.Decimal(10, 2)
-  current_reading  Decimal?  @db.Decimal(10, 2)
-  monthly_usage    Decimal?  @db.Decimal(10, 2)
-  multiplier       Decimal?  @db.Decimal(10, 2)
-  total_usage      Decimal?  @db.Decimal(10, 2)
-  unit_price       Float?    @db.Float
-  amount           Decimal?  @db.Decimal(10, 2)
-  remarks          String?
-  create_time      DateTime?
-  receipt_time     DateTime?
-  amount_bill      AmountBill? @relation(fields: [bill_id], references: [bill_id])
-
-  @@map("water_bill")
-}
-

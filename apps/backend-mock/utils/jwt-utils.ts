@@ -38,7 +38,7 @@ export function verifyAccessToken(
     const username = decoded.username;
     // 使用数据库查询替代硬编码的用户查找
     return db.sql`
-      SELECT * FROM users 
+      SELECT * FROM user 
       WHERE username = ${username}
       LIMIT 1
     `.then((result) => {
@@ -70,7 +70,7 @@ export function verifyRefreshToken(
 
     // 使用数据库查询替代硬编码的用户查找
     return db.sql`
-      SELECT * FROM users 
+      SELECT * FROM user 
       WHERE username = ${username}
       LIMIT 1
     `.then((result) => {
