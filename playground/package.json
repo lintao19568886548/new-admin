@@ -52,6 +52,7 @@
     "lodash-es": "^4.17.21",
     "pinia": "catalog:",
     "vue": "catalog:",
+    "vue-pdf-embed": "^2.1.2",
     "vue-router": "catalog:"
   }
 }
