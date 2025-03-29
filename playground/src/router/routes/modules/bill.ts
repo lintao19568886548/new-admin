@@ -6,7 +6,7 @@ const routes: RouteRecordRaw[] = [
   {
     component: () => import('#/views/bill/amount/list.vue'),
     meta: {
-      icon: 'lucide:layout-dashboard',
+      icon: 'mdi:file-document-multiple', // 更改为账单/文档图标
       order: -1,
       title: $t('page.bill.title'),
     },

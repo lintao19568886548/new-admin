@@ -1,3 +1,5 @@
+import { useResponseSuccess } from '~/utils/response';
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {

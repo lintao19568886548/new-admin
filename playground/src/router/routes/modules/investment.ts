@@ -5,30 +5,30 @@ import { $t } from '#/locales';
 const routes: RouteRecordRaw[] = [
   {
     meta: {
-      icon: 'lucide:layout-dashboard',
+      icon: 'mdi:chart-line', // 将主路由图标改为投资相关的图表图标
       order: -1,
-      title: $t('page.project.title'),
+      title: $t('page.Investment.title'),
     },
-    name: 'Maintenance',
-    path: '/maintenance',
+    name: 'Investment',
+    path: '/investment',
     children: [
       {
-        component: () => import('#/views/maintenance/firefighting/list.vue'),
+        component: () => import('#/views/investment/agent/list.vue'),
         meta: {
-          icon: 'mdi:home-city',
-          title: $t('page.maintenance.firefighting'),
+          icon: 'mdi:account-tie', // 将代理管理图标改为商务人士图标
+          title: $t('page.agent.title'),
         },
-        name: 'Firefighting',
-        path: '/maintenance/firefighting',
+        name: 'Agent',
+        path: '/investment/agent',
       },
       {
-        component: () => import('#/views/maintenance/transformer/list.vue'),
+        component: () => import('#/views/investment/tenant/list.vue'),
         meta: {
-          icon: 'lucide:layout-dashboard',
-          title: $t('page.maintenance.transformer'),
+          icon: 'mdi:office-building', // 将租户管理图标改为建筑/办公楼图标
+          title: $t('page.tenant.title'),
         },
-        name: 'Transformer',
-        path: '/maintenance/transformer',
+        name: 'Tenant',
+        path: '/investment/tenant',
       },
     ],
   },

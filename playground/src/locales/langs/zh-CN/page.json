@@ -2,6 +2,14 @@
   "access": {
     "title": "出入管理"
   },
+  "agent": {
+    "create": "新增中介人",
+    "detail": "中介人详情",
+    "edit": "修改中介人",
+    "list": "中介人列表",
+    "title": "中介管理",
+    "view": "查看中介"
+  },
   "auth": {
     "codeLogin": "验证码登录",
     "codeSentTo": "验证码已发送至{0}",
@@ -81,6 +89,14 @@
     "finance": {
       "billName": "账单名称"
     }
+  },
+  "tenant": {
+    "create": "新增租户",
+    "detail": "租户详情",
+    "edit": "修改租户",
+    "list": "租户列表",
+    "title": "租户管理",
+    "view": "查看租户"
   },
   "tools": {
     "title": "应用工具",

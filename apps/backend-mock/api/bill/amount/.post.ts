@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 const prisma = new PrismaClient();
 
@@ -12,14 +13,9 @@ export default eventHandler(async (event) => {
   console.log('请求体参数:', body);
 
   try {
-    const user = await prisma.user.create({
+    const user = await prisma.amountBill.create({
       data: {
-        id: 2,
-        username: 'user',
-        password: '123456',
-        roles: 'admin',
-        homePath: '/dashboard',
-        realName: 'Default User', // 添加必需的 realName 字段
+        ...body,
       },
     });
     console.log(user);

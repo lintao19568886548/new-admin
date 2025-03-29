@@ -6,7 +6,7 @@ const routes: RouteRecordRaw[] = [
   {
     component: () => import('#/views/finance/manage/list.vue'),
     meta: {
-      icon: 'lucide:copyright',
+      icon: 'mdi:currency-usd', // 更改为金融/货币图标
       title: $t('page.finance.title'),
     },
     name: 'FinanceManage',
