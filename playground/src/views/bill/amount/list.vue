@@ -283,6 +283,7 @@ const billSummaries: BillSummary[] = [
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
+    collapsed: true,
     compact: true,
     schema: useGridFormSchema(),
     showCollapseButton: true,
