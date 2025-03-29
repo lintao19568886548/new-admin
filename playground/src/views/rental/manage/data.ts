@@ -76,7 +76,7 @@ export function useFormSchema(): VbenFormSchema[] {
         optionType: 'button',
       },
       defaultValue: '空闲',
-      fieldName: 'tag',
+      fieldName: 'availableArea',
       label: $t('system.rental.status.label'),
     },
     {
@@ -122,7 +122,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
           { label: $t('system.rental.status.maintenance'), value: '维护' },
         ],
       },
-      fieldName: 'tag',
+      fieldName: 'availableArea',
       label: $t('system.rental.status.label'),
     },
     {
@@ -162,10 +162,10 @@ export function useColumns<T = RentalManagementItem>(
     },
     {
       cellRender: {
-        name: 'CellTag',
+        name: 'CellAreaTag',
         options: getTagTypeOptions(),
       },
-      field: 'tag',
+      field: 'availableArea',
       title: $t('system.rental.status.label'),
       width: 100,
     },
