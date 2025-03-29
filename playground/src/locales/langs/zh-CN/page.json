@@ -58,6 +58,14 @@
     "transformer": "变压器管理",
     "view": "查看维修"
   },
+  "Investment": {
+    "create": "新增项目",
+    "detail": "项目详情",
+    "edit": "修改项目",
+    "list": "项目列表",
+    "title": "招商管理",
+    "view": "查看项目"
+  },
   "rental": {
     "create": "新增租赁",
     "createTenant": "新增租户",
