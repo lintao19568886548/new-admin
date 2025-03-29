@@ -9,8 +9,9 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
 }
 
 model User {
@@ -31,12 +32,13 @@ model UserCode {
   userId    Int      @map("user_id")
   user      User     @relation("UserToUserCode", map: "user_code_no_fk", fields: [userId], references: [id])
 
+  @@index([userId])
   @@map("user_code")
 }
 
 model Tenant {
-  tenantId    Int     @id @map("tenant_id")
-  tenantName  String? @db.VarChar(30) @map("tenant_name")
+  tenantId    Int     @id @default(autoincrement()) @map("tenant_id")
+  tenantName  String @db.VarChar(30) @map("tenant_name")
   amountBills AmountBill[] @relation("AmountBillToTenant")
 
   @@map("tenant")
@@ -44,6 +46,7 @@ model Tenant {
 
 model AmountBill {
   billId               Int       @id @default(autoincrement()) @map("bill_id")
+  meterName            String    @map("meter_name")
   eleFee               Decimal?  @db.Decimal(10, 2) @map("ele_fee")
   waterFee             Decimal?  @db.Decimal(10, 2) @map("water_fee")
   factoryRent          Decimal?  @db.Decimal(10, 2) @map("factory_rent")
@@ -58,13 +61,14 @@ model AmountBill {
   eleBills             EleBill[] @relation("EleBillToAmountBill")
   waterBills           WaterBill[] @relation("WaterBillToAmountBill")
 
+  @@index([tenantId])
   @@map("amount_bill")
 }
 
 model EleBill {
   eleId           Int       @id @default(autoincrement()) @db.Int @map("ele_id")
   billId          Int       @map("bill_id")
-  meterName       String?   @map("meter_name")
+  meterName       String   @map("meter_name")
   previousReading Decimal?  @db.Decimal(10, 2) @map("previous_reading")
   currentReading  Decimal?  @db.Decimal(10, 2) @map("current_reading")
   monthlyUsage    Decimal?  @db.Decimal(10, 2) @map("monthly_usage")
@@ -73,17 +77,18 @@ model EleBill {
   unitPrice       Float?    @db.Float @map("unit_price")
   amount          Decimal?  @db.Decimal(10, 2)
   remarks         String?
-  createTime      DateTime? @map("create_time")
-  receiptTime     DateTime? @map("receipt_time")
+  createTime      DateTime @map("create_time")
+  receiptTime     DateTime @map("receipt_time")
   amountBill      AmountBill @relation("EleBillToAmountBill", map: "ele_bill_no_fk", fields: [billId], references: [billId])
 
+  @@index([billId])
   @@map("ele_bill")
 }
 
 model WaterBill {
   waterId         Int       @id @default(autoincrement()) @map("water_id")
-  billId          Int?      @map("bill_id")
-  meterName       String?   @map("meter_name")
+  billId          Int      @map("bill_id")
+  meterName       String   @map("meter_name")
   previousReading Decimal?  @db.Decimal(10, 2) @map("previous_reading")
   currentReading  Decimal?  @db.Decimal(10, 2) @map("current_reading")
   monthlyUsage    Decimal?  @db.Decimal(10, 2) @map("monthly_usage")
@@ -92,10 +97,11 @@ model WaterBill {
   unitPrice       Float?    @db.Float @map("unit_price")
   amount          Decimal?  @db.Decimal(10, 2)
   remarks         String?
-  createTime      DateTime? @map("create_time")
-  receiptTime     DateTime? @map("receipt_time")
+  createTime      DateTime @map("create_time")
+  receiptTime     DateTime @map("receipt_time")
   amountBill      AmountBill? @relation("WaterBillToAmountBill", map: "water_bill_no_fk", fields: [billId], references: [billId])
 
+  @@index([billId])
   @@map("water_bill")
 }
 
