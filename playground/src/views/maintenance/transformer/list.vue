@@ -7,12 +7,13 @@ import type {
 } from '#/adapter/vxe-table';
 import type { Area } from '#/components/AreaSelector.vue';
 
-import { ref } from 'vue';
+import { h, ref } from 'vue';
+import VuePdfEmbed from 'vue-pdf-embed'; // 引入 vue-pdf-embed
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
-import { Button, message } from 'ant-design-vue';
+import { Button, message, Modal } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import AreaSelector from '#/components/AreaSelector.vue';
@@ -62,13 +63,147 @@ function onDelete(row: RentalManagementItem) {
   }, 1000);
 }
 
-/**
- * 查看租赁项目详情
- * @param row
- */
 function onView(row: RentalManagementItem) {
-  // 可以跳转到详情页面
-  window.open(`/rental/detail/${row.id}`, '_blank');
+  // 创建一个响应式变量来存储缩放比例
+  const scale = ref(window.innerWidth <= 768 ? 2.8 : 1.5);
+
+  // 创建一个更新函数，用于强制更新DOM
+  const updateTransform = (value: number) => {
+    scale.value = value;
+    // 找到PDF容器并更新样式
+    const pdfContainer = document.querySelector('.pdf-container');
+    if (pdfContainer) {
+      // 将Element类型转换为HTMLElement类型，因为HTMLElement有style属性
+      (pdfContainer as HTMLElement).style.transform = `scale(${value})`;
+    }
+  };
+
+  // 使用模态框展示PDF，使用 vue-pdf-embed 组件
+  Modal.info({
+    bodyStyle: {
+      height:
+        window.innerWidth <= 768 ? 'calc(90vh - 50px)' : 'calc(90vh - 50px)',
+      margin: 0,
+      overflow: 'auto',
+      padding: 0,
+    },
+    centered: true,
+    closable: true,
+    content: h(
+      'div',
+      {
+        style: `
+          width: 100%; 
+          height: 100%; 
+          display: flex;
+          justify-content: flex-start;
+          align-items: flex-start;
+          overflow: visible;
+          padding: 0;
+        `,
+      },
+      [
+        h(
+          'div',
+          {
+            class: 'pdf-container',
+            style: `
+              transform: scale(${scale.value});
+              transform-origin: left top;
+              margin-bottom: 100%;
+              width: 100%;
+              overflow: visible;
+            `,
+          },
+          [
+            h(VuePdfEmbed, {
+              onLoaded: (pdf) => {
+                console.warn('PDF加载成功', pdf);
+              },
+              'onLoading-failed': (error) => {
+                console.error('PDF加载错误:', error);
+                message.error('PDF文件加载失败，请检查文件格式');
+              },
+              source: `/transformer/${row.id}.pdf`,
+              width:
+                window.innerWidth <= 768
+                  ? window.innerWidth * 0.9
+                  : window.innerWidth * 0.5,
+            }),
+          ],
+        ),
+      ],
+    ),
+    footer: h(
+      'div',
+      {
+        style: `
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px 16px;
+          background-color: #fff;
+          border-top: 1px solid #f0f0f0;
+          z-index: 10;
+        `,
+      },
+      [
+        // 左侧添加滑动条
+        h('div', { style: 'display: flex; align-items: center;' }, [
+          h('span', { style: 'margin-right: 8px;' }, '缩放:'),
+          h('input', {
+            max: 5,
+            min: 0.5,
+            onInput: (e) => {
+              if (e && e.target) {
+                const target = e.target as HTMLInputElement;
+                const value = Number.parseFloat(target.value);
+                // 使用DOM操作直接更新样式
+                updateTransform(value);
+
+                // 更新百分比显示
+                const percentElement = document.querySelector('.scale-percent');
+                if (percentElement) {
+                  percentElement.textContent = `${(value * 100).toFixed(0)}%`;
+                }
+              }
+            },
+            step: 0.1,
+            style: 'width: 150px;',
+            type: 'range',
+            value: scale.value,
+          }),
+          h(
+            'span',
+            {
+              class: 'scale-percent',
+              style: 'margin-left: 8px;',
+            },
+            `${(scale.value * 100).toFixed(0)}%`,
+          ),
+        ]),
+        // 右侧关闭按钮
+        h(
+          Button,
+          {
+            onClick: () => {
+              Modal.destroyAll();
+            },
+            type: 'primary',
+          },
+          '关闭',
+        ),
+      ],
+    ),
+    maskClosable: true,
+    title: `${row.title}详情文档`,
+    width: window.innerWidth <= 768 ? '100%' : '90%',
+    wrapClassName: 'pdf-modal-wrapper',
+  });
 }
 
 /**
@@ -127,57 +262,57 @@ function handleAreaChange(area: Area) {
 const rentalItems = [
   {
     address: '北京市朝阳区建国路88号',
-    area: '120平方米',
     contact: '张先生 13800138000',
     createTime: '2021-04-01',
     id: 1,
-    price: '2000元/月',
-    tag: '空闲',
-    title: 'Github',
+    remark: '定期维护中',
+    specifications: '500KVA',
+    status: '正常',
+    title: '1号主变压器',
     updateTime: '2021-04-01',
   },
   {
     address: '上海市徐汇区淮海路100号',
-    area: '150平方米',
     contact: '李女士 13900139000',
     createTime: '2021-04-02',
     id: 2,
-    price: '3000元/月',
-    tag: '维护',
-    title: 'Vue',
+    remark: '计划性检修',
+    specifications: '800KVA',
+    status: '维护',
+    title: '2号变压器',
     updateTime: '2021-04-02',
   },
   {
     address: '广州市天河区体育西路123号',
-    area: '100平方米',
     contact: '王先生 13700137000',
     createTime: '2021-04-03',
     id: 3,
-    price: '1800元/月',
-    tag: '空闲',
-    title: 'Html5',
+    remark: '运行良好',
+    specifications: '300KVA',
+    status: '正常',
+    title: '3号变压器',
     updateTime: '2021-04-03',
   },
   {
     address: '深圳市南山区科技园456号',
-    area: '130平方米',
     contact: '刘女士 13600136000',
     createTime: '2021-04-04',
     id: 4,
-    price: '2500元/月',
-    tag: '维护',
-    title: 'Angular',
+    remark: '需要检修',
+    specifications: '1000KVA',
+    status: '异常',
+    title: '4号变压器',
     updateTime: '2021-04-04',
   },
   {
     address: '成都市武侯区人民南路789号',
-    area: '160平方米',
     contact: '赵先生 13500135000',
     createTime: '2021-04-05',
     id: 5,
-    price: '3200元/月',
-    tag: '已租',
-    title: 'React',
+    remark: '新安装设备',
+    specifications: '630KVA',
+    status: '正常',
+    title: '5号变压器',
     updateTime: '2021-04-05',
   },
 ];
@@ -229,7 +364,7 @@ function refreshGrid() {
 <template>
   <Page auto-content-height>
     <FormModal @success="refreshGrid" />
-    <Grid :table-title="$t('system.rental.list')">
+    <Grid :table-title="$t('system.maintenance.transformer.list')">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector
@@ -242,7 +377,11 @@ function refreshGrid() {
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">
           <Plus class="size-5" />
-          {{ $t('ui.actionTitle.create', [$t('system.rental.name')]) }}
+          {{
+            $t('ui.actionTitle.create', [
+              $t('system.maintenance.transformer.name'),
+            ])
+          }}
         </Button>
       </template>
     </Grid>

@@ -13,17 +13,17 @@ export function getTagTypeOptions() {
   return [
     {
       color: 'green',
-      label: $t('system.rental.status.vacant'),
-      value: '空闲',
+      label: $t('system.maintenance.transformer.status.normal'),
+      value: '正常',
     },
     {
       color: 'red',
-      label: $t('system.rental.status.rented'),
-      value: '已租',
+      label: $t('system.maintenance.transformer.status.abnormal'),
+      value: '异常',
     },
     {
       color: 'processing',
-      label: $t('system.rental.status.maintenance'),
+      label: $t('system.maintenance.transformer.status.maintenance'),
       value: '维护',
     },
   ];
@@ -37,19 +37,13 @@ export function useFormSchema(): VbenFormSchema[] {
     {
       component: 'Input',
       fieldName: 'title',
-      label: $t('system.rental.title'),
+      label: $t('system.maintenance.transformer.title'),
       rules: 'required',
     },
     {
       component: 'Input',
-      fieldName: 'price',
-      label: $t('system.rental.price'),
-      rules: 'required',
-    },
-    {
-      component: 'Input',
-      fieldName: 'area',
-      label: $t('system.rental.area'),
+      fieldName: 'specifications',
+      label: $t('system.maintenance.transformer.specifications'),
       rules: 'required',
     },
     {
@@ -69,15 +63,24 @@ export function useFormSchema(): VbenFormSchema[] {
       componentProps: {
         buttonStyle: 'solid',
         options: [
-          { label: $t('system.rental.status.vacant'), value: '空闲' },
-          { label: $t('system.rental.status.rented'), value: '已租' },
-          { label: $t('system.rental.status.maintenance'), value: '维护' },
+          {
+            label: $t('system.maintenance.transformer.status.normal'),
+            value: '正常',
+          },
+          {
+            label: $t('system.maintenance.transformer.status.abnormal'),
+            value: '异常',
+          },
+          {
+            label: $t('system.maintenance.transformer.status.maintenance'),
+            value: '维护',
+          },
         ],
         optionType: 'button',
       },
-      defaultValue: '空闲',
-      fieldName: 'tag',
-      label: $t('system.rental.status.label'),
+      defaultValue: '正常',
+      fieldName: 'status',
+      label: $t('system.maintenance.transformer.status.normal'),
     },
     {
       component: 'Textarea',
@@ -89,13 +92,16 @@ export function useFormSchema(): VbenFormSchema[] {
           width: '100%',
         },
       },
-      fieldName: 'description',
-      label: $t('system.rental.description'),
+      fieldName: 'remark',
+      label: $t('system.maintenance.transformer.remark'),
       rules: z
         .string()
         .max(
           300,
-          $t('ui.formRules.maxLength', [$t('system.rental.description'), 300]),
+          $t('ui.formRules.maxLength', [
+            $t('system.maintenance.transformer.remark'),
+            300,
+          ]),
         )
         .optional(),
     },
@@ -110,20 +116,39 @@ export function useGridFormSchema(): VbenFormSchema[] {
     {
       component: 'Input',
       fieldName: 'title',
-      label: $t('system.rental.title'),
+      label: $t('system.maintenance.transformer.title'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'specifications',
+      label: $t('system.maintenance.transformer.specifications'),
     },
     {
       component: 'Select',
       componentProps: {
         allowClear: true,
         options: [
-          { label: $t('system.rental.status.vacant'), value: '空闲' },
-          { label: $t('system.rental.status.rented'), value: '已租' },
-          { label: $t('system.rental.status.maintenance'), value: '维护' },
+          {
+            label: $t('system.maintenance.transformer.status.normal'),
+            value: '正常',
+          },
+          {
+            label: $t('system.maintenance.transformer.status.abnormal'),
+            value: '异常',
+          },
+          {
+            label: $t('system.maintenance.transformer.status.maintenance'),
+            value: '维护',
+          },
         ],
       },
-      fieldName: 'tag',
-      label: $t('system.rental.status.label'),
+      fieldName: 'status',
+      label: $t('system.maintenance.transformer.status.label'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'remark',
+      label: $t('system.maintenance.transformer.remark'),
     },
     {
       component: 'Input',
@@ -147,17 +172,12 @@ export function useColumns<T = RentalManagementItem>(
   return [
     {
       field: 'title',
-      title: $t('system.rental.title'),
+      title: $t('system.maintenance.transformer.title'),
       width: 150,
     },
     {
-      field: 'price',
-      title: $t('system.rental.price'),
-      width: 120,
-    },
-    {
-      field: 'area',
-      title: $t('system.rental.area'),
+      field: 'specifications',
+      title: $t('system.maintenance.transformer.specifications'),
       width: 120,
     },
     {
@@ -165,9 +185,14 @@ export function useColumns<T = RentalManagementItem>(
         name: 'CellTag',
         options: getTagTypeOptions(),
       },
-      field: 'tag',
-      title: $t('system.rental.status.label'),
+      field: 'status',
+      title: $t('system.maintenance.transformer.status.label'),
       width: 100,
+    },
+    {
+      field: 'remark',
+      title: $t('system.maintenance.transformer.remark'),
+      width: 150,
     },
     {
       field: 'address',
@@ -189,7 +214,7 @@ export function useColumns<T = RentalManagementItem>(
       cellRender: {
         attrs: {
           nameField: 'title',
-          nameTitle: $t('system.rental.name'),
+          nameTitle: $t('system.maintenance.transformer.name'),
           onClick: onActionClick,
         },
         name: 'CellOperation',
