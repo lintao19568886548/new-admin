@@ -15,50 +15,57 @@ datasource db {
 }
 
 model User {
-  id       Int        @id @default(autoincrement())
-  realName String     @db.VarChar(30) @map("real_name")
-  username String     @db.VarChar(50)
-  password String     @db.VarChar(100)
-  roles    String     @db.VarChar(20)
-  homePath String?    @db.VarChar(100) @map("home_path")
-  userCodes UserCode[] @relation("UserToUserCode")
+  id              Int         @id @default(autoincrement())
+  realName        String      @db.VarChar(30) @map("real_name")
+  username        String      @db.VarChar(50)
+  password        String      @db.VarChar(100)
+  roles           String      @db.VarChar(20)
+  homePath        String?     @db.VarChar(100) @map("home_path")
+  userCodes       UserCode[]  @relation("UserToUserCode")
+  createTime      DateTime?   @default(now()) @map("create_time")
+  updateTime      DateTime    @updatedAt @map("update_time")
 
   @@map("user")
 }
 
 model UserCode {
-  id        Int      @id @default(autoincrement())
-  code      String   @db.VarChar(100)
-  userId    Int      @map("user_id")
-  user      User     @relation("UserToUserCode", map: "user_code_no_fk", fields: [userId], references: [id])
+  id             Int         @id @default(autoincrement())
+  code           String      @db.VarChar(100)
+  userId         Int         @map("user_id")
+  user           User        @relation("UserToUserCode", map: "user_code_no_fk", fields: [userId], references: [id])
+  createTime     DateTime?   @default(now()) @map("create_time")
+  updateTime     DateTime    @updatedAt @map("update_time")
 
   @@index([userId])
   @@map("user_code")
 }
 
 model Tenant {
-  tenantId    Int     @id @default(autoincrement()) @map("tenant_id")
-  tenantName  String @db.VarChar(30) @map("tenant_name")
-  amountBills AmountBill[] @relation("AmountBillToTenant")
+  tenantId       Int           @id @default(autoincrement()) @map("tenant_id")
+  tenantName     String        @db.VarChar(30) @map("tenant_name")
+  amountBills    AmountBill[]  @relation("AmountBillToTenant")
+  createTime     DateTime?     @default(now()) @map("create_time")
+  updateTime     DateTime      @updatedAt @map("update_time")
 
   @@map("tenant")
 }
 
 model AmountBill {
-  billId               Int       @id @default(autoincrement()) @map("bill_id")
-  tenantName            String    @map("tenant_name")
-  eleFee               Decimal?  @db.Decimal(10, 2) @map("ele_fee")
-  waterFee             Decimal?  @db.Decimal(10, 2) @map("water_fee")
-  factoryRent          Decimal?  @db.Decimal(10, 2) @map("factory_rent")
-  managementFee        Decimal?  @db.Decimal(10, 2) @map("management_fee")
-  serviceFee           Decimal?  @db.Decimal(10, 2) @map("service_fee")
-  invoiceTax           Decimal?  @db.Decimal(10, 2) @map("invoice_tax")
-  totalFee             Decimal?  @db.Decimal(10, 2) @map("total_fee")
-  createTime           DateTime? @map("create_time")
-  receiptTime          DateTime? @map("receipt_time")
-  tenantId             Int       @map("tenant_id")
-  tenant               Tenant    @relation("AmountBillToTenant", map: "tenant_no_fk", fields: [tenantId], references: [tenantId])
-  eleBills             EleBill[] @relation("EleBillToAmountBill")
+  billId               Int         @id @default(autoincrement()) @map("bill_id")
+  tenantName           String      @map("tenant_name")
+  eleFee               Decimal?    @db.Decimal(10, 2) @map("ele_fee")
+  waterFee             Decimal?    @db.Decimal(10, 2) @map("water_fee")
+  factoryRent          Decimal?    @db.Decimal(10, 2) @map("factory_rent")
+  managementFee        Decimal?    @db.Decimal(10, 2) @map("management_fee")
+  serviceFee           Decimal?    @db.Decimal(10, 2) @map("service_fee")
+  invoiceTax           Decimal?    @db.Decimal(10, 2) @map("invoice_tax")
+  totalFee             Decimal?    @db.Decimal(10, 2) @map("total_fee")
+  createTime           DateTime?   @default(now()) @map("create_time")
+  updateTime           DateTime    @updatedAt @map("update_time")
+  receiptTime          DateTime?   @map("receipt_time")
+  tenantId             Int         @map("tenant_id")
+  tenant               Tenant      @relation("AmountBillToTenant", map: "tenant_no_fk", fields: [tenantId], references: [tenantId])
+  eleBills             EleBill[]   @relation("EleBillToAmountBill")
   waterBills           WaterBill[] @relation("WaterBillToAmountBill")
 
   @@index([tenantId])
@@ -66,19 +73,20 @@ model AmountBill {
 }
 
 model EleBill {
-  eleId           Int       @id @default(autoincrement()) @db.Int @map("ele_id")
-  billId          Int       @map("bill_id")
-  meterName       String   @map("meter_name")
-  previousReading Decimal?  @db.Decimal(10, 2) @map("previous_reading")
-  currentReading  Decimal?  @db.Decimal(10, 2) @map("current_reading")
-  monthlyUsage    Decimal?  @db.Decimal(10, 2) @map("monthly_usage")
-  multiplier      Decimal?  @db.Decimal(10, 2)
-  totalUsage      Decimal?  @db.Decimal(10, 2) @map("total_usage")
-  unitPrice       Float?    @db.Float @map("unit_price")
-  amount          Decimal?  @db.Decimal(10, 2)
-  remarks         String?
-  createTime      DateTime @map("create_time")
-  receiptTime     DateTime @map("receipt_time")
+  eleId           Int        @id @default(autoincrement()) @db.Int @map("ele_id")
+  billId          Int        @map("bill_id")
+  meterName       String     @map("meter_name")
+  previousReading Decimal?   @db.Decimal(10, 2) @map("previous_reading")
+  currentReading  Decimal?   @db.Decimal(10, 2) @map("current_reading")
+  monthlyUsage    Decimal?   @db.Decimal(10, 2) @map("monthly_usage")
+  multiplier      Decimal?   @db.Decimal(10, 2)
+  totalUsage      Decimal?   @db.Decimal(10, 2) @map("total_usage")
+  unitPrice       Float?     @db.Float @map("unit_price")
+  amount          Decimal?   @db.Decimal(10, 2)
+  remarks         String?    @db.LongText
+  createTime      DateTime   @default(now()) @map("create_time")
+  receiptTime     DateTime   @map("receipt_time")
+  updateTime      DateTime   @updatedAt @map("update_time")
   amountBill      AmountBill @relation("EleBillToAmountBill", map: "ele_bill_no_fk", fields: [billId], references: [billId])
 
   @@index([billId])
@@ -86,37 +94,42 @@ model EleBill {
 }
 
 model WaterBill {
-  waterId         Int       @id @default(autoincrement()) @map("water_id")
-  billId          Int      @map("bill_id")
-  meterName       String   @map("meter_name")
-  previousReading Decimal?  @db.Decimal(10, 2) @map("previous_reading")
-  currentReading  Decimal?  @db.Decimal(10, 2) @map("current_reading")
-  monthlyUsage    Decimal?  @db.Decimal(10, 2) @map("monthly_usage")
-  multiplier      Decimal?  @db.Decimal(10, 2)
-  totalUsage      Decimal?  @db.Decimal(10, 2) @map("total_usage")
-  unitPrice       Float?    @db.Float @map("unit_price")
-  amount          Decimal?  @db.Decimal(10, 2)
-  remarks         String?
-  createTime      DateTime @map("create_time")
-  receiptTime     DateTime @map("receipt_time")
+  waterId         Int         @id @default(autoincrement()) @map("water_id")
+  billId          Int         @map("bill_id")
+  meterName       String      @map("meter_name")
+  previousReading Decimal?    @db.Decimal(10, 2) @map("previous_reading")
+  currentReading  Decimal?    @db.Decimal(10, 2) @map("current_reading")
+  monthlyUsage    Decimal?    @db.Decimal(10, 2) @map("monthly_usage")
+  multiplier      Decimal?    @db.Decimal(10, 2)
+  totalUsage      Decimal?    @db.Decimal(10, 2) @map("total_usage")
+  unitPrice       Float?      @db.Float @map("unit_price")
+  amount          Decimal?    @db.Decimal(10, 2)
+  remarks         String?     @db.LongText
+  createTime      DateTime    @default(now()) @map("create_time")
+  receiptTime     DateTime    @map("receipt_time")
+  updateTime      DateTime    @updatedAt @map("update_time")
   amountBill      AmountBill? @relation("WaterBillToAmountBill", map: "water_bill_no_fk", fields: [billId], references: [billId])
 
   @@index([billId])
   @@map("water_bill")
 }
 
-model Car {
-  carId    Int     @id @map("car_id")
-  carNum   String  @db.LongText @map("car_num")
-  status   Int
-  time     Int
-  remark   String? @db.LongText
+model Visitor {
+  visitorId        Int      @id @map("visitor_id")
+  visitorName      String   @db.VarChar(50) @map("visitor_name")
+  carNum           String   @db.LongText @map("car_num")
+  phoneNumber      String   @db.LongText @map("phone_number")
+  status           Int      // 0: 未使用, 1: 使用中, 2: 维修中
+  registerTime     DateTime @map("register_time") // 将 Int 改为 DateTime 类型，更适合存储时间
+  remark           String?  @db.LongText
+  createTime      DateTime  @default(now()) @map("create_time")
+  updateTime      DateTime  @updatedAt @map("update_time")
 
-  @@map("car")
+  @@map("visitor")
 }
 
 model Finance {
-  financeId              Int    @id @default(autoincrement()) @map("finance_id")
+  financeId       Int       @id @default(autoincrement()) @map("finance_id")
   billName        String    @db.VarChar(100) @map("bill_name")
   billCategory    String    @db.VarChar(50) @map("bill_category")
   amount          Decimal   @db.Decimal(10, 2)
@@ -127,4 +140,98 @@ model Finance {
   updateTime      DateTime  @updatedAt @map("update_time")
 
   @@map("finance")
+}
+
+// 投资代理模型 (investment/agent)
+model InvestmentAgent {
+  agentId         Int       @id @default(autoincrement()) @map("agent_id")
+  billName        String    @db.VarChar(100) @map("bill_name")
+  billCategory    String    @db.VarChar(50) @map("bill_category")
+  amount          Decimal   @db.Decimal(10, 2)
+  transactionType String    @db.VarChar(20) @map("transaction_type")
+  transactionTime DateTime  @map("transaction_time")
+  createTime      DateTime  @default(now()) @map("create_time")
+  updateTime      DateTime  @updatedAt @map("update_time")
+
+  @@map("investment_agent")
+}
+
+// 投资租户模型 (investment/tenant)
+model InvestmentTenant {
+  tenantId        Int       @id @default(autoincrement()) @map("tenant_id")
+  billName        String    @db.VarChar(100) @map("bill_name")
+  billCategory    String    @db.VarChar(50) @map("bill_category")
+  amount          Decimal   @db.Decimal(10, 2)
+  transactionType String    @db.VarChar(20) @map("transaction_type")
+  transactionTime DateTime  @map("transaction_time")
+  createTime      DateTime  @default(now()) @map("create_time")
+  updateTime      DateTime  @updatedAt @map("update_time")
+
+  @@map("investment_tenant")
+}
+
+// 消防设施模型 (maintenance/firefighting)
+model Firefighting {
+  firefightingId    Int       @id @default(autoincrement()) @map("firefighting_id")
+  title             String    @db.VarChar(100)
+  address           String    @db.VarChar(200)
+  contact           String    @db.VarChar(100)
+  price             String    @db.VarChar(50)
+  tag               String    @db.VarChar(20) // 空闲、已租、维护等状态
+  firestatus        String    @db.VarChar(20) @map("fire_status") // 消防设施状态
+  passagewaytag     String    @db.VarChar(20) @map("passageway_tag") // 通道标签
+  safetychanneltag  String    @db.VarChar(20) @map("safetychannel_tag") // 安全通道标签
+  createTime        DateTime  @default(now()) @map("create_time")
+  updateTime        DateTime  @updatedAt @map("update_time")
+  remark            String?   @db.Text
+
+  @@map("firefighting")
+}
+
+// 变压器模型 (maintenance/transformer)
+model Transformer {
+  transformerId   Int       @id @default(autoincrement()) @map("transformer_id")
+  title           String    @db.VarChar(100)
+  address         String    @db.VarChar(200)
+  contact         String    @db.VarChar(100)
+  status          String    @db.VarChar(20) // 变压器状态：正常、异常、维护中
+  specifications  String    @db.VarChar(50) // 变压器规格
+  remark          String?   @db.Text
+  createTime      DateTime  @default(now()) @map("create_time")
+  updateTime      DateTime  @updatedAt @map("update_time")
+
+  @@map("transformer")
+}
+
+// 租赁管理模型 (rental/manage)
+model RentalManage {
+  rentalManageId  Int       @id @default(autoincrement()) @map("rental_manage_id")
+  title           String    @db.VarChar(100)
+  address         String    @db.VarChar(200)
+  area            String    @db.VarChar(50) // 总面积
+  availableArea   String    @db.VarChar(50) @map("available_area") // 可用面积
+  price           String    @db.VarChar(50) // 价格
+  contact         String    @db.VarChar(100) // 联系人
+  createTime      DateTime  @default(now()) @map("create_time")
+  updateTime      DateTime  @updatedAt @map("update_time")
+  remark          String?   @db.Text
+
+  @@map("rental_manage")
+}
+
+// 租户管理模型 (rental/tenant)
+model RentalTenant {
+  rentalTenantId  Int       @id @default(autoincrement()) @map("rental_tenant_id")
+  name            String    @db.VarChar(50) // 租户姓名
+  phoneNumber     String    @db.VarChar(20) @map("phone_number") // 联系电话
+  address         String    @db.VarChar(200) // 地址
+  contractDate    String    @db.VarChar(50) @map("contract_date") // 合同日期
+  increaseDate    String    @db.VarChar(20) @map("increase_date") // 涨价日期
+  increaseRate    Decimal   @db.Decimal(5, 2) @map("increase_rate") // 涨价比例
+  tag             String    @db.VarChar(20) // 当期、过期等状态
+  createTime      DateTime  @default(now()) @map("create_time")
+  updateTime      DateTime  @updatedAt @map("update_time")
+  remark          String?   @db.Text
+
+  @@map("rental_tenant")
 }
