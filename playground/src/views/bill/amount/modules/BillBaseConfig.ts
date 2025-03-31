@@ -1,7 +1,3 @@
-import type { Dayjs } from 'dayjs';
-
-import type { Ref } from 'vue';
-
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
@@ -13,7 +9,6 @@ import { z } from '#/adapter/form';
  * 账单详情配置接口
  */
 export interface BillDetailConfig {
-  [key: string]: any; // 支持任意额外属性
   amountLabel?: string; // 金额标签（如"电费金额"或"水费金额"）
   defaultItemName?: string; // 默认项目名称（如"主楼电费"或"主楼水费"）
   defaultSubItemName?: string; // 默认子项目名称（如"附楼电费"或"附楼水费"）
@@ -25,29 +20,52 @@ export interface BillDetailConfig {
   usageLabel?: string; // 用量标签（如"度数"或"用水量"）
 }
 
-// 基础账单项接口
+// 基础账单项接口 - 根据 Prisma Schema 调整
 export interface BaseBillItem {
-  actualUsage: number; // 实际用量
-  amount: number; // 金额（元）
-  currentMonthReading: number; // 本月表数
-  id: number;
-  key: string;
-  lastMonthReading: number; // 上月表数
+  amount: number; // 金额
+  billId: number; // 关联的账单ID
+  createTime: Date | string; // 创建时间
+  currentReading: number; // 本月读数
+  meterName: string; // 表计名称
   monthlyUsage: number; // 本月用量
   multiplier: number; // 倍数
-  name: string; // 名称
-  remark: string; // 备注
+  previousReading: number; // 上月读数
+  receiptTime: Date | string; // 收款时间
+  remarks: string; // 备注
+  totalUsage: number; // 总用量
   unitPrice: number; // 单价
 }
 
-// 基础账单接口
-export interface BaseBill<T extends BaseBillItem> {
-  companyName: string; // 公司名称
-  id: number;
-  items: T[]; // 账单项列表
-  paymentTime: Ref<Dayjs>; // 收款时间
-  position: string; // 位置
-  projectName: string; // 项目名称
+// 基础账单接口 - 根据 Prisma Schema 调整
+export interface BaseBill {
+  billId: number; // 账单ID
+  createTime?: Date | string; // 创建时间
+  eleFee?: number; // 电费总额
+  factoryRent?: number; // 厂房租金
+  invoiceTax?: number; // 发票税费
+  managementFee?: number; // 管理费
+  receiptTime?: Date | string; // 收款时间
+  serviceFee?: number; // 服务费
+  tenantId: number; // 租户ID
+  tenantName: string; // 租户名称
+  totalFee?: number; // 总费用
+  waterFee?: number; // 水费总额
+}
+
+// 电费账单项接口
+export interface EleBillItem extends BaseBillItem {
+  eleId: number; // 电费ID
+}
+
+// 水费账单项接口
+export interface WaterBillItem extends BaseBillItem {
+  waterId: number; // 水费ID
+}
+
+// 租户接口
+export interface TenantInfo {
+  tenantId: number; // 租户ID
+  tenantName: string; // 租户名称
 }
 
 // 区域接口
@@ -68,14 +86,12 @@ export const commonAreaList = [
 
 /**
  * 通用表单字段配置生成器
- * @param placeholderPrefix 占位符前缀
  * @param readingLabel 读数标签
  * @param usageLabel 用量标签
  * @param unitLabel 单位标签
  * @param amountLabel 金额标签
  */
 export function createFormSchema(
-  placeholderPrefix: string,
   readingLabel: string,
   usageLabel: string,
   unitLabel: string,
@@ -85,34 +101,10 @@ export function createFormSchema(
     {
       component: 'Input',
       componentProps: {
-        placeholder: '请输入公司名称',
+        placeholder: '请输入表计名称',
       },
-      fieldName: 'companyName',
-      label: '公司名称',
-      rules: z.string().min(2).max(50),
-    },
-    {
-      component: 'Input',
-      componentProps: {
-        placeholder: '请输入项目名称',
-      },
-      fieldName: 'projectName',
-      label: '项目名称',
-      rules: z.string().min(2).max(50),
-    },
-    {
-      component: 'DatePicker',
-      fieldName: 'datePicker',
-      label: '日期选择框',
-      rules: 'required',
-    },
-    {
-      component: 'Input',
-      componentProps: {
-        placeholder: `例如：5月${placeholderPrefix}`,
-      },
-      fieldName: 'name',
-      label: '名称',
+      fieldName: 'meterName',
+      label: '表计名称',
       rules: z.string().min(2).max(50),
     },
     {
@@ -123,7 +115,7 @@ export function createFormSchema(
         precision: 2,
         style: { width: '100%' },
       },
-      fieldName: 'lastMonthReading',
+      fieldName: 'previousReading',
       label: `上月${readingLabel}`,
       rules: z.number().min(0),
     },
@@ -135,7 +127,7 @@ export function createFormSchema(
         precision: 2,
         style: { width: '100%' },
       },
-      fieldName: 'currentMonthReading',
+      fieldName: 'currentReading',
       label: `本月${readingLabel}`,
       rules: z.number().min(0),
     },
@@ -168,8 +160,8 @@ export function createFormSchema(
         precision: 2,
         style: { background: '#f5f5f5', width: '100%' },
       },
-      fieldName: 'actualUsage',
-      label: `本月实际${usageLabel}`,
+      fieldName: 'totalUsage',
+      label: `总${usageLabel}`,
     },
     {
       component: 'InputNumber',
@@ -195,13 +187,115 @@ export function createFormSchema(
       label: amountLabel,
     },
     {
+      component: 'DatePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD HH:mm:ss',
+        placeholder: '请选择收款时间',
+        showTime: true,
+        style: { width: '100%' },
+        valueFormat: 'YYYY-MM-DD HH:mm:ss',
+      },
+      fieldName: 'receiptTime',
+      label: '收款时间',
+      rules: 'required',
+    },
+    {
       component: 'Textarea',
       componentProps: {
         placeholder: '请输入备注信息',
         rows: 4,
       },
-      fieldName: 'remark',
+      fieldName: 'remarks',
       label: '备注',
+    },
+  ];
+}
+
+/**
+ * 总账单表单配置
+ */
+export function createAmountBillFormSchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      componentProps: {
+        placeholder: '请输入租户名称',
+      },
+      fieldName: 'tenantName',
+      label: '租户名称',
+      rules: z.string().min(2).max(50),
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '元',
+        min: 0,
+        precision: 2,
+        style: { width: '100%' },
+      },
+      fieldName: 'factoryRent',
+      label: '厂房租金',
+      rules: z.number().min(0),
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '元',
+        min: 0,
+        precision: 2,
+        style: { width: '100%' },
+      },
+      fieldName: 'managementFee',
+      label: '管理费',
+      rules: z.number().min(0),
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '元',
+        min: 0,
+        precision: 2,
+        style: { width: '100%' },
+      },
+      fieldName: 'serviceFee',
+      label: '服务费',
+      rules: z.number().min(0),
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '元',
+        min: 0,
+        precision: 2,
+        style: { width: '100%' },
+      },
+      fieldName: 'invoiceTax',
+      label: '发票税费',
+      rules: z.number().min(0),
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '元',
+        disabled: true,
+        precision: 2,
+        style: { background: '#f5f5f5', width: '100%' },
+      },
+      fieldName: 'totalFee',
+      label: '总费用',
+    },
+    {
+      component: 'DatePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD HH:mm:ss',
+        placeholder: '请选择收款时间',
+        showTime: true,
+        style: { width: '100%' },
+        valueFormat: 'YYYY-MM-DD HH:mm:ss',
+      },
+      fieldName: 'receiptTime',
+      label: '收款时间',
+      rules: 'required',
     },
   ];
 }
@@ -213,17 +307,12 @@ export function createGridFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'companyName',
-      label: '公司名称',
-    },
-    {
-      component: 'Input',
-      fieldName: 'projectName',
-      label: '项目名称',
+      fieldName: 'tenantName',
+      label: '租户名称',
     },
     {
       component: 'RangePicker',
-      fieldName: 'paymentTime',
+      fieldName: 'receiptTime',
       label: '收款时间',
     },
   ];
@@ -237,22 +326,22 @@ export function createColumns<T>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
-      field: 'companyName',
+      field: 'billId',
+      minWidth: 80,
+      title: '账单ID',
+    },
+    {
+      field: 'tenantName',
       minWidth: 150,
-      title: '公司名称',
+      title: '租户名称',
     },
     {
-      field: 'projectName',
-      minWidth: 150,
-      title: '项目名称',
+      field: 'totalFee',
+      minWidth: 120,
+      title: '总费用(元)',
     },
     {
-      field: 'position',
-      minWidth: 100,
-      title: '位置',
-    },
-    {
-      field: 'paymentTime',
+      field: 'receiptTime',
       formatter: ({ cellValue }) => {
         return formatDateTime(cellValue);
       },

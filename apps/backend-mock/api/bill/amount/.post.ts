@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prismaClient } from '~/utils/db';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
-
-const prisma = new PrismaClient();
 
 export default eventHandler(async (event) => {
   // const userinfo = await verifyAccessToken(event);
@@ -13,17 +11,14 @@ export default eventHandler(async (event) => {
   console.log('请求体参数:', body);
 
   try {
-    const user = await prisma.amountBill.create({
+    const bill = await prismaClient.amountBill.create({
       data: {
         ...body,
       },
     });
-    console.log(user);
-    await prisma.$disconnect();
-    console.log('插入数据成功:', user);
-    return useResponseSuccess(user);
+    console.log('插入数据成功:', bill);
+    return useResponseSuccess(bill);
   } catch (error) {
-    await prisma.$disconnect();
     console.error('插入数据失败:', error);
     return useResponseError('插入数据失败', 500);
   }

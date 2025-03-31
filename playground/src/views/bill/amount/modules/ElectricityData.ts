@@ -18,8 +18,7 @@ import {
 export type ElectricityItem = BaseBillItem;
 
 // 电费账单接口，使用泛型继承基础账单
-export interface ElectricityBill
-  extends Omit<BaseBill<ElectricityItem>, 'items'> {
+export interface ElectricityBill extends Omit<BaseBill, 'items'> {
   electricityItems: ElectricityItem[]; // 电费项目列表，保持原有字段名以兼容现有代码
 }
 
@@ -55,7 +54,7 @@ export const electricityFormConfig: BillFormConfig = {
  * 获取表单的字段配置
  */
 export function useFormSchema(): VbenFormSchema[] {
-  return createFormSchema('电费', '电表数', '度数', '度', '电费金额');
+  return createFormSchema('电表数', '度数', '度', '电费金额');
 }
 
 /**

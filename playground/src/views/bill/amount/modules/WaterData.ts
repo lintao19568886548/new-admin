@@ -18,7 +18,7 @@ import {
 export type WaterItem = BaseBillItem;
 
 // 水费账单接口，使用泛型继承基础账单
-export interface WaterBill extends Omit<BaseBill<WaterItem>, 'items'> {
+export interface WaterBill extends Omit<BaseBill, 'items'> {
   waterItems: WaterItem[]; // 水费项目列表，保持原有字段名以兼容现有代码
 }
 
@@ -54,7 +54,7 @@ export const waterFormConfig: BillFormConfig = {
  * 获取表单的字段配置
  */
 export function useFormSchema(): VbenFormSchema[] {
-  return createFormSchema('水费', '水表数', '用水量', '吨', '水费金额');
+  return createFormSchema('水表数', '用水量', '吨', '水费金额');
 }
 
 /**

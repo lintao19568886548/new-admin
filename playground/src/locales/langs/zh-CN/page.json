@@ -4,9 +4,14 @@
   },
   "agent": {
     "create": "新增中介人",
+    "name": "中介人",
+    "phone": "联系方式",
     "detail": "中介人详情",
+    "intentArea": "意向面积",
+    "intentLevel": "意向程度",
+    "progress": "洽谈进度",
     "edit": "修改中介人",
-    "list": "中介人列表",
+    "list": "中介列表",
     "title": "中介管理",
     "view": "查看中介"
   },
@@ -31,6 +36,10 @@
     "title": "账单管理",
     "view": "查看账单",
     "water": "水费"
+  },
+  "common": {
+    "date": "日期",
+    "remark": "备注"
   },
   "dashboard": {
     "analytics": "分析页",
@@ -96,7 +105,8 @@
     "edit": "修改租户",
     "list": "租户列表",
     "title": "租户管理",
-    "view": "查看租户"
+    "view": "查看租户",
+    "name": "租户名称"
   },
   "tools": {
     "title": "应用工具",

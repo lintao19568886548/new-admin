@@ -1,7 +1,3 @@
-import type { Dayjs } from 'dayjs';
-
-import type { Ref } from 'vue';
-
 import type { BillFormConfig } from '../BillForm.vue';
 import type { BillDetailConfig } from './BillBaseConfig';
 
@@ -13,61 +9,25 @@ import { formatDateTime } from '@vben/utils';
 import { z } from '#/adapter/form';
 
 /**
- * 总账单项目接口
- */
-export interface BillSummaryItem {
-  amount: number; // 金额（元）
-  id: number;
-  key: string;
-  name: string; // 名称
-  remark: string; // 备注
-}
-
-/**
  * 总账单接口
  */
-export interface BillSummary {
-  billMonth: string; // 账单月份，格式如：2023-05
-  companyName: string; // 公司名称
-  electricityBillId?: number; // 电费账单ID
-  electricityItems?: any[]; // 电费项目（详情用）
-  electricityTotal: number; // 电费合计
-  factoryRent: number; // 厂房租金
-  id: number;
-  invoiceTax: number; // 开票税金
-  managementFee: number; // 基本管理费
-  otherItems?: BillSummaryItem[]; // 其他费用项目
-  paymentTime: Ref<Dayjs>; // 收款时间
-  projectName: string; // 项目名称
-  serviceFee: number; // 服务费
-  totalAmount: number; // 本月收费金额合计
-  waterBillId?: number; // 水费账单ID
-  waterItems?: any[]; // 水费项目（详情用）
-  waterTotal: number; // 水费合计
-}
-
-// 修改为新的数据接口
-export interface ElectricityItem {
-  actualUsage: number; // 本月实际度数
-  amount: number; // 电费金额（元）
-  currentMonthReading: number; // 本月电表数
-  id: number;
-  key: string;
-  lastMonthReading: number; // 上月电表数
-  monthlyUsage: number; // 本月度数
-  multiplier: number; // 倍数
-  name: string; // 名称
-  remark: string; // 备注
-  unitPrice: number; // 单价元/度
-}
-
-export interface ElectricityBill {
-  companyName: string; // 公司名称
-  electricityItems: ElectricityItem[]; // 电费项目列表
-  id: number;
-  paymentTime: Ref<Dayjs>; // 收款时间
-  position: string; // 位置
-  projectName: string; // 项目名称
+export interface AmountBill {
+  billId?: number; // 账单ID
+  createTime?: Date | string; // 创建时间
+  eleBills?: any[]; // 电费账单项（详情用）
+  eleFee?: number; // 电费合计
+  factoryRent?: number; // 厂房租金
+  invoiceTax?: number; // 开票税金
+  managementFee?: number; // 基本管理费
+  projectName?: string; // 项目名称
+  receiptTime?: Date | string; // 收款时间
+  serviceFee?: number; // 服务费
+  tenant?: any; // 租户信息
+  tenantId?: number; // 租户ID
+  tenantName: string; // 租户名称
+  totalFee?: number; // 总费用
+  waterBills?: any[]; // 水费账单项（详情用）
+  waterFee?: number; // 水费合计
 }
 
 /**
@@ -309,37 +269,27 @@ export function useGridFormSchema(): VbenFormSchema[] {
 /**
  * 获取表格列配置
  */
-export function useColumns<T = BillSummary>(
+export function useColumns<T = AmountBill>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
   return [
     {
-      field: 'billMonth',
-      minWidth: 120,
-      title: '账单月份',
-    },
-    {
-      field: 'companyName',
+      field: 'tenantName',
       minWidth: 150,
-      title: '公司名称',
+      title: '租户名称',
     },
     {
-      field: 'projectName',
-      minWidth: 150,
-      title: '项目名称',
-    },
-    {
-      field: 'electricityTotal',
+      field: 'eleFee',
       formatter: ({ cellValue }) => {
-        return `${cellValue.toFixed(2)} 元`;
+        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
       },
       minWidth: 120,
       title: '电费合计',
     },
     {
-      field: 'waterTotal',
+      field: 'waterFee',
       formatter: ({ cellValue }) => {
-        return `${cellValue.toFixed(2)} 元`;
+        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
       },
       minWidth: 120,
       title: '水费合计',
@@ -347,7 +297,7 @@ export function useColumns<T = BillSummary>(
     {
       field: 'factoryRent',
       formatter: ({ cellValue }) => {
-        return `${cellValue.toFixed(2)} 元`;
+        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
       },
       minWidth: 120,
       title: '厂房租金',
@@ -355,7 +305,7 @@ export function useColumns<T = BillSummary>(
     {
       field: 'managementFee',
       formatter: ({ cellValue }) => {
-        return `${cellValue.toFixed(2)} 元`;
+        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
       },
       minWidth: 120,
       title: '基本管理费',
@@ -363,7 +313,7 @@ export function useColumns<T = BillSummary>(
     {
       field: 'serviceFee',
       formatter: ({ cellValue }) => {
-        return `${cellValue.toFixed(2)} 元`;
+        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
       },
       minWidth: 120,
       title: '服务费',
@@ -371,21 +321,21 @@ export function useColumns<T = BillSummary>(
     {
       field: 'invoiceTax',
       formatter: ({ cellValue }) => {
-        return `${cellValue.toFixed(2)} 元`;
+        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
       },
       minWidth: 120,
       title: '开票税金',
     },
     {
-      field: 'totalAmount',
+      field: 'totalFee',
       formatter: ({ cellValue }) => {
-        return `${cellValue.toFixed(2)} 元`;
+        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
       },
       minWidth: 140,
-      title: '本月收费金额合计',
+      title: '本月收费金额',
     },
     {
-      field: 'paymentTime',
+      field: 'receiptTime',
       formatter: ({ cellValue }) => {
         return formatDateTime(cellValue);
       },
@@ -396,8 +346,8 @@ export function useColumns<T = BillSummary>(
       align: 'center',
       cellRender: {
         attrs: {
-          nameField: 'companyName',
-          nameTitle: '总账单',
+          nameField: 'tenantName',
+          nameTitle: '账单',
           onClick: onActionClick,
         },
         name: 'CellOperation',

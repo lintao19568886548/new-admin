@@ -26,60 +26,64 @@ export function useFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'billName',
-      label: $t('page.finance.billName'),
+      fieldName: 'agentName',
+      label: $t('page.agent.name'),
       rules: 'required',
     },
     {
       component: 'Select',
       componentProps: {
         options: [
-          { label: '房租', value: '房租' },
-          { label: '水费', value: '水费' },
-          { label: '电费', value: '电费' },
-          { label: '燃气费', value: '燃气费' },
-          { label: '其他费用', value: '其他费用' },
+          { label: '高', value: '高' },
+          { label: '中', value: '中' },
+          { label: '低', value: '低' },
         ],
+        style: { width: '25%' },
       },
-      fieldName: 'billCategory',
-      label: $t('page.finance.billCategory'),
+      fieldName: 'intentLevel',
+      label: $t('page.agent.intentLevel'),
     },
     {
-      component: 'RadioGroup',
+      component: 'Input',
+      fieldName: 'intentArea',
+      label: $t('page.agent.intentArea'),
+    },
+    {
+      component: 'Select',
       componentProps: {
-        buttonStyle: 'solid',
         options: [
-          { label: '收入', value: '收入' },
-          { label: '支出', value: '支出' },
+          { label: '初步接洽', value: '初步接洽' },
+          { label: '深入沟通', value: '深入沟通' },
+          { label: '合同准备', value: '合同准备' },
+          { label: '签约完成', value: '签约完成' },
         ],
-        optionType: 'button',
+        style: { width: '25%' },
       },
-      defaultValue: '支出',
-      fieldName: 'transactionType',
-      label: $t('page.finance.transactionType'),
+      fieldName: 'progress',
+      label: $t('page.agent.progress'),
     },
     {
-      component: 'InputNumber',
-      componentProps: {
-        addonBefore: '¥',
-        min: 0,
-        precision: 2,
-        style: { width: '100%' },
-      },
-      fieldName: 'amount',
-      label: $t('page.finance.amount'),
+      component: 'Input',
+      fieldName: 'phone',
+      label: $t('page.agent.phone'),
+      rules: 'required',
     },
     {
       component: 'DatePicker',
       componentProps: {
         format: 'YYYY-MM-DD HH:mm:ss',
-        placeholder: '请选择交易时间',
+        placeholder: '请选择日期',
         showTime: true,
         style: { width: '100%' },
-        valueFormat: 'YYYY-MM-DD HH:mm:ss', // 添加valueFormat指定输出格式
+        valueFormat: 'YYYY-MM-DD HH:mm:ss',
       },
       fieldName: 'transactionTime',
-      label: $t('page.finance.transactionTime'),
+      label: $t('page.common.date'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'remark',
+      label: $t('page.common.remark'),
     },
   ];
 }
@@ -88,55 +92,60 @@ export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'billName',
-      label: $t('page.finance.billName'),
+      fieldName: 'agentName',
+      label: $t('page.agent.name'),
     },
     {
       component: 'Select',
       componentProps: {
         allowClear: true,
         options: [
-          { label: '房租', value: '房租' },
-          { label: '水费', value: '水费' },
-          { label: '电费', value: '电费' },
-          { label: '燃气费', value: '燃气费' },
-          { label: '其他费用', value: '其他费用' },
+          { label: '高', value: '高' },
+          { label: '中', value: '中' },
+          { label: '低', value: '低' },
         ],
       },
-      fieldName: 'billCategory',
-      label: $t('page.finance.billCategory'),
+      fieldName: 'intentLevel',
+      label: $t('page.agent.intentLevel'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'intentArea',
+      label: $t('page.agent.intentArea'),
     },
     {
       component: 'Select',
       componentProps: {
         allowClear: true,
         options: [
-          { label: '收入', value: '收入' },
-          { label: '支出', value: '支出' },
+          { label: '初步接洽', value: '初步接洽' },
+          { label: '深入沟通', value: '深入沟通' },
+          { label: '合同准备', value: '合同准备' },
+          { label: '签约完成', value: '签约完成' },
         ],
       },
-      fieldName: 'transactionType',
-      label: $t('page.finance.transactionType'),
+      fieldName: 'progress',
+      label: $t('page.agent.progress'),
     },
     {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        precision: 2,
-        style: { width: '100%' },
-      },
-      fieldName: 'amount',
-      label: $t('page.finance.amount'),
+      component: 'Input',
+      fieldName: 'phone',
+      label: $t('page.agent.phone'),
     },
     {
       component: 'RangePicker',
       componentProps: {
         format: 'YYYY-MM-DD',
         placeholder: ['开始日期', '结束日期'],
-        valueFormat: 'YYYY-MM-DD', // 添加valueFormat指定输出格式
+        valueFormat: 'YYYY-MM-DD',
       },
       fieldName: 'transactionTime',
-      label: $t('page.finance.transactionTime'),
+      label: $t('page.common.date'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'remark',
+      label: $t('page.common.remark'),
     },
   ];
 }
@@ -146,43 +155,55 @@ export function useColumns<T = SystemFinanceApi.SystemFinance>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
-      field: 'billName',
-      title: $t('中介人'),
-      width: 200,
+      field: 'tenantName',
+      minWidth: 150,
+      title: $t('page.tenant.name'),
     },
     {
-      field: 'billCategory',
-      title: $t('page.finance.billCategory'),
-      width: 200,
+      field: 'agentName',
+      minWidth: 150,
+      title: $t('page.agent.name'),
     },
     {
       cellRender: {
         name: 'CellTag',
         options: getTagTypeOptions(),
       },
-      field: 'transactionType',
-      title: $t('page.finance.transactionType'),
-      width: 100,
+      field: 'intentLevel',
+      minWidth: 100,
+      title: $t('page.agent.intentLevel'),
     },
     {
-      field: 'amount',
-      formatter: ({ cellValue }) => {
-        return cellValue ? `¥${cellValue.toFixed(2)}` : '';
-      },
-      minWidth: 100,
-      title: $t('page.finance.amount'),
+      field: 'intentArea',
+      minWidth: 150,
+      title: $t('page.agent.intentArea'),
+    },
+    {
+      field: 'progress',
+      minWidth: 120,
+      title: $t('page.agent.progress'),
+    },
+    {
+      field: 'phone',
+      minWidth: 150,
+      title: $t('page.agent.phone'),
     },
     {
       field: 'transactionTime',
-      title: $t('page.finance.transactionTime'),
-      width: 200,
+      minWidth: 150,
+      title: $t('page.common.date'),
+    },
+    {
+      field: 'remark',
+      minWidth: 150,
+      title: $t('page.common.remark'),
     },
     {
       align: 'center',
       cellRender: {
         attrs: {
-          nameField: 'billName',
-          nameTitle: $t('page.finance.billName'),
+          nameField: 'agentName',
+          nameTitle: $t('page.agent.name'),
           onClick: onActionClick,
         },
         name: 'CellOperation',
@@ -190,8 +211,8 @@ export function useColumns<T = SystemFinanceApi.SystemFinance>(
       },
       field: 'operation',
       fixed: 'right',
+      minWidth: 130,
       title: $t('system.role.operation'),
-      width: 130,
     },
   ];
 }

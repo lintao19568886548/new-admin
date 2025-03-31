@@ -1,9 +1,13 @@
 <script lang="ts" setup>
+import type { AmountBill } from './modules/data';
+
 import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
 import { Button, Steps, Table } from 'ant-design-vue';
+
+import { getAmountBillDetail } from '#/api/bill';
 
 /**
  * 多页账单详情配置接口
@@ -61,25 +65,7 @@ const [Modal, modalApi] = useVbenModal(modalProps.value);
 };
 
 // 账单数据
-const billData = ref<any>({
-  billMonth: '',
-  companyName: '',
-  electricityBillId: 0,
-  electricityItems: [],
-  electricityTotal: 0,
-  factoryRent: 0,
-  id: 0,
-  invoiceTax: 0,
-  managementFee: 0,
-  otherItems: [],
-  paymentTime: null,
-  projectName: '',
-  serviceFee: 0,
-  totalAmount: 0,
-  waterBillId: 0,
-  waterItems: [],
-  waterTotal: 0,
-});
+const billData = ref<AmountBill>();
 
 // 下一页方法
 function handleNext() {
@@ -109,20 +95,20 @@ function handlePrev() {
 // 电费表格列配置
 const electricityColumns = [
   {
-    dataIndex: 'name',
-    key: 'name',
-    title: '名称',
+    dataIndex: 'meterName',
+    key: 'meterName',
+    title: '表计名称',
     width: 150,
   },
   {
-    dataIndex: 'lastMonthReading',
-    key: 'lastMonthReading',
+    dataIndex: 'previousReading',
+    key: 'previousReading',
     title: '上月电表数',
     width: 120,
   },
   {
-    dataIndex: 'currentMonthReading',
-    key: 'currentMonthReading',
+    dataIndex: 'currentReading',
+    key: 'currentReading',
     title: '本月电表数',
     width: 120,
   },
@@ -139,9 +125,9 @@ const electricityColumns = [
     width: 80,
   },
   {
-    dataIndex: 'actualUsage',
-    key: 'actualUsage',
-    title: '本月实际度数',
+    dataIndex: 'totalUsage',
+    key: 'totalUsage',
+    title: '总用量',
     width: 120,
   },
   {
@@ -158,9 +144,16 @@ const electricityColumns = [
     width: 120,
   },
   {
-    dataIndex: 'remark',
-    key: 'remark',
+    dataIndex: 'remarks',
+    key: 'remarks',
     title: '备注',
+    width: 160,
+  },
+  {
+    dataIndex: 'receiptTime',
+    key: 'receiptTime',
+    render: (text: any) => (text ? new Date(text).toLocaleString() : ''),
+    title: '收款时间',
     width: 160,
   },
 ];
@@ -168,20 +161,20 @@ const electricityColumns = [
 // 水费表格列配置
 const waterColumns = [
   {
-    dataIndex: 'name',
-    key: 'name',
-    title: '名称',
+    dataIndex: 'meterName',
+    key: 'meterName',
+    title: '表计名称',
     width: 150,
   },
   {
-    dataIndex: 'lastMonthReading',
-    key: 'lastMonthReading',
+    dataIndex: 'previousReading',
+    key: 'previousReading',
     title: '上月水表数',
     width: 120,
   },
   {
-    dataIndex: 'currentMonthReading',
-    key: 'currentMonthReading',
+    dataIndex: 'currentReading',
+    key: 'currentReading',
     title: '本月水表数',
     width: 120,
   },
@@ -198,9 +191,9 @@ const waterColumns = [
     width: 80,
   },
   {
-    dataIndex: 'actualUsage',
-    key: 'actualUsage',
-    title: '本月实际用水量',
+    dataIndex: 'totalUsage',
+    key: 'totalUsage',
+    title: '总用量',
     width: 120,
   },
   {
@@ -217,15 +210,22 @@ const waterColumns = [
     width: 120,
   },
   {
-    dataIndex: 'remark',
-    key: 'remark',
+    dataIndex: 'remarks',
+    key: 'remarks',
     title: '备注',
+    width: 160,
+  },
+  {
+    dataIndex: 'receiptTime',
+    key: 'receiptTime',
+    render: (text: any) => (text ? new Date(text).toLocaleString() : ''),
+    title: '收款时间',
     width: 160,
   },
 ];
 
 // 费用合计表格列配置
-const summaryColumns = [
+const amountColumns = [
   {
     dataIndex: 'name',
     key: 'name',
@@ -242,17 +242,17 @@ const summaryColumns = [
 ];
 
 // 总费用数据
-const summaryData = computed(() => {
+const amountData = computed(() => {
   if (!billData.value) return [];
 
   return [
     {
-      amount: billData.value.electricityTotal || 0,
+      amount: billData.value.eleFee || 0,
       key: '1',
       name: '电费合计',
     },
     {
-      amount: billData.value.waterTotal || 0,
+      amount: billData.value.waterFee || 0,
       key: '2',
       name: '水费合计',
     },
@@ -277,7 +277,7 @@ const summaryData = computed(() => {
       name: '开票税金',
     },
     {
-      amount: billData.value.totalAmount || 0,
+      amount: billData.value.totalFee || 0,
       key: '7',
       name: '本月收费金额',
     },
@@ -287,7 +287,6 @@ const summaryData = computed(() => {
 // 初始化数据
 function initData(data: any) {
   if (!data) return;
-
   // 复制账单基础信息
   billData.value = {
     ...data,
@@ -303,7 +302,7 @@ defineExpose({
     handleClose();
   },
   modalApi,
-  open: (data: any) => {
+  open: async (data: any) => {
     // 更新模态窗口配置
     modalProps.value = {
       ...modalProps.value,
@@ -319,9 +318,9 @@ defineExpose({
     (modalApi as any).onBeforeClose = () => {
       return false; // 阻止除了右上角X之外的所有关闭方式
     };
-
-    modalApi.setData(data);
-    initData(data);
+    const billDetail = await getAmountBillDetail(data.billId);
+    // modalApi.setData(billDetail.data);
+    initData(billDetail);
     modalApi.open();
   },
 });
@@ -333,15 +332,15 @@ defineExpose({
     <div class="mb-4 grid grid-cols-3 gap-4">
       <div class="rounded border p-3">
         <div class="text-gray-500">公司名称</div>
-        <div class="font-medium">{{ billData.companyName }}</div>
+        <div class="font-medium">{{ billData?.tenantName }}</div>
       </div>
       <div class="rounded border p-3">
         <div class="text-gray-500">项目名称</div>
-        <div class="font-medium">{{ billData.projectName }}</div>
+        <div class="font-medium">{{ billData?.projectName }}</div>
       </div>
       <div class="rounded border p-3">
         <div class="text-gray-500">账单月份</div>
-        <div class="font-medium">{{ billData.billMonth }}</div>
+        <div class="font-medium">{{ billData?.receiptTime }}</div>
       </div>
     </div>
 
@@ -358,7 +357,7 @@ defineExpose({
       <div v-show="activeKey === '1'" class="tab-pane">
         <Table
           :columns="electricityColumns"
-          :data-source="billData.electricityItems || []"
+          :data-source="billData?.eleBills || []"
           :pagination="false"
           :scroll="{ x: 1200, scrollToFirstRowOnChange: true }"
           class="passive-wheel-table"
@@ -370,7 +369,7 @@ defineExpose({
       <div v-show="activeKey === '2'" class="tab-pane">
         <Table
           :columns="waterColumns"
-          :data-source="billData.waterItems || []"
+          :data-source="billData?.waterBills || []"
           :pagination="false"
           :scroll="{ x: 1200, scrollToFirstRowOnChange: true }"
           class="passive-wheel-table"
@@ -381,8 +380,8 @@ defineExpose({
       <!-- 费用合计 -->
       <div v-show="activeKey === '3'" class="tab-pane">
         <Table
-          :columns="summaryColumns"
-          :data-source="summaryData"
+          :columns="amountColumns"
+          :data-source="amountData"
           :pagination="false"
           class="passive-wheel-table"
           bordered

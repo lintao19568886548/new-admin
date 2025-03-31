@@ -1,3 +1,4 @@
+import { PrismaClient } from '@prisma/client';
 import { createDatabase } from 'db0';
 import mysql from 'db0/connectors/mysql2';
 
@@ -11,8 +12,8 @@ export const db = createDatabase(
     database: 'magic',
 
     // 连接池设置
-    connectionLimit: 10,
-    maxIdle: 10,
+    connectionLimit: 13,
+    maxIdle: 13,
     idleTimeout: 30_000,
     queueLimit: 0,
     waitForConnections: true,
@@ -26,3 +27,18 @@ export const db = createDatabase(
     timezone: 'local',
   }),
 );
+
+// 创建 PrismaClient 单例
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+
+export const prismaClient =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    log:
+      process.env.NODE_ENV === 'development'
+        ? ['query', 'error', 'warn']
+        : ['error'],
+  });
+
+if (process.env.NODE_ENV !== 'production')
+  globalForPrisma.prisma = prismaClient;

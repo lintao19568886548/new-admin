@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { BillSummary } from './modules/data';
+import type { AmountBill } from './modules/data';
 
 import type {
   OnActionClickParams,
@@ -13,9 +13,10 @@ import { Page } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
 import { Button, message } from 'ant-design-vue';
-import dayjs, { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { getAmountBillList } from '#/api/bill';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -82,7 +83,7 @@ const formConfig = {
  * 编辑账单
  * @param row
  */
-function onEdit(row: BillSummary) {
+function onEdit(row: AmountBill) {
   billFormRef.value?.open(row);
 }
 
@@ -90,22 +91,18 @@ function onEdit(row: BillSummary) {
  * 创建新账单
  */
 function onCreate() {
-  const newBill: BillSummary = {
-    billMonth: dayjs().format('YYYY-MM'),
-    companyName: '',
-    electricityItems: [],
-    electricityTotal: 0,
+  const newBill: AmountBill = {
+    eleBills: [],
+    eleFee: 0,
     factoryRent: 0,
-    id: 0,
     invoiceTax: 0,
     managementFee: 0,
-    otherItems: [],
-    paymentTime: ref<Dayjs>(dayjs()),
-    projectName: '',
+    receiptTime: dayjs().format('YYYY-MM-DD'),
     serviceFee: 0,
-    totalAmount: 0,
-    waterItems: [],
-    waterTotal: 0,
+    tenantName: '',
+    totalFee: 0,
+    waterBills: [],
+    waterFee: 0,
   };
   billFormRef.value?.open(newBill);
 }
@@ -114,9 +111,9 @@ function onCreate() {
  * 删除账单
  * @param row
  */
-function onDelete(row: BillSummary) {
+function onDelete(row: AmountBill) {
   message.loading({
-    content: $t('ui.actionMessage.deleting', [row.companyName]),
+    content: $t('ui.actionMessage.deleting', [row.tenantName]),
     duration: 0,
     key: 'action_process_msg',
   });
@@ -124,7 +121,7 @@ function onDelete(row: BillSummary) {
   // 模拟API请求
   setTimeout(() => {
     message.success({
-      content: $t('ui.actionMessage.deleteSuccess', [row.companyName]),
+      content: $t('ui.actionMessage.deleteSuccess', [row.tenantName]),
       key: 'action_process_msg',
     });
     refreshGrid();
@@ -135,14 +132,14 @@ function onDelete(row: BillSummary) {
  * 查看账单详情
  * @param row
  */
-function onView(row: BillSummary) {
+function onView(row: AmountBill) {
   billDetailRef.value?.open(row);
 }
 
 /**
  * 表格操作按钮的回调函数
  */
-function onActionClick({ code, row }: OnActionClickParams<BillSummary>) {
+function onActionClick({ code, row }: OnActionClickParams<AmountBill>) {
   switch (code) {
     case 'delete': {
       onDelete(row);
@@ -158,128 +155,6 @@ function onActionClick({ code, row }: OnActionClickParams<BillSummary>) {
     }
   }
 }
-
-// 模拟的数据
-const billSummaries: BillSummary[] = [
-  {
-    billMonth: '2023-05',
-    companyName: '示例公司一',
-    electricityBillId: 1,
-    electricityItems: [
-      {
-        actualUsage: 500,
-        amount: 490,
-        currentMonthReading: 5500,
-        id: 1,
-        key: '1',
-        lastMonthReading: 5000,
-        monthlyUsage: 500,
-        multiplier: 1,
-        name: '主楼电费',
-        remark: '正常缴费',
-        unitPrice: 0.98,
-      },
-      {
-        actualUsage: 300,
-        amount: 285,
-        currentMonthReading: 3300,
-        id: 2,
-        key: '2',
-        lastMonthReading: 3000,
-        monthlyUsage: 300,
-        multiplier: 1,
-        name: '附楼电费',
-        remark: '新增区域',
-        unitPrice: 0.95,
-      },
-      {
-        actualUsage: 800,
-        amount: 775,
-        currentMonthReading: 0,
-        id: 3,
-        key: '3',
-        lastMonthReading: 0,
-        monthlyUsage: 0,
-        multiplier: 0,
-        name: '合计',
-        remark: '',
-        unitPrice: 0,
-      },
-    ],
-    electricityTotal: 980,
-    factoryRent: 12_000,
-    id: 1,
-    invoiceTax: 680,
-    managementFee: 2000,
-    paymentTime: ref<Dayjs>(dayjs('2023-05-15')),
-    projectName: '项目A',
-    serviceFee: 1500,
-    totalAmount: 17_445,
-    waterBillId: 1,
-    waterItems: [
-      {
-        actualUsage: 150,
-        amount: 285,
-        currentMonthReading: 850,
-        id: 1,
-        key: '1',
-        lastMonthReading: 700,
-        monthlyUsage: 150,
-        multiplier: 1,
-        name: '主楼水费',
-        remark: '正常缴费',
-        unitPrice: 1.9,
-      },
-    ],
-    waterTotal: 285,
-  },
-  {
-    billMonth: '2023-06',
-    companyName: '示例公司二',
-    electricityBillId: 2,
-    electricityItems: [
-      {
-        actualUsage: 1000,
-        amount: 950,
-        currentMonthReading: 2800,
-        id: 3,
-        key: '1',
-        lastMonthReading: 2300,
-        monthlyUsage: 500,
-        multiplier: 2,
-        name: '主楼电费',
-        remark: '双倍计费',
-        unitPrice: 0.95,
-      },
-    ],
-    electricityTotal: 1250,
-    factoryRent: 15_000,
-    id: 2,
-    invoiceTax: 750,
-    managementFee: 2200,
-    paymentTime: ref<Dayjs>(dayjs('2023-06-15')),
-    projectName: '项目B',
-    serviceFee: 1800,
-    totalAmount: 21_540,
-    waterBillId: 2,
-    waterItems: [
-      {
-        actualUsage: 300,
-        amount: 540,
-        currentMonthReading: 1200,
-        id: 2,
-        key: '1',
-        lastMonthReading: 900,
-        monthlyUsage: 300,
-        multiplier: 1,
-        name: '主楼水费',
-        remark: '水价上调',
-        unitPrice: 1.8,
-      },
-    ],
-    waterTotal: 540,
-  },
-];
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
@@ -298,19 +173,20 @@ const [Grid, gridApi] = useVbenVxeGrid({
         query: async () => {
           // 模拟API请求返回数据
           // 根据当前选中的区域筛选数据
-          let filteredData = [...billSummaries];
+          const amountList = (await getAmountBillList()) || [];
+          // let filteredData = [...billSummaries];
 
-          // 如果不是"全部区域"，则按照一些规则进行筛选
-          if (currentArea.value.key !== 'all') {
-            filteredData = billSummaries.filter((_, index) => index % 2 === 0);
-          }
+          // // 如果不是"全部区域"，则按照一些规则进行筛选
+          // if (currentArea.value.key !== 'all') {
+          //   filteredData = billSummaries.filter((_, index) => index % 2 === 0);
+          // }
 
           return {
             page: {
               pageSize: 20,
-              total: filteredData.length,
+              total: amountList.length,
             },
-            items: filteredData,
+            items: amountList,
           };
         },
       },
