@@ -146,6 +146,12 @@ export function useColumns<T = SystemFinanceApi.SystemFinance>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
+      field: 'financeId', // 确保这里使用的是 financeId 而不是 id
+      title: 'ID',
+      visible: false, // 通常 ID 字段不显示
+      width: 80,
+    },
+    {
       field: 'billName',
       title: $t('page.finance.billName'),
       width: 200,
@@ -167,7 +173,7 @@ export function useColumns<T = SystemFinanceApi.SystemFinance>(
     {
       field: 'amount',
       formatter: ({ cellValue }) => {
-        return cellValue ? `¥${cellValue.toFixed(2)}` : '';
+        return cellValue ? `¥${Number(cellValue).toFixed(2)}` : '0';
       },
       minWidth: 100,
       title: $t('page.finance.amount'),

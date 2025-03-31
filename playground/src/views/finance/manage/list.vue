@@ -14,6 +14,7 @@ import { Plus } from '@vben/icons';
 import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { getFinanceList } from '#/api/finance';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -55,57 +56,57 @@ function handleAreaChange(area: Area) {
   }, 500);
 }
 
-// 模拟的财务数据
-const financeItems = [
-  {
-    amount: 5000,
-    billCategory: '房租',
-    billName: '5月房租',
-    id: '1',
-    transactionTime: '2023-05-01 10:00:00',
-    transactionType: '支出',
-  },
-  {
-    amount: 320.5,
-    billCategory: '水费',
-    billName: '4月水费',
-    id: '2',
-    transactionTime: '2023-04-25 14:30:00',
-    transactionType: '支出',
-  },
-  {
-    amount: 750.8,
-    billCategory: '电费',
-    billName: '4月电费',
-    id: '3',
-    transactionTime: '2023-04-26 09:15:00',
-    transactionType: '支出',
-  },
-  {
-    amount: 12_000,
-    billCategory: '房租',
-    billName: '厂房租赁收入',
-    id: '4',
-    transactionTime: '2023-05-05 11:20:00',
-    transactionType: '收入',
-  },
-  {
-    amount: 1500,
-    billCategory: '其他费用',
-    billName: '设备维修费',
-    id: '5',
-    transactionTime: '2023-05-10 16:45:00',
-    transactionType: '支出',
-  },
-  {
-    amount: 420.3,
-    billCategory: '燃气费',
-    billName: '燃气费',
-    id: '6',
-    transactionTime: '2023-05-12 10:30:00',
-    transactionType: '支出',
-  },
-];
+// // 模拟的财务数据
+// const financeItems = [
+//   {
+//     amount: 5000,
+//     billCategory: '房租',
+//     billName: '5月房租',
+//     id: '1',
+//     transactionTime: '2023-05-01 10:00:00',
+//     transactionType: '支出',
+//   },
+//   {
+//     amount: 320.5,
+//     billCategory: '水费',
+//     billName: '4月水费',
+//     id: '2',
+//     transactionTime: '2023-04-25 14:30:00',
+//     transactionType: '支出',
+//   },
+//   {
+//     amount: 750.8,
+//     billCategory: '电费',
+//     billName: '4月电费',
+//     id: '3',
+//     transactionTime: '2023-04-26 09:15:00',
+//     transactionType: '支出',
+//   },
+//   {
+//     amount: 12_000,
+//     billCategory: '房租',
+//     billName: '厂房租赁收入',
+//     id: '4',
+//     transactionTime: '2023-05-05 11:20:00',
+//     transactionType: '收入',
+//   },
+//   {
+//     amount: 1500,
+//     billCategory: '其他费用',
+//     billName: '设备维修费',
+//     id: '5',
+//     transactionTime: '2023-05-10 16:45:00',
+//     transactionType: '支出',
+//   },
+//   {
+//     amount: 420.3,
+//     billCategory: '燃气费',
+//     billName: '燃气费',
+//     id: '6',
+//     transactionTime: '2023-05-12 10:30:00',
+//     transactionType: '支出',
+//   },
+// ];
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
@@ -120,18 +121,33 @@ const [Grid, gridApi] = useVbenVxeGrid({
     keepSource: true,
     proxyConfig: {
       ajax: {
-        query: async ({ page }) => {
-          console.warn('查询财务数据', page); // 将 console.log 改为 console.warn
-          // 返回模拟数据和分页信息
-          return {
-            total: financeItems.length,
-            items: financeItems,
-          };
+        query: async () => {
+          try {
+            // 添加错误处理
+            const financeList = (await getFinanceList()) || [];
+
+            return {
+              page: {
+                pageSize: 20,
+                total: financeList.length,
+              },
+              items: financeList,
+            };
+          } catch (error) {
+            console.error('获取财务数据失败:', error);
+            return {
+              page: {
+                pageSize: 20,
+                total: 0,
+              },
+              items: [],
+            };
+          }
         },
       },
     },
     rowConfig: {
-      keyField: 'id',
+      keyField: 'financeId', // 确保这里与后端返回的字段名一致
     },
     toolbarConfig: {
       custom: true,

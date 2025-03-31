@@ -1,3 +1,4 @@
+import { prismaClient } from '~/utils/db';
 import { useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
@@ -7,11 +8,6 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
-  const result = await db.sql`
-    SELECT * FROM amount_bill
-  `.then((result) => {
-    console.log(result.rows);
-    return result.rows;
-  });
-  return useResponseSuccess(result);
+  const bill = await prismaClient.finance.findMany({});
+  return useResponseSuccess(bill);
 });
