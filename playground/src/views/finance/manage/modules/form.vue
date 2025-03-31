@@ -3,9 +3,9 @@ import type { SystemFinanceApi } from '#/api';
 
 import { computed, ref } from 'vue';
 
-import { useVbenDrawer } from '@vben/common-ui';
+import { useVbenModal } from '@vben/common-ui';
 
-import { message } from 'ant-design-vue'; // 添加 message 导入
+import { Button, message } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
 import { $t } from '#/locales';
@@ -17,18 +17,24 @@ const emits = defineEmits(['success']);
 const formData = ref<SystemFinanceApi.SystemFinance>();
 
 const [Form, formApi] = useVbenForm({
+  layout: 'vertical',
   schema: useFormSchema(),
   showDefaultActions: false,
 });
 
+function resetForm() {
+  formApi.resetForm();
+  formApi.setValues(formData.value || {});
+}
+
 const id = ref();
-const [Drawer, drawerApi] = useVbenDrawer({
+const [Modal, modalApi] = useVbenModal({
   async onConfirm() {
     const { valid } = await formApi.validate();
     if (!valid) return;
     const values = await formApi.getValues();
-    console.warn('提交表单数据', values); // 将 console.log 改为 console.warn
-    drawerApi.lock();
+    console.warn('提交表单数据', values);
+    modalApi.lock();
 
     // 模拟保存操作
     setTimeout(() => {
@@ -38,13 +44,13 @@ const [Drawer, drawerApi] = useVbenDrawer({
           : $t('ui.actionMessage.operationFailed', [values.billName]),
       });
       emits('success');
-      drawerApi.close();
+      modalApi.close();
     }, 1000);
   },
   onOpenChange(isOpen) {
     if (isOpen) {
-      const data = drawerApi.getData<SystemFinanceApi.SystemFinance>();
-      console.warn('打开表单，数据:', data); // 将 console.log 改为 console.warn
+      const data = modalApi.getData<SystemFinanceApi.SystemFinance>();
+      console.warn('打开表单，数据:', data);
       formApi.resetForm();
       if (data && Object.keys(data).length > 0) {
         formData.value = data;
@@ -52,6 +58,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         formApi.setValues(data);
       } else {
         id.value = undefined;
+        formData.value = undefined;
         // 设置默认值
         formApi.setValues({
           transactionTime: new Date().toISOString(),
@@ -69,9 +76,16 @@ const getDrawerTitle = computed(() => {
 });
 </script>
 <template>
-  <Drawer :title="getDrawerTitle">
-    <Form />
-  </Drawer>
+  <Modal :title="getDrawerTitle">
+    <Form class="mx-4" />
+    <template #prepend-footer>
+      <div class="flex-auto">
+        <Button type="primary" danger @click="resetForm">
+          {{ $t('common.reset') }}
+        </Button>
+      </div>
+    </template>
+  </Modal>
 </template>
 <style lang="css" scoped>
 :deep(.ant-tree-title) {

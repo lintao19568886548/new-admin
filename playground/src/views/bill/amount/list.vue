@@ -158,6 +158,7 @@ function onActionClick({ code, row }: OnActionClickParams<AmountBill>) {
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
+    collapsed: true,
     compact: true,
     schema: useGridFormSchema(),
     showCollapseButton: true,

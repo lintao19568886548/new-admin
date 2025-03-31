@@ -80,7 +80,7 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       defaultValue: '正常',
       fieldName: 'status',
-      label: $t('system.maintenance.transformer.status.normal'),
+      label: $t('system.maintenance.transformer.status.label'),
     },
     {
       component: 'Textarea',

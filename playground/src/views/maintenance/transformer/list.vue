@@ -65,7 +65,7 @@ function onDelete(row: RentalManagementItem) {
 
 function onView(row: RentalManagementItem) {
   // 创建一个响应式变量来存储缩放比例
-  const scale = ref(window.innerWidth <= 768 ? 2.8 : 1.5);
+  const scale = ref(window.innerWidth <= 768 ? 2 : 1.5);
 
   // 创建一个更新函数，用于强制更新DOM
   const updateTransform = (value: number) => {
@@ -122,7 +122,7 @@ function onView(row: RentalManagementItem) {
               },
               'onLoading-failed': (error) => {
                 console.error('PDF加载错误:', error);
-                message.error('PDF文件加载失败，请检查文件格式');
+                message.error('PDF文件加载失败，请检查文件格式或路径');
               },
               source: `/transformer/${row.id}.pdf`,
               width:
@@ -319,6 +319,7 @@ const rentalItems = [
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
+    collapsed: true, // 添加这一行，使查询表单默认收起
     schema: useGridFormSchema(),
     submitOnChange: true,
   },

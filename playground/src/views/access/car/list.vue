@@ -160,6 +160,7 @@ const carItems = [
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
+    collapsed: true,
     schema: useGridFormSchema(),
     submitOnChange: true,
   },

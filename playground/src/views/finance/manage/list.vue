@@ -8,7 +8,7 @@ import type { Area } from '#/components/AreaSelector.vue';
 
 import { ref } from 'vue';
 
-import { Page, useVbenDrawer } from '@vben/common-ui';
+import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
 import { Button, message } from 'ant-design-vue';
@@ -20,7 +20,7 @@ import { $t } from '#/locales';
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
-const [FormDrawer, formDrawerApi] = useVbenDrawer({
+const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
   destroyOnClose: true,
 });
@@ -109,6 +109,7 @@ const financeItems = [
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
+    collapsed: true,
     fieldMappingTime: [['transactionTime', ['startTime', 'endTime']]],
     schema: useGridFormSchema(),
     submitOnChange: true,
@@ -156,7 +157,7 @@ function onActionClick(e: OnActionClickParams<SystemFinanceApi.SystemFinance>) {
 }
 
 function onEdit(row: SystemFinanceApi.SystemFinance) {
-  formDrawerApi.setData(row).open();
+  formModalApi.setData(row).open();
 }
 
 function onDelete(row: SystemFinanceApi.SystemFinance) {
@@ -180,12 +181,12 @@ function onRefresh() {
 }
 
 function onCreate() {
-  formDrawerApi.setData({}).open();
+  formModalApi.setData({}).open();
 }
 </script>
 <template>
   <Page auto-content-height>
-    <FormDrawer />
+    <FormModal @success="onRefresh" />
     <Grid :table-title="$t('page.finance.list-title')">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->

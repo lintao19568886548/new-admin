@@ -179,6 +179,8 @@ const rentalItems = [
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
+    collapsed: true,
+    fieldMappingTime: [['transactionTime', ['startTime', 'endTime']]],
     schema: useGridFormSchema(),
     submitOnChange: true,
   },
