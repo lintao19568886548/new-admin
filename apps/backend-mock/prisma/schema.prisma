@@ -46,7 +46,7 @@ model Tenant {
 
 model AmountBill {
   billId               Int       @id @default(autoincrement()) @map("bill_id")
-  meterName            String    @map("meter_name")
+  tenantName            String    @map("tenant_name")
   eleFee               Decimal?  @db.Decimal(10, 2) @map("ele_fee")
   waterFee             Decimal?  @db.Decimal(10, 2) @map("water_fee")
   factoryRent          Decimal?  @db.Decimal(10, 2) @map("factory_rent")
@@ -113,4 +113,18 @@ model Car {
   remark   String? @db.LongText
 
   @@map("car")
+}
+
+model Finance {
+  financeId              Int    @id @default(autoincrement()) @map("finance_id")
+  billName        String    @db.VarChar(100) @map("bill_name")
+  billCategory    String    @db.VarChar(50) @map("bill_category")
+  amount          Decimal   @db.Decimal(10, 2)
+  transactionType String    @db.VarChar(20) @map("transaction_type")
+  transactionTime DateTime  @map("transaction_time")
+  remark          String?   @db.Text
+  createTime      DateTime  @default(now()) @map("create_time")
+  updateTime      DateTime  @updatedAt @map("update_time")
+
+  @@map("finance")
 }
