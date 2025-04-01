@@ -246,57 +246,6 @@ function onSearch(params: any) {
     form: cleanParams,
   });
 }
-
-// 在onRefresh函数后添加
-async function onManualSearch() {
-  try {
-    // 使用正确的方法获取表单数据
-    const formData = (await gridApi.formApi?.getValues?.()) || {};
-    console.warn('手动获取的表单数据:', formData);
-
-    // 检查表单数据是否为空
-    if (!formData || Object.keys(formData).length === 0) {
-      console.warn('表单数据为空，尝试从DOM获取');
-
-      // 尝试从DOM获取表单数据
-      const formElement = document.querySelector('.vben-form');
-      if (formElement) {
-        const inputs = formElement.querySelectorAll('input, select');
-        const domFormData: Record<string, any> = {};
-
-        inputs.forEach((input: any) => {
-          if (input.name && input.value) {
-            domFormData[input.name] = input.value;
-          }
-        });
-
-        console.warn('从DOM获取的表单数据:', domFormData);
-
-        // 合并数据
-        Object.assign(formData, domFormData);
-      }
-    }
-
-    // 清理空值参数
-    const cleanParams: Record<string, any> = {};
-    for (const [key, value] of Object.entries(formData)) {
-      if (value !== null && value !== undefined && value !== '') {
-        cleanParams[key] = value;
-      }
-    }
-
-    console.warn('最终的搜索参数:', cleanParams);
-
-    // 使用表单数据进行查询
-    gridApi.query({
-      form: cleanParams,
-    });
-  } catch (error) {
-    console.error('手动搜索失败:', error);
-    // 如果获取表单数据失败，则直接刷新
-    onRefresh();
-  }
-}
 </script>
 <template>
   <Page auto-content-height>
@@ -314,8 +263,6 @@ async function onManualSearch() {
           @change="handleAreaChange"
           ref="areaSelectorRef"
         />
-        <!-- 修改按钮点击事件，使用新的方法 -->
-        <Button type="primary" @click="onManualSearch"> 手动搜索 </Button>
       </template>
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">
