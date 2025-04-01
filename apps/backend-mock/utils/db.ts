@@ -42,3 +42,55 @@ export const prismaClient =
 
 if (process.env.NODE_ENV !== 'production')
   globalForPrisma.prisma = prismaClient;
+
+// 数据库连接诊断函数
+export async function checkDatabaseConnection() {
+  try {
+    // 测试 db0 MySQL 连接
+    const dbResult = await db.sql`SELECT 1 as testConnection`.then(
+      (result) => result.rows?.[0] || null,
+    );
+    const mysqlConnected = !!dbResult;
+
+    // 测试 Prisma 连接
+    let prismaConnected = false;
+    try {
+      await prismaClient.$queryRaw`SELECT 1 as testConnection`;
+      prismaConnected = true;
+    } catch (prismaError) {
+      console.error('Prisma 数据库连接测试失败:', prismaError);
+    }
+
+    return {
+      mysql: {
+        connected: mysqlConnected,
+        config: {
+          host: '192.168.110.29',
+          database: 'magic',
+          user: 'root',
+        },
+      },
+      prisma: {
+        connected: prismaConnected,
+      },
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error('数据库连接诊断错误:', error);
+    return {
+      mysql: {
+        connected: false,
+        error: error.message || '未知错误',
+        config: {
+          host: '192.168.110.29',
+          database: 'magic',
+          user: 'root',
+        },
+      },
+      prisma: {
+        connected: false,
+      },
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
