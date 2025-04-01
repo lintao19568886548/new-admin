@@ -8,6 +8,7 @@ import { useVbenModal } from '@vben/common-ui';
 import { Button, message } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
+import { createFinance, updateFinance } from '#/api/finance';
 import { $t } from '#/locales';
 
 import { useFormSchema } from '../data';
@@ -33,19 +34,45 @@ const [Modal, modalApi] = useVbenModal({
     const { valid } = await formApi.validate();
     if (!valid) return;
     const values = await formApi.getValues();
+
+    // 处理日期格式，将ISO格式转换为数据库可接受的格式
+    if (values.transactionTime) {
+      const date = new Date(values.transactionTime);
+      // 格式化为 'YYYY-MM-DD HH:MM:SS' 格式
+      values.transactionTime = date
+        .toISOString()
+        .replace('T', ' ')
+        .slice(0, 19);
+    }
+
     console.warn('提交表单数据', values);
     modalApi.lock();
 
-    // 模拟保存操作
-    setTimeout(() => {
-      message.success({
-        content: id.value
-          ? $t('ui.actionMessage.operationSuccess', [values.billName])
-          : $t('ui.actionMessage.operationFailed', [values.billName]),
-      });
+    try {
+      // 根据是否有ID判断是创建还是更新
+      if (id.value) {
+        // 更新财务记录
+        await updateFinance(id.value, values);
+        message.success({
+          content: $t('ui.actionMessage.updateSuccess', [values.billName]),
+        });
+      } else {
+        // 创建财务记录
+        await createFinance(values);
+        message.success({
+          content: $t('ui.actionMessage.createSuccess', [values.billName]),
+        });
+      }
       emits('success');
       modalApi.close();
-    }, 1000);
+    } catch (error) {
+      console.error('操作失败:', error);
+      message.error({
+        content: $t('ui.actionMessage.operationFailed', [values.billName]),
+      });
+    } finally {
+      modalApi.unlock();
+    }
   },
   onOpenChange(isOpen) {
     if (isOpen) {
@@ -54,7 +81,7 @@ const [Modal, modalApi] = useVbenModal({
       formApi.resetForm();
       if (data && Object.keys(data).length > 0) {
         formData.value = data;
-        id.value = data.id;
+        id.value = data.financeId; // 使用financeId作为主键
         formApi.setValues(data);
       } else {
         id.value = undefined;
@@ -70,7 +97,7 @@ const [Modal, modalApi] = useVbenModal({
 });
 
 const getDrawerTitle = computed(() => {
-  return formData.value?.id
+  return formData.value?.financeId
     ? $t('page.finance.edit')
     : $t('page.finance.create');
 });
