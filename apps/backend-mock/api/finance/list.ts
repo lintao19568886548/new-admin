@@ -1,5 +1,9 @@
+import Nzh from 'nzh';
 import { prismaClient } from '~/utils/db';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
+
+// 使用nzh库的简体中文转换器
+const nzhcn = Nzh.cn;
 
 export default eventHandler(async (event) => {
   try {
@@ -9,11 +13,41 @@ export default eventHandler(async (event) => {
     // 构建查询条件
     const where: any = {};
 
-    // 账单名称模糊查询
+    // 账单名称模糊查询，支持中文数字和阿拉伯数字互相匹配
     if (query.billName) {
-      where.billName = {
-        contains: String(query.billName),
-      };
+      const billNameStr = String(query.billName);
+
+      // 尝试提取字符串中的数字部分
+      const arabicNumbers = billNameStr.match(/\d+/g) || [];
+      const chineseNumbers =
+        billNameStr.match(/[零一二三四五六七八九十百千万亿]+/g) || [];
+
+      // 准备OR查询条件
+      const orConditions = [{ billName: { contains: billNameStr } }];
+
+      // 转换阿拉伯数字到中文并添加到查询条件
+      for (const num of arabicNumbers) {
+        try {
+          const chineseNum = nzhcn.encodeS(num);
+          orConditions.push({ billName: { contains: chineseNum } });
+        } catch (error) {
+          console.warn(`转换阿拉伯数字 ${num} 到中文失败:`, error);
+        }
+      }
+
+      // 转换中文数字到阿拉伯并添加到查询条件
+      for (const num of chineseNumbers) {
+        try {
+          // 修复：确保转换后的阿拉伯数字是字符串类型
+          const arabicNum = String(nzhcn.decodeS(num));
+          orConditions.push({ billName: { contains: arabicNum } });
+        } catch (error) {
+          console.warn(`转换中文数字 ${num} 到阿拉伯数字失败:`, error);
+        }
+      }
+
+      // 设置OR查询条件
+      where.OR = orConditions;
     }
 
     // 账单类别精确匹配
@@ -26,16 +60,61 @@ export default eventHandler(async (event) => {
       where.transactionType = String(query.transactionType);
     }
 
-    // 金额范围查询
+    // 金额范围查询，支持模糊查询
     if (query.amount) {
-      where.amount = Number(query.amount);
+      const amountStr = String(query.amount);
+
+      // 检查是否包含比较运算符
+      if (amountStr.startsWith('>')) {
+        // 大于查询
+        const value = Number(amountStr.slice(1));
+        where.amount = { gt: value };
+      } else if (amountStr.startsWith('>=')) {
+        // 大于等于查询
+        const value = Number(amountStr.slice(2));
+        where.amount = { gte: value };
+      } else if (amountStr.startsWith('<')) {
+        // 小于查询
+        const value = Number(amountStr.slice(1));
+        where.amount = { lt: value };
+      } else if (amountStr.startsWith('<=')) {
+        // 小于等于查询
+        const value = Number(amountStr.slice(2));
+        where.amount = { lte: value };
+      } else if (amountStr.includes('-')) {
+        // 范围查询，例如 "100-200"
+        const [min, max] = amountStr.split('-').map(Number);
+        where.amount = {
+          gte: min,
+          lte: max,
+        };
+      } else {
+        // 精确匹配
+        where.amount = Number(amountStr);
+      }
     }
 
     // 日期范围查询
     if (query.startTime && query.endTime) {
+      // 确保日期字符串包含时分秒，如果没有则添加默认值
+      const startTimeStr = String(query.startTime);
+      const endTimeStr = String(query.endTime);
+
+      // 转换为日期对象
+      const startDate = new Date(startTimeStr);
+      const endDate = new Date(endTimeStr);
+
+      // 日志输出转换后的日期，便于调试
+      console.log('日期范围查询:', {
+        startTime: startTimeStr,
+        endTime: endTimeStr,
+        startDate,
+        endDate,
+      });
+
       where.transactionTime = {
-        gte: new Date(query.startTime as string),
-        lte: new Date(query.endTime as string),
+        gte: startDate,
+        lte: endDate,
       };
     }
 

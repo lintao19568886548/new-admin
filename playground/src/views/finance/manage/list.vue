@@ -80,6 +80,21 @@ const [Grid, gridApi] = useVbenVxeGrid({
               params.endTime = `${params.endTime} 23:59:59`;
             }
 
+            // 处理金额查询
+            // 如果金额是字符串格式（包含特殊字符如 >、<、-），则直接传递
+            // 否则保持数字格式
+            if (params.amount !== undefined && params.amount !== null) {
+              const amountStr = String(params.amount);
+              if (
+                amountStr.includes('>') ||
+                amountStr.includes('<') ||
+                amountStr.includes('-')
+              ) {
+                params.amount = amountStr;
+              }
+              // 数字格式不需要特殊处理
+            }
+
             // 添加区域参数
             if (currentArea.value && currentArea.value.key !== 'all') {
               params.area = currentArea.value.key;
@@ -185,6 +200,7 @@ function onRefresh() {
       gridApi.query({
         form: formValues || {},
       });
+      console.warn('刷新表格数据');
     })
     .catch((error) => {
       console.error('获取表单数据失败:', error);
