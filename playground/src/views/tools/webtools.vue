@@ -59,6 +59,12 @@ const categories = [
     id: 'search',
     name: 'AI搜索引擎',
   },
+  {
+    description: '法律服务和咨询工具',
+    icon: 'icon-[fas--search]',
+    id: 'law',
+    name: 'AI法律助手',
+  },
 ];
 
 // AI工具列表数据
@@ -152,7 +158,7 @@ const aiTools = [
     description: '免费在线文本转语音工具',
     hot: true,
     icon: 'icon-[mdi--microphone-outline]',
-    name: 'TTSMAKER',
+    name: 'TTSMaker',
     url: 'https://ttsmaker.cn/',
   },
   {
@@ -202,6 +208,22 @@ const aiTools = [
   },
 
   // 对话聊天
+  {
+    category: 'chat',
+    color: '#1890ff',
+    description: 'DeepSeek智能对话助手',
+    icon: 'icon-[ant-design--robot-outlined]',
+    name: 'DeepSeeker',
+    url: 'https://www.deepseek.com/',
+  },
+  {
+    category: 'chat',
+    color: '#1890ff',
+    description: '豆包智能对话助手',
+    icon: 'icon-[ant-design--robot-outlined]',
+    name: '豆包',
+    url: 'https://www.doubao.com/chat/',
+  },
   {
     category: 'chat',
     color: '#1890ff',
@@ -256,6 +278,14 @@ const aiTools = [
     icon: 'icon-[mdi--magnify]',
     name: '360搜索',
     url: 'https://www.so.com/',
+  },
+  {
+    category: 'law',
+    color: '#1d39c4',
+    description: '法律知识问答助手',
+    icon: 'icon-[mdi--magnify]',
+    name: '元典智库',
+    url: 'https://www.chineselaw.com/tyjs/index',
   },
 ];
 
@@ -382,7 +412,7 @@ function changeCategory(category: string) {
       <Divider>
         <span class="footer-text">发现更多AI工具，提升工作效率</span>
       </Divider>
-      <p class="copyright">© 2023 AI工具导航 | 精选全球优质AI工具</p>
+      <p class="copyright">© 2025 AI工具导航 | 精选全球优质AI工具</p>
     </div>
   </div>
 </template>
