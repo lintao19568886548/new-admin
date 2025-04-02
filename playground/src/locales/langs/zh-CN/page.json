@@ -63,7 +63,8 @@
     "transactionType": "收支类型",
     "amount": "账单金额",
     "name": "账单",
-    "transactionTime": "交易时间"
+    "transactionTime": "交易时间",
+    "remark": "备注"
   },
   "maintenance": {
     "create": "新增维修",

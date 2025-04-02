@@ -23,7 +23,7 @@ model User {
   homePath        String?     @db.VarChar(100) @map("home_path")
   userCodes       UserCode[]  @relation("UserToUserCode")
   createTime      DateTime?   @default(now()) @map("create_time")
-  updateTime      DateTime    @updatedAt @map("update_time")
+  updateTime      DateTime?    @updatedAt @map("update_time")
 
   @@map("user")
 }
@@ -45,7 +45,7 @@ model Tenant {
   tenantName     String        @db.VarChar(30) @map("tenant_name")
   amountBills    AmountBill[]  @relation("AmountBillToTenant")
   createTime     DateTime?     @default(now()) @map("create_time")
-  updateTime     DateTime      @updatedAt @map("update_time")
+  updateTime     DateTime?      @updatedAt @map("update_time")
 
   @@map("tenant")
 }
@@ -61,11 +61,12 @@ model AmountBill {
   serviceFee           Decimal?    @db.Decimal(10, 2) @map("service_fee")
   invoiceTax           Decimal?    @db.Decimal(10, 2) @map("invoice_tax")
   totalFee             Decimal?    @db.Decimal(10, 2) @map("total_fee")
-  createTime           DateTime?   @default(now()) @map("create_time")
-  updateTime           DateTime    @updatedAt @map("update_time")
+  tenantId             Int?         @map("tenant_id")
+  remark               String?     
   receiptTime          DateTime?   @map("receipt_time")
-  tenantId             Int         @map("tenant_id")
-  tenant               Tenant      @relation("AmountBillToTenant", map: "tenant_no_fk", fields: [tenantId], references: [tenantId])
+  createTime           DateTime?   @default(now()) @map("create_time")
+  updateTime           DateTime?   @updatedAt @map("update_time")
+  tenant               Tenant?      @relation("AmountBillToTenant", map: "tenant_no_fk", fields: [tenantId], references: [tenantId])
   eleBills             EleBill[]   @relation("EleBillToAmountBill")
   waterBills           WaterBill[] @relation("WaterBillToAmountBill")
 
@@ -84,10 +85,10 @@ model EleBill {
   totalUsage      Decimal?   @db.Decimal(10, 2) @map("total_usage")
   unitPrice       Float?     @db.Float @map("unit_price")
   amount          Decimal?   @db.Decimal(10, 2)
-  remarks         String?    @db.LongText
+  remark         String?    @db.LongText
   createTime      DateTime   @default(now()) @map("create_time")
   receiptTime     DateTime   @map("receipt_time")
-  updateTime      DateTime   @updatedAt @map("update_time")
+  updateTime      DateTime?   @updatedAt @map("update_time")
   amountBill      AmountBill @relation("EleBillToAmountBill", map: "ele_bill_no_fk", fields: [billId], references: [billId])
 
   @@index([billId])
@@ -105,10 +106,10 @@ model WaterBill {
   totalUsage      Decimal?    @db.Decimal(10, 2) @map("total_usage")
   unitPrice       Float?      @db.Float @map("unit_price")
   amount          Decimal?    @db.Decimal(10, 2)
-  remarks         String?     @db.LongText
+  remark          String?     @db.LongText
   createTime      DateTime    @default(now()) @map("create_time")
   receiptTime     DateTime    @map("receipt_time")
-  updateTime      DateTime    @updatedAt @map("update_time")
+  updateTime      DateTime?    @updatedAt @map("update_time")
   amountBill      AmountBill? @relation("WaterBillToAmountBill", map: "water_bill_no_fk", fields: [billId], references: [billId])
 
   @@index([billId])

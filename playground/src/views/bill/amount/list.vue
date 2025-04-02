@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { AmountBill } from './modules/data';
+import type { AmountBill } from './data';
 
 import type {
   OnActionClickParams,
@@ -16,7 +16,7 @@ import { Button, message } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { getAmountBillList } from '#/api/bill';
+import { deleteAmountBill, getAmountBillList } from '#/api/bill';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -27,9 +27,9 @@ import {
   useColumns,
   useGridFormSchema,
   waterFormConfig,
-} from './modules/data';
-import MultipageBillDetail from './MultipageBillDetail.vue';
-import MultipageBillForm from './MultipageBillForm.vue';
+} from './data';
+import MultipageBillDetail from './modules/MultipageBillDetail.vue';
+import MultipageBillForm from './modules/MultipageBillForm.vue';
 
 // 区域列表
 const areaList = [
@@ -97,7 +97,7 @@ function onCreate() {
     factoryRent: 0,
     invoiceTax: 0,
     managementFee: 0,
-    receiptTime: dayjs().format('YYYY-MM-DD'),
+    receiptTime: dayjs(),
     serviceFee: 0,
     tenantName: '',
     totalFee: 0,
@@ -111,21 +111,31 @@ function onCreate() {
  * 删除账单
  * @param row
  */
-function onDelete(row: AmountBill) {
+async function onDelete(row: AmountBill) {
   message.loading({
     content: $t('ui.actionMessage.deleting', [row.tenantName]),
     duration: 0,
     key: 'action_process_msg',
   });
 
-  // 模拟API请求
-  setTimeout(() => {
-    message.success({
-      content: $t('ui.actionMessage.deleteSuccess', [row.tenantName]),
-      key: 'action_process_msg',
-    });
-    refreshGrid();
-  }, 1000);
+  const { billId } = row;
+  if (billId) {
+    try {
+      // 使用 try-catch 替代 then-catch 链
+      await deleteAmountBill(billId);
+      message.success({
+        content: $t('ui.actionMessage.deleteSuccess', [row.tenantName]),
+        key: 'action_process_msg',
+      });
+      refreshGrid();
+    } catch (error) {
+      console.error('删除账单失败:', error);
+      message.error({
+        content: $t('ui.actionMessage.operationFailed', [error]),
+        key: 'action_process_msg',
+      });
+    }
+  }
 }
 
 /**

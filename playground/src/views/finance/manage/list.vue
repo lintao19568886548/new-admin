@@ -60,7 +60,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
     fieldMappingTime: [['transactionTime', ['startTime', 'endTime']]],
-    // 移除不存在的onSubmit属性
     schema: useGridFormSchema(),
     submitOnChange: false, // 修改为false，不再自动提交
   },
@@ -70,35 +69,30 @@ const [Grid, gridApi] = useVbenVxeGrid({
     keepSource: true,
     proxyConfig: {
       ajax: {
-        query: async ({ form, ...rest }) => {
+        query: async () => {
           try {
-            // 处理查询参数
-            const params = { ...form };
-
-            // 调试日志
-            console.warn('原始查询参数:', form);
-            console.warn('其他参数:', rest);
-
-            // 如果form为undefined，尝试从其他地方获取表单数据
-            if (!form || Object.keys(form).length === 0) {
-              console.warn('查询参数为空，尝试从其他地方获取');
-
-              // 尝试从gridApi获取表单数据
-              try {
-                const formData = await gridApi.formApi?.getValues?.();
-                if (formData && Object.keys(formData).length > 0) {
-                  console.warn('从formApi获取的表单数据:', formData);
-                  Object.assign(params, formData);
-                }
-              } catch (error) {
-                console.error('获取表单数据失败:', error);
-              }
-            }
+            // 直接从formApi获取表单数据
+            const params = (await gridApi.formApi?.getValues?.()) || {};
 
             // 处理日期范围
             if (params.startTime && params.endTime) {
               params.startTime = `${params.startTime} 00:00:00`;
               params.endTime = `${params.endTime} 23:59:59`;
+            }
+
+            // 处理金额查询
+            // 如果金额是字符串格式（包含特殊字符如 >、<、-），则直接传递
+            // 否则保持数字格式
+            if (params.amount !== undefined && params.amount !== null) {
+              const amountStr = String(params.amount);
+              if (
+                amountStr.includes('>') ||
+                amountStr.includes('<') ||
+                amountStr.includes('-')
+              ) {
+                params.amount = amountStr;
+              }
+              // 数字格式不需要特殊处理
             }
 
             // 添加区域参数
@@ -199,7 +193,22 @@ function onDelete(row: SystemFinanceApi.SystemFinance) {
 }
 
 function onRefresh() {
-  gridApi.query();
+  // 直接从formApi获取最新表单数据并传递给query方法
+  gridApi.formApi
+    .getValues()
+    .then((formValues) => {
+      gridApi.query({
+        form: formValues || {},
+      });
+      console.warn('刷新表格数据');
+    })
+    .catch((error) => {
+      console.error('获取表单数据失败:', error);
+      // 出错时使用空对象查询
+      gridApi.query({
+        form: {},
+      });
+    });
 }
 
 function onCreate() {

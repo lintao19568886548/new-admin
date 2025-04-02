@@ -1,5 +1,7 @@
-import type { BillFormConfig } from '../BillForm.vue';
-import type { BillDetailConfig } from './BillBaseConfig';
+import type { Dayjs } from 'dayjs';
+
+import type { BillDetailConfig } from './modules/BillBaseConfig';
+import type { BillFormConfig } from './modules/BillForm.vue';
 
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
@@ -15,19 +17,20 @@ export interface AmountBill {
   billId?: number; // 账单ID
   createTime?: Date | string; // 创建时间
   eleBills?: any[]; // 电费账单项（详情用）
-  eleFee?: number; // 电费合计
+  eleFee: number; // 电费合计
   factoryRent?: number; // 厂房租金
   invoiceTax?: number; // 开票税金
   managementFee?: number; // 基本管理费
   projectName?: string; // 项目名称
-  receiptTime?: Date | string; // 收款时间
+  receiptTime?: Dayjs; // 收款时间
+  remark?: string; // 备注
   serviceFee?: number; // 服务费
   tenant?: any; // 租户信息
   tenantId?: number; // 租户ID
   tenantName: string; // 租户名称
-  totalFee?: number; // 总费用
+  totalFee: number; // 总费用
   waterBills?: any[]; // 水费账单项（详情用）
-  waterFee?: number; // 水费合计
+  waterFee: number; // 水费合计
 }
 
 /**
@@ -70,7 +73,7 @@ export const electricityDetailConfig: BillDetailConfig = {
   readingLabel: '电表数',
   unitLabel: '度',
   usageLabel: '度数',
-  itemsField: 'electricityItems',
+  itemsField: 'eleBills',
 };
 
 /**
@@ -83,7 +86,7 @@ export const electricityFormConfig: BillFormConfig = {
   readingLabel: '电表数',
   unitLabel: '度',
   usageLabel: '度数',
-  itemsField: 'electricityItems',
+  itemsField: 'ele',
 };
 
 /**
@@ -98,7 +101,7 @@ export const waterDetailConfig: BillDetailConfig = {
   readingLabel: '水表数',
   unitLabel: '吨',
   usageLabel: '用量',
-  itemsField: 'waterItems',
+  itemsField: 'waterBills',
 };
 
 /**
@@ -111,7 +114,7 @@ export const waterFormConfig: BillFormConfig = {
   readingLabel: '水表数',
   unitLabel: '吨',
   usageLabel: '用量',
-  itemsField: 'waterItems',
+  itemsField: 'water',
 };
 
 /**
@@ -250,14 +253,15 @@ export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'companyName',
-      label: '公司名称',
-    },
-    {
-      component: 'Input',
       fieldName: 'projectName',
       label: '项目名称',
     },
+    {
+      component: 'Input',
+      fieldName: 'tenantName',
+      label: '租户名称',
+    },
+
     {
       component: 'RangePicker',
       fieldName: 'paymentTime',
@@ -273,6 +277,11 @@ export function useColumns<T = AmountBill>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
   return [
+    {
+      field: 'projectName',
+      minWidth: 150,
+      title: '项目',
+    },
     {
       field: 'tenantName',
       minWidth: 150,

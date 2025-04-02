@@ -45,6 +45,11 @@ const [Modal, modalApi] = useVbenModal({
         .slice(0, 19);
     }
 
+    // 确保金额是数字类型
+    if (values.amount !== undefined && values.amount !== null) {
+      values.amount = Number(values.amount);
+    }
+
     console.warn('提交表单数据', values);
     modalApi.lock();
 

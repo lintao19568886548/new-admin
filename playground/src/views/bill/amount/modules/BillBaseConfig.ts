@@ -23,7 +23,7 @@ export interface BillDetailConfig {
 // 基础账单项接口 - 根据 Prisma Schema 调整
 export interface BaseBillItem {
   amount: number; // 金额
-  billId: number; // 关联的账单ID
+  billId?: number; // 关联的账单ID
   createTime: Date | string; // 创建时间
   currentReading: number; // 本月读数
   meterName: string; // 表计名称
@@ -31,7 +31,7 @@ export interface BaseBillItem {
   multiplier: number; // 倍数
   previousReading: number; // 上月读数
   receiptTime: Date | string; // 收款时间
-  remarks: string; // 备注
+  remark: string; // 备注
   totalUsage: number; // 总用量
   unitPrice: number; // 单价
 }

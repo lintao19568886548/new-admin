@@ -40,6 +40,7 @@ export function useFormSchema(): VbenFormSchema[] {
           { label: '燃气费', value: '燃气费' },
           { label: '其他费用', value: '其他费用' },
         ],
+        style: { width: '25%' },
       },
       fieldName: 'billCategory',
       label: $t('page.finance.billCategory'),
@@ -68,6 +69,16 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'amount',
       label: $t('page.finance.amount'),
+    },
+    // 添加备注字段
+    {
+      component: 'Input',
+      componentProps: {
+        placeholder: '请输入备注信息',
+        style: { width: '100%' },
+      },
+      fieldName: 'remark',
+      label: $t('page.finance.remark'),
     },
     {
       component: 'DatePicker',
@@ -119,10 +130,9 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: $t('page.finance.transactionType'),
     },
     {
-      component: 'InputNumber',
+      component: 'Input', // 将 InputNumber 改为 Input
       componentProps: {
-        min: 0,
-        precision: 2,
+        placeholder: '支持 >100、<100、100-200 格式',
         style: { width: '100%' },
       },
       fieldName: 'amount',
@@ -131,9 +141,10 @@ export function useGridFormSchema(): VbenFormSchema[] {
     {
       component: 'RangePicker',
       componentProps: {
-        format: 'YYYY-MM-DD',
+        format: 'YYYY-MM-DD HH:mm:ss',
         placeholder: ['开始日期', '结束日期'],
-        valueFormat: 'YYYY-MM-DD', // 添加valueFormat指定输出格式
+        showTime: true, // 启用时间选择
+        valueFormat: 'YYYY-MM-DD HH:mm:ss', // 指定输出格式包含时分秒
       },
       fieldName: 'transactionTime',
       label: $t('page.finance.transactionTime'),
@@ -171,6 +182,16 @@ export function useColumns<T = SystemFinanceApi.SystemFinance>(
       },
       minWidth: 100,
       title: $t('page.finance.amount'),
+    },
+    // 添加备注列
+    {
+      field: 'remark',
+      formatter: ({ cellValue }) => {
+        // 当值为空时，转换为空字符串
+        return cellValue || '';
+      },
+      minWidth: 150,
+      title: $t('page.finance.remark'),
     },
     {
       field: 'transactionTime',

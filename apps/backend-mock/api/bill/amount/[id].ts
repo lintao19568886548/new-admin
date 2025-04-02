@@ -19,7 +19,6 @@ export default eventHandler(async (event) => {
     include: {
       eleBills: true,
       waterBills: true,
-      tenant: true,
     },
   });
   return useResponseSuccess(bill);

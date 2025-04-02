@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { AmountBill } from '../data';
+
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
@@ -12,6 +14,12 @@ import {
   Steps,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
+
+import {
+  createAmountBill,
+  getAmountBillDetail,
+  updateAmountBill,
+} from '#/api/bill';
 
 import BillForm from './BillForm.vue';
 
@@ -55,7 +63,7 @@ const waterConfig = computed(() => ({
 const activeKey = ref('1');
 
 // 表单引用
-const electricityFormRef = ref();
+const eleFormRef = ref();
 const waterFormRef = ref();
 
 // 模态窗口参数
@@ -82,44 +90,27 @@ function _handleClose() {
 }
 
 // 账单数据
-const billData = reactive({
-  billMonth: dayjs().format('YYYY-MM'),
-  companyName: '',
-  electricityBillId: 0,
-  electricityItems: [],
-  electricityTotal: 0,
-  factoryRent: 0,
-  id: 0,
-  invoiceTax: 0,
-  managementFee: 0,
-  otherItems: [],
-  paymentTime: dayjs(),
-  projectName: '',
-  serviceFee: 0,
-  totalAmount: 0,
-  waterBillId: 0,
-  waterItems: [],
-  waterTotal: 0,
+const billData = reactive<AmountBill>({
+  eleFee: 0,
+  tenantName: '',
+  totalFee: 0,
+  waterFee: 0,
 });
-
-// 提交数据引用
-const electricityData = ref(null);
-const waterData = ref(null);
 
 // 自动计算总金额
 watch(
   [
-    () => billData.electricityTotal,
-    () => billData.waterTotal,
+    () => billData.eleFee,
+    () => billData.waterFee,
     () => billData.factoryRent,
     () => billData.managementFee,
     () => billData.serviceFee,
     () => billData.invoiceTax,
   ],
   () => {
-    billData.totalAmount =
-      Number(billData.electricityTotal || 0) +
-      Number(billData.waterTotal || 0) +
+    billData.totalFee =
+      Number(billData.eleFee || 0) +
+      Number(billData.waterFee || 0) +
       Number(billData.factoryRent || 0) +
       Number(billData.managementFee || 0) +
       Number(billData.serviceFee || 0) +
@@ -130,21 +121,28 @@ watch(
 // 下一页
 function handleNext() {
   const key = Number(activeKey.value);
-
   // 验证当前页数据
   switch (key) {
     case 1: {
-      if (!billData.companyName || !billData.projectName) {
+      if (!billData.tenantName || !billData.projectName) {
         message.warning('请填写公司名称和项目名称');
         return;
       }
       break;
     }
     case 2: {
-      electricityFormRef.value?.modalApi.getData();
+      if (billData.eleBills?.length === 0) {
+        message.warning('请添加电费明细');
+        return;
+      }
+      eleFormRef.value?.modalApi.getData();
       break;
     }
     case 3: {
+      if (billData.waterBills?.length === 0) {
+        message.warning('请添加水费明细');
+        return;
+      }
       waterFormRef.value?.modalApi.getData();
       break;
     }
@@ -164,123 +162,141 @@ function handlePrev() {
 }
 
 // 电费表单提交回调
-function handleElectricitySuccess(data: any) {
-  electricityData.value = data;
-
+function handleEleSuccess(data: any) {
   if (data) {
-    billData.companyName = data.companyName || billData.companyName;
-    billData.projectName = data.projectName || billData.projectName;
-    billData.paymentTime = data.paymentTime || billData.paymentTime;
-    billData.electricityItems = data.electricityItems || [];
-
+    billData.eleFee = data.eleFee;
+    billData.eleBills = data.eleBills || [];
     // 计算电费合计
     let total = 0;
-    if (Array.isArray(data.electricityItems)) {
-      const items = data.electricityItems.filter(
-        (item: any) => item.name !== '合计',
-      );
+    if (Array.isArray(data.eleBills)) {
+      const items = data.eleBills.filter((item: any) => item.name !== '合计');
       total = items.reduce(
         (sum: number, item: any) => sum + (Number(item.amount) || 0),
         0,
       );
     }
-    billData.electricityTotal = total;
+    billData.eleFee = total;
   }
 }
 
 // 水费表单提交回调
 function handleWaterSuccess(data: any) {
-  waterData.value = data;
-
   if (data) {
-    billData.waterItems = data.waterItems || [];
+    billData.waterFee = data.waterFee;
+    billData.waterBills = data.waterBills || [];
 
     // 计算水费合计
     let total = 0;
-    if (Array.isArray(data.waterItems)) {
-      const items = data.waterItems.filter((item: any) => item.name !== '合计');
+    if (Array.isArray(data.waterBills)) {
+      const items = data.waterBills.filter((item: any) => item.name !== '合计');
       total = items.reduce(
         (sum: number, item: any) => sum + (Number(item.amount) || 0),
         0,
       );
     }
-    billData.waterTotal = total;
+    billData.waterFee = total;
   }
 }
 
 // 保存总表单
-function handleSave() {
+async function handleSave() {
   // 验证必填字段
-  if (!billData.companyName || !billData.projectName) {
+  if (!billData.tenantName || !billData.projectName) {
     message.warning('请填写完整的公司名称和项目名称');
     return;
   }
 
   // 校验账单明细
-  if (
-    billData.electricityItems.length === 0 &&
-    billData.waterItems.length === 0
-  ) {
-    message.warning('请至少添加一项电费或水费明细');
-    return;
-  }
 
+  const createTime = new Date().toISOString();
+  // 校验费用项
+  const saveData = {
+    ...billData,
+    createTime:
+      billData.createTime && billData.createTime !== ''
+        ? billData.createTime
+        : createTime,
+    eleBills: billData.eleBills?.map((item: any) => {
+      item.createTime =
+        item.createTime && item.createTime !== ''
+          ? item.createTime
+          : createTime;
+      item.receiptTime =
+        item.receiptTime && item.receiptTime !== ''
+          ? item.receiptTime
+          : billData.receiptTime;
+      return item;
+    }),
+    eleFee: Number(billData.eleFee) || 0,
+    factoryRent: Number(billData.factoryRent) || 0,
+    invoiceTax: Number(billData.invoiceTax) || 0,
+    managementFee: Number(billData.managementFee) || 0,
+    serviceFee: Number(billData.serviceFee) || 0,
+    totalFee: Number(billData.totalFee) || 0,
+    waterBills: billData.waterBills?.map((item: any) => {
+      item.createTime =
+        item.createTime && item.createTime !== ''
+          ? item.createTime
+          : createTime;
+      item.receiptTime =
+        item.receiptTime && item.receiptTime !== ''
+          ? item.receiptTime
+          : billData.receiptTime;
+      return item;
+    }),
+    waterFee: Number(billData.waterFee) || 0,
+  };
   // 提交数据
-  emit('success', { ...billData });
+  await (saveData.billId
+    ? updateAmountBill(saveData)
+    : createAmountBill(saveData));
+  emit('success', { ...saveData });
   _handleClose();
 }
 
 // 初始化数据
-function initData(data: any) {
+// 在 script 部分修改初始化数据
+async function initData(data: any) {
   if (!data) return;
-
-  // 重置表单数据
-  Object.assign(billData, {
-    billMonth: dayjs().format('YYYY-MM'),
-    companyName: '',
-    electricityBillId: 0,
-    electricityItems: [],
-    electricityTotal: 0,
-    factoryRent: 0,
-    id: 0,
-    invoiceTax: 0,
-    managementFee: 0,
-    otherItems: [],
-    paymentTime: dayjs(),
-    projectName: '',
-    serviceFee: 0,
-    totalAmount: 0,
-    waterBillId: 0,
-    waterItems: [],
-    waterTotal: 0,
-  });
-
   // 复制账单数据
-  if (data) {
-    Object.assign(billData, data);
+  if (data.billId) {
+    const billDetail = await getAmountBillDetail(data.billId);
+    Object.assign(billData, billDetail);
+  } else {
+    // 重置表单数据
+    delete billData.billId;
+    Object.assign(billData, {
+      eleBills: [],
+      eleFee: 0,
+      factoryRent: 0,
+      invoiceTax: 0,
+      managementFee: 0,
+      projectName: '',
+      receiptTime: dayjs(),
+      remark: '',
+      serviceFee: 0,
+      tenantName: '',
+      totalFee: 0,
+      waterBills: [],
+      waterFee: 0,
+    });
   }
 
   // 初始化子表单
   nextTick(() => {
     // 准备电费数据
-    const electricityBillData = {
-      companyName: billData.companyName,
-      electricityItems: billData.electricityItems || [],
-      paymentTime: billData.paymentTime,
-      projectName: billData.projectName,
+    const eleBillData = {
+      eleBills: billData.eleBills || [],
     };
 
     // 准备水费数据
     const waterBillData = {
-      companyName: billData.companyName,
-      paymentTime: billData.paymentTime,
-      projectName: billData.projectName,
-      waterItems: billData.waterItems || [],
+      waterBills: billData.waterBills || [],
     };
 
     // 设置子表单数据
-    if (electricityFormRef.value) {
-      electricityFormRef.value.modalApi.setData(electricityBillData);
+    if (eleFormRef.value) {
+      eleFormRef.value.modalApi.setData(eleBillData);
     }
 
     if (waterFormRef.value) {
@@ -346,7 +362,7 @@ defineExpose({
             <div class="rounded border bg-white p-4 shadow-sm">
               <div class="text-gray-500">公司名称</div>
               <Input
-                v-model:value="billData.companyName"
+                v-model:value="billData.tenantName"
                 class="mt-1"
                 placeholder="请输入公司名称"
               />
@@ -362,9 +378,10 @@ defineExpose({
             <div class="rounded border bg-white p-4 shadow-sm">
               <div class="text-gray-500">收款时间</div>
               <DatePicker
-                v-model:value="billData.paymentTime"
+                v-model:value="billData.receiptTime"
                 class="mt-1 w-full"
                 format="YYYY-MM-DD"
+                value-format="YYYY-MM-DDTHH:mm:ss.SSSZ"
                 placeholder="请选择收款时间"
               />
             </div>
@@ -375,10 +392,10 @@ defineExpose({
       <!-- 电费表单 -->
       <div v-show="activeKey === '2'" class="tab-pane">
         <BillForm
-          ref="electricityFormRef"
+          ref="eleFormRef"
           :config="electricityConfig"
           class="hidden-form"
-          @success="handleElectricitySuccess"
+          @success="handleEleSuccess"
         />
         <div class="bill-items-container">
           <h3 class="mb-4 text-lg font-medium">电费明细</h3>
@@ -386,18 +403,16 @@ defineExpose({
           <Button
             type="primary"
             @click="
-              electricityFormRef?.open({
-                companyName: billData.companyName,
-                projectName: billData.projectName,
-                paymentTime: billData.paymentTime,
-                electricityItems: billData.electricityItems,
+              eleFormRef?.open({
+                eleBills: billData.eleBills,
+                itemsField: 'eleBills',
               })
             "
           >
             打开电费表单
           </Button>
-          <div v-if="billData.electricityTotal > 0" class="mt-4 text-green-600">
-            已添加电费明细，合计金额：{{ billData.electricityTotal.toFixed(2) }}
+          <div v-if="billData.eleFee > 0" class="mt-4 text-green-600">
+            已添加电费明细，合计金额：{{ billData.eleFee }}
             元
           </div>
         </div>
@@ -418,17 +433,15 @@ defineExpose({
             type="primary"
             @click="
               waterFormRef?.open({
-                companyName: billData.companyName,
-                projectName: billData.projectName,
-                paymentTime: billData.paymentTime,
-                waterItems: billData.waterItems,
+                waterBills: billData.waterBills,
+                itemsField: 'waterBills',
               })
             "
           >
             打开水费表单
           </Button>
-          <div v-if="billData.waterTotal > 0" class="mt-4 text-green-600">
-            已添加水费明细，合计金额：{{ billData.waterTotal.toFixed(2) }} 元
+          <div v-if="billData.waterFee > 0" class="mt-4 text-green-600">
+            已添加水费明细，合计金额：{{ billData.waterFee }} 元
           </div>
         </div>
       </div>
@@ -442,7 +455,7 @@ defineExpose({
             <div class="rounded border p-3">
               <div class="text-gray-500">电费合计</div>
               <InputNumber
-                v-model:value="billData.electricityTotal"
+                v-model:value="billData.eleFee"
                 :disabled="true"
                 class="mt-1 w-full"
                 :precision="2"
@@ -454,7 +467,7 @@ defineExpose({
             <div class="rounded border p-3">
               <div class="text-gray-500">水费合计</div>
               <InputNumber
-                v-model:value="billData.waterTotal"
+                v-model:value="billData.waterFee"
                 :disabled="true"
                 class="mt-1 w-full"
                 :precision="2"
@@ -510,7 +523,7 @@ defineExpose({
             <div class="col-span-2 rounded border bg-green-50 p-3">
               <div class="font-medium text-gray-700">本月收费金额合计</div>
               <InputNumber
-                v-model:value="billData.totalAmount"
+                v-model:value="billData.totalFee"
                 :disabled="true"
                 class="mt-1 w-full"
                 :precision="2"

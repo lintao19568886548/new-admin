@@ -1,11 +1,12 @@
 <script lang="ts" setup>
-import type { AmountBill } from './modules/data';
+import type { AmountBill } from '../data';
 
 import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
 import { Button, Steps, Table } from 'ant-design-vue';
+import dayjs from 'dayjs'; // 添加 dayjs 导入
 
 import { getAmountBillDetail } from '#/api/bill';
 
@@ -149,13 +150,6 @@ const electricityColumns = [
     title: '备注',
     width: 160,
   },
-  {
-    dataIndex: 'receiptTime',
-    key: 'receiptTime',
-    render: (text: any) => (text ? new Date(text).toLocaleString() : ''),
-    title: '收款时间',
-    width: 160,
-  },
 ];
 
 // 水费表格列配置
@@ -213,13 +207,6 @@ const waterColumns = [
     dataIndex: 'remarks',
     key: 'remarks',
     title: '备注',
-    width: 160,
-  },
-  {
-    dataIndex: 'receiptTime',
-    key: 'receiptTime',
-    render: (text: any) => (text ? new Date(text).toLocaleString() : ''),
-    title: '收款时间',
     width: 160,
   },
 ];
@@ -324,6 +311,11 @@ defineExpose({
     modalApi.open();
   },
 });
+
+const formattedReceiptTime = computed(() => {
+  if (!billData.value?.receiptTime) return '';
+  return dayjs(billData.value.receiptTime).format('YYYY-MM-DD');
+});
 </script>
 
 <template>
@@ -339,8 +331,8 @@ defineExpose({
         <div class="font-medium">{{ billData?.projectName }}</div>
       </div>
       <div class="rounded border p-3">
-        <div class="text-gray-500">账单月份</div>
-        <div class="font-medium">{{ billData?.receiptTime }}</div>
+        <div class="text-gray-500">账单日期</div>
+        <div class="font-medium">{{ formattedReceiptTime }}</div>
       </div>
     </div>
 
@@ -556,3 +548,7 @@ defineExpose({
   }
 }
 </style>
+
+// 格式化账单月份 const formattedReceiptTime = computed(() => { if
+(!billData.value?.receiptTime) return ''; return
+dayjs(billData.value.receiptTime).format('YYYYMMDD'); });
