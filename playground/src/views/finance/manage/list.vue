@@ -11,9 +11,10 @@ import { ref } from 'vue';
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
-import { Button, message } from 'ant-design-vue';
+import { Button, message, Modal } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { deleteFinance, getFinanceList } from '#/api/finance';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -55,64 +56,12 @@ function handleAreaChange(area: Area) {
   }, 500);
 }
 
-// 模拟的财务数据
-const financeItems = [
-  {
-    amount: 5000,
-    billCategory: '房租',
-    billName: '5月房租',
-    id: '1',
-    transactionTime: '2023-05-01 10:00:00',
-    transactionType: '支出',
-  },
-  {
-    amount: 320.5,
-    billCategory: '水费',
-    billName: '4月水费',
-    id: '2',
-    transactionTime: '2023-04-25 14:30:00',
-    transactionType: '支出',
-  },
-  {
-    amount: 750.8,
-    billCategory: '电费',
-    billName: '4月电费',
-    id: '3',
-    transactionTime: '2023-04-26 09:15:00',
-    transactionType: '支出',
-  },
-  {
-    amount: 12_000,
-    billCategory: '房租',
-    billName: '厂房租赁收入',
-    id: '4',
-    transactionTime: '2023-05-05 11:20:00',
-    transactionType: '收入',
-  },
-  {
-    amount: 1500,
-    billCategory: '其他费用',
-    billName: '设备维修费',
-    id: '5',
-    transactionTime: '2023-05-10 16:45:00',
-    transactionType: '支出',
-  },
-  {
-    amount: 420.3,
-    billCategory: '燃气费',
-    billName: '燃气费',
-    id: '6',
-    transactionTime: '2023-05-12 10:30:00',
-    transactionType: '支出',
-  },
-];
-
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
     fieldMappingTime: [['transactionTime', ['startTime', 'endTime']]],
     schema: useGridFormSchema(),
-    submitOnChange: true,
+    submitOnChange: false, // 修改为false，不再自动提交
   },
   gridOptions: {
     columns: useColumns(onActionClick),
@@ -120,18 +69,65 @@ const [Grid, gridApi] = useVbenVxeGrid({
     keepSource: true,
     proxyConfig: {
       ajax: {
-        query: async ({ page }) => {
-          console.warn('查询财务数据', page); // 将 console.log 改为 console.warn
-          // 返回模拟数据和分页信息
-          return {
-            total: financeItems.length,
-            items: financeItems,
-          };
+        query: async () => {
+          try {
+            // 直接从formApi获取表单数据
+            const params = (await gridApi.formApi?.getValues?.()) || {};
+
+            // 处理日期范围
+            if (params.startTime && params.endTime) {
+              params.startTime = `${params.startTime} 00:00:00`;
+              params.endTime = `${params.endTime} 23:59:59`;
+            }
+
+            // 处理金额查询
+            // 如果金额是字符串格式（包含特殊字符如 >、<、-），则直接传递
+            // 否则保持数字格式
+            if (params.amount !== undefined && params.amount !== null) {
+              const amountStr = String(params.amount);
+              if (
+                amountStr.includes('>') ||
+                amountStr.includes('<') ||
+                amountStr.includes('-')
+              ) {
+                params.amount = amountStr;
+              }
+              // 数字格式不需要特殊处理
+            }
+
+            // 添加区域参数
+            if (currentArea.value && currentArea.value.key !== 'all') {
+              params.area = currentArea.value.key;
+            }
+
+            console.warn('处理后的查询参数:', params);
+
+            // 添加错误处理
+            const financeList = (await getFinanceList(params)) || [];
+            console.warn('获取到的财务数据:', financeList);
+
+            return {
+              page: {
+                pageSize: 20,
+                total: financeList.length,
+              },
+              items: financeList,
+            };
+          } catch (error) {
+            console.error('获取财务数据失败:', error);
+            return {
+              page: {
+                pageSize: 20,
+                total: 0,
+              },
+              items: [],
+            };
+          }
         },
       },
     },
     rowConfig: {
-      keyField: 'id',
+      keyField: 'financeId', // 使用financeId作为主键
     },
     toolbarConfig: {
       custom: true,
@@ -161,33 +157,113 @@ function onEdit(row: SystemFinanceApi.SystemFinance) {
 }
 
 function onDelete(row: SystemFinanceApi.SystemFinance) {
-  // const hideLoading = message.loading({
-  //   content: $t('ui.actionMessage.deleting', [row.billName]),
-  //   duration: 0,
-  //   key: 'action_process_msg',
-  // });
-  // 模拟删除操作
-  setTimeout(() => {
-    message.success({
-      content: $t('ui.actionMessage.deleteSuccess', [row.billName]),
-      key: 'action_process_msg',
-    });
-    onRefresh();
-  }, 1000);
+  Modal.confirm({
+    cancelText: $t('common.no'),
+    content: $t('ui.actionMessage.deleteConfirm', [row.billName]),
+    okText: $t('common.yes'),
+    okType: 'danger',
+    async onOk() {
+      try {
+        const hideLoading = message.loading({
+          content: $t('ui.actionMessage.deleting', [row.billName]),
+          duration: 0,
+          key: 'action_process_msg',
+        });
+
+        await deleteFinance(row.financeId);
+
+        // 手动关闭加载提示
+        hideLoading();
+
+        message.success({
+          content: $t('ui.actionMessage.deleteSuccess', [row.billName]),
+          key: 'action_process_msg',
+        });
+        onRefresh();
+      } catch (error) {
+        console.error('删除失败:', error);
+        message.error({
+          content: $t('ui.actionMessage.deleteFailed', [row.billName]),
+          key: 'action_process_msg',
+        });
+      }
+    },
+    title: $t('ui.actionTitle.delete', [row.billName]),
+  });
 }
 
 function onRefresh() {
-  gridApi.query();
+  // 直接从formApi获取最新表单数据并传递给query方法
+  gridApi.formApi
+    .getValues()
+    .then((formValues) => {
+      gridApi.query({
+        form: formValues || {},
+      });
+      console.warn('刷新表格数据');
+    })
+    .catch((error) => {
+      console.error('获取表单数据失败:', error);
+      // 出错时使用空对象查询
+      gridApi.query({
+        form: {},
+      });
+    });
 }
 
 function onCreate() {
   formModalApi.setData({}).open();
 }
+
+// 修改搜索函数，添加参数类型定义
+// 修改搜索函数，正确处理搜索事件参数
+function onSearch(params: any) {
+  console.warn('触发搜索，原始参数:', params);
+
+  // 检查参数格式
+  let searchParams = params;
+
+  // 如果params是事件对象，尝试从中提取表单数据
+  if (params && params.form) {
+    searchParams = params.form;
+  } else if (params && params.$event && params.$event.form) {
+    searchParams = params.$event.form;
+  } else if (params && params.data) {
+    // vxe-table可能将表单数据放在data属性中
+    searchParams = params.data;
+  } else if (!params || typeof params !== 'object') {
+    // 如果没有有效参数，则使用空对象
+    searchParams = {};
+  }
+
+  console.warn('处理后的搜索参数对象:', searchParams);
+
+  // 清理空值参数
+  const cleanParams: Record<string, any> = {};
+  if (searchParams && typeof searchParams === 'object') {
+    for (const [key, value] of Object.entries(searchParams)) {
+      if (value !== null && value !== undefined && value !== '') {
+        cleanParams[key] = value;
+      }
+    }
+  }
+
+  console.warn('清理后的搜索参数:', cleanParams);
+
+  // 使用表单数据进行查询
+  gridApi.query({
+    form: cleanParams,
+  });
+}
 </script>
 <template>
   <Page auto-content-height>
     <FormModal @success="onRefresh" />
-    <Grid :table-title="$t('page.finance.list-title')">
+    <Grid
+      :table-title="$t('page.finance.list-title')"
+      @search="onSearch"
+      @form-submit="onSearch"
+    >
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector
