@@ -45,7 +45,7 @@ model Tenant {
   tenantName     String        @db.VarChar(30) @map("tenant_name")
   amountBills    AmountBill[]  @relation("AmountBillToTenant")
   createTime     DateTime?     @default(now()) @map("create_time")
-  updateTime     DateTime?      @updatedAt @map("update_time")
+  updateTime     DateTime?     @updatedAt @map("update_time")
 
   @@map("tenant")
 }
@@ -61,8 +61,8 @@ model AmountBill {
   serviceFee           Decimal?    @db.Decimal(10, 2) @map("service_fee")
   invoiceTax           Decimal?    @db.Decimal(10, 2) @map("invoice_tax")
   totalFee             Decimal?    @db.Decimal(10, 2) @map("total_fee")
-  tenantId             Int?         @map("tenant_id")
-  remark               String?     
+  tenantId             Int?        @map("tenant_id")
+  remark               String?     @db.VarChar(100)
   receiptTime          DateTime?   @map("receipt_time")
   createTime           DateTime?   @default(now()) @map("create_time")
   updateTime           DateTime?   @updatedAt @map("update_time")
@@ -85,7 +85,7 @@ model EleBill {
   totalUsage      Decimal?   @db.Decimal(10, 2) @map("total_usage")
   unitPrice       Float?     @db.Float @map("unit_price")
   amount          Decimal?   @db.Decimal(10, 2)
-  remark         String?    @db.LongText
+  remark         String?     @db.VarChar(100)
   createTime      DateTime   @default(now()) @map("create_time")
   receiptTime     DateTime   @map("receipt_time")
   updateTime      DateTime?   @updatedAt @map("update_time")
@@ -106,7 +106,7 @@ model WaterBill {
   totalUsage      Decimal?    @db.Decimal(10, 2) @map("total_usage")
   unitPrice       Float?      @db.Float @map("unit_price")
   amount          Decimal?    @db.Decimal(10, 2)
-  remark          String?     @db.LongText
+  remark          String?     @db.VarChar(100)
   createTime      DateTime    @default(now()) @map("create_time")
   receiptTime     DateTime    @map("receipt_time")
   updateTime      DateTime?    @updatedAt @map("update_time")
@@ -123,7 +123,7 @@ model Visitor {
   phoneNumber      String   @db.LongText @map("phone_number")
   status           Int      // 0: 未使用, 1: 使用中, 2: 维修中
   registerTime     DateTime @map("register_time") // 将 Int 改为 DateTime 类型，更适合存储时间
-  remark           String?  @db.LongText
+  remark           String?  @db.VarChar(100)
   createTime      DateTime  @default(now()) @map("create_time")
   updateTime      DateTime  @updatedAt @map("update_time")
 
@@ -137,7 +137,7 @@ model Finance {
   amount          Decimal   @db.Decimal(10, 2)
   transactionType String    @db.VarChar(20) @map("transaction_type")
   transactionTime DateTime  @map("transaction_time")
-  remark          String?   @db.Text
+  remark          String?   @db.VarChar(100)
   createTime      DateTime  @default(now()) @map("create_time")
   updateTime      DateTime  @updatedAt @map("update_time")
 
@@ -145,17 +145,20 @@ model Finance {
 }
 
 // 投资代理模型 (investment/agent)
-model InvestmentAgent {
-  agentId         Int       @id @default(autoincrement()) @map("agent_id")
-  billName        String    @db.VarChar(100) @map("bill_name")
-  billCategory    String    @db.VarChar(50) @map("bill_category")
-  amount          Decimal   @db.Decimal(10, 2)
-  transactionType String    @db.VarChar(20) @map("transaction_type")
-  transactionTime DateTime  @map("transaction_time")
+model Investment {
+  investmentId    Int       @id @default(autoincrement()) @map("investment_id")
+  agentName       String    @db.VarChar(100) @map("agent_name")
+  tenantName      String    @db.VarChar(100) @map("tenant_name")
+  intentLevel     String    @db.VarChar(50) @map("intent_level")
+  intentArea      Int       @map("intent_area")
+  progress        String    @db.VarChar(30)
+  phoneNumber     String    @db.VarChar(11) @map("phone_number")
+  meetingTime     DateTime  @map("meeting_time")
+  remark          String?   @db.VarChar(100)
   createTime      DateTime  @default(now()) @map("create_time")
   updateTime      DateTime  @updatedAt @map("update_time")
 
-  @@map("investment_agent")
+  @@map("investment")
 }
 
 // 投资租户模型 (investment/tenant)
@@ -183,9 +186,9 @@ model Firefighting {
   firestatus        String    @db.VarChar(20) @map("fire_status") // 消防设施状态
   passagewaytag     String    @db.VarChar(20) @map("passageway_tag") // 通道标签
   safetychanneltag  String    @db.VarChar(20) @map("safetychannel_tag") // 安全通道标签
+  remark            String?   @db.VarChar(100)
   createTime        DateTime  @default(now()) @map("create_time")
   updateTime        DateTime  @updatedAt @map("update_time")
-  remark            String?   @db.Text
 
   @@map("firefighting")
 }
@@ -198,7 +201,7 @@ model Transformer {
   contact         String    @db.VarChar(100)
   status          String    @db.VarChar(20) // 变压器状态：正常、异常、维护中
   specifications  String    @db.VarChar(50) // 变压器规格
-  remark          String?   @db.Text
+  remark          String?   @db.VarChar(100)
   createTime      DateTime  @default(now()) @map("create_time")
   updateTime      DateTime  @updatedAt @map("update_time")
 
@@ -214,9 +217,9 @@ model RentalManage {
   availableArea   String    @db.VarChar(50) @map("available_area") // 可用面积
   price           String    @db.VarChar(50) // 价格
   contact         String    @db.VarChar(100) // 联系人
+  remark          String?   @db.VarChar(100)
   createTime      DateTime  @default(now()) @map("create_time")
   updateTime      DateTime  @updatedAt @map("update_time")
-  remark          String?   @db.Text
 
   @@map("rental_manage")
 }
@@ -231,9 +234,9 @@ model RentalTenant {
   increaseDate    String    @db.VarChar(20) @map("increase_date") // 涨价日期
   increaseRate    Decimal   @db.Decimal(5, 2) @map("increase_rate") // 涨价比例
   tag             String    @db.VarChar(20) // 当期、过期等状态
+  remark          String?   @db.VarChar(100)
   createTime      DateTime  @default(now()) @map("create_time")
   updateTime      DateTime  @updatedAt @map("update_time")
-  remark          String?   @db.Text
 
   @@map("rental_tenant")
 }

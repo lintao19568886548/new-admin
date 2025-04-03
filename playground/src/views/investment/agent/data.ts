@@ -2,6 +2,8 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { SystemFinanceApi } from '#/api';
 
+import { formatDateTime } from '@vben/utils';
+
 import { $t } from '#/locales';
 
 /**
@@ -11,13 +13,28 @@ export function getTagTypeOptions() {
   return [
     {
       color: 'red',
-      label: $t('system.finance.transactionType.expense'),
-      value: '支出',
+      label: $t('page.agent.level.veryHigh'),
+      value: '很高',
+    },
+    {
+      color: 'orange',
+      label: $t('page.agent.level.high'),
+      value: '高',
+    },
+    {
+      color: 'blue',
+      label: $t('page.agent.level.normal'),
+      value: '一般',
     },
     {
       color: 'green',
-      label: $t('system.finance.transactionType.income'),
-      value: '收入',
+      label: $t('page.agent.level.low'),
+      value: '低',
+    },
+    {
+      color: 'cyan',
+      label: $t('page.agent.level.veryLow'),
+      value: '很低',
     },
   ];
 }
@@ -26,17 +43,24 @@ export function useFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
+      fieldName: 'tenantName',
+      label: $t('page.tenant.name'),
+      rules: 'required',
+    },
+    {
+      component: 'Input',
       fieldName: 'agentName',
       label: $t('page.agent.name'),
-      rules: 'required',
     },
     {
       component: 'Select',
       componentProps: {
         options: [
+          { label: '很高', value: '很高' },
           { label: '高', value: '高' },
-          { label: '中', value: '中' },
+          { label: '一般', value: '一般' },
           { label: '低', value: '低' },
+          { label: '很低', value: '很低' },
         ],
         style: { width: '25%' },
       },
@@ -44,7 +68,7 @@ export function useFormSchema(): VbenFormSchema[] {
       label: $t('page.agent.intentLevel'),
     },
     {
-      component: 'Input',
+      component: 'InputNumber',
       fieldName: 'intentArea',
       label: $t('page.agent.intentArea'),
     },
@@ -64,7 +88,7 @@ export function useFormSchema(): VbenFormSchema[] {
     },
     {
       component: 'Input',
-      fieldName: 'phone',
+      fieldName: 'phoneNumber',
       label: $t('page.agent.phone'),
       rules: 'required',
     },
@@ -77,7 +101,7 @@ export function useFormSchema(): VbenFormSchema[] {
         style: { width: '100%' },
         valueFormat: 'YYYY-MM-DD HH:mm:ss',
       },
-      fieldName: 'transactionTime',
+      fieldName: 'meetingTime',
       label: $t('page.common.date'),
     },
     {
@@ -96,22 +120,34 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: $t('page.agent.name'),
     },
     {
+      component: 'Input',
+      fieldName: 'tenantName',
+      label: $t('page.tenant.name'),
+    },
+    {
       component: 'Select',
       componentProps: {
         allowClear: true,
         options: [
+          { label: '很高', value: '很高' },
           { label: '高', value: '高' },
-          { label: '中', value: '中' },
+          { label: '一般', value: '一般' },
           { label: '低', value: '低' },
+          { label: '很低', value: '很低' },
         ],
       },
       fieldName: 'intentLevel',
       label: $t('page.agent.intentLevel'),
     },
     {
-      component: 'Input',
-      fieldName: 'intentArea',
-      label: $t('page.agent.intentArea'),
+      component: 'InputNumber',
+      fieldName: 'minIntentArea',
+      label: $t('page.agent.minIntentArea'),
+    },
+    {
+      component: 'InputNumber',
+      fieldName: 'maxIntentArea',
+      label: $t('page.agent.maxIntentArea'),
     },
     {
       component: 'Select',
@@ -128,24 +164,14 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: $t('page.agent.progress'),
     },
     {
-      component: 'Input',
-      fieldName: 'phone',
-      label: $t('page.agent.phone'),
-    },
-    {
       component: 'RangePicker',
       componentProps: {
         format: 'YYYY-MM-DD',
         placeholder: ['开始日期', '结束日期'],
         valueFormat: 'YYYY-MM-DD',
       },
-      fieldName: 'transactionTime',
+      fieldName: 'meetingTime',
       label: $t('page.common.date'),
-    },
-    {
-      component: 'Input',
-      fieldName: 'remark',
-      label: $t('page.common.remark'),
     },
   ];
 }
@@ -175,6 +201,9 @@ export function useColumns<T = SystemFinanceApi.SystemFinance>(
     },
     {
       field: 'intentArea',
+      formatter: ({ cellValue }) => {
+        return `${cellValue}㎡`;
+      },
       minWidth: 150,
       title: $t('page.agent.intentArea'),
     },
@@ -184,12 +213,15 @@ export function useColumns<T = SystemFinanceApi.SystemFinance>(
       title: $t('page.agent.progress'),
     },
     {
-      field: 'phone',
+      field: 'phoneNumber',
       minWidth: 150,
       title: $t('page.agent.phone'),
     },
     {
-      field: 'transactionTime',
+      field: 'meetingTime',
+      formatter: ({ cellValue }) => {
+        return formatDateTime(cellValue);
+      },
       minWidth: 150,
       title: $t('page.common.date'),
     },
