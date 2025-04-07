@@ -9,6 +9,8 @@ export default eventHandler(async (event) => {
   const body = await readBody(event);
   const { eleBills, waterBills, ...billData } = body;
   delete billData.tenant;
+  delete billData.createTime;
+  delete billData.updateTime;
   if (!billData.billId) {
     return useResponseError('billId错误');
   }

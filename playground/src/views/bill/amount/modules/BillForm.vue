@@ -139,7 +139,6 @@ const dataSource = ref<BillItem[]>([
   {
     _key: generateUniqueId(),
     amount: 0,
-    createTime: '',
     currentReading: 0,
     meterName: '',
     monthlyUsage: 0,
@@ -154,7 +153,6 @@ const dataSource = ref<BillItem[]>([
   {
     _key: 'total-row',
     amount: 0,
-    createTime: '',
     currentReading: 0,
     meterName: '合计',
     monthlyUsage: 0,
@@ -200,7 +198,6 @@ function initData(data: any) {
     const totalRow: BillItem = {
       _key: 'total-row',
       amount: 0,
-      createTime: '',
       currentReading: 0,
       meterName: '合计',
       monthlyUsage: 0,
@@ -221,7 +218,6 @@ function initData(data: any) {
       {
         _key: generateUniqueId(),
         amount: 0,
-        createTime: '',
         currentReading: 0,
         meterName: '',
         monthlyUsage: 0,
@@ -235,7 +231,6 @@ function initData(data: any) {
       {
         _key: 'total-row',
         amount: 0,
-        createTime: '',
         currentReading: 0,
         meterName: '合计',
         monthlyUsage: 0,
@@ -358,7 +353,6 @@ const updateTotalRow = () => {
   const updatedTotalRow: BillItem = {
     _key: 'total-row',
     amount: roundedTotalAmount,
-    createTime: '',
     currentReading: 0,
     meterName: '合计',
     monthlyUsage: roundedTotalMonthlyUsage,
@@ -379,7 +373,6 @@ const handleAdd = () => {
   const newData: any = {
     _key: generateUniqueId(),
     amount: 0,
-    createTime: '',
     currentReading: 0,
     meterName: '',
     monthlyUsage: 0,
