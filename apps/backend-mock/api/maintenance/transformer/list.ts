@@ -86,7 +86,7 @@ export default eventHandler(async (event) => {
   });
 
   // 查询分页数据
-  const items = await prismaClient.investment.findMany({
+  const result = await prismaClient.investment.findMany({
     where,
     orderBy: {
       meetingTime: 'desc',
@@ -108,7 +108,7 @@ export default eventHandler(async (event) => {
   });
 
   return useResponseSuccess({
-    items,
+    items: result,
     total,
   });
 });

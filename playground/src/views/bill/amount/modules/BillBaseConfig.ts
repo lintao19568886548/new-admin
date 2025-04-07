@@ -24,7 +24,7 @@ export interface BillDetailConfig {
 export interface BaseBillItem {
   amount: number; // 金额
   billId?: number; // 关联的账单ID
-  createTime: Date | string; // 创建时间
+  createTime?: Date | string; // 创建时间
   currentReading: number; // 本月读数
   meterName: string; // 表计名称
   monthlyUsage: number; // 本月用量

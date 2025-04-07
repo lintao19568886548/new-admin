@@ -81,34 +81,23 @@ export default eventHandler(async (event) => {
   const size = Number(pageSize) || 20;
 
   // 查询总记录数
-  const total = await prismaClient.investment.count({
+  const total = await prismaClient.firefighting.count({
     where,
   });
 
   // 查询分页数据
-  const items = await prismaClient.investment.findMany({
+  const result = await prismaClient.firefighting.findMany({
     where,
     orderBy: {
-      meetingTime: 'desc',
+      maintenanceTime: 'desc',
     },
     skip: (page - 1) * size,
     take: size,
     // 只选择需要的字段，减少数据传输量
-    select: {
-      investmentId: true,
-      agentName: true,
-      tenantName: true,
-      intentLevel: true,
-      intentArea: true,
-      progress: true,
-      phoneNumber: true,
-      meetingTime: true,
-      remark: true,
-    },
   });
 
   return useResponseSuccess({
-    items,
+    items: result,
     total,
   });
 });

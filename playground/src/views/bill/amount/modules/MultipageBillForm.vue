@@ -206,21 +206,10 @@ async function handleSave() {
     return;
   }
 
-  // 校验账单明细
-
-  const createTime = new Date().toISOString();
   // 校验费用项
   const saveData = {
     ...billData,
-    createTime:
-      billData.createTime && billData.createTime !== ''
-        ? billData.createTime
-        : createTime,
     eleBills: billData.eleBills?.map((item: any) => {
-      item.createTime =
-        item.createTime && item.createTime !== ''
-          ? item.createTime
-          : createTime;
       item.receiptTime =
         item.receiptTime && item.receiptTime !== ''
           ? item.receiptTime
@@ -234,10 +223,6 @@ async function handleSave() {
     serviceFee: Number(billData.serviceFee) || 0,
     totalFee: Number(billData.totalFee) || 0,
     waterBills: billData.waterBills?.map((item: any) => {
-      item.createTime =
-        item.createTime && item.createTime !== ''
-          ? item.createTime
-          : createTime;
       item.receiptTime =
         item.receiptTime && item.receiptTime !== ''
           ? item.receiptTime
@@ -265,6 +250,8 @@ async function initData(data: any) {
   } else {
     // 重置表单数据
     delete billData.billId;
+    delete billData.tenantId;
+    delete billData.createTime;
     Object.assign(billData, {
       eleBills: [],
       eleFee: 0,

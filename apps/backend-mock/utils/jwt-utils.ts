@@ -37,6 +37,11 @@ export function verifyAccessToken(
 
     const username = decoded.username;
     // 使用数据库查询替代硬编码的用户查找
+    prismaClient.user.findUnique({
+      where: {
+        username,
+      },
+    });
     return db.sql`
       SELECT * FROM user 
       WHERE username = ${username}

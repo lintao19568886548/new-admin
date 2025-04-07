@@ -167,7 +167,13 @@ export function useGridFormSchema(): VbenFormSchema[] {
       component: 'RangePicker',
       componentProps: {
         format: 'YYYY-MM-DD',
+        locale: {
+          lang: {
+            locale: 'zh_CN',
+          },
+        },
         placeholder: ['开始日期', '结束日期'],
+        utcOffset: 8 * 60,
         valueFormat: 'YYYY-MM-DD',
       },
       fieldName: 'meetingTime',
