@@ -10,6 +10,7 @@ import { ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
+import { formatDateTime } from '@vben/utils';
 
 import { Button, message, Modal } from 'ant-design-vue';
 
@@ -67,9 +68,15 @@ const [Grid, gridApi] = useVbenVxeGrid({
     columns: useColumns(onActionClick),
     height: 'auto',
     keepSource: true,
+    // 添加分页配置
+    pagerConfig: {
+      enabled: true,
+      pageSize: 20,
+      pageSizes: [10, 20, 30, 50, 100],
+    },
     proxyConfig: {
       ajax: {
-        query: async () => {
+        query: async (page) => {
           try {
             // 直接从formApi获取表单数据
             const params = (await gridApi.formApi?.getValues?.()) || {};
@@ -81,8 +88,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
             }
 
             // 处理金额查询
-            // 如果金额是字符串格式（包含特殊字符如 >、<、-），则直接传递
-            // 否则保持数字格式
             if (params.amount !== undefined && params.amount !== null) {
               const amountStr = String(params.amount);
               if (
@@ -92,7 +97,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
               ) {
                 params.amount = amountStr;
               }
-              // 数字格式不需要特殊处理
             }
 
             // 添加区域参数
@@ -100,23 +104,28 @@ const [Grid, gridApi] = useVbenVxeGrid({
               params.area = currentArea.value.key;
             }
 
+            // 添加分页参数
+            const currentPage = page.page?.currentPage || 1;
+            const pageSize = page.page?.pageSize || 20;
+
+            params.currentPage = currentPage;
+            params.pageSize = pageSize;
+
             console.warn('处理后的查询参数:', params);
 
-            // 添加错误处理
-            const financeList = (await getFinanceList(params)) || [];
-            console.warn('获取到的财务数据:', financeList);
+            // 调用API获取数据
+            const result = await getFinanceList(params);
 
+            // 返回格式化后的数据，包含分页信息
             return {
-              page: {
-                pageSize: 20,
-                total: financeList.length,
-              },
-              items: financeList,
+              ...result,
             };
           } catch (error) {
             console.error('获取财务数据失败:', error);
+            message.error('获取账单列表失败');
             return {
               page: {
+                currentPage: 1,
                 pageSize: 20,
                 total: 0,
               },
@@ -129,6 +138,14 @@ const [Grid, gridApi] = useVbenVxeGrid({
     rowConfig: {
       keyField: 'financeId', // 使用financeId作为主键
     },
+    // 添加滚动配置
+    scrollX: {
+      enabled: true,
+    },
+    scrollY: {
+      enabled: true,
+    },
+    showOverflow: true,
     toolbarConfig: {
       custom: true,
       export: false,
@@ -153,7 +170,16 @@ function onActionClick(e: OnActionClickParams<SystemFinanceApi.SystemFinance>) {
 }
 
 function onEdit(row: SystemFinanceApi.SystemFinance) {
-  formModalApi.setData(row).open();
+  // 复制行数据以避免修改原始数据
+  const editData = { ...row };
+
+  if (editData.transactionTime) {
+    editData.transactionTime = formatDateTime(
+      editData.transactionTime,
+    ) as string;
+  }
+
+  formModalApi.setData(editData).open();
 }
 
 function onDelete(row: SystemFinanceApi.SystemFinance) {

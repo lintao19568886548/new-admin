@@ -97,6 +97,10 @@ export default eventHandler(async (event) => {
     // 日期范围查询
     if (query.startTime && query.endTime) {
       // 确保日期字符串包含时分秒，如果没有则添加默认值
+      console.log('原始日期字符串:', {
+        startTime: query.startTime,
+        endTime: query.endTime,
+      });
       const startTimeStr = String(query.startTime);
       const endTimeStr = String(query.endTime);
 
@@ -125,16 +129,39 @@ export default eventHandler(async (event) => {
 
     console.log('构建的查询条件:', where);
 
-    // 执行查询
+    // 计算分页参数
+    const currentPage = Number(query.currentPage) || 1;
+    const pageSize = Number(query.pageSize) || 20;
+    const skip = (currentPage - 1) * pageSize;
+
+    // 查询总记录数
+    const total = await prismaClient.finance.count({
+      where,
+    });
+
+    // 执行分页查询
     const financeList = await prismaClient.finance.findMany({
       where,
       orderBy: {
         transactionTime: 'desc',
       },
+      skip,
+      take: pageSize,
     });
 
-    console.log(`查询到 ${financeList.length} 条记录`);
-    return useResponseSuccess(financeList);
+    console.log(
+      `查询到 ${financeList.length} 条记录，总记录数: ${total}
+      \n查询数据:`,
+      financeList,
+    );
+
+    // 返回带有分页信息的结果
+    return useResponseSuccess({
+      items: financeList,
+      total,
+      currentPage,
+      pageSize,
+    });
   } catch (error) {
     console.error('查询财务数据失败:', error);
     return useResponseError('查询财务数据失败', 500);
