@@ -48,7 +48,7 @@ export default eventHandler(async (event) => {
   });
 
   // 查询分页数据
-  const result = await prismaClient.amountBill.findMany({
+  const items = await prismaClient.amountBill.findMany({
     where,
     orderBy: {
       receiptTime: 'desc',
@@ -58,7 +58,7 @@ export default eventHandler(async (event) => {
   });
 
   return useResponseSuccess({
-    items: result,
+    items,
     total,
   });
 });
