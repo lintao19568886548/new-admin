@@ -30,7 +30,11 @@ const [FormModal, formModalApi] = useVbenModal({
  * @param row
  */
 function onEdit(row: any) {
-  formModalApi.setData(row).open();
+  const rowData = { ...row };
+  rowData.meetingTime = new Date(
+    new Date(row.meetingTime).getTime() + 8 * 60 * 60 * 1000,
+  ).toISOString();
+  formModalApi.setData(rowData).open();
 }
 
 /**
