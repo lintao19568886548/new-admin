@@ -8,12 +8,21 @@
     "phone": "联系方式",
     "detail": "中介人详情",
     "intentArea": "意向面积",
+    "minIntentArea": "最小意向面积",
+    "maxIntentArea": "最大意向面积",
     "intentLevel": "意向程度",
     "progress": "洽谈进度",
     "edit": "修改中介人",
     "list": "中介列表",
     "title": "中介管理",
-    "view": "查看中介"
+    "view": "查看中介",
+    "level": {
+      "veryLow": "很低",
+      "low": "低",
+      "normal": "一般",
+      "high": "高",
+      "veryHigh": "很高"
+    }
   },
   "auth": {
     "codeLogin": "验证码登录",

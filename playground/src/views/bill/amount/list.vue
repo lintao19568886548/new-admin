@@ -170,40 +170,57 @@ const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
     compact: true,
+    fieldMappingTime: [['receiptTime', ['startTime', 'endTime']]],
     schema: useGridFormSchema(),
     showCollapseButton: true,
-    submitOnChange: true,
     wrapperClass: 'grid-cols-1 lg:grid-cols-3 gap-4',
   },
   gridOptions: {
     columns: useColumns(onActionClick),
     height: '100%',
     keepSource: true,
+    // 添加分页配置
+    pagerConfig: {
+      enabled: true,
+      pageSize: 20,
+      pageSizes: [10, 20, 30, 50, 100],
+    },
     proxyConfig: {
       ajax: {
-        query: async () => {
-          // 模拟API请求返回数据
-          // 根据当前选中的区域筛选数据
-          const amountList = (await getAmountBillList()) || [];
-          // let filteredData = [...billSummaries];
+        query: async (page) => {
+          // 获取表单数据
+          const formData = (await gridApi.formApi?.getValues?.()) || {};
 
-          // // 如果不是"全部区域"，则按照一些规则进行筛选
-          // if (currentArea.value.key !== 'all') {
-          //   filteredData = billSummaries.filter((_, index) => index % 2 === 0);
-          // }
-
-          return {
-            page: {
-              pageSize: 20,
-              total: amountList.length,
-            },
-            items: amountList,
+          // 构建查询参数，包含分页信息
+          const params = {
+            ...formData,
+            currentPage: page.page?.currentPage || 1,
+            pageSize: page.page?.pageSize || 20,
           };
+          try {
+            // 调用API获取数据
+            const result = await getAmountBillList(params);
+            // 返回格式化后的数据
+            return {
+              ...result,
+            };
+          } catch (error) {
+            console.error('获取账单列表失败:', error);
+            message.error('获取账单列表失败');
+            return {
+              page: {
+                currentPage: 1,
+                pageSize: 20,
+                total: 0,
+              },
+              items: [],
+            };
+          }
         },
       },
     },
     rowConfig: {
-      keyField: 'id',
+      keyField: 'billId', // 确保使用正确的主键字段
     },
     scrollX: {
       enabled: true,

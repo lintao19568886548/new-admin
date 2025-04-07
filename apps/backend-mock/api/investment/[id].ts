@@ -7,18 +7,14 @@ export default eventHandler(async (event) => {
     console.log('userinfo', userinfo);
     return unAuthorizedResponse(event);
   }
-  const billId = Number.parseInt(event.context.params.id);
-  if (!billId) {
-    return useResponseError('billId错误');
+  const investmentId = Number.parseInt(event.context.params.id);
+  if (!investmentId) {
+    return useResponseError('investmentId错误');
   }
 
-  const bill = await prismaClient.amountBill.findUnique({
+  const bill = await prismaClient.investment.findUnique({
     where: {
-      billId,
-    },
-    include: {
-      eleBills: true,
-      waterBills: true,
+      investmentId,
     },
   });
   return useResponseSuccess(bill);

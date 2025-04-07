@@ -13,6 +13,7 @@ import { Plus } from '@vben/icons';
 import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { deleteInvestment, getInvestmentList } from '#/api/investment';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -43,21 +44,31 @@ function onCreate() {
  * 删除租赁项目
  * @param row
  */
-function onDelete(row: any) {
+async function onDelete(row: any) {
   message.loading({
     content: $t('ui.actionMessage.deleting', [row.title]),
     duration: 0,
     key: 'action_process_msg',
   });
 
-  // 模拟API请求
-  setTimeout(() => {
-    message.success({
-      content: $t('ui.actionMessage.deleteSuccess', [row.title]),
-      key: 'action_process_msg',
-    });
-    refreshGrid();
-  }, 1000);
+  const { investmentId } = row;
+  if (investmentId) {
+    try {
+      // 使用 try-catch 替代 then-catch 链
+      await deleteInvestment(investmentId);
+      message.success({
+        content: $t('ui.actionMessage.deleteSuccess', [row.tenantName]),
+        key: 'action_process_msg',
+      });
+      refreshGrid();
+    } catch (error) {
+      console.error('删除账单失败:', error);
+      message.error({
+        content: $t('ui.actionMessage.operationFailed', [error]),
+        key: 'action_process_msg',
+      });
+    }
+  }
 }
 
 /**
@@ -118,71 +129,11 @@ function handleAreaChange(area: Area) {
   }, 500);
 }
 
-// 模拟的数据
-const rentalItems = [
-  {
-    agentName: '张三',
-    id: 1,
-    intentArea: '东莞市长安镇',
-    intentLevel: '高',
-    phone: '13800138000',
-    progress: '初步接洽',
-    remark: '客户对A区域写字楼很感兴趣',
-    tenantName: '东莞科技有限公司',
-    transactionTime: '2023-01-15 14:30:00',
-  },
-  {
-    agentName: '李四',
-    id: 2,
-    intentArea: '广州市天河区',
-    intentLevel: '中',
-    phone: '13900139000',
-    progress: '深入沟通',
-    remark: '需要进一步了解租金详情',
-    tenantName: '广州贸易有限公司',
-    transactionTime: '2023-02-20 10:15:00',
-  },
-  {
-    agentName: '王五',
-    id: 3,
-    intentArea: '深圳市南山区',
-    intentLevel: '高',
-    phone: '13700137000',
-    progress: '合同准备',
-    remark: '已确认租赁意向，准备签约',
-    tenantName: '深圳科技创新有限公司',
-    transactionTime: '2023-03-05 16:45:00',
-  },
-  {
-    agentName: '赵六',
-    id: 4,
-    intentArea: '佛山市禅城区',
-    intentLevel: '低',
-    phone: '13600136000',
-    progress: '初步接洽',
-    remark: '对价格有顾虑，需要再考虑',
-    tenantName: '佛山制造有限公司',
-    transactionTime: '2023-04-10 09:30:00',
-  },
-  {
-    agentName: '钱七',
-    id: 5,
-    intentArea: '珠海市香洲区',
-    intentLevel: '中',
-    phone: '13500135000',
-    progress: '签约完成',
-    remark: '已完成签约，准备入驻',
-    tenantName: '珠海旅游发展有限公司',
-    transactionTime: '2023-05-25 11:20:00',
-  },
-];
-
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
-    fieldMappingTime: [['transactionTime', ['startTime', 'endTime']]],
+    fieldMappingTime: [['meetingTime', ['startTime', 'endTime']]],
     schema: useGridFormSchema(),
-    submitOnChange: true,
   },
   gridOptions: {
     columns: useColumns(onActionClick),
@@ -190,15 +141,34 @@ const [Grid, gridApi] = useVbenVxeGrid({
     keepSource: true,
     proxyConfig: {
       ajax: {
-        query: async () => {
-          // 模拟API请求返回数据
-          return {
-            page: {
-              pageSize: 20,
-              total: rentalItems.length,
-            },
-            items: rentalItems,
+        query: async (page) => {
+          const formData = (await gridApi.formApi?.getValues?.()) || {};
+
+          // 构建查询参数，包含分页信息
+          const params = {
+            ...formData,
+            currentPage: page.page?.currentPage || 1,
+            pageSize: page.page?.pageSize || 20,
           };
+          try {
+            // 调用API获取数据
+            const result = await getInvestmentList(params);
+            // 返回格式化后的数据
+            return {
+              ...result,
+            };
+          } catch (error) {
+            console.error('获取账单列表失败:', error);
+            message.error('获取账单列表失败');
+            return {
+              page: {
+                currentPage: 1,
+                pageSize: 20,
+                total: 0,
+              },
+              items: [],
+            };
+          }
         },
       },
     },

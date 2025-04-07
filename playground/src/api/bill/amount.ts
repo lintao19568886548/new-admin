@@ -1,7 +1,7 @@
 import { requestClient } from '#/api/request';
 
-export async function getAmountBillList() {
-  return requestClient.get('/bill/amount/list');
+export async function getAmountBillList(params: any) {
+  return requestClient.get('/bill/amount/list', { params });
 }
 
 export async function getAmountBillDetail(billId: number) {

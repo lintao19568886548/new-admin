@@ -6,6 +6,7 @@ import { useVbenModal } from '@vben/common-ui';
 import { Button } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
+import { createInvestment, updateInvestment } from '#/api/investment';
 import { $t } from '#/locales';
 
 import { useFormSchema } from '../data';
@@ -13,7 +14,7 @@ import { useFormSchema } from '../data';
 const emit = defineEmits(['success']);
 const formData = ref();
 const getTitle = computed(() => {
-  return formData.value?.id
+  return formData.value?.investmentId
     ? $t('ui.actionTitle.edit', [$t('system.rental.tenant.item')])
     : $t('ui.actionTitle.create', [$t('system.rental.tenant.item')]);
 });
@@ -34,10 +35,20 @@ const [Modal, modalApi] = useVbenModal({
     const { valid } = await formApi.validate();
     if (valid) {
       modalApi.lock();
-      // const data = formApi.getValues();
+      const data = await formApi.getValues();
+      const { investmentId } = modalApi.getData();
       try {
         // 模拟API请求
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (data.meetingTime) {
+          data.meetingTime = new Date(data.meetingTime).toISOString();
+        }
+
+        if (investmentId) {
+          data.investmentId = investmentId;
+          await updateInvestment(data);
+        } else {
+          await createInvestment(data);
+        }
         modalApi.close();
         emit('success');
       } finally {
@@ -48,6 +59,7 @@ const [Modal, modalApi] = useVbenModal({
   onOpenChange(isOpen) {
     if (isOpen) {
       const data = modalApi.getData();
+
       if (data) {
         formData.value = data;
         formApi.setValues(formData.value);
