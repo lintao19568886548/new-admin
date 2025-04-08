@@ -46,18 +46,17 @@ model Menu {
   menuId          Int          @id @default(autoincrement()) @map("menu_id")
   name            String       @db.VarChar(50)
   type            String       
-  status          Boolean      @default(true)
+  status          Int          @default(1)
   path            String       @db.VarChar(50)
   activePath      String?      @db.VarChar(100) @map("active_path")
   redirect        String?      @db.VarChar(100)
-  componet        String?      @db.VarChar(100)      
+  component       String?      @db.VarChar(100)      
   pid             Int?         
-  metaId          Int          @map("meta_id") @unique
-  meta            MenuMeta     @relation(fields: [metaId], references: [metaId])
   authCode        String?      @db.VarChar(100) @map("auth_code")
   roleMenus       RoleMenu[]   @relation("MenuToRoleMenu")
   children        Menu[]       @relation("MenuToMenu")
   parent          Menu?        @relation("MenuToMenu", fields: [pid], references: [menuId], onDelete: NoAction, onUpdate: NoAction)
+  meta            MenuMeta?    @relation("MenuToMenuMeta")
 
   @@index([pid])
 }
@@ -75,8 +74,10 @@ model MenuMeta {
   hideChildrenInMenu  Boolean?  @map("hide_children_in_menu")
   badgeType           String?   @db.VarChar(20)  @map("badge_type")
   badgeVariants       String?   @db.VarChar(20)  @map("badge_variants")
-  menu                Menu?
+  menuId              Int       @unique @map("menu_id")
+  menu                Menu      @relation("MenuToMenuMeta", fields: [menuId], references: [menuId], onDelete: Cascade)
 
+  @@index([menuId])
   @@map("menu_meta")
 }
 
