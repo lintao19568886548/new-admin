@@ -1,7 +1,7 @@
-import type { RentalManagementItem } from './types';
-
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
+
+import dayjs from 'dayjs';
 
 import { z } from '#/adapter/form';
 import { $t } from '#/locales';
@@ -31,7 +31,7 @@ export function useFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'name',
+      fieldName: 'tenantName',
       label: $t('system.rental.tenant.name'),
       rules: 'required',
     },
@@ -41,16 +41,16 @@ export function useFormSchema(): VbenFormSchema[] {
       label: $t('system.rental.tenant.phone'),
       rules: 'required',
     },
+    // 删除重复的 RangePicker
     {
-      component: 'RangePicker',
+      component: 'DatePicker', // 使用 DatePicker 而不是 RangePicker
       componentProps: {
         format: 'YYYY-MM-DD',
-        placeholder: ['合同开始日期', '合同结束日期'],
-        separator: ' 至 ',
+        placeholder: '请选择合同日期',
         style: { width: '100%' },
-        valueFormat: 'YYYY-MM-DD',
+        valueFormat: 'YYYY-MM-DD', // 简化日期格式
       },
-      fieldName: 'contractDateRange',
+      fieldName: 'contractDate',
       label: $t('system.rental.tenant.contractDate'),
       rules: 'required',
     },
@@ -58,8 +58,9 @@ export function useFormSchema(): VbenFormSchema[] {
       component: 'DatePicker',
       componentProps: {
         format: 'YYYY-MM-DD',
+        placeholder: '请选择涨租日期',
         style: { width: '100%' },
-        valueFormat: 'YYYY-MM-DD',
+        valueFormat: 'YYYY-MM-DD', // 简化日期格式
       },
       fieldName: 'increaseDate',
       label: $t('system.rental.tenant.increaseDate'),
@@ -95,7 +96,7 @@ export function useFormSchema(): VbenFormSchema[] {
         optionType: 'button',
       },
       defaultValue: '当期',
-      fieldName: 'tag',
+      fieldName: 'status',
       label: $t('system.rental.tenant.status.label'),
     },
     {
@@ -108,7 +109,7 @@ export function useFormSchema(): VbenFormSchema[] {
           width: '100%',
         },
       },
-      fieldName: 'description',
+      fieldName: 'remark',
       label: $t('system.rental.description'),
       rules: z
         .string()
@@ -128,7 +129,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'name',
+      fieldName: 'tenantName',
       label: $t('system.rental.tenant.name'),
     },
     {
@@ -145,7 +146,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
           { label: $t('system.rental.tenant.status.expired'), value: '过期' },
         ],
       },
-      fieldName: 'tag',
+      fieldName: 'status',
       label: $t('system.rental.tenant.status.label'),
     },
     {
@@ -158,10 +159,21 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: $t('system.rental.tenant.contractDate'),
     },
     {
-      component: 'DatePicker',
+      component: 'RangePicker',
       componentProps: {
         format: 'YYYY-MM-DD',
-        valueFormat: 'YYYY-MM-DD',
+        placeholder: ['开始日期', '结束日期'],
+        valueFormat: 'YYYY-MM-DD', // 指定输出格式
+      },
+      fieldName: 'contractDate',
+      label: $t('system.rental.tenant.contractDate'),
+    },
+    {
+      component: 'RangePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD',
+        placeholder: ['开始日期', '结束日期'],
+        valueFormat: 'YYYY-MM-DD', // 指定输出格式
       },
       fieldName: 'increaseDate',
       label: $t('system.rental.tenant.increaseDate'),
@@ -189,12 +201,12 @@ export function useGridFormSchema(): VbenFormSchema[] {
 /**
  * 获取表格列配置
  */
-export function useColumns<T = RentalManagementItem>(
+export function useColumns<T = any>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
   return [
     {
-      field: 'name',
+      field: 'tenantName',
       title: $t('system.rental.tenant.name'),
       width: 100,
     },
@@ -208,28 +220,25 @@ export function useColumns<T = RentalManagementItem>(
         name: 'CellTag',
         options: getTagTypeOptions(),
       },
-      field: 'tag',
+      field: 'status',
       title: $t('system.rental.tenant.status.label'),
       width: 80,
     },
     {
-      cellRender: {
-        name: 'CellText',
-        props: {
-          style: {
-            'line-height': '1.2',
-            'white-space': 'pre-wrap',
-            'word-break': 'break-word',
-          },
-        },
-      },
       field: 'contractDate',
-      showOverflow: false,
+      formatter: ({ cellValue }) => {
+        if (!cellValue) return '';
+        return dayjs(cellValue).format('YYYY-MM-DD');
+      },
       title: $t('system.rental.tenant.contractDate'),
-      width: 180,
+      width: 120,
     },
     {
       field: 'increaseDate',
+      formatter: ({ cellValue }) => {
+        if (!cellValue) return '';
+        return dayjs(cellValue).format('YYYY-MM-DD');
+      },
       title: $t('system.rental.tenant.increaseDate'),
       width: 120,
     },
@@ -250,7 +259,7 @@ export function useColumns<T = RentalManagementItem>(
       align: 'center',
       cellRender: {
         attrs: {
-          nameField: 'name',
+          nameField: 'tenantName',
           nameTitle: $t('system.rental.tenant.name'),
           onClick: onActionClick,
         },

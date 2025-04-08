@@ -1,14 +1,14 @@
 // 租赁管理项目类型
 export interface RentalManagementItem {
   address: string;
-  area: string;
-  contact: string;
+  contractDate: string;
   createTime: string;
-  description?: string;
-  features?: string[];
-  id: number;
-  price: string;
-  tag: string;
-  title: string;
+  increaseDate: string;
+  increaseRate: number;
+  phoneNumber: string;
+  remark?: string;
+  status: string;
+  tenantId: number;
+  tenantName: string;
   updateTime: string;
 }

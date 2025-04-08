@@ -112,8 +112,8 @@ model Tenant {
   tenantName     String        @db.VarChar(30) @map("tenant_name")
   phoneNumber    String        @db.VarChar(20) @map("phone_number")
   status         String        @db.VarChar(20)  // 当期、过期等状态
-  contractDate   String        @db.VarChar(50) @map("contract_date")
-  increaseDate   String        @db.VarChar(20) @map("increase_date")
+  contractDate   DateTime      @map("contract_date")
+  increaseDate   DateTime      @map("increase_date")
   increaseRate   Decimal       @db.Decimal(5, 2) @map("increase_rate")
   address        String        @db.VarChar(200)
   amountBills    AmountBill[]  @relation("AmountBillToTenant")
