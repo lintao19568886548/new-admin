@@ -76,16 +76,16 @@
     "features": "项目特点",
     "operation": "操作",
     "tenant": {
-      "item": "租户",
-      "list": "租户列表",
-      "name": "租户姓名",
+      "item": "合同",
+      "list": "合同列表",
+      "name": "合同人姓名",
       "phone": "手机号",
       "contractDate": "合同日期",
       "increaseDate": "递增日期",
       "increaseRate": "递增比例",
       "address": "租赁地点",
       "status": {
-        "label": "租户状态",
+        "label": "合同状态",
         "current": "当期",
         "expired": "过期"
       }

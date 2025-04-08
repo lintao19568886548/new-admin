@@ -2,6 +2,8 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { SystemFinanceApi } from '#/api';
 
+import { formatDateTime } from '@vben/utils';
+
 import { $t } from '#/locales';
 
 /**
@@ -196,24 +198,17 @@ export function useColumns<T = SystemFinanceApi.SystemFinance>(
     {
       field: 'transactionTime',
       formatter: ({ cellValue }) => {
-        if (!cellValue) return '';
-        // 将ISO日期格式转换为人类友好格式
-        try {
-          const date = new Date(cellValue);
-          return date
-            .toLocaleString('zh-CN', {
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-              month: '2-digit',
-              second: '2-digit',
-              year: 'numeric',
-            })
-            .replaceAll('/', '-');
-        } catch {
-          return cellValue; // 如果转换失败，返回原始值
-        }
+        return formatDateTime(cellValue);
       },
+      // formatter: ({ cellValue }) => {
+      //   if (!cellValue) return '';
+      //   // 将ISO日期格式转换为人类友好格式
+      //   try {
+      //     return formatDateTime(cellValue);
+      //   } catch {
+      //     return cellValue; // 如果转换失败，返回原始值
+      //   }
+      // },
       title: $t('page.finance.transactionTime'),
       width: 200,
     },
