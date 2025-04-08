@@ -9,6 +9,7 @@ import { ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
+import { formatDateTime } from '@vben/utils';
 
 import { Button, message } from 'ant-design-vue';
 
@@ -31,9 +32,7 @@ const [FormModal, formModalApi] = useVbenModal({
  */
 function onEdit(row: any) {
   const rowData = { ...row };
-  rowData.meetingTime = new Date(
-    new Date(row.meetingTime).getTime() + 8 * 60 * 60 * 1000,
-  ).toISOString();
+  rowData.meetingTime = formatDateTime(rowData.meetingTime);
   formModalApi.setData(rowData).open();
 }
 

@@ -38,7 +38,6 @@ const [Modal, modalApi] = useVbenModal({
       const data = await formApi.getValues();
       const { investmentId } = modalApi.getData();
       try {
-        // 模拟API请求
         if (data.meetingTime) {
           data.meetingTime = new Date(data.meetingTime).toISOString();
         }

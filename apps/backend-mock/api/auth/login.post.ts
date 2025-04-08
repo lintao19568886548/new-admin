@@ -2,6 +2,7 @@ import {
   clearRefreshTokenCookie,
   setRefreshTokenCookie,
 } from '~/utils/cookie-utils';
+import { prismaClient } from '~/utils/db';
 import { generateAccessToken, generateRefreshToken } from '~/utils/jwt-utils';
 import { forbiddenResponse } from '~/utils/response';
 
@@ -15,12 +16,15 @@ export default defineEventHandler(async (event) => {
     );
   }
 
-  // 使用数据库查询替代硬编码的用户查找
-  const userResult = await db.sql`
-    SELECT * FROM user 
-    WHERE username = ${username} AND password = ${password}
-    LIMIT 1
-  `.then((result) => result.rows?.[0] || null);
+  const userResult = await prismaClient.user.findFirst({
+    where: {
+      username,
+      password,
+    },
+    include: {
+      role: true,
+    },
+  });
 
   if (!userResult) {
     clearRefreshTokenCookie(event);
@@ -33,9 +37,7 @@ export default defineEventHandler(async (event) => {
     username: String(userResult.username),
     password: String(userResult.password),
     realName: String(userResult.realName),
-    roles: Array.isArray(userResult.roles)
-      ? userResult.roles
-      : [String(userResult.roles)],
+    roles: [userResult.role?.name],
     homePath: userResult.homePath ? String(userResult.homePath) : undefined,
   };
 
