@@ -13,6 +13,7 @@ import { $te } from '@vben/locales';
 import { getPopupContainer } from '@vben/utils';
 
 import { breakpointsTailwind, useBreakpoints } from '@vueuse/core';
+import { message } from 'ant-design-vue';
 
 import { useVbenForm, z } from '#/adapter/form';
 import {
@@ -84,7 +85,7 @@ const schema: VbenFormSchema[] = [
       labelField: 'meta.title',
       showSearch: true,
       treeDefaultExpandAll: true,
-      valueField: 'id',
+      valueField: 'menuId',
       childrenField: 'children',
     },
     fieldName: 'pid',
@@ -492,13 +493,18 @@ async function onSubmit() {
     }
     delete data.linkSrc;
     try {
-      await (formData.value?.id
-        ? updateMenu(formData.value.id, data)
+      await (formData.value?.menuId
+        ? updateMenu(formData.value.menuId, data)
         : createMenu(data));
-      drawerApi.close();
+      loading.value = false; // 先设置 loading 为 false
+      drawerApi.close(); // 再关闭抽屉
+      message.success('操作成功');
       emit('success');
+    } catch {
+      loading.value = false; // 先设置 loading 为 false
+      drawerApi.close(); // 再关闭抽屉
+      message.error('操作失败');
     } finally {
-      loading.value = false;
       drawerApi.setState({
         closeOnClickModal: true,
         closeOnPressEscape: true,
@@ -509,7 +515,7 @@ async function onSubmit() {
   }
 }
 const getDrawerTitle = computed(() =>
-  formData.value?.id
+  formData.value?.menuId
     ? $t('ui.actionTitle.edit', [$t('system.menu.name')])
     : $t('ui.actionTitle.create', [$t('system.menu.name')]),
 );
