@@ -12,16 +12,16 @@ onMounted(() => {
   renderEcharts({
     legend: {
       bottom: 0,
-      data: ['支出趋势'],
+      data: ['收入趋势'],
     },
     radar: {
       indicator: [
-        { name: '租金支出' },
-        { name: '电费支出' },
-        { name: '水费支出' },
-        { name: '人工支出' },
-        { name: '其它支出' },
-        { name: '开票税金' },
+        { name: '租金收入' },
+        { name: '服务收入' },
+        { name: '物业收入' },
+        { name: '能耗收入' },
+        { name: '停车收入' },
+        { name: '其它收入' },
       ],
       radius: '60%',
       splitNumber: 8,
@@ -38,10 +38,10 @@ onMounted(() => {
         data: [
           {
             itemStyle: {
-              color: '#b6a2de',
+              color: '#5ab1ef',
             },
-            name: '支出趋势',
-            value: [90, 50, 86, 40, 50, 20],
+            name: '收入趋势',
+            value: [70, 75, 70, 76, 20, 1850],
           },
         ],
         itemStyle: {

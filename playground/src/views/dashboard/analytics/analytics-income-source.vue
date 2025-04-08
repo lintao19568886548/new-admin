@@ -22,10 +22,10 @@ onMounted(() => {
         animationEasing: 'exponentialInOut',
         animationType: 'scale',
         avoidLabelOverlap: false,
-        color: ['#b6a2de', '#67e0e3'],
+        color: ['#5ab1ef', '#91cc75'],
         data: [
-          { name: '本月支出', value: 20_000 },
-          { name: '上月支出', value: 18_500 },
+          { name: '本月收入', value: 25_000 },
+          { name: '上月收入', value: 22_000 },
         ],
         emphasis: {
           label: {
@@ -46,7 +46,7 @@ onMounted(() => {
         labelLine: {
           show: false,
         },
-        name: '支出环比',
+        name: '收入环比',
         radius: ['40%', '65%'],
         type: 'pie',
       },

@@ -5,10 +5,14 @@ import { onMounted, ref } from 'vue';
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
+import { getFinanceAnalyticsData } from '#/api/finance/finance';
+
 const chartRef = ref<EchartsUIType>();
 const { renderEcharts } = useEcharts(chartRef);
-
-onMounted(() => {
+onMounted(async () => {
+  const { expenseData, incomeData } = await getFinanceAnalyticsData({
+    type: 'days', // 后端支持按月查询
+  });
   renderEcharts({
     grid: {
       bottom: 0,
@@ -20,11 +24,17 @@ onMounted(() => {
     series: [
       {
         barMaxWidth: 80,
-        // color: '#4f69fd',
-        data: [
-          3000, 2000, 3333, 5000, 3200, 4200, 3200, 2100, 3000, 5100, 6000,
-          3200, 4800,
-        ],
+        color: '#5ab1ef', // 支出用浅蓝色
+        data: expenseData,
+        name: '支出',
+        type: 'bar',
+      },
+
+      {
+        barMaxWidth: 80,
+        color: '#91cc75', // 收入用浅绿色
+        data: incomeData,
+        name: '收入',
         type: 'bar',
       },
     ],

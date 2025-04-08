@@ -18,22 +18,21 @@ onMounted(() => {
         animationEasing: 'exponentialInOut',
         animationType: 'scale',
         center: ['50%', '50%'],
-        color: ['#5ab1ef', '#b6a2de', '#67e0e3', '#2ec7c9'],
+        color: ['#b6a2de', '#67e0e3', '#2ec7c9', '#5ab1ef'],
         data: [
-          { name: '租金收入', value: 500 },
-          { name: '其它收入', value: 310 },
-          { name: '水费收入', value: 274 },
-          { name: '电费收入', value: 400 },
+          { name: '人工支出', value: 600 },
+          { name: '运营支出', value: 420 },
+          { name: '维护支出', value: 380 },
+          { name: '其它支出', value: 220 },
         ].sort((a, b) => {
           return a.value - b.value;
         }),
-        name: '收入占比',
+        name: '支出占比',
         radius: '80%',
         roseType: 'radius',
         type: 'pie',
       },
     ],
-
     tooltip: {
       trigger: 'item',
     },

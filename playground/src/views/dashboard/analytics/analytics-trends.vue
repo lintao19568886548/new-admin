@@ -5,10 +5,16 @@ import { onMounted, ref } from 'vue';
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
+import { getFinanceAnalyticsData } from '#/api/finance/finance';
+
 const chartRef = ref<EchartsUIType>();
 const { renderEcharts } = useEcharts(chartRef);
 
-onMounted(() => {
+onMounted(async () => {
+  const { expenseData, incomeData } = await getFinanceAnalyticsData({
+    type: 'days', // 后端支持按月查询
+  });
+
   renderEcharts({
     grid: {
       bottom: 0,
@@ -20,26 +26,21 @@ onMounted(() => {
     series: [
       {
         areaStyle: {},
-        data: [
-          111, 2000, 6000, 16_000, 33_333, 55_555, 64_000, 33_333, 18_000,
-          36_000, 70_000, 42_444, 23_222, 13_000, 8000, 4000, 1200, 333, 222,
-          111,
-        ],
+        data: incomeData,
         itemStyle: {
           color: '#5ab1ef',
         },
+        name: '收入',
         smooth: true,
         type: 'line',
       },
       {
         areaStyle: {},
-        data: [
-          33, 66, 88, 333, 3333, 6200, 20_000, 3000, 1200, 13_000, 22_000,
-          11_000, 2221, 1201, 390, 198, 60, 30, 22, 11,
-        ],
+        data: expenseData,
         itemStyle: {
           color: '#019680',
         },
+        name: '支出',
         smooth: true,
         type: 'line',
       },
@@ -66,7 +67,7 @@ onMounted(() => {
         show: false,
       },
       boundaryGap: false,
-      data: Array.from({ length: 18 }).map((_item, index) => `${index + 6}:00`),
+      data: Array.from({ length: 31 }).map((_item, index) => `${index + 1}日`),
       splitLine: {
         lineStyle: {
           type: 'solid',

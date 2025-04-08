@@ -14,6 +14,9 @@ import {
   SvgDownloadIcon,
 } from '@vben/icons';
 
+import AnalyticsExpenseSales from './analytics-expense-sales.vue';
+import AnalyticsIncomeData from './analytics-income-data.vue';
+import AnalyticsIncomeSource from './analytics-income-source.vue';
 import AnalyticsTrends from './analytics-trends.vue';
 import AnalyticsVisitsData from './analytics-visits-data.vue';
 import AnalyticsVisitsSales from './analytics-visits-sales.vue';
@@ -23,29 +26,29 @@ import AnalyticsVisits from './analytics-visits.vue';
 const overviewItems: AnalysisOverviewItem[] = [
   {
     icon: SvgCardIcon,
-    title: '用户量',
-    totalTitle: '总用户量',
+    title: '收入总额',
+    totalTitle: '年度收入',
     totalValue: 120_000,
     value: 2000,
   },
   {
     icon: SvgCakeIcon,
-    title: '访问量',
-    totalTitle: '总访问量',
+    title: '支出总额',
+    totalTitle: '年度支出',
     totalValue: 500_000,
     value: 20_000,
   },
   {
     icon: SvgDownloadIcon,
-    title: '下载量',
-    totalTitle: '总下载量',
+    title: '本月收入',
+    totalTitle: '环比增长',
     totalValue: 120_000,
     value: 8000,
   },
   {
     icon: SvgBellIcon,
-    title: '使用量',
-    totalTitle: '总使用量',
+    title: '本月支出',
+    totalTitle: '环比增长',
     totalValue: 50_000,
     value: 5000,
   },
@@ -53,11 +56,11 @@ const overviewItems: AnalysisOverviewItem[] = [
 
 const chartTabs: TabOption[] = [
   {
-    label: '流量趋势',
+    label: '日收支情况',
     value: 'trends',
   },
   {
-    label: '月访问量',
+    label: '月收支情况',
     value: 'visits',
   },
 ];
@@ -75,15 +78,27 @@ const chartTabs: TabOption[] = [
       </template>
     </AnalysisChartsTabs>
 
-    <div class="mt-5 w-full md:flex">
-      <AnalysisChartCard class="mt-5 md:mr-4 md:mt-0 md:w-1/3" title="访问数量">
+    <div class="mt-5 w-full md:flex md:flex-wrap md:justify-between">
+      <!-- 收入相关图表 -->
+      <AnalysisChartCard class="mt-5 md:w-[32%]" title="收入趋势">
+        <AnalyticsIncomeData />
+      </AnalysisChartCard>
+      <AnalysisChartCard class="mt-5 md:w-[32%]" title="收入环比">
+        <AnalyticsIncomeSource />
+      </AnalysisChartCard>
+      <AnalysisChartCard class="mt-5 md:w-[32%]" title="收入占比">
+        <AnalyticsVisitsSales />
+      </AnalysisChartCard>
+
+      <!-- 支出相关图表 -->
+      <AnalysisChartCard class="mt-5 md:w-[32%]" title="支出趋势">
         <AnalyticsVisitsData />
       </AnalysisChartCard>
-      <AnalysisChartCard class="mt-5 md:mr-4 md:mt-0 md:w-1/3" title="访问来源">
+      <AnalysisChartCard class="mt-5 md:w-[32%]" title="支出环比">
         <AnalyticsVisitsSource />
       </AnalysisChartCard>
-      <AnalysisChartCard class="mt-5 md:mt-0 md:w-1/3" title="访问来源">
-        <AnalyticsVisitsSales />
+      <AnalysisChartCard class="mt-5 md:w-[32%]" title="支出占比">
+        <AnalyticsExpenseSales />
       </AnalysisChartCard>
     </div>
   </div>
