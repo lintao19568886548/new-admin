@@ -13,9 +13,14 @@ interface Meta {
 }
 
 export interface Menu {
+  name: string;
   path: string;
   title: string;
   children?: Menu[];
   meta?: Meta;
   type?: string;
+  redirect?: string;
+  status?: string;
+  activePath?: string;
+  authCode?: string;
 }

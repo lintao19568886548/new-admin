@@ -44,33 +44,40 @@ model UserCode {
 
 model Menu {
   menuId          Int          @id @default(autoincrement()) @map("menu_id")
+  name            String       @db.VarChar(50)
   type            String       
-  status          Boolean      
+  status          Boolean      @default(true)
   path            String       @db.VarChar(50)
   activePath      String?      @db.VarChar(100) @map("active_path")
   redirect        String?      @db.VarChar(100)
-  componet        Int      
-  pid             Int          
+  componet        String?      @db.VarChar(100)      
+  pid             Int?         
   metaId          Int          @map("meta_id") @unique
-  meta            Meta         @relation(fields: [metaId], references: [metaId])
+  meta            MenuMeta     @relation(fields: [metaId], references: [metaId])
   authCode        String?      @db.VarChar(100) @map("auth_code")
   roleMenus       RoleMenu[]   @relation("MenuToRoleMenu")
+  children        Menu[]       @relation("MenuToMenu")
+  parent          Menu?        @relation("MenuToMenu", fields: [pid], references: [menuId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([pid])
 }
 
-model Meta {
+model MenuMeta {
   metaId              Int       @id @default(autoincrement()) @map("meta_id")
   title               String    @db.VarChar(100)
-  order               Int       @default(1)
   icon                String?   @db.VarChar(100)
+  order               Int?      
   activeIcon          String?   @db.VarChar(100) @map("active_icon")
-  affixTab            Boolean   @default(false)  @map("affix_tab")
-  keepAlive           Boolean   @default(false)  @map("keep_alive")
-  hideInTab           Boolean   @default(false)  @map("hide_in_tab")
-  hideInBreadcrumb    Boolean   @default(false)  @map("hide_in_breadcrumb")
-  hideChildrenInMenu  Boolean   @default(false)  @map("hide_children_in_menu")
+  affixTab            Boolean?  @map("affix_tab")
+  keepAlive           Boolean?  @map("keep_alive")
+  hideInTab           Boolean?  @map("hide_in_tab")
+  hideInBreadcrumb    Boolean?  @map("hide_in_breadcrumb")
+  hideChildrenInMenu  Boolean?  @map("hide_children_in_menu")
   badgeType           String?   @db.VarChar(20)  @map("badge_type")
   badgeVariants       String?   @db.VarChar(20)  @map("badge_variants")
   menu                Menu?
+
+  @@map("menu_meta")
 }
 
 model Role {
