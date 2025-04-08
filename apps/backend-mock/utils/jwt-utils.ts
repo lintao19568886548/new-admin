@@ -23,9 +23,9 @@ export function generateRefreshToken(user: UserInfo) {
   });
 }
 
-export function verifyAccessToken(
+export async function verifyAccessToken(
   event: H3Event<EventHandlerRequest>,
-): null | Promise<Omit<UserInfo, 'password'>> {
+): Promise<null | Promise<Omit<UserInfo, 'password'>>> {
   const authHeader = getHeader(event, 'Authorization');
   if (!authHeader?.startsWith('Bearer')) {
     return null;
@@ -37,30 +37,21 @@ export function verifyAccessToken(
 
     const username = decoded.username;
     // 使用数据库查询替代硬编码的用户查找
-    prismaClient.user.findUnique({
+    const user = await prismaClient.user.findUnique({
       where: {
         username,
       },
     });
-    return db.sql`
-      SELECT * FROM user 
-      WHERE username = ${username}
-      LIMIT 1
-    `.then((result) => {
-      const user = result.rows?.[0];
-      if (!user) return null;
-
-      // 转换为 UserInfo 类型并排除密码
-      const userInfo: Omit<UserInfo, 'password'> = {
-        id: Number(user.id),
-        username: String(user.username),
-        realName: String(user.realName),
-        roles: Array.isArray(user.roles) ? user.roles : [String(user.roles)],
-        homePath: user.homePath ? String(user.homePath) : undefined,
-      };
-
-      return userInfo;
-    });
+    if (!user) return null;
+    console.log(user);
+    const userInfo: Omit<UserInfo, 'password'> = {
+      id: Number(user.id),
+      username: String(user.username),
+      realName: String(user.realName),
+      roles: ['super'],
+      homePath: user.homePath ? String(user.homePath) : undefined,
+    };
+    return userInfo;
   } catch {
     return null;
   }

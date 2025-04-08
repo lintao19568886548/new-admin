@@ -1,6 +1,5 @@
-import { verifyAccessToken } from '~/utils/jwt-utils';
-import { MOCK_MENU_LIST } from '~/utils/mock-data';
-import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
+import { prismaClient } from '~/utils/db';
+import { processMenuData } from '~/utils/tools';
 
 export default eventHandler(async (event) => {
   const userinfo = verifyAccessToken(event);
@@ -8,5 +7,31 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
-  return useResponseSuccess(MOCK_MENU_LIST);
+  const menus = await prismaClient.menu.findMany({
+    where: {
+      pid: null, // 只查询顶级菜单（pid 为 null 的菜单）
+    },
+    include: {
+      meta: true, // 包含菜单元数据
+      children: {
+        include: {
+          meta: true, // 包含子菜单的元数据
+          children: {
+            include: {
+              meta: true, // 如果需要更深层次的子菜单，可以继续嵌套
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // 一次性处理所有数据转换
+  const processedMenus = processMenuData(menus, {
+    removeEmptyFields: true,
+    fieldsToRemove: [],
+    removeEmptyChildren: true,
+  });
+
+  return useResponseSuccess(processedMenus);
 });
