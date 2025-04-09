@@ -42,7 +42,11 @@ export async function verifyAccessToken(
         username,
       },
       include: {
-        role: true,
+        roles: {
+          include: {
+            role: true,
+          },
+        },
       },
     });
     if (!user) return null;
@@ -50,7 +54,9 @@ export async function verifyAccessToken(
       id: Number(user.id),
       username: String(user.username),
       realName: String(user.realName),
-      roles: Array.isArray(user.role) ? user.role : [String(user.role.name)],
+      roles: Array.isArray(user.roles)
+        ? user.roles.map((item) => item.role.name)
+        : [],
       homePath: user.homePath ? String(user.homePath) : undefined,
     };
     return userInfo;
@@ -72,7 +78,11 @@ export async function verifyRefreshToken(
         username,
       },
       include: {
-        role: true,
+        roles: {
+          include: {
+            role: true,
+          },
+        },
       },
     });
     // 转换为 UserInfo 类型并排除密码
@@ -80,7 +90,9 @@ export async function verifyRefreshToken(
       id: Number(user.id),
       username: String(user.username),
       realName: String(user.realName),
-      roles: Array.isArray(user.role) ? user.role : [String(user.role.name)],
+      roles: Array.isArray(user.roles)
+        ? user.roles.map((item) => item.role.name)
+        : [],
       homePath: user.homePath ? String(user.homePath) : undefined,
     };
 
