@@ -4,11 +4,9 @@ import { useResponseError, useResponseSuccess } from '~/utils/response';
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
-    console.log('userinfo', userinfo);
     return unAuthorizedResponse(event);
   }
   const body = await readBody(event);
-  console.log('请求体参数:', body);
   const { eleBills, waterBills, ...billData } = body;
   try {
     // 使用事务处理创建操作
@@ -30,7 +28,6 @@ export default eventHandler(async (event) => {
         },
       });
     });
-    console.log('插入数据成功:', bill);
     return useResponseSuccess(bill);
   } catch (error) {
     console.error('插入数据失败:', error);

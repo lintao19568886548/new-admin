@@ -4,6 +4,8 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn } from '#/adapter/vxe-table';
 import type { SystemDeptApi } from '#/api/system/dept';
 
+import dayjs from 'dayjs'; // 添加 dayjs 导入
+
 import { z } from '#/adapter/form';
 import { $t } from '#/locales';
 
@@ -15,12 +17,12 @@ export function getTagTypeOptions() {
     {
       color: 'green',
       label: $t('system.access.visitor.status.in'),
-      value: '进入',
+      value: 0, // 修改为数字，与数据库保持一致
     },
     {
       color: 'processing',
       label: $t('system.access.visitor.status.left'),
-      value: '离开',
+      value: 1, // 修改为数字，与数据库保持一致
     },
   ];
 }
@@ -50,7 +52,7 @@ export function useFormSchema(): VbenFormSchema[] {
     },
     {
       component: 'Input',
-      fieldName: 'carNumber',
+      fieldName: 'carNum', // 修改为与数据库字段匹配
       label: '车牌号',
       rules: z
         .string()
@@ -93,7 +95,7 @@ export function useFormSchema(): VbenFormSchema[] {
           width: '100%',
         },
       },
-      fieldName: 'visitReason',
+      fieldName: 'remark', // 修改为与数据库字段匹配
       label: '来访原因',
       rules: z
         .string()
@@ -120,7 +122,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
     },
     {
       component: 'Input',
-      fieldName: 'carNumber',
+      fieldName: 'carNum', // 修改为与数据库字段匹配
       label: '车牌号',
     },
     {
@@ -165,7 +167,7 @@ export function useColumns<T = SystemDeptApi.SystemDept>(
       width: 150,
     },
     {
-      field: 'visitReason',
+      field: 'remark',
       title: '来访原因',
     },
     {
@@ -174,11 +176,17 @@ export function useColumns<T = SystemDeptApi.SystemDept>(
         options: getTagTypeOptions(),
       },
       field: 'status',
+      formatter: ({ cellValue }) => {
+        // 添加格式化函数，将数字转换为文字
+        if (cellValue === 0) return '进入';
+        if (cellValue === 1) return '离开';
+        return cellValue;
+      },
       title: '访问状态',
       width: 100,
     },
     {
-      field: 'carNumber',
+      field: 'carNum',
       title: '车牌号',
       width: 150,
     },
@@ -189,6 +197,11 @@ export function useColumns<T = SystemDeptApi.SystemDept>(
     },
     {
       field: 'registerTime',
+      formatter: ({ cellValue }) => {
+        // 添加格式化函数，将ISO时间格式转换为更友好的格式
+        if (!cellValue) return '';
+        return dayjs(cellValue).format('YYYY-MM-DD HH:mm:ss');
+      },
       title: '登记时间',
       width: 180,
     },

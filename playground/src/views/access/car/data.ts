@@ -1,8 +1,11 @@
 import type { VxeTableGridOptions } from '@vben/plugins/vxe-table';
 
+import type { CarItem } from './types';
+
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn } from '#/adapter/vxe-table';
-import type { SystemDeptApi } from '#/api/system/dept';
+
+import dayjs from 'dayjs';
 
 import { z } from '#/adapter/form';
 import { $t } from '#/locales';
@@ -46,6 +49,7 @@ export function useFormSchema(): VbenFormSchema[] {
         placeholder: '请选择登记时间',
         showTime: true,
         style: { width: '100%' },
+        valueFormat: 'YYYY-MM-DD HH:mm:ss',
       },
       fieldName: 'registerTime',
       label: '登记时间',
@@ -67,7 +71,7 @@ export function useFormSchema(): VbenFormSchema[] {
     {
       component: 'Textarea',
       componentProps: {
-        maxLength: 50,
+        maxLength: 200,
         rows: 3,
         showCount: true,
         style: {
@@ -78,7 +82,7 @@ export function useFormSchema(): VbenFormSchema[] {
       label: '备注',
       rules: z
         .string()
-        .max(50, $t('ui.formRules.maxLength', ['备注', 50]))
+        .max(200, $t('ui.formRules.maxLength', ['备注', 200]))
         .optional(),
     },
   ];
@@ -108,6 +112,11 @@ export function useGridFormSchema(): VbenFormSchema[] {
     },
     {
       component: 'RangePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD',
+        placeholder: ['开始日期', '结束日期'],
+        valueFormat: 'YYYY-MM-DD',
+      },
       fieldName: 'registerTime',
       label: '登记时间',
     },
@@ -119,9 +128,9 @@ export function useGridFormSchema(): VbenFormSchema[] {
  * @description 使用函数的形式返回列数据而不是直接export一个Array常量，是为了响应语言切换时重新翻译表头
  * @param onActionClick 表格操作按钮点击事件
  */
-export function useColumns(
-  onActionClick?: OnActionClickFn<SystemDeptApi.SystemDept>,
-): VxeTableGridOptions<SystemDeptApi.SystemDept>['columns'] {
+export function useColumns<T = CarItem>(
+  onActionClick: OnActionClickFn<T>,
+): VxeTableGridOptions['columns'] {
   return [
     {
       align: 'center',
@@ -136,11 +145,22 @@ export function useColumns(
         options: getTagTypeOptions(),
       },
       field: 'accessStatus',
+      formatter: ({ cellValue }) => {
+        // 添加格式化函数，将数字转换为文字
+        if (cellValue === 1) return '进入';
+        if (cellValue === 0) return '离开';
+        return cellValue;
+      },
       title: '出入状态',
       width: 100,
     },
     {
       field: 'registerTime',
+      formatter: ({ cellValue }) => {
+        // 添加格式化函数，将ISO时间格式转换为更友好的格式
+        if (!cellValue) return '';
+        return dayjs(cellValue).format('YYYY-MM-DD HH:mm:ss');
+      },
       title: '登记时间',
       width: 180,
     },

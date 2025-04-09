@@ -1,22 +1,23 @@
 <script lang="ts" setup>
-import type { SystemDeptApi } from '#/api/system/dept';
+import type { CarItem } from '../types';
 
 import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button } from 'ant-design-vue';
+import { Button, message } from 'ant-design-vue';
+import dayjs from 'dayjs';
 
 import { useVbenForm } from '#/adapter/form';
-import { createDept, updateDept } from '#/api/system/dept';
+import { createCar, updateCar } from '#/api/access/car';
 import { $t } from '#/locales';
 
 import { useFormSchema } from '../data';
 
 const emit = defineEmits(['success']);
-const formData = ref<SystemDeptApi.SystemDept>();
+const formData = ref<CarItem>();
 const getTitle = computed(() => {
-  return formData.value?.id
+  return formData.value?.carId
     ? $t('ui.actionTitle.edit', [$t('记录')])
     : $t('ui.actionTitle.create', [$t('记录')]);
 });
@@ -32,18 +33,35 @@ function resetForm() {
   formApi.setValues(formData.value || {});
 }
 
+const id = ref();
 const [Modal, modalApi] = useVbenModal({
   async onConfirm() {
     const { valid } = await formApi.validate();
     if (valid) {
       modalApi.lock();
-      const data = formApi.getValues();
+      const values = await formApi.getValues();
+
       try {
-        await (formData.value?.id
-          ? updateDept(formData.value.id, data)
-          : createDept(data));
+        if (id.value) {
+          await updateCar(id.value, values);
+          message.success({
+            content: $t('ui.actionMessage.updateSuccess', [values.carNumber]),
+          });
+        } else {
+          await createCar(values);
+          message.success({
+            content: $t('ui.actionMessage.createSuccess', [values.carNumber]),
+          });
+        }
         modalApi.close();
         emit('success');
+      } catch (error) {
+        console.error('操作失败:', error);
+        message.error({
+          content: id.value
+            ? $t('ui.actionMessage.updateFailed', [values.carNumber])
+            : $t('ui.actionMessage.createFailed', [values.carNumber]),
+        });
       } finally {
         modalApi.lock(false);
       }
@@ -51,14 +69,35 @@ const [Modal, modalApi] = useVbenModal({
   },
   onOpenChange(isOpen) {
     if (isOpen) {
-      const data = modalApi.getData<SystemDeptApi.SystemDept>();
-      if (data) {
-        if (data.pid === 0) {
-          data.pid = undefined;
+      const data = modalApi.getData<CarItem>();
+      console.warn('打开表单，数据:', data);
+      formApi.resetForm();
+      if (data && Object.keys(data).length > 0) {
+        // 创建数据副本，避免修改原始数据
+        const formattedData = { ...data };
+
+        // 格式化日期
+        if (formattedData.registerTime) {
+          formattedData.registerTime = dayjs(formattedData.registerTime).format(
+            'YYYY-MM-DD HH:mm:ss',
+          );
         }
-        formData.value = data;
-        formApi.setValues(formData.value);
+
+        formData.value = formattedData;
+        id.value = data.carId;
+        formApi.setValues(formattedData);
+      } else {
+        id.value = undefined;
+        formData.value = undefined;
+        // 设置默认值
+        formApi.setValues({
+          accessStatus: 1,
+          registerTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+        });
       }
+    } else {
+      // 当表单关闭时，无论是否提交，都刷新列表
+      emit('success');
     }
   },
 });

@@ -41,14 +41,22 @@ export async function verifyAccessToken(
       where: {
         username,
       },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
     });
     if (!user) return null;
-    console.log(user);
     const userInfo: Omit<UserInfo, 'password'> = {
       id: Number(user.id),
       username: String(user.username),
       realName: String(user.realName),
-      roles: ['super'],
+      roles: Array.isArray(user.roles)
+        ? user.roles.map((item) => item.role.name)
+        : [],
       homePath: user.homePath ? String(user.homePath) : undefined,
     };
     return userInfo;
@@ -57,33 +65,38 @@ export async function verifyAccessToken(
   }
 }
 
-export function verifyRefreshToken(
+export async function verifyRefreshToken(
   token: string,
-): null | Promise<Omit<UserInfo, 'password'>> {
+): Promise<null | Promise<Omit<UserInfo, 'password'>>> {
   try {
     const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET) as UserPayload;
     const username = decoded.username;
 
     // 使用数据库查询替代硬编码的用户查找
-    return db.sql`
-      SELECT * FROM user 
-      WHERE username = ${username}
-      LIMIT 1
-    `.then((result) => {
-      const user = result.rows?.[0];
-      if (!user) return null;
-
-      // 转换为 UserInfo 类型并排除密码
-      const userInfo: Omit<UserInfo, 'password'> = {
-        id: Number(user.id),
-        username: String(user.username),
-        realName: String(user.realName),
-        roles: Array.isArray(user.roles) ? user.roles : [String(user.roles)],
-        homePath: user.homePath ? String(user.homePath) : undefined,
-      };
-
-      return userInfo;
+    const user = await prismaClient.user.findUnique({
+      where: {
+        username,
+      },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
     });
+    // 转换为 UserInfo 类型并排除密码
+    const userInfo: Omit<UserInfo, 'password'> = {
+      id: Number(user.id),
+      username: String(user.username),
+      realName: String(user.realName),
+      roles: Array.isArray(user.roles)
+        ? user.roles.map((item) => item.role.name)
+        : [],
+      homePath: user.homePath ? String(user.homePath) : undefined,
+    };
+
+    return userInfo;
   } catch {
     return null;
   }

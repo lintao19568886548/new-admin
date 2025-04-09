@@ -1,6 +1,3 @@
-import { prismaClient } from '~/utils/db';
-import { processMenuData } from '~/utils/tools';
-
 export default eventHandler(async (event) => {
   const userinfo = verifyAccessToken(event);
   if (!userinfo) {
@@ -10,6 +7,11 @@ export default eventHandler(async (event) => {
   const menus = await prismaClient.menu.findMany({
     where: {
       pid: null, // 只查询顶级菜单（pid 为 null 的菜单）
+    },
+    orderBy: {
+      meta: {
+        order: 'asc', // 根据排序字段进行升序排序
+      },
     },
     include: {
       meta: true, // 包含菜单元数据

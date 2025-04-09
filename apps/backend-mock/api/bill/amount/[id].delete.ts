@@ -4,7 +4,6 @@ import { useResponseError, useResponseSuccess } from '~/utils/response';
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
-    console.log('userinfo', userinfo);
     return unAuthorizedResponse(event);
   }
 
@@ -38,7 +37,6 @@ export default eventHandler(async (event) => {
       });
     });
 
-    console.log('删除账单成功:', result);
     return useResponseSuccess(result);
   } catch (error) {
     console.error('删除账单失败:', error);

@@ -9,7 +9,7 @@ import { Button, message } from 'ant-design-vue';
 import dayjs from 'dayjs'; // 添加 dayjs 导入
 
 import { useVbenForm } from '#/adapter/form';
-import { createTenant, updateTenant } from '#/api/tenant';
+import { createTenant, updateTenant } from '#/api/rental';
 import { $t } from '#/locales';
 
 import { useFormSchema } from '../data';
