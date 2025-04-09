@@ -3,7 +3,6 @@ import { useResponseSuccess } from '~/utils/response';
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
-    console.log('userinfo', userinfo);
     return unAuthorizedResponse(event);
   }
   const body = await readBody(event);
@@ -25,7 +24,6 @@ export default eventHandler(async (event) => {
 
     // 批量更新电费账单
     if (eleBills && eleBills.length > 0) {
-      console.log(eleBills);
       await Promise.all(
         eleBills.map((eleBill) => {
           const { eleId, billId, ...eleBillData } = eleBill; // 移除不需要的字段

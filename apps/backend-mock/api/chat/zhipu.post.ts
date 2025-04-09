@@ -3,7 +3,6 @@ import axios from 'axios';
 export default eventHandler(async (event) => {
   const body = await readBody(event);
   const { message, model, apikey } = body;
-  console.log('请求体参数:', body);
 
   try {
     const response = await axios.post(

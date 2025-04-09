@@ -3,13 +3,11 @@ import { prismaClient } from '~/utils/db';
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
-    console.log('userinfo', userinfo);
     return unAuthorizedResponse(event);
   }
 
   // 获取查询参数
   const query = getQuery(event);
-  console.log('query', query);
   const {
     agentName,
     tenantName,
