@@ -1,9 +1,10 @@
 <script lang="ts" setup>
+import type { VisitorItem } from './types';
+
 import type {
   OnActionClickParams,
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
-import type { SystemDeptApi } from '#/api/system/dept';
 import type { Area } from '#/components/AreaSelector.vue';
 
 import { ref } from 'vue';
@@ -14,7 +15,7 @@ import { Plus } from '@vben/icons';
 import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { deleteDept } from '#/api/system/dept';
+import { deleteVisitor, getVisitorList } from '#/api/access/visitor';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -27,69 +28,72 @@ const [FormModal, formModalApi] = useVbenModal({
 });
 
 /**
- * 编辑部门
+ * 编辑访客记录
  * @param row
  */
-function onEdit(row: SystemDeptApi.SystemDept) {
+function onEdit(row: VisitorItem) {
   formModalApi.setData(row).open();
 }
 
 /**
- * 添加下级部门
- * @param row
- */
-function onAppend(row: SystemDeptApi.SystemDept) {
-  formModalApi.setData({ pid: row.id }).open();
-}
-
-/**
- * 创建新部门
+ * 创建新访客记录
  */
 function onCreate() {
   formModalApi.setData(null).open();
 }
 
 /**
- * 删除部门
+ * 删除访客记录
  * @param row
  */
-function onDelete(row: SystemDeptApi.SystemDept) {
-  const hideLoading = message.loading({
-    content: $t('ui.actionMessage.deleting', [row.name]),
+function onDelete(row: VisitorItem) {
+  message.loading({
+    content: $t('ui.actionMessage.deleting', [row.visitorName]),
     duration: 0,
     key: 'action_process_msg',
   });
-  deleteDept(row.id)
+
+  deleteVisitor(row.visitorId)
     .then(() => {
       message.success({
-        content: $t('ui.actionMessage.deleteSuccess', [row.name]),
+        content: $t('ui.actionMessage.deleteSuccess', [row.visitorName]),
         key: 'action_process_msg',
       });
       refreshGrid();
     })
-    .catch(() => {
-      hideLoading();
+    .catch((error) => {
+      console.error('删除访客记录失败:', error);
+      message.error({
+        content: $t('ui.actionMessage.deleteFailed', [row.visitorName]),
+        key: 'action_process_msg',
+      });
     });
+}
+
+/**
+ * 查看访客记录详情
+ * @param row
+ */
+function onView(row: VisitorItem) {
+  // 可以实现查看详情功能
+  formModalApi.setData({ ...row, readonly: true }).open();
 }
 
 /**
  * 表格操作按钮的回调函数
  */
-function onActionClick({
-  code,
-  row,
-}: OnActionClickParams<SystemDeptApi.SystemDept>) {
+function onActionClick({ code, row }: OnActionClickParams<VisitorItem>) {
   switch (code) {
-    case 'append': {
-      onAppend(row);
-      break;
-    }
     case 'delete': {
       onDelete(row);
       break;
     }
     case 'edit': {
       onEdit(row);
+      break;
+    }
+    case 'view': {
+      onView(row);
       break;
     }
   }
@@ -125,91 +129,73 @@ function handleAreaChange(area: Area) {
   }, 500);
 }
 
-// 模拟的访客数据
-const visitorItems = [
-  {
-    carNumber: '粤B 12345',
-    createTime: '2023-05-01 08:50:00',
-    id: '1',
-    phoneNumber: '13800138001',
-    registerTime: '2023-05-01 09:00:00',
-    status: '进入',
-    visitorName: '张三',
-    visitReason: '业务洽谈',
-  },
-  {
-    carNumber: '粤A 67890',
-    createTime: '2023-05-01 10:20:00',
-    id: '2',
-    phoneNumber: '13900139002',
-    registerTime: '2023-05-01 10:30:00',
-    status: '离开',
-    visitorName: '李四',
-    visitReason: '面试',
-  },
-  {
-    carNumber: '粤C 54321',
-    createTime: '2023-05-02 13:50:00',
-    id: '3',
-    phoneNumber: '13700137003',
-    registerTime: '2023-05-02 14:00:00',
-    status: '进入',
-    visitorName: '王五',
-    visitReason: '送货',
-  },
-  {
-    carNumber: '粤D 98765',
-    createTime: '2023-05-03 11:00:00',
-    id: '4',
-    phoneNumber: '13600136004',
-    registerTime: '2023-05-03 11:15:00',
-    status: '进入',
-    visitorName: '赵六',
-    visitReason: '参观',
-  },
-  {
-    carNumber: '粤E 24680',
-    createTime: '2023-05-03 16:20:00',
-    id: '5',
-    phoneNumber: '13500135005',
-    registerTime: '2023-05-03 16:30:00',
-    status: '离开',
-    visitorName: '钱七',
-    visitReason: '维修设备',
-  },
-];
-
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
     schema: useGridFormSchema(),
-    submitOnChange: true,
+    submitOnChange: false, // 修改为false，不再自动提交
   },
   gridOptions: {
     columns: useColumns(onActionClick),
     height: 'auto',
     keepSource: true,
+    // 添加分页配置
     pagerConfig: {
-      enabled: false,
+      enabled: true,
+      pageSize: 20,
+      pageSizes: [10, 20, 30, 50, 100],
     },
     proxyConfig: {
       ajax: {
-        query: async () => {
-          // 使用模拟数据
-          return visitorItems;
+        query: async ({ page }) => {
+          try {
+            // 直接从formApi获取表单数据
+            const formValues = (await gridApi.formApi?.getValues?.()) || {};
+
+            // 清理表单数据，移除空值
+            const params: Record<string, any> = {};
+            Object.keys(formValues).forEach((key) => {
+              if (
+                formValues[key] !== undefined &&
+                formValues[key] !== null &&
+                formValues[key] !== ''
+              ) {
+                params[key] = formValues[key];
+              }
+            });
+
+            // 添加分页参数
+            params.currentPage = page?.currentPage || 1;
+            params.pageSize = page?.pageSize || 20;
+
+            console.warn('处理后的查询参数:', params);
+
+            // 调用API获取数据
+            const result = await getVisitorList(params);
+
+            return {
+              ...result,
+            };
+          } catch (error) {
+            console.error('获取访客列表失败:', error);
+            message.error('获取访客列表失败');
+            return {
+              page: { currentPage: 1, pageSize: 20, total: 0 },
+              items: [],
+            };
+          }
         },
       },
+    },
+    rowConfig: {
+      keyField: 'visitorId', // 修改为正确的主键字段
     },
     toolbarConfig: {
       custom: true,
       export: false,
       refresh: { code: 'query' },
+      search: true,
       zoom: true,
-    },
-    treeConfig: {
-      parentField: 'pid',
-      rowField: 'id',
-      transform: false,
     },
   } as VxeTableGridOptions,
 });
@@ -220,11 +206,48 @@ const [Grid, gridApi] = useVbenVxeGrid({
 function refreshGrid() {
   gridApi.query();
 }
+
+/**
+ * 表单操作成功回调
+ */
+function onFormSuccess() {
+  refreshGrid();
+}
+
+// 添加搜索函数
+function onSearch(params: any) {
+  console.warn('触发搜索，原始参数:', params);
+
+  // 获取表单数据
+  gridApi.formApi?.getValues?.().then((formValues) => {
+    if (!formValues) return;
+
+    // 清理表单数据，移除空值
+    const searchParams: Record<string, any> = {};
+    Object.keys(formValues).forEach((key) => {
+      if (
+        formValues[key] !== undefined &&
+        formValues[key] !== null &&
+        formValues[key] !== ''
+      ) {
+        searchParams[key] = formValues[key];
+      }
+    });
+
+    console.warn('处理后的搜索参数:', searchParams);
+
+    // 执行查询
+    gridApi.query({
+      form: searchParams,
+    });
+  });
+}
 </script>
+
 <template>
   <Page auto-content-height>
-    <FormModal @success="refreshGrid" />
-    <Grid table-title="来访信息列表">
+    <FormModal @success="onFormSuccess" />
+    <Grid table-title="来访信息列表" @search="onSearch" @form-submit="onSearch">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector

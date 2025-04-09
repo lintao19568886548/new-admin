@@ -183,17 +183,30 @@ model WaterBill {
 }
 
 model Visitor {
-  visitorId        Int      @id @map("visitor_id")
-  visitorName      String   @db.VarChar(50) @map("visitor_name")
-  carNum           String   @db.LongText @map("car_num")
-  phoneNumber      String   @db.LongText @map("phone_number")
-  status           Int      // 0: 未使用, 1: 使用中, 2: 维修中
-  registerTime     DateTime @map("register_time") // 将 Int 改为 DateTime 类型，更适合存储时间
-  remark           String?  @db.VarChar(100)
-  createTime      DateTime  @default(now()) @map("create_time")
-  updateTime      DateTime  @updatedAt @map("update_time")
+  visitorId        Int       @id @default(autoincrement()) @map("visitor_id")
+  visitorName      String    @db.VarChar(50) @map("visitor_name")
+  carNum           String?   @db.LongText @map("car_num")
+  phoneNumber      String    @db.LongText @map("phone_number")
+  status           Int       // 0: 进入, 1: 离开
+  registerTime     DateTime  @map("register_time") // 将 Int 改为 DateTime 类型，更适合存储时间
+  remark           String?   @db.VarChar(100)
+  createTime       DateTime  @default(now()) @map("create_time")
+  updateTime       DateTime  @updatedAt @map("update_time")
 
   @@map("visitor")
+}
+
+// 车辆出入管理模型 (access/car)
+model Car {
+  carId           Int        @id @default(autoincrement()) @map("car_id")
+  carNumber       String     @db.VarChar(20) @map("car_number")
+  accessStatus    Int        @map("access_status") // 1: 进入, 0: 离开
+  registerTime    DateTime   @map("register_time")
+  remark          String?    @db.VarChar(200)
+  createTime      DateTime?  @default(now()) @map("create_time")
+  updateTime      DateTime?  @updatedAt @map("update_time")
+
+  @@map("car")
 }
 
 model Finance {
