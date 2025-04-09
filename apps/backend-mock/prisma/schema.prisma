@@ -162,7 +162,7 @@ model EleBill {
   monthlyUsage    Decimal?   @default(0.00) @db.Decimal(10, 2) @map("monthly_usage")
   multiplier      Decimal?   @default(0.00) @db.Decimal(10, 2)
   totalUsage      Decimal?   @default(0.00) @db.Decimal(10, 2) @map("total_usage")
-  unitPrice       Decimal?   @default(0.00) @db.Decimal(10, 2)
+  unitPrice       Decimal?   @default(0.00) @db.Decimal(10, 2) @map("unit_price")
   amount          Decimal?   @default(0.00) @db.Decimal(10, 2)
   remark          String?    @db.VarChar(100)
   receiptTime     DateTime   @map("receipt_time")

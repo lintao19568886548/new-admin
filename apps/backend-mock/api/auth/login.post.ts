@@ -22,7 +22,11 @@ export default defineEventHandler(async (event) => {
       password,
     },
     include: {
-      role: true,
+      roles: {
+        include: {
+          role: true,
+        },
+      },
     },
   });
 
@@ -30,14 +34,15 @@ export default defineEventHandler(async (event) => {
     clearRefreshTokenCookie(event);
     return forbiddenResponse(event, 'Username or password is incorrect.');
   }
-
   // 将数据库结果转换为 UserInfo 类型
   const findUser: UserInfo = {
     id: Number(userResult.id),
     username: String(userResult.username),
     password: String(userResult.password),
     realName: String(userResult.realName),
-    roles: [userResult.role?.name],
+    roles: Array.isArray(userResult.roles)
+      ? userResult.roles.map((item) => item.role.name)
+      : [],
     homePath: userResult.homePath ? String(userResult.homePath) : undefined,
   };
 
