@@ -5,13 +5,13 @@ import { onMounted, ref } from 'vue';
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
-import { getFinanceAnalyticsData } from '#/api/finance/finance';
+import { getAnalyticsData } from '#/api/analytics';
 
 const chartRef = ref<EchartsUIType>();
 const { renderEcharts } = useEcharts(chartRef);
 
 onMounted(async () => {
-  const { expenseData, incomeData } = await getFinanceAnalyticsData({
+  const { expenseData, incomeData } = await getAnalyticsData({
     type: 'days', // 后端支持按月查询
   });
 
@@ -82,7 +82,7 @@ onMounted(async () => {
         axisTick: {
           show: false,
         },
-        max: 80_000,
+        max: 120_000,
         splitArea: {
           show: true,
         },

@@ -16,14 +16,14 @@ onMounted(async () => {
 
     // 构建环比数据
     const chartData = [
-      { name: '本月收入', value: currentMonth.income.value },
-      { name: '上月收入', value: lastMonth.income.value },
+      { name: '本月支出', value: currentMonth.expense.value },
+      { name: '上月支出', value: lastMonth.expense.value },
     ];
 
     renderEcharts({
       legend: {
         bottom: '2%',
-        data: ['本月收入', '上月收入'],
+        data: ['本月支出', '上月支出'],
         left: 'center',
       },
       series: [
@@ -55,7 +55,7 @@ onMounted(async () => {
           labelLine: {
             show: false,
           },
-          name: '收入环比',
+          name: '支出环比',
           radius: ['40%', '65%'],
           type: 'pie',
         },
@@ -66,7 +66,7 @@ onMounted(async () => {
       },
     });
   } catch (error) {
-    console.error('加载收入环比数据失败:', error);
+    console.error('加载支出环比数据失败:', error);
   }
 });
 </script>

@@ -101,26 +101,29 @@ export default eventHandler(async (event) => {
     });
 
     // 初始化收入和支出数组，长度为12个月
-    const incomeData = Array.from({ length: 12 }).fill(0) as number[];
-    const expenseData = Array.from({ length: 12 }).fill(0) as number[];
+    const incomeDatamonths = Array.from({ length: 12 }).fill(0) as number[];
+    const expenseDatamonths = Array.from({ length: 12 }).fill(0) as number[];
 
     // 遍历所有财务数据，按月份累加收入和支出
+    // 修改月份数据处理部分
     for (const item of items) {
       const month = new Date(item.transactionTime).getMonth(); // 获取月份（0-11）
       const amount = Number(item.amount);
 
-      // 根据类型累加到对应数组
+      // 根据类型累加到对应数组，直接使用月份索引
       if (item.transactionType === '收入') {
-        incomeData[month] += amount;
+        incomeDatamonths[month] += amount;
       } else if (item.transactionType === '支出') {
-        expenseData[month] += amount;
+        expenseDatamonths[month] += amount;
       }
     }
 
+    // 返回时添加月份标签数组
     return useResponseSuccess({
-      incomeData, // 收入数组（按月）
-      expenseData, // 支出数组（按月）
-      monthsInYear: 12, // 一年12个月
+      incomeDatamonths,
+      expenseDatamonths,
+      monthLabels: Array.from({ length: 12 }).map((_, i) => `${i + 1}月`),
+      monthsInYear: 12,
       year: currentYear,
       type: 'months',
     });

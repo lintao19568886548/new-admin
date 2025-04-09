@@ -5,37 +5,30 @@ import { onMounted, ref } from 'vue';
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
-import { getAnalyticsMonth } from '#/api/analytics';
+import { getAnalyticsTotal } from '#/api/analytics';
 
 const chartRef = ref<EchartsUIType>();
 const { renderEcharts } = useEcharts(chartRef);
 
 onMounted(async () => {
   try {
-    const { currentMonth, lastMonth } = await getAnalyticsMonth();
-
-    // 构建环比数据
-    const chartData = [
-      { name: '本月收入', value: currentMonth.income.value },
-      { name: '上月收入', value: lastMonth.income.value },
-    ];
+    const { income } = await getAnalyticsTotal();
 
     renderEcharts({
       legend: {
         bottom: '2%',
-        data: ['本月收入', '上月收入'],
         left: 'center',
       },
       series: [
         {
           animationDelay() {
-            return Math.random() * 100;
+            return Math.random() * 400;
           },
           animationEasing: 'exponentialInOut',
           animationType: 'scale',
-          avoidLabelOverlap: false,
-          color: ['#5ab1ef', '#91cc75'],
-          data: chartData,
+          center: ['50%', '50%'],
+          color: ['#5ab1ef', '#b6a2de', '#67e0e3', '#2ec7c9'],
+          data: income.sort((a, b) => b.value - a.value),
           emphasis: {
             label: {
               fontSize: '14',
@@ -43,30 +36,21 @@ onMounted(async () => {
               show: true,
             },
           },
-          itemStyle: {
-            borderRadius: 10,
-            borderWidth: 2,
-          },
           label: {
             formatter: '{b}\n{c}元',
             position: 'inside',
             show: true,
           },
-          labelLine: {
-            show: false,
-          },
-          name: '收入环比',
-          radius: ['40%', '65%'],
+          name: '收入占比',
+          radius: '80%',
+          roseType: 'radius',
           type: 'pie',
         },
       ],
-      tooltip: {
-        formatter: '{b}: {c}元 ({d}%)',
-        trigger: 'item',
-      },
+      tooltip: { trigger: 'item' },
     });
   } catch (error) {
-    console.error('加载收入环比数据失败:', error);
+    console.error('加载收入占比数据失败:', error);
   }
 });
 </script>

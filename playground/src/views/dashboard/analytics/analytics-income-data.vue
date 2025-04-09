@@ -5,33 +5,40 @@ import { onMounted, ref } from 'vue';
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
+import { getAnalyticsTrend } from '#/api/analytics';
+
 const chartRef = ref<EchartsUIType>();
 const { renderEcharts } = useEcharts(chartRef);
 
-onMounted(() => {
+onMounted(async () => {
+  const { income } = await getAnalyticsTrend();
+
+  // 计算最大值
+  const maxValue =
+    Math.max(...income.map((item: { value: number }) => item.value)) * 1.2;
+
+  // 构建雷达图指标
+  const indicator = income.map((item: { name: string; value: number }) => ({
+    max: maxValue,
+    name: item.name,
+  }));
+
   renderEcharts({
     legend: {
       bottom: 0,
       data: ['收入趋势'],
     },
     radar: {
-      indicator: [
-        { name: '租金收入' },
-        { name: '服务收入' },
-        { name: '物业收入' },
-        { name: '能耗收入' },
-        { name: '停车收入' },
-        { name: '其它收入' },
-      ],
+      indicator,
       radius: '60%',
-      splitNumber: 8,
+      splitNumber: 2,
     },
     series: [
       {
         areaStyle: {
-          opacity: 1,
-          shadowBlur: 0,
-          shadowColor: 'rgba(0,0,0,.2)',
+          opacity: 0.8,
+          shadowBlur: 10,
+          shadowColor: 'rgba(0,0,0,0.2)',
           shadowOffsetX: 0,
           shadowOffsetY: 10,
         },
@@ -41,7 +48,7 @@ onMounted(() => {
               color: '#5ab1ef',
             },
             name: '收入趋势',
-            value: [70, 75, 70, 76, 20, 1850],
+            value: income.map((item: { value: number }) => item.value),
           },
         ],
         itemStyle: {
