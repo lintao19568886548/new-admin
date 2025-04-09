@@ -160,7 +160,18 @@ const [Grid, gridApi] = useVbenVxeGrid({
                 formValues[key] !== null &&
                 formValues[key] !== ''
               ) {
-                params[key] = formValues[key];
+                // 处理状态值，将字符串转换为数字
+                if (key === 'status') {
+                  if (formValues[key] === '进入') {
+                    params[key] = 0;
+                  } else if (formValues[key] === '离开') {
+                    params[key] = 1;
+                  } else {
+                    params[key] = formValues[key];
+                  }
+                } else {
+                  params[key] = formValues[key];
+                }
               }
             });
 
@@ -230,7 +241,18 @@ function onSearch(params: any) {
         formValues[key] !== null &&
         formValues[key] !== ''
       ) {
-        searchParams[key] = formValues[key];
+        // 处理状态值，将字符串转换为数字
+        if (key === 'status') {
+          if (formValues[key] === '进入') {
+            searchParams[key] = 0;
+          } else if (formValues[key] === '离开') {
+            searchParams[key] = 1;
+          } else {
+            searchParams[key] = formValues[key];
+          }
+        } else {
+          searchParams[key] = formValues[key];
+        }
       }
     });
 
