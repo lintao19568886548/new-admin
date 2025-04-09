@@ -22,7 +22,7 @@ export async function getTenantList(params?: any) {
   );
 
   return requestClient
-    .get('/tenant/list', {
+    .get('/rental/tenant/list', {
       params: filteredParams,
       // 确保参数正确序列化
       paramsSerializer: (params) => {
@@ -54,17 +54,17 @@ export async function getTenantList(params?: any) {
 }
 
 export async function getTenantDetail(id: number) {
-  return requestClient.get(`/tenant/${id}`);
+  return requestClient.get(`/rental/tenant/${id}`);
 }
 
 export async function createTenant(data: any) {
-  return requestClient.post('/tenant', data);
+  return requestClient.post('/rental/tenant', data);
 }
 
 export async function updateTenant(id: number, data: any) {
-  return requestClient.put(`/tenant/${id}`, data);
+  return requestClient.put(`/rental/tenant/${id}`, data);
 }
 
 export async function deleteTenant(id: number) {
-  return requestClient.delete(`/tenant/${id}`);
+  return requestClient.delete(`/rental/tenant/${id}`);
 }
