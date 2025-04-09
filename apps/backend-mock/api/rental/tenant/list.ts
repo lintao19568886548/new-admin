@@ -44,10 +44,10 @@ export default eventHandler(async (event) => {
     }
 
     // 获取总数
-    const total = await prismaClient.tenant.count({ where });
+    const total = await prismaClient.rentalTenant.count({ where });
 
     // 获取分页数据
-    const tenants = await prismaClient.tenant.findMany({
+    const tenants = await prismaClient.rentalTenant.findMany({
       where,
       skip,
       take: pageSize,

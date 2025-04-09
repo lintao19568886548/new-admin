@@ -7,15 +7,15 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
   const body = await readBody(event);
-  const tenantId = Number.parseInt(event.context.params.id);
-  if (!tenantId) {
+  const rentalTenantId = Number.parseInt(event.context.params.id);
+  if (!rentalTenantId) {
     return useResponseError('tenantId错误');
   }
 
   try {
-    const tenant = await prismaClient.tenant.update({
+    const tenant = await prismaClient.rentalTenant.update({
       where: {
-        tenantId,
+        rentalTenantId,
       },
       data: {
         tenantName: body.tenantName,

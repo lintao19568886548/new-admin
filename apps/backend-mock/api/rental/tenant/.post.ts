@@ -9,7 +9,7 @@ export default eventHandler(async (event) => {
   const body = await readBody(event);
 
   try {
-    const tenant = await prismaClient.tenant.create({
+    const tenant = await prismaClient.rentalTenant.create({
       data: {
         tenantName: body.tenantName,
         phoneNumber: body.phoneNumber,
