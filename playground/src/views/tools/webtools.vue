@@ -7,61 +7,51 @@ import { Col, Divider, Input, Row } from 'ant-design-vue';
 const categories = [
   {
     description: '智能文本生成和内容创作工具',
-    icon: 'icon-[fas--feather]',
     id: 'writing',
     name: 'AI写作工具',
   },
   {
     description: '图像生成、编辑和处理工具',
-    icon: 'icon-[fas--images]',
     id: 'image',
     name: 'AI图像工具',
   },
   {
     description: '视频创作和编辑工具',
-    icon: 'icon-[fas--video]',
     id: 'video',
     name: 'AI视频工具',
   },
   {
     description: '语音创作和生成工具',
-    icon: 'icon-[fas--voice]',
     id: 'voice',
     name: 'AI语音工具',
   },
   {
     description: '提升工作效率的智能办公助手',
-    icon: 'icon-[fas--briefcase]',
     id: 'office',
     name: 'AI办公工具',
   },
   {
     description: '创意设计和图形生成工具',
-    icon: 'icon-[fas--palette]',
     id: 'design',
     name: 'AI设计工具',
   },
   {
     description: '智能对话和聊天机器人',
-    icon: 'icon-[fab--facebook-messenger]',
     id: 'chat',
     name: 'AI对话聊天',
   },
   {
     description: '代码生成和编程辅助工具',
-    icon: 'icon-[fas--code]',
     id: 'code',
     name: 'AI编程工具',
   },
   {
     description: '智能搜索和信息检索工具',
-    icon: 'icon-[fas--search]',
     id: 'search',
     name: 'AI搜索引擎',
   },
   {
     description: '法律服务和咨询工具',
-    icon: 'icon-[fas--search]',
     id: 'law',
     name: 'AI法律助手',
   },
@@ -342,9 +332,9 @@ function changeCategory(category: string) {
             class="search-input"
             allow-clear
           >
-            <template #prefix>
-              <span class="icon-[fas--search] search-icon"></span>
-            </template>
+            <!-- <template #prefix> -->
+            <!-- <span class="icon-[fas--search] search-icon"></span> -->
+            <!-- </template> -->
           </Input>
         </div>
       </div>
@@ -358,7 +348,7 @@ function changeCategory(category: string) {
           :class="{ active: activeCategory === 'all' }"
           @click="changeCategory('all')"
         >
-          <span class="icon-[fas--th-large] mr-2"></span>
+          <!-- <span class="icon-[fas--th-large] mr-2"></span> -->
           全部工具
         </div>
         <div
@@ -368,7 +358,7 @@ function changeCategory(category: string) {
           :class="{ active: activeCategory === category.id }"
           @click="changeCategory(category.id)"
         >
-          <span class="mr-2" :class="[category.icon]"></span>
+          <!-- <span class="mr-2" :class="[category.icon]"></span> -->
           {{ category.name }}
         </div>
       </div>
