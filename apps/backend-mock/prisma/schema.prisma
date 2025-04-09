@@ -46,18 +46,17 @@ model Menu {
   menuId          Int          @id @default(autoincrement()) @map("menu_id")
   name            String       @db.VarChar(50)
   type            String       
-  status          Boolean      @default(true)
+  status          Int          @default(1)
   path            String       @db.VarChar(50)
   activePath      String?      @db.VarChar(100) @map("active_path")
   redirect        String?      @db.VarChar(100)
-  componet        String?      @db.VarChar(100)      
+  component       String?      @db.VarChar(100)      
   pid             Int?         
-  metaId          Int          @map("meta_id") @unique
-  meta            MenuMeta     @relation(fields: [metaId], references: [metaId])
   authCode        String?      @db.VarChar(100) @map("auth_code")
   roleMenus       RoleMenu[]   @relation("MenuToRoleMenu")
   children        Menu[]       @relation("MenuToMenu")
   parent          Menu?        @relation("MenuToMenu", fields: [pid], references: [menuId], onDelete: NoAction, onUpdate: NoAction)
+  meta            MenuMeta?    @relation("MenuToMenuMeta")
 
   @@index([pid])
 }
@@ -68,15 +67,26 @@ model MenuMeta {
   icon                String?   @db.VarChar(100)
   order               Int?      
   activeIcon          String?   @db.VarChar(100) @map("active_icon")
+  activePath          String?   @db.VarChar(100) @map("active_path")
   affixTab            Boolean?  @map("affix_tab")
-  keepAlive           Boolean?  @map("keep_alive")
-  hideInTab           Boolean?  @map("hide_in_tab")
-  hideInBreadcrumb    Boolean?  @map("hide_in_breadcrumb")
-  hideChildrenInMenu  Boolean?  @map("hide_children_in_menu")
+  affixTabOrder       Int?      @map("affix_tab_order")
+  badge               String?   @db.VarChar(50)  @map("badge_content")
   badgeType           String?   @db.VarChar(20)  @map("badge_type")
   badgeVariants       String?   @db.VarChar(20)  @map("badge_variants")
-  menu                Menu?
+  hideChildrenInMenu  Boolean?  @map("hide_children_in_menu")
+  hideInBreadcrumb    Boolean?  @map("hide_in_breadcrumb")
+  hideInMenu          Boolean?  @map("hide_in_menu")
+  hideInTab           Boolean?  @map("hide_in_tab")
+  iframeSrc           String?   @db.VarChar(100) @map("iframe_src")
+  keepAlive           Boolean?  @map("keep_alive")
+  link                String?   @db.VarChar(200)
+  maxNumOfOpenTab     Int?      @map("max_num_of_open_tab")
+  noBasicLayout       Boolean?  @map("no_basic_layout")
+  openInNewWindow     Boolean?  @map("open_in_new_window")
+  menuId              Int       @unique @map("menu_id")
+  menu                Menu      @relation("MenuToMenuMeta", fields: [menuId], references: [menuId], onDelete: Cascade)
 
+  @@index([menuId])
   @@map("menu_meta")
 }
 
@@ -106,35 +116,25 @@ model RoleMenu {
   @@map("role_menu")
 }
 
-model Tenant {
-  tenantId       Int           @id @default(autoincrement()) @map("tenant_id")
-  tenantName     String        @db.VarChar(30) @map("tenant_name")
-  amountBills    AmountBill[]  @relation("AmountBillToTenant")
-  createTime     DateTime?     @default(now()) @map("create_time")
-  updateTime     DateTime?     @updatedAt @map("update_time")
-
-  @@map("tenant")
-}
-
 model AmountBill {
-  billId               Int         @id @default(autoincrement()) @map("bill_id")
-  projectName          String?     @map("project_name")
-  tenantName           String      @map("tenant_name")
-  eleFee               Decimal?    @db.Decimal(10, 2) @map("ele_fee")
-  waterFee             Decimal?    @db.Decimal(10, 2) @map("water_fee")
-  factoryRent          Decimal?    @db.Decimal(10, 2) @map("factory_rent")
-  managementFee        Decimal?    @db.Decimal(10, 2) @map("management_fee")
-  serviceFee           Decimal?    @db.Decimal(10, 2) @map("service_fee")
-  invoiceTax           Decimal?    @db.Decimal(10, 2) @map("invoice_tax")
-  totalFee             Decimal?    @db.Decimal(10, 2) @map("total_fee")
-  tenantId             Int?        @map("tenant_id")
-  remark               String?     @db.VarChar(100)
-  receiptTime          DateTime?   @map("receipt_time")
-  createTime           DateTime?   @default(now()) @map("create_time")
-  updateTime           DateTime?   @updatedAt @map("update_time")
-  tenant               Tenant?     @relation("AmountBillToTenant", map: "tenant_no_fk", fields: [tenantId], references: [tenantId])
-  eleBills             EleBill[]   @relation("EleBillToAmountBill")
-  waterBills           WaterBill[] @relation("WaterBillToAmountBill")
+  billId               Int               @id @default(autoincrement()) @map("bill_id")
+  projectName          String?           @map("project_name")
+  tenantName           String            @map("tenant_name")
+  eleFee               Decimal?          @db.Decimal(10, 2) @map("ele_fee")
+  waterFee             Decimal?          @db.Decimal(10, 2) @map("water_fee")
+  factoryRent          Decimal?          @db.Decimal(10, 2) @map("factory_rent")
+  managementFee        Decimal?          @db.Decimal(10, 2) @map("management_fee")
+  serviceFee           Decimal?          @db.Decimal(10, 2) @map("service_fee")
+  invoiceTax           Decimal?          @db.Decimal(10, 2) @map("invoice_tax")
+  totalFee             Decimal?          @db.Decimal(10, 2) @map("total_fee")
+  tenantId             Int?              @map("tenant_id")
+  remark               String?           @db.VarChar(100)
+  receiptTime          DateTime?         @map("receipt_time")
+  createTime           DateTime?         @default(now()) @map("create_time")
+  updateTime           DateTime?         @updatedAt @map("update_time")
+  tenant               RentalTenant?     @relation("AmountBillToTenant", map: "tenant_no_fk", fields: [tenantId], references: [rentalTenantId])
+  eleBills             EleBill[]         @relation("EleBillToAmountBill")
+  waterBills           WaterBill[]       @relation("WaterBillToAmountBill")
 
   @@index([tenantId])
   @@map("amount_bill")
@@ -290,17 +290,17 @@ model RentalManage {
 
 // 租户管理模型 (rental/tenant)
 model RentalTenant {
-  rentalTenantId  Int        @id @default(autoincrement()) @map("rental_tenant_id")
-  name            String     @db.VarChar(50) // 租户姓名
-  phoneNumber     String     @db.VarChar(20) @map("phone_number") // 联系电话
-  address         String     @db.VarChar(200) // 地址
-  contractDate    String     @db.VarChar(50) @map("contract_date") // 合同日期
-  increaseDate    String     @db.VarChar(20) @map("increase_date") // 涨价日期
-  increaseRate    Decimal    @db.Decimal(5, 2) @map("increase_rate") // 涨价比例
-  tag             String     @db.VarChar(20) // 当期、过期等状态
-  remark          String?    @db.VarChar(100)
-  createTime      DateTime?  @default(now()) @map("create_time")
-  updateTime      DateTime?  @updatedAt @map("update_time")
+  rentalTenantId    Int           @id @default(autoincrement()) @map("rental_tenant_id")
+  tenantName        String        @db.VarChar(30) @map("tenant_name")
+  phoneNumber       String        @db.VarChar(20) @map("phone_number")
+  status            String        @db.VarChar(20)  // 当期、过期等状态
+  contractDate      DateTime      @map("contract_date")
+  increaseDate      DateTime      @map("increase_date")
+  increaseRate      Decimal       @db.Decimal(5, 2) @map("increase_rate")
+  address           String        @db.VarChar(200)
+  amountBills       AmountBill[]  @relation("AmountBillToTenant")
+  createTime        DateTime?     @default(now()) @map("create_time")
+  updateTime        DateTime?     @updatedAt @map("update_time")
 
   @@map("rental_tenant")
 }

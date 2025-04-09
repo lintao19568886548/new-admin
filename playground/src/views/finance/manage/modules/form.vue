@@ -35,16 +35,6 @@ const [Modal, modalApi] = useVbenModal({
     if (!valid) return;
     const values = await formApi.getValues();
 
-    // 处理日期格式，将ISO格式转换为数据库可接受的格式
-    // if (values.transactionTime) {
-    //   const date = new Date(values.transactionTime);
-    //   // 格式化为 'YYYY-MM-DD HH:MM:SS' 格式
-    //   values.transactionTime = date
-    //     .toISOString()
-    //     .replace('T', ' ')
-    //     .slice(0, 19);
-    // }
-
     // 确保金额是数字类型
     if (values.amount !== undefined && values.amount !== null) {
       values.amount = Number(values.amount);
