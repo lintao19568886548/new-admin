@@ -200,7 +200,7 @@ model Visitor {
 model Car {
   carId           Int        @id @default(autoincrement()) @map("car_id")
   carNumber       String     @db.VarChar(20) @map("car_number")
-  accessStatus    Int        @map("access_status") // 1: 进入, 0: 离开
+  status          Int        @map("status") // 1: 进入, 0: 离开
   registerTime    DateTime   @map("register_time")
   remark          String?    @db.VarChar(200)
   createTime      DateTime?  @default(now()) @map("create_time")
