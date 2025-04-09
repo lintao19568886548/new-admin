@@ -15,6 +15,7 @@ import { Plus } from '@vben/icons';
 import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { deleteManage, getManageList } from '#/api/rental';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -52,14 +53,21 @@ function onDelete(row: RentalManagementItem) {
     key: 'action_process_msg',
   });
 
-  // 模拟API请求
-  setTimeout(() => {
-    message.success({
-      content: $t('ui.actionMessage.deleteSuccess', [row.title]),
-      key: 'action_process_msg',
+  deleteManage(row.rentalManageId)
+    .then(() => {
+      message.success({
+        content: $t('ui.actionMessage.deleteSuccess', [row.title]),
+        key: 'action_process_msg',
+      });
+      refreshGrid();
+    })
+    .catch((error) => {
+      console.error('删除租户失败:', error);
+      message.error({
+        content: $t('ui.actionMessage.deleteFailed', [row.title]),
+        key: 'action_process_msg',
+      });
     });
-    refreshGrid();
-  }, 1000);
 }
 
 /**
@@ -68,7 +76,7 @@ function onDelete(row: RentalManagementItem) {
  */
 function onView(row: RentalManagementItem) {
   // 可以跳转到详情页面
-  window.open(`/rental/detail/${row.id}`, '_blank');
+  window.open(`/rental/detail/${row.rentalManageId}`, '_blank');
 }
 
 /**
@@ -123,91 +131,67 @@ function handleAreaChange(area: Area) {
   }, 500);
 }
 
-// 模拟的数据
-const rentalItems = [
-  {
-    address: '双福工业园A区',
-    area: '2500m²',
-    availableArea: '1500m²',
-    contact: '张经理 13800138000',
-    createTime: '2023-04-01',
-    id: 1,
-    price: '100元/m²/月',
-    title: '双福工业园A区厂房',
-    updateTime: '2023-04-01',
-  },
-  {
-    address: '高新区科技路100号',
-    area: '3000m²',
-    availableArea: '2000m²',
-    contact: '李经理 13900139000',
-    createTime: '2023-04-02',
-    id: 2,
-    price: '120元/m²/月',
-    title: '高新区标准厂房',
-    updateTime: '2023-04-02',
-  },
-  {
-    address: '临港新区海港路123号',
-    area: '4000m²',
-    availableArea: '3000m²',
-    contact: '王主管 13700137000',
-    createTime: '2023-04-03',
-    id: 3,
-    price: '100元/m²/月',
-    title: '临港新区厂房',
-    updateTime: '2023-04-03',
-  },
-  {
-    address: '科技园区创新路456号',
-    area: '3600m²',
-    availableArea: '1200m²',
-    contact: '赵总监 13600136000',
-    createTime: '2023-04-04',
-    id: 4,
-    price: '110元/m²/月',
-    title: '科技园区厂房',
-    updateTime: '2023-04-04',
-  },
-  {
-    address: '经济开发区产业路789号',
-    area: '5000m²',
-    availableArea: '2000m²',
-    contact: '刘经理 13500135000',
-    createTime: '2023-04-05',
-    id: 5,
-    price: '100元/m²/月',
-    title: '经济开发区厂房',
-    updateTime: '2023-04-05',
-  },
-];
-
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
     schema: useGridFormSchema(),
-    submitOnChange: true,
+    submitOnChange: false, // 修改为false，不再自动提交
   },
   gridOptions: {
     columns: useColumns(onActionClick),
     height: 'auto',
     keepSource: true,
+    // 添加分页配置
+    pagerConfig: {
+      enabled: true,
+      pageSize: 20,
+      pageSizes: [10, 20, 30, 50, 100],
+    },
     proxyConfig: {
       ajax: {
-        query: async () => {
-          // 模拟API请求返回数据
-          return {
-            page: {
-              pageSize: 20,
-              total: rentalItems.length,
-            },
-            items: rentalItems,
-          };
+        query: async ({ page }) => {
+          try {
+            // 直接从formApi获取表单数据
+            const formValues = (await gridApi.formApi?.getValues?.()) || {};
+
+            // 清理表单数据，移除空值
+            const params: Record<string, any> = {};
+            Object.keys(formValues).forEach((key) => {
+              if (
+                formValues[key] !== undefined &&
+                formValues[key] !== null &&
+                formValues[key] !== ''
+              ) {
+                params[key] = formValues[key];
+              }
+            });
+
+            // 添加分页参数
+            params.currentPage = page?.currentPage || 1;
+            params.pageSize = page?.pageSize || 20;
+
+            console.warn('处理后的查询参数:', params);
+
+            // 调用API获取数据
+            const result = await getManageList(params);
+
+            // 修改这里：返回正确的分页格式
+            return {
+              ...result,
+            };
+          } catch (error) {
+            console.error('获取租赁列表失败:', error);
+            message.error('获取租赁列表失败');
+            return {
+              page: { currentPage: 1, pageSize: 20, total: 0 },
+              items: [],
+            };
+          }
         },
       },
     },
     rowConfig: {
-      keyField: 'id',
+      keyField: 'rentalManageId', // 修改为正确的主键字段
     },
     toolbarConfig: {
       custom: true,
@@ -225,12 +209,52 @@ const [Grid, gridApi] = useVbenVxeGrid({
 function refreshGrid() {
   gridApi.query();
 }
+
+/**
+ * 表单操作成功回调
+ */
+function onFormSuccess() {
+  refreshGrid();
+}
+
+// 添加搜索函数
+function onSearch(params: any) {
+  console.warn('触发搜索，原始参数:', params);
+
+  // 获取表单数据
+  gridApi.formApi?.getValues?.().then((formValues) => {
+    if (!formValues) return;
+
+    // 清理表单数据，移除空值
+    const searchParams: Record<string, any> = {};
+    Object.keys(formValues).forEach((key) => {
+      if (
+        formValues[key] !== undefined &&
+        formValues[key] !== null &&
+        formValues[key] !== ''
+      ) {
+        searchParams[key] = formValues[key];
+      }
+    });
+
+    console.warn('处理后的搜索参数:', searchParams);
+
+    // 执行查询
+    gridApi.query({
+      form: searchParams,
+    });
+  });
+}
 </script>
 
 <template>
   <Page auto-content-height>
-    <FormModal @success="refreshGrid" />
-    <Grid :table-title="$t('system.rental.list')">
+    <FormModal @success="onFormSuccess" />
+    <Grid
+      :table-title="$t('system.rental.list')"
+      @search="onSearch"
+      @form-submit="onSearch"
+    >
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector

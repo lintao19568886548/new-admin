@@ -9,7 +9,7 @@ export default eventHandler(async (event) => {
   const body = await readBody(event);
   const rentalTenantId = Number.parseInt(event.context.params.id);
   if (!rentalTenantId) {
-    return useResponseError('tenantId错误');
+    return useResponseError('tenantId错误4');
   }
 
   try {
