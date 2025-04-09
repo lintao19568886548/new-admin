@@ -1,8 +1,17 @@
 {
+  "access": {
+    "visitor": {
+      "status": {
+        "in": "进入",
+        "label": "状态",
+        "left": "离开"
+      }
+    }
+  },
   "dept": {
-    "list": "部门列表",
     "createTime": "创建时间",
     "deptName": "部门名称",
+    "list": "部门列表",
     "name": "部门",
     "operation": "操作",
     "parentDept": "上级部门",
@@ -10,8 +19,30 @@
     "status": "状态",
     "title": "部门管理"
   },
+  "finance": {
+    "transactionType": {
+      "expense": "支出",
+      "income": "收入"
+    }
+  },
+  "maintenance": {
+    "transformer": {
+      "createTime": "创建时间",
+      "id": "变压器ID",
+      "list": "变压器列表",
+      "name": "项目",
+      "remark": "备注",
+      "specifications": "规格",
+      "status": {
+        "abnormal": "异常",
+        "label": "状态",
+        "maintenance": "维护",
+        "normal": "正常"
+      },
+      "title": "变压器名称"
+    }
+  },
   "menu": {
-    "list": "菜单列表",
     "activeIcon": "激活图标",
     "activePath": "激活路径",
     "activePathHelp": "跳转到当前路由时，需要激活的菜单路径。\n当不在导航菜单中显示时，需要指定激活路径",
@@ -20,13 +51,13 @@
     "affixTab": "固定在标签",
     "authCode": "权限标识",
     "badge": "徽章内容",
-    "badgeVariants": "徽标样式",
     "badgeType": {
       "dot": "点",
       "none": "无",
       "normal": "文字",
       "title": "徽标类型"
     },
+    "badgeVariants": "徽标样式",
     "component": "页面组件",
     "hideChildrenInMenu": "隐藏子菜单",
     "hideInBreadcrumb": "在面包屑中隐藏",
@@ -35,10 +66,12 @@
     "icon": "图标",
     "keepAlive": "缓存标签页",
     "linkSrc": "链接地址",
+    "list": "菜单列表",
     "menuName": "菜单名称",
     "menuTitle": "标题",
     "name": "菜单",
     "operation": "操作",
+    "order": "菜单排序",
     "parent": "上级菜单",
     "path": "路由地址",
     "status": "状态",
@@ -51,90 +84,58 @@
     "typeMenu": "菜单"
   },
   "rental": {
-    "id": "项目ID",
-    "management": "租赁管理",
-    "list": "租赁列表",
-    "name": "租赁",
-    "title": "租赁项目",
-    "price": "月租金",
-    "area": "总面积",
-    "floor": "楼层",
-    "type": "类型",
-    "firestatus": "灭火器检查",
-    "safetychanneltag": "安全通道检查",
     "address": "地址",
+    "area": "总面积",
     "contact": "联系方式",
-    "status": {
-      "label": "空闲面积",
-      "vacant": "空闲",
-      "rented": "已租",
-      "maintenance": "维护"
-    },
     "createTime": "创建时间",
-    "updateTime": "更新时间",
     "description": "项目描述",
     "features": "项目特点",
+    "firestatus": "灭火器检查",
+    "floor": "楼层",
+    "id": "项目ID",
+    "list": "租赁列表",
+    "management": "租赁管理",
+    "name": "租赁",
     "operation": "操作",
+    "price": "月租金",
+    "safetychanneltag": "安全通道检查",
+    "status": {
+      "label": "空闲面积",
+      "maintenance": "维护",
+      "rented": "已租",
+      "vacant": "空闲"
+    },
     "tenant": {
+      "address": "租赁地点",
+      "contractDate": "合同日期",
+      "increaseDate": "递增日期",
+      "increaseRate": "递增比例",
       "item": "合同",
       "list": "合同列表",
       "name": "合同人姓名",
       "phone": "手机号",
-      "contractDate": "合同日期",
-      "increaseDate": "递增日期",
-      "increaseRate": "递增比例",
-      "address": "租赁地点",
       "status": {
-        "label": "合同状态",
         "current": "当期",
-        "expired": "过期"
+        "expired": "过期",
+        "label": "合同状态"
       }
-    }
-  },
-  "maintenance": {
-    "transformer": {
-      "list": "变压器列表",
-      "name": "项目",
-      "title": "变压器名称",
-      "id": "变压器ID",
-      "status": {
-        "label": "状态",
-        "normal": "正常",
-        "abnormal": "异常",
-        "maintenance": "维护"
-      },
-      "remark": "备注",
-      "createTime": "创建时间",
-      "specifications": "规格"
-    }
-  },
-  "access": {
-    "visitor": {
-      "status": {
-        "label": "状态",
-        "in": "进入",
-        "left": "离开"
-      }
-    }
-  },
-  "finance": {
-    "transactionType": {
-      "expense": "支出",
-      "income": "收入"
-    }
+    },
+    "title": "租赁项目",
+    "type": "类型",
+    "updateTime": "更新时间"
   },
   "role": {
-    "title": "角色管理",
+    "createTime": "创建时间",
+    "id": "角色ID",
     "list": "角色列表",
     "name": "角色",
-    "roleName": "角色名称",
-    "id": "角色ID",
-    "status": "状态",
-    "remark": "备注",
-    "createTime": "创建时间",
     "operation": "操作",
     "permissions": "权限",
-    "setPermissions": "授权"
+    "remark": "备注",
+    "roleName": "角色名称",
+    "setPermissions": "授权",
+    "status": "状态",
+    "title": "角色管理"
   },
   "title": "系统管理"
 }

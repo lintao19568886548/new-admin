@@ -1,18 +1,5 @@
 import { verifyAccessToken } from '~/utils/jwt-utils';
-import { MOCK_MENU_LIST } from '~/utils/mock-data';
 import { unAuthorizedResponse } from '~/utils/response';
-
-const namesMap: Record<string, any> = {};
-
-function getNames(menus: any[]) {
-  menus.forEach((menu) => {
-    namesMap[menu.name] = String(menu.id);
-    if (menu.children) {
-      getNames(menu.children);
-    }
-  });
-}
-getNames(MOCK_MENU_LIST);
 
 export default eventHandler(async (event) => {
   const userinfo = verifyAccessToken(event);
@@ -21,8 +8,27 @@ export default eventHandler(async (event) => {
   }
   const { id, name } = getQuery(event);
 
-  return (name as string) in namesMap &&
-    (!id || namesMap[name as string] !== String(id))
-    ? useResponseSuccess(true)
-    : useResponseSuccess(false);
+  // 检查名称是否已存在
+  // 如果提供了id，则排除该id的记录（用于编辑时检查）
+  if (name) {
+    const whereCondition: any = {
+      name: name as string,
+    };
+
+    // 如果提供了id，排除该id的记录
+    if (id) {
+      whereCondition.menuId = {
+        not: Number(id),
+      };
+    }
+
+    const data = await prismaClient.menu.findFirst({
+      where: whereCondition,
+    });
+
+    // 如果找到记录，说明名称已存在
+    return useResponseSuccess(!!data);
+  }
+
+  return useResponseSuccess(false);
 });

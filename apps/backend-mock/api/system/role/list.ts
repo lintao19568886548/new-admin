@@ -1,42 +1,5 @@
-import { faker } from '@faker-js/faker';
 import { verifyAccessToken } from '~/utils/jwt-utils';
-import { getMenuIds, MOCK_MENU_LIST } from '~/utils/mock-data';
-import { unAuthorizedResponse, usePageResponseSuccess } from '~/utils/response';
-
-const formatterCN = new Intl.DateTimeFormat('zh-CN', {
-  timeZone: 'Asia/Shanghai',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-});
-
-const menuIds = getMenuIds(MOCK_MENU_LIST);
-
-function generateMockDataList(count: number) {
-  const dataList = [];
-
-  for (let i = 0; i < count; i++) {
-    const dataItem: Record<string, any> = {
-      id: faker.string.uuid(),
-      name: faker.commerce.product(),
-      status: faker.helpers.arrayElement([0, 1]),
-      createTime: formatterCN.format(
-        faker.date.between({ from: '2022-01-01', to: '2025-01-01' }),
-      ),
-      permissions: faker.helpers.arrayElements(menuIds),
-      remark: faker.lorem.sentence(),
-    };
-
-    dataList.push(dataItem);
-  }
-
-  return dataList;
-}
-
-const mockData = generateMockDataList(100);
+import { unAuthorizedResponse } from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = verifyAccessToken(event);
@@ -48,36 +11,81 @@ export default eventHandler(async (event) => {
     page = 1,
     pageSize = 20,
     name,
-    id,
     remark,
     startTime,
     endTime,
     status,
   } = getQuery(event);
-  let listData = structuredClone(mockData);
+
+  // 构建查询条件
+  const where: any = {};
+
   if (name) {
-    listData = listData.filter((item) =>
-      item.name.toLowerCase().includes(String(name).toLowerCase()),
-    );
+    where.name = {
+      contains: String(name),
+    };
   }
-  if (id) {
-    listData = listData.filter((item) =>
-      item.id.toLowerCase().includes(String(id).toLowerCase()),
-    );
-  }
+
   if (remark) {
-    listData = listData.filter((item) =>
-      item.remark?.toLowerCase()?.includes(String(remark).toLowerCase()),
-    );
+    where.remark = {
+      contains: String(remark),
+    };
   }
+
   if (startTime) {
-    listData = listData.filter((item) => item.createTime >= startTime);
+    where.createTime = {
+      ...where.createTime,
+      gte: new Date(String(startTime)),
+    };
   }
+
   if (endTime) {
-    listData = listData.filter((item) => item.createTime <= endTime);
+    where.createTime = {
+      ...where.createTime,
+      lte: new Date(String(endTime)),
+    };
   }
-  if (['0', '1'].includes(status as string)) {
-    listData = listData.filter((item) => item.status === Number(status));
+
+  if (['0', '1', 'false', 'true'].includes(status as string)) {
+    where.status = ['1', 'true'].includes(status as string);
   }
-  return usePageResponseSuccess(page as string, pageSize as string, listData);
+
+  // 查询总数
+  const total = await prismaClient.role.count({ where });
+
+  // 查询角色列表及其关联的菜单
+  const roles = await prismaClient.role.findMany({
+    where,
+    include: {
+      roleMenus: {
+        include: {
+          menu: true,
+        },
+      },
+    },
+    skip: (Number(page) - 1) * Number(pageSize),
+    take: Number(pageSize),
+    orderBy: {
+      createTime: 'desc',
+    },
+  });
+
+  // 格式化返回数据
+  const listData = roles.map((role) => {
+    return {
+      roleId: role.roleId,
+      name: role.name,
+      remark: role.remark,
+      status: role.status ? 1 : 0,
+      createTime: role.createTime ? role.createTime.toISOString() : null,
+      updateTime: role.updateTime ? role.updateTime.toISOString() : null,
+      // 提取关联的菜单ID
+      permissions: role.roleMenus.map((rm) => rm.menu.menuId),
+    };
+  });
+
+  return useResponseSuccess({
+    items: listData,
+    total,
+  });
 });

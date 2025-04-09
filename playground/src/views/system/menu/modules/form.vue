@@ -58,7 +58,7 @@ const schema: VbenFormSchema[] = [
       .max(30, $t('ui.formRules.maxLength', [$t('system.menu.menuName'), 30]))
       .refine(
         async (value: string) => {
-          return !(await isMenuNameExists(value, formData.value?.id));
+          return !(await isMenuNameExists(value, formData.value?.menuId));
         },
         (value) => ({
           message: $t('ui.formRules.alreadyExists', [
@@ -141,7 +141,7 @@ const schema: VbenFormSchema[] = [
       )
       .refine(
         async (value: string) => {
-          return !(await isMenuPathExists(value, formData.value?.id));
+          return !(await isMenuPathExists(value, formData.value?.menuId));
         },
         (value) => ({
           message: $t('ui.formRules.alreadyExists', [
@@ -173,7 +173,7 @@ const schema: VbenFormSchema[] = [
         $t('ui.formRules.startWith', [$t('system.menu.path'), '/']),
       )
       .refine(async (value: string) => {
-        return await isMenuPathExists(value, formData.value?.id);
+        return await isMenuPathExists(value, formData.value?.menuId);
       }, $t('system.menu.activePathMustExist'))
       .optional(),
   },
@@ -322,6 +322,21 @@ const schema: VbenFormSchema[] = [
     },
     fieldName: 'meta.badgeVariants',
     label: $t('system.menu.badgeVariants'),
+  },
+  {
+    component: 'InputNumber',
+    componentProps: {
+      allowClear: true,
+      class: 'w-full',
+    },
+    dependencies: {
+      show: (values) => {
+        return !['button', 'link'].includes(values.type);
+      },
+      triggerFields: ['type'],
+    },
+    fieldName: 'meta.order',
+    label: $t('system.menu.order'),
   },
   {
     component: 'Divider',

@@ -1,11 +1,10 @@
 import { prismaClient } from '~/utils/db';
 
 export default eventHandler(async (event) => {
-  // const userinfo = await verifyAccessToken(event);
-  // if (!userinfo) {
-  //   console.log('userinfo', userinfo);
-  //   return unAuthorizedResponse(event);
-  // }
+  const userinfo = await verifyAccessToken(event);
+  if (!userinfo) {
+    return unAuthorizedResponse(event);
+  }
   const query = getQuery(event);
 
   const type = query.type?.toString() || 'days'; // 默认为按天统计
@@ -29,13 +28,6 @@ export default eventHandler(async (event) => {
       gte: startDate,
       lte: endDate,
     };
-
-    console.log(
-      `查询当前月份(${currentYear}年${currentMonth}月)的数据，日期范围:`,
-      startDate,
-      '至',
-      endDate,
-    );
 
     // 查询当月所有财务数据
     const items = await prismaClient.finance.findMany({
@@ -82,13 +74,6 @@ export default eventHandler(async (event) => {
       gte: startDate,
       lte: endDate,
     };
-
-    console.log(
-      `查询当年(${currentYear}年)的数据，日期范围:`,
-      startDate,
-      '至',
-      endDate,
-    );
 
     // 查询当年所有财务数据
     const items = await prismaClient.finance.findMany({
