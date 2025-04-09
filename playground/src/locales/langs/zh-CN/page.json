@@ -1,6 +1,8 @@
 {
   "access": {
-    "title": "出入管理"
+    "title": "出入管理",
+    "car": "车辆管理",
+    "visitor": "访客管理"
   },
   "agent": {
     "create": "新增中介人",
