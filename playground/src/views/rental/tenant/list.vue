@@ -10,7 +10,7 @@ import { Plus } from '@vben/icons';
 import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { deleteTenant, getTenantList } from '#/api/tenant';
+import { deleteTenant, getTenantList } from '#/api/rental';
 import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';

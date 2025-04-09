@@ -1,0 +1,20 @@
+import { prismaClient } from '~/utils/db';
+import { useResponseError, useResponseSuccess } from '~/utils/response';
+
+export default eventHandler(async (event) => {
+  const userinfo = await verifyAccessToken(event);
+  if (!userinfo) {
+    return unAuthorizedResponse(event);
+  }
+  const id = Number.parseInt(event.context.params.id);
+  if (!id) {
+    return useResponseError('rentalTenantId错误');
+  }
+
+  const tenant = await prismaClient.rentalManage.findUnique({
+    where: {
+      rentalManageId: id,
+    },
+  });
+  return useResponseSuccess(tenant);
+});

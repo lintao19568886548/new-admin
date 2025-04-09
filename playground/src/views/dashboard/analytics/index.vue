@@ -2,6 +2,9 @@
 import type { AnalysisOverviewItem } from '@vben/common-ui';
 import type { TabOption } from '@vben/types';
 
+import { computed, onMounted, ref } from 'vue';
+
+// UI 组件
 import {
   AnalysisChartCard,
   AnalysisChartsTabs,
@@ -14,51 +17,110 @@ import {
   SvgDownloadIcon,
 } from '@vben/icons';
 
-import AnalyticsTrends from './analytics-trends.vue';
-import AnalyticsVisitsData from './analytics-visits-data.vue';
-import AnalyticsVisitsSales from './analytics-visits-sales.vue';
-import AnalyticsVisitsSource from './analytics-visits-source.vue';
-import AnalyticsVisits from './analytics-visits.vue';
+import { getAnalyticsData } from '#/api/analytics';
 
-const overviewItems: AnalysisOverviewItem[] = [
+// 业务组件
+import AnalyticsExpenseData from './analytics-expense-data.vue';
+import AnalyticsExpenseSales from './analytics-expense-sales.vue';
+import AnalyticsExpenseSource from './analytics-expense-source.vue';
+import AnalyticsIncomeData from './analytics-income-data.vue';
+import AnalyticsIncomeSales from './analytics-income-sales.vue';
+import AnalyticsIncomeSource from './analytics-income-source.vue';
+import AnalyticsMonthly from './analytics-monthly.vue'; // 重命名组件
+import AnalyticsTrends from './analytics-trends.vue';
+
+// 数据初始化
+const analyticsData = ref({
+  monthData: {
+    expenseData: [],
+    incomeData: [],
+  },
+  yearData: {
+    expenseDatamonths: [],
+    incomeDatamonths: [],
+  },
+});
+
+// 获取数据
+onMounted(async () => {
+  try {
+    const yearResult = await getAnalyticsData({ type: 'months' });
+    analyticsData.value.yearData = yearResult;
+
+    const monthResult = await getAnalyticsData({ type: 'days' });
+    analyticsData.value.monthData = monthResult;
+  } catch (error) {
+    console.error('获取数据失败:', error);
+  }
+});
+
+// 计算环比增长率
+const calculateGrowth = (data: number[] = []) => {
+  if (data.length === 0) return 0;
+  const currentMonth = data[data.length - 1] || 0;
+  const lastMonth = data[data.length - 2] || 0;
+  return lastMonth
+    ? Math.round(((currentMonth - lastMonth) / lastMonth) * 100)
+    : 0;
+};
+
+const overviewItems = computed<AnalysisOverviewItem[]>(() => [
   {
     icon: SvgCardIcon,
-    title: '用户量',
-    totalTitle: '总用户量',
-    totalValue: 120_000,
-    value: 2000,
+    title: '收入总额',
+    totalTitle: '年度收入',
+    totalValue: analyticsData.value.yearData.incomeDatamonths.reduce(
+      (sum, curr) => sum + Number(curr),
+      0,
+    ),
+    value: analyticsData.value.monthData.incomeData.reduce(
+      (sum, curr) => sum + Number(curr),
+      0,
+    ),
   },
   {
     icon: SvgCakeIcon,
-    title: '访问量',
-    totalTitle: '总访问量',
-    totalValue: 500_000,
-    value: 20_000,
+    title: '支出总额',
+    totalTitle: '年度支出',
+    totalValue: analyticsData.value.yearData.expenseDatamonths.reduce(
+      (sum, curr) => sum + Number(curr),
+      0,
+    ),
+    value: analyticsData.value.monthData.expenseData.reduce(
+      (sum, curr) => sum + Number(curr),
+      0,
+    ),
   },
   {
     icon: SvgDownloadIcon,
-    title: '下载量',
-    totalTitle: '总下载量',
-    totalValue: 120_000,
-    value: 8000,
+    title: '本月收入',
+    totalTitle: '环比增长',
+    totalValue:
+      analyticsData.value.monthData.incomeData[
+        analyticsData.value.monthData.incomeData.length - 1
+      ] || 0,
+    value: calculateGrowth(analyticsData.value.monthData.incomeData),
   },
   {
     icon: SvgBellIcon,
-    title: '使用量',
-    totalTitle: '总使用量',
-    totalValue: 50_000,
-    value: 5000,
+    title: '本月支出',
+    totalTitle: '环比增长',
+    totalValue:
+      analyticsData.value.monthData.expenseData[
+        analyticsData.value.monthData.expenseData.length - 1
+      ] || 0,
+    value: calculateGrowth(analyticsData.value.monthData.expenseData),
   },
-];
+]);
 
 const chartTabs: TabOption[] = [
   {
-    label: '流量趋势',
+    label: '日收支情况',
     value: 'trends',
   },
   {
-    label: '月访问量',
-    value: 'visits',
+    label: '月收支情况', // 更新标签文案
+    value: 'monthly', // 更新值
   },
 ];
 </script>
@@ -70,20 +132,43 @@ const chartTabs: TabOption[] = [
       <template #trends>
         <AnalyticsTrends />
       </template>
-      <template #visits>
-        <AnalyticsVisits />
+      <template #monthly>
+        <!-- 更新插槽名 -->
+        <AnalyticsMonthly />
       </template>
     </AnalysisChartsTabs>
 
-    <div class="mt-5 w-full md:flex">
-      <AnalysisChartCard class="mt-5 md:mr-4 md:mt-0 md:w-1/3" title="访问数量">
-        <AnalyticsVisitsData />
+    <div class="mt-5 w-full md:flex md:flex-wrap">
+      <AnalysisChartCard
+        class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
+        title="支出趋势"
+      >
+        <AnalyticsExpenseData />
       </AnalysisChartCard>
-      <AnalysisChartCard class="mt-5 md:mr-4 md:mt-0 md:w-1/3" title="访问来源">
-        <AnalyticsVisitsSource />
+      <AnalysisChartCard class="mt-5 md:mr-4 md:w-[32%]" title="支出环比">
+        <AnalyticsExpenseSource />
       </AnalysisChartCard>
-      <AnalysisChartCard class="mt-5 md:mt-0 md:w-1/3" title="访问来源">
-        <AnalyticsVisitsSales />
+      <AnalysisChartCard class="mt-5 md:w-[32%]" title="支出占比">
+        <AnalyticsExpenseSales />
+      </AnalysisChartCard>
+
+      <AnalysisChartCard
+        class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
+        title="收入趋势"
+      >
+        <AnalyticsIncomeData />
+      </AnalysisChartCard>
+      <AnalysisChartCard
+        class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
+        title="收入环比"
+      >
+        <AnalyticsIncomeSource />
+      </AnalysisChartCard>
+      <AnalysisChartCard
+        class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
+        title="收入占比"
+      >
+        <AnalyticsIncomeSales />
       </AnalysisChartCard>
     </div>
   </div>

@@ -6,7 +6,7 @@ const routes: RouteRecordRaw[] = [
   {
     component: () => import('#/views/tools/webtools.vue'),
     meta: {
-      icon: 'lucide:copyright',
+      icon: 'lucide:bot',
       title: $t('page.tools.title'),
     },
     name: 'Tools',

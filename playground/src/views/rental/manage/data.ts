@@ -3,6 +3,8 @@ import type { RentalManagementItem } from './types';
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
+import dayjs from 'dayjs'; // 添加 dayjs 导入
+
 import { z } from '#/adapter/form';
 import { $t } from '#/locales';
 
@@ -113,6 +115,16 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: $t('system.rental.title'),
     },
     {
+      component: 'Input',
+      fieldName: 'price',
+      label: $t('system.rental.price'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'area',
+      label: $t('system.rental.area'),
+    },
+    {
       component: 'Select',
       componentProps: {
         allowClear: true,
@@ -131,9 +143,9 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: $t('system.rental.address'),
     },
     {
-      component: 'RangePicker',
-      fieldName: 'createTime',
-      label: $t('system.rental.createTime'),
+      component: 'Input',
+      fieldName: 'contact',
+      label: $t('system.rental.contact'),
     },
   ];
 }
@@ -181,6 +193,10 @@ export function useColumns<T = RentalManagementItem>(
     },
     {
       field: 'createTime',
+      formatter: ({ cellValue }) => {
+        if (!cellValue) return '';
+        return dayjs(cellValue).format('YYYY-MM-DD');
+      },
       title: $t('system.rental.createTime'),
       width: 120,
     },

@@ -23,7 +23,9 @@
     "operationSuccess": "操作成功",
     "operationFailed": "操作失败",
     "createSuccess": "创建成功",
-    "updateSuccess": "更新成功"
+    "updateSuccess": "更新成功",
+    "createFailed": "创建失败",
+    "updateFailed": "更新失败"
   },
   "placeholder": {
     "input": "请输入",

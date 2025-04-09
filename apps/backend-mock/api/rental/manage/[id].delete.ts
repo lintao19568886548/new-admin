@@ -6,15 +6,15 @@ export default eventHandler(async (event) => {
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
-  const rentalTenantId = Number.parseInt(event.context.params.id);
-  if (!rentalTenantId) {
-    return useResponseError('tenantId错误3');
+  const id = Number.parseInt(event.context.params.id);
+  if (!id) {
+    return useResponseError('tenantId错误1');
   }
 
   try {
-    await prismaClient.rentalTenant.delete({
+    await prismaClient.rentalManage.delete({
       where: {
-        rentalTenantId,
+        rentalManageId: id,
       },
     });
     return useResponseSuccess(null);

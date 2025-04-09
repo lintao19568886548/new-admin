@@ -6,20 +6,20 @@ export default eventHandler(async (event) => {
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
-  const rentalTenantId = Number.parseInt(event.context.params.id);
-  if (!rentalTenantId) {
-    return useResponseError('tenantId错误3');
+  const id = Number.parseInt(event.context.params.id);
+  if (!id) {
+    return useResponseError('visitorId错误');
   }
 
   try {
-    await prismaClient.rentalTenant.delete({
+    await prismaClient.visitor.delete({
       where: {
-        rentalTenantId,
+        visitorId: id,
       },
     });
     return useResponseSuccess(null);
   } catch (error) {
-    console.error('删除租户失败:', error);
-    return useResponseError('删除租户失败', 500);
+    console.error('删除访客信息失败:', error);
+    return useResponseError('删除访客信息失败', 500);
   }
 });
