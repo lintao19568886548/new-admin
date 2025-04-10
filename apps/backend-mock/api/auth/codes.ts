@@ -14,10 +14,6 @@ export default eventHandler(async (event) => {
     LIMIT 1
   `.then((result) => result.rows?.[0]?.code || '[]');
 
-  // 添加日志查看数据类型和内容
-  console.log('codeResult type:', typeof codeResult);
-  console.log('codeResult value:', codeResult);
-
   // 将字符串形式的权限码转换为数组
   let codes = [];
   if (typeof codeResult === 'string') {
@@ -25,7 +21,6 @@ export default eventHandler(async (event) => {
       codes = JSON.parse(codeResult);
     } catch (error) {
       console.error('JSON解析错误:', error);
-      console.log('尝试解析的字符串:', codeResult);
 
       // 尝试处理可能的特殊格式
       if (codeResult.startsWith('[') && codeResult.includes(',')) {
