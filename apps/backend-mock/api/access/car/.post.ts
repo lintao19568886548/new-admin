@@ -17,7 +17,7 @@ export default eventHandler(async (event) => {
 
     return useResponseSuccess(car);
   } catch (error) {
-    console.error('创建访客信息失败:', error);
-    return useResponseError('创建访客信息失败', 500);
+    console.error('创建车辆信息失败:', error);
+    return useResponseError('创建车辆信息失败', 500);
   }
 });

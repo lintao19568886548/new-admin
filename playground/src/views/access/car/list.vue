@@ -32,9 +32,18 @@ const [FormModal, formModalApi] = useVbenModal({
  * @param row
  */
 function onEdit(row: CarItem) {
-  // 创建数据副本，避免修改原始数据
-  const editData = { ...row };
-  formModalApi.setData(editData).open();
+  // 直接传递原始数据，依赖表单组件内部处理
+  formModalApi.setData(row).open();
+}
+
+/**
+ * 查看车辆记录详情
+ * @param row
+ */
+function onView(row: CarItem) {
+  // 创建一个新对象，只添加readonly属性
+  const viewData = { ...row, readonly: true };
+  formModalApi.setData(viewData).open();
 }
 
 /**
@@ -70,16 +79,6 @@ function onDelete(row: CarItem) {
         key: 'action_process_msg',
       });
     });
-}
-
-/**
- * 查看车辆记录详情
- * @param row
- */
-function onView(row: CarItem) {
-  // 创建数据副本，避免修改原始数据
-  const viewData = { ...row, readonly: true };
-  formModalApi.setData(viewData).open();
 }
 
 /**

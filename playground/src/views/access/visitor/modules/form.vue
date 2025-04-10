@@ -41,21 +41,22 @@ const [Modal, modalApi] = useVbenModal({
       modalApi.lock();
       const values = await formApi.getValues();
 
-      // 处理状态值，转换为数字
-      if (values.status === '进入') {
-        values.status = 0;
-      } else if (values.status === '离开') {
-        values.status = 1;
+      // 处理状态值，将字符串转换为数字
+      const submitData = { ...values };
+      if (submitData.status === '进入') {
+        submitData.status = 0;
+      } else if (submitData.status === '离开') {
+        submitData.status = 1;
       }
 
       try {
         if (id.value) {
-          await updateVisitor(id.value, values);
+          await updateVisitor(id.value, submitData);
           message.success({
             content: $t('ui.actionMessage.updateSuccess', [values.visitorName]),
           });
         } else {
-          await createVisitor(values);
+          await createVisitor(submitData);
           message.success({
             content: $t('ui.actionMessage.createSuccess', [values.visitorName]),
           });
@@ -80,23 +81,26 @@ const [Modal, modalApi] = useVbenModal({
       console.warn('打开表单，数据:', data);
       formApi.resetForm();
       if (data && Object.keys(data).length > 0) {
-        // 处理状态值，转换为字符串
-        if (data.status === 0) {
-          data.status = '进入';
-        } else if (data.status === 1) {
-          data.status = '离开';
-        }
+        // 创建数据副本，避免修改原始数据
+        const formattedData = { ...data };
 
         // 格式化日期
-        if (data.registerTime) {
-          data.registerTime = dayjs(data.registerTime).format(
+        if (formattedData.registerTime) {
+          formattedData.registerTime = dayjs(formattedData.registerTime).format(
             'YYYY-MM-DD HH:mm:ss',
           );
         }
 
-        formData.value = data;
+        // 处理状态值，将数字转换为字符串
+        if (formattedData.status === 0) {
+          formattedData.status = '进入';
+        } else if (formattedData.status === 1) {
+          formattedData.status = '离开';
+        }
+
+        formData.value = formattedData;
         id.value = data.visitorId;
-        formApi.setValues(data);
+        formApi.setValues(formattedData);
       } else {
         id.value = undefined;
         formData.value = undefined;
@@ -106,9 +110,6 @@ const [Modal, modalApi] = useVbenModal({
           status: '进入',
         });
       }
-    } else {
-      // 当表单关闭时，无论是否提交，都刷新列表
-      emit('success');
     }
   },
 });

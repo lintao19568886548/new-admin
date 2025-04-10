@@ -169,6 +169,13 @@ const [Grid, gridApi] = useVbenVxeGrid({
                   } else {
                     params[key] = formValues[key];
                   }
+                }
+                // 处理日期范围，将数组转换为逗号分隔的字符串
+                else if (
+                  key === 'registerTime' &&
+                  Array.isArray(formValues[key])
+                ) {
+                  params[key] = formValues[key].join(',');
                 } else {
                   params[key] = formValues[key];
                 }
@@ -250,6 +257,10 @@ function onSearch(params: any) {
           } else {
             searchParams[key] = formValues[key];
           }
+        }
+        // 处理日期范围，将数组转换为逗号分隔的字符串
+        else if (key === 'registerTime' && Array.isArray(formValues[key])) {
+          searchParams[key] = formValues[key].join(',');
         } else {
           searchParams[key] = formValues[key];
         }

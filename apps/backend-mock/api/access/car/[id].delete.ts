@@ -19,7 +19,7 @@ export default eventHandler(async (event) => {
     });
     return useResponseSuccess(null);
   } catch (error) {
-    console.error('删除访客信息失败:', error);
-    return useResponseError('删除访客信息失败', 500);
+    console.error('删除车辆信息失败:', error);
+    return useResponseError('删除车辆信息失败', 500);
   }
 });

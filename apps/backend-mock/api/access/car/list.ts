@@ -16,18 +16,15 @@ export default eventHandler(async (event) => {
     // 构建查询条件
     const where: any = {};
 
-    if (query.carName) {
-      where.carName = { contains: query.carName };
+    // 修改查询条件，匹配前端传递的参数
+    if (query.carNumber) {
+      where.carNumber = { contains: query.carNumber };
     }
-    if (query.phoneNumber) {
-      where.phoneNumber = { contains: query.phoneNumber };
-    }
-    if (query.carNum) {
-      where.carNum = { contains: query.carNum };
-    }
+
     if (query.status !== undefined && query.status !== '') {
       where.status = Number(query.status);
     }
+
     if (query.registerTime) {
       const [start, end] = (query.registerTime as string).split(',');
       where.registerTime = {
@@ -56,7 +53,7 @@ export default eventHandler(async (event) => {
       pageSize,
     });
   } catch (error) {
-    console.error('获取访客列表失败:', error);
-    return useResponseError('获取访客列表失败', 500);
+    console.error('获取车辆列表失败:', error);
+    return useResponseError('获取车辆列表失败', 500);
   }
 });
