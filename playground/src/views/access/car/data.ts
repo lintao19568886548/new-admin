@@ -65,7 +65,7 @@ export function useFormSchema(): VbenFormSchema[] {
         optionType: 'button',
       },
       defaultValue: 1,
-      fieldName: 'accessStatus',
+      fieldName: 'status', // 修改字段名从 accessStatus 为 status
       label: '出入状态',
     },
     {
@@ -107,7 +107,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
           { label: '离开', value: 0 },
         ],
       },
-      fieldName: 'accessStatus',
+      fieldName: 'status', // 修改字段名从 accessStatus 为 status
       label: '出入状态',
     },
     {
@@ -144,7 +144,7 @@ export function useColumns<T = CarItem>(
         name: 'CellTag',
         options: getTagTypeOptions(),
       },
-      field: 'accessStatus',
+      field: 'status', // 修改字段名从 accessStatus 为 status
       formatter: ({ cellValue }) => {
         // 添加格式化函数，将数字转换为文字
         if (cellValue === 1) return '进入';

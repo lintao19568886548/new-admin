@@ -15,6 +15,12 @@ export async function getCarList(params?: any) {
     }
   });
 
+  // 特殊处理日期范围参数
+  if (cleanParams.registerTime && Array.isArray(cleanParams.registerTime)) {
+    // 将日期数组转换为逗号分隔的字符串
+    cleanParams.registerTime = cleanParams.registerTime.join(',');
+  }
+
   // 过滤掉 undefined 的值
   const filteredParams = Object.fromEntries(
     Object.entries(cleanParams).filter(([_, value]) => value !== undefined),
