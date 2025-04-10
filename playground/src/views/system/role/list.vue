@@ -29,7 +29,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
     collapsed: true,
     fieldMappingTime: [['createTime', ['startTime', 'endTime']]],
     schema: useGridFormSchema(),
-    submitOnChange: true,
   },
   gridOptions: {
     columns: useColumns(onActionClick, onStatusChange),
@@ -112,7 +111,7 @@ async function onStatusChange(
       `你要将${row.name}的状态切换为 【${status[newStatus.toString()]}】 吗？`,
       `切换状态`,
     );
-    await updateRole(row.id, { status: newStatus });
+    await updateRole(row.roleId, { status: newStatus });
     return true;
   } catch {
     return false;
@@ -152,7 +151,7 @@ function onCreate() {
 </script>
 <template>
   <Page auto-content-height>
-    <FormDrawer />
+    <FormDrawer @success="onRefresh" />
     <Grid :table-title="$t('system.role.list')">
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">

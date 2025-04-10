@@ -58,6 +58,9 @@ export default eventHandler(async (event) => {
     where,
     include: {
       roleMenus: {
+        where: {
+          isDeleted: false,
+        },
         include: {
           menu: true,
         },

@@ -1,5 +1,5 @@
 export default eventHandler(async (event) => {
-  const userinfo = verifyAccessToken(event);
+  const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }

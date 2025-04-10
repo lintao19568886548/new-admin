@@ -2,6 +2,8 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { SystemRoleApi } from '#/api';
 
+import { formatDateTime } from '@vben/utils';
+
 import { $t } from '#/locales';
 
 export function useFormSchema(): VbenFormSchema[] {
@@ -48,7 +50,6 @@ export function useGridFormSchema(): VbenFormSchema[] {
       fieldName: 'name',
       label: $t('system.role.roleName'),
     },
-    { component: 'Input', fieldName: 'id', label: $t('system.role.id') },
     {
       component: 'Select',
       componentProps: {
@@ -60,11 +61,6 @@ export function useGridFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'status',
       label: $t('system.role.status'),
-    },
-    {
-      component: 'Input',
-      fieldName: 'remark',
-      label: $t('system.role.remark'),
     },
     {
       component: 'RangePicker',
@@ -85,11 +81,6 @@ export function useColumns<T = SystemRoleApi.SystemRole>(
       width: 200,
     },
     {
-      field: 'id',
-      title: $t('system.role.id'),
-      width: 200,
-    },
-    {
       cellRender: {
         attrs: { beforeChange: onStatusChange },
         name: onStatusChange ? 'CellSwitch' : 'CellTag',
@@ -105,6 +96,9 @@ export function useColumns<T = SystemRoleApi.SystemRole>(
     },
     {
       field: 'createTime',
+      formatter: ({ cellValue }) => {
+        return formatDateTime(cellValue);
+      },
       title: $t('system.role.createTime'),
       width: 200,
     },
