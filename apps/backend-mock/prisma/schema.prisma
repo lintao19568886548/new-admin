@@ -305,8 +305,8 @@ model RentalManage {
   rentalManageId  Int        @id @default(autoincrement()) @map("rental_manage_id")
   title           String     @db.VarChar(100)
   address         String     @db.VarChar(200)
-  area            String     @db.VarChar(50) // 总面积
-  availableArea   String     @db.VarChar(50) @map("available_area") // 可用面积
+  area            Decimal    @db.Decimal(10, 2) // 总面积
+  availableArea   Decimal    @db.Decimal(10, 2) @map("available_area") // 可用面积
   price           Decimal    @db.Decimal(10, 2) // 价格
   contact         String     @db.VarChar(100) // 联系人
   remark          String?    @db.VarChar(100)
