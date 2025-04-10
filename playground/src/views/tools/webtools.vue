@@ -7,61 +7,51 @@ import { Col, Divider, Input, Row } from 'ant-design-vue';
 const categories = [
   {
     description: '智能文本生成和内容创作工具',
-    icon: 'icon-[fas--feather]',
     id: 'writing',
     name: 'AI写作工具',
   },
   {
     description: '图像生成、编辑和处理工具',
-    icon: 'icon-[fas--images]',
     id: 'image',
     name: 'AI图像工具',
   },
   {
     description: '视频创作和编辑工具',
-    icon: 'icon-[fas--video]',
     id: 'video',
     name: 'AI视频工具',
   },
   {
     description: '语音创作和生成工具',
-    icon: 'icon-[fas--voice]',
     id: 'voice',
     name: 'AI语音工具',
   },
   {
     description: '提升工作效率的智能办公助手',
-    icon: 'icon-[fas--briefcase]',
     id: 'office',
     name: 'AI办公工具',
   },
   {
     description: '创意设计和图形生成工具',
-    icon: 'icon-[fas--palette]',
     id: 'design',
     name: 'AI设计工具',
   },
   {
     description: '智能对话和聊天机器人',
-    icon: 'icon-[fab--facebook-messenger]',
     id: 'chat',
     name: 'AI对话聊天',
   },
   {
     description: '代码生成和编程辅助工具',
-    icon: 'icon-[fas--code]',
     id: 'code',
     name: 'AI编程工具',
   },
   {
     description: '智能搜索和信息检索工具',
-    icon: 'icon-[fas--search]',
     id: 'search',
     name: 'AI搜索引擎',
   },
   {
     description: '法律服务和咨询工具',
-    icon: 'icon-[fas--search]',
     id: 'law',
     name: 'AI法律助手',
   },
@@ -341,11 +331,7 @@ function changeCategory(category: string) {
             placeholder="搜索AI工具..."
             class="search-input"
             allow-clear
-          >
-            <template #prefix>
-              <span class="icon-[fas--search] search-icon"></span>
-            </template>
-          </Input>
+          />
         </div>
       </div>
     </div>
@@ -358,7 +344,6 @@ function changeCategory(category: string) {
           :class="{ active: activeCategory === 'all' }"
           @click="changeCategory('all')"
         >
-          <span class="icon-[fas--th-large] mr-2"></span>
           全部工具
         </div>
         <div
@@ -368,7 +353,6 @@ function changeCategory(category: string) {
           :class="{ active: activeCategory === category.id }"
           @click="changeCategory(category.id)"
         >
-          <span class="mr-2" :class="[category.icon]"></span>
           {{ category.name }}
         </div>
       </div>
@@ -402,7 +386,6 @@ function changeCategory(category: string) {
 
       <!-- 无搜索结果提示 -->
       <div v-if="searchResults().length === 0" class="no-results">
-        <span class="icon-[ant-design--search-outlined] no-results-icon"></span>
         <p>没有找到匹配的AI工具，请尝试其他关键词</p>
       </div>
     </div>
@@ -478,11 +461,6 @@ function changeCategory(category: string) {
   font-size: 16px;
   border-radius: 25px;
   box-shadow: 0 4px 12px rgb(0 0 0 / 8%);
-}
-
-.search-icon {
-  font-size: 18px;
-  color: #5961f9;
 }
 
 /* 分类导航样式 */
@@ -599,12 +577,6 @@ function changeCategory(category: string) {
   justify-content: center;
   padding: 60px 0;
   color: #999;
-}
-
-.no-results-icon {
-  margin-bottom: 20px;
-  font-size: 48px;
-  color: #ddd;
 }
 
 /* 底部信息样式 */

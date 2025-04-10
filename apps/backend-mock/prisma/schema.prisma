@@ -405,4 +405,15 @@ model UserPark {
   @@index([parkId])
   @@map("user_park")
 }
+// 用户操作记录模型 (user/operate)
+model UserOperate {
+  operateId        Int        @id @default(autoincrement()) @map("operate_id")
+  userId           Int        @map("user_id")
+  operation        String     @db.VarChar(100)
+  operationTime    DateTime   @map("operation_time")
+  remark           String?    @db.VarChar(100)
+  createTime       DateTime?  @default(now()) @map("create_time")
+  updateTime       DateTime?  @updatedAt @map("update_time")
+  @@map("user_operate")   
+}
 
