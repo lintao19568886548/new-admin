@@ -91,13 +91,10 @@ const [Modal, modalApi] = useVbenModal({
         formData.value = undefined;
         // 设置默认值
         formApi.setValues({
-          accessStatus: 1,
           registerTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+          status: 1, // 修改字段名从 accessStatus 为 status
         });
       }
-    } else {
-      // 当表单关闭时，无论是否提交，都刷新列表
-      emit('success');
     }
   },
 });
