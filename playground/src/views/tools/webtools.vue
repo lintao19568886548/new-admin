@@ -331,11 +331,7 @@ function changeCategory(category: string) {
             placeholder="搜索AI工具..."
             class="search-input"
             allow-clear
-          >
-            <!-- <template #prefix> -->
-            <!-- <span class="icon-[fas--search] search-icon"></span> -->
-            <!-- </template> -->
-          </Input>
+          />
         </div>
       </div>
     </div>
@@ -348,7 +344,6 @@ function changeCategory(category: string) {
           :class="{ active: activeCategory === 'all' }"
           @click="changeCategory('all')"
         >
-          <!-- <span class="icon-[fas--th-large] mr-2"></span> -->
           全部工具
         </div>
         <div
@@ -358,7 +353,6 @@ function changeCategory(category: string) {
           :class="{ active: activeCategory === category.id }"
           @click="changeCategory(category.id)"
         >
-          <!-- <span class="mr-2" :class="[category.icon]"></span> -->
           {{ category.name }}
         </div>
       </div>
@@ -392,7 +386,6 @@ function changeCategory(category: string) {
 
       <!-- 无搜索结果提示 -->
       <div v-if="searchResults().length === 0" class="no-results">
-        <span class="icon-[ant-design--search-outlined] no-results-icon"></span>
         <p>没有找到匹配的AI工具，请尝试其他关键词</p>
       </div>
     </div>
@@ -468,11 +461,6 @@ function changeCategory(category: string) {
   font-size: 16px;
   border-radius: 25px;
   box-shadow: 0 4px 12px rgb(0 0 0 / 8%);
-}
-
-.search-icon {
-  font-size: 18px;
-  color: #5961f9;
 }
 
 /* 分类导航样式 */
@@ -589,12 +577,6 @@ function changeCategory(category: string) {
   justify-content: center;
   padding: 60px 0;
   color: #999;
-}
-
-.no-results-icon {
-  margin-bottom: 20px;
-  font-size: 48px;
-  color: #ddd;
 }
 
 /* 底部信息样式 */
