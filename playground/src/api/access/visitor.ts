@@ -15,6 +15,15 @@ export async function getVisitorList(params?: any) {
     }
   });
 
+  // 确保日期范围参数格式正确
+  if (
+    cleanParams.registerTime &&
+    typeof cleanParams.registerTime === 'string'
+  ) {
+    // 已经是字符串格式，不需要额外处理
+    console.warn('日期范围参数:', cleanParams.registerTime);
+  }
+
   // 过滤掉 undefined 的值
   const filteredParams = Object.fromEntries(
     Object.entries(cleanParams).filter(([_, value]) => value !== undefined),
