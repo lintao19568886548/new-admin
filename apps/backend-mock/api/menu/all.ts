@@ -1,24 +1,72 @@
 import { prismaClient } from '~/utils/db';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
 import { processMenuData } from '~/utils/tools';
 
 export default eventHandler(async (event) => {
-  const userinfo = verifyAccessToken(event);
+  const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
 
+  const roleNames = userinfo.roles;
+
+  // 先根据角色名称查询角色ID
+  const roleEntities = await prismaClient.role.findMany({
+    where: {
+      name: {
+        in: roleNames,
+      },
+    },
+    select: {
+      roleId: true,
+    },
+  });
+
+  const roleIds = roleEntities.map((role) => role.roleId);
+
+  // 根据用户角色获取菜单ID列表
+  const roleMenus = await prismaClient.roleMenu.findMany({
+    where: {
+      roleId: {
+        in: roleIds,
+      },
+      isDeleted: false, // 排除软删除的记录
+    },
+    select: {
+      menuId: true,
+    },
+  });
+
+  // 提取菜单ID并去重
+  const menuIds = [...new Set(roleMenus.map((rm) => rm.menuId))];
+
+  // 查询用户有权限的顶级菜单
   const menus = await prismaClient.menu.findMany({
     where: {
-      pid: null, // 只查询顶级菜单（pid 为 null 的菜单）
+      pid: null, // 只查询顶级菜单
+      menuId: {
+        in: menuIds, // 只查询用户有权限的菜单
+      },
     },
     include: {
-      meta: true, // 包含菜单元数据
+      meta: true,
       children: {
+        where: {
+          menuId: {
+            in: menuIds, // 只包含用户有权限的子菜单
+          },
+        },
         include: {
-          meta: true, // 包含子菜单的元数据
+          meta: true,
           children: {
+            where: {
+              menuId: {
+                in: menuIds, // 只包含用户有权限的孙菜单
+              },
+            },
             include: {
-              meta: true, // 如果需要更深层次的子菜单，可以继续嵌套
+              meta: true,
             },
           },
         },

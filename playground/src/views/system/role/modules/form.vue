@@ -53,7 +53,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
       formApi.resetForm();
       if (data) {
         formData.value = data;
-        id.value = data.id;
+        id.value = data.roleId;
         formApi.setValues(data);
       } else {
         id.value = undefined;
@@ -77,7 +77,7 @@ async function loadPermissions() {
 }
 
 const getDrawerTitle = computed(() => {
-  return formData.value?.id
+  return formData.value?.roleId
     ? $t('common.edit', $t('system.role.name'))
     : $t('common.create', $t('system.role.name'));
 });

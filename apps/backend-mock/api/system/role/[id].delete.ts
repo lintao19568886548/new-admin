@@ -6,17 +6,20 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
-  const menuId = Number.parseInt(event.context.params.id);
-  if (!menuId) {
-    return useResponseError('menuId错误');
+  const id = Number.parseInt(event.context.params.id);
+  if (!id) {
+    return useResponseError('id不能为空');
   }
 
   try {
     // 使用事务处理删除操作
     const result = await prismaClient.$transaction(async (prisma) => {
-      await prisma.menu.delete({
+      await prisma.role.delete({
         where: {
-          menuId,
+          roleId: id,
+        },
+        include: {
+          roleMenus: true,
         },
       });
     });

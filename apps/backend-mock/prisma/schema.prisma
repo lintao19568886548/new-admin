@@ -123,7 +123,9 @@ model RoleMenu {
   menu            Menu         @relation("MenuToRoleMenu", fields: [menuId], references: [menuId])
   createTime      DateTime?    @default(now()) @map("create_time")
   updateTime      DateTime?    @updatedAt @map("update_time")
-
+  
+  isDeleted   Boolean  @default(false)
+  
   @@index([roleId])
   @@index([menuId])
   @@map("role_menu")
