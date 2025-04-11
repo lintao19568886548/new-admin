@@ -17,7 +17,7 @@ import { useFormSchema } from '../data';
 const emit = defineEmits(['success']);
 const formData = ref<RentalManagementItem>();
 const getTitle = computed(() => {
-  return formData.value?.tenantId
+  return formData.value?.rentalTenantId
     ? $t('ui.actionTitle.edit', [$t('system.rental.tenant.item')])
     : $t('ui.actionTitle.create', [$t('system.rental.tenant.item')]);
 });
@@ -88,7 +88,7 @@ const [Modal, modalApi] = useVbenModal({
           data.increaseDate = dayjs(data.increaseDate).format('YYYY-MM-DD');
         }
         formData.value = data;
-        id.value = data.tenantId;
+        id.value = data.rentalTenantId;
         formApi.setValues(data);
       } else {
         id.value = undefined;

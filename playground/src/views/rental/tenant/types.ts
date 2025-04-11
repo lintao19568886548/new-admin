@@ -7,8 +7,8 @@ export interface RentalManagementItem {
   increaseRate: number;
   phoneNumber: string;
   remark?: string;
+  rentalTenantId: number;
   status: string;
-  tenantId: number;
   tenantName: string;
   updateTime: string;
 }

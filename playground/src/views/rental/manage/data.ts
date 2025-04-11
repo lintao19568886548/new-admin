@@ -71,19 +71,10 @@ export function useFormSchema(): VbenFormSchema[] {
       rules: 'required',
     },
     {
-      component: 'RadioGroup',
-      componentProps: {
-        buttonStyle: 'solid',
-        options: [
-          { label: $t('system.rental.status.vacant'), value: '空闲' },
-          { label: $t('system.rental.status.rented'), value: '已租' },
-          { label: $t('system.rental.status.maintenance'), value: '维护' },
-        ],
-        optionType: 'button',
-      },
-      defaultValue: '空闲',
+      component: 'Input',
       fieldName: 'availableArea',
       label: $t('system.rental.status.label'),
+      rules: 'required',
     },
     {
       component: 'Textarea',
@@ -128,16 +119,9 @@ export function useGridFormSchema(): VbenFormSchema[] {
       fieldName: 'area',
       label: $t('system.rental.area'),
     },
+    // 修改为输入框
     {
-      component: 'Select',
-      componentProps: {
-        allowClear: true,
-        options: [
-          { label: $t('system.rental.status.vacant'), value: '空闲' },
-          { label: $t('system.rental.status.rented'), value: '已租' },
-          { label: $t('system.rental.status.maintenance'), value: '维护' },
-        ],
-      },
+      component: 'Input',
       fieldName: 'availableArea',
       label: $t('system.rental.status.label'),
     },
@@ -180,6 +164,11 @@ export function useColumns<T = RentalManagementItem>(
     },
     {
       field: 'area',
+      formatter: ({ cellValue }) => {
+        if (cellValue === undefined || cellValue === null) return '';
+        if (Number.isNaN(Number(cellValue))) return cellValue; // 处理非纯数值类型
+        return `${cellValue}m²`;
+      },
       title: $t('system.rental.area'),
       width: 120,
     },

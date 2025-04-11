@@ -89,10 +89,8 @@ const [Modal, modalApi] = useVbenModal({
       } else {
         id.value = undefined;
         formData.value = undefined;
-        // 设置默认值
-        formApi.setValues({
-          availableArea: '空闲',
-        } as Partial<RentalManagementItem>);
+        // 不设置默认值
+        formApi.setValues({} as Partial<RentalManagementItem>);
       }
     }
   },
