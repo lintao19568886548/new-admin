@@ -98,23 +98,33 @@ setupVbenVxeTable({
     vxeUI.renderer.add('CellAreaTag', {
       renderTableDefault({ props }, { column, row }) {
         const value = get(row, column.field);
-        // 提取数值部分
-        const availableArea = Number.parseFloat(
-          String(value).replaceAll(/[^0-9.]/g, ''),
-        );
-        const totalArea = Number.parseFloat(
-          String(row.area).replaceAll(/[^0-9.]/g, ''),
-        );
+        const totalArea = Number.parseFloat(String(row.area));
 
+        // 默认为红色（异常状态）
         let color = 'red';
-        if (totalArea) {
+
+        // 检查是否为纯数值
+        const availableArea = Number.parseFloat(String(value));
+        if (
+          !Number.isNaN(availableArea) &&
+          !Number.isNaN(totalArea) &&
+          totalArea > 0
+        ) {
+          // 计算比例
           const ratio = availableArea / totalArea;
-          if (ratio > 2 / 3) {
-            color = 'green';
-          } else if (ratio > 1 / 3) {
+
+          // 根据比例设置颜色
+          if (ratio > 2 / 3 && ratio <= 1) {
             color = 'orange';
+          } else if (ratio > 1 / 3 && ratio <= 2 / 3) {
+            color = 'green';
+          } else if (ratio > 0 && ratio <= 1 / 3) {
+            color = 'blue';
           }
         }
+
+        // 显示原始数值加上单位
+        const displayValue = `${value}m²`;
 
         return h(
           Tag,
@@ -122,7 +132,7 @@ setupVbenVxeTable({
             ...props,
             color,
           },
-          { default: () => value },
+          { default: () => displayValue },
         );
       },
     });
