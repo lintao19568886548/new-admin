@@ -20,15 +20,75 @@ export default eventHandler(async (event) => {
     if (query.title) {
       where.title = { contains: query.title };
     }
+
+    // 处理价格查询 - 支持等于和区间查询
     if (query.price) {
-      where.price = { contains: query.price };
+      const priceQuery = String(query.price).split(',');
+      if (priceQuery[0] === 'equal' && priceQuery[1]) {
+        const value = Number.parseFloat(priceQuery[1]);
+        if (!Number.isNaN(value)) {
+          where.price = { equals: value };
+        }
+      } else if (
+        priceQuery[0] === 'between' &&
+        priceQuery[1] &&
+        priceQuery[2]
+      ) {
+        const min = Number.parseFloat(priceQuery[1]);
+        const max = Number.parseFloat(priceQuery[2]);
+        if (!Number.isNaN(min) && !Number.isNaN(max)) {
+          where.price = {
+            gte: min, // 大于等于最小值
+            lte: max, // 小于等于最大值
+          };
+        }
+      }
     }
+
+    // 处理总面积查询 - 支持等于和区间查询
     if (query.area) {
-      where.area = { contains: query.area };
+      const areaQuery = String(query.area).split(',');
+      if (areaQuery[0] === 'equal' && areaQuery[1]) {
+        const value = Number.parseFloat(areaQuery[1]);
+        if (!Number.isNaN(value)) {
+          where.area = { equals: value };
+        }
+      } else if (areaQuery[0] === 'between' && areaQuery[1] && areaQuery[2]) {
+        const min = Number.parseFloat(areaQuery[1]);
+        const max = Number.parseFloat(areaQuery[2]);
+        if (!Number.isNaN(min) && !Number.isNaN(max)) {
+          where.area = {
+            gte: min, // 大于等于最小值
+            lte: max, // 小于等于最大值
+          };
+        }
+      }
     }
+
+    // 处理空闲面积查询 - 支持等于和区间查询
     if (query.availableArea) {
-      where.availableArea = query.availableArea;
+      const availableAreaQuery = String(query.availableArea).split(',');
+      if (availableAreaQuery[0] === 'equal' && availableAreaQuery[1]) {
+        const value = Number.parseFloat(availableAreaQuery[1]);
+        if (!Number.isNaN(value)) {
+          where.availableArea = { equals: value };
+        }
+      } else if (
+        availableAreaQuery[0] === 'between' &&
+        availableAreaQuery[1] &&
+        availableAreaQuery[2]
+      ) {
+        const min = Number.parseFloat(availableAreaQuery[1]);
+        const max = Number.parseFloat(availableAreaQuery[2]);
+        if (!Number.isNaN(min) && !Number.isNaN(max)) {
+          where.availableArea = {
+            gte: min, // 大于等于最小值
+            lte: max, // 小于等于最大值
+          };
+        }
+      }
     }
+
     if (query.address) {
       where.address = { contains: query.address };
     }

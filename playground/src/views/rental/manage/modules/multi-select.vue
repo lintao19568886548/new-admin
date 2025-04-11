@@ -4,7 +4,7 @@ import { Input, Select } from 'ant-design-vue';
 const emit = defineEmits(['blur', 'change']);
 
 const modelValue = defineModel<[string, number, number]>({
-  default: () => [undefined, undefined, undefined],
+  default: () => ['equal', undefined, undefined],
 });
 
 function onChange() {
