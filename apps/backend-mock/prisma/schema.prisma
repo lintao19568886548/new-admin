@@ -22,6 +22,7 @@ model User {
   homePath        String?     @db.VarChar(100) @map("home_path")
   userCodes       UserCode[]  @relation("UserToUserCode")
   roles           UserRole[]  @relation("UserToUserRole")
+  parks           UserPark[]  // 添加这一行，建立与UserPark的关联
   createTime      DateTime?   @default(now()) @map("create_time")
   updateTime      DateTime?   @updatedAt @map("update_time")
 
@@ -331,6 +332,78 @@ model RentalTenant {
   updateTime        DateTime?     @updatedAt @map("update_time")
 
   @@map("rental_tenant")
+}
+
+// 园区表
+model Park {
+  parkId          Int           @id @default(autoincrement()) @map("park_id")
+  parkName        String        @db.VarChar(100) @map("park_name")
+  address         String        @db.VarChar(200)
+  area            Decimal?      @db.Decimal(10, 2) // 总面积(平方米)
+  description     String?       @db.Text
+  status          String        @db.VarChar(20) // 状态：运营中、建设中、规划中等
+  factories       Factory[]     @relation("ParkToFactory")
+  dormitories     Dormitory[]   @relation("ParkToDormitory")
+  userParks       UserPark[]    @relation("ParkToUserPark")
+  createTime      DateTime?     @default(now()) @map("create_time")
+  updateTime      DateTime?     @updatedAt @map("update_time")
+
+  @@map("park")
+}
+
+// 厂房表
+model Factory {
+  factoryId       Int           @id @default(autoincrement()) @map("factory_id")
+  factoryName     String        @db.VarChar(100) @map("factory_name")
+  parkId          Int           @map("park_id")
+  park            Park          @relation("ParkToFactory", fields: [parkId], references: [parkId])
+  buildingNumber  String        @db.VarChar(50) @map("building_number") // 楼号
+  floorCount      Int?          @map("floor_count") // 层数
+  area            Decimal?      @db.Decimal(10, 2) // 面积(平方米)
+  rentStatus      String        @db.VarChar(20) @map("rent_status") // 出租状态：已出租、空置、部分出租
+  rentPrice       Decimal?      @db.Decimal(10, 2) @map("rent_price") // 租金(元/平方米/月)
+  buildYear       Int?          @map("build_year") // 建造年份
+  description     String?       @db.Text
+  createTime      DateTime?     @default(now()) @map("create_time")
+  updateTime      DateTime?     @updatedAt @map("update_time")
+
+  @@index([parkId])
+  @@map("factory")
+}
+
+// 宿舍表
+model Dormitory {
+  dormitoryId     Int           @id @default(autoincrement()) @map("dormitory_id")
+  parkId          Int           @map("park_id")
+  park            Park          @relation("ParkToDormitory", fields: [parkId], references: [parkId])
+  roomNumber      String        @db.VarChar(50) @map("room_number") // 房间号
+  buildingNumber  String        @db.VarChar(50) @map("building_number") // 楼号
+  floorCount      Int?          @map("floor_count") // 层数
+  capacity        Int?          // 容纳人数
+  occupancy       Int?          // 当前入住人数
+  rentPrice       Decimal?      @db.Decimal(10, 2) @map("rent_price") // 租金(元/床位/月)
+  facilities      String?       @db.Text // 设施描述
+  description     String?       @db.Text
+  createTime      DateTime?     @default(now()) @map("create_time")
+  updateTime      DateTime?     @updatedAt @map("update_time")
+
+  @@index([parkId])
+  @@map("dormitory")
+}
+
+// 用户园区关联表(多对多关系)
+model UserPark {
+  id              Int           @id @default(autoincrement())
+  userId          Int           @map("user_id")
+  parkId          Int           @map("park_id")
+  user            User          @relation(fields: [userId], references: [id])
+  park            Park          @relation("ParkToUserPark", fields: [parkId], references: [parkId])
+  createTime      DateTime?     @default(now()) @map("create_time")
+  updateTime      DateTime?     @updatedAt @map("update_time")
+
+  @@index([userId])
+  @@index([parkId])
+  @@map("user_park")
 }
 // 用户操作记录模型 (user/operate)
 model UserOperate {
