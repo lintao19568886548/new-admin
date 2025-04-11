@@ -1,0 +1,13 @@
+model Finance {
+  financeId       Int       @id @default(autoincrement()) @map("finance_id")
+  billName        String    @map("bill_name") @db.VarChar(100)
+  billCategory    String    @map("bill_category") @db.VarChar(50)
+  amount          Decimal   @db.Decimal(10, 2)
+  transactionType String    @map("transaction_type") @db.VarChar(20)
+  transactionTime DateTime  @map("transaction_time")
+  remark          String?   @db.VarChar(100)
+  createTime      DateTime? @default(now()) @map("create_time")
+  updateTime      DateTime? @updatedAt @map("update_time")
+
+  @@map("finance")
+}

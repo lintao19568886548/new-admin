@@ -3,6 +3,7 @@ export interface UserInfo {
   password: string;
   realName: string;
   roles: string[];
+  parks: string[];
   username: string;
   homePath?: string;
 }
@@ -14,6 +15,7 @@ export const MOCK_USERS: UserInfo[] = [
     realName: 'Vben',
     roles: ['super'],
     username: 'vben',
+    parks: [],
   },
   {
     id: 1,
@@ -22,6 +24,7 @@ export const MOCK_USERS: UserInfo[] = [
     roles: ['admin'],
     username: 'admin',
     homePath: '/workspace',
+    parks: [],
   },
   {
     id: 2,
@@ -30,6 +33,7 @@ export const MOCK_USERS: UserInfo[] = [
     roles: ['user'],
     username: 'jack',
     homePath: '/analytics',
+    parks: [],
   },
 ];
 

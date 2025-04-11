@@ -1,0 +1,65 @@
+model AmountBill {
+  billId        Int           @id @default(autoincrement()) @map("bill_id")
+  projectName   String?       @map("project_name")
+  tenantName    String        @map("tenant_name")
+  eleFee        Decimal?      @default(0.00) @map("ele_fee") @db.Decimal(10, 2)
+  waterFee      Decimal?      @default(0.00) @map("water_fee") @db.Decimal(10, 2)
+  factoryRent   Decimal?      @default(0.00) @map("factory_rent") @db.Decimal(10, 2)
+  managementFee Decimal?      @default(0.00) @map("management_fee") @db.Decimal(10, 2)
+  serviceFee    Decimal?      @default(0.00) @map("service_fee") @db.Decimal(10, 2)
+  invoiceTax    Decimal?      @default(0.00) @map("invoice_tax") @db.Decimal(10, 2)
+  totalFee      Decimal?      @default(0.00) @map("total_fee") @db.Decimal(10, 2)
+  tenantId      Int?          @map("tenant_id")
+  remark        String?       @db.VarChar(100)
+  receiptTime   DateTime?     @map("receipt_time")
+  createTime    DateTime?     @default(now()) @map("create_time")
+  updateTime    DateTime?     @updatedAt @map("update_time")
+  tenant        RentalTenant? @relation("AmountBillToTenant", map: "tenant_no_fk", fields: [tenantId], references: [rentalTenantId])
+  eleBills      EleBill[]     @relation("EleBillToAmountBill")
+  waterBills    WaterBill[]   @relation("WaterBillToAmountBill")
+
+  @@index([tenantId])
+  @@map("amount_bill")
+}
+
+model EleBill {
+  eleId           Int        @id @default(autoincrement()) @map("ele_id") @db.Int
+  billId          Int        @map("bill_id")
+  meterName       String     @map("meter_name")
+  previousReading Decimal?   @default(0.00) @map("previous_reading") @db.Decimal(10, 2)
+  currentReading  Decimal?   @default(0.00) @map("current_reading") @db.Decimal(10, 2)
+  monthlyUsage    Decimal?   @default(0.00) @map("monthly_usage") @db.Decimal(10, 2)
+  multiplier      Decimal?   @default(0.00) @db.Decimal(10, 2)
+  totalUsage      Decimal?   @default(0.00) @map("total_usage") @db.Decimal(10, 2)
+  unitPrice       Decimal?   @default(0.00) @map("unit_price") @db.Decimal(10, 2)
+  amount          Decimal?   @default(0.00) @db.Decimal(10, 2)
+  remark          String?    @db.VarChar(100)
+  receiptTime     DateTime   @map("receipt_time")
+  createTime      DateTime?  @default(now()) @map("create_time")
+  updateTime      DateTime?  @updatedAt @map("update_time")
+  amountBill      AmountBill @relation("EleBillToAmountBill", map: "ele_bill_no_fk", fields: [billId], references: [billId])
+
+  @@index([billId])
+  @@map("ele_bill")
+}
+
+model WaterBill {
+  waterId         Int         @id @default(autoincrement()) @map("water_id")
+  billId          Int         @map("bill_id")
+  meterName       String      @map("meter_name")
+  previousReading Decimal?    @default(0.00) @map("previous_reading") @db.Decimal(10, 2)
+  currentReading  Decimal?    @default(0.00) @map("current_reading") @db.Decimal(10, 2)
+  monthlyUsage    Decimal?    @default(0.00) @map("monthly_usage") @db.Decimal(10, 2)
+  multiplier      Decimal?    @default(0.00) @db.Decimal(10, 2)
+  totalUsage      Decimal?    @default(0.00) @map("total_usage") @db.Decimal(10, 2)
+  unitPrice       Decimal?    @default(0.00) @map("unit_price") @db.Decimal(10, 2)
+  amount          Decimal?    @default(0.00) @db.Decimal(10, 2)
+  remark          String?     @db.VarChar(100)
+  receiptTime     DateTime    @map("receipt_time")
+  createTime      DateTime?   @default(now()) @map("create_time")
+  updateTime      DateTime?   @updatedAt @map("update_time")
+  amountBill      AmountBill? @relation("WaterBillToAmountBill", map: "water_bill_no_fk", fields: [billId], references: [billId])
+
+  @@index([billId])
+  @@map("water_bill")
+}

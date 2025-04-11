@@ -1,0 +1,47 @@
+model Menu {
+  menuId     Int        @id @default(autoincrement()) @map("menu_id")
+  name       String     @db.VarChar(50)
+  type       String
+  status     Int        @default(1)
+  path       String     @db.VarChar(50)
+  activePath String?    @map("active_path") @db.VarChar(100)
+  redirect   String?    @db.VarChar(100)
+  component  String?    @db.VarChar(100)
+  pid        Int?
+  authCode   String?    @map("auth_code") @db.VarChar(100)
+  roleMenus  RoleMenu[] @relation("MenuToRoleMenu")
+  children   Menu[]     @relation("MenuToMenu")
+  parent     Menu?      @relation("MenuToMenu", fields: [pid], references: [menuId], onDelete: NoAction, onUpdate: NoAction)
+  meta       MenuMeta?  @relation("MenuToMenuMeta")
+
+  @@index([pid])
+}
+
+model MenuMeta {
+  metaId             Int      @id @default(autoincrement()) @map("meta_id")
+  title              String   @db.VarChar(100)
+  icon               String?  @db.VarChar(100)
+  order              Int?     @default(1)
+  activeIcon         String?  @map("active_icon") @db.VarChar(100)
+  activePath         String?  @map("active_path") @db.VarChar(100)
+  affixTab           Boolean? @map("affix_tab")
+  affixTabOrder      Int?     @map("affix_tab_order")
+  badge              String?  @map("badge_content") @db.VarChar(50)
+  badgeType          String?  @map("badge_type") @db.VarChar(20)
+  badgeVariants      String?  @map("badge_variants") @db.VarChar(20)
+  hideChildrenInMenu Boolean? @map("hide_children_in_menu")
+  hideInBreadcrumb   Boolean? @map("hide_in_breadcrumb")
+  hideInMenu         Boolean? @map("hide_in_menu")
+  hideInTab          Boolean? @map("hide_in_tab")
+  iframeSrc          String?  @map("iframe_src") @db.VarChar(100)
+  keepAlive          Boolean? @map("keep_alive")
+  link               String?  @db.VarChar(200)
+  maxNumOfOpenTab    Int?     @map("max_num_of_open_tab")
+  noBasicLayout      Boolean? @map("no_basic_layout")
+  openInNewWindow    Boolean? @map("open_in_new_window")
+  menuId             Int      @unique @map("menu_id")
+  menu               Menu     @relation("MenuToMenuMeta", fields: [menuId], references: [menuId], onDelete: Cascade)
+
+  @@index([menuId])
+  @@map("menu_meta")
+}

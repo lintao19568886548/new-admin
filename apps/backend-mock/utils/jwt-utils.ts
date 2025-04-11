@@ -23,6 +23,26 @@ export function generateRefreshToken(user: UserInfo) {
   });
 }
 
+async function getUserInfo(username: string) {
+  return await prismaClient.user.findUnique({
+    where: {
+      username,
+    },
+    include: {
+      roles: {
+        include: {
+          role: true,
+        },
+      },
+      parks: {
+        include: {
+          park: true,
+        },
+      },
+    },
+  });
+}
+
 export async function verifyAccessToken(
   event: H3Event<EventHandlerRequest>,
 ): Promise<null | Promise<Omit<UserInfo, 'password'>>> {
@@ -37,18 +57,7 @@ export async function verifyAccessToken(
 
     const username = decoded.username;
     // 使用数据库查询替代硬编码的用户查找
-    const user = await prismaClient.user.findUnique({
-      where: {
-        username,
-      },
-      include: {
-        roles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const user = await getUserInfo(username);
     if (!user) return null;
     const userInfo: Omit<UserInfo, 'password'> = {
       id: Number(user.id),
@@ -56,6 +65,9 @@ export async function verifyAccessToken(
       realName: String(user.realName),
       roles: Array.isArray(user.roles)
         ? user.roles.map((item) => item.role.name)
+        : [],
+      parks: Array.isArray(user.parks)
+        ? user.parks.map((item) => item.park.parkName)
         : [],
       homePath: user.homePath ? String(user.homePath) : undefined,
     };
@@ -73,18 +85,7 @@ export async function verifyRefreshToken(
     const username = decoded.username;
 
     // 使用数据库查询替代硬编码的用户查找
-    const user = await prismaClient.user.findUnique({
-      where: {
-        username,
-      },
-      include: {
-        roles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const user = await getUserInfo(username);
     // 转换为 UserInfo 类型并排除密码
     const userInfo: Omit<UserInfo, 'password'> = {
       id: Number(user.id),
@@ -92,6 +93,9 @@ export async function verifyRefreshToken(
       realName: String(user.realName),
       roles: Array.isArray(user.roles)
         ? user.roles.map((item) => item.role.name)
+        : [],
+      parks: Array.isArray(user.parks)
+        ? user.parks.map((item) => item.park.parkName)
         : [],
       homePath: user.homePath ? String(user.homePath) : undefined,
     };

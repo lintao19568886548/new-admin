@@ -1,0 +1,42 @@
+model Role {
+  roleId     Int        @id @default(autoincrement()) @map("role_id")
+  name       String?    @db.VarChar(50)
+  remark     String?    @db.VarChar(100)
+  status     Boolean
+  createTime DateTime?  @default(now()) @map("create_time")
+  updateTime DateTime?  @updatedAt @map("update_time")
+  roleMenus  RoleMenu[] @relation("RoleToRoleMenu")
+  userRoles  UserRole[] @relation("RoleToUserRole")
+}
+
+// 用户角色关联表
+model UserRole {
+  id         Int       @id @default(autoincrement())
+  userId     Int       @map("user_id")
+  roleId     Int       @map("role_id")
+  user       User      @relation("UserToUserRole", fields: [userId], references: [id])
+  role       Role      @relation("RoleToUserRole", fields: [roleId], references: [roleId])
+  createTime DateTime? @default(now()) @map("create_time")
+  updateTime DateTime? @updatedAt @map("update_time")
+
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_role")
+}
+
+// 角色菜单关联表
+model RoleMenu {
+  id         Int       @id @default(autoincrement())
+  roleId     Int       @map("role_id")
+  menuId     Int       @map("menu_id")
+  role       Role      @relation("RoleToRoleMenu", fields: [roleId], references: [roleId])
+  menu       Menu      @relation("MenuToRoleMenu", fields: [menuId], references: [menuId])
+  createTime DateTime? @default(now()) @map("create_time")
+  updateTime DateTime? @updatedAt @map("update_time")
+
+  isDeleted Boolean @default(false)
+
+  @@index([roleId])
+  @@index([menuId])
+  @@map("role_menu")
+}

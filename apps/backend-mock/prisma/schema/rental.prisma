@@ -1,0 +1,32 @@
+// 租赁管理模型 (rental/manage)
+model RentalManage {
+  rentalManageId Int       @id @default(autoincrement()) @map("rental_manage_id")
+  title          String    @db.VarChar(100)
+  address        String    @db.VarChar(200)
+  area           String    @db.VarChar(50) // 总面积
+  availableArea  String    @map("available_area") @db.VarChar(50) // 可用面积
+  price          Decimal   @db.Decimal(10, 2) // 价格
+  contact        String    @db.VarChar(100) // 联系人
+  remark         String?   @db.VarChar(300)
+  createTime     DateTime? @default(now()) @map("create_time")
+  updateTime     DateTime? @updatedAt @map("update_time")
+
+  @@map("rental_manage")
+}
+
+// 租户管理模型 (rental/tenant)
+model RentalTenant {
+  rentalTenantId Int          @id @default(autoincrement()) @map("rental_tenant_id")
+  tenantName     String       @map("tenant_name") @db.VarChar(30)
+  phoneNumber    String       @map("phone_number") @db.VarChar(20)
+  status         String       @db.VarChar(20) // 当期、过期等状态
+  contractDate   DateTime     @map("contract_date")
+  increaseDate   DateTime     @map("increase_date")
+  increaseRate   Decimal      @map("increase_rate") @db.Decimal(5, 2)
+  address        String       @db.VarChar(200)
+  amountBills    AmountBill[] @relation("AmountBillToTenant")
+  createTime     DateTime?    @default(now()) @map("create_time")
+  updateTime     DateTime?    @updatedAt @map("update_time")
+
+  @@map("rental_tenant")
+}

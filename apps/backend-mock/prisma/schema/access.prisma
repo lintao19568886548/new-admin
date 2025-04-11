@@ -1,0 +1,26 @@
+model Visitor {
+  visitorId    Int      @id @default(autoincrement()) @map("visitor_id")
+  visitorName  String   @map("visitor_name") @db.VarChar(50)
+  carNum       String?  @map("car_num") @db.LongText
+  phoneNumber  String   @map("phone_number") @db.LongText
+  status       Int // 0: 进入, 1: 离开
+  registerTime DateTime @map("register_time") // 将 Int 改为 DateTime 类型，更适合存储时间
+  remark       String?  @db.VarChar(100)
+  createTime   DateTime @default(now()) @map("create_time")
+  updateTime   DateTime @updatedAt @map("update_time")
+
+  @@map("visitor")
+}
+
+// 车辆出入管理模型 (access/car)
+model Car {
+  carId        Int       @id @default(autoincrement()) @map("car_id")
+  carNumber    String    @map("car_number") @db.VarChar(20)
+  status       Int       @map("status") // 1: 进入, 0: 离开
+  registerTime DateTime  @map("register_time")
+  remark       String?   @db.VarChar(200)
+  createTime   DateTime? @default(now()) @map("create_time")
+  updateTime   DateTime? @updatedAt @map("update_time")
+
+  @@map("car")
+}

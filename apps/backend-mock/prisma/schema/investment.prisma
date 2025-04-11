@@ -1,0 +1,30 @@
+// 投资代理模型 (investment/agent)
+model Investment {
+  investmentId Int       @id @default(autoincrement()) @map("investment_id")
+  agentName    String    @map("agent_name") @db.VarChar(100)
+  tenantName   String    @map("tenant_name") @db.VarChar(100)
+  intentLevel  String    @map("intent_level") @db.VarChar(50)
+  intentArea   Int       @map("intent_area")
+  progress     String    @db.VarChar(30)
+  phoneNumber  String    @map("phone_number") @db.VarChar(11)
+  meetingTime  DateTime  @map("meeting_time")
+  remark       String?   @db.VarChar(100)
+  createTime   DateTime? @default(now()) @map("create_time")
+  updateTime   DateTime? @updatedAt @map("update_time")
+
+  @@map("investment")
+}
+
+// 投资租户模型 (investment/tenant)
+model InvestmentTenant {
+  tenantId        Int       @id @default(autoincrement()) @map("tenant_id")
+  billName        String    @map("bill_name") @db.VarChar(100)
+  billCategory    String    @map("bill_category") @db.VarChar(50)
+  amount          Decimal   @db.Decimal(10, 2)
+  transactionType String    @map("transaction_type") @db.VarChar(20)
+  transactionTime DateTime  @map("transaction_time")
+  createTime      DateTime? @default(now()) @map("create_time")
+  updateTime      DateTime? @updatedAt @map("update_time")
+
+  @@map("investment_tenant")
+}

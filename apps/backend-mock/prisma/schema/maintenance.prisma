@@ -1,0 +1,30 @@
+// 消防设施模型 (maintenance/firefighting)
+model Firefighting {
+  firefightingId  Int       @id @default(autoincrement()) @map("firefighting_id")
+  title           String    @db.VarChar(100)
+  address         String    @db.VarChar(200)
+  extinguisher    String    @db.VarChar(10)
+  fireExit        String    @map("fire_exit") @db.VarChar(100)
+  checker         String    @db.VarChar(10)
+  maintenanceTime DateTime  @map("maintenance_time")
+  remark          String?   @db.VarChar(100)
+  createTime      DateTime? @default(now()) @map("create_time")
+  updateTime      DateTime? @updatedAt @map("update_time")
+
+  @@map("firefighting")
+}
+
+// 变压器模型 (maintenance/transformer)
+model Transformer {
+  transformerId  Int       @id @default(autoincrement()) @map("transformer_id")
+  title          String    @db.VarChar(100)
+  address        String    @db.VarChar(200)
+  contact        String    @db.VarChar(100)
+  status         String    @db.VarChar(20) // 变压器状态：正常、异常、维护中
+  specifications String    @db.VarChar(50) // 变压器规格
+  remark         String?   @db.VarChar(100)
+  createTime     DateTime? @default(now()) @map("create_time")
+  updateTime     DateTime? @updatedAt @map("update_time")
+
+  @@map("transformer")
+}

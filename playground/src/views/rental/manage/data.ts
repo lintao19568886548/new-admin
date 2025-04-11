@@ -3,10 +3,14 @@ import type { RentalManagementItem } from './types';
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
+import { markRaw } from 'vue';
+
 import dayjs from 'dayjs'; // 添加 dayjs 导入
 
 import { z } from '#/adapter/form';
 import { $t } from '#/locales';
+
+import MultiSelect from './modules/multi-select.vue';
 
 /**
  * 获取标签颜色
@@ -136,6 +140,13 @@ export function useGridFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'availableArea',
       label: $t('system.rental.status.label'),
+    },
+    {
+      component: markRaw(MultiSelect),
+      disabledOnChangeListener: false,
+      fieldName: 'field4',
+      formItemClass: 'col-span-1',
+      label: '组合字段',
     },
     {
       component: 'Input',
