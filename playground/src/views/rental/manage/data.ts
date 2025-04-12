@@ -13,29 +13,6 @@ import { $t } from '#/locales';
 import MultiSelect from './modules/multi-select.vue';
 
 /**
- * 获取标签颜色
- */
-export function getTagTypeOptions() {
-  return [
-    {
-      color: 'green',
-      label: $t('system.rental.status.vacant'),
-      value: '空闲',
-    },
-    {
-      color: 'red',
-      label: $t('system.rental.status.rented'),
-      value: '已租',
-    },
-    {
-      color: 'processing',
-      label: $t('system.rental.status.maintenance'),
-      value: '维护',
-    },
-  ];
-}
-
-/**
  * 获取表单的字段配置
  */
 export function useFormSchema(): VbenFormSchema[] {
@@ -113,6 +90,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
       component: markRaw(MultiSelect),
       disabledOnChangeListener: false,
       fieldName: 'price',
+      formItemClass: 'col-span-1',
       label: $t('system.rental.price'),
     },
     {
@@ -124,9 +102,6 @@ export function useGridFormSchema(): VbenFormSchema[] {
     // 修改为输入框
     {
       component: markRaw(MultiSelect),
-      componentProps: {
-        validateOnClick: true, // 添加点击验证属性
-      },
       disabledOnChangeListener: false,
       fieldName: 'availableArea',
       label: $t('system.rental.status.label'),
@@ -174,7 +149,6 @@ export function useColumns<T = RentalManagementItem>(
     {
       cellRender: {
         name: 'CellAreaTag',
-        options: getTagTypeOptions(),
       },
       field: 'availableArea',
       title: $t('system.rental.status.label'),
