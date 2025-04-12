@@ -10,7 +10,10 @@ model RentalManage {
   remark         String?   @db.VarChar(300)
   createTime     DateTime? @default(now()) @map("create_time")
   updateTime     DateTime? @updatedAt @map("update_time")
+  parkId         Int?      @map("park_id")
+  park           Park?     @relation("ParkToRentalManage", fields: [parkId], references: [parkId])
 
+  @@index([parkId])
   @@map("rental_manage")
 }
 
@@ -27,6 +30,9 @@ model RentalTenant {
   amountBills    AmountBill[] @relation("AmountBillToTenant")
   createTime     DateTime?    @default(now()) @map("create_time")
   updateTime     DateTime?    @updatedAt @map("update_time")
+  parkId         Int?         @map("park_id")
+  park           Park?        @relation("ParkToRentalTenant", fields: [parkId], references: [parkId])
 
+  @@index([parkId])
   @@map("rental_tenant")
 }

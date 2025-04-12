@@ -3,12 +3,15 @@ model Visitor {
   visitorName  String   @map("visitor_name") @db.VarChar(50)
   carNum       String?  @map("car_num") @db.LongText
   phoneNumber  String   @map("phone_number") @db.LongText
-  status       Int // 0: 进入, 1: 离开
+  status       Int      // 0: 进入, 1: 离开
   registerTime DateTime @map("register_time") // 将 Int 改为 DateTime 类型，更适合存储时间
   remark       String?  @db.VarChar(100)
   createTime   DateTime @default(now()) @map("create_time")
   updateTime   DateTime @updatedAt @map("update_time")
+  parkId       Int?     @map("park_id")
+  park         Park?    @relation("ParkToVisitor", fields: [parkId], references: [parkId])
 
+  @@index([parkId])
   @@map("visitor")
 }
 
@@ -21,6 +24,9 @@ model Car {
   remark       String?   @db.VarChar(200)
   createTime   DateTime? @default(now()) @map("create_time")
   updateTime   DateTime? @updatedAt @map("update_time")
+  parkId       Int?      @map("park_id")
+  park         Park?     @relation("ParkToCar", fields: [parkId], references: [parkId])
 
+  @@index([parkId])
   @@map("car")
 }

@@ -110,27 +110,26 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: $t('system.rental.title'),
     },
     {
-      component: 'Input',
+      component: markRaw(MultiSelect),
+      disabledOnChangeListener: false,
       fieldName: 'price',
       label: $t('system.rental.price'),
     },
     {
-      component: 'Input',
+      component: markRaw(MultiSelect),
+      disabledOnChangeListener: false,
       fieldName: 'area',
       label: $t('system.rental.area'),
     },
     // 修改为输入框
     {
-      component: 'Input',
+      component: markRaw(MultiSelect),
+      componentProps: {
+        validateOnClick: true, // 添加点击验证属性
+      },
+      disabledOnChangeListener: false,
       fieldName: 'availableArea',
       label: $t('system.rental.status.label'),
-    },
-    {
-      component: markRaw(MultiSelect),
-      disabledOnChangeListener: false,
-      fieldName: 'field4',
-      formItemClass: 'col-span-1',
-      label: '组合字段',
     },
     {
       component: 'Input',

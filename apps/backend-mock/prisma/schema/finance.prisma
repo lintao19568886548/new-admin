@@ -8,6 +8,9 @@ model Finance {
   remark          String?   @db.VarChar(100)
   createTime      DateTime? @default(now()) @map("create_time")
   updateTime      DateTime? @updatedAt @map("update_time")
+  parkId          Int?      @map("park_id")
+  park            Park?     @relation("ParkToFinance", fields: [parkId], references: [parkId])
 
+  @@index([parkId])
   @@map("finance")
 }

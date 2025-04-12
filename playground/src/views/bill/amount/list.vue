@@ -31,35 +31,18 @@ import {
 import MultipageBillDetail from './modules/MultipageBillDetail.vue';
 import MultipageBillForm from './modules/MultipageBillForm.vue';
 
-// 区域列表
-const areaList = [
-  { key: 'all', name: '全部区域' },
-  { key: 'east', name: '东莞' },
-  { key: 'central', name: '广州' },
-  { key: 'south', name: '深圳' },
-  { key: 'north', name: '佛山' },
-  { key: 'west', name: '珠海' },
-];
-
-// 当前选中的区域
-const currentArea = ref(areaList[0]) as any;
-
+const currentArea = ref();
 const areaSelectorRef = ref();
 
 function handleAreaChange(area: Area) {
-  // 更新当前选中的区域
   currentArea.value = area;
-
-  // 延迟关闭提示
-  setTimeout(() => {
-    message.success({
-      content: `已切换到${area.name}`,
-      duration: 2,
-      key: 'area_change_msg',
-    });
-    // 刷新表格数据
-    refreshGrid();
-  }, 500);
+  // 更新当前选中的区域
+  message.success({
+    content: `已切换到${area.value}`,
+    duration: 2,
+    key: 'area_change_msg',
+  });
+  refreshGrid();
 }
 
 // 账单表单组件引用
@@ -266,12 +249,7 @@ function handleFormSuccess(_data: any) {
     <Grid table-title="总账单" class="amount-bill-grid">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
-        <AreaSelector
-          :area-list="areaList"
-          :default-area="currentArea"
-          @change="handleAreaChange"
-          ref="areaSelectorRef"
-        />
+        <AreaSelector @change="handleAreaChange" ref="areaSelectorRef" />
       </template>
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">

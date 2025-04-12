@@ -102,18 +102,8 @@ function onActionClick({ code, row }: OnActionClickParams) {
     }
   }
 }
-// 区域列表
-const areaList = [
-  { key: 'all', name: '全部区域' },
-  { key: 'east', name: '东莞' },
-  { key: 'central', name: '广州' },
-  { key: 'south', name: '深圳' },
-  { key: 'north', name: '佛山' },
-  { key: 'west', name: '珠海' },
-];
-// 当前选中的区域
-const currentArea = ref(areaList[0]) as any;
 
+const currentArea = ref();
 const areaSelectorRef = ref();
 
 function handleAreaChange(area: Area) {
@@ -123,7 +113,7 @@ function handleAreaChange(area: Area) {
   // 延迟关闭提示
   setTimeout(() => {
     message.success({
-      content: `已切换到${area.name}`,
+      content: `已切换到${area.value}`,
       duration: 2,
       key: 'area_change_msg',
     });
@@ -202,12 +192,7 @@ function refreshGrid() {
     <Grid :table-title="$t('page.agent.list')">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
-        <AreaSelector
-          :area-list="areaList"
-          :default-area="currentArea"
-          @change="handleAreaChange"
-          ref="areaSelectorRef"
-        />
+        <AreaSelector @change="handleAreaChange" ref="areaSelectorRef" />
       </template>
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">

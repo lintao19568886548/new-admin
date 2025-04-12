@@ -17,8 +17,11 @@ model AmountBill {
   tenant        RentalTenant? @relation("AmountBillToTenant", map: "tenant_no_fk", fields: [tenantId], references: [rentalTenantId])
   eleBills      EleBill[]     @relation("EleBillToAmountBill")
   waterBills    WaterBill[]   @relation("WaterBillToAmountBill")
+  parkId        Int?          @map("park_id")
+  park          Park?         @relation("ParkToAmountBill", fields: [parkId], references: [parkId])
 
   @@index([tenantId])
+  @@index([parkId])
   @@map("amount_bill")
 }
 
