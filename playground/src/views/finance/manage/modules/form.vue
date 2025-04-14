@@ -44,20 +44,28 @@ const [Modal, modalApi] = useVbenModal({
       values.transactionTime = new Date(values.transactionTime).toISOString();
     }
 
-    console.warn('提交表单数据', values);
+    // 清理数据，移除空值（从finance.ts移过来的逻辑）
+    const cleanValues = {};
+    Object.entries(values).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== '') {
+        (cleanValues as Record<string, any>)[key] = value;
+      }
+    });
+
+    console.warn('提交表单数据', cleanValues);
     modalApi.lock();
 
     try {
       // 根据是否有ID判断是创建还是更新
       if (id.value) {
         // 更新财务记录
-        await updateFinance(id.value, values);
+        await updateFinance(id.value, cleanValues);
         message.success({
           content: $t('ui.actionMessage.updateSuccess', [values.billName]),
         });
       } else {
         // 创建财务记录
-        await createFinance(values);
+        await createFinance(cleanValues);
         message.success({
           content: $t('ui.actionMessage.createSuccess', [values.billName]),
         });

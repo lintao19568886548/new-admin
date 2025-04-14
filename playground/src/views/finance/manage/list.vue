@@ -87,8 +87,28 @@ const [Grid, gridApi] = useVbenVxeGrid({
 
             console.warn('处理后的查询参数:', params);
 
+            // 参数序列化处理（从finance.ts移过来）
+            const cleanParams = {};
+            Object.entries(params).forEach(([key, value]) => {
+              if (value !== null && value !== undefined && value !== '') {
+                (cleanParams as Record<string, any>)[key] = value;
+              }
+            });
+
             // 调用API获取数据
-            const result = await getFinanceList(params);
+            const response = await getFinanceList(cleanParams);
+
+            // 确保返回的数据格式一致（从finance.ts移过来）
+            // 使用三元表达式替代if-else语句
+            const result =
+              response && !response.items
+                ? {
+                    currentPage: params.currentPage || 1,
+                    pageSize: params.pageSize || 20,
+                    total: Array.isArray(response) ? response.length : 0,
+                    items: Array.isArray(response) ? response : [],
+                  }
+                : response;
 
             // 返回格式化后的数据，包含分页信息
             return {
