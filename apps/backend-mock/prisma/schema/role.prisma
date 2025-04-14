@@ -30,7 +30,7 @@ model RoleMenu {
   roleId     Int       @map("role_id")
   menuId     Int       @map("menu_id")
   role       Role      @relation("RoleToRoleMenu", fields: [roleId], references: [roleId])
-  menu       Menu      @relation("MenuToRoleMenu", fields: [menuId], references: [menuId])
+  menu       Menu      @relation("MenuToRoleMenu", fields: [menuId], references: [menuId], onDelete: Cascade)
   createTime DateTime? @default(now()) @map("create_time")
   updateTime DateTime? @updatedAt @map("update_time")
 
