@@ -1,4 +1,7 @@
+import { getQuery } from 'h3';
 import { prismaClient } from '~/utils/db';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import { useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -11,14 +14,15 @@ export default eventHandler(async (event) => {
   const query = getQuery(event);
   console.log('query', query);
   const {
-    agentName,
-    tenantName,
-    intentLevel,
-    minIntentArea,
-    maxIntentArea,
-    progress,
+    title,
+    address,
+    extinguisher,
+    hydrant,
+    fireExit,
+    checker,
     startTime,
     endTime,
+    currentPark,
     currentPage,
     pageSize,
   } = query;
@@ -26,51 +30,86 @@ export default eventHandler(async (event) => {
   // 构建查询条件
   const where: any = {};
 
-  // 中介人名称查询
-  if (agentName) {
-    where.agentName = {
-      contains: agentName,
+  // 区域查询
+  if (currentPark) {
+    if (Number(currentPark) === -1) {
+      // 选择全部区域时,直接查询全部有权限的园区
+      const parks = await prismaClient.park.findMany({
+        where: {
+          parkName: {
+            in: userinfo.parks.map((park) => park.parkName),
+          },
+        },
+        select: { parkId: true },
+      });
+
+      if (parks.length > 0) {
+        where.parkId = {
+          in: parks.map((park) => park.parkId),
+        };
+      }
+    } else if (
+      userinfo.parks.map((park) => park.parkId).includes(Number(currentPark))
+    ) {
+      // 当用户有权限查看特定园区时
+      const park = await prismaClient.park.findFirst({
+        where: { parkId: Number(currentPark) },
+        select: { parkId: true },
+      });
+
+      if (park) {
+        where.parkId = park.parkId;
+      }
+    } else {
+      return useResponseError('没有查看权限');
+    }
+  }
+
+  // 标题查询
+  if (title) {
+    where.title = {
+      contains: title,
     };
   }
 
-  // 租户名称查询
-  if (tenantName) {
-    where.tenantName = {
-      contains: tenantName,
+  // 地址查询
+  if (address) {
+    where.address = {
+      contains: address,
     };
   }
 
-  // 意向级别查询
-  if (intentLevel) {
-    where.intentLevel = {
-      equals: intentLevel,
+  // 灭火器状态查询
+  if (extinguisher) {
+    where.extinguisher = {
+      equals: extinguisher,
     };
   }
 
-  // 意向面积查询
-  if (minIntentArea) {
-    where.intentArea = {
-      gte: Number(minIntentArea),
+  // 消防栓状态查询
+  if (hydrant) {
+    where.hydrant = {
+      equals: hydrant,
     };
   }
 
-  if (maxIntentArea) {
-    where.intentArea = {
-      ...where.intentArea,
-      lte: Number(maxIntentArea),
+  // 安全出口状态查询
+  if (fireExit) {
+    where.fireExit = {
+      equals: fireExit,
     };
   }
 
-  // 进度查询
-  if (progress) {
-    where.progress = {
-      contains: progress,
+  // 检查人员查询
+  if (checker) {
+    where.checker = {
+      contains: checker,
     };
   }
 
   // 时间范围查询 - 使用startTime和endTime
   if (startTime && endTime) {
-    where.meetingTime = {
+    where.checkTime = {
       gte: new Date(startTime as string),
       lte: new Date(endTime as string),
     };
@@ -89,11 +128,10 @@ export default eventHandler(async (event) => {
   const result = await prismaClient.firefighting.findMany({
     where,
     orderBy: {
-      maintenanceTime: 'desc',
+      checkTime: 'desc',
     },
     skip: (page - 1) * size,
     take: size,
-    // 只选择需要的字段，减少数据传输量
   });
 
   return useResponseSuccess({

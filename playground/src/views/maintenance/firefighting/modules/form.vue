@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import type { RentalManagementItem } from '../types';
-
 import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
@@ -8,16 +6,17 @@ import { useVbenModal } from '@vben/common-ui';
 import { Button } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
+import { createFirefighting, updateFirefighting } from '#/api/maintenance';
 import { $t } from '#/locales';
 
 import { useFormSchema } from '../data';
 
 const emit = defineEmits(['success']);
-const formData = ref<RentalManagementItem>();
+const formData = ref();
 const getTitle = computed(() => {
   return formData.value?.id
-    ? $t('ui.actionTitle.edit', [$t('system.rental.name')])
-    : $t('ui.actionTitle.create', [$t('system.rental.name')]);
+    ? $t('ui.actionTitle.edit', [$t('page.maintenance.title')])
+    : $t('ui.actionTitle.create', [$t('page.maintenance.title')]);
 });
 
 const [Form, formApi] = useVbenForm({
@@ -36,10 +35,16 @@ const [Modal, modalApi] = useVbenModal({
     const { valid } = await formApi.validate();
     if (valid) {
       modalApi.lock();
-      // const data = formApi.getValues();
+      const data = await formApi.getValues();
+      const { firefightingId } = modalApi.getData();
       try {
-        // 模拟API请求
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (data.checkTime) {
+          data.checkTime = new Date(data.checkTime).toISOString();
+        }
+
+        await (firefightingId
+          ? updateFirefighting(firefightingId, data)
+          : createFirefighting(data));
         modalApi.close();
         emit('success');
       } finally {
@@ -49,7 +54,7 @@ const [Modal, modalApi] = useVbenModal({
   },
   onOpenChange(isOpen) {
     if (isOpen) {
-      const data = modalApi.getData<RentalManagementItem>();
+      const data = modalApi.getData();
       if (data) {
         formData.value = data;
         formApi.setValues(formData.value);

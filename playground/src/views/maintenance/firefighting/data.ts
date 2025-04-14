@@ -1,7 +1,7 @@
-import type { RentalManagementItem } from './types';
-
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
+
+import { formatDateTime } from '@vben/utils';
 
 import { z } from '#/adapter/form';
 import { getParkList } from '#/api/park';
@@ -42,18 +42,22 @@ export function useFormSchema(): VbenFormSchema[] {
       rules: 'required',
     },
     {
-      component: 'Select',
+      component: 'ApiSelect',
       componentProps: {
         allowClear: true,
-        filterOptions: true,
-        options: [
-          { label: '东莞', value: '正常' },
-          { label: '深圳', value: '异常' },
-          { label: '广州', value: '维护' },
-        ],
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
       },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
+    },
+    {
+      component: 'Input',
       fieldName: 'address',
       label: '地址',
+      rules: 'required',
     },
     {
       component: 'RadioGroup',
@@ -66,8 +70,8 @@ export function useFormSchema(): VbenFormSchema[] {
         ],
         optionType: 'button',
       },
-      defaultValue: '空闲',
-      fieldName: 'firestatus',
+      defaultValue: '正常',
+      fieldName: 'extinguisher',
       label: '灭火器检查',
     },
     {
@@ -81,9 +85,9 @@ export function useFormSchema(): VbenFormSchema[] {
         ],
         optionType: 'button',
       },
-      defaultValue: '空闲',
-      fieldName: 'safetychanneltag',
-      label: '安全通道检查',
+      defaultValue: '正常',
+      fieldName: 'hydrant',
+      label: '消防栓检查',
     },
 
     {
@@ -97,27 +101,27 @@ export function useFormSchema(): VbenFormSchema[] {
         ],
         optionType: 'button',
       },
-      defaultValue: '空闲',
-      fieldName: 'passagewaytag',
-      label: '楼道、墙体检查',
+      defaultValue: '正常',
+      fieldName: 'fireExit',
+      label: '安全通道检查',
     },
     {
       component: 'Input',
-      fieldName: 'contact',
-      label: $t('system.rental.contact'),
+      fieldName: 'checker',
+      label: $t('system.rental.checker'),
       rules: 'required',
     },
     {
-      component: 'ApiSelect',
+      component: 'DatePicker',
       componentProps: {
-        allowClear: true,
-        api: getParkList,
-        class: 'w-full',
-        labelField: 'parkName',
-        valueField: 'parkId',
+        format: 'YYYY-MM-DD HH:mm:ss',
+        placeholder: '请选择日期',
+        showTime: true,
+        style: { width: '100%' },
+        valueFormat: 'YYYY-MM-DD HH:mm:ss',
       },
-      fieldName: 'parkId',
-      label: $t('page.common.park'),
+      fieldName: 'checkTime',
+      label: $t('page.maintenance.checkTime'),
     },
     {
       component: 'Textarea',
@@ -165,7 +169,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
           { label: '维护', value: '维护' },
         ],
       },
-      fieldName: 'firestatus',
+      fieldName: 'extinguisher',
       label: '灭火器检查',
     },
     {
@@ -179,30 +183,35 @@ export function useGridFormSchema(): VbenFormSchema[] {
           { label: '维护', value: '维护' },
         ],
       },
-      fieldName: 'safetychanneltag',
-      label: '安全通道检查',
+      fieldName: 'hydrant',
+      label: '消防栓检查',
     },
     {
       component: 'Select',
       componentProps: {
         allowClear: true,
+        filterOptions: true,
         options: [
           { label: '正常', value: '正常' },
           { label: '异常', value: '异常' },
           { label: '维护', value: '维护' },
         ],
       },
-      fieldName: 'passagewaytag',
-      label: '楼道、墙体检查',
+      fieldName: 'fireExit',
+      label: '安全通道检查',
     },
     {
-      component: 'Select',
+      component: 'Input',
       fieldName: 'address',
       label: $t('system.rental.address'),
     },
-
     {
       component: 'RangePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD',
+        placeholder: ['开始日期', '结束日期'],
+        valueFormat: 'YYYY-MM-DD',
+      },
       fieldName: 'checkTime',
       label: $t('page.maintenance.checkTime'),
     },
@@ -212,8 +221,8 @@ export function useGridFormSchema(): VbenFormSchema[] {
 /**
  * 获取表格列配置
  */
-export function useColumns<T = RentalManagementItem>(
-  onActionClick: OnActionClickFn<T>,
+export function useColumns(
+  onActionClick: OnActionClickFn,
 ): VxeTableGridOptions['columns'] {
   return [
     {
@@ -230,7 +239,7 @@ export function useColumns<T = RentalManagementItem>(
           { color: 'processing', label: '维护', value: '维护' },
         ],
       },
-      field: 'firestatus',
+      field: 'extinguisher',
       minWidth: 120,
       title: '灭火器检查',
     },
@@ -243,9 +252,9 @@ export function useColumns<T = RentalManagementItem>(
           { color: 'processing', label: '维护', value: '维护' },
         ],
       },
-      field: 'safetychanneltag',
+      field: 'hydrant',
       minWidth: 120,
-      title: '安全通道检查',
+      title: '消防栓检查',
     },
     {
       cellRender: {
@@ -256,22 +265,26 @@ export function useColumns<T = RentalManagementItem>(
           { color: 'processing', label: '维护', value: '维护' },
         ],
       },
-      field: 'passagewaytag',
+      field: 'fireExit',
       minWidth: 120,
-      title: '楼道、墙体检查',
+      title: '安全通道检查',
     },
+
     {
       field: 'address',
       minWidth: 200,
       title: $t('system.rental.address'),
     },
     {
-      field: 'contact',
+      field: 'checker',
       minWidth: 150,
-      title: $t('system.rental.contact'),
+      title: $t('system.rental.checker'),
     },
     {
       field: 'checkTime',
+      formatter: ({ cellValue }) => {
+        return formatDateTime(cellValue);
+      },
       minWidth: 120,
       title: $t('page.maintenance.checkTime'),
     },
@@ -285,10 +298,6 @@ export function useColumns<T = RentalManagementItem>(
         },
         name: 'CellOperation',
         options: [
-          {
-            code: 'view',
-            text: '查看',
-          },
           'edit', // 默认的编辑按钮
           'delete', // 默认的删除按钮
         ],

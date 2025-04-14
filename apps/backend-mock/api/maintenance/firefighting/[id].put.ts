@@ -9,12 +9,13 @@ export default eventHandler(async (event) => {
   }
   const body = await readBody(event);
   console.log('请求体参数:', body);
+  const id = Number.parseInt(event.context.params.id);
 
   try {
     // 使用事务处理创建操作
     const result = await prismaClient.firefighting.update({
       where: {
-        firefightingId: Number(body.firefightingId),
+        firefightingId: id,
       },
       data: {
         ...body,

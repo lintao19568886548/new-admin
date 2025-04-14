@@ -1,21 +1,21 @@
 import { requestClient } from '#/api/request';
 
 export async function getTransformerList(params: any) {
-  return requestClient.get('/transformer/list', { params });
+  return requestClient.get('/maintenance/transformer/list', { params });
 }
 
 export async function getTransformerDetail(id: number) {
-  return requestClient.get(`/transformer/${id}`);
+  return requestClient.get(`/maintenance/transformer/${id}`);
 }
 
 export async function createTransformer(data: any) {
-  return requestClient.post('/transformer', data);
+  return requestClient.post('/maintenance/transformer', data);
 }
 
 export async function updateTransformer(data: any) {
-  return requestClient.put('/transformer', data);
+  return requestClient.put('/maintenance/transformer', data);
 }
 
 export async function deleteTransformer(id: number) {
-  return requestClient.delete(`/transformer/${id}`);
+  return requestClient.delete(`/maintenance/transformer/${id}`);
 }

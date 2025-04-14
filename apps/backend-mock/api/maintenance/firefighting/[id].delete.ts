@@ -10,7 +10,7 @@ export default eventHandler(async (event) => {
 
   const firefightingId = Number.parseInt(event.context.params.id);
   if (!firefightingId) {
-    return useResponseError('investmentId错误');
+    return useResponseError('firefightingId错误');
   }
 
   try {

@@ -3,10 +3,11 @@ model Firefighting {
   firefightingId  Int       @id @default(autoincrement()) @map("firefighting_id")
   title           String    @db.VarChar(100)
   address         String    @db.VarChar(200)
-  extinguisher    String    @db.VarChar(10)
-  fireExit        String    @map("fire_exit") @db.VarChar(100)
-  checker         String    @db.VarChar(10)
-  checkTime       DateTime  @map("check_time")
+  extinguisher    String    @db.VarChar(10)  // 灭火器
+  hydrant         String    @db.VarChar(10)  // 消防栓
+  fireExit        String    @map("fire_exit") @db.VarChar(100) // 消防出口
+  checker         String    @db.VarChar(10)  // 检查人
+  checkTime       DateTime  @map("check_time") 
   remark          String?   @db.VarChar(100)
   createTime      DateTime? @default(now()) @map("create_time")
   updateTime      DateTime? @updatedAt @map("update_time")

@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import type { RentalManagementItem } from './types';
-
 import type {
   OnActionClickParams,
   VxeTableGridOptions,
@@ -14,6 +12,7 @@ import { Plus } from '@vben/icons';
 import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { deleteFirefighting, getFirefightingList } from '#/api/maintenance';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -34,7 +33,7 @@ const [FormModal, formModalApi] = useVbenModal({
  * 编辑租赁项目
  * @param row
  */
-function onEdit(row: RentalManagementItem) {
+function onEdit(row: any) {
   formModalApi.setData(row).open();
 }
 
@@ -49,39 +48,37 @@ function onCreate() {
  * 删除租赁项目
  * @param row
  */
-function onDelete(row: RentalManagementItem) {
+async function onDelete(row: any) {
   message.loading({
     content: $t('ui.actionMessage.deleting', [row.title]),
     duration: 0,
     key: 'action_process_msg',
   });
 
-  // 模拟API请求
-  setTimeout(() => {
-    message.success({
-      content: $t('ui.actionMessage.deleteSuccess', [row.title]),
-      key: 'action_process_msg',
-    });
-    refreshGrid();
-  }, 1000);
-}
-
-/**
- * 查看租赁项目详情
- * @param row
- */
-function onView(row: RentalManagementItem) {
-  // 可以跳转到详情页面
-  window.open(`/rental/detail/${row.id}`, '_blank');
+  const { firefightingId } = row;
+  if (firefightingId) {
+    try {
+      // 使用 try-catch 替代 then-catch 链
+      await deleteFirefighting(firefightingId);
+      message.success({
+        content: $t('ui.actionMessage.deleteSuccess', [row.tenantName]),
+        key: 'action_process_msg',
+      });
+      refreshGrid();
+    } catch (error) {
+      console.error('删除账单失败:', error);
+      message.error({
+        content: $t('ui.actionMessage.operationFailed', [error]),
+        key: 'action_process_msg',
+      });
+    }
+  }
 }
 
 /**
  * 表格操作按钮的回调函数
  */
-function onActionClick({
-  code,
-  row,
-}: OnActionClickParams<RentalManagementItem>) {
+function onActionClick({ code, row }: OnActionClickParams) {
   switch (code) {
     case 'delete': {
       onDelete(row);
@@ -91,91 +88,14 @@ function onActionClick({
       onEdit(row);
       break;
     }
-    case 'view': {
-      onView(row);
-      break;
-    }
   }
 }
-
-// 模拟的数据
-const rentalItems = [
-  {
-    address: '东莞',
-    contact: '张先生 13800138000',
-    createTime: '2021-04-01',
-    firestatus: '正常',
-    id: 1,
-    passagewaytag: '正常',
-    price: '2000元/月',
-    safetychanneltag: '正常',
-    tag: '空闲',
-    title: '东莞厂房A',
-    updateTime: '2021-04-01',
-  },
-  {
-    address: '深圳',
-    area: '150平方米',
-    contact: '李女士 13900139000',
-    createTime: '2021-04-02',
-    firestatus: '异常',
-    id: 2,
-    passagewaytag: '维护',
-    price: '3000元/月',
-    safetychanneltag: '正常',
-    tag: '维护',
-    title: '深圳厂房B',
-    updateTime: '2021-04-02',
-  },
-  {
-    address: '广州',
-    area: '100平方米',
-    contact: '王先生 13700137000',
-    createTime: '2021-04-03',
-    firestatus: '正常',
-    id: 3,
-    passagewaytag: '正常',
-    price: '1800元/月',
-    safetychanneltag: '异常',
-    tag: '空闲',
-    title: '广州厂房C',
-    updateTime: '2021-04-03',
-  },
-  {
-    address: '深圳',
-    area: '130平方米',
-    contact: '刘女士 13600136000',
-    createTime: '2021-04-04',
-    firestatus: '维护',
-    id: 4,
-    passagewaytag: '异常',
-    price: '2500元/月',
-    safetychanneltag: '维护',
-    tag: '维护',
-    title: '深圳厂房D',
-    updateTime: '2021-04-04',
-  },
-  {
-    address: '广州',
-    area: '160平方米',
-    contact: '赵先生 13500135000',
-    createTime: '2021-04-05',
-    firestatus: '正常',
-    id: 5,
-    passagewaytag: '正常',
-    price: '3200元/月',
-    safetychanneltag: '正常',
-    tag: '已租',
-    title: '广州厂房E',
-    updateTime: '2021-04-05',
-  },
-];
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
+    fieldMappingTime: [['checkTime', ['startTime', 'endTime']]],
     schema: useGridFormSchema(),
-    submitOnChange: true,
   },
   gridOptions: {
     columns: useColumns(onActionClick),
@@ -183,15 +103,35 @@ const [Grid, gridApi] = useVbenVxeGrid({
     keepSource: true,
     proxyConfig: {
       ajax: {
-        query: async () => {
-          // 模拟API请求返回数据
-          return {
-            page: {
-              pageSize: 20,
-              total: rentalItems.length,
-            },
-            items: rentalItems,
+        query: async (page) => {
+          const formData = (await gridApi.formApi?.getValues?.()) || {};
+
+          // 构建查询参数，包含分页信息
+          const params = {
+            ...formData,
+            currentPage: page.page?.currentPage || 1,
+            currentPark: currentPark.value ? currentPark.value.parkId : -1,
+            pageSize: page.page?.pageSize || 20,
           };
+          try {
+            // 调用API获取数据
+            const result = await getFirefightingList(params);
+            // 返回格式化后的数据
+            return {
+              ...result,
+            };
+          } catch (error) {
+            console.error('获取账单列表失败:', error);
+            message.error('获取账单列表失败');
+            return {
+              page: {
+                currentPage: 1,
+                pageSize: 20,
+                total: 0,
+              },
+              items: [],
+            };
+          }
         },
       },
     },
@@ -219,7 +159,7 @@ function refreshGrid() {
 <template>
   <Page auto-content-height>
     <FormModal @success="refreshGrid" />
-    <Grid :table-title="$t('system.rental.list')">
+    <Grid :table-title="$t('page.maintenance.firefightingList')">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector

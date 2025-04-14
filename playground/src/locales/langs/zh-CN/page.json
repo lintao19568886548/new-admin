@@ -1,30 +1,38 @@
 {
+  "Investment": {
+    "create": "新增项目",
+    "detail": "项目详情",
+    "edit": "修改项目",
+    "list": "项目列表",
+    "title": "招商管理",
+    "view": "查看项目"
+  },
   "access": {
-    "title": "出入管理",
     "car": "车辆管理",
+    "title": "出入管理",
     "visitor": "访客管理"
   },
   "agent": {
     "create": "新增中介人",
-    "name": "中介人",
-    "phone": "联系方式",
     "detail": "中介人详情",
-    "intentArea": "意向面积",
-    "minIntentArea": "最小意向面积",
-    "maxIntentArea": "最大意向面积",
-    "intentLevel": "意向程度",
-    "progress": "洽谈进度",
     "edit": "修改中介人",
-    "list": "中介列表",
-    "title": "中介管理",
-    "view": "查看中介",
+    "intentArea": "意向面积",
+    "intentLevel": "意向程度",
     "level": {
-      "veryLow": "很低",
+      "high": "高",
       "low": "低",
       "normal": "一般",
-      "high": "高",
-      "veryHigh": "很高"
-    }
+      "veryHigh": "很高",
+      "veryLow": "很低"
+    },
+    "list": "中介列表",
+    "maxIntentArea": "最大意向面积",
+    "minIntentArea": "最小意向面积",
+    "name": "中介人",
+    "phone": "联系方式",
+    "progress": "洽谈进度",
+    "title": "中介管理",
+    "view": "查看中介"
   },
   "auth": {
     "codeLogin": "验证码登录",
@@ -59,6 +67,9 @@
     "workspace": "工作台"
   },
   "finance": {
+    "amount": "账单金额",
+    "billCategory": "账单分类",
+    "billName": "账单名称",
     "create": "新增收支",
     "detail": "收支详情",
     "edit": "修改收支",
@@ -67,35 +78,25 @@
     "income": "收入管理",
     "incomeType": "收入类型",
     "list": "收支列表",
-    "title": "财务管理",
     "list-title": "财务信息列表",
-    "view": "查看收支",
-    "billName": "账单名称",
-    "billCategory": "账单分类",
-    "transactionType": "收支类型",
-    "amount": "账单金额",
     "name": "账单",
+    "remark": "备注",
+    "title": "财务管理",
     "transactionTime": "交易时间",
-    "remark": "备注"
+    "transactionType": "收支类型",
+    "view": "查看收支"
   },
   "maintenance": {
+    "checkTime": "检查时间",
     "create": "新增维修",
     "detail": "维修详情",
     "edit": "修改维修",
     "firefighting": "消防管理",
-    "list": "维修列表",
+    "firefightingList": "消防列表",
+    "list": "维护列表",
     "title": "维护管理",
     "transformer": "变压器管理",
-    "view": "查看维修",
-    "checkTime": "检查时间"
-  },
-  "Investment": {
-    "create": "新增项目",
-    "detail": "项目详情",
-    "edit": "修改项目",
-    "list": "项目列表",
-    "title": "招商管理",
-    "view": "查看项目"
+    "view": "查看维修"
   },
   "rental": {
     "create": "新增租赁",
@@ -118,22 +119,22 @@
     "detail": "租户详情",
     "edit": "修改租户",
     "list": "租户列表",
+    "name": "租户名称",
     "title": "租户管理",
-    "view": "查看租户",
-    "name": "租户名称"
+    "view": "查看租户"
   },
   "tools": {
-    "title": "AI工具集",
     "apptitle": "票据整理",
+    "title": "AI工具集",
     "upload": "上传文件",
-    "uploadSuccess": "上传成功",
     "uploadFailed": "上传失败",
-    "uploadTips": "请上传PDF文件",
-    "uploadFileSizeLimit": "文件大小不能超过{0}",
-    "uploadFileTypeLimit": "文件类型只能是{0}",
     "uploadFileCountLimit": "文件数量不能超过{0}",
     "uploadFileList": "文件列表",
+    "uploadFileListEmptyDescription": "支持单个或批量上传",
     "uploadFileListEmptyText": "拖拽文件到此处，或点击上传",
-    "uploadFileListEmptyDescription": "支持单个或批量上传"
+    "uploadFileSizeLimit": "文件大小不能超过{0}",
+    "uploadFileTypeLimit": "文件类型只能是{0}",
+    "uploadSuccess": "上传成功",
+    "uploadTips": "请上传PDF文件"
   }
 }
