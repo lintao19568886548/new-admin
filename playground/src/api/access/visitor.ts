@@ -76,6 +76,20 @@ export async function createVisitor(data: any) {
   return requestClient.post('/access/visitor', submitData);
 }
 
+export async function registerVisitor(data: any) {
+  // 确保数据格式正确
+  const submitData = { ...data };
+
+  // 处理日期格式
+  if (submitData.registerTime && typeof submitData.registerTime === 'string') {
+    submitData.registerTime = new Date(submitData.registerTime);
+  }
+
+  console.warn('访客登记数据:', submitData);
+
+  return requestClient.post('/access/visitor/register', submitData);
+}
+
 export async function getVisitorDetail(id: number) {
   return requestClient.get(`/access/visitor/${id}`);
 }

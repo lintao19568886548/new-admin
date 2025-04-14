@@ -30,6 +30,15 @@ const routes: RouteRecordRaw[] = [
           title: '访客管理',
         },
       },
+      {
+        name: 'VisitorRegister',
+        path: '/access/visitor/register',
+        component: () => import('#/views/access/visitor/modules/register.vue'),
+        meta: {
+          icon: 'carbon:user-profile',
+          title: '访客登记',
+        },
+      },
     ],
   },
 ];
