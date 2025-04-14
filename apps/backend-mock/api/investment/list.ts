@@ -19,10 +19,43 @@ export default eventHandler(async (event) => {
     endTime,
     currentPage,
     pageSize,
+    area,
   } = query;
 
   // 构建查询条件
   const where: any = {};
+  if (area) {
+    const areaStr = String(area);
+    if (areaStr === 'all') {
+      // 当选择"all"时，直接查询所有有权限的园区
+      const parks = await prismaClient.park.findMany({
+        where: {
+          parkName: {
+            in: userinfo.parks,
+          },
+        },
+        select: { parkId: true },
+      });
+
+      if (parks.length > 0) {
+        where.parkId = {
+          in: parks.map((park) => park.parkId),
+        };
+      }
+    } else if (userinfo.parks.includes(areaStr)) {
+      // 当用户有权限查看特定园区时
+      const park = await prismaClient.park.findFirst({
+        where: { parkName: areaStr },
+        select: { parkId: true },
+      });
+
+      if (park) {
+        where.parkId = park.parkId;
+      }
+    } else {
+      return useResponseError('没有查看权限');
+    }
+  }
 
   // 中介人名称查询
   if (agentName) {
@@ -101,6 +134,7 @@ export default eventHandler(async (event) => {
       progress: true,
       phoneNumber: true,
       meetingTime: true,
+      parkId: true,
       remark: true,
     },
   });

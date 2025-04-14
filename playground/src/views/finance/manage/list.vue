@@ -4,7 +4,6 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 import type { SystemFinanceApi } from '#/api';
-import type { Area } from '#/components/AreaSelector.vue';
 
 import { ref } from 'vue';
 
@@ -28,24 +27,11 @@ const [FormModal, formModalApi] = useVbenModal({
 });
 
 // 当前选中的区域
-const currentArea = ref();
+const currentArea = ref({
+  key: 'all',
+  value: '全部区域',
+});
 const areaSelectorRef = ref();
-
-function handleAreaChange(area: Area) {
-  // 更新当前选中的区域
-  currentArea.value = area;
-
-  // 延迟关闭提示
-  setTimeout(() => {
-    message.success({
-      content: `已切换到${area.value}`,
-      duration: 2,
-      key: 'area_change_msg',
-    });
-    // 刷新表格数据
-    onRefresh();
-  }, 500);
-}
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
@@ -93,13 +79,13 @@ const [Grid, gridApi] = useVbenVxeGrid({
             if (currentArea.value && currentArea.value.key !== 'all') {
               params.area = currentArea.value;
             }
-
             // 添加分页参数
             const currentPage = page.page?.currentPage || 1;
             const pageSize = page.page?.pageSize || 20;
 
             params.currentPage = currentPage;
             params.pageSize = pageSize;
+            params.area = currentArea.value.key;
 
             console.warn('处理后的查询参数:', params);
 
@@ -282,7 +268,12 @@ function onSearch(params: any) {
     >
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
-        <AreaSelector @change="handleAreaChange" ref="areaSelectorRef" />
+        <AreaSelector
+          :default-area="currentArea"
+          :refresh-callback="onRefresh"
+          @change="(area) => (currentArea = area)"
+          ref="areaSelectorRef"
+        />
       </template>
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">

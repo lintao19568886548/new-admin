@@ -3,7 +3,6 @@ import type {
   OnActionClickParams,
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
-import type { Area } from '#/components/AreaSelector.vue';
 
 import { ref } from 'vue';
 
@@ -20,6 +19,12 @@ import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
+
+const currentArea = ref({
+  key: 'all',
+  value: '全部区域',
+});
+const areaSelectorRef = ref();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -103,25 +108,6 @@ function onActionClick({ code, row }: OnActionClickParams) {
   }
 }
 
-const currentArea = ref();
-const areaSelectorRef = ref();
-
-function handleAreaChange(area: Area) {
-  // 更新当前选中的区域
-  currentArea.value = area;
-
-  // 延迟关闭提示
-  setTimeout(() => {
-    message.success({
-      content: `已切换到${area.value}`,
-      duration: 2,
-      key: 'area_change_msg',
-    });
-    // 刷新表格数据
-    refreshGrid();
-  }, 500);
-}
-
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
@@ -140,6 +126,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
           // 构建查询参数，包含分页信息
           const params = {
             ...formData,
+            area: currentArea.value.key,
             currentPage: page.page?.currentPage || 1,
             pageSize: page.page?.pageSize || 20,
           };
@@ -192,7 +179,12 @@ function refreshGrid() {
     <Grid :table-title="$t('page.agent.list')">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
-        <AreaSelector @change="handleAreaChange" ref="areaSelectorRef" />
+        <AreaSelector
+          :default-area="currentArea"
+          :refresh-callback="refreshGrid"
+          @change="(area) => (currentArea = area)"
+          ref="areaSelectorRef"
+        />
       </template>
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">

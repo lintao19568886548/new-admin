@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 import type { AmountBill } from '../data';
 
-import { computed, nextTick, reactive, ref, watch } from 'vue';
+import type { Park } from '#/components/AreaSelector.vue';
+
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
@@ -11,6 +13,7 @@ import {
   Input,
   InputNumber,
   message,
+  Select,
   Steps,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
@@ -20,6 +23,7 @@ import {
   getAmountBillDetail,
   updateAmountBill,
 } from '#/api/bill';
+import { getParkList } from '#/api/park'; // 添加园区API导入
 
 import BillForm from './BillForm.vue';
 
@@ -97,6 +101,25 @@ const billData = reactive<AmountBill>({
   waterFee: 0,
 });
 
+// 园区列表
+const parkList = ref<Park[]>([]);
+
+// 获取园区列表
+async function fetchParkList() {
+  try {
+    const result = await getParkList({ area: 'all' });
+    parkList.value = result || [];
+  } catch (error) {
+    console.error('获取园区列表失败:', error);
+    message.error('获取园区列表失败');
+  }
+}
+
+// 在组件挂载时获取园区列表
+onMounted(() => {
+  fetchParkList();
+});
+
 // 自动计算总金额
 watch(
   [
@@ -124,8 +147,8 @@ function handleNext() {
   // 验证当前页数据
   switch (key) {
     case 1: {
-      if (!billData.tenantName || !billData.projectName) {
-        message.warning('请填写公司名称和项目名称');
+      if (!billData.tenantName || !billData.projectName || !billData.parkId) {
+        message.warning('请填写完整的租户信息');
         return;
       }
       break;
@@ -252,6 +275,7 @@ async function initData(data: any) {
     delete billData.billId;
     delete billData.tenantId;
     delete billData.createTime;
+    delete billData.parkId;
     Object.assign(billData, {
       eleBills: [],
       eleFee: 0,
@@ -371,6 +395,23 @@ defineExpose({
                 value-format="YYYY-MM-DDTHH:mm:ss.SSSZ"
                 placeholder="请选择收款时间"
               />
+            </div>
+            <div class="rounded border bg-white p-4 shadow-sm">
+              <div class="text-gray-500">园区</div>
+              <Select
+                v-model:value="billData.parkId"
+                class="mt-1 w-full"
+                placeholder="请选择园区"
+                allow-clear
+              >
+                <Select.Option
+                  v-for="park in parkList"
+                  :key="park.parkId"
+                  :value="park.parkName"
+                >
+                  {{ park.parkName }}
+                </Select.Option>
+              </Select>
             </div>
           </div>
         </div>

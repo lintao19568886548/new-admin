@@ -4,6 +4,7 @@ import type { SystemFinanceApi } from '#/api';
 
 import { formatDateTime } from '@vben/utils';
 
+import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
 /**
@@ -71,6 +72,18 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'amount',
       label: $t('page.finance.amount'),
+    },
+    {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
     },
     // 添加备注字段
     {

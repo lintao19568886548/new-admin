@@ -1,9 +1,9 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { SystemFinanceApi } from '#/api';
 
 import { formatDateTime } from '@vben/utils';
 
+import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
 /**
@@ -91,6 +91,18 @@ export function useFormSchema(): VbenFormSchema[] {
       fieldName: 'phoneNumber',
       label: $t('page.agent.phone'),
       rules: 'required',
+    },
+    {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
     },
     {
       component: 'DatePicker',
@@ -182,8 +194,8 @@ export function useGridFormSchema(): VbenFormSchema[] {
   ];
 }
 
-export function useColumns<T = SystemFinanceApi.SystemFinance>(
-  onActionClick: OnActionClickFn<T>,
+export function useColumns(
+  onActionClick: OnActionClickFn,
 ): VxeTableGridOptions['columns'] {
   return [
     {

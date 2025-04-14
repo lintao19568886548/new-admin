@@ -5,7 +5,6 @@ import type {
   OnActionClickParams,
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
-import type { Area } from '#/components/AreaSelector.vue';
 
 import { ref } from 'vue';
 
@@ -31,19 +30,11 @@ import {
 import MultipageBillDetail from './modules/MultipageBillDetail.vue';
 import MultipageBillForm from './modules/MultipageBillForm.vue';
 
-const currentArea = ref();
+const currentArea = ref({
+  key: 'all',
+  value: '全部区域',
+});
 const areaSelectorRef = ref();
-
-function handleAreaChange(area: Area) {
-  currentArea.value = area;
-  // 更新当前选中的区域
-  message.success({
-    content: `已切换到${area.value}`,
-    duration: 2,
-    key: 'area_change_msg',
-  });
-  refreshGrid();
-}
 
 // 账单表单组件引用
 const billFormRef = ref();
@@ -177,6 +168,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
           // 构建查询参数，包含分页信息
           const params = {
             ...formData,
+            area: currentArea.value.key,
             currentPage: page.page?.currentPage || 1,
             pageSize: page.page?.pageSize || 20,
           };
@@ -249,7 +241,12 @@ function handleFormSuccess(_data: any) {
     <Grid table-title="总账单" class="amount-bill-grid">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
-        <AreaSelector @change="handleAreaChange" ref="areaSelectorRef" />
+        <AreaSelector
+          :default-area="currentArea"
+          :refresh-callback="refreshGrid"
+          @change="(area) => (currentArea = area)"
+          ref="areaSelectorRef"
+        />
       </template>
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">

@@ -8,8 +8,6 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
 import { formatDateTime } from '@vben/utils';
 
-import { z } from '#/adapter/form';
-
 /**
  * 总账单接口
  */
@@ -21,6 +19,7 @@ export interface AmountBill {
   factoryRent?: number; // 厂房租金
   invoiceTax?: number; // 开票税金
   managementFee?: number; // 基本管理费
+  parkId?: number; // 园区ID
   projectName?: string; // 项目名称
   receiptTime?: Dayjs; // 收款时间
   remark?: string; // 备注
@@ -116,135 +115,6 @@ export const waterFormConfig: BillFormConfig = {
   usageLabel: '用量',
   itemsField: 'water',
 };
-
-/**
- * 获取表单的字段配置
- */
-export function useFormSchema(): VbenFormSchema[] {
-  return [
-    {
-      component: 'Input',
-      componentProps: {
-        placeholder: '请输入公司名称',
-      },
-      fieldName: 'companyName',
-      label: '公司名称',
-      rules: z.string().min(2).max(50),
-    },
-    {
-      component: 'Input',
-      componentProps: {
-        placeholder: '请输入项目名称',
-      },
-      fieldName: 'projectName',
-      label: '项目名称',
-      rules: z.string().min(2).max(50),
-    },
-    {
-      component: 'DatePicker',
-      fieldName: 'datePicker',
-      label: '日期选择框',
-      rules: 'required',
-    },
-    {
-      component: 'Input',
-      componentProps: {
-        placeholder: '例如：5月电费',
-      },
-      fieldName: 'name',
-      label: '名称',
-      rules: z.string().min(2).max(50),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        placeholder: '请输入上月电表数',
-        precision: 2,
-        style: { width: '100%' },
-      },
-      fieldName: 'lastMonthReading',
-      label: '上月电表数',
-      rules: z.number().min(0),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        placeholder: '请输入本月电表数',
-        precision: 2,
-        style: { width: '100%' },
-      },
-      fieldName: 'currentMonthReading',
-      label: '本月电表数',
-      rules: z.number().min(0),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        disabled: true,
-        precision: 2,
-        style: { background: '#f5f5f5', width: '100%' },
-      },
-      fieldName: 'monthlyUsage',
-      label: '本月度数',
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        precision: 2,
-        style: { width: '100%' },
-      },
-      defaultValue: 1,
-      fieldName: 'multiplier',
-      label: '倍数',
-      rules: z.number().min(0),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        disabled: true,
-        precision: 2,
-        style: { background: '#f5f5f5', width: '100%' },
-      },
-      fieldName: 'actualUsage',
-      label: '本月实际度数',
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        addonAfter: '元/度',
-        min: 0,
-        precision: 2,
-        style: { width: '100%' },
-      },
-      fieldName: 'unitPrice',
-      label: '单价',
-      rules: z.number().min(0),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        addonAfter: '元',
-        disabled: true,
-        precision: 2,
-        style: { background: '#f5f5f5', width: '100%' },
-      },
-      fieldName: 'amount',
-      label: '电费金额',
-    },
-    {
-      component: 'Textarea',
-      componentProps: {
-        placeholder: '请输入备注信息',
-        rows: 4,
-      },
-      fieldName: 'remark',
-      label: '备注',
-    },
-  ];
-}
 
 /**
  * 获取表格查询表单配置

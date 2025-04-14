@@ -50,6 +50,7 @@
   },
   "common": {
     "date": "日期",
+    "park": "园区",
     "remark": "备注"
   },
   "dashboard": {

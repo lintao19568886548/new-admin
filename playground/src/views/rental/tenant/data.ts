@@ -4,6 +4,7 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import dayjs from 'dayjs';
 
 import { z } from '#/adapter/form';
+import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
 /**
@@ -84,6 +85,18 @@ export function useFormSchema(): VbenFormSchema[] {
       fieldName: 'address',
       label: $t('system.rental.tenant.address'),
       rules: 'required',
+    },
+    {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
     },
     {
       component: 'RadioGroup',

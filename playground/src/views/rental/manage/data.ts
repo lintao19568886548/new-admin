@@ -8,6 +8,7 @@ import { markRaw } from 'vue';
 import dayjs from 'dayjs'; // 添加 dayjs 导入
 
 import { z } from '#/adapter/form';
+import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
 import MultiSelect from './modules/multi-select.vue';
@@ -46,6 +47,18 @@ export function useFormSchema(): VbenFormSchema[] {
       fieldName: 'contact',
       label: $t('system.rental.contact'),
       rules: 'required',
+    },
+    {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
     },
     {
       component: 'Input',

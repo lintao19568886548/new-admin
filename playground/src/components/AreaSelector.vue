@@ -11,16 +11,42 @@ export interface Area {
   value: string;
 }
 
+export interface Park {
+  parkId: number;
+  parkName: string;
+}
+
+// 定义组件属性
+const props = withDefaults(
+  defineProps<{
+    // 默认选中的区域
+    defaultArea?: Area;
+    // 消息显示时间
+    messageDuration?: number;
+    // 刷新回调函数
+    refreshCallback?: () => void;
+    // 是否自动显示成功消息
+    showSuccessMessage?: boolean;
+  }>(),
+  {
+    defaultArea: () => ({ key: 'all', value: '全部区域' }),
+    messageDuration: 2,
+    refreshCallback: () => {},
+    showSuccessMessage: true,
+  },
+);
+
 /**
  * 切换区域
  */
 // 定义事件
 const emit = defineEmits<{
   (e: 'change', area: Area): void;
+  (e: 'refresh'): void;
 }>();
 
 const userStore = useUserStore();
-const currentArea = ref<Area>();
+const currentArea = ref<Area>(props.defaultArea);
 // 区域列表
 const parks =
   userStore.userInfo?.parks.map((park: any) => ({
@@ -49,9 +75,34 @@ function switchArea(area: Area) {
     key: 'area_change_msg',
   });
 
-  // 触发 change 事件，将数据更新的责任传递给父组件
-  emit('change', area);
+  // 延迟关闭提示
+  setTimeout(() => {
+    if (props.showSuccessMessage) {
+      message.success({
+        content: `已切换到${area.value}`,
+        duration: props.messageDuration,
+        key: 'area_change_msg',
+      });
+    }
+
+    // 触发 change 事件
+    emit('change', area);
+
+    // 执行刷新回调
+    if (props.refreshCallback) {
+      props.refreshCallback();
+    } else {
+      // 触发刷新事件，让父组件决定如何处理
+      emit('refresh');
+    }
+  }, 500);
 }
+
+// 暴露当前选中的区域和切换方法
+defineExpose({
+  currentArea,
+  switchArea,
+});
 </script>
 <template>
   <Dropdown class="ml-3">

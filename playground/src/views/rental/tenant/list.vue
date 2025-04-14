@@ -4,6 +4,8 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
+import { ref } from 'vue';
+
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
@@ -11,10 +13,19 @@ import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteTenant, getTenantList } from '#/api/rental';
+import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
+
+// 当前选中的区域
+const currentArea = ref({
+  key: 'all',
+  value: '全部区域',
+});
+
+const areaSelectorRef = ref();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -173,54 +184,27 @@ function onView(row: any) {
 function refreshGrid() {
   gridApi.query();
 }
-
-/**
- * 表单操作成功回调
- */
-function onFormSuccess() {
-  refreshGrid();
-}
-
-// 添加搜索函数
-function onSearch(params: any) {
-  console.warn('触发搜索，原始参数:', params);
-
-  // 检查参数格式
-  let searchParams = params;
-
-  // 如果params是事件对象，尝试从中提取表单数据
-  if (params && params.form) {
-    searchParams = params.form;
-  } else if (params && params.$event && params.$event.form) {
-    searchParams = params.$event.form;
-  } else if (params && params.data) {
-    // vxe-table可能将表单数据放在data属性中
-    searchParams = params.data;
-  } else if (!params || typeof params !== 'object') {
-    // 如果没有有效参数，则使用空对象
-    searchParams = {};
-  }
-
-  // 使用表单数据进行查询
-  gridApi.query({
-    form: searchParams,
-  });
-}
 </script>
 
 <template>
   <Page auto-content-height>
-    <template #headerContent>
-      <Button type="primary" @click="onCreate">
-        <template #icon>
-          <Plus />
-        </template>
-        {{ $t('ui.actionTitle.create', [$t('system.rental.tenant.item')]) }}
-      </Button>
-    </template>
-
-    <Grid @search="onSearch" @form-submit="onSearch" />
-
-    <FormModal @success="onFormSuccess" />
+    <FormModal @success="refreshGrid" />
+    <Grid :table-title="$t('system.rental.tenant.list')">
+      <template #toolbar-actions>
+        <!-- 区域选择下拉菜单 -->
+        <AreaSelector
+          :default-area="currentArea"
+          :refresh-callback="refreshGrid"
+          @change="(area) => (currentArea = area)"
+          ref="areaSelectorRef"
+        />
+      </template>
+      <template #toolbar-tools>
+        <Button type="primary" @click="onCreate">
+          <Plus class="size-5" />
+          {{ $t('ui.actionTitle.create', [$t('system.rental.tenant.item')]) }}
+        </Button>
+      </template>
+    </Grid>
   </Page>
 </template>
