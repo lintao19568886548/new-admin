@@ -42,7 +42,9 @@ export default eventHandler(async (event) => {
     if (query.address) {
       where.address = { contains: query.address };
     }
-
+    if (query.increaseRate) {
+      where.increaseRate = Number(query.increaseRate);
+    }
     // 获取总数
     const total = await prismaClient.rentalTenant.count({ where });
 
