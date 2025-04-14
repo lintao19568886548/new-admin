@@ -4,6 +4,7 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
 import { z } from '#/adapter/form';
+import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
 /**
@@ -107,6 +108,18 @@ export function useFormSchema(): VbenFormSchema[] {
       rules: 'required',
     },
     {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
+    },
+    {
       component: 'Textarea',
       componentProps: {
         maxLength: 300,
@@ -187,10 +200,11 @@ export function useGridFormSchema(): VbenFormSchema[] {
       fieldName: 'address',
       label: $t('system.rental.address'),
     },
+
     {
       component: 'RangePicker',
-      fieldName: 'createTime',
-      label: $t('system.rental.createTime'),
+      fieldName: 'checkTime',
+      label: $t('page.maintenance.checkTime'),
     },
   ];
 }
@@ -204,8 +218,8 @@ export function useColumns<T = RentalManagementItem>(
   return [
     {
       field: 'title',
+      minWidth: 150,
       title: '厂房名称',
-      width: 150,
     },
     {
       cellRender: {
@@ -217,8 +231,8 @@ export function useColumns<T = RentalManagementItem>(
         ],
       },
       field: 'firestatus',
+      minWidth: 120,
       title: '灭火器检查',
-      width: 120,
     },
     {
       cellRender: {
@@ -230,8 +244,8 @@ export function useColumns<T = RentalManagementItem>(
         ],
       },
       field: 'safetychanneltag',
+      minWidth: 120,
       title: '安全通道检查',
-      width: 120,
     },
     {
       cellRender: {
@@ -243,8 +257,8 @@ export function useColumns<T = RentalManagementItem>(
         ],
       },
       field: 'passagewaytag',
+      minWidth: 120,
       title: '楼道、墙体检查',
-      width: 120,
     },
     {
       field: 'address',
@@ -253,13 +267,13 @@ export function useColumns<T = RentalManagementItem>(
     },
     {
       field: 'contact',
+      minWidth: 150,
       title: $t('system.rental.contact'),
-      width: 150,
     },
     {
-      field: 'createTime',
-      title: $t('system.rental.createTime'),
-      width: 120,
+      field: 'checkTime',
+      minWidth: 120,
+      title: $t('page.maintenance.checkTime'),
     },
     {
       align: 'center',
@@ -281,8 +295,8 @@ export function useColumns<T = RentalManagementItem>(
       },
       field: 'operation',
       fixed: 'right',
+      minWidth: 150,
       title: $t('system.rental.operation'),
-      width: 150,
     },
   ];
 }

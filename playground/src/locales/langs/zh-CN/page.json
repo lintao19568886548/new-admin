@@ -86,7 +86,8 @@
     "list": "维修列表",
     "title": "维护管理",
     "transformer": "变压器管理",
-    "view": "查看维修"
+    "view": "查看维修",
+    "checkTime": "检查时间"
   },
   "Investment": {
     "create": "新增项目",

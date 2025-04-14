@@ -22,10 +22,7 @@ import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 // 当前选中的区域
-const currentArea = ref({
-  key: 'all',
-  value: '全部区域',
-});
+const currentPark = ref();
 
 const parkSelectorRef = ref();
 
@@ -347,9 +344,9 @@ function refreshGrid() {
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector
-          :default-area="currentArea"
+          :default-park="currentPark"
           :refresh-callback="refreshGrid"
-          @change="(area) => (currentArea = area)"
+          @change="(park) => (currentPark = park)"
           ref="parkSelectorRef"
         />
       </template>

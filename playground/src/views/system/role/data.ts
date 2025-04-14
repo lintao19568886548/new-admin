@@ -4,6 +4,7 @@ import type { SystemRoleApi } from '#/api';
 
 import { formatDateTime } from '@vben/utils';
 
+import { getParkList } from '#/api/park/park';
 import { $t } from '#/locales';
 
 export function useFormSchema(): VbenFormSchema[] {
@@ -32,6 +33,20 @@ export function useFormSchema(): VbenFormSchema[] {
       component: 'Textarea',
       fieldName: 'remark',
       label: $t('system.role.remark'),
+    },
+    {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        mode: 'multiple',
+        options: [],
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
     },
     {
       component: 'Input',

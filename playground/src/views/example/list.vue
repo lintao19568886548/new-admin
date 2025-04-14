@@ -21,10 +21,7 @@ import { $t } from '#/locales';
 import { useColumns, useFormSchema, useGridFormSchema } from './data';
 
 // 当前选中的区域
-const currentArea = ref({
-  key: 'all',
-  value: '全部区域',
-});
+const currentPark = ref();
 
 const areaSelectorRef = ref();
 
@@ -85,11 +82,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
                 params[key] = formValues[key];
               }
             });
-
             // 添加区域参数
-            if (currentArea.value && currentArea.value.key !== 'all') {
-              params.areaId = currentArea.value.key;
-            }
+            params.currentPark = currentPark.value
+              ? currentPark.value.parkId
+              : -1;
 
             params.currentPage = page?.currentPage || 1;
             params.pageSize = page?.pageSize || 20;
@@ -149,9 +145,9 @@ function refreshGrid() {
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector
-          :default-area="currentArea"
+          :default-park="currentPark"
           :refresh-callback="refreshGrid"
-          @change="(area) => (currentArea = area)"
+          @change="(park) => (currentPark = park)"
           ref="areaSelectorRef"
         />
       </template>

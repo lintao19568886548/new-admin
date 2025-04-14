@@ -6,7 +6,7 @@ model Firefighting {
   extinguisher    String    @db.VarChar(10)
   fireExit        String    @map("fire_exit") @db.VarChar(100)
   checker         String    @db.VarChar(10)
-  maintenanceTime DateTime  @map("maintenance_time")
+  checkTime       DateTime  @map("check_time")
   remark          String?   @db.VarChar(100)
   createTime      DateTime? @default(now()) @map("create_time")
   updateTime      DateTime? @updatedAt @map("update_time")
@@ -25,6 +25,7 @@ model Transformer {
   contact        String    @db.VarChar(100)
   status         String    @db.VarChar(20) // 变压器状态：正常、异常、维护中
   specifications String    @db.VarChar(50) // 变压器规格
+  checkTime      DateTime  @map("check_time")
   remark         String?   @db.VarChar(100)
   createTime     DateTime? @default(now()) @map("create_time")
   updateTime     DateTime? @updatedAt @map("update_time")

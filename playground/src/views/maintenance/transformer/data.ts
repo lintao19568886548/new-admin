@@ -4,6 +4,7 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
 import { z } from '#/adapter/form';
+import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
 /**
@@ -83,6 +84,18 @@ export function useFormSchema(): VbenFormSchema[] {
       label: $t('system.maintenance.transformer.status.label'),
     },
     {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
+    },
+    {
       component: 'Textarea',
       componentProps: {
         maxLength: 300,
@@ -157,8 +170,8 @@ export function useGridFormSchema(): VbenFormSchema[] {
     },
     {
       component: 'RangePicker',
-      fieldName: 'createTime',
-      label: $t('system.rental.createTime'),
+      fieldName: 'checkTime',
+      label: $t('page.maintenance.checkTime'),
     },
   ];
 }
@@ -172,13 +185,13 @@ export function useColumns<T = RentalManagementItem>(
   return [
     {
       field: 'title',
+      minWidth: 150,
       title: $t('system.maintenance.transformer.title'),
-      width: 150,
     },
     {
       field: 'specifications',
+      minWidth: 120,
       title: $t('system.maintenance.transformer.specifications'),
-      width: 120,
     },
     {
       cellRender: {
@@ -186,13 +199,13 @@ export function useColumns<T = RentalManagementItem>(
         options: getTagTypeOptions(),
       },
       field: 'status',
+      minWidth: 100,
       title: $t('system.maintenance.transformer.status.label'),
-      width: 100,
     },
     {
       field: 'remark',
+      minWidth: 150,
       title: $t('system.maintenance.transformer.remark'),
-      width: 150,
     },
     {
       field: 'address',
@@ -201,13 +214,13 @@ export function useColumns<T = RentalManagementItem>(
     },
     {
       field: 'contact',
+      minWidth: 150,
       title: $t('system.rental.contact'),
-      width: 150,
     },
     {
-      field: 'createTime',
-      title: $t('system.rental.createTime'),
-      width: 120,
+      field: 'checkTime',
+      minWidth: 120,
+      title: $t('page.maintenance.checkTime'),
     },
     {
       align: 'center',
