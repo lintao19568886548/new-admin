@@ -35,7 +35,7 @@ export default eventHandler(async (event) => {
     }
 
     // 创建访客记录
-    const visitor = await prismaClient.visitor.create({
+    const accessVisitor = await prismaClient.accessVisitor.create({
       data: {
         visitorName: body.visitorName,
         phoneNumber: body.phoneNumber,
@@ -49,7 +49,7 @@ export default eventHandler(async (event) => {
     return useResponseSuccess({
       success: true,
       message: '访客登记成功',
-      data: visitor,
+      data: accessVisitor,
     });
   } catch (error) {
     console.error('创建访客信息失败:', error);

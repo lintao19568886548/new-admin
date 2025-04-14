@@ -12,7 +12,7 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    await prismaClient.car.delete({
+    await prismaClient.accessCar.delete({
       where: {
         carId: id,
       },

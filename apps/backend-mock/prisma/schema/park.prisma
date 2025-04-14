@@ -1,25 +1,25 @@
 // 园区表
 model Park {
-  parkId        Int            @id @default(autoincrement()) @map("park_id")
-  parkName      String         @map("park_name") @db.VarChar(100)
-  address       String         @db.VarChar(200)
-  area          Decimal?       @db.Decimal(10, 2) // 总面积(平方米)
-  description   String?        @db.Text
-  status        String         @db.VarChar(20) // 状态：运营中、建设中、规划中等
-  factories     Factory[]      @relation("ParkToFactory")
-  dormitories   Dormitory[]    @relation("ParkToDormitory")
-  userParks     UserPark[]     @relation("ParkToUserPark")
-  amountBills   AmountBill[]   @relation("ParkToAmountBill")
-  finances      Finance[]      @relation("ParkToFinance")
-  visitors      Visitor[]      @relation("ParkToVisitor")
-  cars          Car[]          @relation("ParkToCar")
-  investments   Investment[]   @relation("ParkToInvestment")
-  firefighting  Firefighting[] @relation("ParkToFirefighting")
-  transformers  Transformer[]  @relation("ParkToTransformer")
-  rentalManages RentalManage[] @relation("ParkToRentalManage")
-  rentalTenants RentalTenant[] @relation("ParkToRentalTenant")
-  createTime    DateTime?      @default(now()) @map("create_time")
-  updateTime    DateTime?      @updatedAt @map("update_time")
+  parkId        Int               @id @default(autoincrement()) @map("park_id")
+  parkName      String            @map("park_name") @db.VarChar(100)
+  address       String            @db.VarChar(200)
+  area          Decimal?          @db.Decimal(10, 2) // 总面积(平方米)
+  description   String?           @db.Text
+  status        String            @db.VarChar(20) // 状态：运营中、建设中、规划中等
+  factories     Factory[]         @relation("ParkToFactory")
+  dormitories   Dormitory[]       @relation("ParkToDormitory")
+  userParks     UserPark[]        @relation("ParkToUserPark")
+  amountBills   AmountBill[]      @relation("ParkToAmountBill")
+  finances      Finance[]         @relation("ParkToFinance")
+  visitors      AccessVisitor[]   @relation("ParkToVisitor")
+  cars          AccessCar[]       @relation("ParkToCar")
+  investments   Investment[]      @relation("ParkToInvestment")
+  firefighting  Firefighting[]    @relation("ParkToFirefighting")
+  transformers  Transformer[]     @relation("ParkToTransformer")
+  rentalManages RentalManage[]    @relation("ParkToRentalManage")
+  rentalTenants RentalTenant[]    @relation("ParkToRentalTenant")
+  createTime    DateTime?         @default(now()) @map("create_time")
+  updateTime    DateTime?         @updatedAt @map("update_time")
 
   @@map("park")
 }

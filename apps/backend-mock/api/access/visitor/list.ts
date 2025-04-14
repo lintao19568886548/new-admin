@@ -74,10 +74,10 @@ export default eventHandler(async (event) => {
     }
 
     // 获取总数
-    const total = await prismaClient.visitor.count({ where });
+    const total = await prismaClient.accessVisitor.count({ where });
 
     // 获取分页数据
-    const visitors = await prismaClient.visitor.findMany({
+    const visitors = await prismaClient.accessVisitor.findMany({
       where,
       skip,
       take: pageSize,

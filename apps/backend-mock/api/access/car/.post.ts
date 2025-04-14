@@ -9,13 +9,13 @@ export default eventHandler(async (event) => {
   const body = await readBody(event);
 
   try {
-    const car = await prismaClient.car.create({
+    const accessCar = await prismaClient.accessCar.create({
       data: {
         ...body,
       },
     });
 
-    return useResponseSuccess(car);
+    return useResponseSuccess(accessCar);
   } catch (error) {
     console.error('创建车辆信息失败:', error);
     return useResponseError('创建车辆信息失败', 500);

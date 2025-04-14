@@ -11,10 +11,10 @@ export default eventHandler(async (event) => {
     return useResponseError('visitorId错误');
   }
 
-  const visitor = await prismaClient.visitor.findUnique({
+  const accessVisitor = await prismaClient.accessVisitor.findUnique({
     where: {
       visitorId: id,
     },
   });
-  return useResponseSuccess(visitor);
+  return useResponseSuccess(accessVisitor);
 });

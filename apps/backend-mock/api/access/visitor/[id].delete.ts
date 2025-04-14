@@ -12,7 +12,7 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    await prismaClient.visitor.delete({
+    await prismaClient.accessVisitor.delete({
       where: {
         visitorId: id,
       },

@@ -13,7 +13,7 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const visitor = await prismaClient.visitor.update({
+    const accessVisitor = await prismaClient.accessVisitor.update({
       where: {
         visitorId: id,
       },
@@ -21,7 +21,7 @@ export default eventHandler(async (event) => {
         ...body,
       },
     });
-    return useResponseSuccess(visitor);
+    return useResponseSuccess(accessVisitor);
   } catch (error) {
     console.error('更新访客信息失败:', error);
     return useResponseError('更新访客信息失败', 500);

@@ -13,7 +13,7 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const car = await prismaClient.car.update({
+    const accessCar = await prismaClient.accessCar.update({
       where: {
         carId: id,
       },
@@ -21,7 +21,7 @@ export default eventHandler(async (event) => {
         ...body,
       },
     });
-    return useResponseSuccess(car);
+    return useResponseSuccess(accessCar);
   } catch (error) {
     console.error('更新车辆信息失败:', error);
     return useResponseError('更新车辆信息失败', 500);

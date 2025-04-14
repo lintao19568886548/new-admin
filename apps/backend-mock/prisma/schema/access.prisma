@@ -1,4 +1,4 @@
-model Visitor {
+model AccessVisitor {
   visitorId    Int      @id @default(autoincrement()) @map("visitor_id")
   visitorName  String   @map("visitor_name") @db.VarChar(50)
   carNum       String?  @map("car_num") @db.LongText
@@ -12,11 +12,11 @@ model Visitor {
   park         Park?    @relation("ParkToVisitor", fields: [parkId], references: [parkId])
 
   @@index([parkId])
-  @@map("visitor")
+  @@map("access_visitor")
 }
 
 // 车辆出入管理模型 (access/car)
-model Car {
+model AccessCar {
   carId        Int       @id @default(autoincrement()) @map("car_id")
   carNumber    String    @map("car_number") @db.VarChar(20)
   status       Int       @map("status") // 1: 进入, 0: 离开
@@ -28,5 +28,5 @@ model Car {
   park         Park?     @relation("ParkToCar", fields: [parkId], references: [parkId])
 
   @@index([parkId])
-  @@map("car")
+  @@map("access_car")
 }
