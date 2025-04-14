@@ -82,11 +82,11 @@ onMounted(async () => {
         axisTick: {
           show: false,
         },
-        max: 120_000,
+        max: 24_000,
         splitArea: {
           show: true,
         },
-        splitNumber: 4,
+        splitNumber: 8,
         type: 'value',
       },
     ],

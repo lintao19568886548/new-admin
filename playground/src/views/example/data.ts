@@ -42,14 +42,13 @@ export function useFormSchema(): VbenFormSchema[] {
       label: $t('system.rental.tenant.phone'),
       rules: 'required',
     },
-    // 删除重复的 RangePicker
     {
-      component: 'DatePicker', // 使用 DatePicker 而不是 RangePicker
+      component: 'DatePicker',
       componentProps: {
         format: 'YYYY-MM-DD',
         placeholder: '请选择合同日期',
         style: { width: '100%' },
-        valueFormat: 'YYYY-MM-DD', // 简化日期格式
+        valueFormat: 'YYYY-MM-DD',
       },
       fieldName: 'contractDate',
       label: $t('system.rental.tenant.contractDate'),
@@ -61,7 +60,7 @@ export function useFormSchema(): VbenFormSchema[] {
         format: 'YYYY-MM-DD',
         placeholder: '请选择涨租日期',
         style: { width: '100%' },
-        valueFormat: 'YYYY-MM-DD', // 简化日期格式
+        valueFormat: 'YYYY-MM-DD',
       },
       fieldName: 'increaseDate',
       label: $t('system.rental.tenant.increaseDate'),
@@ -164,6 +163,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
       component: 'RangePicker',
       componentProps: {
         format: 'YYYY-MM-DD',
+        placeholder: ['开始日期', '结束日期'],
         valueFormat: 'YYYY-MM-DD',
       },
       fieldName: 'contractDate',
@@ -174,17 +174,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
       componentProps: {
         format: 'YYYY-MM-DD',
         placeholder: ['开始日期', '结束日期'],
-        valueFormat: 'YYYY-MM-DD', // 指定输出格式
-      },
-      fieldName: 'contractDate',
-      label: $t('system.rental.tenant.contractDate'),
-    },
-    {
-      component: 'RangePicker',
-      componentProps: {
-        format: 'YYYY-MM-DD',
-        placeholder: ['开始日期', '结束日期'],
-        valueFormat: 'YYYY-MM-DD', // 指定输出格式
+        valueFormat: 'YYYY-MM-DD',
       },
       fieldName: 'increaseDate',
       label: $t('system.rental.tenant.increaseDate'),
@@ -278,8 +268,8 @@ export function useColumns<T = any>(
             code: 'view',
             text: '查看',
           },
-          'edit', // 默认的编辑按钮
-          'delete', // 默认的删除按钮
+          'edit',
+          'delete',
         ],
       },
       field: 'operation',

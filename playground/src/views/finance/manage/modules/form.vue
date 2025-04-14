@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { SystemFinanceApi } from '#/api';
+import type { FinanceItem } from '../types';
 
 import { computed, ref } from 'vue';
 
@@ -15,7 +15,7 @@ import { useFormSchema } from '../data';
 
 const emits = defineEmits(['success']);
 
-const formData = ref<SystemFinanceApi.SystemFinance>();
+const formData = ref<FinanceItem>();
 
 const [Form, formApi] = useVbenForm({
   layout: 'vertical',
@@ -75,7 +75,7 @@ const [Modal, modalApi] = useVbenModal({
   },
   onOpenChange(isOpen) {
     if (isOpen) {
-      const data = modalApi.getData<SystemFinanceApi.SystemFinance>();
+      const data = modalApi.getData<FinanceItem>();
       console.warn('打开表单，数据:', data);
       formApi.resetForm();
       if (data && Object.keys(data).length > 0) {
