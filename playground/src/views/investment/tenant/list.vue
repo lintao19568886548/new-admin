@@ -37,7 +37,7 @@ const areaList = [
 // 当前选中的区域
 const currentArea = ref(areaList[0]) as any;
 
-const areaSelectorRef = ref();
+const parkSelectorRef = ref();
 
 function handleAreaChange(area: Area) {
   // 更新当前选中的区域
@@ -194,7 +194,7 @@ function onCreate() {
           :area-list="areaList"
           :default-area="currentArea"
           @change="handleAreaChange"
-          ref="areaSelectorRef"
+          ref="parkSelectorRef"
         />
       </template>
       <template #toolbar-tools>

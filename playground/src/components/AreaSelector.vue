@@ -6,11 +6,6 @@ import { useUserStore } from '@vben/stores';
 
 import { Button, Dropdown, Menu, message } from 'ant-design-vue';
 
-export interface Area {
-  key: string;
-  value: string;
-}
-
 export interface Park {
   parkId: number;
   parkName: string;
@@ -20,7 +15,7 @@ export interface Park {
 const props = withDefaults(
   defineProps<{
     // 默认选中的区域
-    defaultArea?: Area;
+    defaultPark?: Park;
     // 消息显示时间
     messageDuration?: number;
     // 刷新回调函数
@@ -29,7 +24,7 @@ const props = withDefaults(
     showSuccessMessage?: boolean;
   }>(),
   {
-    defaultArea: () => ({ key: 'all', value: '全部区域' }),
+    defaultPark: () => ({ parkId: 0, parkName: '全部区域' }),
     messageDuration: 2,
     refreshCallback: () => {},
     showSuccessMessage: true,
@@ -41,66 +36,59 @@ const props = withDefaults(
  */
 // 定义事件
 const emit = defineEmits<{
-  (e: 'change', area: Area): void;
+  (e: 'change', park: Park): void;
   (e: 'refresh'): void;
 }>();
 
 const userStore = useUserStore();
-const currentArea = ref<Area>(props.defaultArea);
+const currentPark = ref<Park>(props.defaultPark);
 // 区域列表
-const parks =
-  userStore.userInfo?.parks.map((park: any) => ({
-    key: park,
-    value: park,
-  })) || [];
+const parks = userStore.userInfo?.parks || [];
 
-if (parks.length > 0) {
+// 检查是否已存在"全部区域"选项，如果不存在才添加
+if (parks.length > 0 && !parks.some((park: any) => park.parkId === -1)) {
   parks.unshift({
-    key: 'all',
-    value: '全部区域',
+    parkId: -1,
+    parkName: '全部区域',
   });
 }
 
 // 处理区域切换
-function switchArea(area: Area) {
-  if (area.key === currentArea.value?.key) return;
+function switchArea(park: Park) {
+  if (park.parkName === currentPark.value?.parkName) return;
 
   // 更新当前选中的区域
-  currentArea.value = area;
+  currentPark.value = park;
 
   // 显示加载提示
   message.loading({
-    content: `正在切换到${area.value}...`,
+    content: `正在切换到${park.parkName}...`,
     duration: 0,
-    key: 'area_change_msg',
+    key: 'park_change_msg',
   });
 
-  // 延迟关闭提示
-  setTimeout(() => {
+  // 触发 change 事件
+  emit('change', park);
+
+  // 执行刷新回调
+  if (props.refreshCallback) {
+    props.refreshCallback();
     if (props.showSuccessMessage) {
       message.success({
-        content: `已切换到${area.value}`,
+        content: `已切换到${park.parkName}`,
         duration: props.messageDuration,
-        key: 'area_change_msg',
+        key: 'park_change_msg',
       });
     }
-
-    // 触发 change 事件
-    emit('change', area);
-
-    // 执行刷新回调
-    if (props.refreshCallback) {
-      props.refreshCallback();
-    } else {
-      // 触发刷新事件，让父组件决定如何处理
-      emit('refresh');
-    }
-  }, 500);
+  } else {
+    // 触发刷新事件，让父组件决定如何处理
+    emit('refresh');
+  }
 }
 
 // 暴露当前选中的区域和切换方法
 defineExpose({
-  currentArea,
+  currentPark,
   switchArea,
 });
 </script>
@@ -110,15 +98,15 @@ defineExpose({
       <Menu>
         <Menu.Item
           v-for="park in parks"
-          :key="park.key"
+          :key="park.parkName"
           @click="() => switchArea(park)"
         >
-          {{ park.value }}
+          {{ park.parkName }}
         </Menu.Item>
       </Menu>
     </template>
     <Button type="primary">
-      {{ currentArea?.value || '全部区域' }}
+      {{ currentPark?.parkName || '全部区域' }}
       <ChevronDown class="ml-1 size-4" />
     </Button>
   </Dropdown>

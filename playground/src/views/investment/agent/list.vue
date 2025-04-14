@@ -20,11 +20,8 @@ import { $t } from '#/locales';
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
-const currentArea = ref({
-  key: 'all',
-  value: '全部区域',
-});
-const areaSelectorRef = ref();
+const currentPark = ref();
+const parkSelectorRef = ref();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -126,8 +123,8 @@ const [Grid, gridApi] = useVbenVxeGrid({
           // 构建查询参数，包含分页信息
           const params = {
             ...formData,
-            area: currentArea.value.key,
             currentPage: page.page?.currentPage || 1,
+            currentPark: currentPark.value ? currentPark.value.parkId : -1,
             pageSize: page.page?.pageSize || 20,
           };
           try {
@@ -180,10 +177,10 @@ function refreshGrid() {
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector
-          :default-area="currentArea"
+          :default-park="currentPark"
           :refresh-callback="refreshGrid"
-          @change="(area) => (currentArea = area)"
-          ref="areaSelectorRef"
+          @change="(park) => (currentPark = park)"
+          ref="parkSelectorRef"
         />
       </template>
       <template #toolbar-tools>

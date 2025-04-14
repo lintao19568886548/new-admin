@@ -8,6 +8,7 @@ import type { OnActionClickFn } from '#/adapter/vxe-table';
 import dayjs from 'dayjs';
 
 import { z } from '#/adapter/form';
+import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
 /**
@@ -67,6 +68,18 @@ export function useFormSchema(): VbenFormSchema[] {
       defaultValue: 1,
       fieldName: 'status', // 修改字段名从 accessStatus 为 status
       label: '出入状态',
+    },
+    {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
     },
     {
       component: 'Textarea',

@@ -7,6 +7,7 @@ import type { SystemDeptApi } from '#/api/system/dept';
 import dayjs from 'dayjs'; // 添加 dayjs 导入
 
 import { z } from '#/adapter/form';
+import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
 /**
@@ -84,6 +85,18 @@ export function useFormSchema(): VbenFormSchema[] {
       defaultValue: '进入',
       fieldName: 'status',
       label: '访问状态',
+    },
+    {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
     },
     {
       component: 'Textarea',

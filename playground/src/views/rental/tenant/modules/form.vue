@@ -42,10 +42,10 @@ const [Modal, modalApi] = useVbenModal({
 
     // 处理日期格式，确保使用本地时间
     if (values.contractDate) {
-      values.contractDate = dayjs(values.contractDate).format('YYYY-MM-DD');
+      values.contractDate = new Date(values.contractDate).toISOString();
     }
     if (values.increaseDate) {
-      values.increaseDate = dayjs(values.increaseDate).format('YYYY-MM-DD');
+      values.increaseDate = new Date(values.increaseDate).toISOString();
     }
 
     console.warn('提交表单数据', values);

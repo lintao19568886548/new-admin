@@ -102,11 +102,8 @@ function onActionClick({
 }
 
 // 当前选中的区域
-const currentArea = ref({
-  key: 'all',
-  value: '全部区域',
-});
-const areaSelectorRef = ref();
+const currentPark = ref();
+const parkSelectorRef = ref();
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
@@ -142,6 +139,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
                 params[key] = formValues[key];
               }
             });
+
+            params.currentPark = currentPark.value
+              ? currentPark.value.parkId
+              : -1;
 
             // 添加分页参数
             params.currentPage = page?.currentPage || 1;
@@ -235,10 +236,10 @@ function onSearch(params: any) {
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector
-          :default-area="currentArea"
+          :default-park="currentPark"
           :refresh-callback="refreshGrid"
-          @change="(area) => (currentArea = area)"
-          ref="areaSelectorRef"
+          @change="(park) => (currentPark = park)"
+          ref="parkSelectorRef"
         />
       </template>
       <template #toolbar-tools>

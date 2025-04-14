@@ -17,21 +17,22 @@ export default eventHandler(async (event) => {
     progress,
     startTime,
     endTime,
+    currentPark,
     currentPage,
     pageSize,
-    area,
   } = query;
 
   // 构建查询条件
   const where: any = {};
-  if (area) {
-    const areaStr = String(area);
-    if (areaStr === 'all') {
-      // 当选择"all"时，直接查询所有有权限的园区
+
+  // 区域查询
+  if (currentPark) {
+    if (Number(currentPark) === -1) {
+      // 选择全部区域时,直接查询全部有权限的园区
       const parks = await prismaClient.park.findMany({
         where: {
           parkName: {
-            in: userinfo.parks,
+            in: userinfo.parks.map((park) => park.parkName),
           },
         },
         select: { parkId: true },
@@ -42,10 +43,12 @@ export default eventHandler(async (event) => {
           in: parks.map((park) => park.parkId),
         };
       }
-    } else if (userinfo.parks.includes(areaStr)) {
+    } else if (
+      userinfo.parks.map((park) => park.parkId).includes(Number(currentPark))
+    ) {
       // 当用户有权限查看特定园区时
       const park = await prismaClient.park.findFirst({
-        where: { parkName: areaStr },
+        where: { parkId: Number(currentPark) },
         select: { parkId: true },
       });
 

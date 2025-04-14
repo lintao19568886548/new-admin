@@ -407,7 +407,7 @@ defineExpose({
                 <Select.Option
                   v-for="park in parkList"
                   :key="park.parkId"
-                  :value="park.parkName"
+                  :value="park.parkId"
                 >
                   {{ park.parkName }}
                 </Select.Option>

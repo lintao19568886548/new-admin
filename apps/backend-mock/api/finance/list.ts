@@ -6,6 +6,12 @@ import { useResponseError, useResponseSuccess } from '~/utils/response';
 const nzhcn = Nzh.cn;
 
 export default eventHandler(async (event) => {
+  const userinfo = await verifyAccessToken(event);
+  if (!userinfo) {
+    console.log('userinfo', userinfo);
+    return unAuthorizedResponse(event);
+  }
+
   try {
     const query = getQuery(event);
     console.log('后端收到的查询参数:', query);
@@ -123,8 +129,40 @@ export default eventHandler(async (event) => {
     }
 
     // 区域查询
-    if (query.area && query.area !== 'all') {
-      where.area = String(query.area);
+    if (query.currentPark) {
+      if (Number(query.currentPark) === -1) {
+        // 选择全部区域时,直接查询全部有权限的园区
+        const parks = await prismaClient.park.findMany({
+          where: {
+            parkName: {
+              in: userinfo.parks.map((park) => park.parkName),
+            },
+          },
+          select: { parkId: true },
+        });
+
+        if (parks.length > 0) {
+          where.parkId = {
+            in: parks.map((park) => park.parkId),
+          };
+        }
+      } else if (
+        userinfo.parks
+          .map((park) => park.parkId)
+          .includes(Number(query.currentPark))
+      ) {
+        // 当用户有权限查看特定园区时
+        const park = await prismaClient.park.findFirst({
+          where: { parkId: Number(query.currentPark) },
+          select: { parkId: true },
+        });
+
+        if (park) {
+          where.parkId = park.parkId;
+        }
+      } else {
+        return useResponseError('没有查看权限');
+      }
     }
 
     console.log('构建的查询条件:', where);

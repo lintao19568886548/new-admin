@@ -9,23 +9,17 @@ export default eventHandler(async (event) => {
   const body = await readBody(event);
   const rentalTenantId = Number.parseInt(event.context.params.id);
   if (!rentalTenantId) {
-    return useResponseError('tenantId错误4');
+    return useResponseError('tenantId错误');
   }
 
+  console.log(body);
   try {
     const tenant = await prismaClient.rentalTenant.update({
       where: {
         rentalTenantId,
       },
       data: {
-        tenantName: body.tenantName,
-        phoneNumber: body.phoneNumber,
-        status: body.status,
-        contractDate: new Date(body.contractDate), // 修改这里，转换为 Date 对象
-        increaseDate: new Date(body.increaseDate), // 修改这里，转换为 Date 对象
-        increaseRate: Number.parseFloat(body.increaseRate),
-        address: body.address,
-        updateTime: new Date(),
+        ...body,
       },
     });
     return useResponseSuccess(tenant);

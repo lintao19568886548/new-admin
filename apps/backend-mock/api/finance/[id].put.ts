@@ -14,23 +14,12 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    // 确保日期字段格式正确
-    const transactionTime = body.transactionTime
-      ? new Date(body.transactionTime)
-      : undefined;
-
     const finance = await prismaClient.finance.update({
       where: {
         financeId,
       },
       data: {
-        billName: body.billName,
-        billCategory: body.billCategory,
-        amount: Number.parseFloat(body.amount),
-        transactionType: body.transactionType,
-        transactionTime,
-        remark: body.remark || null,
-        updateTime: new Date(),
+        ...body,
       },
     });
     return useResponseSuccess(finance);

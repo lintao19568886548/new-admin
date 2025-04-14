@@ -30,11 +30,8 @@ import {
 import MultipageBillDetail from './modules/MultipageBillDetail.vue';
 import MultipageBillForm from './modules/MultipageBillForm.vue';
 
-const currentArea = ref({
-  key: 'all',
-  value: '全部区域',
-});
-const areaSelectorRef = ref();
+const currentPark = ref();
+const parkSelectorRef = ref();
 
 // 账单表单组件引用
 const billFormRef = ref();
@@ -168,8 +165,8 @@ const [Grid, gridApi] = useVbenVxeGrid({
           // 构建查询参数，包含分页信息
           const params = {
             ...formData,
-            area: currentArea.value.key,
             currentPage: page.page?.currentPage || 1,
+            currentPark: currentPark.value ? currentPark.value.parkId : -1,
             pageSize: page.page?.pageSize || 20,
           };
           try {
@@ -242,10 +239,10 @@ function handleFormSuccess(_data: any) {
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector
-          :default-area="currentArea"
+          :default-area="currentPark"
           :refresh-callback="refreshGrid"
-          @change="(area) => (currentArea = area)"
-          ref="areaSelectorRef"
+          @change="(park) => (currentPark = park)"
+          ref="parkSelectorRef"
         />
       </template>
       <template #toolbar-tools>

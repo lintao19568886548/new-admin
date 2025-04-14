@@ -67,7 +67,10 @@ export async function verifyAccessToken(
         ? user.roles.map((item) => item.role.name)
         : [],
       parks: Array.isArray(user.parks)
-        ? user.parks.map((item) => item.park.parkName)
+        ? user.parks.map((item) => ({
+            parkId: Number(item.parkId),
+            parkName: String(item.park.parkName),
+          }))
         : [],
       homePath: user.homePath ? String(user.homePath) : undefined,
     };
@@ -86,6 +89,8 @@ export async function verifyRefreshToken(
 
     // 使用数据库查询替代硬编码的用户查找
     const user = await getUserInfo(username);
+    if (!user) return null;
+
     // 转换为 UserInfo 类型并排除密码
     const userInfo: Omit<UserInfo, 'password'> = {
       id: Number(user.id),
@@ -95,7 +100,10 @@ export async function verifyRefreshToken(
         ? user.roles.map((item) => item.role.name)
         : [],
       parks: Array.isArray(user.parks)
-        ? user.parks.map((item) => item.park.parkName)
+        ? user.parks.map((item) => ({
+            parkId: Number(item.parkId),
+            parkName: String(item.park.parkName),
+          }))
         : [],
       homePath: user.homePath ? String(user.homePath) : undefined,
     };

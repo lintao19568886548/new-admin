@@ -1,9 +1,14 @@
+export interface Park {
+  parkId: number;
+  parkName: string;
+}
+
 export interface UserInfo {
   id: number;
   password: string;
   realName: string;
   roles: string[];
-  parks: string[];
+  parks: Park[];
   username: string;
   homePath?: string;
 }

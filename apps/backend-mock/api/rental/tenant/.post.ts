@@ -7,19 +7,12 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
   const body = await readBody(event);
+  console.log(body);
 
   try {
     const tenant = await prismaClient.rentalTenant.create({
       data: {
-        tenantName: body.tenantName,
-        phoneNumber: body.phoneNumber,
-        status: body.status,
-        contractDate: new Date(body.contractDate), // 修改这里，转换为 Date 对象
-        increaseDate: new Date(body.increaseDate), // 修改这里，转换为 Date 对象
-        increaseRate: Number.parseFloat(body.increaseRate),
-        address: body.address,
-        createTime: new Date(),
-        updateTime: new Date(),
+        ...body,
       },
     });
 

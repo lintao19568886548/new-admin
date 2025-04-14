@@ -40,6 +40,10 @@ const [Modal, modalApi] = useVbenModal({
       values.amount = Number(values.amount);
     }
 
+    if (values.transactionTime) {
+      values.transactionTime = new Date(values.transactionTime).toISOString();
+    }
+
     console.warn('提交表单数据', values);
     modalApi.lock();
 

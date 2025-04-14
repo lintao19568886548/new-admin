@@ -11,23 +11,10 @@ export default eventHandler(async (event) => {
   console.log('请求体参数:', body);
 
   try {
-    // 确保日期字段格式正确
-    const transactionTime = body.transactionTime
-      ? new Date(body.transactionTime)
-      : new Date();
-
     // 创建财务记录
     const finance = await prismaClient.finance.create({
       data: {
-        billName: body.billName,
-        billCategory: body.billCategory,
-        amount: Number.parseFloat(body.amount),
-        transactionType: body.transactionType,
-        transactionTime,
-        remark: body.remark || null,
-        // 自动添加创建和更新时间
-        createTime: new Date(),
-        updateTime: new Date(),
+        ...body,
       },
     });
 

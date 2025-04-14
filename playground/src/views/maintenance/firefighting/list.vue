@@ -26,7 +26,7 @@ const currentArea = ref({
   value: '全部区域',
 });
 
-const areaSelectorRef = ref();
+const parkSelectorRef = ref();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -229,7 +229,7 @@ function refreshGrid() {
           :default-area="currentArea"
           :refresh-callback="refreshGrid"
           @change="(area) => (currentArea = area)"
-          ref="areaSelectorRef"
+          ref="parkSelectorRef"
         />
       </template>
       <template #toolbar-tools>

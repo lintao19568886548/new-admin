@@ -213,15 +213,6 @@ export function useColumns<T = SystemFinanceApi.SystemFinance>(
       formatter: ({ cellValue }) => {
         return formatDateTime(cellValue);
       },
-      // formatter: ({ cellValue }) => {
-      //   if (!cellValue) return '';
-      //   // 将ISO日期格式转换为人类友好格式
-      //   try {
-      //     return formatDateTime(cellValue);
-      //   } catch {
-      //     return cellValue; // 如果转换失败，返回原始值
-      //   }
-      // },
       title: $t('page.finance.transactionTime'),
       width: 200,
     },
