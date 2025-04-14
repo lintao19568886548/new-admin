@@ -95,7 +95,7 @@ function switchArea(area: Area) {
       // 触发刷新事件，让父组件决定如何处理
       emit('refresh');
     }
-  }, 500);
+  }, 0);
 }
 
 // 暴露当前选中的区域和切换方法
