@@ -1,6 +1,7 @@
+import type { FinanceItem } from './types';
+
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { SystemFinanceApi } from '#/api';
 
 import { formatDateTime } from '@vben/utils';
 
@@ -167,7 +168,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
   ];
 }
 
-export function useColumns<T = SystemFinanceApi.SystemFinance>(
+export function useColumns<T = FinanceItem>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
   return [

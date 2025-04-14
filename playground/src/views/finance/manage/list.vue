@@ -1,9 +1,10 @@
 <script lang="ts" setup>
+import type { FinanceItem } from './types';
+
 import type {
   OnActionClickParams,
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
-import type { SystemFinanceApi } from '#/api';
 
 import { ref } from 'vue';
 
@@ -129,10 +130,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
       search: true,
       zoom: true,
     },
-  } as VxeTableGridOptions<SystemFinanceApi.SystemFinance>,
+  } as VxeTableGridOptions<FinanceItem>,
 });
 
-function onActionClick(e: OnActionClickParams<SystemFinanceApi.SystemFinance>) {
+function onActionClick(e: OnActionClickParams<FinanceItem>) {
   switch (e.code) {
     case 'delete': {
       onDelete(e.row);
@@ -145,7 +146,7 @@ function onActionClick(e: OnActionClickParams<SystemFinanceApi.SystemFinance>) {
   }
 }
 
-function onEdit(row: SystemFinanceApi.SystemFinance) {
+function onEdit(row: FinanceItem) {
   // 复制行数据以避免修改原始数据
   const editData = { ...row };
 
@@ -158,7 +159,7 @@ function onEdit(row: SystemFinanceApi.SystemFinance) {
   formModalApi.setData(editData).open();
 }
 
-function onDelete(row: SystemFinanceApi.SystemFinance) {
+function onDelete(row: FinanceItem) {
   Modal.confirm({
     cancelText: $t('common.no'),
     content: $t('ui.actionMessage.deleteConfirm', [row.billName]),
