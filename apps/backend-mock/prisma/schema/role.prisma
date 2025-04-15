@@ -7,6 +7,7 @@ model Role {
   updateTime DateTime?  @updatedAt @map("update_time")
   roleMenus  RoleMenu[] @relation("RoleToRoleMenu")
   userRoles  UserRole[] @relation("RoleToUserRole")
+  roleParks  RolePark[] @relation("RoleToPark")
 }
 
 // 用户角色关联表
@@ -39,4 +40,19 @@ model RoleMenu {
   @@index([roleId])
   @@index([menuId])
   @@map("role_menu")
+}
+
+// 角色园区关联表(多对多关系)
+model RolePark {
+  id         Int       @id @default(autoincrement())
+  roleId     Int       @map("role_id")
+  parkId     Int       @map("park_id")
+  role       Role      @relation("RoleToPark", fields: [roleId], references: [roleId])
+  park       Park      @relation("ParkToRolePark", fields: [parkId], references: [parkId])
+  createTime DateTime? @default(now()) @map("create_time")
+  updateTime DateTime? @updatedAt @map("update_time")
+
+  @@index([roleId])
+  @@index([parkId])
+  @@map("role_park")
 }

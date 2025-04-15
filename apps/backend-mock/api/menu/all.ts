@@ -11,6 +11,41 @@ export default eventHandler(async (event) => {
 
   const roleNames = userinfo.roles;
 
+  // 检查是否有Super角色权限
+  const hasSuperRole = roleNames.includes('Super');
+
+  // 如果有Super权限，直接查询所有菜单
+  if (hasSuperRole) {
+    const allMenus = await prismaClient.menu.findMany({
+      where: {
+        pid: null, // 只查询顶级菜单
+      },
+      include: {
+        meta: true,
+        children: {
+          include: {
+            meta: true,
+            children: {
+              include: {
+                meta: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // 处理菜单数据
+    const processedMenus = processMenuData(allMenus, {
+      removeEmptyFields: true,
+      fieldsToRemove: ['menuId', 'metaId', 'type', 'status', 'pid'],
+      removeEmptyChildren: true,
+    });
+
+    return useResponseSuccess(processedMenus);
+  }
+
+  // 非Super角色的原有逻辑
   // 先根据角色名称查询角色ID
   const roleEntities = await prismaClient.role.findMany({
     where: {

@@ -83,11 +83,14 @@
     "typeLink": "外链",
     "typeMenu": "菜单"
   },
+  "park": {
+    "title": "园区管理"
+  },
   "rental": {
     "address": "地址",
     "area": "总面积",
-    "contact": "联系方式",
     "checker": "检查人",
+    "contact": "联系方式",
     "createTime": "创建时间",
     "description": "项目描述",
     "features": "项目特点",

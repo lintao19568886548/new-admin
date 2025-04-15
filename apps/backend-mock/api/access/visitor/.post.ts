@@ -2,10 +2,6 @@ import { prismaClient } from '~/utils/db';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
-  const userinfo = await verifyAccessToken(event);
-  if (!userinfo) {
-    return unAuthorizedResponse(event);
-  }
   const body = await readBody(event);
 
   try {

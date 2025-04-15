@@ -8,6 +8,18 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
+  // 检查是否有Super角色权限
+  const roleNames = userinfo.roles;
+  const hasSuperRole = roleNames.includes('Super');
+
+  // 如果有Super权限，直接查询所有
+  if (hasSuperRole) {
+    const allMenus = await prismaClient.park.findMany({
+      select: { parkId: true, parkName: true },
+    });
+    return useResponseSuccess(allMenus);
+  }
+
   // 构建查询条件
   const where: any = {};
 

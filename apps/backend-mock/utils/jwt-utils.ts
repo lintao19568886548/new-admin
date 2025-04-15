@@ -66,14 +66,21 @@ export async function verifyAccessToken(
       roles: Array.isArray(user.roles)
         ? user.roles.map((item) => item.role.name)
         : [],
-      parks: Array.isArray(user.parks)
+      parks: undefined,
+      homePath: user.homePath ? String(user.homePath) : undefined,
+    };
+    if (user.roles.some((item) => item.role.name === 'Super')) {
+      userInfo.parks = await prismaClient.park.findMany({
+        select: { parkId: true, parkName: true },
+      });
+    } else {
+      userInfo.parks = Array.isArray(user.parks)
         ? user.parks.map((item) => ({
             parkId: Number(item.parkId),
             parkName: String(item.park.parkName),
           }))
-        : [],
-      homePath: user.homePath ? String(user.homePath) : undefined,
-    };
+        : [];
+    }
     return userInfo;
   } catch {
     return null;
@@ -99,15 +106,21 @@ export async function verifyRefreshToken(
       roles: Array.isArray(user.roles)
         ? user.roles.map((item) => item.role.name)
         : [],
-      parks: Array.isArray(user.parks)
+      parks: undefined,
+      homePath: user.homePath ? String(user.homePath) : undefined,
+    };
+    if (user.roles.some((item) => item.role.name === 'Super')) {
+      userInfo.parks = await prismaClient.park.findMany({
+        select: { parkId: true, parkName: true },
+      });
+    } else {
+      userInfo.parks = Array.isArray(user.parks)
         ? user.parks.map((item) => ({
             parkId: Number(item.parkId),
             parkName: String(item.park.parkName),
           }))
-        : [],
-      homePath: user.homePath ? String(user.homePath) : undefined,
-    };
-
+        : [];
+    }
     return userInfo;
   } catch {
     return null;

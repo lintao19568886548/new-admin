@@ -8,7 +8,7 @@ model Park {
   status        String            @db.VarChar(20) // 状态：运营中、建设中、规划中等
   factories     Factory[]         @relation("ParkToFactory")
   dormitories   Dormitory[]       @relation("ParkToDormitory")
-  userParks     UserPark[]        @relation("ParkToUserPark")
+  roleParks     RolePark[]        @relation("ParkToRolePark")
   amountBills   AmountBill[]      @relation("ParkToAmountBill")
   finances      Finance[]         @relation("ParkToFinance")
   visitors      AccessVisitor[]   @relation("ParkToVisitor")

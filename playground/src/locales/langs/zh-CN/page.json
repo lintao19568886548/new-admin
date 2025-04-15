@@ -98,6 +98,20 @@
     "transformer": "变压器管理",
     "view": "查看维修"
   },
+  "park": {
+    "create": "新增园区",
+    "detail": "园区详情",
+    "edit": "修改园区",
+    "list": "园区列表",
+    "name": "园区名称",
+    "title": "园区管理",
+    "view": "查看园区",
+    "address": "园区地址",
+    "area": "园区面积",
+    "description": "园区描述",
+    "status": "园区状态",
+    "item": "园区"
+  },
   "rental": {
     "create": "新增租赁",
     "createTenant": "新增租户",

@@ -12,7 +12,7 @@ export default eventHandler(async (event) => {
   }
 
   const body = await readBody(event);
-  const { permissions, ...roleData } = body;
+  const { permissions, parkIds, ...roleData } = body;
   roleData.status = !!roleData.status;
 
   try {
@@ -35,6 +35,16 @@ export default eventHandler(async (event) => {
             })),
           });
         }
+      }
+
+      if (parkIds && Array.isArray(parkIds)) {
+        await prisma.rolePark.createMany({
+          data: parkIds.map((parkId) => ({
+            roleId: newRole.roleId,
+            parkId,
+            isDeleted: false,
+          })),
+        });
       }
     });
 

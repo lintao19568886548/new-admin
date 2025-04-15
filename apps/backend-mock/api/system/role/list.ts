@@ -7,15 +7,8 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
-  const {
-    page = 1,
-    pageSize = 20,
-    name,
-    remark,
-    startTime,
-    endTime,
-    status,
-  } = getQuery(event);
+  const { page, pageSize, name, remark, startTime, endTime, status } =
+    getQuery(event);
 
   // 构建查询条件
   const where: any = {};

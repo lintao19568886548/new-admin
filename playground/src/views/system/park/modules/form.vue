@@ -6,7 +6,7 @@ import { useVbenModal } from '@vben/common-ui';
 import { Button } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { createInvestment, updateInvestment } from '#/api/investment';
+import { createSystemPark, updateSystemPark } from '#/api/system/park';
 import { $t } from '#/locales';
 
 import { useFormSchema } from '../data';
@@ -36,18 +36,11 @@ const [Modal, modalApi] = useVbenModal({
     if (valid) {
       modalApi.lock();
       const data = await formApi.getValues();
-      const { investmentId } = modalApi.getData();
+      const { parkId } = modalApi.getData();
       try {
-        if (data.meetingTime) {
-          data.meetingTime = new Date(data.meetingTime).toISOString();
-        }
-
-        if (investmentId) {
-          data.investmentId = investmentId;
-          await updateInvestment(data);
-        } else {
-          await createInvestment(data);
-        }
+        await (parkId
+          ? updateSystemPark(parkId, data)
+          : createSystemPark(data));
         modalApi.close();
         emit('success');
       } finally {

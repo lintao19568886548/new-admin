@@ -45,7 +45,7 @@ export function useFormSchema(): VbenFormSchema[] {
         options: [],
         valueField: 'parkId',
       },
-      fieldName: 'parkId',
+      fieldName: 'parkIds',
       label: $t('page.common.park'),
     },
     {

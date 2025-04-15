@@ -1,18 +1,42 @@
 <script lang="ts" setup>
-import { reactive, ref } from 'vue';
+import type { Park } from '#/components/AreaSelector.vue';
 
+import { onMounted, reactive, ref } from 'vue';
+
+import { message } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { createVisitor } from '#/api/access/visitor';
+import { getVisitorParkList } from '#/api/park';
 
 // 表单数据
 const formData = reactive({
   carNum: '',
+  parkId: 1,
   phoneNumber: '',
   registerTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
   remark: '',
   status: '进入',
   visitorName: '',
+});
+
+// 园区列表
+const parkList = ref<Park[]>([]);
+
+// 获取园区列表
+async function fetchParkList() {
+  try {
+    const result = await getVisitorParkList({ area: 'all' });
+    parkList.value = result || [];
+  } catch (error) {
+    console.error('获取园区列表失败:', error);
+    message.error('获取园区列表失败');
+  }
+}
+
+// 在组件挂载时获取园区列表
+onMounted(() => {
+  fetchParkList();
 });
 
 // 删除或注释掉未使用的 rules 变量
@@ -132,12 +156,25 @@ function closeMessage() {
         <input type="text" id="reason" v-model="formData.remark" required />
       </div>
 
-      <div class="form-group">
+      <!-- <div class="form-group">
         <label for="status">访问状态：</label>
         <select id="status" v-model="formData.status" required>
           <option value="">请选择</option>
           <option value="离开">离开</option>
           <option value="进入">进入</option>
+        </select>
+      </div> -->
+
+      <div class="form-group">
+        <label for="parkId">园区：</label>
+        <select id="parkId" v-model="formData.parkId" required>
+          <option
+            v-for="park in parkList"
+            :key="park.parkId"
+            :value="park.parkId"
+          >
+            {{ park.parkName }}
+          </option>
         </select>
       </div>
 
