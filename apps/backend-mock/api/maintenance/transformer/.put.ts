@@ -12,9 +12,9 @@ export default eventHandler(async (event) => {
 
   try {
     // 使用事务处理创建操作
-    const result = await prismaClient.investment.update({
+    const result = await prismaClient.transformer.update({
       where: {
-        investmentId: Number(body.investmentId),
+        transformerId: Number(body.transformerId),
       },
       data: {
         ...body,

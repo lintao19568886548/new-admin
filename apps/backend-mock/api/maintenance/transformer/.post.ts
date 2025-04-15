@@ -11,7 +11,7 @@ export default eventHandler(async (event) => {
   console.log('请求体参数:', body);
   try {
     // 使用事务处理创建操作
-    const res = await prismaClient.investment.create({
+    const res = await prismaClient.transformer.create({
       data: {
         ...body,
       },

@@ -7,14 +7,14 @@ export default eventHandler(async (event) => {
     console.log('userinfo', userinfo);
     return unAuthorizedResponse(event);
   }
-  const investmentId = Number.parseInt(event.context.params.id);
-  if (!investmentId) {
-    return useResponseError('investmentId错误');
+  const transformerId = Number.parseInt(event.context.params.id);
+  if (!transformerId) {
+    return useResponseError('transformerId错误');
   }
 
-  const bill = await prismaClient.investment.findUnique({
+  const bill = await prismaClient.transformer.findUnique({
     where: {
-      investmentId,
+      transformerId,
     },
   });
   return useResponseSuccess(bill);

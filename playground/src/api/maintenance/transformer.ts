@@ -12,8 +12,8 @@ export async function createTransformer(data: any) {
   return requestClient.post('/maintenance/transformer', data);
 }
 
-export async function updateTransformer(data: any) {
-  return requestClient.put('/maintenance/transformer', data);
+export async function updateTransformer(id: number, data: any) {
+  return requestClient.put(`/maintenance/transformer/${id}`, data);
 }
 
 export async function deleteTransformer(id: number) {

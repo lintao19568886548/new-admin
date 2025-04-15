@@ -11,14 +11,14 @@ export default eventHandler(async (event) => {
   const query = getQuery(event);
   console.log('query', query);
   const {
-    agentName,
-    tenantName,
-    intentLevel,
-    minIntentArea,
-    maxIntentArea,
-    progress,
+    title,
+    address,
+    contact,
+    status,
+    specifications,
     startTime,
     endTime,
+    parkId,
     currentPage,
     pageSize,
   } = query;
@@ -26,51 +26,49 @@ export default eventHandler(async (event) => {
   // 构建查询条件
   const where: any = {};
 
-  // 中介人名称查询
-  if (agentName) {
-    where.agentName = {
-      contains: agentName,
+  // 标题查询
+  if (title) {
+    where.title = {
+      contains: title,
     };
   }
 
-  // 租户名称查询
-  if (tenantName) {
-    where.tenantName = {
-      contains: tenantName,
+  // 地址查询
+  if (address) {
+    where.address = {
+      contains: address,
     };
   }
 
-  // 意向级别查询
-  if (intentLevel) {
-    where.intentLevel = {
-      equals: intentLevel,
+  // 联系人查询
+  if (contact) {
+    where.contact = {
+      contains: contact,
     };
   }
 
-  // 意向面积查询
-  if (minIntentArea) {
-    where.intentArea = {
-      gte: Number(minIntentArea),
+  // 状态查询
+  if (status) {
+    where.status = {
+      equals: status,
     };
   }
 
-  if (maxIntentArea) {
-    where.intentArea = {
-      ...where.intentArea,
-      lte: Number(maxIntentArea),
+  // 规格查询
+  if (specifications) {
+    where.specifications = {
+      contains: specifications,
     };
   }
 
-  // 进度查询
-  if (progress) {
-    where.progress = {
-      contains: progress,
-    };
+  // 园区ID查询
+  if (parkId) {
+    where.parkId = Number(parkId);
   }
 
   // 时间范围查询 - 使用startTime和endTime
   if (startTime && endTime) {
-    where.meetingTime = {
+    where.checkTime = {
       gte: new Date(startTime as string),
       lte: new Date(endTime as string),
     };
@@ -81,29 +79,31 @@ export default eventHandler(async (event) => {
   const size = Number(pageSize) || 20;
 
   // 查询总记录数
-  const total = await prismaClient.investment.count({
+  const total = await prismaClient.transformer.count({
     where,
   });
 
   // 查询分页数据
-  const result = await prismaClient.investment.findMany({
+  const result = await prismaClient.transformer.findMany({
     where,
     orderBy: {
-      meetingTime: 'desc',
+      checkTime: 'desc',
     },
     skip: (page - 1) * size,
     take: size,
     // 只选择需要的字段，减少数据传输量
     select: {
-      investmentId: true,
-      agentName: true,
-      tenantName: true,
-      intentLevel: true,
-      intentArea: true,
-      progress: true,
-      phoneNumber: true,
-      meetingTime: true,
+      transformerId: true,
+      title: true,
+      address: true,
+      contact: true,
+      status: true,
+      specifications: true,
+      checkTime: true,
       remark: true,
+      createTime: true,
+      updateTime: true,
+      parkId: true,
     },
   });
 
