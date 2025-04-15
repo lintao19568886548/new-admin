@@ -25,7 +25,14 @@ export default defineEventHandler(async (event) => {
         include: {
           role: {
             include: {
-              roleParks: true,
+              roleParks: {
+                where: {
+                  isDeleted: false,
+                },
+                include: {
+                  park: true,
+                },
+              },
             },
           },
         },
@@ -54,7 +61,13 @@ export default defineEventHandler(async (event) => {
       select: { parkId: true, parkName: true },
     });
   } else {
-    Array.isArray(userResult.roles.map((item) => item.role.roleParks));
+    const parks = userResult.roles.flatMap((roles) =>
+      roles.role.roleParks.map((parks) => ({
+        parkId: parks.park.parkId,
+        parkName: parks.park.parkName,
+      })),
+    );
+    findUser.parks = parks;
   }
 
   const accessToken = generateAccessToken(findUser);
