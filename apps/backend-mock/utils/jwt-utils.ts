@@ -68,13 +68,13 @@ export async function verifyAccessToken(
       parks: [],
       homePath: user.homePath ? String(user.homePath) : undefined,
     };
-    // if (user.roles.some((item) => item.role.name === 'Super')) {
-    //   userInfo.parks = await prismaClient.park.findMany({
-    //     select: { parkId: true, parkName: true },
-    //   });
-    // } else {
-    //   Array.isArray(user.roles.map((item) => item.role.roleParks));
-    // }
+    if (user.roles.some((item) => item.role.name === 'Super')) {
+      userInfo.parks = await prismaClient.park.findMany({
+        select: { parkId: true, parkName: true },
+      });
+    } else {
+      Array.isArray(user.roles.map((item) => item.role.roleParks));
+    }
     return userInfo;
   } catch {
     return null;
@@ -103,13 +103,13 @@ export async function verifyRefreshToken(
       parks: [],
       homePath: user.homePath ? String(user.homePath) : undefined,
     };
-    // if (user.roles.some((item) => item.role.name === 'Super')) {
-    //   userInfo.parks = await prismaClient.park.findMany({
-    //     select: { parkId: true, parkName: true },
-    //   });
-    // } else {
-    //   Array.isArray(user.roles.map((item) => item.role.roleParks));
-    // }
+    if (user.roles.some((item) => item.role.name === 'Super')) {
+      userInfo.parks = await prismaClient.park.findMany({
+        select: { parkId: true, parkName: true },
+      });
+    } else {
+      Array.isArray(user.roles.map((item) => item.role.roleParks));
+    }
     return userInfo;
   } catch {
     return null;
