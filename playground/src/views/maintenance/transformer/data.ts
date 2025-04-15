@@ -3,6 +3,8 @@ import type { TransformerItem } from './types';
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
+import { formatDateTime } from '@vben/utils';
+
 import { z } from '#/adapter/form';
 import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
@@ -219,6 +221,9 @@ export function useColumns<T = TransformerItem>(
     },
     {
       field: 'checkTime',
+      formatter: ({ cellValue }) => {
+        return formatDateTime(cellValue);
+      },
       minWidth: 120,
       title: $t('page.maintenance.checkTime'),
     },
