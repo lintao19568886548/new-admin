@@ -1,0 +1,14 @@
+model Reimbursement {
+  id              Int       @id @default(autoincrement())
+  purpose         String    @db.VarChar(100)
+  amount          Decimal   @db.Decimal(10, 2)
+  department      String    @db.VarChar(50)
+  payee           String    @db.VarChar(50)
+  date            DateTime
+  remark          String?   @db.VarChar(200)
+  createTime      DateTime? @default(now()) @map("create_time")
+  updateTime      DateTime? @updatedAt @map("update_time")
+  status          Int       @default(0)
+
+  @@map("reimbursement")
+}
