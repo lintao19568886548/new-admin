@@ -7,23 +7,24 @@ export default eventHandler(async (event) => {
     console.log('userinfo', userinfo);
     return unAuthorizedResponse(event);
   }
-
+  const body = await readBody(event);
   const transformerId = Number.parseInt(event.context.params.id);
   if (!transformerId) {
     return useResponseError('transformerId错误');
   }
 
   try {
-    const result = await prismaClient.transformer.delete({
+    const transformer = await prismaClient.transformer.update({
       where: {
         transformerId,
       },
+      data: {
+        ...body,
+      },
     });
-
-    console.log('删除账单成功:', result);
-    return useResponseSuccess(result);
+    return useResponseSuccess(transformer);
   } catch (error) {
-    console.error('删除账单失败:', error);
-    return useResponseError('删除账单失败', 500);
+    console.error('更新变压器数据失败:', error);
+    return useResponseError('更新变压器数据失败', 500);
   }
 });
