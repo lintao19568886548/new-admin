@@ -4,13 +4,13 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { ref } from 'vue';
+import { createApp, h, nextTick, onMounted, onUnmounted, ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
-import { Button, message } from 'ant-design-vue';
+import { Button, Image, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteInvestment, getInvestmentList } from '#/api/investment';
@@ -81,8 +81,74 @@ async function onDelete(row: any) {
  * @param row
  */
 function onView(row: any) {
-  // 可以跳转到详情页面
-  window.open(`/rental/detail/${row.id}`, '_blank');
+  // 处理图片数组，如果是数组就使用，否则创建一个只有一个元素的数组
+
+  // const testImgUrl = [
+  //   '/assets/微信图片_20250320150833.jpg',
+  //   '/assets/微信图片_20250320150846.jpg',
+  //   'https://unpkg.com/@vbenjs/static-source@0.1.7/source/logo-v1.webp',
+  // ];
+  // const imgList = testImgUrl;
+
+  // 检查imgUrl是否为数组，如果不是则创建一个只有一个元素的数组，否则直接使用imgUrl
+  const imgList = Array.isArray(row.imageUrlList)
+    ? row.imageUrlList
+    : [row.imageUrlList];
+
+  // 创建一个包含预览组件的div
+  const previewContainer = document.createElement('div');
+  document.body.append(previewContainer);
+
+  // 创建一个小型应用来渲染预览组件
+  const previewApp = createApp({
+    setup() {
+      const visible = ref(false);
+
+      // 在组件卸载时移除容器
+      onUnmounted(() => {
+        if (document.body.contains(previewContainer)) {
+          previewContainer.remove();
+        }
+      });
+
+      // 使用nextTick确保组件挂载后再显示预览，这样可以有动画效果
+      onMounted(() => {
+        nextTick(() => {
+          visible.value = true;
+        });
+      });
+
+      return () =>
+        h(
+          Image.PreviewGroup,
+          {
+            preview: {
+              onVisibleChange: (v) => {
+                visible.value = v;
+                if (!v) {
+                  // 添加延迟，让关闭动画完成后再卸载
+                  setTimeout(() => {
+                    previewApp.unmount();
+                  }, 200);
+                }
+              },
+              visible: visible.value,
+            },
+          },
+          // 为每个图片路径创建一个Image组件
+          imgList.map((src: any) =>
+            h(Image, {
+              preview: {},
+              src,
+              style: { display: 'none' },
+            }),
+          ),
+        );
+    },
+  });
+
+  // 挂载应用
+  previewApp.mount(previewContainer);
 }
 
 /**
@@ -98,7 +164,7 @@ function onActionClick({ code, row }: OnActionClickParams) {
       onEdit(row);
       break;
     }
-    case 'view': {
+    case '查看': {
       onView(row);
       break;
     }

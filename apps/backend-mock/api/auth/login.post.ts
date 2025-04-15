@@ -23,12 +23,11 @@ export default defineEventHandler(async (event) => {
     include: {
       roles: {
         include: {
-          role: true,
-        },
-      },
-      parks: {
-        include: {
-          park: true,
+          role: {
+            include: {
+              roleParks: true,
+            },
+          },
         },
       },
     },
@@ -48,13 +47,15 @@ export default defineEventHandler(async (event) => {
       ? userResult.roles.map((item) => item.role.name)
       : [],
     homePath: userResult.homePath ? String(userResult.homePath) : undefined,
-    parks: Array.isArray(userResult.parks)
-      ? userResult.parks.map((item) => ({
-          parkId: Number(item.parkId),
-          parkName: String(item.park.parkName),
-        }))
-      : [],
+    parks: [],
   };
+  if (userResult.roles.some((item) => item.role.name === 'Super')) {
+    findUser.parks = await prismaClient.park.findMany({
+      select: { parkId: true, parkName: true },
+    });
+  } else {
+    Array.isArray(userResult.roles.map((item) => item.role.roleParks));
+  }
 
   const accessToken = generateAccessToken(findUser);
   const refreshToken = generateRefreshToken(findUser);

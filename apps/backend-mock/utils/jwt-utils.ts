@@ -31,12 +31,11 @@ async function getUserInfo(username: string) {
     include: {
       roles: {
         include: {
-          role: true,
-        },
-      },
-      parks: {
-        include: {
-          park: true,
+          role: {
+            include: {
+              roleParks: true,
+            },
+          },
         },
       },
     },
@@ -66,7 +65,7 @@ export async function verifyAccessToken(
       roles: Array.isArray(user.roles)
         ? user.roles.map((item) => item.role.name)
         : [],
-      parks: undefined,
+      parks: [],
       homePath: user.homePath ? String(user.homePath) : undefined,
     };
     if (user.roles.some((item) => item.role.name === 'Super')) {
@@ -74,12 +73,7 @@ export async function verifyAccessToken(
         select: { parkId: true, parkName: true },
       });
     } else {
-      userInfo.parks = Array.isArray(user.parks)
-        ? user.parks.map((item) => ({
-            parkId: Number(item.parkId),
-            parkName: String(item.park.parkName),
-          }))
-        : [];
+      Array.isArray(user.roles.map((item) => item.role.roleParks));
     }
     return userInfo;
   } catch {
@@ -106,7 +100,7 @@ export async function verifyRefreshToken(
       roles: Array.isArray(user.roles)
         ? user.roles.map((item) => item.role.name)
         : [],
-      parks: undefined,
+      parks: [],
       homePath: user.homePath ? String(user.homePath) : undefined,
     };
     if (user.roles.some((item) => item.role.name === 'Super')) {
@@ -114,12 +108,7 @@ export async function verifyRefreshToken(
         select: { parkId: true, parkName: true },
       });
     } else {
-      userInfo.parks = Array.isArray(user.parks)
-        ? user.parks.map((item) => ({
-            parkId: Number(item.parkId),
-            parkName: String(item.park.parkName),
-          }))
-        : [];
+      Array.isArray(user.roles.map((item) => item.role.roleParks));
     }
     return userInfo;
   } catch {

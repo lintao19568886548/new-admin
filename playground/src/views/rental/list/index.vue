@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import type { RentalProjectItem } from '@vben/common-ui';
-
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -13,7 +11,7 @@ import { Tag } from 'ant-design-vue';
 // 这是一个示例数据，实际项目中需要根据实际情况进行调整
 // url 也可以是内部路由，在 navTo 方法中识别处理，进行内部跳转
 // 例如：url: /dashboard/workspace
-const projectItems: RentalProjectItem[] = [
+const projectItems = [
   {
     color: 'red',
     content: '位于工业园区核心地带，交通便利，配套设施完善，适合轻工业生产。',
@@ -124,7 +122,7 @@ function handleSearch(params: any) {
 const router = useRouter();
 
 // 这是一个示例方法，实际项目中需要根据实际情况进行调整
-function navTo(nav: RentalProjectItem) {
+function navTo(nav: any) {
   router.push({ name: 'RentalDetail', params: { id: nav.id } });
 }
 

@@ -1,0 +1,23 @@
+model Image {
+  imgId        Int                @id @default(autoincrement()) @map("img_id")
+  imgUrl       String             @db.LongText @map("img_url")
+  createdTime  DateTime?          @default(now()) @map("created_time")
+  updatedTime  DateTime?          @updatedAt @map("updated_time")
+  investments  InvestmentImage[]  @relation("ImageToInvestmentImage")
+
+  @@map("image")
+}
+
+model InvestmentImage {
+  id           Int        @id @default(autoincrement())
+  investmentId Int        @map("investment_id")
+  imgId        Int        @map("img_id")
+  investment   Investment @relation("InvestmentToInvestmentImage", fields: [investmentId], references: [investmentId])
+  image        Image      @relation("ImageToInvestmentImage", fields: [imgId], references: [imgId])
+  createTime   DateTime?  @default(now()) @map("create_time")
+  updateTime   DateTime?  @updatedAt @map("update_time")
+
+  @@index([investmentId])
+  @@index([imgId])
+  @@map("investment_image")
+}
