@@ -26,11 +26,6 @@ export default defineEventHandler(async (event) => {
           role: true,
         },
       },
-      parks: {
-        include: {
-          park: true,
-        },
-      },
     },
   });
 
@@ -48,12 +43,7 @@ export default defineEventHandler(async (event) => {
       ? userResult.roles.map((item) => item.role.name)
       : [],
     homePath: userResult.homePath ? String(userResult.homePath) : undefined,
-    parks: Array.isArray(userResult.parks)
-      ? userResult.parks.map((item) => ({
-          parkId: Number(item.parkId),
-          parkName: String(item.park.parkName),
-        }))
-      : [],
+    parks: [],
   };
 
   const accessToken = generateAccessToken(findUser);
