@@ -46,11 +46,11 @@ const routes: RouteRecordRaw[] = [
         meta: {
           hideInMenu: true,
           icon: 'mdi:file-document-outline', // 更改为详情/文档图标
-          parentPath: '/rental',
+          parentPath: '/rental/list', // 修改父路径，确保面包屑导航正确
           title: $t('page.rental.detail'),
         },
         name: 'RentalDetail',
-        path: '/rental/detail/:id',
+        path: '/rental/list/:id', // 修改路径，使其与列表页面路径保持一致
       },
     ],
   },
