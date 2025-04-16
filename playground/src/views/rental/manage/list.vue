@@ -108,6 +108,27 @@ const parkSelectorRef = ref();
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
+    handleReset: async () => {
+      // 先重置表单
+      await gridApi.formApi?.resetForm();
+
+      // 手动重置所有MultiSelect组件
+      // 如果有表单引用，可以通过引用获取组件实例并调用reset方法
+      // 或者通过设置特定字段为默认值来触发重置
+      const defaultValues = {
+        area: ['equal', undefined, undefined],
+        availableArea: ['equal', undefined, undefined],
+        rentPrice: ['equal', undefined, undefined],
+      };
+
+      // 设置默认值
+      Object.entries(defaultValues).forEach(([key, value]) => {
+        gridApi.formApi?.setFieldValue(key, value);
+      });
+
+      // 刷新表格
+      refreshGrid();
+    },
     schema: useGridFormSchema(),
     submitOnChange: false, // 修改为false，不再自动提交
   },
