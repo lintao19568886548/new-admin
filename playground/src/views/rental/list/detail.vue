@@ -27,7 +27,7 @@ const loading = ref(false);
 
 // 返回列表页面
 function goBack() {
-  router.push({ name: 'RentalList' }); // 使用命名路由确保导航正确
+  router.push({ name: 'RentalDetail' }); // 使用命名路由确保导航正确
 }
 
 // 厂房详情数据

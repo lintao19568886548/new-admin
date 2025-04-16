@@ -125,6 +125,7 @@ function handleSearch() {
     <CardContent class="flex flex-wrap p-0">
       <template v-for="(item, index) in items" :key="item.title">
         <div
+          @click="$emit('click', item)"
           :class="{
             'border-r-0': index % 3 === 2,
             'border-b-0': index < 3,

@@ -2,6 +2,7 @@
 import type { FactoryListItem } from './types';
 
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { RentalProject } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
@@ -124,13 +125,12 @@ function handleSearch(params: any) {
   }
 }
 
-// const router = useRouter();
+const router = useRouter();
 
 // 导航到详情页
 function navTo(nav: any) {
   console.warn('导航到详情页，ID:', nav.id);
-  // 直接使用路由路径导航，避免命名路由可能的问题
-  window.location.href = `/rental/list/${nav.id}`;
+  router.push(`/rental/detail/${nav.id}`);
 }
 
 // 监听滚动事件，实现懒加载
