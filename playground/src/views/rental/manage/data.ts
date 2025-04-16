@@ -20,13 +20,13 @@ export function useFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'title',
+      fieldName: 'factoryName',
       label: $t('system.rental.title'),
       rules: 'required',
     },
     {
       component: 'Input',
-      fieldName: 'price',
+      fieldName: 'rentPrice',
       label: $t('system.rental.price'),
       rules: 'required',
     },
@@ -96,13 +96,13 @@ export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'title',
+      fieldName: 'factoryName',
       label: $t('system.rental.title'),
     },
     {
       component: markRaw(MultiSelect),
       disabledOnChangeListener: false,
-      fieldName: 'price',
+      fieldName: 'rentPrice',
       formItemClass: 'col-span-1',
       label: $t('system.rental.price'),
     },
@@ -140,12 +140,12 @@ export function useColumns<T = RentalManagementItem>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
-      field: 'title',
+      field: 'factoryName',
       title: $t('system.rental.title'),
       width: 150,
     },
     {
-      field: 'price',
+      field: 'rentPrice',
       title: $t('system.rental.price'),
       width: 120,
     },
@@ -190,7 +190,7 @@ export function useColumns<T = RentalManagementItem>(
       align: 'center',
       cellRender: {
         attrs: {
-          nameField: 'title',
+          nameField: 'factoryName',
           nameTitle: $t('system.rental.name'),
           onClick: onActionClick,
         },

@@ -8,18 +8,18 @@ export default eventHandler(async (event) => {
   }
   const id = Number.parseInt(event.context.params.id);
   if (!id) {
-    return useResponseError('tenantId错误1');
+    return useResponseError('factoryId错误');
   }
 
   try {
-    await prismaClient.rentalManage.delete({
+    await prismaClient.factory.delete({
       where: {
-        rentalManageId: id,
+        factoryId: id,
       },
     });
     return useResponseSuccess(null);
   } catch (error) {
-    console.error('删除租户失败:', error);
-    return useResponseError('删除租户失败', 500);
+    console.error('删除厂房失败:', error);
+    return useResponseError('删除厂房失败', 500);
   }
 });

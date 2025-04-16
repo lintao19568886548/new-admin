@@ -8,13 +8,13 @@ export default eventHandler(async (event) => {
   }
   const id = Number.parseInt(event.context.params.id);
   if (!id) {
-    return useResponseError('rentalTenantId错误');
+    return useResponseError('factoryId错误');
   }
 
-  const tenant = await prismaClient.rentalManage.findUnique({
+  const factory = await prismaClient.factory.findUnique({
     where: {
-      rentalManageId: id,
+      factoryId: id,
     },
   });
-  return useResponseSuccess(tenant);
+  return useResponseSuccess(factory);
 });

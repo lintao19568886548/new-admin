@@ -9,15 +9,15 @@ export default eventHandler(async (event) => {
   const body = await readBody(event);
 
   try {
-    const tenant = await prismaClient.rentalManage.create({
+    const factory = await prismaClient.factory.create({
       data: {
         ...body,
       },
     });
 
-    return useResponseSuccess(tenant);
+    return useResponseSuccess(factory);
   } catch (error) {
-    console.error('创建租户失败:', error);
-    return useResponseError('创建租户失败', 500);
+    console.error('创建厂房失败:', error);
+    return useResponseError('创建厂房失败', 500);
   }
 });
