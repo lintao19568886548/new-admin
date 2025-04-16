@@ -137,6 +137,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
                 formValues[key] !== ''
               ) {
                 params[key] = formValues[key];
+                if (key === 'rentPrice') {
+                  params[key] = formValues[key].join(',');
+                }
               }
             });
 
@@ -194,45 +197,12 @@ function refreshGrid() {
 function onFormSuccess() {
   refreshGrid();
 }
-
-// 添加搜索函数
-function onSearch(params: any) {
-  console.warn('触发搜索，原始参数:', params);
-
-  // 获取表单数据
-  gridApi.formApi?.getValues?.().then((formValues) => {
-    if (!formValues) return;
-
-    // 清理表单数据，移除空值
-    const searchParams: Record<string, any> = {};
-    Object.keys(formValues).forEach((key) => {
-      if (
-        formValues[key] !== undefined &&
-        formValues[key] !== null &&
-        formValues[key] !== ''
-      ) {
-        searchParams[key] = formValues[key];
-      }
-    });
-
-    console.warn('处理后的搜索参数:', searchParams);
-
-    // 执行查询
-    gridApi.query({
-      form: searchParams,
-    });
-  });
-}
 </script>
 
 <template>
   <Page auto-content-height>
     <FormModal @success="onFormSuccess" />
-    <Grid
-      :table-title="$t('system.rental.list')"
-      @search="onSearch"
-      @form-submit="onSearch"
-    >
+    <Grid :table-title="$t('system.rental.list')">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector
