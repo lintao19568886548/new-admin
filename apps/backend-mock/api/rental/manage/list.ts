@@ -54,17 +54,17 @@ export default eventHandler(async (event) => {
     }
 
     // 修改查询条件，匹配前端表单字段
-    if (query.title) {
-      where.title = { contains: query.title };
+    if (query.factoryName) {
+      where.factoryName = { contains: query.factoryName };
     }
 
     // 处理价格查询 - 支持等于和区间查询
-    if (query.price) {
-      const priceQuery = String(query.price).split(',');
+    if (query.rentPrice) {
+      const priceQuery = String(query.rentPrice).split(',');
       if (priceQuery[0] === 'equal' && priceQuery[1]) {
         const value = Number.parseFloat(priceQuery[1]);
         if (!Number.isNaN(value)) {
-          where.price = { equals: value };
+          where.rentPrice = { equals: value };
         }
       } else if (
         priceQuery[0] === 'between' &&
@@ -74,7 +74,7 @@ export default eventHandler(async (event) => {
         const min = Number.parseFloat(priceQuery[1]);
         const max = Number.parseFloat(priceQuery[2]);
         if (!Number.isNaN(min) && !Number.isNaN(max)) {
-          where.price = {
+          where.rentPrice = {
             gte: min, // 大于等于最小值
             lte: max, // 小于等于最大值
           };
@@ -137,10 +137,10 @@ export default eventHandler(async (event) => {
     }
 
     // 获取总数
-    const total = await prismaClient.rentalManage.count({ where });
+    const total = await prismaClient.factory.count({ where });
 
     // 获取分页数据
-    const manages = await prismaClient.rentalManage.findMany({
+    const factories = await prismaClient.factory.findMany({
       where,
       skip,
       take: pageSize,
@@ -150,13 +150,13 @@ export default eventHandler(async (event) => {
     });
 
     return useResponseSuccess({
-      items: manages,
+      items: factories,
       total,
       currentPage,
       pageSize,
     });
   } catch (error) {
-    console.error('获取租赁管理列表失败:', error);
-    return useResponseError('获取租赁管理列表失败', 500);
+    console.error('获取厂房列表失败:', error);
+    return useResponseError('获取厂房列表失败', 500);
   }
 });

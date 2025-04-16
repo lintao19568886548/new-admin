@@ -58,6 +58,14 @@ export default eventHandler(async (event) => {
           menu: true,
         },
       },
+      roleParks: {
+        where: {
+          isDeleted: false,
+        },
+        include: {
+          park: true,
+        },
+      },
     },
     skip: (Number(page) - 1) * Number(pageSize),
     take: Number(pageSize),
@@ -77,6 +85,7 @@ export default eventHandler(async (event) => {
       updateTime: role.updateTime ? role.updateTime.toISOString() : null,
       // 提取关联的菜单ID
       permissions: role.roleMenus.map((rm) => rm.menu.menuId),
+      parkIds: role.roleParks.map((rp) => rp.park.parkId),
     };
   });
 

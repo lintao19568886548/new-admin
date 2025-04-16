@@ -9,21 +9,21 @@ export default eventHandler(async (event) => {
   const body = await readBody(event);
   const id = Number.parseInt(event.context.params.id);
   if (!id) {
-    return useResponseError('tenantId错误2');
+    return useResponseError('factoryId错误');
   }
 
   try {
-    const tenant = await prismaClient.rentalManage.update({
+    const factory = await prismaClient.factory.update({
       where: {
-        rentalManageId: id,
+        factoryId: id,
       },
       data: {
         ...body,
       },
     });
-    return useResponseSuccess(tenant);
+    return useResponseSuccess(factory);
   } catch (error) {
-    console.error('更新租户失败:', error);
-    return useResponseError('更新租户失败', 500);
+    console.error('更新厂房失败:', error);
+    return useResponseError('更新厂房失败', 500);
   }
 });

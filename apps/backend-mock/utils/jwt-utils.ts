@@ -33,7 +33,14 @@ async function getUserInfo(username: string) {
         include: {
           role: {
             include: {
-              roleParks: true,
+              roleParks: {
+                where: {
+                  isDeleted: false,
+                },
+                include: {
+                  park: true,
+                },
+              },
             },
           },
         },
@@ -73,7 +80,13 @@ export async function verifyAccessToken(
         select: { parkId: true, parkName: true },
       });
     } else {
-      Array.isArray(user.roles.map((item) => item.role.roleParks));
+      const parks = user.roles.flatMap((roles) =>
+        roles.role.roleParks.map((parks) => ({
+          parkId: parks.park.parkId,
+          parkName: parks.park.parkName,
+        })),
+      );
+      userInfo.parks = parks;
     }
     return userInfo;
   } catch {
@@ -90,8 +103,6 @@ export async function verifyRefreshToken(
 
     // 使用数据库查询替代硬编码的用户查找
     const user = await getUserInfo(username);
-    if (!user) return null;
-
     // 转换为 UserInfo 类型并排除密码
     const userInfo: Omit<UserInfo, 'password'> = {
       id: Number(user.id),
@@ -108,7 +119,13 @@ export async function verifyRefreshToken(
         select: { parkId: true, parkName: true },
       });
     } else {
-      Array.isArray(user.roles.map((item) => item.role.roleParks));
+      const parks = user.roles.flatMap((roles) =>
+        roles.role.roleParks.map((parks) => ({
+          parkId: parks.park.parkId,
+          parkName: parks.park.parkName,
+        })),
+      );
+      userInfo.parks = parks;
     }
     return userInfo;
   } catch {

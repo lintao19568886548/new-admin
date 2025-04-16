@@ -30,12 +30,13 @@ model RoleMenu {
   id         Int       @id @default(autoincrement())
   roleId     Int       @map("role_id")
   menuId     Int       @map("menu_id")
+  isDeleted  Boolean   @map("is_deleted") @default(false)
   role       Role      @relation("RoleToRoleMenu", fields: [roleId], references: [roleId])
   menu       Menu      @relation("MenuToRoleMenu", fields: [menuId], references: [menuId], onDelete: Cascade)
   createTime DateTime? @default(now()) @map("create_time")
   updateTime DateTime? @updatedAt @map("update_time")
 
-  isDeleted Boolean @default(false)
+
 
   @@index([roleId])
   @@index([menuId])
@@ -47,6 +48,7 @@ model RolePark {
   id         Int       @id @default(autoincrement())
   roleId     Int       @map("role_id")
   parkId     Int       @map("park_id")
+  isDeleted  Boolean   @map("is_deleted") @default(false)
   role       Role      @relation("RoleToPark", fields: [roleId], references: [roleId])
   park       Park      @relation("ParkToRolePark", fields: [parkId], references: [parkId])
   createTime DateTime? @default(now()) @map("create_time")

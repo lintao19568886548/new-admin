@@ -47,15 +47,15 @@ function onCreate() {
  */
 function onDelete(row: RentalManagementItem) {
   message.loading({
-    content: $t('ui.actionMessage.deleting', [row.title]),
+    content: $t('ui.actionMessage.deleting', [row.factoryName]),
     duration: 0,
     key: 'action_process_msg',
   });
 
-  deleteManage(row.rentalManageId)
+  deleteManage(row.factoryId)
     .then(() => {
       message.success({
-        content: $t('ui.actionMessage.deleteSuccess', [row.title]),
+        content: $t('ui.actionMessage.deleteSuccess', [row.factoryName]),
         key: 'action_process_msg',
       });
       refreshGrid();
@@ -63,7 +63,7 @@ function onDelete(row: RentalManagementItem) {
     .catch((error) => {
       console.error('删除租户失败:', error);
       message.error({
-        content: $t('ui.actionMessage.deleteFailed', [row.title]),
+        content: $t('ui.actionMessage.deleteFailed', [row.factoryName]),
         key: 'action_process_msg',
       });
     });
@@ -75,7 +75,7 @@ function onDelete(row: RentalManagementItem) {
  */
 function onView(row: RentalManagementItem) {
   // 可以跳转到详情页面
-  window.open(`/rental/detail/${row.rentalManageId}`, '_blank');
+  window.open(`/rental/detail/${row.factoryId}`, '_blank');
 }
 
 /**
@@ -108,6 +108,27 @@ const parkSelectorRef = ref();
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
+    handleReset: async () => {
+      // 先重置表单
+      await gridApi.formApi?.resetForm();
+
+      // 手动重置所有MultiSelect组件
+      // 如果有表单引用，可以通过引用获取组件实例并调用reset方法
+      // 或者通过设置特定字段为默认值来触发重置
+      const defaultValues = {
+        area: ['equal', undefined, undefined],
+        availableArea: ['equal', undefined, undefined],
+        rentPrice: ['equal', undefined, undefined],
+      };
+
+      // 设置默认值
+      Object.entries(defaultValues).forEach(([key, value]) => {
+        gridApi.formApi?.setFieldValue(key, value);
+      });
+
+      // 刷新表格
+      refreshGrid();
+    },
     schema: useGridFormSchema(),
     submitOnChange: false, // 修改为false，不再自动提交
   },
@@ -137,6 +158,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
                 formValues[key] !== ''
               ) {
                 params[key] = formValues[key];
+                if (key === 'rentPrice') {
+                  params[key] = formValues[key].join(',');
+                }
               }
             });
 
@@ -169,7 +193,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
     },
     rowConfig: {
-      keyField: 'rentalManageId', // 修改为正确的主键字段
+      keyField: 'factoryId', // 修改为正确的主键字段
     },
     toolbarConfig: {
       custom: true,
@@ -194,45 +218,12 @@ function refreshGrid() {
 function onFormSuccess() {
   refreshGrid();
 }
-
-// 添加搜索函数
-function onSearch(params: any) {
-  console.warn('触发搜索，原始参数:', params);
-
-  // 获取表单数据
-  gridApi.formApi?.getValues?.().then((formValues) => {
-    if (!formValues) return;
-
-    // 清理表单数据，移除空值
-    const searchParams: Record<string, any> = {};
-    Object.keys(formValues).forEach((key) => {
-      if (
-        formValues[key] !== undefined &&
-        formValues[key] !== null &&
-        formValues[key] !== ''
-      ) {
-        searchParams[key] = formValues[key];
-      }
-    });
-
-    console.warn('处理后的搜索参数:', searchParams);
-
-    // 执行查询
-    gridApi.query({
-      form: searchParams,
-    });
-  });
-}
 </script>
 
 <template>
   <Page auto-content-height>
     <FormModal @success="onFormSuccess" />
-    <Grid
-      :table-title="$t('system.rental.list')"
-      @search="onSearch"
-      @form-submit="onSearch"
-    >
+    <Grid :table-title="$t('system.rental.list')">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector

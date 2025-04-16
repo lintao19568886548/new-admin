@@ -15,7 +15,7 @@ export default eventHandler(async (event) => {
     return useResponseError('id is required', 400);
   }
   const body = await readBody(event);
-  const { permissions, ...roleData } = body;
+  const { permissions, parkIds, ...roleData } = body;
   roleData.status = !!roleData.status;
   try {
     const res = await prismaClient.$transaction(async (prisma) => {
@@ -108,6 +108,87 @@ export default eventHandler(async (event) => {
               data: menuIdsToCreate.map((menuId) => ({
                 roleId: Number(id),
                 menuId,
+              })),
+            });
+          }
+        }
+      }
+
+      // 3. 如果提供了parkIds，则更新角色园区关联
+      if (parkIds && Array.isArray(parkIds)) {
+        // 3.1 获取当前角色已有的园区关联
+        const existingRoleParks = await prisma.rolePark.findMany({
+          where: {
+            roleId: Number(id),
+            isDeleted: false, // 只查询未删除的记录
+          },
+          select: {
+            parkId: true,
+          },
+        });
+        const existingParkIds = existingRoleParks.map((rp) => rp.parkId);
+        const newParkIds = parkIds.map(Number);
+        // 3.2 找出需要删除的园区关联（在现有列表中但不在新列表中）
+        const parkIdsToDelete = existingParkIds.filter(
+          (parkId) => !newParkIds.includes(parkId),
+        );
+        // 3.3 找出需要添加的园区关联（在新列表中但不在现有列表中）
+        const parkIdsToAdd = newParkIds.filter(
+          (parkId) => !existingParkIds.includes(parkId),
+        );
+        // 3.4 删除不再需要的园区关联
+        if (parkIdsToDelete.length > 0) {
+          // 将硬删除改为软删除
+          await prisma.rolePark.updateMany({
+            where: {
+              roleId: Number(id),
+              parkId: {
+                in: parkIdsToDelete,
+              },
+            },
+            data: {
+              isDeleted: true,
+            },
+          });
+        }
+        // 3.5 添加新的园区关联
+        if (parkIdsToAdd.length > 0) {
+          // 检查是否有被软删除的记录可以恢复
+          const deletedRecords = await prisma.rolePark.findMany({
+            where: {
+              roleId: Number(id),
+              parkId: {
+                in: parkIdsToAdd,
+              },
+              isDeleted: true, // 添加这个条件，只查询已软删除的记录
+            },
+          });
+          // 恢复已软删除的记录
+          const deletedParkIds = deletedRecords.map((record) => record.parkId);
+          if (deletedParkIds.length > 0) {
+            await prisma.rolePark.updateMany({
+              where: {
+                roleId: Number(id),
+                parkId: {
+                  in: deletedParkIds,
+                },
+              },
+              data: {
+                isDeleted: false,
+              },
+            });
+          }
+
+          // 创建新记录（排除已恢复的记录）
+          const parkIdsToCreate = parkIdsToAdd.filter(
+            (parkId) => !deletedParkIds.includes(parkId),
+          );
+
+          if (parkIdsToCreate.length > 0) {
+            await prisma.rolePark.createMany({
+              data: parkIdsToCreate.map((parkId) => ({
+                roleId: Number(id),
+                parkId,
               })),
             });
           }
