@@ -17,7 +17,7 @@ import { useFormSchema } from '../data';
 const emit = defineEmits(['success']);
 const formData = ref<RentalManagementItem>();
 const getTitle = computed(() => {
-  return formData.value?.rentalManageId
+  return formData.value?.factoryId
     ? $t('ui.actionTitle.edit', [$t('system.rental.name')])
     : $t('ui.actionTitle.create', [$t('system.rental.name')]);
 });
@@ -84,7 +84,7 @@ const [Modal, modalApi] = useVbenModal({
         }
 
         formData.value = data;
-        id.value = data.rentalManageId;
+        id.value = data.factoryId;
         formApi.setValues(data);
       } else {
         id.value = undefined;

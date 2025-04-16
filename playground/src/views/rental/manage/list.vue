@@ -47,15 +47,15 @@ function onCreate() {
  */
 function onDelete(row: RentalManagementItem) {
   message.loading({
-    content: $t('ui.actionMessage.deleting', [row.title]),
+    content: $t('ui.actionMessage.deleting', [row.factoryName]),
     duration: 0,
     key: 'action_process_msg',
   });
 
-  deleteManage(row.rentalManageId)
+  deleteManage(row.factoryId)
     .then(() => {
       message.success({
-        content: $t('ui.actionMessage.deleteSuccess', [row.title]),
+        content: $t('ui.actionMessage.deleteSuccess', [row.factoryName]),
         key: 'action_process_msg',
       });
       refreshGrid();
@@ -63,7 +63,7 @@ function onDelete(row: RentalManagementItem) {
     .catch((error) => {
       console.error('删除租户失败:', error);
       message.error({
-        content: $t('ui.actionMessage.deleteFailed', [row.title]),
+        content: $t('ui.actionMessage.deleteFailed', [row.factoryName]),
         key: 'action_process_msg',
       });
     });
@@ -75,7 +75,7 @@ function onDelete(row: RentalManagementItem) {
  */
 function onView(row: RentalManagementItem) {
   // 可以跳转到详情页面
-  window.open(`/rental/detail/${row.rentalManageId}`, '_blank');
+  window.open(`/rental/detail/${row.factoryId}`, '_blank');
 }
 
 /**
@@ -169,7 +169,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
     },
     rowConfig: {
-      keyField: 'rentalManageId', // 修改为正确的主键字段
+      keyField: 'factoryId', // 修改为正确的主键字段
     },
     toolbarConfig: {
       custom: true,
