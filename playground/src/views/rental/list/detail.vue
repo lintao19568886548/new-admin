@@ -10,6 +10,7 @@ import { formatDateTime } from '@vben/utils';
 import {
   Button,
   Card,
+  Carousel,
   Descriptions,
   Divider,
   Image,
@@ -27,7 +28,7 @@ const loading = ref(false);
 
 // 返回列表页面
 function goBack() {
-  router.push({ name: 'RentalDetail' }); // 使用命名路由确保导航正确
+  router.push({ name: 'RentalList' }); // 使用命名路由确保导航正确
 }
 
 // 厂房详情数据
@@ -43,6 +44,7 @@ const detail = ref<FactoryDetail>({
   factoryId: 0,
   factoryName: '',
   floorCount: 0,
+  imageUrls: ['/assets/微信图片_20250320150833.jpg'], // 添加图片数组
   // 使用默认图片
   imgUrl: '/assets/微信图片_20250320150833.jpg',
   rentPrice: 0,
@@ -60,7 +62,8 @@ async function fetchFactoryDetail() {
     if (res) {
       detail.value = {
         ...res,
-        imgUrl: '/assets/微信图片_20250320150833.jpg', // 使用默认图片
+        imageUrls: res.imageUrls || ['/assets/微信图片_20250320150833.jpg'], // 使用后端返回的图片数组
+        imgUrl: res.imgUrl || '/assets/微信图片_20250320150833.jpg', // 使用后端返回的图片URL
       };
     }
   } catch (error) {
@@ -103,7 +106,22 @@ onMounted(() => {
       <Card>
         <div class="flex flex-col md:flex-row">
           <div class="p-4 md:w-1/3">
+            <!-- 如果有多张图片，使用轮播图展示 -->
+            <Carousel
+              v-if="detail.imageUrls && detail.imageUrls.length > 1"
+              autoplay
+            >
+              <div v-for="(url, index) in detail.imageUrls" :key="index">
+                <Image
+                  :src="url"
+                  :alt="`${detail.factoryName}-图片${index + 1}`"
+                  class="w-full rounded-lg shadow-md"
+                />
+              </div>
+            </Carousel>
+            <!-- 如果只有一张图片，直接展示 -->
             <Image
+              v-else
               :src="detail.imgUrl"
               :alt="detail.factoryName"
               class="w-full rounded-lg shadow-md"

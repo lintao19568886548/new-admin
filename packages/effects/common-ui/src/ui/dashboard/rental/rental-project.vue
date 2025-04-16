@@ -142,13 +142,14 @@ function handleSearch() {
             class="image-foreground mt-3 flex h-40 items-center justify-center overflow-hidden rounded-md"
           >
             <img
-              v-if="item.url"
               :src="item.imgUrl"
               class="max-h-full max-w-full object-contain"
               @click="$emit('click', item)"
             />
           </div>
-          <div class="text-foreground/80 mt-4 flex h-10">
+          <div
+            class="text-foreground/80 mt-4 line-clamp-2 h-10 overflow-hidden text-ellipsis"
+          >
             {{ item.content }}
           </div>
           <div class="text-foreground/80 flex justify-between">

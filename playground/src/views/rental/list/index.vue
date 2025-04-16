@@ -51,25 +51,31 @@ async function fetchFactoryList(isLoadMore = false) {
     }
 
     const res = await getListList(params);
+    console.warn('获取到的列表数据:', res); // 添加日志，查看返回的数据结构
 
     // 转换后端数据为前端需要的格式
-    const items = res.items.map((item: any) => ({
-      // 其他字段不直接展示，但保留用于详情页
-      address: item.address,
-      area: item.area,
-      availableArea: item.availableArea,
-      buildingNumber: item.buildingNumber,
-      content: item.description || '暂无描述',
-      date: formatDateTime(item.createTime),
-      floorCount: item.floorCount,
-      group: item.contact,
-      // 不显示敏感ID，但保留用于导航
-      id: item.factoryId,
-      imgUrl: '/assets/微信图片_20250320150833.jpg', // 使用默认图片
-      rentPrice: item.rentPrice,
-      tag: item.status || '未设置', // 直接使用status值，如果为空则显示"未设置"
-      title: item.factoryName,
-    }));
+    const items = res.items.map((item: any) => {
+      // 直接使用后端返回的imgUrl，如果没有则使用默认图片
+      const imgUrl = item.imgUrl || '/assets/微信图片_20250320150833.jpg';
+
+      return {
+        // 其他字段不直接展示，但保留用于详情页
+        address: item.address,
+        area: item.area,
+        availableArea: item.availableArea,
+        buildingNumber: item.buildingNumber,
+        content: item.description || '暂无描述',
+        date: formatDateTime(item.createTime),
+        floorCount: item.floorCount,
+        group: item.contact,
+        // 不显示敏感ID，但保留用于导航
+        id: item.factoryId,
+        imgUrl, // 使用处理后的图片URL
+        rentPrice: item.rentPrice,
+        tag: item.status || '未设置', // 直接使用status值，如果为空则显示"未设置"
+        title: item.factoryName,
+      };
+    });
 
     total.value = res.total || 0;
 
@@ -86,11 +92,11 @@ async function fetchFactoryList(isLoadMore = false) {
 }
 
 // 加载更多数据
-function loadMore() {
+async function loadMore() {
   if (!hasMore.value || loading.value) return;
 
   currentPage.value += 1;
-  fetchFactoryList(true);
+  await fetchFactoryList(true);
 }
 
 // 根据搜索条件过滤项目
@@ -134,7 +140,7 @@ function navTo(nav: any) {
 }
 
 // 监听滚动事件，实现懒加载
-function handleScroll() {
+async function handleScroll() {
   const scrollTop =
     document.documentElement.scrollTop || document.body.scrollTop;
   const scrollHeight =
@@ -148,7 +154,7 @@ function handleScroll() {
     hasMore.value &&
     !loading.value
   ) {
-    loadMore();
+    await loadMore();
   }
 }
 

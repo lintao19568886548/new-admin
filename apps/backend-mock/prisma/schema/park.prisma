@@ -26,22 +26,23 @@ model Park {
 
 // 厂房表 (合并了 RentalManage 的字段)
 model Factory {
-  factoryId      Int       @id @default(autoincrement()) @map("factory_id")
-  factoryName    String    @map("factory_name") @db.VarChar(100)
-  parkId         Int       @map("park_id")
-  park           Park      @relation("ParkToFactory", fields: [parkId], references: [parkId])
-  buildingNumber String    @map("building_number") @db.VarChar(50) // 楼号
-  floorCount     Int       @map("floor_count") // 层数
-  area           Decimal   @db.Decimal(10, 2) // 总面积(平方米)
-  availableArea  Decimal   @db.Decimal(10, 2) @map("available_area") // 可用面积(平方米)
-  status         String?   @map("status") @db.VarChar(20) // 一般为空，特殊状态才设置，如：维护中
-  rentPrice      Decimal   @map("rent_price") @db.Decimal(10, 2) // 租金(元/平方米/月)
-  buildTime      DateTime  @db.Date @map("build_time") // 建造年份
-  address        String    @db.VarChar(200) // 详细地址
-  contact        String    @db.VarChar(100) // 联系人
-  description    String?   @db.Text // 描述
-  createTime     DateTime  @default(now()) @map("create_time")
-  updateTime     DateTime? @updatedAt @map("update_time")
+  factoryId      Int            @id @default(autoincrement()) @map("factory_id")
+  factoryName    String         @map("factory_name") @db.VarChar(100)
+  parkId         Int            @map("park_id")
+  park           Park           @relation("ParkToFactory", fields: [parkId], references: [parkId])
+  buildingNumber String         @map("building_number") @db.VarChar(50) // 楼号
+  floorCount     Int            @map("floor_count") // 层数
+  area           Decimal        @db.Decimal(10, 2) // 总面积(平方米)
+  availableArea  Decimal        @db.Decimal(10, 2) @map("available_area") // 可用面积(平方米)
+  status         String?        @map("status") @db.VarChar(20) // 一般为空，特殊状态才设置，如：维护中
+  rentPrice      Decimal        @map("rent_price") @db.Decimal(10, 2) // 租金(元/平方米/月)
+  buildTime      DateTime       @db.Date @map("build_time") // 建造年份
+  address        String         @db.VarChar(200) // 详细地址
+  contact        String         @db.VarChar(100) // 联系人
+  description    String?        @db.Text // 描述
+  images         FactoryImage[] @relation("FactoryToFactoryImage")
+  createTime     DateTime       @default(now()) @map("create_time")
+  updateTime     DateTime?      @updatedAt @map("update_time")
 
   @@index([parkId])
   @@map("factory")

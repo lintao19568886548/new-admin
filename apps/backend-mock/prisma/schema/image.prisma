@@ -4,6 +4,7 @@ model Image {
   createdTime  DateTime?          @default(now()) @map("created_time")
   updatedTime  DateTime?          @updatedAt @map("updated_time")
   investments  InvestmentImage[]  @relation("ImageToInvestmentImage")
+  factories    FactoryImage[]     @relation("ImageToFactoryImage")
 
   @@map("image")
 }
@@ -20,4 +21,18 @@ model InvestmentImage {
   @@index([investmentId])
   @@index([imgId])
   @@map("investment_image")
+}
+
+model FactoryImage {
+  id           Int        @id @default(autoincrement())
+  factoryId    Int        @map("factory_id")
+  imgId        Int        @map("img_id")
+  factory      Factory    @relation("FactoryToFactoryImage", fields: [factoryId], references: [factoryId])
+  image        Image      @relation("ImageToFactoryImage", fields: [imgId], references: [imgId])
+  createTime   DateTime?  @default(now()) @map("create_time")
+  updateTime   DateTime?  @updatedAt @map("update_time")
+
+  @@index([factoryId])
+  @@index([imgId])
+  @@map("factory_image")
 }
