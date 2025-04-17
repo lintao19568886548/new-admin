@@ -30,11 +30,6 @@ export function useFormSchema(): VbenFormSchema[] {
       label: $t('system.role.status'),
     },
     {
-      component: 'Textarea',
-      fieldName: 'remark',
-      label: $t('system.role.remark'),
-    },
-    {
       component: 'ApiSelect',
       componentProps: {
         allowClear: true,
@@ -54,6 +49,11 @@ export function useFormSchema(): VbenFormSchema[] {
       formItemClass: 'items-start',
       label: $t('system.role.setPermissions'),
       modelPropName: 'modelValue',
+    },
+    {
+      component: 'Textarea',
+      fieldName: 'remark',
+      label: $t('system.role.remark'),
     },
   ];
 }
