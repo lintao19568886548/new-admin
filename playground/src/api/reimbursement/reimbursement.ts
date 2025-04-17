@@ -1,8 +1,21 @@
 import { requestClient } from '#/api/request';
 
+// 创建报销申请
+export async function createReimbursement(data: any) {
+  return requestClient.post('/reimbursement', data);
+}
+
 // 获取报销列表
 export async function getReimbursementList(params?: any) {
-  return requestClient.get('/reimbursement/list', { params });
+  try {
+    // console.log('API请求开始: getReimbursementList', params);
+    const response = await requestClient.get('/reimbursement/list', { params });
+    // console.log('API请求成功: getReimbursementList', response);
+    return response;
+  } catch (error) {
+    console.error('API请求失败: getReimbursementList', error);
+    throw error; // 重新抛出错误，让调用者处理
+  }
 }
 
 // 提交报销申请
