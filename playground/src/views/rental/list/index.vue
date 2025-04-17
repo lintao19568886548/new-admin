@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { FactoryListItem } from './types';
+import type { ParkListItem } from './types';
 
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -9,10 +9,10 @@ import { formatDateTime } from '@vben/utils';
 
 import { Button, message, Spin, Tag } from 'ant-design-vue';
 
-import { getListList } from '#/api/rental';
+import { getParkList } from '#/api/rental'; // 需要创建新的API
 
-// 厂房列表数据
-const projectItems = ref<FactoryListItem[]>([]);
+// 园区列表数据
+const projectItems = ref<ParkListItem[]>([]);
 const loading = ref(false);
 const currentPage = ref(1);
 const pageSize = ref(9); // 每次加载3行，每行3个，共9个
@@ -26,8 +26,8 @@ const searchParams = ref({
   title: '',
 });
 
-// 获取厂房列表数据
-async function fetchFactoryList(isLoadMore = false) {
+// 获取园区列表数据
+async function fetchParkList(isLoadMore = false) {
   if (loading.value) return;
 
   loading.value = true;
@@ -38,20 +38,20 @@ async function fetchFactoryList(isLoadMore = false) {
       pageSize: pageSize.value,
     };
 
-    // 如果搜索title，映射到factoryName字段
+    // 如果搜索title，映射到parkName字段
     if (params.title) {
-      params.factoryName = params.title;
+      params.parkName = params.title;
       params.title = undefined;
     }
 
-    // 如果搜索group，映射到contact字段
-    if (params.group) {
-      params.contact = params.group;
-      params.group = undefined;
+    // 如果搜索tag，映射到status字段
+    if (params.tag && params.tag !== '全部') {
+      params.status = params.tag;
+      params.tag = undefined;
     }
 
-    const res = await getListList(params);
-    console.warn('获取到的列表数据:', res); // 添加日志，查看返回的数据结构
+    const res = await getParkList(params);
+    console.warn('获取到的园区列表数据:', res);
 
     // 转换后端数据为前端需要的格式
     const items = res.items.map((item: any) => {
@@ -59,21 +59,15 @@ async function fetchFactoryList(isLoadMore = false) {
       const imgUrl = item.imgUrl || '/assets/微信图片_20250320150833.jpg';
 
       return {
-        // 其他字段不直接展示，但保留用于详情页
         address: item.address,
         area: item.area,
-        availableArea: item.availableArea,
-        buildingNumber: item.buildingNumber,
         content: item.description || '暂无描述',
         date: formatDateTime(item.createTime),
-        floorCount: item.floorCount,
-        group: item.contact,
-        // 不显示敏感ID，但保留用于导航
-        id: item.factoryId,
-        imgUrl, // 使用处理后的图片URL
-        rentPrice: item.rentPrice,
-        tag: item.status || '未设置', // 直接使用status值，如果为空则显示"未设置"
-        title: item.factoryName,
+        group: item.parkName, // 使用园区名称作为分组
+        id: item.parkId,
+        imgUrl,
+        tag: item.status || '正常', // 直接使用status值，如果为空则显示"正常"
+        title: item.parkName,
       };
     });
 
@@ -84,8 +78,8 @@ async function fetchFactoryList(isLoadMore = false) {
     // 判断是否还有更多数据
     hasMore.value = projectItems.value.length < total.value;
   } catch (error) {
-    console.error('获取厂房列表失败:', error);
-    message.error('获取厂房列表失败');
+    console.error('获取园区列表失败:', error);
+    message.error('获取园区列表失败');
   } finally {
     loading.value = false;
   }
@@ -96,7 +90,7 @@ async function loadMore() {
   if (!hasMore.value || loading.value) return;
 
   currentPage.value += 1;
-  await fetchFactoryList(true);
+  await fetchParkList(true);
 }
 
 // 根据搜索条件过滤项目
@@ -125,7 +119,7 @@ function handleSearch(params: any) {
     }
     searchParams.value = { ...params };
     currentPage.value = 1; // 重置页码
-    fetchFactoryList(); // 重新加载数据
+    fetchParkList(); // 重新加载数据
   } catch (error) {
     console.error('搜索处理出错:', error);
   }
@@ -159,7 +153,7 @@ async function handleScroll() {
 }
 
 onMounted(() => {
-  fetchFactoryList();
+  fetchParkList();
   window.addEventListener('scroll', handleScroll);
 });
 
@@ -175,7 +169,7 @@ onUnmounted(() => {
         <Spin :spinning="loading">
           <RentalProject
             :items="filteredItems"
-            title="厂房列表"
+            title="园区列表"
             @click="navTo"
             @search="handleSearch"
           >

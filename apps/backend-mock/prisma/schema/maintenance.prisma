@@ -9,12 +9,14 @@ model Firefighting {
   checker         String    @db.VarChar(10)  // 检查人
   checkTime       DateTime  @map("check_time") 
   remark          String?   @db.VarChar(100)
-  createTime      DateTime? @default(now()) @map("create_time")
+  imgUrl          String?   @db.LongText @map("img_url")
+  createTime      DateTime  @default(now()) @map("create_time")
   updateTime      DateTime? @updatedAt @map("update_time")
-  parkId          Int?      @map("park_id")
-  park            Park?     @relation("ParkToFirefighting", fields: [parkId], references: [parkId])
+  // 修改关联字段
+  factoryId       Int       @map("factory_id")
+  factory         Factory   @relation("FactoryToFirefighting", fields: [factoryId], references: [factoryId])
 
-  @@index([parkId])
+  @@index([factoryId])
   @@map("firefighting")
 }
 
@@ -28,11 +30,13 @@ model Transformer {
   specifications String    @db.VarChar(50) // 变压器规格
   checkTime      DateTime  @map("check_time")
   remark         String?   @db.VarChar(100)
-  createTime     DateTime? @default(now()) @map("create_time")
+  imgUrl         String?   @db.LongText @map("img_url")
+  createTime     DateTime  @default(now()) @map("create_time")
   updateTime     DateTime? @updatedAt @map("update_time")
-  parkId         Int?      @map("park_id")
-  park           Park?     @relation("ParkToTransformer", fields: [parkId], references: [parkId])
+  // 修改关联字段
+  factoryId      Int       @map("factory_id")
+  factory        Factory   @relation("FactoryToTransformer", fields: [factoryId], references: [factoryId])
 
-  @@index([parkId])
+  @@index([factoryId])
   @@map("transformer")
 }

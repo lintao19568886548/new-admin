@@ -3,7 +3,7 @@ model Park {
   parkId        Int               @id @default(autoincrement()) @map("park_id")
   parkName      String            @map("park_name") @db.VarChar(100)
   address       String            @db.VarChar(200)
-  area          Decimal?          @db.Decimal(10, 2) // 总面积(平方米)
+  area          Decimal           @db.Decimal(10, 2) // 总面积(平方米)
   description   String?           @db.Text
   status        String            @db.VarChar(20) // 状态：运营中、建设中、规划中等
   factories     Factory[]         @relation("ParkToFactory")
@@ -14,11 +14,9 @@ model Park {
   visitors      AccessVisitor[]   @relation("ParkToVisitor")
   cars          AccessCar[]       @relation("ParkToCar")
   investments   Investment[]      @relation("ParkToInvestment")
-  firefighting  Firefighting[]    @relation("ParkToFirefighting")
-  transformers  Transformer[]     @relation("ParkToTransformer")
-  // 移除 rentalManages 关系，因为已合并到 factories
+  // 移除与消防设施和变压器的关联
   rentalTenants RentalTenant[]    @relation("ParkToRentalTenant")
-  createTime    DateTime?         @default(now()) @map("create_time")
+  createTime    DateTime          @default(now()) @map("create_time")
   updateTime    DateTime?         @updatedAt @map("update_time")
 
   @@map("park")
@@ -41,6 +39,9 @@ model Factory {
   contact        String         @db.VarChar(100) // 联系人
   description    String?        @db.Text // 描述
   images         FactoryImage[] @relation("FactoryToFactoryImage")
+  // 添加与消防设施和变压器的关联
+  firefighting   Firefighting[] @relation("FactoryToFirefighting")
+  transformers   Transformer[]  @relation("FactoryToTransformer")
   createTime     DateTime       @default(now()) @map("create_time")
   updateTime     DateTime?      @updatedAt @map("update_time")
 
@@ -55,13 +56,13 @@ model Dormitory {
   park           Park      @relation("ParkToDormitory", fields: [parkId], references: [parkId])
   roomNumber     String    @map("room_number") @db.VarChar(50) // 房间号
   buildingNumber String    @map("building_number") @db.VarChar(50) // 楼号
-  floorCount     Int?      @map("floor_count") // 层数
-  capacity       Int? // 容纳人数
-  occupancy      Int? // 当前入住人数
-  rentPrice      Decimal?  @map("rent_price") @db.Decimal(10, 2) // 租金(元/床位/月)
+  floorCount     Int       @map("floor_count") // 层数
+  capacity       Int  // 容纳人数
+  occupancy      Int  // 当前入住人数
+  rentPrice      Decimal   @map("rent_price") @db.Decimal(10, 2) // 租金(元/床位/月)
   facilities     String?   @db.Text // 设施描述
   description    String?   @db.Text
-  createTime     DateTime? @default(now()) @map("create_time")
+  createTime     DateTime  @default(now()) @map("create_time")
   updateTime     DateTime? @updatedAt @map("update_time")
 
   @@index([parkId])
