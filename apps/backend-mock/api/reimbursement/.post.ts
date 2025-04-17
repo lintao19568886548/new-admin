@@ -25,6 +25,7 @@ export default eventHandler(async (event) => {
         payee: body.payee,
         date: new Date(body.date),
         remark: body.remark || null,
+        userName: body.userName || null, // 添加userName字段
       },
     });
 
