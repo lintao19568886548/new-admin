@@ -194,22 +194,7 @@ function initData(data: any) {
       _key: item.key || generateUniqueId(),
     }));
 
-    // 添加合计行
-    const totalRow: BillItem = {
-      _key: 'total-row',
-      amount: 0,
-      currentReading: 0,
-      meterName: '合计',
-      monthlyUsage: 0,
-      multiplier: 1,
-      previousReading: 0,
-      receiptTime: '',
-      remark: '',
-      totalUsage: 0,
-      unitPrice: 0,
-    };
-
-    dataSource.value = [...regularItems, totalRow];
+    dataSource.value = [...regularItems];
     // 初始计算合计
     updateTotalRow();
   } else {
@@ -329,43 +314,55 @@ const updateTotalRow = () => {
     (item) => item.meterName !== '合计',
   );
 
-  // 计算合计值
-  const totalUsage = regularRows.reduce(
-    (sum, row) => sum + (Number(row.totalUsage) || 0),
-    0,
-  );
+  // 使用for循环计算totalUsage，排除包含"公共"的行
+  let totalUsage = 0;
+  for (const row of regularRows) {
+    // 如果行名称包含"公共"，不计入totalUsage合计
+    if (row.meterName && row.meterName.includes('公共')) {
+      continue;
+    }
+    totalUsage += Number(row.totalUsage) || 0;
+  }
   const roundedTotalUsage = Number(totalUsage.toFixed(2));
 
-  const totalAmount = regularRows.reduce(
-    (sum, row) => sum + (Number(row.amount) || 0),
-    0,
-  );
+  // 使用for循环计算总金额
+  let totalAmount = 0;
+  for (const row of regularRows) {
+    totalAmount += Number(row.amount) || 0;
+  }
   const roundedTotalAmount = Number(totalAmount.toFixed(2));
 
-  // 计算合计行的本月度数总和
-  const totalMonthlyUsage = regularRows.reduce(
-    (sum, row) => sum + (Number(row.monthlyUsage) || 0),
-    0,
+  // 查找现有的合计行
+  const existingTotalRow = dataSource.value.find(
+    (item) => item.meterName === '合计',
   );
-  const roundedTotalMonthlyUsage = Number(totalMonthlyUsage.toFixed(2));
 
-  // 创建新的合计行
-  const updatedTotalRow: BillItem = {
-    _key: 'total-row',
-    amount: roundedTotalAmount,
-    currentReading: 0,
-    meterName: '合计',
-    monthlyUsage: roundedTotalMonthlyUsage,
-    multiplier: 1,
-    previousReading: 0,
-    receiptTime: '',
-    remark: '',
-    totalUsage: roundedTotalUsage,
-    unitPrice: 0,
-  };
+  if (existingTotalRow) {
+    // 如果存在合计行，只更新需要计算的值，保留其他属性
+    existingTotalRow.amount = roundedTotalAmount;
+    existingTotalRow.totalUsage = roundedTotalUsage;
 
-  // 更新数据源，移除原合计行，添加新合计行
-  dataSource.value = [...regularRows, updatedTotalRow];
+    // 确保更新后的数据源包含更新后的合计行
+    dataSource.value = [...regularRows, existingTotalRow];
+  } else {
+    // 如果不存在合计行，创建一个新的
+    const newTotalRow: BillItem = {
+      _key: 'total-row',
+      amount: roundedTotalAmount,
+      currentReading: 0,
+      meterName: '合计',
+      monthlyUsage: 0,
+      multiplier: 1,
+      previousReading: 0,
+      receiptTime: '',
+      remark: '',
+      totalUsage: roundedTotalUsage,
+      unitPrice: 0,
+    };
+
+    // 添加新的合计行
+    dataSource.value = [...regularRows, newTotalRow];
+  }
 };
 
 // 添加新行
@@ -414,9 +411,9 @@ const initEditModeForAllRows = () => {
 
 // 保存按钮的处理函数
 const handleSave = () => {
-  // 过滤掉合计行
+  // 不再过滤掉合计行，保留所有行
   const regularItems = dataSource.value
-    .filter((item) => item.meterName !== '合计')
+    // .filter((item) => item.meterName !== '合计')  // 移除此行，不再过滤合计行
     .map((item) => {
       // 创建一个新对象，排除不需要发送到后端的字段
       const {
@@ -582,7 +579,7 @@ defineExpose({
         <template v-else-if="column.dataIndex && record.meterName === '合计'">
           <template
             v-if="
-              ['meterName', 'totalUsage', 'amount', 'monthlyUsage'].includes(
+              ['meterName', 'totalUsage', 'amount'].includes(
                 String(column.dataIndex),
               )
             "
@@ -590,8 +587,7 @@ defineExpose({
             <Input
               :value="
                 column.dataIndex === 'amount' ||
-                column.dataIndex === 'totalUsage' ||
-                column.dataIndex === 'monthlyUsage'
+                column.dataIndex === 'totalUsage'
                   ? text
                     ? Number.parseFloat(text).toFixed(2)
                     : '0.00'

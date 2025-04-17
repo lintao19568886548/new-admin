@@ -187,37 +187,22 @@ function handlePrev() {
 // 电费表单提交回调
 function handleEleSuccess(data: any) {
   if (data) {
-    billData.eleFee = data.eleFee;
     billData.eleBills = data.eleBills || [];
     // 计算电费合计
-    let total = 0;
-    if (Array.isArray(data.eleBills)) {
-      const items = data.eleBills.filter((item: any) => item.name !== '合计');
-      total = items.reduce(
-        (sum: number, item: any) => sum + (Number(item.amount) || 0),
-        0,
-      );
-    }
-    billData.eleFee = total;
+
+    const item = data.eleBills.find((item: any) => item.meterName === '合计');
+    billData.eleFee = item?.amount || 0;
   }
 }
 
 // 水费表单提交回调
 function handleWaterSuccess(data: any) {
   if (data) {
-    billData.waterFee = data.waterFee;
     billData.waterBills = data.waterBills || [];
 
     // 计算水费合计
-    let total = 0;
-    if (Array.isArray(data.waterBills)) {
-      const items = data.waterBills.filter((item: any) => item.name !== '合计');
-      total = items.reduce(
-        (sum: number, item: any) => sum + (Number(item.amount) || 0),
-        0,
-      );
-    }
-    billData.waterFee = total;
+    const item = data.waterBills.find((item: any) => item.meterName === '合计');
+    billData.waterFee = item?.amount || 0;
   }
 }
 
