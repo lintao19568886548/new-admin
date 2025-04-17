@@ -28,17 +28,14 @@ model Factory {
   factoryName    String         @map("factory_name") @db.VarChar(100)
   parkId         Int            @map("park_id")
   park           Park           @relation("ParkToFactory", fields: [parkId], references: [parkId])
-  buildingNumber String         @map("building_number") @db.VarChar(50) // 楼号
-  floorCount     Int            @map("floor_count") // 层数
-  area           Decimal        @db.Decimal(10, 2) // 总面积(平方米)
-  availableArea  Decimal        @db.Decimal(10, 2) @map("available_area") // 可用面积(平方米)
-  status         String?        @map("status") @db.VarChar(20) // 一般为空，特殊状态才设置，如：维护中
-  rentPrice      Decimal        @map("rent_price") @db.Decimal(10, 2) // 租金(元/平方米/月)
   buildTime      DateTime       @db.Date @map("build_time") // 建造年份
   address        String         @db.VarChar(200) // 详细地址
   contact        String         @db.VarChar(100) // 联系人
   description    String?        @db.Text // 描述
-  images         FactoryImage[] @relation("FactoryToFactoryImage")
+  // 移除 images 关联
+  // images         FactoryImage[] @relation("FactoryToFactoryImage")
+  // 添加与楼层的关联
+  floors         FactoryFloor[] @relation("FactoryToFactoryFloor")
   // 添加与消防设施和变压器的关联
   firefighting   Firefighting[] @relation("FactoryToFirefighting")
   transformers   Transformer[]  @relation("FactoryToTransformer")
@@ -49,21 +46,46 @@ model Factory {
   @@map("factory")
 }
 
+// 厂房层表
+model FactoryFloor {
+  floorId        Int                 @id @default(autoincrement()) @map("floor_id")
+  floorName      String              @map("floor_name") @db.VarChar(100) // 层名，例如 "1层", "夹层"
+  factoryId      Int                 @map("factory_id")
+  factory        Factory             @relation("FactoryToFactoryFloor", fields: [factoryId], references: [factoryId])
+  floorHeight    Decimal?            @map("floor_height") @db.Decimal(5, 2) // 层高 (米)
+  loadBearing    Decimal?            @map("load_bearing") @db.Decimal(10, 2) // 承重 (吨/平方米 或 kg/平方米，根据需求定义)
+  rentPrice      Decimal             @map("rent_price") @db.Decimal(10, 2) // 租金 (元/平方米/月)
+  totalArea      Decimal             @map("total_area") @db.Decimal(10, 2) // 总面积 (平方米)
+  usedArea       Decimal             @default(0) @map("used_area") @db.Decimal(10, 2) // 已用面积 (平方米)
+  status         String              @map("status") @db.VarChar(20) // 状态：空置、已租、维护中等
+  description    String?             @db.Text
+  images         FactoryFloorImage[] @relation("FactoryFloorToFactoryFloorImage") // 关联图片
+  createTime     DateTime            @default(now()) @map("create_time")
+  updateTime     DateTime?           @updatedAt @map("update_time")
+
+  @@index([factoryId])
+  @@map("factory_floor")
+}
+
 // 宿舍表
 model Dormitory {
-  dormitoryId    Int       @id @default(autoincrement()) @map("dormitory_id")
-  parkId         Int       @map("park_id")
-  park           Park      @relation("ParkToDormitory", fields: [parkId], references: [parkId])
-  roomNumber     String    @map("room_number") @db.VarChar(50) // 房间号
-  buildingNumber String    @map("building_number") @db.VarChar(50) // 楼号
-  floorCount     Int       @map("floor_count") // 层数
-  capacity       Int  // 容纳人数
-  occupancy      Int  // 当前入住人数
-  rentPrice      Decimal   @map("rent_price") @db.Decimal(10, 2) // 租金(元/床位/月)
-  facilities     String?   @db.Text // 设施描述
-  description    String?   @db.Text
-  createTime     DateTime  @default(now()) @map("create_time")
-  updateTime     DateTime? @updatedAt @map("update_time")
+  dormitoryId      Int       @id @default(autoincrement()) @map("dormitory_id")
+  parkId           Int       @map("park_id")
+  park             Park      @relation("ParkToDormitory", fields: [parkId], references: [parkId])
+  floorCount       Int       @map("floor_count") // 总层数
+  floorHeightFirst Decimal?  @map("floor_height_first") @db.Decimal(5, 2) // 一楼层高 (米)
+  floorHeightOther Decimal?  @map("floor_height_other") @db.Decimal(5, 2) // 其他楼层层高 (米)
+  roomArea         Decimal?  @map("room_area") @db.Decimal(10, 2) // 单间面积 (平方米)
+  totalRooms       Int       @default(20) @map("total_rooms") // 总房间数
+  usedRoomsFirst   Int       @default(0) @map("used_rooms_first") // 一楼已用房间数
+  usedRoomsOther   Int       @default(0) @map("used_rooms_other") // 其他楼层已用房间数
+  rentPriceFirst   Decimal?  @map("rent_price_first") @db.Decimal(10, 2) // 一楼租金(元/房间/月)
+  rentPriceOther   Decimal?  @map("rent_price_other") @db.Decimal(10, 2) // 其他楼层租金(元/房间/月)
+  remark           String?   @db.Text
+  // 添加与图片的关联
+  images           DormitoryImage[] @relation("DormitoryToDormitoryImage")
+  createTime       DateTime  @default(now()) @map("create_time")
+  updateTime       DateTime? @updatedAt @map("update_time")
 
   @@index([parkId])
   @@map("dormitory")

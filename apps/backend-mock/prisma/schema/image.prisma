@@ -1,10 +1,12 @@
 model Image {
-  imgId        Int                @id @default(autoincrement()) @map("img_id")
-  imgUrl       String             @db.LongText @map("img_url")
-  createdTime  DateTime?          @default(now()) @map("created_time")
-  updatedTime  DateTime?          @updatedAt @map("updated_time")
-  investments  InvestmentImage[]  @relation("ImageToInvestmentImage")
-  factories    FactoryImage[]     @relation("ImageToFactoryImage")
+  imgId           Int                 @id @default(autoincrement()) @map("img_id")
+  imgUrl          String              @db.LongText @map("img_url")
+  createdTime     DateTime?           @default(now()) @map("created_time")
+  updatedTime     DateTime?           @updatedAt @map("updated_time")
+  investments     InvestmentImage[]   @relation("ImageToInvestmentImage")
+  floorImages     FactoryFloorImage[] @relation("ImageToFactoryFloorImage")
+  // 添加与 DormitoryImage 的关联
+  dormitoryImages DormitoryImage[]    @relation("ImageToDormitoryImage")
 
   @@map("image")
 }
@@ -23,16 +25,35 @@ model InvestmentImage {
   @@map("investment_image")
 }
 
-model FactoryImage {
-  id           Int        @id @default(autoincrement())
-  factoryId    Int        @map("factory_id")
-  imgId        Int        @map("img_id")
-  factory      Factory    @relation("FactoryToFactoryImage", fields: [factoryId], references: [factoryId])
-  image        Image      @relation("ImageToFactoryImage", fields: [imgId], references: [imgId])
-  createTime   DateTime?  @default(now()) @map("create_time")
-  updateTime   DateTime?  @updatedAt @map("update_time")
+// 移除旧的 FactoryImage 模型
+// model FactoryImage { ... }
 
-  @@index([factoryId])
+// 添加新的 FactoryFloorImage 模型
+model FactoryFloorImage {
+  id           Int          @id @default(autoincrement())
+  floorId      Int          @map("floor_id")
+  imgId        Int          @map("img_id")
+  floor        FactoryFloor @relation("FactoryFloorToFactoryFloorImage", fields: [floorId], references: [floorId])
+  image        Image        @relation("ImageToFactoryFloorImage", fields: [imgId], references: [imgId]) // 需要在 Image 模型中添加反向关联
+  createTime   DateTime?    @default(now()) @map("create_time")
+  updateTime   DateTime?    @updatedAt @map("update_time")
+
+  @@index([floorId])
   @@index([imgId])
-  @@map("factory_image")
+  @@map("factory_floor_image")
+}
+
+// 添加新的 DormitoryImage 模型
+model DormitoryImage {
+  id          Int       @id @default(autoincrement())
+  dormitoryId Int       @map("dormitory_id")
+  imgId       Int       @map("img_id")
+  dormitory   Dormitory @relation("DormitoryToDormitoryImage", fields: [dormitoryId], references: [dormitoryId]) // 需要在 Dormitory 模型中添加反向关联
+  image       Image     @relation("ImageToDormitoryImage", fields: [imgId], references: [imgId]) // 需要在 Image 模型中添加反向关联
+  createTime  DateTime? @default(now()) @map("create_time")
+  updateTime  DateTime? @updatedAt @map("update_time")
+
+  @@index([dormitoryId])
+  @@index([imgId])
+  @@map("dormitory_image")
 }

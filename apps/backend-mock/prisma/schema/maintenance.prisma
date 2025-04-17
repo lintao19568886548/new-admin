@@ -13,7 +13,7 @@ model Firefighting {
   createTime      DateTime  @default(now()) @map("create_time")
   updateTime      DateTime? @updatedAt @map("update_time")
   // 修改关联字段
-  factoryId       Int       @map("factory_id")
+  factoryId       Int       @default(20) @map("factory_id")
   factory         Factory   @relation("FactoryToFirefighting", fields: [factoryId], references: [factoryId])
 
   @@index([factoryId])
@@ -34,7 +34,7 @@ model Transformer {
   createTime     DateTime  @default(now()) @map("create_time")
   updateTime     DateTime? @updatedAt @map("update_time")
   // 修改关联字段
-  factoryId      Int       @map("factory_id")
+  factoryId      Int       @default(20) @map("factory_id")
   factory        Factory   @relation("FactoryToTransformer", fields: [factoryId], references: [factoryId])
 
   @@index([factoryId])
