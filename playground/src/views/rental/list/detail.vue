@@ -1,142 +1,205 @@
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue';
+import type { FactoryDetail, StatusTag } from './types';
+
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
+import { formatDateTime } from '@vben/utils';
 
 import {
   Button,
   Card,
+  Carousel,
   Descriptions,
   Divider,
   Image,
+  message,
+  Spin,
   Tag,
 } from 'ant-design-vue';
+
+import { getListDetail } from '#/api/rental/list';
 
 const route = useRoute();
 const router = useRouter();
 const id = ref(route.params.id);
+const loading = ref(false);
 
 // 返回列表页面
 function goBack() {
-  router.push('/rental');
+  router.push({ name: 'RentalList' }); // 使用命名路由确保导航正确
 }
 
-// 模拟的详情数据
-const detail = ref({
-  address: '北京市朝阳区建国路88号',
-  area: '120平方米',
-  contact: '张先生 13800138000',
-  createTime: '2021-04-01',
-  description:
-    '这是一个非常好的租赁项目，位置优越，交通便利，周边配套设施齐全。',
-  features: ['交通便利', '配套齐全', '环境优美', '安全可靠'],
-  id: id.value,
+// 厂房详情数据
+const detail = ref<FactoryDetail>({
+  address: '',
+  area: 0,
+  availableArea: 0,
+  buildingNumber: '',
+  buildTime: '',
+  contact: '',
+  createTime: '',
+  description: '',
+  factoryId: 0,
+  factoryName: '',
+  floorCount: 0,
+  imageUrls: ['/assets/微信图片_20250320150833.jpg'], // 添加图片数组
+  // 使用默认图片
   imgUrl: '/assets/微信图片_20250320150833.jpg',
-  price: '2000元/月',
-  tag: '空闲',
-  title: '租赁项目详情',
-  updateTime: '2021-04-01',
+  rentPrice: 0,
+  status: '',
+  updateTime: '',
 });
 
-// 获取标签颜色
-function getTagColor(tag: string) {
-  switch (tag) {
-    case '已租': {
-      return 'red';
+// 获取厂房详情
+async function fetchFactoryDetail() {
+  loading.value = true;
+  try {
+    console.warn('获取详情，ID:', id.value);
+    const res = await getListDetail(Number(id.value));
+    console.warn('获取到的详情数据:', res);
+    if (res) {
+      detail.value = {
+        ...res,
+        imageUrls: res.imageUrls || ['/assets/微信图片_20250320150833.jpg'], // 使用后端返回的图片数组
+        imgUrl: res.imgUrl || '/assets/微信图片_20250320150833.jpg', // 使用后端返回的图片URL
+      };
     }
-    case '空闲': {
-      return 'green';
-    }
-    case '维护': {
-      return 'blue';
-    }
-    default: {
-      return 'default';
-    }
+  } catch (error) {
+    console.error('获取厂房详情失败:', error);
+    message.error('获取厂房详情失败');
+  } finally {
+    loading.value = false;
   }
 }
 
+// 计算当前状态标签
+const currentTag = computed<StatusTag>(() => {
+  return detail.value.status || '未设置'; // 直接使用status值，如果为空则显示"未设置"
+});
+
+// 计算特点列表
+const features = computed(() => {
+  const featureList = [];
+  if (detail.value.buildingNumber)
+    featureList.push(`${detail.value.buildingNumber}号楼`);
+  if (detail.value.floorCount) featureList.push(`${detail.value.floorCount}层`);
+  if (detail.value.area) featureList.push(`总面积${detail.value.area}平方米`);
+  if (detail.value.availableArea)
+    featureList.push(`可用面积${detail.value.availableArea}平方米`);
+  return featureList;
+});
+
 onMounted(() => {
-  // 模拟API请求获取详情数据
-  console.warn('获取租赁项目详情,ID:', id.value);
-  // 在实际项目中，这里应该调用API获取详情数据
-  // getRentalDetail(id.value).then(res => {
-  //   detail.value = res.data;
-  // });
+  fetchFactoryDetail();
 });
 </script>
 
 <template>
-  <Page :title="`租赁项目详情 #${id}`">
+  <Page title="厂房详情">
     <template #extra>
       <Button type="primary" @click="goBack"> 返回列表 </Button>
     </template>
 
-    <Card>
-      <div class="flex flex-col md:flex-row">
-        <div class="p-4 md:w-1/3">
-          <Image
-            :src="detail.imgUrl"
-            :alt="detail.title"
-            class="w-full rounded-lg shadow-md"
-          />
-        </div>
-        <div class="p-4 md:w-2/3">
-          <div class="mb-4 flex items-center">
-            <h1 class="mr-4 text-2xl font-bold">{{ detail.title }}</h1>
-            <Tag
-              :color="getTagColor(detail.tag)"
-              class="rounded-md px-2 text-base"
+    <Spin :spinning="loading">
+      <Card>
+        <div class="flex flex-col md:flex-row">
+          <div class="p-4 md:w-1/3">
+            <!-- 如果有多张图片，使用轮播图展示 -->
+            <Carousel
+              v-if="detail.imageUrls && detail.imageUrls.length > 1"
+              autoplay
             >
-              {{ detail.tag }}
-            </Tag>
+              <div v-for="(url, index) in detail.imageUrls" :key="index">
+                <Image
+                  :src="url"
+                  :alt="`${detail.factoryName}-图片${index + 1}`"
+                  class="w-full rounded-lg shadow-md"
+                />
+              </div>
+            </Carousel>
+            <!-- 如果只有一张图片，直接展示 -->
+            <Image
+              v-else
+              :src="detail.imgUrl"
+              :alt="detail.factoryName"
+              class="w-full rounded-lg shadow-md"
+            />
           </div>
+          <div class="p-4 md:w-2/3">
+            <div class="mb-4 flex items-center">
+              <h1 class="mr-4 text-2xl font-bold">{{ detail.factoryName }}</h1>
+              <Tag class="rounded-md px-2 text-base">
+                {{ currentTag }}
+              </Tag>
+            </div>
 
-          <Descriptions
-            bordered
-            :column="{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }"
-          >
-            <Descriptions.Item label="价格">
-              {{ detail.price }}
-            </Descriptions.Item>
-            <Descriptions.Item label="面积">
-              {{ detail.area }}
-            </Descriptions.Item>
-            <Descriptions.Item label="地址">
-              {{ detail.address }}
-            </Descriptions.Item>
-            <Descriptions.Item label="联系方式">
-              {{ detail.contact }}
-            </Descriptions.Item>
-            <Descriptions.Item label="创建时间">
-              {{ detail.createTime }}
-            </Descriptions.Item>
-            <Descriptions.Item label="更新时间">
-              {{ detail.updateTime }}
-            </Descriptions.Item>
-          </Descriptions>
+            <Descriptions
+              bordered
+              :column="{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }"
+            >
+              <Descriptions.Item label="租金">
+                {{ detail.rentPrice }} 元/平方米/月
+              </Descriptions.Item>
+              <Descriptions.Item label="总面积">
+                {{ detail.area }} 平方米
+              </Descriptions.Item>
+              <Descriptions.Item label="可用面积">
+                {{ detail.availableArea }} 平方米
+              </Descriptions.Item>
+              <Descriptions.Item label="楼号">
+                {{ detail.buildingNumber }}
+              </Descriptions.Item>
+              <Descriptions.Item label="层数">
+                {{ detail.floorCount }}
+              </Descriptions.Item>
+              <Descriptions.Item label="建造时间">
+                {{
+                  detail.buildTime ? formatDateTime(detail.buildTime) : '未知'
+                }}
+              </Descriptions.Item>
+              <Descriptions.Item label="地址">
+                {{ detail.address }}
+              </Descriptions.Item>
+              <Descriptions.Item label="联系方式">
+                {{ detail.contact }}
+              </Descriptions.Item>
+              <Descriptions.Item label="创建时间">
+                {{ formatDateTime(detail.createTime) }}
+              </Descriptions.Item>
+              <Descriptions.Item label="更新时间">
+                {{
+                  detail.updateTime
+                    ? formatDateTime(detail.updateTime)
+                    : '未更新'
+                }}
+              </Descriptions.Item>
+            </Descriptions>
+          </div>
         </div>
-      </div>
 
-      <Divider orientation="left">项目描述</Divider>
-      <p class="mb-6 text-base leading-relaxed">{{ detail.description }}</p>
+        <Divider orientation="left">项目描述</Divider>
+        <p class="mb-6 text-base leading-relaxed">
+          {{ detail.description || '暂无描述' }}
+        </p>
 
-      <Divider orientation="left">项目特点</Divider>
-      <div class="mb-6 flex flex-wrap gap-2">
-        <Tag
-          v-for="feature in detail.features"
-          :key="feature"
-          color="blue"
-          class="px-3 py-1 text-base"
-        >
-          {{ feature }}
-        </Tag>
-      </div>
-    </Card>
+        <Divider orientation="left">项目特点</Divider>
+        <div class="mb-6 flex flex-wrap gap-2">
+          <Tag
+            v-for="feature in features"
+            :key="feature"
+            color="blue"
+            class="px-3 py-1 text-base"
+          >
+            {{ feature }}
+          </Tag>
+        </div>
+      </Card>
 
-    <Card title="相关推荐" class="mt-5">
-      <div class="py-10 text-center text-gray-500">暂无相关推荐</div>
-    </Card>
+      <Card title="相关推荐" class="mt-5">
+        <div class="py-10 text-center text-gray-500">暂无相关推荐</div>
+      </Card>
+    </Spin>
   </Page>
 </template>

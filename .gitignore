@@ -50,3 +50,5 @@ vite.config.ts.*
 *.sw?
 .history
 .data
+playground/src/views/rental/list/example/detail.vue
+playground/src/views/rental/list/example/index.vue
