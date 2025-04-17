@@ -25,10 +25,17 @@ async function generateAccess(options: GenerateMenuAndRoutesOptions) {
   return await generateAccessible(preferences.app.accessMode, {
     ...options,
     fetchMenuListAsync: async () => {
-      message.loading({
-        content: `${$t('common.loadingMenu')}...`,
-        duration: 1.5,
-      });
+      // 检查当前路由是否是打印页面
+      const currentPath = window.location.pathname;
+      const isPrintPage = currentPath.includes('/bill/print/');
+
+      // 如果不是打印页面，才显示加载提示
+      if (!isPrintPage) {
+        message.loading({
+          content: `${$t('common.loadingMenu')}...`,
+          duration: 0.5,
+        });
+      }
       return await getAllMenusApi();
     },
     // 可以指定没有权限跳转403页面

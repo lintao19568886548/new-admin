@@ -10,7 +10,7 @@ const routes: RouteRecordRaw[] = [
       title: $t('打印页'),
     },
     name: 'Print',
-    path: '/bill/print',
+    path: '/bill/print/:id',
   },
 ];
 

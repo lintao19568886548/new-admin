@@ -1,14 +1,28 @@
 <script setup lang="ts">
 import type { AmountBill } from '../data';
 
-import { onMounted, ref } from 'vue';
+import { nextTick, onMounted, ref } from 'vue'; // 导入 nextTick
+import { useRoute } from 'vue-router';
 
 import { getAmountBillDetail } from '#/api/bill';
 
 // 组件属性定义
 const billData = ref<AmountBill>();
+const route = useRoute();
+
 onMounted(async () => {
-  billData.value = await getAmountBillDetail(2);
+  // 从路径参数中获取 id
+  const billId = route.params.id ? Number(route.params.id) : undefined;
+  if (billId) {
+    billData.value = await getAmountBillDetail(billId);
+    await nextTick();
+    setTimeout(() => {
+      window.print();
+    }, 800);
+  } else {
+    console.error('未提供账单ID');
+    // 可以添加错误处理逻辑，例如显示错误消息或重定向
+  }
 });
 </script>
 
@@ -82,7 +96,7 @@ onMounted(async () => {
           <div class="th">本月<br />用水量</div>
           <div class="th">倍数</div>
           <div class="th">总用量</div>
-          <div class="th">单价<br />元/吨</div>
+          <div class="th">单价<br />元/m²</div>
           <div class="th">水费金额<br />（元）</div>
           <div class="th">备注</div>
         </div>

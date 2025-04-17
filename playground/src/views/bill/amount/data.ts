@@ -237,8 +237,8 @@ export function useColumns<T = AmountBill>(
         name: 'CellOperation',
         options: [
           {
-            code: 'view',
-            text: '查看',
+            code: 'print',
+            text: '打印',
           },
           'edit',
           'delete',

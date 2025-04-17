@@ -118,6 +118,15 @@ function onView(row: AmountBill) {
 }
 
 /**
+ * 打印账单详情
+ * @param row
+ */
+function onPrint(row: AmountBill) {
+  // 创建一个新窗口用于打印
+  window.open(`/bill/print/${row.billId}`);
+}
+
+/**
  * 表格操作按钮的回调函数
  */
 function onActionClick({ code, row }: OnActionClickParams<AmountBill>) {
@@ -128,6 +137,10 @@ function onActionClick({ code, row }: OnActionClickParams<AmountBill>) {
     }
     case 'edit': {
       onEdit(row);
+      break;
+    }
+    case 'print': {
+      onPrint(row);
       break;
     }
     case 'view': {
