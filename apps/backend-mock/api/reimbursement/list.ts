@@ -20,6 +20,11 @@ export default eventHandler(async (event) => {
     // 构建查询条件
     const where: any = {};
 
+    // 根据用户名过滤：如果不是 vben 或 admin，则只查询自己的记录
+    if (userinfo.username !== 'vben' && userinfo.username !== 'admin') {
+      where.userName = userinfo.username;
+    }
+
     // 用途模糊查询
     if (query.purpose) {
       where.purpose = { contains: String(query.purpose) };

@@ -1,10 +1,11 @@
 <script lang="ts" setup>
 import type { Rule } from 'ant-design-vue/es/form';
 
-import { reactive, ref } from 'vue';
+import { h, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { useUserStore } from '@vben/stores';
+import { formatDateTime } from '@vben/utils';
 
 import {
   Button,
@@ -13,10 +14,13 @@ import {
   Input,
   InputNumber,
   message,
+  Modal, // <-- 引入 Modal
   Select,
+  Table,
+  Tag,
 } from 'ant-design-vue';
 
-import { createReimbursement } from '#/api/reimbursement';
+import { createReimbursement, getReimbursementList } from '#/api/reimbursement';
 import { $t } from '#/locales';
 
 // 表单实例
@@ -24,6 +28,9 @@ const formRef = ref();
 
 // 提交状态
 const submitting = ref(false);
+
+// 控制记录弹窗的显示状态
+const isRecordModalVisible = ref(false);
 
 // 部门选项
 const departmentOptions = [
@@ -65,6 +72,108 @@ const rules: Record<string, Rule[]> = {
 
 // 获取用户存储
 const userStore = useUserStore();
+const currentUsername = userStore.userInfo?.username || '';
+
+// 报销列表数据
+// eslint-disable-next-line no-use-before-define
+const reimbursementList = ref<ReimbursementItem[]>([]);
+const loading = ref(false);
+
+// 定义类型
+interface ReimbursementItem {
+  amount: number;
+  createTime?: string;
+  date: string;
+  department: string;
+  id: number | string;
+  payee: string;
+  purpose: string;
+  remark?: string;
+  status: number;
+  updateTime?: string;
+  userName?: string;
+}
+
+// 状态映射
+const STATUS_MAP = {
+  0: { color: 'warning', text: '待审核' },
+  1: { color: 'success', text: '已通过' },
+  2: { color: 'error', text: '已拒绝' },
+};
+
+// 表格列定义
+const columns = [
+  {
+    dataIndex: 'purpose',
+    key: 'purpose',
+    title: '用途',
+  },
+  {
+    customRender: ({ text }: { text: number }) =>
+      `￥${Number(text).toFixed(2)}`,
+    dataIndex: 'amount',
+    key: 'amount',
+    title: '金额(元)',
+  },
+  {
+    customRender: ({ text }: { text: string }) =>
+      departmentOptions.find((opt) => opt.value === text)?.label || text,
+    dataIndex: 'department',
+    key: 'department',
+    title: '申请部门',
+  },
+  {
+    dataIndex: 'payee',
+    key: 'payee',
+    title: '领款人',
+  },
+  {
+    // 为 text 参数添加 string 类型注解
+    customRender: ({ text }: { text: string }) => formatDateTime(text),
+    dataIndex: 'date',
+    key: 'date',
+    title: '申请日期',
+  },
+  {
+    // 同样为 status 列的 text 添加 number 类型注解
+    customRender: ({ text }: { text: number }) => {
+      // 使用类型断言或类型守卫确保类型安全
+      const statusInfo =
+        typeof text === 'number' && text in STATUS_MAP
+          ? STATUS_MAP[text as keyof typeof STATUS_MAP]
+          : { color: 'default', text: '未知' };
+      return h(Tag, { color: statusInfo.color }, () => statusInfo.text);
+    },
+    dataIndex: 'status',
+    key: 'status',
+    title: '状态',
+  },
+  {
+    dataIndex: 'remark',
+    key: 'remark',
+    title: '备注',
+  },
+];
+
+// 获取报销列表
+async function fetchReimbursements() {
+  loading.value = true;
+  try {
+    let params = {};
+    // 检查用户名是否为 'vben' 或 'admin'
+    if (currentUsername !== 'vben' && currentUsername !== 'admin') {
+      params = { userName: currentUsername };
+    }
+    // 根据条件调用 API
+    const res = await getReimbursementList(params);
+    reimbursementList.value = res.items || [];
+  } catch (error) {
+    console.error('获取报销列表失败:', error);
+    message.error('获取报销列表失败');
+  } finally {
+    loading.value = false;
+  }
+}
 
 // 提交表单
 async function handleSubmit() {
@@ -79,7 +188,7 @@ async function handleSubmit() {
       ...formState,
       date: new Date().toISOString(),
       status: 0, // 初始状态：待审核
-      userName: userStore.userInfo?.username || '', // 添加当前用户名
+      userName: currentUsername, // 添加当前用户名
     };
 
     // 调用API提交数据
@@ -90,6 +199,8 @@ async function handleSubmit() {
 
     // 重置表单
     resetForm();
+    // 重新获取列表
+    await fetchReimbursements();
   } catch (error) {
     console.error('提交报销申请失败:', error);
     message.error('提交报销申请失败，请重试');
@@ -102,6 +213,20 @@ async function handleSubmit() {
 function resetForm() {
   formRef.value.resetFields();
 }
+
+// 显示记录弹窗
+function showRecordModal() {
+  isRecordModalVisible.value = true;
+  // 如果列表为空或者需要刷新，可以在这里调用 fetchReimbursements
+  if (reimbursementList.value.length === 0) {
+    fetchReimbursements();
+  }
+}
+
+// 组件挂载时获取数据 (如果希望首次加载时不显示列表，可以注释掉这里)
+// onMounted(() => {
+//   fetchReimbursements();
+// });
 </script>
 
 <template>
@@ -166,9 +291,28 @@ function resetForm() {
               提交申请
             </Button>
             <Button @click="resetForm">重置</Button>
+            <Button @click="showRecordModal">申请记录</Button>
+            <!-- ^-- 添加查看记录按钮 -->
           </div>
         </Form.Item>
       </Form>
     </Card>
+
+    <!-- 将表格移入 Modal -->
+    <Modal
+      v-model:visible="isRecordModalVisible"
+      :title="$t('我的报销记录')"
+      width="80%"
+      :footer="null"
+      :destroy-on-close="true"
+    >
+      <Table
+        :columns="columns"
+        :data-source="reimbursementList"
+        :loading="loading"
+        row-key="id"
+        :pagination="{ pageSize: 10 }"
+      />
+    </Modal>
   </Page>
 </template>
