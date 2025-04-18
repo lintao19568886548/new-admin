@@ -8,62 +8,37 @@ import { markRaw } from 'vue';
 import dayjs from 'dayjs'; // 添加 dayjs 导入
 
 import { z } from '#/adapter/form';
-import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
 import MultiSelect from './modules/multi-select.vue';
 
 /**
- * 获取表单的字段配置
+ * 获取园区表单的字段配置
  */
-export function useFormSchema(): VbenFormSchema[] {
+export function useParkFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'factoryName',
-      label: $t('system.rental.title'),
-      rules: 'required',
-    },
-    {
-      component: 'Input',
-      fieldName: 'rentPrice',
-      label: $t('system.rental.price'),
-      rules: 'required',
-    },
-    {
-      component: 'Input',
-      fieldName: 'area',
-      label: $t('system.rental.area'),
+      fieldName: 'parkName',
+      label: $t('page.park.name'),
       rules: 'required',
     },
     {
       component: 'Input',
       fieldName: 'address',
-      label: $t('system.rental.address'),
+      label: $t('page.park.address'),
+      rules: 'required',
+    },
+    {
+      component: 'InputNumber',
+      fieldName: 'area',
+      label: $t('page.park.area'),
       rules: 'required',
     },
     {
       component: 'Input',
-      fieldName: 'contact',
-      label: $t('system.rental.contact'),
-      rules: 'required',
-    },
-    {
-      component: 'ApiSelect',
-      componentProps: {
-        allowClear: true,
-        api: getParkList,
-        class: 'w-full',
-        labelField: 'parkName',
-        valueField: 'parkId',
-      },
-      fieldName: 'parkId',
-      label: $t('page.common.park'),
-    },
-    {
-      component: 'Input',
-      fieldName: 'availableArea',
-      label: $t('system.rental.status.label'),
+      fieldName: 'status',
+      label: $t('page.park.status'),
       rules: 'required',
     },
     {
@@ -77,7 +52,59 @@ export function useFormSchema(): VbenFormSchema[] {
         },
       },
       fieldName: 'description',
-      label: $t('system.rental.description'),
+      label: $t('page.park.description'),
+      rules: z
+        .string()
+        .max(
+          300,
+          $t('ui.formRules.maxLength', [$t('system.rental.description'), 300]),
+        )
+        .optional(),
+    },
+  ];
+}
+
+/**
+ * 获取厂房表单的字段配置
+ */
+export function useFactoryFormSchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      fieldName: 'parkName',
+      label: $t('page.park.name'),
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      fieldName: 'address',
+      label: $t('page.park.address'),
+      rules: 'required',
+    },
+    {
+      component: 'InputNumber',
+      fieldName: 'area',
+      label: $t('page.park.area'),
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      fieldName: 'status',
+      label: $t('page.park.status'),
+      rules: 'required',
+    },
+    {
+      component: 'Textarea',
+      componentProps: {
+        maxLength: 300,
+        rows: 5,
+        showCount: true,
+        style: {
+          width: '100%',
+        },
+      },
+      fieldName: 'description',
+      label: $t('page.park.description'),
       rules: z
         .string()
         .max(

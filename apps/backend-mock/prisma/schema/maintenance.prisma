@@ -15,8 +15,11 @@ model Firefighting {
   // 修改关联字段
   factoryId       Int       @default(20) @map("factory_id")
   factory         Factory   @relation("FactoryToFirefighting", fields: [factoryId], references: [factoryId])
+  parkId          Int       @map("park_id")
+  park            Park      @relation("ParkToFirefighting", fields: [parkId], references: [parkId])
 
   @@index([factoryId])
+  @@index([parkId])
   @@map("firefighting")
 }
 
@@ -36,7 +39,10 @@ model Transformer {
   // 修改关联字段
   factoryId      Int       @default(20) @map("factory_id")
   factory        Factory   @relation("FactoryToTransformer", fields: [factoryId], references: [factoryId])
+  parkId         Int       @map("park_id")
+  park           Park      @relation("ParkToTransformer", fields: [parkId], references: [parkId])
 
   @@index([factoryId])
+  @@index([parkId])
   @@map("transformer")
 }

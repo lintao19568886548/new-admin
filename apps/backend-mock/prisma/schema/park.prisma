@@ -14,7 +14,8 @@ model Park {
   visitors      AccessVisitor[]   @relation("ParkToVisitor")
   cars          AccessCar[]       @relation("ParkToCar")
   investments   Investment[]      @relation("ParkToInvestment")
-  // 移除与消防设施和变压器的关联
+  firefighting  Firefighting[]    @relation("ParkToFirefighting")
+  transformers  Transformer[]     @relation("ParkToTransformer")
   rentalTenants RentalTenant[]    @relation("ParkToRentalTenant")
   createTime    DateTime          @default(now()) @map("create_time")
   updateTime    DateTime?         @updatedAt @map("update_time")

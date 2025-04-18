@@ -119,6 +119,7 @@ export default eventHandler(async (event) => {
   const page = Number(currentPage) || 1;
   const size = Number(pageSize) || 20;
 
+  console.log('where', where);
   // 查询总记录数
   const total = await prismaClient.firefighting.count({
     where,
@@ -133,6 +134,7 @@ export default eventHandler(async (event) => {
     skip: (page - 1) * size,
     take: size,
   });
+  console.log('result', result);
 
   return useResponseSuccess({
     items: result,
