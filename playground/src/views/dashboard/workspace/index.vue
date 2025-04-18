@@ -87,7 +87,7 @@ const quickNavItems: WorkbenchQuickNavItem[] = [
   {
     color: '#4daf1bc9',
     icon: 'mdi:home-city-outline',
-    title: '厂房列表',
+    title: '园区列表',
     url: '/rental/list',
   },
   {
