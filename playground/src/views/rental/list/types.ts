@@ -55,27 +55,73 @@ export interface TransformerDetail {
   transformerId: number;
 }
 
-// 宿舍详情
-export interface DormitoryDetail {
-  buildingNumber: string;
-  capacity: number;
+// 厂房楼层图片
+export interface FactoryFloorImageDetail {
+  createTime: string;
+  floorId: number;
+  id: number;
+  image: {
+    imgUrl: string;
+  };
+  imgId: number;
+  updateTime: string;
+}
+
+// 厂房楼层详情
+export interface FactoryFloorDetail {
   createTime: string;
   description: string;
-  dormitoryId: number;
-  facilities: string;
-  floorCount: number;
-  occupancy: number;
+  factoryId: number;
+  floorHeight: number;
+  floorId: number;
+  floorName: string;
+  images: FactoryFloorImageDetail[];
+  imageUrls: string[];
+  imgUrl: string;
+  loadBearing: number;
   rentPrice: number;
-  roomNumber: string;
+  status: string;
+  totalArea: number;
   updateTime: string;
+  usedArea: number;
+}
+
+// 宿舍图片
+export interface DormitoryImageDetail {
+  createTime: string;
+  dormitoryId: number;
+  id: number;
+  image: {
+    imgUrl: string;
+  };
+  imgId: number;
+  updateTime: string;
+}
+
+// 宿舍详情
+export interface DormitoryDetail {
+  createTime: string;
+  dormitoryId: number;
+  floorCount: number;
+  floorHeightFirst: number;
+  floorHeightOther: number;
+  images: DormitoryImageDetail[];
+  imageUrls: string[];
+  imgUrl: string;
+  parkId: number;
+  remark: string;
+  rentPriceFirst: number;
+  rentPriceOther: number;
+  roomArea: number;
+  totalRooms: number;
+  updateTime: string;
+  usedRoomsFirst: number;
+  usedRoomsOther: number;
 }
 
 // 厂房详情
 export interface FactoryDetail {
   address: string;
-  area: number;
-  availableArea: number;
-  buildingNumber: string;
   buildTime: string;
   contact: string;
   createTime: string;
@@ -84,10 +130,9 @@ export interface FactoryDetail {
   factoryName: string;
   // 关联数据
   firefighting: FirefightingDetail[];
-  floorCount: number;
-  imageUrls?: string[];
+  floors: FactoryFloorDetail[];
+  imageUrls: string[];
   imgUrl: string;
-  rentPrice: number;
   status: string;
   transformers: TransformerDetail[];
   updateTime: string;
@@ -100,9 +145,8 @@ export interface ParkDetail {
   createTime: string;
   description: string;
   dormitories: DormitoryDetail[];
-  // 关联数据
   factories: FactoryDetail[];
-  imageUrls?: string[];
+  imageUrls: string[];
   imgUrl: string;
   parkId: number;
   parkName: string;
@@ -110,4 +154,5 @@ export interface ParkDetail {
   updateTime: string;
 }
 
-export type StatusTag = string;
+// 状态标签类型 - 修改为更灵活的类型
+export type StatusTag = '建设中' | '未设置' | '规划中' | '运营中' | string;

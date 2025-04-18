@@ -72,41 +72,43 @@ async function fetchParkDetail() {
         ...res,
         // 确保日期字段有效，如果无效则设为null
         createTime: isValidDate(res.createTime) ? res.createTime : null,
+        // 处理宿舍中的日期字段
+        dormitories: (res.dormitories || []).map((dorm: any) => ({
+          ...dorm,
+          createTime: isValidDate(dorm.createTime) ? dorm.createTime : null,
+          updateTime: isValidDate(dorm.updateTime) ? dorm.updateTime : null,
+        })),
         // 处理厂房中的日期字段
-        factories: (res.factories || []).map(
-          (factory: {
-            buildTime: null | string | undefined;
-            createTime: null | string | undefined;
-            firefighting: any;
-            transformers: any;
-            updateTime: null | string | undefined;
-          }) => ({
-            ...factory,
-            buildTime: isValidDate(factory.buildTime)
-              ? factory.buildTime
-              : null,
-            createTime: isValidDate(factory.createTime)
-              ? factory.createTime
-              : null,
-            // 处理消防设施中的日期字段
-            firefighting: (factory.firefighting || []).map(
-              (item: { checkTime: null | string | undefined }) => ({
-                ...item,
-                checkTime: isValidDate(item.checkTime) ? item.checkTime : null,
-              }),
-            ),
-            // 处理变压器中的日期字段
-            transformers: (factory.transformers || []).map(
-              (item: { checkTime: null | string | undefined }) => ({
-                ...item,
-                checkTime: isValidDate(item.checkTime) ? item.checkTime : null,
-              }),
-            ),
-            updateTime: isValidDate(factory.updateTime)
-              ? factory.updateTime
-              : null,
-          }),
-        ),
+        factories: (res.factories || []).map((factory: any) => ({
+          ...factory,
+          buildTime: isValidDate(factory.buildTime) ? factory.buildTime : null,
+          createTime: isValidDate(factory.createTime)
+            ? factory.createTime
+            : null,
+          // 处理消防设施中的日期字段
+          firefighting: (factory.firefighting || []).map(
+            (item: { checkTime: null | string | undefined }) => ({
+              ...item,
+              checkTime: isValidDate(item.checkTime) ? item.checkTime : null,
+            }),
+          ),
+          // 处理厂房楼层中的日期字段
+          floors: (factory.floors || []).map((floor: any) => ({
+            ...floor,
+            createTime: isValidDate(floor.createTime) ? floor.createTime : null,
+            updateTime: isValidDate(floor.updateTime) ? floor.updateTime : null,
+          })),
+          // 处理变压器中的日期字段
+          transformers: (factory.transformers || []).map(
+            (item: { checkTime: null | string | undefined }) => ({
+              ...item,
+              checkTime: isValidDate(item.checkTime) ? item.checkTime : null,
+            }),
+          ),
+          updateTime: isValidDate(factory.updateTime)
+            ? factory.updateTime
+            : null,
+        })),
         imageUrls: res.imageUrls || ['/assets/微信图片_20250320150833.jpg'],
         imgUrl: res.imgUrl || '/assets/微信图片_20250320150833.jpg',
         // 修正语法错误并优化日期验证
@@ -125,7 +127,9 @@ async function fetchParkDetail() {
 
 // 计算当前状态标签
 const currentTag = computed<StatusTag>(() => {
-  return detail.value.status || '未设置';
+  // 确保返回的是StatusTag类型
+  const status = detail.value.status || '未设置';
+  return status as StatusTag;
 });
 
 // 计算园区特点列表
@@ -253,20 +257,11 @@ onMounted(() => {
                     bordered
                     :column="{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }"
                   >
-                    <Descriptions.Item label="租金">
-                      {{ factory.rentPrice }} 元/m²/月
+                    <Descriptions.Item label="地址">
+                      {{ factory.address }}
                     </Descriptions.Item>
-                    <Descriptions.Item label="总面积">
-                      {{ factory.area }} m²
-                    </Descriptions.Item>
-                    <Descriptions.Item label="可用面积">
-                      {{ factory.availableArea }} m²
-                    </Descriptions.Item>
-                    <Descriptions.Item label="楼号">
-                      {{ factory.buildingNumber }}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="层数">
-                      {{ factory.floorCount }}
+                    <Descriptions.Item label="联系方式">
+                      {{ factory.contact }}
                     </Descriptions.Item>
                     <Descriptions.Item label="建造时间">
                       {{
@@ -274,12 +269,6 @@ onMounted(() => {
                           ? formatDateTime(factory.buildTime)
                           : '未知'
                       }}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="地址">
-                      {{ factory.address }}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="联系方式">
-                      {{ factory.contact }}
                     </Descriptions.Item>
                     <Descriptions.Item label="状态">
                       {{ factory.status || '正常' }}
@@ -291,7 +280,67 @@ onMounted(() => {
                     {{ factory.description || '暂无描述' }}
                   </p>
 
+                  <!-- 厂房楼层信息 -->
+                  <Divider orientation="left">楼层信息</Divider>
+                  <div v-if="factory.floors && factory.floors.length > 0">
+                    <Collapse>
+                      <CollapsePanel
+                        v-for="floor in factory.floors"
+                        :key="floor.floorId"
+                        :header="floor.floorName"
+                      >
+                        <div class="flex flex-col md:flex-row">
+                          <div class="p-2 md:w-1/3">
+                            <Image
+                              :src="floor.imgUrl"
+                              :alt="floor.floorName"
+                              class="w-full rounded-lg shadow-md"
+                            />
+                          </div>
+                          <div class="p-2 md:w-2/3">
+                            <Descriptions
+                              bordered
+                              :column="{
+                                xxl: 2,
+                                xl: 2,
+                                lg: 2,
+                                md: 1,
+                                sm: 1,
+                                xs: 1,
+                              }"
+                            >
+                              <Descriptions.Item label="层高">
+                                {{ floor.floorHeight }} 米
+                              </Descriptions.Item>
+                              <Descriptions.Item label="承重">
+                                {{ floor.loadBearing }} 吨/m²
+                              </Descriptions.Item>
+                              <Descriptions.Item label="租金">
+                                {{ floor.rentPrice }} 元/m²/月
+                              </Descriptions.Item>
+                              <Descriptions.Item label="总面积">
+                                {{ floor.totalArea }} m²
+                              </Descriptions.Item>
+                              <Descriptions.Item label="已用面积">
+                                {{ floor.usedArea }} m²
+                              </Descriptions.Item>
+                              <Descriptions.Item label="状态">
+                                {{ floor.status }}
+                              </Descriptions.Item>
+                            </Descriptions>
+                            <Divider orientation="left">楼层描述</Divider>
+                            <p>{{ floor.description || '暂无描述' }}</p>
+                          </div>
+                        </div>
+                      </CollapsePanel>
+                    </Collapse>
+                  </div>
+                  <div v-else class="py-4 text-center text-gray-500">
+                    暂无楼层信息
+                  </div>
+
                   <!-- 消防设施和变压器信息 -->
+                  <Divider orientation="left">设施信息</Divider>
                   <Tabs v-model:active-key="activeTabKey">
                     <TabPane key="1" tab="消防设施">
                       <div
@@ -403,36 +452,51 @@ onMounted(() => {
             :key="dorm.dormitoryId"
             class="mb-4 border-b pb-4"
           >
-            <h3 class="mb-2 text-lg font-bold">
-              {{ dorm.buildingNumber }} - {{ dorm.roomNumber }}
-            </h3>
-            <Descriptions
-              bordered
-              :column="{ xxl: 3, xl: 3, lg: 2, md: 2, sm: 1, xs: 1 }"
-            >
-              <Descriptions.Item label="楼号">
-                {{ dorm.buildingNumber }}
-              </Descriptions.Item>
-              <Descriptions.Item label="房间号">
-                {{ dorm.roomNumber }}
-              </Descriptions.Item>
-              <Descriptions.Item label="层数">
-                {{ dorm.floorCount }}
-              </Descriptions.Item>
-              <Descriptions.Item label="容纳人数">
-                {{ dorm.capacity }}
-              </Descriptions.Item>
-              <Descriptions.Item label="当前入住">
-                {{ dorm.occupancy }}
-              </Descriptions.Item>
-              <Descriptions.Item label="租金">
-                {{ dorm.rentPrice }} 元/床位/月
-              </Descriptions.Item>
-            </Descriptions>
-            <Divider orientation="left">设施描述</Divider>
-            <p>{{ dorm.facilities || '暂无设施描述' }}</p>
-            <Divider orientation="left">宿舍描述</Divider>
-            <p>{{ dorm.description || '暂无描述' }}</p>
+            <div class="flex flex-col md:flex-row">
+              <div class="p-4 md:w-1/3">
+                <Image
+                  :src="dorm.imgUrl"
+                  :alt="`宿舍-${dorm.dormitoryId}`"
+                  class="w-full rounded-lg shadow-md"
+                />
+              </div>
+              <div class="p-4 md:w-2/3">
+                <Descriptions
+                  bordered
+                  :column="{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }"
+                >
+                  <Descriptions.Item label="总层数">
+                    {{ dorm.floorCount }} 层
+                  </Descriptions.Item>
+                  <Descriptions.Item label="一楼层高">
+                    {{ dorm.floorHeightFirst || '-' }} 米
+                  </Descriptions.Item>
+                  <Descriptions.Item label="其他楼层层高">
+                    {{ dorm.floorHeightOther || '-' }} 米
+                  </Descriptions.Item>
+                  <Descriptions.Item label="单间面积">
+                    {{ dorm.roomArea || '-' }} m²
+                  </Descriptions.Item>
+                  <Descriptions.Item label="总房间数">
+                    {{ dorm.totalRooms }} 间
+                  </Descriptions.Item>
+                  <Descriptions.Item label="一楼已用房间">
+                    {{ dorm.usedRoomsFirst }} 间
+                  </Descriptions.Item>
+                  <Descriptions.Item label="其他楼层已用房间">
+                    {{ dorm.usedRoomsOther }} 间
+                  </Descriptions.Item>
+                  <Descriptions.Item label="一楼租金">
+                    {{ dorm.rentPriceFirst || '-' }} 元/间/月
+                  </Descriptions.Item>
+                  <Descriptions.Item label="其他楼层租金">
+                    {{ dorm.rentPriceOther || '-' }} 元/间/月
+                  </Descriptions.Item>
+                </Descriptions>
+                <Divider orientation="left">宿舍备注</Divider>
+                <p>{{ dorm.remark || '暂无备注' }}</p>
+              </div>
+            </div>
           </div>
         </div>
         <div v-else class="py-10 text-center text-gray-500">暂无宿舍信息</div>

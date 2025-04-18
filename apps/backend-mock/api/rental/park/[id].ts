@@ -16,10 +16,15 @@ export default eventHandler(async (event) => {
         // 包含厂房信息
         factories: {
           include: {
-            // 包含厂房图片
-            images: {
+            // 包含厂房楼层
+            floors: {
               include: {
-                image: true,
+                // 包含楼层图片
+                images: {
+                  include: {
+                    image: true,
+                  },
+                },
               },
             },
             // 包含消防设施
@@ -29,7 +34,16 @@ export default eventHandler(async (event) => {
           },
         },
         // 包含宿舍信息
-        dormitories: true,
+        dormitories: {
+          include: {
+            // 包含宿舍图片
+            images: {
+              include: {
+                image: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -40,14 +54,23 @@ export default eventHandler(async (event) => {
     // 处理厂房数据，添加图片URL
     const factories = park.factories.map((factory) => {
       const defaultImgUrl = '/assets/微信图片_20250320150833.jpg';
-      const images = factory.images.map((item) => item.image.imgUrl);
 
-      // 移除嵌套的images对象，避免数据冗余
-      const { images: _images, ...factoryData } = factory;
+      // 处理厂房楼层数据
+      const floors = factory.floors.map((floor) => {
+        const floorImages = floor.images.map((item) => item.image.imgUrl);
+
+        return {
+          ...floor,
+          imgUrl: floorImages.length > 0 ? floorImages[0] : defaultImgUrl,
+          imageUrls: floorImages.length > 0 ? floorImages : [defaultImgUrl],
+          createTime: floor.createTime ? floor.createTime.toISOString() : null,
+          updateTime: floor.updateTime ? floor.updateTime.toISOString() : null,
+        };
+      });
 
       // 确保日期字段格式正确
       const safeFactory = {
-        ...factoryData,
+        ...factory,
         buildTime: factory.buildTime ? factory.buildTime.toISOString() : null,
         createTime: factory.createTime
           ? factory.createTime.toISOString()
@@ -57,22 +80,47 @@ export default eventHandler(async (event) => {
           : null,
       };
 
+      // 获取第一个楼层的图片作为厂房主图
+      const firstFloorImages =
+        floors.length > 0 && floors[0].imageUrls
+          ? floors[0].imageUrls
+          : [defaultImgUrl];
+      const firstFloorMainImage =
+        floors.length > 0 && floors[0].imgUrl
+          ? floors[0].imgUrl
+          : defaultImgUrl;
+
       return {
         ...safeFactory,
-        imgUrl: images.length > 0 ? images[0] : defaultImgUrl,
-        imageUrls: images.length > 0 ? images : [defaultImgUrl],
+        floors,
+        imgUrl: firstFloorMainImage,
+        imageUrls: firstFloorImages,
         // 处理消防设施数据
         firefighting: factory.firefighting.map((item) => ({
           ...item,
           checkTime: item.checkTime ? item.checkTime.toISOString() : null,
-          imgUrl: defaultImgUrl, // 为消防设施添加默认图片
+          imgUrl: item.imgUrl || defaultImgUrl,
         })),
         // 处理变压器数据
         transformers: factory.transformers.map((item) => ({
           ...item,
           checkTime: item.checkTime ? item.checkTime.toISOString() : null,
-          imgUrl: defaultImgUrl, // 为变压器添加默认图片
+          imgUrl: item.imgUrl || defaultImgUrl,
         })),
+      };
+    });
+
+    // 处理宿舍数据
+    const dormitories = park.dormitories.map((dorm) => {
+      const defaultImgUrl = '/assets/微信图片_20250320150833.jpg';
+      const dormImages = dorm.images.map((item) => item.image.imgUrl);
+
+      return {
+        ...dorm,
+        imgUrl: dormImages.length > 0 ? dormImages[0] : defaultImgUrl,
+        imageUrls: dormImages.length > 0 ? dormImages : [defaultImgUrl],
+        createTime: dorm.createTime ? dorm.createTime.toISOString() : null,
+        updateTime: dorm.updateTime ? dorm.updateTime.toISOString() : null,
       };
     });
 
@@ -84,6 +132,7 @@ export default eventHandler(async (event) => {
       imgUrl: '/assets/微信图片_20250320150833.jpg', // 园区默认图片
       imageUrls: ['/assets/微信图片_20250320150833.jpg'], // 园区图片列表
       factories, // 处理后的厂房数据
+      dormitories, // 处理后的宿舍数据
     });
   } catch (error) {
     console.error('获取园区详情失败:', error);

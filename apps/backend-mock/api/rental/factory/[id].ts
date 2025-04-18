@@ -12,11 +12,20 @@ export default eventHandler(async (event) => {
     const factory = await prismaClient.factory.findUnique({
       where: { factoryId: id },
       include: {
-        images: {
+        // 更新为包含楼层和楼层图片
+        floors: {
           include: {
-            image: true,
+            images: {
+              include: {
+                image: true,
+              },
+            },
           },
         },
+        // 包含消防设施
+        firefighting: true,
+        // 包含变压器
+        transformers: true,
       },
     });
 
@@ -26,13 +35,44 @@ export default eventHandler(async (event) => {
 
     // 处理图片数据
     const defaultImgUrl = '/assets/微信图片_20250320150833.jpg';
-    const images = factory.images.map((item) => item.image.imgUrl);
+
+    // 从楼层中获取图片
+    const allImages = [];
+    factory.floors.forEach((floor) => {
+      if (floor.images && floor.images.length > 0) {
+        floor.images.forEach((img) => {
+          allImages.push(img.image.imgUrl);
+        });
+      }
+    });
+
+    // 处理楼层数据
+    const floors = factory.floors.map((floor) => {
+      const floorImages = floor.images.map((item) => item.image.imgUrl);
+
+      return {
+        ...floor,
+        imgUrl: floorImages.length > 0 ? floorImages[0] : defaultImgUrl,
+        imageUrls: floorImages.length > 0 ? floorImages : [defaultImgUrl],
+      };
+    });
 
     // 返回处理后的数据
     return useResponseSuccess({
       ...factory,
-      imgUrl: images.length > 0 ? images[0] : defaultImgUrl, // 主图
-      imageUrls: images.length > 0 ? images : [defaultImgUrl], // 所有图片
+      floors,
+      imgUrl: allImages.length > 0 ? allImages[0] : defaultImgUrl, // 主图
+      imageUrls: allImages.length > 0 ? allImages : [defaultImgUrl], // 所有图片
+      // 处理消防设施数据
+      firefighting: factory.firefighting.map((item) => ({
+        ...item,
+        imgUrl: item.imgUrl || defaultImgUrl,
+      })),
+      // 处理变压器数据
+      transformers: factory.transformers.map((item) => ({
+        ...item,
+        imgUrl: item.imgUrl || defaultImgUrl,
+      })),
     });
   } catch (error) {
     console.error('获取厂房详情失败:', error);
