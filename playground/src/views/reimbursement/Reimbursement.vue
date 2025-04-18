@@ -79,6 +79,16 @@ const currentUsername = userStore.userInfo?.username || '';
 const reimbursementList = ref<ReimbursementItem[]>([]);
 const loading = ref(false);
 
+// 分页相关状态
+const pagination = reactive({
+  current: 1,
+  pageSize: 10,
+  pageSizeOptions: ['10', '20', '50', '100'],
+  showSizeChanger: true,
+  showTotal: (total: number) => `共 ${total} 条记录`,
+  total: 0,
+});
+
 // 定义类型
 interface ReimbursementItem {
   amount: number;
@@ -159,20 +169,32 @@ const columns = [
 async function fetchReimbursements() {
   loading.value = true;
   try {
-    let params = {};
+    const params: any = {
+      pageNo: pagination.current,
+      pageSize: pagination.pageSize,
+    };
     // 检查用户名是否为 'vben' 或 'admin'
     if (currentUsername !== 'vben' && currentUsername !== 'admin') {
-      params = { userName: currentUsername };
+      params.userName = currentUsername;
     }
     // 根据条件调用 API
     const res = await getReimbursementList(params);
     reimbursementList.value = res.items || [];
+    // 更新分页总数
+    pagination.total = res.total || 0;
   } catch (error) {
     console.error('获取报销列表失败:', error);
     message.error('获取报销列表失败');
   } finally {
     loading.value = false;
   }
+}
+
+// 处理分页变化
+function handleTableChange(pag: any) {
+  pagination.current = pag.current;
+  pagination.pageSize = pag.pageSize;
+  fetchReimbursements();
 }
 
 // 提交表单
@@ -311,7 +333,8 @@ function showRecordModal() {
         :data-source="reimbursementList"
         :loading="loading"
         row-key="id"
-        :pagination="{ pageSize: 10 }"
+        :pagination="pagination"
+        @change="handleTableChange"
       />
     </Modal>
   </Page>
