@@ -8,6 +8,8 @@ model Role {
   roleMenus  RoleMenu[] @relation("RoleToRoleMenu")
   userRoles  UserRole[] @relation("RoleToUserRole")
   roleParks  RolePark[] @relation("RoleToPark")
+
+  @@map("role")
 }
 
 // 用户角色关联表

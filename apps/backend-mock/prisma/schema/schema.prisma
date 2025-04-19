@@ -7,6 +7,8 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["prismaSchemaFolder"] // 启用多文件 schema 支持
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  output = "../../node_modules/@prisma/.prisma/client"
 }
 
 datasource db {
