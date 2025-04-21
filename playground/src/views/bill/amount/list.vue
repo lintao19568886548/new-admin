@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { Rule } from 'ant-design-vue/es/form';
+
 import type { AmountBill } from './data';
 
 import type {
@@ -7,11 +9,20 @@ import type {
 } from '#/adapter/vxe-table';
 
 import { ref } from 'vue';
+import { useRouter } from 'vue-router'; // 新增: 引入 useRouter
 
 import { Page } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
-import { Button, message } from 'ant-design-vue';
+import {
+  Button,
+  DatePicker,
+  Form,
+  Input,
+  InputNumber,
+  message,
+  Modal,
+} from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
@@ -121,9 +132,56 @@ function onView(row: AmountBill) {
  * 打印账单详情
  * @param row
  */
+// --- 新增代码开始 ---
+// 打印设置模态框相关状态
+const printModalVisible = ref(false);
+const printFormRef = ref(); // 表单引用
+const currentPrintingBillId = ref<number | string | undefined>(undefined); // 当前要打印的账单ID
+
+// 打印设置表单数据模型
+const printFormData = ref({
+  bankName: '中国农业银行股份有限公司东莞高埗支行',
+  billingDate: dayjs(), // 默认为当天
+  companyAccountName: '东莞市启程物业管理有限公司',
+  companyAccountNumber: '4430 4001 0400 21090',
+  cutoffDate: dayjs().add(10, 'day'), // 默认为10天后
+  lateFeePercentage: 10,
+  parkManager: '186 8945 9979（刘先生）',
+});
+
+// 表单验证规则 (可选，根据需要添加)
+const printFormRules: Record<string, Rule[]> = {
+  bankName: [{ message: '请输入开户行', required: true, trigger: 'blur' }],
+  billingDate: [
+    { message: '请选择制单日期', required: true, trigger: 'change' },
+  ],
+  companyAccountName: [
+    { message: '请输入对公户名', required: true, trigger: 'blur' },
+  ],
+  companyAccountNumber: [
+    { message: '请输入对公账号', required: true, trigger: 'blur' },
+  ],
+  cutoffDate: [
+    { message: '请选择停止供水供电时间', required: true, trigger: 'change' },
+  ],
+  lateFeePercentage: [
+    {
+      message: '请输入滞纳金百分比',
+      required: true,
+      trigger: 'change',
+      type: 'number',
+    },
+  ],
+  parkManager: [
+    { message: '请输入园区负责人信息', required: true, trigger: 'blur' },
+  ],
+};
+// --- 新增代码结束 ---
+
 function onPrint(row: AmountBill) {
-  // 创建一个新窗口用于打印
-  window.open(`/bill/print/${row.billId}`);
+  currentPrintingBillId.value = row.billId; // 保存当前账单ID
+  // 可以根据需要重置或预设表单值
+  printModalVisible.value = true; // 打开模态框
 }
 
 /**
@@ -231,6 +289,8 @@ function refreshGrid() {
   gridApi.query();
 }
 
+const router = useRouter();
+
 /**
  * 表单提交成功回调
  */
@@ -238,6 +298,45 @@ function handleFormSuccess(_data: any) {
   message.success('保存成功');
   refreshGrid();
 }
+// --- 新增代码开始 ---
+/**
+ * 处理打印设置模态框确认事件
+ */
+async function handlePrintOk() {
+  try {
+    await printFormRef.value?.validate(); // 触发表单验证
+    const formData = printFormData.value;
+
+    const printSettings = {
+      bankName: formData.bankName,
+      billingDate: formData.billingDate.format('YYYY-MM-DD'),
+      companyAccountName: formData.companyAccountName,
+      companyAccountNumber: formData.companyAccountNumber,
+      cutoffDate: formData.cutoffDate.format('YYYY-MM-DD HH:00:00'),
+      lateFeePercentage: formData.lateFeePercentage,
+      parkManager: formData.parkManager,
+    };
+
+    const routeData = router.resolve({
+      path: `/bill/print/${currentPrintingBillId.value}`,
+      query: { ...printSettings },
+    });
+    window.open(routeData.href, '_blank');
+
+    printModalVisible.value = false; // 关闭模态框
+  } catch (error) {
+    console.error(error);
+    message.error('请检查表单输入项！');
+  }
+}
+
+/**
+ * 处理打印设置模态框取消事件
+ */
+function handlePrintCancel() {
+  printModalVisible.value = false;
+}
+// --- 新增代码结束 ---
 </script>
 
 <template>
@@ -248,6 +347,67 @@ function handleFormSuccess(_data: any) {
       @success="handleFormSuccess"
     />
     <MultipageBillDetail ref="billDetailRef" :config="detailConfig" />
+
+    <!-- --- 新增代码开始 --- -->
+    <!-- 打印设置模态框 -->
+    <Modal
+      v-model:open="printModalVisible"
+      title="打印设置"
+      @ok="handlePrintOk"
+      @cancel="handlePrintCancel"
+      :mask-closable="false"
+      width="600px"
+    >
+      <Form
+        ref="printFormRef"
+        :model="printFormData"
+        :rules="printFormRules"
+        :label-col="{ span: 6 }"
+        :wrapper-col="{ span: 16 }"
+        layout="horizontal"
+        class="mt-4"
+      >
+        <Form.Item label="对公户名" name="companyAccountName">
+          <Input v-model:value="printFormData.companyAccountName" />
+        </Form.Item>
+        <Form.Item label="对公账号" name="companyAccountNumber">
+          <Input v-model:value="printFormData.companyAccountNumber" />
+        </Form.Item>
+        <Form.Item label="开户行" name="bankName">
+          <Input v-model:value="printFormData.bankName" />
+        </Form.Item>
+        <Form.Item label="滞纳金百分比" name="lateFeePercentage">
+          <InputNumber
+            v-model:value="printFormData.lateFeePercentage"
+            :min="0"
+            :max="100"
+            addon-after="%"
+            class="w-full"
+          />
+        </Form.Item>
+        <Form.Item label="水电停供时间" name="cutoffDate">
+          <DatePicker
+            v-model:value="printFormData.cutoffDate"
+            :show-time="{ format: 'HH' }"
+            format="YYYY-MM-DD HH"
+            value-format="YYYY-MM-DD HH:00:00"
+            class="w-full"
+          />
+        </Form.Item>
+        <Form.Item label="园区负责人" name="parkManager">
+          <Input v-model:value="printFormData.parkManager" />
+        </Form.Item>
+        <Form.Item label="制单日期" name="billingDate">
+          <DatePicker
+            v-model:value="printFormData.billingDate"
+            value-format="YYYY-MM-DD"
+            class="w-full"
+          />
+        </Form.Item>
+      </Form>
+    </Modal>
+    <!-- --- 新增代码结束 --- -->
+
     <Grid table-title="总账单" class="amount-bill-grid">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->

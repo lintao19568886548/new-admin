@@ -1,14 +1,30 @@
 <script setup lang="ts">
 import type { AmountBill } from '../data';
 
-import { nextTick, onMounted, ref } from 'vue'; // 导入 nextTick
+import { computed, nextTick, onMounted, ref } from 'vue'; // 添加 computed
 import { useRoute } from 'vue-router';
+
+import dayjs from 'dayjs'; // 添加 dayjs 导入
 
 import { getAmountBillDetail } from '#/api/bill';
 
 // 组件属性定义
 const billData = ref<AmountBill>();
 const route = useRoute();
+const query = ref(route.query);
+
+// 格式化停水停电日期
+const formattedCutoffDate = computed(() => {
+  if (!query.value.cutoffDate) return '';
+
+  try {
+    const date = dayjs(query.value.cutoffDate as string);
+    return `${date.date()}日${date.hour()}时`;
+  } catch (error) {
+    console.error('日期格式化错误:', error);
+    return query.value.cutoffDate;
+  }
+});
 
 onMounted(async () => {
   // 从路径参数中获取 id
@@ -17,7 +33,7 @@ onMounted(async () => {
     billData.value = await getAmountBillDetail(billId);
     await nextTick();
     setTimeout(() => {
-      window.print();
+      // window.print();
     }, 800);
   } else {
     console.error('未提供账单ID');
@@ -178,21 +194,25 @@ onMounted(async () => {
         </div>
         <div class="account-info">
           <div class="bank-info">
-            <div>对公户名：xxxxx有限公司</div>
-            <div>对公账号：xxxxxxxx</div>
-            <div>开户行：xxxxx</div>
+            <div>对公户名：{{ query.companyAccountName }}</div>
+            <div>对公账号：{{ query.companyAccountNumber }}</div>
+            <div>开户行：{{ query.bankName }}</div>
           </div>
 
           <div class="warning-info">
             温馨提示：如贵司不能在规定时间内将款项交至我公司，我公司从本月6日起按日收取
-            总金额10%每天的滞纳金，并将按合同规定在本月8月18时停止对贵公司的供水、
+            总金额{{
+              query.lateFeePercentage
+            }}%每天的滞纳金，并将按合同规定在本月{{
+              formattedCutoffDate
+            }}停止对贵公司的供水、
             供电，直至缴清所有款项及滞纳金后再回复供水、供电。谢谢合作！
           </div>
           <div class="contact-info">
-            <span>园区负责人： 13712341234（刘先生）</span>
+            <span>园区负责人： {{ query.parkManager }}</span>
             <div>
               <span class="ml-20">制单日期：</span>
-              <span>2025年2月28日</span>
+              <span>{{ query.billingDate }}</span>
             </div>
           </div>
         </div>

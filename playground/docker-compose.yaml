@@ -4,7 +4,7 @@ services:
     ports:                                                                                                                                                                                                                                 
       - '3306:3306'
     networks:
-      - prisma-network
+      - magic-network
     environment:
       MYSQL_ROOT_PASSWORD: 123456
       MYSQL_DATABASE: magic # 可选，创建一个初始数据库
@@ -23,7 +23,7 @@ services:
       - node
       - mysql
     networks:
-      - prisma-network
+      - magic-network
   node:
     image: node:22.14.0
     ports:
@@ -37,11 +37,11 @@ services:
     depends_on:
       - mysql
     networks:
-      - prisma-network
+      - magic-network
 
 networks:
-  prisma-network:
-    name: prisma-network
+  magic-network:
+    name: magic-network
 
 volumes:
   mysql_data:
