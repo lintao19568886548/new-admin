@@ -140,14 +140,35 @@ const currentPrintingBillId = ref<number | string | undefined>(undefined); // �
 
 // 打印设置表单数据模型
 const printFormData = ref({
-  bankName: '中国农业银行股份有限公司东莞高埗支行',
+  bankName: '',
   billingDate: dayjs(), // 默认为当天
-  companyAccountName: '东莞市启程物业管理有限公司',
+  companyAccountName: '',
   companyAccountNumber: '4430 4001 0400 21090',
   cutoffDate: dayjs().add(10, 'day'), // 默认为10天后
   lateFeePercentage: 10,
-  parkManager: '186 8945 9979（刘先生）',
+  parkManager: '',
 });
+
+// 从 Local Storage 加载保存的设置
+try {
+  const savedSettings = localStorage.getItem('billPrintSettings');
+  if (savedSettings) {
+    const parsedSettings = JSON.parse(savedSettings);
+    // 只更新存在的字段
+    if (parsedSettings.bankName)
+      printFormData.value.bankName = parsedSettings.bankName;
+    if (parsedSettings.companyAccountName)
+      printFormData.value.companyAccountName =
+        parsedSettings.companyAccountName;
+    if (parsedSettings.companyAccountNumber)
+      printFormData.value.companyAccountNumber =
+        parsedSettings.companyAccountNumber;
+    if (parsedSettings.parkManager)
+      printFormData.value.parkManager = parsedSettings.parkManager;
+  }
+} catch (error) {
+  console.error('加载保存的打印设置失败:', error);
+}
 
 // 表单验证规则 (可选，根据需要添加)
 const printFormRules: Record<string, Rule[]> = {
@@ -305,6 +326,16 @@ function handleFormSuccess(_data: any) {
 async function handlePrintOk() {
   try {
     await printFormRef.value?.validate(); // 触发表单验证
+
+    // 验证成功后保存关键数据到 Local Storage
+    const storageData = {
+      bankName: printFormData.value.bankName,
+      companyAccountName: printFormData.value.companyAccountName,
+      companyAccountNumber: printFormData.value.companyAccountNumber,
+      parkManager: printFormData.value.parkManager,
+    };
+    localStorage.setItem('billPrintSettings', JSON.stringify(storageData));
+
     const formData = printFormData.value;
 
     const printSettings = {
