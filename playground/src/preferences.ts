@@ -11,7 +11,16 @@ export const overridesPreferences = defineOverridesPreferences({
     accessMode: 'backend',
     name: import.meta.env.VITE_APP_TITLE,
   },
+  breadcrumb: {
+    showHome: true,
+  },
   logo: {
     source: '/assets/favicon.png',
+  },
+  tabbar: {
+    middleClickToClose: true,
+  },
+  theme: {
+    mode: 'auto',
   },
 });
