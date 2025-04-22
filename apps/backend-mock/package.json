@@ -6,8 +6,10 @@
   "license": "MIT",
   "author": "",
   "scripts": {
-    "build": "nitro build",
-    "start": "npx prisma generate && nitro dev"
+    "build": "npx prisma generate && nitro build",
+    "start": "npx prisma generate && nitro dev",
+    "generate": "npx prisma generate",
+    "push": "npx prisma db push"
   },
   "prisma": {
     "schema": "./prisma/schema"
