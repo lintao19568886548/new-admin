@@ -1,12 +1,10 @@
 <script lang="ts" setup>
-import type { RentalManagementItem } from './types';
-
 import type {
   OnActionClickParams,
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -14,12 +12,13 @@ import { Plus } from '@vben/icons';
 import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { deleteManage, getManageList } from '#/api/rental';
-import AreaSelector from '#/components/AreaSelector.vue';
+import { deleteSystemPark, getSystemParkList } from '#/api/system/park';
 import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
+
+const router = useRouter();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -30,7 +29,7 @@ const [FormModal, formModalApi] = useVbenModal({
  * 编辑租赁项目
  * @param row
  */
-function onEdit(row: RentalManagementItem) {
+function onEdit(row: any) {
   formModalApi.setData(row).open();
 }
 
@@ -45,14 +44,14 @@ function onCreate() {
  * 删除租赁项目
  * @param row
  */
-function onDelete(row: RentalManagementItem) {
+function onDelete(row: any) {
   message.loading({
     content: $t('ui.actionMessage.deleting', [row.factoryName]),
     duration: 0,
     key: 'action_process_msg',
   });
 
-  deleteManage(row.factoryId)
+  deleteSystemPark(row.parkId)
     .then(() => {
       message.success({
         content: $t('ui.actionMessage.deleteSuccess', [row.factoryName]),
@@ -73,18 +72,15 @@ function onDelete(row: RentalManagementItem) {
  * 查看租赁项目详情
  * @param row
  */
-function onView(row: RentalManagementItem) {
+function onView(row: any) {
   // 可以跳转到详情页面
-  window.open(`/rental/detail/${row.factoryId}`, '_blank');
+  router.push(`/rental/detail/${row.parkId}`);
 }
 
 /**
  * 表格操作按钮的回调函数
  */
-function onActionClick({
-  code,
-  row,
-}: OnActionClickParams<RentalManagementItem>) {
+function onActionClick({ code, row }: OnActionClickParams) {
   switch (code) {
     case 'delete': {
       onDelete(row);
@@ -101,10 +97,6 @@ function onActionClick({
   }
 }
 
-// 当前选中的区域
-const currentPark = ref();
-const parkSelectorRef = ref();
-
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
@@ -117,8 +109,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
       // 或者通过设置特定字段为默认值来触发重置
       const defaultValues = {
         area: ['equal', undefined, undefined],
-        availableArea: ['equal', undefined, undefined],
-        rentPrice: ['equal', undefined, undefined],
       };
 
       // 设置默认值
@@ -158,15 +148,11 @@ const [Grid, gridApi] = useVbenVxeGrid({
                 formValues[key] !== ''
               ) {
                 params[key] = formValues[key];
-                if (key === 'rentPrice') {
+                if (key === 'area') {
                   params[key] = formValues[key].join(',');
                 }
               }
             });
-
-            params.currentPark = currentPark.value
-              ? currentPark.value.parkId
-              : -1;
 
             // 添加分页参数
             params.currentPage = page?.currentPage || 1;
@@ -175,7 +161,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
             console.warn('处理后的查询参数:', params);
 
             // 调用API获取数据
-            const result = await getManageList(params);
+            const result = await getSystemParkList(params);
 
             // 修改这里：返回正确的分页格式
             return {
@@ -193,7 +179,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
     },
     rowConfig: {
-      keyField: 'factoryId', // 修改为正确的主键字段
+      keyField: 'ParkId', // 修改为正确的主键字段
     },
     toolbarConfig: {
       custom: true,
@@ -223,20 +209,14 @@ function onFormSuccess() {
 <template>
   <Page auto-content-height>
     <FormModal @success="onFormSuccess" />
-    <Grid :table-title="$t('system.rental.list')">
+    <Grid :table-title="$t('page.park.list')">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
-        <AreaSelector
-          :default-park="currentPark"
-          :refresh-callback="refreshGrid"
-          @change="(park) => (currentPark = park)"
-          ref="parkSelectorRef"
-        />
       </template>
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">
           <Plus class="size-5" />
-          {{ $t('ui.actionTitle.create', [$t('system.rental.name')]) }}
+          {{ $t('ui.actionTitle.create', [$t('page.park.item')]) }}
         </Button>
       </template>
     </Grid>

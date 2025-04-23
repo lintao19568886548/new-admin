@@ -71,6 +71,7 @@ model FactoryFloor {
 // 宿舍表
 model Dormitory {
   dormitoryId      Int       @id @default(autoincrement()) @map("dormitory_id")
+  dormitoryName    String    @map("dormitory_name") @db.VarChar(100) // 宿舍名称
   parkId           Int       @map("park_id")
   park             Park      @relation("ParkToDormitory", fields: [parkId], references: [parkId])
   floorCount       Int       @map("floor_count") // 总层数
