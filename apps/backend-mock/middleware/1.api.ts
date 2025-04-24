@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
       console.log(
         JSON.stringify(
           {
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(endTime).toISOString(),
             method,
             path,
             statusCode,
@@ -50,18 +50,20 @@ export default defineEventHandler(async (event) => {
       );
 
       // 记录API请求日志
-      try {
-        // API请求日志录入到数据库
-        await prismaClient.apiLog.create({
-          data: {
-            method: event.method,
-            path: event.path,
-            username,
-            requestTime: new Date(),
-          },
-        });
-      } catch (error) {
-        console.error('记录API日志失败:', error);
+      if (statusCode === 200) {
+        try {
+          // API请求日志录入到数据库
+          await prismaClient.apiLog.create({
+            data: {
+              method,
+              path,
+              username,
+              requestTime: new Date(endTime),
+            },
+          });
+        } catch (error) {
+          console.error('记录API日志失败:', error);
+        }
       }
     }
   });
