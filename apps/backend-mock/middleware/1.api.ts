@@ -13,8 +13,12 @@ export default defineEventHandler(async (event) => {
   // 记录请求开始时间
   const startTime = Date.now();
 
+  // 获取用户名
+  const userinfo = await verifyAccessToken(event);
+  const username = userinfo?.username || 'guest';
+
   // 使用钩子在请求完成后执行日志记录
-  event.node.res.on('finish', () => {
+  event.node.res.on('finish', async () => {
     // 只记录PUT、POST、DELETE请求
     if (['DELETE', 'POST', 'PUT'].includes(event.method)) {
       const endTime = Date.now();
@@ -29,25 +33,36 @@ export default defineEventHandler(async (event) => {
 
       // 记录日志
       console.log(
-        `[${new Date().toISOString()}] ${method} ${path} ${statusCode} ${duration}ms - ${ip} ${userAgent}`,
+        JSON.stringify(
+          {
+            timestamp: new Date().toISOString(),
+            method,
+            path,
+            statusCode,
+            duration: `${duration}ms`,
+            ip,
+            userAgent,
+            username,
+          },
+          null,
+          2,
+        ),
       );
 
-      // 如果需要，可以将日志写入数据库
-      // if (['DELETE', 'POST', 'PUT'].includes(method)) {
-      //   prismaClient.operationLog
-      //     .create({
-      //       data: {
-      //         method,
-      //         path,
-      //         statusCode,
-      //         duration,
-      //         ip: String(ip),
-      //         userAgent,
-      //         userId: event.context.user?.userId || null,
-      //       },
-      //     })
-      //     .catch((error) => console.error('日志记录失败:', error));
-      // }
+      // 记录API请求日志
+      try {
+        // API请求日志录入到数据库
+        await prismaClient.apiLog.create({
+          data: {
+            method: event.method,
+            path: event.path,
+            username,
+            requestTime: new Date(),
+          },
+        });
+      } catch (error) {
+        console.error('记录API日志失败:', error);
+      }
     }
   });
 });
