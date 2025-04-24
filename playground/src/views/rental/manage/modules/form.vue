@@ -6,7 +6,11 @@ import { useVbenModal } from '@vben/common-ui';
 import { Button, Card, message, Step, Steps } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { createSystemPark, updateSystemPark } from '#/api/system/park';
+import {
+  createSystemPark,
+  getSystemParkDetail,
+  updateSystemPark,
+} from '#/api/system/park';
 import { $t } from '#/locales';
 
 import {
@@ -116,7 +120,7 @@ const [Modal, modalApi] = useVbenModal({
       }
     }
   },
-  onOpenChange(isOpen) {
+  async onOpenChange(isOpen) {
     if (isOpen) {
       const data = modalApi.getData();
       console.warn('打开表单，数据:', data);
@@ -124,10 +128,11 @@ const [Modal, modalApi] = useVbenModal({
       if (data && Object.keys(data).length > 0) {
         formData.value = data;
         id.value = data.parkId;
-        console.warn('设置表单数据:', data);
-        parkFormApi.setValues(data);
-        factoryFormApi.setValues(data);
-        dormitoryFormApi.setValues(data);
+        const parkDetail = await getSystemParkDetail(data.parkId);
+        console.warn('设置表单数据:', parkDetail);
+        parkFormApi.setValues(parkDetail);
+        factoryFormApi.setValues(parkDetail);
+        dormitoryFormApi.setValues(parkDetail);
       } else {
         id.value = undefined;
         formData.value = undefined;

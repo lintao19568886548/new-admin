@@ -60,14 +60,6 @@ export default eventHandler(async (event) => {
   // 查询数据
   const result = await prismaClient.park.findMany({
     where,
-    include: {
-      factories: {
-        include: {
-          floors: true,
-        },
-      },
-      dormitories: true,
-    },
     skip: (Number(currentPage) - 1) * Number(pageSize),
     take: Number(pageSize),
   });

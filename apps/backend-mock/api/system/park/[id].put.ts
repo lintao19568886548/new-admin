@@ -24,7 +24,11 @@ export default eventHandler(async (event) => {
         include: {
           factories: {
             include: {
-              floors: true,
+              floors: {
+                include: {
+                  images: true,
+                },
+              },
             },
           },
           dormitories: true,
@@ -114,20 +118,153 @@ export default eventHandler(async (event) => {
 
               // 处理更新和创建楼层
               for (const floor of floors) {
-                floor.floorId
-                  ? await prisma.factoryFloor.update({
-                      where: { floorId: floor.floorId },
-                      data: {
-                        ...floor,
-                        factoryId: factory.factoryId,
-                      },
-                    })
-                  : await prisma.factoryFloor.create({
-                      data: {
-                        ...floor,
-                        factoryId: factory.factoryId,
-                      },
-                    });
+                if (floor.floorId) {
+                  // 提取图片数据
+                  const { images, ...floorData } = floor;
+
+                  // 更新楼层基本信息
+                  await prisma.factoryFloor.update({
+                    where: { floorId: floor.floorId },
+                    data: {
+                      ...floorData,
+                      factoryId: factory.factoryId,
+                    },
+                  });
+
+                  // 处理图片数据
+                  if (images && Array.isArray(images)) {
+                    // 获取现有图片ID列表
+                    const existingFloor = existingFactory.floors.find(
+                      (f) => f.floorId === floor.floorId,
+                    );
+                    const existingImageIds = existingFloor.images.map(
+                      (img) => img.imgId,
+                    );
+
+                    // 如果传入的图片数组为空，删除所有关联图片
+                    if (images.length === 0 && existingImageIds.length > 0) {
+                      await prisma.factoryFloorImage.deleteMany({
+                        where: {
+                          floorId: floor.floorId,
+                        },
+                      });
+                    } else {
+                      // 获取请求中图片的ID列表
+                      const incomingImageIds = new Set(
+                        images
+                          .filter((img) => img.imgId)
+                          .map((img) => img.imgId),
+                      );
+
+                      // 找出需要删除的图片ID
+                      const imageIdsToDelete = existingImageIds.filter(
+                        (id) => !incomingImageIds.has(id),
+                      );
+
+                      // 删除不再需要的图片关联
+                      imageIdsToDelete.length > 0
+                        ? await prisma.factoryFloorImage.deleteMany({
+                            where: {
+                              imgId: {
+                                in: imageIdsToDelete,
+                              },
+                              floorId: floor.floorId,
+                            },
+                          })
+                        : null;
+
+                      // 处理更新和创建图片
+                      for (const image of images) {
+                        // 首先确保Image记录存在
+                        let imgId = image.imgId;
+
+                        if (!imgId && image.imgUrl) {
+                          // 如果没有imgId但有imgUrl，创建新的Image记录
+                          const newImage = await prisma.image.create({
+                            data: {
+                              imgUrl: image.imgUrl,
+                            },
+                          });
+                          imgId = newImage.imgId;
+                        }
+
+                        if (imgId) {
+                          try {
+                            // 查找是否已存在关联
+                            const existingRelation =
+                              await prisma.factoryFloorImage.findFirst({
+                                where: {
+                                  imgId,
+                                  floorId: floor.floorId,
+                                },
+                              });
+
+                            if (!existingRelation) {
+                              // 如果关联不存在，创建新关联
+                              await prisma.factoryFloorImage.create({
+                                data: {
+                                  imgId,
+                                  floorId: floor.floorId,
+                                },
+                              });
+                            }
+                          } catch (error) {
+                            console.error('处理楼层图片关系时出错:', error);
+                            // 可能是因为unique约束冲突，尝试更新现有关系
+                            // 这里可以根据实际情况处理错误
+                          }
+                        }
+                      }
+                    }
+                  }
+                } else {
+                  // 提取图片数据
+                  const { images, ...floorData } = floor;
+
+                  // 创建新楼层
+                  const newFloor = await prisma.factoryFloor.create({
+                    data: {
+                      ...floorData,
+                      factoryId: factory.factoryId,
+                    },
+                  });
+
+                  // 处理图片数据
+                  if (
+                    images &&
+                    Array.isArray(images) && // 即使是空数组也会进入这个条件，但不会执行下面的循环
+                    images.length > 0
+                  ) {
+                    for (const image of images) {
+                      // 首先确保Image记录存在
+                      let imgId = image.imgId;
+
+                      if (!imgId && image.imgUrl) {
+                        // 如果没有imgId但有imgUrl，创建新的Image记录
+                        const newImage = await prisma.image.create({
+                          data: {
+                            imgUrl: image.imgUrl,
+                          },
+                        });
+                        imgId = newImage.imgId;
+                      }
+
+                      if (imgId) {
+                        try {
+                          await prisma.factoryFloorImage.create({
+                            data: {
+                              imgId,
+                              floorId: newFloor.floorId,
+                            },
+                          });
+                        } catch (error) {
+                          console.error('创建楼层图片关系时出错:', error);
+                          // 处理可能的错误
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           } else {
@@ -135,15 +272,47 @@ export default eventHandler(async (event) => {
             const { floors, ...factoryData } = factory;
 
             // 使用三元表达式创建工厂（有楼层或无楼层）
-            await prisma.factory.create({
-              data: {
-                ...factoryData,
-                parkId: id,
-                ...(floors && Array.isArray(floors) && floors.length > 0
-                  ? { floors: { create: floors } }
-                  : {}),
-              },
-            });
+            if (floors && Array.isArray(floors) && floors.length > 0) {
+              // 创建带有楼层的工厂
+              const newFactory = await prisma.factory.create({
+                data: {
+                  ...factoryData,
+                  parkId: id,
+                },
+              });
+
+              // 为每个楼层创建记录和关联图片
+              for (const floor of floors) {
+                const { images, ...floorData } = floor;
+
+                const newFloor = await prisma.factoryFloor.create({
+                  data: {
+                    ...floorData,
+                    factoryId: newFactory.factoryId,
+                  },
+                });
+
+                // 处理图片数据
+                if (images && Array.isArray(images) && images.length > 0) {
+                  for (const image of images) {
+                    await prisma.factoryFloorImage.create({
+                      data: {
+                        imgId: image.imgId,
+                        floorId: newFloor.floorId,
+                      },
+                    });
+                  }
+                }
+              }
+            } else {
+              // 创建没有楼层的工厂
+              await prisma.factory.create({
+                data: {
+                  ...factoryData,
+                  parkId: id,
+                },
+              });
+            }
           }
         }
       }
@@ -205,7 +374,11 @@ export default eventHandler(async (event) => {
         include: {
           factories: {
             include: {
-              floors: true,
+              floors: {
+                include: {
+                  images: true,
+                },
+              },
             },
           },
           dormitories: true,

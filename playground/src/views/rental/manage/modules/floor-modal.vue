@@ -5,9 +5,10 @@ import { defineEmits, defineProps, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button, message, Popconfirm } from 'ant-design-vue';
+import { Button, message, Popconfirm, Upload } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { uploadSystemParkImage } from '#/api/system/park';
 import { $t } from '#/locales';
 
 // 添加props定义，接收表单组件传递的属性
@@ -77,6 +78,7 @@ const addFloorData = () => {
     description: '',
     floorHeight: '0',
     floorName: `${currentFloorCount + 1}层`,
+    images: [],
     loadBearing: '0',
     rentPrice: '0',
     status: '空闲',
@@ -140,9 +142,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
       {
         fixed: 'right', // 固定在右侧，可选
+        minWidth: 150, // 调整宽度以容纳按钮
         slots: { default: 'actions' }, // 使用名为 'actions' 的插槽
         title: '操作',
-        width: 150, // 调整宽度以容纳按钮
       },
     ],
     data: floorData.value,
@@ -179,15 +181,129 @@ const handleDelete = (rowIndex: number) => {
   });
 };
 
-// --- 上传图片处理函数 (占位) ---
-const handleUploadImage = (row: FloorItem, rowIndex: number) => {
-  console.warn('触发上传图片，行数据:', row, '行索引:', rowIndex);
-  // 在这里实现打开图片上传Modal或调用上传组件的逻辑
-  // 例如：uploadModalApi.open({ floorId: row.id, rowIndex: rowIndex });
-  message.info(`准备为 ${row.floorName} 上传图片（功能待实现）`);
-  // 上传成功后，可能需要更新 floorData.value[rowIndex] 中的图片字段
-  // 例如: floorData.value[rowIndex].imageUrl = 'path/to/image.jpg';
-  // 并可能需要 emit('update:modelValue', floorData.value);
+// 创建上传Modal
+const [UploadModal, uploadModalApi] = useVbenModal({
+  destroyOnClose: false,
+  onCancel: () => {
+    uploadModalApi.close();
+    return false;
+  },
+  title: '上传楼层图片',
+});
+
+// 当前正在编辑的行索引和行数据
+const currentEditRow = ref<FloorItem | null>(null);
+const currentEditRowIndex = ref<null | number>(null);
+
+// 上传的文件列表
+const fileList = ref<any[]>([]);
+
+// 打开上传Modal
+const openUploadModal = (row: FloorItem, rowIndex: number) => {
+  currentEditRow.value = row;
+  currentEditRowIndex.value = rowIndex;
+  // 如果已有上传的图片，则显示在文件列表中
+  fileList.value = row.images || [];
+
+  uploadModalApi.open();
+};
+
+// 处理上传完成
+const handleUploadComplete = () => {
+  if (
+    currentEditRow.value &&
+    currentEditRowIndex.value !== null &&
+    fileList.value.length > 0
+  ) {
+    // 更新行数据 - 保存所有上传的图片
+    const filterImages = fileList.value.filter(
+      (file) => file.status === 'done' && file.url,
+    );
+
+    const uploadedImages = filterImages.map((item) => ({
+      imgUrl: item.url,
+    }));
+
+    if (uploadedImages.length > 0 && currentEditRowIndex.value !== null) {
+      // 保存所有图片信息到楼层数据中
+      if (floorData.value[currentEditRowIndex.value]) {
+        floorData.value[currentEditRowIndex.value].images = uploadedImages;
+      }
+
+      // 更新modelValue
+      emit('update:modelValue', floorData.value);
+
+      // 关闭Modal
+      uploadModalApi.close();
+
+      // 显示成功消息
+      message.success(`成功上传${uploadedImages.length}张图片`);
+    }
+  }
+};
+
+// 修改上传函数，适配Modal中的上传组件
+const uploadParkImage = async (options: any) => {
+  const { file, onError, onSuccess } = options;
+  // 文件类型检查
+  const isImageType =
+    file.type === 'image/jpeg' ||
+    file.type === 'image/png' ||
+    file.type === 'image/jpg';
+  if (!isImageType) {
+    message.error('只能上传JPG/PNG格式的图片!');
+    return false;
+  }
+
+  // 文件大小限制（5MB）
+  const isLt5M = file.size / 1024 / 1024 < 5;
+  if (!isLt5M) {
+    message.error('图片必须小于5MB!');
+    return false;
+  }
+
+  try {
+    // 创建FormData对象
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // 使用FormData对象发送请求
+    const response = await uploadSystemParkImage(formData);
+
+    // 上传成功
+    if (response) {
+      // 确保 response.url 是一个有效的 HTTP URL
+      onSuccess({ ...response });
+
+      // 更新文件列表 - 添加新上传的图片到列表中，而不是替换整个列表
+      const newFile = {
+        name: file.name,
+        status: 'done',
+        uid: file.uid,
+        url: response.url,
+      };
+
+      // 查找是否已存在相同uid的文件，如果存在则更新，否则添加
+      const existingFileIndex = fileList.value.findIndex(
+        (item) => item.uid === file.uid,
+      );
+      if (existingFileIndex === -1) {
+        fileList.value.push(newFile);
+      } else {
+        fileList.value[existingFileIndex] = newFile;
+      }
+
+      return true;
+    } else {
+      onError(new Error(response?.message || '上传失败'));
+      message.error(response?.message || '上传失败');
+      return false;
+    }
+  } catch (error) {
+    onError(error);
+    message.error('上传失败');
+    return false;
+  }
 };
 </script>
 <template>
@@ -208,9 +324,13 @@ const handleUploadImage = (row: FloorItem, rowIndex: number) => {
             <Button
               type="link"
               size="small"
-              @click="handleUploadImage(row, rowIndex)"
+              @click="openUploadModal(row, rowIndex)"
             >
-              上传
+              {{
+                row.images && row.images.length > 0
+                  ? `查看图片(${row.images.length})`
+                  : '上传图片'
+              }}
             </Button>
             <Popconfirm title="确认删除" @confirm="handleDelete(rowIndex)">
               <Button type="link" danger size="small"> 删除 </Button>
@@ -231,5 +351,30 @@ const handleUploadImage = (row: FloorItem, rowIndex: number) => {
         </div>
       </template>
     </FloorModal>
+    <UploadModal>
+      <div class="p-4">
+        <Upload
+          :custom-request="uploadParkImage"
+          :file-list="fileList"
+          :show-upload-list="true"
+          accept="image/jpeg,image/png,image/jpg"
+          list-type="picture"
+          name="file"
+          multiple
+          @change="(info) => (fileList = info.fileList)"
+        >
+          <Button type="primary">选择文件</Button>
+          <div class="mt-2 text-gray-500">
+            支持 .jpg/.png 格式，文件大小不超过5MB
+          </div>
+        </Upload>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <Button @click="uploadModalApi.close()">取消</Button>
+          <Button type="primary" @click="handleUploadComplete()">确认</Button>
+        </div>
+      </template>
+    </UploadModal>
   </div>
 </template>
