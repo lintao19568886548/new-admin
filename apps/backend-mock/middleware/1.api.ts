@@ -15,10 +15,9 @@ export default defineEventHandler(async (event) => {
 
   // 获取用户名
   const userinfo = await verifyAccessToken(event);
-  const username = userinfo?.username || 'guest';
+  const username = userinfo?.username || '';
 
   const excludeList = {
-    statusCodes: [200],
     pathPatterns: ['/api/auth'],
   };
 
@@ -56,7 +55,7 @@ export default defineEventHandler(async (event) => {
 
       // 检查是否需要排除记录
       const shouldExclude =
-        excludeList.statusCodes.includes(statusCode) ||
+        statusCode !== 200 || // 只有状态码为200的不排除，其他都排除
         excludeList.pathPatterns.some((pattern) => path.startsWith(pattern));
 
       // 记录API请求日志
