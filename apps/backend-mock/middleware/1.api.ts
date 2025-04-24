@@ -17,6 +17,11 @@ export default defineEventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   const username = userinfo?.username || 'guest';
 
+  const excludeList = {
+    statusCodes: [200],
+    pathPatterns: ['/api/auth'],
+  };
+
   // 使用钩子在请求完成后执行日志记录
   event.node.res.on('finish', async () => {
     // 只记录PUT、POST、DELETE请求
@@ -49,8 +54,13 @@ export default defineEventHandler(async (event) => {
         ),
       );
 
+      // 检查是否需要排除记录
+      const shouldExclude =
+        excludeList.statusCodes.includes(statusCode) ||
+        excludeList.pathPatterns.some((pattern) => path.startsWith(pattern));
+
       // 记录API请求日志
-      if (statusCode === 200) {
+      if (!shouldExclude) {
         try {
           // API请求日志录入到数据库
           await prismaClient.apiLog.create({
