@@ -99,10 +99,13 @@ async function fetchReimbursementList() {
   loading.value = true;
   try {
     // 构建查询参数
+    // 在fetchReimbursementList方法中修改请求参数
     const params: Record<string, any> = {
-      page: pagination.current,
+      pageNo: pagination.current, // 原为 page: pagination.current
       pageSize: pagination.pageSize,
     };
+
+    // 同时需要修改handleTableChange中的分页参数更新方式
 
     // 添加筛选条件
     if (filterForm.purpose) {
