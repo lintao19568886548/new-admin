@@ -14,6 +14,7 @@ import {
   WorkbenchTodo,
   WorkbenchTrends,
 } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 import { preferences } from '@vben/preferences';
 import { useUserStore } from '@vben/stores';
 import { openWindow } from '@vben/utils';
@@ -181,7 +182,7 @@ const fetchApiLogs = async () => {
 
         return {
           avatar: `svg:avatar-${avatarIndex}`,
-          content: `在 <a>${item.moduleNameCN}</a> 执行了 ${operation} 操作`,
+          content: `在 <a>${$t(item.moduleNameCN)}</a> 执行了 ${operation} 操作`,
           date,
           title: item.username || '匿名用户',
           url: item.refererPath,
