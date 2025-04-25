@@ -187,11 +187,11 @@ export default eventHandler(async (event) => {
       take: pageSize,
     });
 
-    console.log(
-      `查询到 ${financeList.length} 条记录，总记录数: ${total}
-      \n查询数据:`,
-      financeList,
-    );
+    // console.log(
+    //   `查询到 ${financeList.length} 条记录，总记录数: ${total}
+    //   \n查询数据:`,
+    //   financeList,
+    // );
 
     // 返回带有分页信息的结果
     return useResponseSuccess({

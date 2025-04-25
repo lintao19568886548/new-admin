@@ -11,7 +11,7 @@ export default eventHandler(async (event) => {
   const query = getQuery(event);
   console.log('query', query);
   const {
-    title,
+    transformerName,
     address,
     contact,
     status,
@@ -27,9 +27,9 @@ export default eventHandler(async (event) => {
   const where: any = {};
 
   // 标题查询
-  if (title) {
-    where.title = {
-      contains: title,
+  if (transformerName) {
+    where.transformerName = {
+      contains: transformerName,
     };
   }
 
@@ -94,7 +94,7 @@ export default eventHandler(async (event) => {
     // 只选择需要的字段，减少数据传输量
     select: {
       transformerId: true,
-      title: true,
+      transformerName: true,
       address: true,
       contact: true,
       status: true,

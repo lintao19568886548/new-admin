@@ -50,7 +50,7 @@ function onCreate() {
  */
 async function onDelete(row: any) {
   message.loading({
-    content: $t('ui.actionMessage.deleting', [row.title]),
+    content: $t('ui.actionMessage.deleting', [row.firefightingName]),
     duration: 0,
     key: 'action_process_msg',
   });

@@ -5,7 +5,7 @@ import type {
   WorkbenchTrendItem,
 } from '@vben/common-ui';
 
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import {
@@ -17,6 +17,8 @@ import {
 import { preferences } from '@vben/preferences';
 import { useUserStore } from '@vben/stores';
 import { openWindow } from '@vben/utils';
+
+import { getDashboardWorkspaceList } from '#/api/dashboard';
 
 const userStore = useUserStore();
 
@@ -130,62 +132,109 @@ const todoItems = ref<WorkbenchTodoItem[]>([
     title: '修复UI显示问题',
   },
 ]);
-const trendItems: WorkbenchTrendItem[] = [
-  {
-    avatar: 'svg:avatar-1',
-    content: `在 <a>开源组</a> 创建了项目 <a>Vue</a>`,
-    date: '刚刚',
-    title: '威廉',
-  },
-  {
-    avatar: 'svg:avatar-2',
-    content: `关注了 <a>威廉</a> `,
-    date: '1个小时前',
-    title: '艾文',
-  },
-  {
-    avatar: 'svg:avatar-3',
-    content: `发布了 <a>个人动态</a> `,
-    date: '1天前',
-    title: '克里斯',
-  },
-  {
-    avatar: 'svg:avatar-4',
-    content: `发表文章 <a>如何编写一个Vite插件</a> `,
-    date: '2天前',
-    title: 'Vben',
-  },
-  {
-    avatar: 'svg:avatar-1',
-    content: `回复了 <a>杰克</a> 的问题 <a>如何进行项目优化？</a>`,
-    date: '3天前',
-    title: '皮特',
-  },
-  {
-    avatar: 'svg:avatar-2',
-    content: `关闭了问题 <a>如何运行项目</a> `,
-    date: '1周前',
-    title: '杰克',
-  },
-  {
-    avatar: 'svg:avatar-3',
-    content: `发布了 <a>个人动态</a> `,
-    date: '1周前',
-    title: '威廉',
-  },
-  {
-    avatar: 'svg:avatar-4',
-    content: `推送了代码到 <a>Github</a>`,
-    date: '2021-04-01 20:00',
-    title: '威廉',
-  },
-  {
-    avatar: 'svg:avatar-4',
-    content: `发表文章 <a>如何编写使用 Admin Vben</a> `,
-    date: '2021-03-01 20:00',
-    title: 'Vben',
-  },
-];
+
+// 从API获取的动态数据
+const trendItems = ref<WorkbenchTrendItem[]>([]);
+
+// 获取API日志数据
+const fetchApiLogs = async () => {
+  try {
+    const res = await getDashboardWorkspaceList({
+      currentPage: 1,
+      pageSize: 10,
+    });
+
+    console.warn('获取到的API日志数据:', res);
+
+    // 修改判断条件，适应实际的数据格式
+    if (res && (res.items || (res.data && res.data.items))) {
+      // 根据实际数据结构获取items
+      const items = res.items || (res.data && res.data.items);
+
+      // 将API日志数据转换为动态列表格式
+      trendItems.value = items.map((item: any) => {
+        // 根据logId确定头像
+        const avatarIndex = (item.logId % 4) + 1;
+
+        // 根据method确定操作类型
+        let operation = '';
+        switch (item.method) {
+          case 'DELETE': {
+            operation = '删除';
+            break;
+          }
+          case 'POST': {
+            operation = '新增';
+            break;
+          }
+          case 'PUT': {
+            operation = '修改';
+            break;
+          }
+          default: {
+            operation = '操作';
+          }
+        }
+
+        // 格式化日期
+        const date = formatDate(new Date(item.requestTime));
+
+        return {
+          avatar: `svg:avatar-${avatarIndex}`,
+          content: `在 <a>${item.refererPath}</a> 执行了 ${operation} 操作`,
+          date,
+          title: item.username || '匿名用户',
+        };
+      });
+
+      console.warn('转换后的趋势数据:', trendItems.value);
+    } else {
+      console.error('API返回数据格式不正确:', res);
+    }
+  } catch (error) {
+    console.error('获取API日志失败:', error);
+  }
+};
+
+// 格式化日期
+const formatDate = (date: Date) => {
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+
+  // 小于1分钟
+  if (diff < 60 * 1000) {
+    return '刚刚';
+  }
+
+  // 小于1小时
+  if (diff < 60 * 60 * 1000) {
+    const minutes = Math.floor(diff / (60 * 1000));
+    return `${minutes}分钟前`;
+  }
+
+  // 小于24小时
+  if (diff < 24 * 60 * 60 * 1000) {
+    const hours = Math.floor(diff / (60 * 60 * 1000));
+    return `${hours}小时前`;
+  }
+
+  // 小于7天
+  if (diff < 7 * 24 * 60 * 60 * 1000) {
+    const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+    return `${days}天前`;
+  }
+
+  // 大于7天，显示具体日期
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// 页面加载时获取数据
+onMounted(() => {
+  fetchApiLogs();
+});
 
 const router = useRouter();
 

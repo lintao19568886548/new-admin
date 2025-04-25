@@ -39,7 +39,7 @@ export function useFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'title',
+      fieldName: 'transformerName',
       label: $t('system.maintenance.transformer.title'),
       rules: 'required',
     },
@@ -130,7 +130,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'title',
+      fieldName: 'transformerName',
       label: $t('system.maintenance.transformer.title'),
     },
     {
@@ -186,7 +186,7 @@ export function useColumns<T = TransformerItem>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
-      field: 'title',
+      field: 'transformerName',
       minWidth: 150,
       title: $t('system.maintenance.transformer.title'),
     },
@@ -231,7 +231,7 @@ export function useColumns<T = TransformerItem>(
       align: 'center',
       cellRender: {
         attrs: {
-          nameField: 'title',
+          nameField: 'transformerName',
           nameTitle: $t('system.maintenance.transformer.name'),
           onClick: onActionClick,
         },

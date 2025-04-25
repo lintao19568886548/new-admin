@@ -34,6 +34,7 @@ const [Modal, modalApi] = useVbenModal({
     const { valid } = await formApi.validate();
     if (!valid) return;
     const values = await formApi.getValues();
+    console.warn('表单数据:', values);
 
     // 确保金额是数字类型
     if (values.amount !== undefined && values.amount !== null) {

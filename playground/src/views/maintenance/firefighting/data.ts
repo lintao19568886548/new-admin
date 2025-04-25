@@ -37,7 +37,7 @@ export function useFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'title',
+      fieldName: 'firefightingName',
       label: $t('system.rental.title'),
       rules: 'required',
     },
@@ -156,7 +156,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'title',
+      fieldName: 'firefightingName',
       label: '厂房名称',
     },
     {
@@ -226,7 +226,7 @@ export function useColumns(
 ): VxeTableGridOptions['columns'] {
   return [
     {
-      field: 'title',
+      field: 'firefightingName',
       minWidth: 150,
       title: '厂房名称',
     },
@@ -292,7 +292,7 @@ export function useColumns(
       align: 'center',
       cellRender: {
         attrs: {
-          nameField: 'title',
+          nameField: 'firefightingName',
           nameTitle: $t('system.rental.name'),
           onClick: onActionClick,
         },

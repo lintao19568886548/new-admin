@@ -14,7 +14,7 @@ export default eventHandler(async (event) => {
   const query = getQuery(event);
   console.log('query', query);
   const {
-    title,
+    firefightingName,
     address,
     extinguisher,
     hydrant,
@@ -66,9 +66,9 @@ export default eventHandler(async (event) => {
   }
 
   // 标题查询
-  if (title) {
-    where.title = {
-      contains: title,
+  if (firefightingName) {
+    where.firefightingName = {
+      contains: firefightingName,
     };
   }
 
