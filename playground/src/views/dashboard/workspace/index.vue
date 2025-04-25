@@ -180,9 +180,14 @@ const fetchApiLogs = async () => {
         // 格式化日期
         const date = formatDate(new Date(item.requestTime));
 
+        // 国际化处理模块名称
+        const buttonText = $t(item.moduleNameCN);
+
+        item.itemName = item.itemName || '未命名';
+
         return {
           avatar: `svg:avatar-${avatarIndex}`,
-          content: `在 <a>${$t(item.moduleNameCN)}</a> 执行了 ${operation} 操作`,
+          content: `在 <a data-url="${item.refererPath}">${buttonText}</a>  ${operation} 了 ${item.itemName} 项目`,
           date,
           title: item.username || '匿名用户',
           url: item.refererPath,

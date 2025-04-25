@@ -14,6 +14,7 @@ interface WorkbenchTrendItem {
   date: string;
   title: string;
   url?: string;
+  button?: string;
 }
 
 interface WorkbenchTodoItem {
