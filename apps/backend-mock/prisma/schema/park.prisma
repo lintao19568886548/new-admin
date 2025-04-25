@@ -5,7 +5,9 @@ model Park {
   address       String            @db.VarChar(200)
   area          Decimal           @db.Decimal(10, 2) // 总面积(平方米)
   description   String?           @db.Text
-  status        String            @db.VarChar(20) // 状态：运营中、建设中、规划中等
+  status        String?           @db.VarChar(20) // 状态：运营中、建设中、规划中等
+  manager       String?           @db.VarChar(100) // 负责人
+  contact       String?           @db.VarChar(100) // 联系方式
   factories     Factory[]         @relation("ParkToFactory")
   dormitories   Dormitory[]       @relation("ParkToDormitory")
   roleParks     RolePark[]        @relation("ParkToRolePark")

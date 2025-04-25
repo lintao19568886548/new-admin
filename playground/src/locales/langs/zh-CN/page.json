@@ -168,7 +168,9 @@
     "name": "园区名称",
     "status": "园区状态",
     "title": "园区管理",
-    "view": "查看园区"
+    "view": "查看园区",
+    "manager": "负责人",
+    "contact": "联系电话"
   },
   "rental": {
     "create": "新增租赁",
