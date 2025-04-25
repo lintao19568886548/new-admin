@@ -40,8 +40,41 @@ export default eventHandler(async (event) => {
     take: size,
   });
 
+  // 获取所有菜单项，用于后续匹配
+  const menus = await prismaClient.menu.findMany({
+    select: {
+      menuId: true,
+      name: true,
+      path: true,
+      meta: {
+        select: {
+          title: true,
+        },
+      },
+    },
+  });
+
+  // 为每个项添加moduleName和moduleNameCN字段
+  const enhancedItems = items.map((item) => {
+    // 查找匹配的菜单项
+    const matchedMenu = menus.find((menu) => {
+      // 检查refererPath是否等于menu的path值
+      return item.refererPath && item.refererPath === menu.path;
+    });
+
+    // 返回带有moduleName和moduleNameCN的项
+    return {
+      ...item,
+      moduleName: matchedMenu ? matchedMenu.name : '未知模块',
+      moduleNameCN:
+        matchedMenu && matchedMenu.meta ? matchedMenu.meta.title : '未知模块',
+    };
+  });
+
+  console.log('enhancedItems', enhancedItems);
+
   return useResponseSuccess({
-    items,
+    items: enhancedItems,
     total,
   });
 });
