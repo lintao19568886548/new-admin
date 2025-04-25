@@ -104,6 +104,7 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
         }
 
         // 更新modelValue
+        // console.log('factoryData.value', factoryData.value);
         emit('update:modelValue', factoryData.value);
 
         factoryModalApi.close();
@@ -140,7 +141,7 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
             >
               <div class="flex items-center justify-between p-2">
                 <div class="flex items-center">
-                  <span class="mr-2 text-lg font-bold">工厂名称： </span>
+                  <span class="mr-2 text-lg font-bold">厂房名称： </span>
                   <span class="text-lg">{{ factory.factoryName }}</span>
                 </div>
                 <div class="flex gap-3">

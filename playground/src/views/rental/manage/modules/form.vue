@@ -55,13 +55,13 @@ const id = ref();
 
 async function handleNext(step: number) {
   // 验证当前表单
-  if (currentTab.value === 0) {
-    const { valid } = await parkFormApi.validate();
-    if (!valid) {
-      message.warning('请完成园区信息表单的必填项');
-      return;
-    }
-  }
+  // if (currentTab.value === 0) {
+  //   const { valid } = await parkFormApi.validate();
+  //   if (!valid) {
+  //     message.warning('请完成园区信息表单的必填项');
+  //     return;
+  //   }
+  // }
 
   currentTab.value = step;
 }
