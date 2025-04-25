@@ -48,8 +48,13 @@ export default defineEventHandler(async (event) => {
 
         // 查找匹配字段
         if (cloneBody && typeof cloneBody === 'object') {
-          // 首先尝试完全匹配'name'字段
-          if ('name' in cloneBody) {
+          // 首先尝试完全匹配'purpose'字段
+          if ('purpose' in cloneBody) {
+            // 完全匹配purpose字段
+            itemName = cloneBody.purpose;
+            console.log(`\n找到完全匹配purpose字段: purpose = ${itemName}\n`);
+            // 然后尝试完全匹配'name'字段
+          } else if ('name' in cloneBody) {
             itemName = cloneBody.name;
             console.log(`\n找到完全匹配name字段: name = ${itemName}\n`);
           } else {
@@ -63,7 +68,17 @@ export default defineEventHandler(async (event) => {
                 `\n找到匹配xxxName格式的字段: ${nameField} = ${itemName}\n`,
               );
             } else {
-              console.log('\n未找到匹配name或xxxName格式的字段\n');
+              // 如果找不到，再查找匹配xxxName格式的字段
+              const nameField = Object.keys(cloneBody).find((key) =>
+                /^[a-zA-Z]+Name$/.test(key),
+              );
+              if (nameField) {
+                itemName = cloneBody[nameField];
+                console.log(
+                  `\n找到匹配xxxName格式的字段: ${nameField} = ${itemName}\n`,
+                );
+              }
+              console.log('\n未找到匹配purpose、name或xxxName格式字段\n');
             }
           }
         }
