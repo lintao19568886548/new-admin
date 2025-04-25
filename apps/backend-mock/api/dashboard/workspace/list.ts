@@ -58,8 +58,8 @@ export default eventHandler(async (event) => {
   const enhancedItems = items.map((item) => {
     // 查找匹配的菜单项
     const matchedMenu = menus.find((menu) => {
-      // 检查refererPath是否包含menu的path值
-      return item.refererPath && item.refererPath.includes(menu.path);
+      // 检查refererPath是否等于menu的path值
+      return item.refererPath && item.refererPath === menu.path;
     });
 
     // 返回带有moduleName和moduleNameCN的项
@@ -70,6 +70,8 @@ export default eventHandler(async (event) => {
         matchedMenu && matchedMenu.meta ? matchedMenu.meta.title : '未知模块',
     };
   });
+
+  console.log('enhancedItems', enhancedItems);
 
   return useResponseSuccess({
     items: enhancedItems,
