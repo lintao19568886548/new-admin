@@ -13,6 +13,7 @@ interface WorkbenchTrendItem {
   content: string;
   date: string;
   title: string;
+  url?: string;
 }
 
 interface WorkbenchTodoItem {

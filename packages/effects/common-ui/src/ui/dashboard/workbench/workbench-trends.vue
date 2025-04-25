@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { WorkbenchTrendItem } from '../typing';
 
+import { useRouter } from 'vue-router';
+
 import {
   Card,
   CardContent,
@@ -8,6 +10,7 @@ import {
   CardTitle,
   VbenIcon,
 } from '@vben-core/shadcn-ui';
+import { openWindow } from '@vben-core/shared/utils';
 
 interface Props {
   items: WorkbenchTrendItem[];
@@ -21,6 +24,24 @@ defineOptions({
 withDefaults(defineProps<Props>(), {
   items: () => [],
 });
+
+const router = useRouter();
+
+// 这是一个示例方法，实际项目中需要根据实际情况进行调整
+// This is a sample method, adjust according to the actual project requirements
+function navTo(nav: WorkbenchTrendItem) {
+  if (nav.url?.startsWith('http')) {
+    openWindow(nav.url);
+    return;
+  }
+  if (nav.url?.startsWith('/')) {
+    router.push(nav.url).catch((error) => {
+      console.error('Navigation failed:', error);
+    });
+  } else {
+    console.warn(`Unknown URL for navigation item: ${nav.title} -> ${nav.url}`);
+  }
+}
 </script>
 
 <template>
@@ -49,6 +70,7 @@ withDefaults(defineProps<Props>(), {
               <p
                 class="text-foreground/80 *:text-primary mt-1 truncate text-xs leading-5"
                 v-html="item.content"
+                @click="() => navTo(item)"
               ></p>
             </div>
           </div>

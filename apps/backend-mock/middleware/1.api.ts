@@ -102,6 +102,7 @@ export default defineEventHandler(async (event) => {
           await prismaClient.apiLog.create({
             data: {
               method,
+              path,
               refererPath,
               itemName,
               username,
