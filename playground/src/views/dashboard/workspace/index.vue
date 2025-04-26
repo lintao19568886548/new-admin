@@ -19,6 +19,8 @@ import { preferences } from '@vben/preferences';
 import { useUserStore } from '@vben/stores';
 import { openWindow } from '@vben/utils';
 
+import { v4 as uuidv4 } from 'uuid'; // 引入 uuid 库，如果项目没有，需要安装 npm install uuid @types/uuid
+
 import { getDashboardWorkspaceList } from '#/api/dashboard';
 
 const userStore = useUserStore();
@@ -73,7 +75,7 @@ const quickNavItems: WorkbenchQuickNavItem[] = [
     color: '#bf0c2c',
     icon: 'mdi:file-document-multiple',
     title: '账单管理',
-    url: '/bill/amount',
+    url: '/bill',
   },
   {
     color: '#e18525',
@@ -101,38 +103,85 @@ const quickNavItems: WorkbenchQuickNavItem[] = [
   },
 ];
 
-const todoItems = ref<WorkbenchTodoItem[]>([
-  {
+// 从本地存储加载的动态待办事项
+const todoItems = ref<WorkbenchTodoItem[]>([]);
+
+// 新待办事项表单
+const newTodoTitle = ref('');
+const newTodoContent = ref('');
+const showTodoForm = ref(false);
+
+// 从本地存储加载待办事项
+const loadTodoItems = () => {
+  const storedItems = localStorage.getItem('workbenchTodoItems');
+  if (storedItems) {
+    try {
+      const parsedItems = JSON.parse(storedItems);
+      // 确保每个加载的项都有 id
+      todoItems.value = parsedItems.map((item: any) => ({
+        ...item,
+        id: item.id || uuidv4(), // 如果没有 id，则生成一个新的
+      }));
+    } catch (error) {
+      console.error('解析待办事项失败:', error);
+      todoItems.value = []; // 解析失败则清空
+    }
+  }
+};
+
+// 保存待办事项到本地存储
+const saveTodoItems = () => {
+  localStorage.setItem('workbenchTodoItems', JSON.stringify(todoItems.value));
+};
+
+// 清空待办事项
+const clearTodoItems = () => {
+  todoItems.value = [];
+  saveTodoItems();
+};
+
+// 添加新待办事项
+const addTodoItem = () => {
+  if (!newTodoTitle.value.trim()) return;
+
+  const now = new Date();
+  const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+  todoItems.value.unshift({
     completed: false,
-    content: `审查最近提交到Git仓库的前端代码，确保代码质量和规范。`,
-    date: '2024-07-30 11:00:00',
-    title: '审查前端代码提交',
-  },
-  {
-    completed: true,
-    content: `检查并优化系统性能，降低CPU使用率。`,
-    date: '2024-07-30 11:00:00',
-    title: '系统性能优化',
-  },
-  {
-    completed: false,
-    content: `进行系统安全检查，确保没有安全漏洞或未授权的访问。 `,
-    date: '2024-07-30 11:00:00',
-    title: '安全检查',
-  },
-  {
-    completed: false,
-    content: `更新项目中的所有npm依赖包，确保使用最新版本。`,
-    date: '2024-07-30 11:00:00',
-    title: '更新项目依赖',
-  },
-  {
-    completed: false,
-    content: `修复用户报告的页面UI显示问题，确保在不同浏览器中显示一致。 `,
-    date: '2024-07-30 11:00:00',
-    title: '修复UI显示问题',
-  },
-]);
+    content: newTodoContent.value.trim() || '无详细描述',
+    date: formattedDate,
+    id: uuidv4(), // 添加唯一 ID
+    opened: false,
+    title: newTodoTitle.value.trim(),
+  });
+
+  // 保存到本地存储
+  saveTodoItems();
+
+  // 重置表单
+  newTodoTitle.value = '';
+  newTodoContent.value = '';
+  showTodoForm.value = false;
+};
+
+// 删除待办事项 (按 ID 删除)
+const deleteTodoItem = (id: string) => {
+  const index = todoItems.value.findIndex((item) => item.id === id);
+  if (index !== -1) {
+    todoItems.value.splice(index, 1);
+    saveTodoItems();
+  }
+};
+
+// 切换待办事项完成状态 (按 ID 切换)
+const toggleTodoCompleted = (id: string) => {
+  const item = todoItems.value.find((item) => item.id === id);
+  if (item) {
+    item.completed = !item.completed;
+    saveTodoItems();
+  }
+};
 
 // 从API获取的动态数据
 const trendItems = ref<WorkbenchTrendItem[]>([]);
@@ -241,6 +290,7 @@ const formatDate = (date: Date) => {
 // 页面加载时获取数据
 onMounted(() => {
   fetchApiLogs();
+  loadTodoItems(); // 加载时会处理 id
 });
 
 const router = useRouter();
@@ -286,8 +336,71 @@ function navTo(nav: WorkbenchQuickNavItem) {
           title="快捷导航"
           @click="navTo"
         />
-        <WorkbenchTodo :items="todoItems" class="mt-5" title="待办事项" />
+
+        <!-- 待办事项 - 直接使用 WorkbenchTodo 组件 -->
+        <!-- 事件监听器现在接收 id -->
+        <WorkbenchTodo
+          :items="todoItems"
+          class="mt-5"
+          title="待办清单"
+          @delete="deleteTodoItem"
+          @toggle="toggleTodoCompleted"
+          @clear="clearTodoItems"
+        >
+          <template #add-button>
+            <button
+              v-if="!showTodoForm"
+              @click="showTodoForm = true"
+              class="bg-primary rounded px-3 py-1 text-xs text-white"
+            >
+              添加待办
+            </button>
+          </template>
+
+          <template #add-todo>
+            <div
+              v-if="showTodoForm"
+              class="w-full rounded border border-gray-200 p-4"
+            >
+              <div class="mb-3">
+                <input
+                  v-model="newTodoTitle"
+                  type="text"
+                  placeholder="待办标题"
+                  class="w-full rounded border border-gray-300 p-2 text-sm"
+                />
+              </div>
+              <div class="mb-3">
+                <textarea
+                  v-model="newTodoContent"
+                  placeholder="详细描述（可选）"
+                  class="w-full rounded border border-gray-300 p-2 text-sm"
+                  rows="3"
+                ></textarea>
+              </div>
+              <div class="flex justify-end space-x-2">
+                <button
+                  @click="showTodoForm = false"
+                  class="rounded bg-gray-200 px-4 py-2 text-sm text-gray-700"
+                >
+                  取消
+                </button>
+                <button
+                  @click="addTodoItem"
+                  class="bg-primary rounded px-4 py-2 text-sm text-white"
+                  :disabled="!newTodoTitle.trim()"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          </template>
+        </WorkbenchTodo>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 可以添加自定义样式 */
+</style>
