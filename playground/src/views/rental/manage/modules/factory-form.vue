@@ -8,6 +8,7 @@ import { useVbenForm, useVbenModal } from '@vben/common-ui';
 import { Button, Card, Divider } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+import { useButtonStore } from '#/store';
 
 import { useFactoryItemFormSchema } from '../data';
 
@@ -21,6 +22,8 @@ const props = defineProps({
 
 // 添加emit定义，用于更新表单值
 const emit = defineEmits(['update:modelValue']);
+
+const store = useButtonStore();
 
 const factoryData = ref<Factory[]>([]);
 
@@ -106,7 +109,6 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
         // 更新modelValue
         // console.log('factoryData.value', factoryData.value);
         emit('update:modelValue', factoryData.value);
-
         factoryModalApi.close();
       } finally {
         factoryModalApi.lock(false);
@@ -169,6 +171,18 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
     </div>
     <FactoryItemModal :title="getTitle">
       <FactoryItemForm />
+      <template #footer>
+        <Button v-show="store.visible" @click="factoryModalApi.onCancel()">
+          取消
+        </Button>
+        <Button
+          v-show="store.visible"
+          type="primary"
+          @click="factoryModalApi.onConfirm()"
+        >
+          确定
+        </Button>
+      </template>
     </FactoryItemModal>
   </div>
 </template>

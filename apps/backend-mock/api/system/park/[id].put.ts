@@ -18,7 +18,6 @@ export default eventHandler(async (event) => {
 
   const body = await readBody(event);
   const { park, factories, dormitories } = body;
-
   try {
     // 使用事务处理更新操作
     const result = await prismaClient.$transaction(async (prisma) => {

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { FloorItem } from '../data';
 
-import { defineEmits, defineProps, ref, watch } from 'vue';
+import { defineEmits, ref, watch } from 'vue';
+
+import { useVbenForm } from '@vben/common-ui';
 
 import { Button, Popconfirm } from 'ant-design-vue';
 
-import { useVbenForm } from '#/adapter/form';
+import { useButtonStore } from '#/store';
 
 import { useFloorFormSchema } from '../data';
 
@@ -20,6 +22,7 @@ const props = defineProps({
 // 添加emit定义，用于更新表单值
 const emit = defineEmits(['update:modelValue']);
 
+const buttonStore = useButtonStore();
 const floorData = ref<FloorItem[]>([]);
 
 // 初始化时，如果有传入的modelValue，则使用它
@@ -70,6 +73,7 @@ function handleEditFloor(rowIndex: number) {
   floorFormApi.setValues(floorData.value[rowIndex] || {});
   currentEditIndex.value = rowIndex;
   isFormVisible.value = true;
+  buttonStore.showButton(false);
 }
 
 // 保存楼层数据
@@ -82,6 +86,16 @@ async function saveFloorData() {
   // 创建一个新的数组副本用于修改和emit
   const updatedFloorData = [...floorData.value];
 
+  values.images = (
+    values.images as { response: { data: { name: string; url: string } } }[]
+  ).map((image) => {
+    const response = image.response.data;
+    return {
+      imgUrl: response.url,
+      name: response.name,
+    };
+  });
+
   if (currentEditIndex.value === null) {
     // 添加新楼层
     updatedFloorData.push(values);
@@ -92,9 +106,9 @@ async function saveFloorData() {
 
   // 更新本地 floorData ref (如果需要立即反映在当前组件的列表)
   floorData.value = updatedFloorData;
-
   // Emit 更新后的完整楼层数据
   emit('update:modelValue', updatedFloorData);
+  buttonStore.showButton(true);
 
   // 隐藏表单
   isFormVisible.value = false;
@@ -130,13 +144,13 @@ const handleDelete = (rowIndex: number) => {
         <h3 class="text-lg font-medium">
           {{ currentEditIndex === null ? '添加楼层' : '编辑楼层' }}
         </h3>
-        <div class="flex items-center gap-2">
-          <Button @click="cancelEdit">取消</Button>
-          <Button type="primary" @click="saveFloorData">保存</Button>
-        </div>
       </div>
       <div>
         <FloorForm />
+      </div>
+      <div class="flex items-center gap-2">
+        <Button @click="cancelEdit">取消</Button>
+        <Button type="primary" @click="saveFloorData">保存</Button>
       </div>
     </div>
 

@@ -80,13 +80,13 @@
     "water": "水费",
     "floorCount": "总层数",
     "floorHeightFirst": "一楼层高",
-    "floorHeightOther": "其他层高",
+    "floorHeightOther": "宿舍层高",
     "roomArea": "单间面积",
     "totalRooms": "总房间数",
     "usedRoomsFirst": "一楼已用房间",
-    "usedRoomsOther": "其他已用房间",
+    "usedRoomsOther": "宿舍已用房间",
     "rentPriceFirst": "一楼租金",
-    "rentPriceOther": "其他租金",
+    "rentPriceOther": "宿舍租金",
     "item": "宿舍"
   },
   "factory": {

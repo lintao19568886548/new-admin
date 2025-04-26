@@ -5,11 +5,12 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
 import { markRaw } from 'vue';
 
+import { useAccessStore } from '@vben/stores';
+
 import { message } from 'ant-design-vue';
 
 // 添加 dayjs 导入
 import { z } from '#/adapter/form';
-import { uploadImage } from '#/api/image';
 import { $t } from '#/locales';
 
 import DormitoryForm from './modules/dormitory-form.vue';
@@ -17,6 +18,7 @@ import FactoryForm from './modules/factory-form.vue';
 import FloorForm from './modules/floor-form.vue';
 import MultiSelect from './modules/multi-select.vue';
 
+const accessStore = useAccessStore();
 // 定义楼层数据的接口
 export interface FloorItem {
   description: string;
@@ -57,57 +59,6 @@ export interface Dormitory {
   usedRoomsFirst: number;
   usedRoomsOther: number;
 }
-
-const uploadParkImage = async (options: any) => {
-  const { data, file, onError, onSuccess } = options;
-  // 文件类型检查
-  const isImageType =
-    file.type === 'image/jpeg' ||
-    file.type === 'image/png' ||
-    file.type === 'image/jpg';
-  if (!isImageType) {
-    message.error('只能上传JPG/PNG格式的图片!');
-    return false;
-  }
-
-  // 文件大小限制（5MB）
-  const isLt5M = file.size / 1024 / 1024 < 5;
-  if (!isLt5M) {
-    message.error('图片必须小于5MB!');
-    return false;
-  }
-
-  try {
-    // 创建FormData对象
-    const formData = new FormData();
-    formData.append('file', file);
-
-    // 使用FormData对象发送请求 - 这里修改为传递formData
-    const response = await uploadImage(formData);
-
-    // 上传成功
-    if (response) {
-      // 获取当前表单中的images字段值
-      const currentImages = data?.images || [];
-
-      // 将新上传的图片添加到现有图片数组中，而不是替换它
-      const updatedImages = [...currentImages, { ...response }];
-
-      // 更新表单中的images字段
-      onSuccess({ images: updatedImages });
-      message.success('上传成功');
-      return true;
-    } else {
-      onError(new Error(response?.message || '上传失败'));
-      message.error(response?.message || '上传失败');
-      return false;
-    }
-  } catch (error) {
-    onError(error);
-    message.error('上传失败');
-    return false;
-  }
-};
 
 /**
  * 获取园区表单的字段配置
@@ -196,15 +147,6 @@ export function useFactoryItemFormSchema(): VbenFormSchema[] {
       label: $t('page.factory.address'),
       rules: 'required',
     },
-    // {
-    //   component: 'InputNumber',
-    //   componentProps: {
-    //     style: { width: '100%' },
-    //   },
-    //   fieldName: 'area', // 修改为与接口一致
-    //   label: $t('page.factory.area'),
-    //   rules: 'required',
-    // },
     {
       component: 'Input',
       fieldName: 'contact', // 修改为与接口一致
@@ -223,58 +165,6 @@ export function useFactoryItemFormSchema(): VbenFormSchema[] {
       label: $t('page.factory.buildTime'),
       rules: 'required',
     },
-    // {
-    //   component: 'Upload',
-    //   componentProps: {
-    //     // 更多属性见：https://ant.design/components/upload-cn
-    //     accept: '.png,.jpg,.jpeg',
-    //     // 自动携带认证信息
-    //     customRequest: uploadParkImage,
-    //     disabled: false,
-    //     multiple: true,
-    //     // 添加图片预览功能
-    //     onPreview: (file: any) => {
-    //       // 获取图片URL
-    //       const imageUrl = file.url || (file.response && file.response.url);
-    //       // 创建图片预览
-    //       if (imageUrl) {
-    //         const image = new Image();
-    //         image.src = imageUrl;
-    //         const imgWindow = window.open('', '_blank');
-    //         if (imgWindow) {
-    //           // 使用 DOM API 替代 document.write
-    //           imgWindow.document.body.innerHTML = '';
-    //           const imgElement = imgWindow.document.createElement('img');
-    //           imgElement.src = imageUrl;
-    //           imgElement.style.maxWidth = '100%';
-    //           imgElement.style.maxHeight = '100%';
-    //           imgElement.style.position = 'absolute';
-    //           imgElement.style.top = '50%';
-    //           imgElement.style.left = '50%';
-    //           imgElement.style.transform = 'translate(-50%, -50%)';
-    //           imgWindow.document.body.append(imgElement);
-    //           imgWindow.document.title = file.name || '图片预览';
-    //         } else {
-    //           // 如果弹窗被阻止，则直接在新标签页打开
-    //           window.open(imageUrl, '_blank');
-    //         }
-    //       } else {
-    //         message.warning('无法预览，图片URL不存在');
-    //       }
-    //     },
-    //     // 添加预览处理函数
-    //     showUploadList: true,
-    //     // 上传列表的内建样式，支持四种基本样式 text, picture, picture-card 和 picture-circle
-    //     listType: 'picture-card',
-    //   },
-    //   fieldName: 'images',
-    //   label: $t('page.factory.images'),
-    //   renderComponentContent: () => {
-    //     return {
-    //       default: () => $t('page.factory.upload-image'),
-    //     };
-    //   },
-    // },
     {
       component: 'Textarea',
       componentProps: {
@@ -298,7 +188,6 @@ export function useFactoryItemFormSchema(): VbenFormSchema[] {
     },
     {
       component: markRaw(FloorForm),
-      disabledOnChangeListener: false,
       fieldName: 'floors', // 保持不变，已与接口一致
       formItemClass: 'col-span-2',
       label: $t('page.factory.floors'),
@@ -416,8 +305,12 @@ export function useFloorFormSchema(): VbenFormSchema[] {
         // 更多属性见：https://ant.design/components/upload-cn
         accept: '.png,.jpg,.jpeg',
         // 自动携带认证信息
-        customRequest: uploadParkImage,
+        // customRequest: uploadParkImage,
+        action: '/api/image/upload',
         disabled: false,
+        headers: {
+          Authorization: `Bearer ${accessStore.accessToken}`,
+        },
         multiple: true,
         // 添加图片预览功能
         onPreview: (file: any) => {
