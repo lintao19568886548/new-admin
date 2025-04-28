@@ -117,10 +117,14 @@ const loadTodoItems = () => {
   if (storedItems) {
     try {
       const parsedItems = JSON.parse(storedItems);
-      // 确保每个加载的项都有 id
+      // 确保每个加载的项都有 id，不再需要处理 opened
       todoItems.value = parsedItems.map((item: any) => ({
-        ...item,
+        completed: item.completed || false,
+        content: item.content,
+        date: item.date,
         id: item.id || uuidv4(), // 如果没有 id，则生成一个新的
+        title: item.title,
+        // 不再需要 opened 属性
       }));
     } catch (error) {
       console.error('解析待办事项失败:', error);
@@ -152,7 +156,7 @@ const addTodoItem = () => {
     content: newTodoContent.value.trim() || '无详细描述',
     date: formattedDate,
     id: uuidv4(), // 添加唯一 ID
-    opened: false,
+    // opened: false, // <--- 移除这一行
     title: newTodoTitle.value.trim(),
   });
 

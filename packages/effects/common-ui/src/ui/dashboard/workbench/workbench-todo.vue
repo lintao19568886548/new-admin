@@ -38,11 +38,11 @@ const emit = defineEmits<{
 }>();
 
 const open = ref(false);
+const deletingItemId = ref<null | string>(null); // 当前要删除的 item ID
 
 // 处理删除事件 (传递 id)
-const handleDelete = (id: string, event: Event) => {
-  event.stopPropagation(); // 阻止事件冒泡
-  open.value = false;
+const handleDelete = (id: string) => {
+  deletingItemId.value = null; // 关闭 Popover
   emit('delete', id); // 发射 id
 };
 
@@ -53,7 +53,7 @@ const handleToggle = (id: string) => {
 
 // 处理清空所有待办事项
 const handleClear = (event: Event) => {
-  event.stopPropagation(); // 阻止事件冒泡
+  event.stopPropagation(); // 阻止事件冒泡到 CardHeader
   open.value = false; // 关闭 Popover
   emit('clear');
 };
@@ -136,13 +136,21 @@ const handleClear = (event: Event) => {
             </div>
           </div>
           <div class="flex h-full shrink-0 flex-col items-end">
-            <Popover :open="item.opened">
-              <PopoverTrigger>
-                <!-- 阻止点击事件冒泡到 li -->
+            <!-- 使用 deletingItemId 控制 Popover，并监听 update:open 事件 -->
+            <Popover
+              :open="deletingItemId === item.id"
+              @update:open="
+                (value) => {
+                  if (!value) deletingItemId = null;
+                }
+              "
+            >
+              <PopoverTrigger as-child>
+                <!-- 阻止点击事件冒泡到 li, 并设置当前要删除的 ID -->
                 <button
                   class="mb-2 text-xs text-red-500 hover:text-red-700"
                   title="删除"
-                  @click="item.opened = !item.opened"
+                  @click.stop="deletingItemId = item.id"
                 >
                   删除
                 </button>
@@ -153,16 +161,18 @@ const handleClear = (event: Event) => {
                     <p class="text-sm">确定删除 {{ item.title }} 吗?</p>
                   </div>
                   <div class="flex border-t">
+                    <!-- 取消按钮：阻止冒泡并清空 deletingItemId -->
                     <button
                       class="flex-1 border-r py-2 text-sm text-gray-600 hover:bg-[#fafafa]"
-                      @click="item.opened = !item.opened"
+                      @click.stop="deletingItemId = null"
                     >
                       取消
                     </button>
 
+                    <!-- 确定按钮：调用 handleDelete (内部会清空 deletingItemId) -->
                     <button
                       class="flex-1 bg-blue-500 py-2 text-sm text-white hover:bg-[#278df2]"
-                      @click="handleDelete(item.id, $event)"
+                      @click="handleDelete(item.id)"
                     >
                       确定
                     </button>

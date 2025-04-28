@@ -23,7 +23,7 @@ interface WorkbenchTodoItem {
   date: string;
   title: string;
   id: string;
-  opened: boolean;
+  opened?: boolean;
 }
 
 interface WorkbenchQuickNavItem {
