@@ -36,9 +36,12 @@ const isRecordModalVisible = ref(false);
 const departmentOptions = [
   { label: '技术部', value: 'tech' },
   { label: '财务部', value: 'finance' },
-  { label: '人力资源部', value: 'hr' },
+  { label: '人事部', value: 'hr' },
   { label: '市场部', value: 'marketing' },
-  { label: '行政部', value: 'admin' },
+  { label: '采购部', value: 'procure' },
+  { label: '工程部', value: 'engineering project  ' },
+  { label: '销售部', value: 'sales' },
+  { label: '客服部', value: 'customerService' },
 ];
 
 // 表单数据

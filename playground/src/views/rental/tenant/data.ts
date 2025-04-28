@@ -164,17 +164,8 @@ export function useGridFormSchema(): VbenFormSchema[] {
       component: 'RangePicker',
       componentProps: {
         format: 'YYYY-MM-DD',
-        valueFormat: 'YYYY-MM-DD',
-      },
-      fieldName: 'contractDate',
-      label: $t('system.rental.tenant.contractDate'),
-    },
-    {
-      component: 'RangePicker',
-      componentProps: {
-        format: 'YYYY-MM-DD',
         placeholder: ['开始日期', '结束日期'],
-        valueFormat: 'YYYY-MM-DD', // 指定输出格式
+        valueFormat: 'YYYY-MM-DD',
       },
       fieldName: 'contractDate',
       label: $t('system.rental.tenant.contractDate'),
