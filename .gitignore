@@ -53,3 +53,4 @@ vite.config.ts.*
 .data
 playground/src/views/rental/list/example/
 playground/src/views/dashboard/workspace/example/
+playground/public/uploads/

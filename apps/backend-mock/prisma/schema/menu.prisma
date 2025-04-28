@@ -24,6 +24,7 @@ model MenuMeta {
   title              String   @db.VarChar(100)
   icon               String?  @db.VarChar(100)
   order              Int?     @default(1)
+  color              String?  @db.VarChar(20)
   activeIcon         String?  @map("active_icon") @db.VarChar(100)
   activePath         String?  @map("active_path") @db.VarChar(100)
   affixTab           Boolean? @map("affix_tab")

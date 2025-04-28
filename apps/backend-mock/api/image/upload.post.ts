@@ -1,7 +1,15 @@
-import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto'; // 引入 createHash
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, parse } from 'node:path'; // 引入 parse 用于获取文件名和后缀
+
+import { createError, readMultipartFormData } from 'h3'; // 引入 H3 工具函数
+import { prismaClient } from '~/utils/db'; // 引入 prismaClient
+import { verifyAccessToken } from '~/utils/jwt-utils'; // 确保引入了 verifyAccessToken
+import {
+  unAuthorizedResponse, // 确保引入了 useResponseError
+  useResponseSuccess,
+} from '~/utils/response'; // 确保引入了 useResponseSuccess 和 unAuthorizedResponse
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -16,11 +24,12 @@ export default eventHandler(async (event) => {
     if (!formData || formData.length === 0) {
       return createError({
         statusCode: 400,
-        message: '没有接收到文件', // 使用message替代statusMessage
+        message: '没有接收到文件',
       });
     }
 
-    const file = formData[0]; // 获取第一个文件
+    const file = formData[0];
+    const originalFilename = file.filename || 'unknown'; // 获取原始文件名
 
     // 检查文件类型
     const isImageType =
@@ -31,44 +40,99 @@ export default eventHandler(async (event) => {
     if (!isImageType) {
       return createError({
         statusCode: 400,
-        message: '只能上传JPG/PNG格式的图片', // 使用message替代statusMessage
+        message: '只能上传JPG/PNG格式的图片',
       });
     }
 
-    // 创建上传目录
+    // 1. 计算文件内容的 SHA-256 哈希值
+    const hash = createHash('sha256').update(file.data).digest('hex');
+
+    // 2. 检查数据库中是否已存在相同哈希值的图片
+    const existingImage = await prismaClient.image.findUnique({
+      where: { hash },
+      // 只选择需要的字段，不再需要 originalName
+      select: { imgUrl: true },
+    });
+
+    // 3. 如果图片已存在 (基于哈希值判断)
+    if (existingImage) {
+      console.log('图片已存在 (哈希值匹配):', {
+        hash,
+        url: existingImage.imgUrl,
+        // 注意：这里我们不再从数据库读取 originalName
+        // 直接使用上传时的原始文件名返回给前端，因为内容相同
+        originalName: originalFilename,
+      });
+      // 直接返回已存在图片的信息
+      return useResponseSuccess({
+        url: existingImage.imgUrl,
+        name: originalFilename, // 返回上传时的原始文件名给前端显示
+        thumbUrl: existingImage.imgUrl,
+      });
+    }
+
+    // 4. 如果图片不存在，则保存文件并存入数据库
     const uploadDir = join(process.cwd(), 'public', 'uploads');
     if (!existsSync(uploadDir)) {
       await mkdir(uploadDir, { recursive: true });
     }
 
-    // 生成唯一文件名
-    const fileExt = file.filename.split('.').pop();
-    const fileName = `${randomUUID()}.${fileExt}`;
+    // 5. 生成新的文件名：原始基本名.时间戳.后缀
+    const parsedPath = parse(originalFilename);
+    const originalBaseName = parsedPath.name; // 获取不含后缀的文件名
+    const fileExt = parsedPath.ext.slice(1) || 'png'; // 获取后缀 (去掉点), 提供默认值
+    const timestamp = Date.now();
+    // 对原始基本名进行简单清理，替换掉可能引起问题的字符，例如路径分隔符
+    const sanitizedBaseName = originalBaseName.replaceAll(/[\\/:*?"<>|]/g, '_');
+    const fileName = `${sanitizedBaseName}.${timestamp}.${fileExt}`; // 组合新文件名
     const filePath = join(uploadDir, fileName);
+    const fileUrl = `/uploads/${fileName}`; // 文件访问 URL
 
-    // 写入文件
+    // 6. 写入文件
     await writeFile(filePath, file.data);
 
-    // 返回文件URL
-    const fileUrl = `/uploads/${fileName}`;
+    // 7. 将图片信息存入数据库 (不再写入 originalName)
+    const newImage = await prismaClient.image.create({
+      data: {
+        imgUrl: fileUrl,
+        hash,
+        // originalName: originalFilename, // 不再存储原始文件名到数据库
+      },
+      // 选择返回的字段，确认 imgId 是否需要
+      select: { imgId: true },
+    });
 
-    console.log('文件上传成功:', {
-      originalName: file.filename,
+    console.log('文件上传并记录成功:', {
+      imgId: newImage.imgId,
+      originalName: originalFilename, // 日志中仍记录原始名
       size: file.data.length,
       type: file.type,
+      hash,
       url: fileUrl,
     });
 
+    // 8. 返回成功信息，包含 URL 和原始文件名
     return useResponseSuccess({
       url: fileUrl,
-      name: file.filename,
+      name: originalFilename, // 返回原始文件名给前端显示
       thumbUrl: fileUrl,
     });
-  } catch (error) {
+  } catch (error: any) {
+    // 显式声明 error 类型为 any 或 unknown
     console.error('文件上传失败:', error);
+    // 区分 Prisma 错误和其他错误
+    let statusCode = 500;
+    let message = '文件上传失败';
+    if (error?.code === 'P2002' && error?.meta?.target?.includes('hash')) {
+      // 理论上不会进入这里，因为前面已经检查过hash了，但作为保险
+      statusCode = 409; // Conflict
+      message = '文件哈希值冲突，可能已存在相同文件';
+      console.warn('数据库层面检测到哈希冲突:', error.meta);
+    }
+
     return createError({
-      statusCode: 500,
-      message: '文件上传失败', // 使用message替代statusMessage
+      statusCode,
+      message,
       data: error instanceof Error ? error.message : String(error),
     });
   }
