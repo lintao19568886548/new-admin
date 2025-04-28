@@ -19,6 +19,7 @@ export default defineEventHandler(async (event) => {
   const userResult = await prismaClient.user.findUnique({
     where: {
       username,
+      password,
     },
     include: {
       roles: {
