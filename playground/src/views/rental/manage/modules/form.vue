@@ -6,11 +6,8 @@ import { useVbenModal } from '@vben/common-ui';
 import { Button, Card, message, Step, Steps } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import {
-  createSystemPark,
-  getSystemParkDetail,
-  updateSystemPark,
-} from '#/api/system/park';
+import { createPark, updatePark } from '#/api/park';
+import { getSystemParkDetail } from '#/api/system/park';
 import { $t } from '#/locales';
 
 import {
@@ -55,20 +52,23 @@ const id = ref();
 
 async function handleNext(step: number) {
   // 验证当前表单
-  // if (currentTab.value === 0) {
-  //   const { valid } = await parkFormApi.validate();
-  //   if (!valid) {
-  //     message.warning('请完成园区信息表单的必填项');
-  //     return;
-  //   }
-  // }
-
+  if (currentTab.value === 0) {
+    const { valid } = await parkFormApi.validate();
+    const values = await parkFormApi.getValues();
+    if (!valid) {
+      message.warning('请完成园区信息表单的必填项');
+      return;
+    }
+    id.value ? updatePark(id.value, values) : createPark(values);
+  }
   currentTab.value = step;
 }
 
 const [Modal, modalApi] = useVbenModal({
   // 或者使用class设置样式
   class: 'max-w-[90%] w-[1500px]',
+  closeOnClickModal: false,
+  closeOnPressEscape: false,
   async onConfirm() {
     const { valid } = await dormitoryFormApi.validate();
     if (valid) {
@@ -92,14 +92,14 @@ const [Modal, modalApi] = useVbenModal({
 
       try {
         if (id.value) {
-          await updateSystemPark(id.value, values);
+          // await updateSystemPark(id.value, values);
           message.success({
             content: $t('ui.actionMessage.updateSuccess', [
               values.park.parkName,
             ]),
           });
         } else {
-          await createSystemPark(values);
+          // await createSystemPark(values);
           message.success({
             content: $t('ui.actionMessage.createSuccess', [
               values.park.parkName,

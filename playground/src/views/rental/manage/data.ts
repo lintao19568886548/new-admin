@@ -39,6 +39,7 @@ export interface Factory {
   buildTime?: string;
   contact: string;
   description?: string;
+  factoryId: number;
   factoryName: string;
   floors?: FloorItem[];
   parkId: number;
@@ -46,6 +47,7 @@ export interface Factory {
 
 // 定义宿舍接口
 export interface Dormitory {
+  dormitoryId: number;
   dormitoryName: string;
   floorCount: number;
   floorHeightFirst: number;
@@ -136,8 +138,30 @@ export function useFactoryFormSchema(): VbenFormSchema[] {
 export function useFactoryItemFormSchema(): VbenFormSchema[] {
   return [
     {
-      component: 'Input',
-      fieldName: 'factoryName', // 修改为与接口一致
+      component: 'AutoComplete',
+      componentProps: {
+        // 添加自定义筛选函数
+        filterOption: (inputValue: string, option: { value: string }) => {
+          // 如果 option 或 option.value 不存在，则不匹配
+          if (!option || !option.value) {
+            return false;
+          }
+          // 将输入值和选项值都转为小写进行比较
+          return option.value.toLowerCase().includes(inputValue.toLowerCase());
+        },
+        options: [
+          { value: 'A栋建筑' },
+          { value: 'B栋建筑' },
+          { value: 'C栋建筑' },
+          { value: 'D栋建筑' },
+          { value: 'E栋建筑' },
+        ],
+        placeholder: '请输入或选择厂房名称',
+        style: {
+          width: '100%',
+        },
+      },
+      fieldName: 'factoryName',
       label: $t('page.factory.name'),
       rules: 'required',
     },
@@ -307,15 +331,28 @@ export function useFloorFormSchema(): VbenFormSchema[] {
         // 自动携带认证信息
         // customRequest: uploadParkImage,
         action: '/api/image/upload',
-        disabled: false,
         headers: {
           Authorization: `Bearer ${accessStore.accessToken}`,
         },
         multiple: true,
-        // 添加图片预览功能
+        // 添加 onChange 处理函数以显示上传状态消息
+        onChange: (info: any) => {
+          const { file } = info;
+          if (file.status === 'done') {
+            // 从响应中获取文件名，如果后端没返回，则使用原始文件名
+            const name = file.response?.data?.name || file.name;
+            message.success(`${name} 上传成功`);
+          } else if (file.status === 'error') {
+            // 尝试从后端响应获取更详细的错误信息
+            const errorMsg = file.response?.message || '上传失败';
+            message.error(`${file.name} ${errorMsg}`);
+            console.error('Upload Error Response:', file.response); // 可以在控制台查看详细错误
+          }
+          // 你也可以在这里处理 'uploading' 状态，例如显示加载指示
+        },
         onPreview: (file: any) => {
           // 获取图片URL
-          const imageUrl = file.url || (file.response && file.response.url);
+          const imageUrl = file.url || file.response.data.url;
           // 创建图片预览
           if (imageUrl) {
             const image = new Image();
@@ -342,13 +379,13 @@ export function useFloorFormSchema(): VbenFormSchema[] {
             message.warning('无法预览，图片URL不存在');
           }
         },
-        // 添加预览处理函数
-        showUploadList: true,
-        // 上传列表的内建样式，支持四种基本样式 text, picture, picture-card 和 picture-circle
         listType: 'picture-card',
+        // 添加预览处理函数
+        // showUploadList: true,
+        // 上传列表的内建样式，支持四种基本样式 text, picture, picture-card 和 picture-circle
       },
       fieldName: 'images',
-      formItemClass: 'col-span-4',
+      formItemClass: 'col-span-4', // 根据你的布局调整
       label: $t('page.factory.images'),
       renderComponentContent: () => {
         return {
@@ -465,11 +502,30 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
       rules: 'required',
     },
     {
-      component: 'Input',
+      component: 'AutoComplete',
       componentProps: {
-        style: { width: '90%' },
+        // 添加自定义筛选函数
+        filterOption: (inputValue: string, option: { value: string }) => {
+          // 如果 option 或 option.value 不存在，则不匹配
+          if (!option || !option.value) {
+            return false;
+          }
+          // 将输入值和选项值都转为小写进行比较
+          return option.value.toLowerCase().includes(inputValue.toLowerCase());
+        },
+        options: [
+          { value: 'A栋宿舍' },
+          { value: 'B栋宿舍' },
+          { value: 'C栋宿舍' },
+          { value: 'D栋宿舍' },
+          { value: 'E栋宿舍' },
+        ],
+        placeholder: '请输入或选择厂房名称',
+        style: {
+          width: '90%',
+        },
       },
-      defaultValue: ' ',
+      defaultValue: '',
       fieldName: 'dormitoryName',
       label: $t('page.dormitory.name'),
       rules: 'required',

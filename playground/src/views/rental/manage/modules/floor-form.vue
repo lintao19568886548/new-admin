@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FloorItem } from '../data';
 
-import { defineEmits, ref, watch } from 'vue';
+import { defineEmits, nextTick, ref, watch } from 'vue'; // 导入 nextTick
 
 import { useVbenForm } from '@vben/common-ui';
 
@@ -50,7 +50,9 @@ const [FloorForm, floorFormApi] = useVbenForm({
 });
 
 // 添加新楼层
-function handleAddFloor() {
+const formContainerRef = ref<HTMLDivElement | null>(null); // 创建模板引用 ref
+
+async function handleAddFloor() {
   currentEditIndex.value = null;
   floorFormApi.resetForm();
   floorFormApi.setValues({
@@ -64,16 +66,31 @@ function handleAddFloor() {
     usedArea: '0',
   });
   isFormVisible.value = true;
+  buttonStore.showButton(false);
+
+  // 等待 DOM 更新后滚动
+  await nextTick();
+  formContainerRef.value?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start',
+  });
 }
 
 // 编辑楼层
-function handleEditFloor(rowIndex: number) {
+async function handleEditFloor(rowIndex: number) {
   currentData.value = floorData.value[rowIndex];
   floorFormApi.resetForm();
   floorFormApi.setValues(floorData.value[rowIndex] || {});
   currentEditIndex.value = rowIndex;
   isFormVisible.value = true;
   buttonStore.showButton(false);
+
+  // 等待 DOM 更新后滚动
+  await nextTick();
+  formContainerRef.value?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start',
+  });
 }
 
 // 保存楼层数据
@@ -85,16 +102,33 @@ async function saveFloorData() {
 
   // 创建一个新的数组副本用于修改和emit
   const updatedFloorData = [...floorData.value];
-
-  values.images = (
-    values.images as { response: { data: { name: string; url: string } } }[]
-  ).map((image) => {
-    const response = image.response.data;
-    return {
-      imgUrl: response.url,
-      name: response.name,
-    };
-  });
+  values.images =
+    values.images && Array.isArray(values.images)
+      ? values.images
+          .map((image: any) => {
+            // 检查是否是新上传的图片（Ant Design Upload组件返回的结构）
+            if (image.response?.data) {
+              const response = image.response.data;
+              return {
+                imgId: response.imgId,
+                name: response.name,
+                url: response.url,
+              };
+            }
+            // 检查是否是已存在的图片（从后端获取的结构）
+            else if (image.imgId && image.url) {
+              return {
+                imgId: image.imgId,
+                name: image.name || image.url.split('/').pop() || '', // 如果没有name，尝试从url提取
+                url: image.url,
+              };
+            }
+            // 如果数据结构不符合预期，可以选择忽略或记录错误
+            console.warn('无法识别的图片数据结构:', image);
+            return null; // 返回 null 或其他标记，以便后续过滤
+          })
+          .filter((img) => img !== null) // 过滤掉无法处理的项
+      : [];
 
   if (currentEditIndex.value === null) {
     // 添加新楼层
@@ -118,6 +152,7 @@ async function saveFloorData() {
 // 取消编辑
 function cancelEdit() {
   isFormVisible.value = false;
+  buttonStore.showButton(true);
 }
 
 // 删除楼层
@@ -138,6 +173,7 @@ const handleDelete = (rowIndex: number) => {
     <!-- 表单区域 - 直接在页面上显示，不使用Modal -->
     <div
       v-if="isFormVisible"
+      ref="formContainerRef"
       class="mb-4 rounded border border-gray-200 p-4 shadow-sm"
     >
       <div class="mb-2 flex items-center justify-between">
@@ -148,7 +184,7 @@ const handleDelete = (rowIndex: number) => {
       <div>
         <FloorForm />
       </div>
-      <div class="flex items-center gap-2">
+      <div class="mt-4 flex justify-end gap-2">
         <Button @click="cancelEdit">取消</Button>
         <Button type="primary" @click="saveFloorData">保存</Button>
       </div>

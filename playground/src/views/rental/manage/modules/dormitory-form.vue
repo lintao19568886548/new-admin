@@ -7,6 +7,7 @@ import { useVbenForm, useVbenModal } from '@vben/common-ui';
 
 import { Button, Card, Divider } from 'ant-design-vue';
 
+import { createDormitory, updateDormitory } from '#/api/dormitory';
 import { $t } from '#/locales';
 
 import { useDormitoryItemFormSchema } from '../data';
@@ -23,7 +24,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue']);
 
 const data = ref<Dormitory[]>([]);
-
+const parkId = ref<number>();
 const getTitle = computed(() => {
   return currentEditIndex.value === null
     ? $t('ui.actionTitle.create', [$t('page.dormitory.item')])
@@ -36,6 +37,9 @@ watch(
   (val) => {
     if (val && Array.isArray(val) && val.length > 0) {
       data.value = [...val] as Dormitory[];
+      if (data.value.length > 0) {
+        parkId.value = data.value[0]?.parkId;
+      }
     }
   },
   { immediate: true },
@@ -92,14 +96,21 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
 
         if (currentEditIndex.value === null) {
           // 添加新数据
-          data.value.push(values as Dormitory);
+          const dormitory = await createDormitory({
+            parkId: parkId.value,
+            ...values,
+          });
+          data.value.push(dormitory);
         } else {
           // 更新现有数据
           const originalData = data.value[currentEditIndex.value];
-          data.value[currentEditIndex.value] = {
-            ...originalData, // 保留原始数据
-            ...values, // 覆盖表单中的字段
-          } as Dormitory;
+          if (originalData?.dormitoryId) {
+            const dormitory = await updateDormitory(
+              originalData.dormitoryId,
+              values,
+            );
+            data.value[currentEditIndex.value] = dormitory;
+          }
           currentEditIndex.value = null; // 重置编辑索引
         }
 

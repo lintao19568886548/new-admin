@@ -56,6 +56,7 @@ export default eventHandler(async (event) => {
           // 将图片关联数据转换为图片数组
           images: floor.images.map((imgRelation) => ({
             imgId: imgRelation.imgId,
+            name: imgRelation.image?.imgUrl.split('/').at(-1) || '',
             url: imgRelation.image?.imgUrl || '',
           })),
         })),
@@ -65,11 +66,13 @@ export default eventHandler(async (event) => {
         // 将图片关联数据转换为图片数组
         images: dormitory.images.map((imgRelation) => ({
           imgId: imgRelation.imgId,
+          name: imgRelation.image?.imgUrl.split('/').at(-1) || '',
           imgUrl: imgRelation.image?.imgUrl || '',
         })),
       })),
     };
 
+    console.log(result);
     return useResponseSuccess(result);
   } catch (error) {
     console.error('获取园区详情失败:', error);

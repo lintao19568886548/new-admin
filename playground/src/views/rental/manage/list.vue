@@ -179,7 +179,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
     },
     rowConfig: {
-      keyField: 'ParkId', // 修改为正确的主键字段
+      keyField: 'rowId', // 修改为正确的主键字段
     },
     toolbarConfig: {
       custom: true,

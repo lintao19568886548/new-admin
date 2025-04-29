@@ -5,8 +5,9 @@ import { computed, ref, watch } from 'vue';
 
 import { useVbenForm, useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Divider } from 'ant-design-vue';
+import { Button, Card, Divider, Popconfirm } from 'ant-design-vue';
 
+import { createFactory, deleteFactory, updateFactory } from '#/api/factory';
 import { $t } from '#/locales';
 import { useButtonStore } from '#/store';
 
@@ -26,6 +27,7 @@ const emit = defineEmits(['update:modelValue']);
 const store = useButtonStore();
 
 const factoryData = ref<Factory[]>([]);
+const parkId = ref<number>();
 
 const getTitle = computed(() => {
   return currentEditIndex.value === null
@@ -39,6 +41,9 @@ watch(
   (val) => {
     if (val && Array.isArray(val) && val.length > 0) {
       factoryData.value = [...val] as Factory[];
+      if (factoryData.value.length > 0) {
+        parkId.value = factoryData.value[0]?.parkId;
+      }
     }
   },
   { immediate: true },
@@ -72,6 +77,10 @@ const currentEditIndex = ref<null | number>(null);
 
 // 添加删除工厂的方法
 function handleDeleteFactory(index: number) {
+  const currentFactory = factoryData.value[index];
+  if (currentFactory?.factoryId) {
+    deleteFactory(currentFactory?.factoryId);
+  }
   factoryData.value.splice(index, 1);
   // 更新modelValue
   emit('update:modelValue', factoryData.value);
@@ -79,12 +88,13 @@ function handleDeleteFactory(index: number) {
 
 const [FactoryItemModal, factoryModalApi] = useVbenModal({
   class: 'max-w-[90%] w-auto',
+  closeOnClickModal: false,
+  closeOnPressEscape: false,
   destroyOnClose: false,
-  onCancel: () => {
+  onClosed: () => {
     // 关闭Modal时重置当前编辑索引
     currentEditIndex.value = null;
-    factoryModalApi.close();
-    return false;
+    store.visible = true;
   },
   async onConfirm() {
     const { valid } = await factoryItemFormApi.validate();
@@ -92,20 +102,29 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
       factoryModalApi.lock();
       try {
         const values = await factoryItemFormApi.getValues();
+        if (values.buildTime) {
+          values.buildTime = new Date(values.buildTime).toISOString();
+        }
 
         if (currentEditIndex.value === null) {
           // 添加新工厂数据
-          factoryData.value.push(values as Factory);
+          const factory = await createFactory({
+            parkId: parkId.value,
+            ...values,
+          });
+          factoryData.value.push(factory);
         } else {
           // 更新现有工厂数据 - 保留原始数据中的其他字段
-          const originalData = factoryData.value[currentEditIndex.value];
-          factoryData.value[currentEditIndex.value] = {
-            ...originalData, // 保留原始数据
-            ...values, // 覆盖表单中的字段
-          } as Factory;
+          const currentFactory = factoryData.value[currentEditIndex.value];
+          if (currentFactory?.factoryId) {
+            const factory = await updateFactory(
+              currentFactory.factoryId,
+              values,
+            );
+            factoryData.value[currentEditIndex.value] = factory;
+          }
           currentEditIndex.value = null; // 重置编辑索引
         }
-
         // 更新modelValue
         // console.log('factoryData.value', factoryData.value);
         emit('update:modelValue', factoryData.value);
@@ -154,14 +173,12 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
                   >
                     编辑
                   </Button>
-                  <Button
-                    type="primary"
-                    danger
-                    size="middle"
-                    @click="handleDeleteFactory(index)"
+                  <Popconfirm
+                    title="确认删除"
+                    @confirm="handleDeleteFactory(index)"
                   >
-                    删除
-                  </Button>
+                    <Button type="primary" danger size="middle"> 删除 </Button>
+                  </Popconfirm>
                 </div>
               </div>
             </Card>

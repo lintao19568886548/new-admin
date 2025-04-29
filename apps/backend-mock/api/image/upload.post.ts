@@ -51,7 +51,7 @@ export default eventHandler(async (event) => {
     const existingImage = await prismaClient.image.findUnique({
       where: { hash },
       // 只选择需要的字段，不再需要 originalName
-      select: { imgUrl: true },
+      select: { imgId: true, imgUrl: true },
     });
 
     // 3. 如果图片已存在 (基于哈希值判断)
@@ -65,6 +65,7 @@ export default eventHandler(async (event) => {
       });
       // 直接返回已存在图片的信息
       return useResponseSuccess({
+        imgId: existingImage.imgId,
         url: existingImage.imgUrl,
         name: originalFilename, // 返回上传时的原始文件名给前端显示
         thumbUrl: existingImage.imgUrl,
@@ -136,6 +137,7 @@ export default eventHandler(async (event) => {
 
     // 8. 返回成功信息，包含 URL 和原始文件名 (保持不变)
     return useResponseSuccess({
+      imgId: newImage.imgId,
       url: fileUrl,
       name: originalFilename, // 返回原始文件名给前端显示
       thumbUrl: fileUrl,
