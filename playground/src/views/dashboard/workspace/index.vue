@@ -106,6 +106,14 @@ const quickNavItems: WorkbenchQuickNavItem[] = [
 // 从本地存储加载的动态待办事项
 const todoItems = ref<WorkbenchTodoItem[]>([]);
 
+// 计算待办事项总数量
+const totalTodoItemsCount = computed(() => todoItems.value.length);
+
+// 计算未完成的待办事项数量
+const incompleteTodoItemsCount = computed(() => {
+  return todoItems.value.filter((item) => !item.completed).length;
+});
+
 // 新待办事项表单
 const newTodoTitle = ref('');
 const newTodoContent = ref('');
@@ -320,6 +328,8 @@ function navTo(nav: WorkbenchQuickNavItem) {
   <div class="p-5">
     <WorkbenchHeader
       :avatar="userStore.userInfo?.avatar || preferences.app.defaultAvatar"
+      :incomplete-todo-count="incompleteTodoItemsCount"
+      :total-todo-count="totalTodoItemsCount"
     >
       <template #title>
         早安, {{ userStore.userInfo?.realName }}, 开始您一天的工作吧！

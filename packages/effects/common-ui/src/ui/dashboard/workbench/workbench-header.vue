@@ -3,6 +3,8 @@ import { VbenAvatar } from '@vben-core/shadcn-ui';
 
 interface Props {
   avatar?: string;
+  incompleteTodoCount?: number; // <--- 新增：未完成数量 prop
+  totalTodoCount?: number; // <--- 新增：总数量 prop
 }
 
 defineOptions({
@@ -11,6 +13,8 @@ defineOptions({
 
 withDefaults(defineProps<Props>(), {
   avatar: '',
+  incompleteTodoCount: 0, // <--- 提供默认值
+  totalTodoCount: 0, // <--- 提供默认值
 });
 </script>
 <template>
@@ -30,7 +34,10 @@ withDefaults(defineProps<Props>(), {
     <div class="mt-4 flex flex-1 justify-end md:mt-0">
       <div class="flex flex-col justify-center text-right">
         <span class="text-foreground/80"> 待办 </span>
-        <span class="text-2xl">2/10</span>
+        <!-- 修改这里，显示分数形式 -->
+        <span class="text-2xl">
+          {{ incompleteTodoCount }} / {{ totalTodoCount }}
+        </span>
       </div>
 
       <div class="mx-12 flex flex-col justify-center text-right md:mx-16">

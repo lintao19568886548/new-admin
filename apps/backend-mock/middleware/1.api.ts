@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
       try {
         // 克隆请求体以便后续处理仍然可以访问
         const cloneBody = await readBody(event).catch(() => ({}));
-        console.log(`\nbody:\n${JSON.stringify(cloneBody, null, 2)}\n`);
+        // console.log(`\nbody:\n${JSON.stringify(cloneBody, null, 2)}\n`);
 
         // 查找匹配字段
         if (cloneBody && typeof cloneBody === 'object') {
