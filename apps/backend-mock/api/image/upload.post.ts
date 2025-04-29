@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'; // 引入 createHash
+import { createHash, randomBytes } from 'node:crypto'; // 引入 createHash 和 randomBytes
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, parse } from 'node:path'; // 引入 parse 用于获取文件名和后缀
@@ -77,26 +77,48 @@ export default eventHandler(async (event) => {
       await mkdir(uploadDir, { recursive: true });
     }
 
-    // 5. 生成新的文件名：原始基本名.时间戳.后缀
+    // 5. 生成新的文件名：原始基本名.时间戳.随机后缀.后缀
     const parsedPath = parse(originalFilename);
     const originalBaseName = parsedPath.name; // 获取不含后缀的文件名
-    const fileExt = parsedPath.ext.slice(1) || 'png'; // 获取后缀 (去掉点), 提供默认值
+    const originalFileExt = parsedPath.ext.slice(1) || 'png'; // 获取后缀 (去掉点), 提供默认值
+
+    // --- 新增：限制文件后缀长度 ---
+    const maxExtLength = 10; // 设定后缀最大字符数
+    const truncatedFileExt =
+      originalFileExt.length > maxExtLength
+        ? originalFileExt.slice(0, maxExtLength) // 如果过长，则截断
+        : originalFileExt;
+    // --- 结束新增部分 ---
+
     const timestamp = Date.now();
-    // 对原始基本名进行简单清理，替换掉可能引起问题的字符，例如路径分隔符
+    // 对原始基本名进行简单清理
     const sanitizedBaseName = originalBaseName.replaceAll(/[\\/:*?"<>|]/g, '_');
-    const fileName = `${sanitizedBaseName}.${timestamp}.${fileExt}`; // 组合新文件名
+
+    // 限制基础名称长度
+    const maxBaseNameChars = 200;
+    const truncatedBaseName =
+      sanitizedBaseName.length > maxBaseNameChars
+        ? sanitizedBaseName.slice(0, maxBaseNameChars)
+        : sanitizedBaseName;
+
+    // --- 新增：生成随机后缀 ---
+    const randomSuffix = randomBytes(3).toString('hex'); // 生成一个6位的十六进制随机字符串
+    // --- 结束新增部分 ---
+
+    // 使用截断后的基础名称、时间戳、随机后缀和截断后的后缀组合文件名
+    const fileName = `${truncatedBaseName}.${timestamp}.${randomSuffix}.${truncatedFileExt}`; // 组合新文件名
     const filePath = join(uploadDir, fileName);
     const fileUrl = `/uploads/${fileName}`; // 文件访问 URL
 
     // 6. 写入文件
     await writeFile(filePath, file.data);
 
-    // 7. 将图片信息存入数据库 (不再写入 originalName)
+    // 7. 将图片信息存入数据库
     const newImage = await prismaClient.image.create({
       data: {
         imgUrl: fileUrl,
         hash,
-        // originalName: originalFilename, // 不再存储原始文件名到数据库
+        // originalName: originalFilename, // 不再存储原始文件名
       },
       // 选择返回的字段，确认 imgId 是否需要
       select: { imgId: true },
@@ -105,13 +127,14 @@ export default eventHandler(async (event) => {
     console.log('文件上传并记录成功:', {
       imgId: newImage.imgId,
       originalName: originalFilename, // 日志中仍记录原始名
+      generatedName: fileName, // 日志中记录生成的文件名
       size: file.data.length,
       type: file.type,
       hash,
       url: fileUrl,
     });
 
-    // 8. 返回成功信息，包含 URL 和原始文件名
+    // 8. 返回成功信息，包含 URL 和原始文件名 (保持不变)
     return useResponseSuccess({
       url: fileUrl,
       name: originalFilename, // 返回原始文件名给前端显示
