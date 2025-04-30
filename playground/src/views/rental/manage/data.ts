@@ -635,9 +635,14 @@ export function useColumns<T = RentalManagementItem>(
       title: $t('page.park.area'),
     },
     {
-      field: 'status',
-      minWidth: 150,
-      title: $t('page.park.status'),
+      field: 'manager', // 新增 manager 字段
+      minWidth: 120,
+      title: $t('page.park.manager'),
+    },
+    {
+      field: 'contact', // 新增 contact 字段
+      minWidth: 120,
+      title: $t('page.park.contact'),
     },
     {
       align: 'center',
