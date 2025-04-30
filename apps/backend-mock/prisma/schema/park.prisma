@@ -21,6 +21,7 @@ model Park {
   rentalTenants RentalTenant[]    @relation("ParkToRentalTenant")
   createTime    DateTime          @default(now()) @map("create_time")
   updateTime    DateTime?         @updatedAt @map("update_time")
+  isDeleted     Boolean           @default(false) @map("is_deleted") // 逻辑删除字段
 
   @@map("park")
 }
@@ -44,6 +45,7 @@ model Factory {
   transformers   Transformer[]  @relation("FactoryToTransformer")
   createTime     DateTime       @default(now()) @map("create_time")
   updateTime     DateTime?      @updatedAt @map("update_time")
+  isDeleted      Boolean        @default(false) @map("is_deleted") // 逻辑删除字段
 
   @@index([parkId])
   @@map("factory")
@@ -65,6 +67,7 @@ model FactoryFloor {
   images         FactoryFloorImage[] @relation("FactoryFloorToFactoryFloorImage") // 关联图片
   createTime     DateTime            @default(now()) @map("create_time")
   updateTime     DateTime?           @updatedAt @map("update_time")
+  isDeleted      Boolean             @default(false) @map("is_deleted") // 逻辑删除字段
 
   @@index([factoryId])
   @@map("factory_floor")
@@ -90,6 +93,7 @@ model Dormitory {
   images           DormitoryImage[] @relation("DormitoryToDormitoryImage")
   createTime       DateTime  @default(now()) @map("create_time")
   updateTime       DateTime? @updatedAt @map("update_time")
+  isDeleted        Boolean   @default(false) @map("is_deleted") // 逻辑删除字段
 
   @@index([parkId])
   @@map("dormitory")

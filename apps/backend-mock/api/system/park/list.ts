@@ -9,7 +9,9 @@ export default eventHandler(async (event) => {
   const { area, address, parkName, currentPage, pageSize } = getQuery(event);
 
   // 构建查询条件
-  const where: any = {};
+  const where: any = {
+    isDeleted: false,
+  };
 
   // 修改查询条件，匹配前端表单字段
   if (parkName) {
