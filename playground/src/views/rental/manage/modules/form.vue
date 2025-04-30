@@ -9,6 +9,7 @@ import { useVbenForm } from '#/adapter/form';
 import { createPark, updatePark } from '#/api/park';
 import { getSystemParkDetail } from '#/api/system/park';
 import { $t } from '#/locales';
+import { useParkStore } from '#/store';
 
 import {
   useDormitoryFormSchema,
@@ -47,7 +48,9 @@ const [DormitoryForm, dormitoryFormApi] = useVbenForm({
   showDefaultActions: false,
 });
 
-const id = ref();
+const id = ref<number>();
+
+const parkStore = useParkStore();
 // 添加页面切换函数
 
 async function handleNext(step: number) {
@@ -59,7 +62,11 @@ async function handleNext(step: number) {
       message.warning('请完成园区信息表单的必填项');
       return;
     }
-    id.value ? updatePark(id.value, values) : createPark(values);
+    const park = id.value
+      ? await updatePark(id.value, values)
+      : await createPark(values);
+    id.value = park.parkId;
+    parkStore.parkId = park.parkId;
   }
   currentTab.value = step;
 }

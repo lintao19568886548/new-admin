@@ -67,7 +67,7 @@ export default eventHandler(async (event) => {
         images: dormitory.images.map((imgRelation) => ({
           imgId: imgRelation.imgId,
           name: imgRelation.image?.imgUrl.split('/').at(-1) || '',
-          imgUrl: imgRelation.image?.imgUrl || '',
+          url: imgRelation.image?.imgUrl || '',
         })),
       })),
     };

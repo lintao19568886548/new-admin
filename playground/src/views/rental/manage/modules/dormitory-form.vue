@@ -5,10 +5,15 @@ import { computed, ref, watch } from 'vue';
 
 import { useVbenForm, useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Divider } from 'ant-design-vue';
+import { Button, Card, Divider, Popconfirm } from 'ant-design-vue';
 
-import { createDormitory, updateDormitory } from '#/api/dormitory';
+import {
+  createDormitory,
+  deleteDormitory,
+  updateDormitory,
+} from '#/api/dormitory';
 import { $t } from '#/locales';
+import { useParkStore } from '#/store';
 
 import { useDormitoryItemFormSchema } from '../data';
 
@@ -24,22 +29,19 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue']);
 
 const data = ref<Dormitory[]>([]);
-const parkId = ref<number>();
+const parkStore = useParkStore();
 const getTitle = computed(() => {
   return currentEditIndex.value === null
     ? $t('ui.actionTitle.create', [$t('page.dormitory.item')])
     : $t('ui.actionTitle.edit', [$t('page.dormitory.item')]);
 });
 
-// 监听props.modelValue的变化，同步到factoryData
+// 监听props.modelValue的变化，同步到dormitoryData
 watch(
   () => props.modelValue,
   (val) => {
     if (val && Array.isArray(val) && val.length > 0) {
       data.value = [...val] as Dormitory[];
-      if (data.value.length > 0) {
-        parkId.value = data.value[0]?.parkId;
-      }
     }
   },
   { immediate: true },
@@ -52,52 +54,84 @@ const [Form, FormApi] = useVbenForm({
   wrapperClass: 'grid-cols-3',
 });
 
-async function handleAddFactory() {
+async function handleAddDormitory() {
   // 重置表单
   FormApi.resetForm();
   // 重置当前编辑索引
   currentEditIndex.value = null;
   // 打开工厂表单Modal
-  factoryModalApi.open();
+  dormitoryModalApi.open();
 }
 
 // 添加编辑工厂的方法
 async function handleEdit(index: number) {
   FormApi.setValues(data.value[index] || {});
   currentEditIndex.value = index;
-  factoryModalApi.open();
+  dormitoryModalApi.open();
 }
 
 // 添加当前编辑索引的ref
 const currentEditIndex = ref<null | number>(null);
 
 // 添加删除工厂的方法
-function handleDeleteFactory(index: number) {
+function handleDeleteDormitory(index: number) {
+  const currentFactory = data.value[index];
+  if (currentFactory?.dormitoryId) {
+    deleteDormitory(currentFactory?.dormitoryId);
+  }
   data.value.splice(index, 1);
   // 更新modelValue
   emit('update:modelValue', data.value);
 }
 
-const [FactoryItemModal, factoryModalApi] = useVbenModal({
+const [DormitoryItemModal, dormitoryModalApi] = useVbenModal({
   class: 'max-w-[90%] w-auto',
   destroyOnClose: false,
   onCancel: () => {
     // 关闭Modal时重置当前编辑索引
     currentEditIndex.value = null;
-    factoryModalApi.close();
+    dormitoryModalApi.close();
     return false;
   },
   async onConfirm() {
     const { valid } = await FormApi.validate();
     if (valid) {
-      factoryModalApi.lock();
+      dormitoryModalApi.lock();
       try {
         const values = await FormApi.getValues();
+
+        values.images =
+          values.images && Array.isArray(values.images)
+            ? values.images
+                .map((image: any) => {
+                  // 检查是否是新上传的图片（Ant Design Upload组件返回的结构）
+                  if (image.response?.data) {
+                    const response = image.response.data;
+                    return {
+                      imgId: response.imgId,
+                      name: response.name,
+                      url: response.url,
+                    };
+                  }
+                  // 检查是否是已存在的图片（从后端获取的结构）
+                  else if (image.imgId && image.url) {
+                    return {
+                      imgId: image.imgId,
+                      name: image.name || image.url.split('/').pop() || '', // 如果没有name，尝试从url提取
+                      url: image.url,
+                    };
+                  }
+                  // 如果数据结构不符合预期，可以选择忽略或记录错误
+                  console.warn('无法识别的图片数据结构:', image);
+                  return null; // 返回 null 或其他标记，以便后续过滤
+                })
+                .filter((img) => img !== null) // 过滤掉无法处理的项
+            : [];
 
         if (currentEditIndex.value === null) {
           // 添加新数据
           const dormitory = await createDormitory({
-            parkId: parkId.value,
+            parkId: parkStore.parkId,
             ...values,
           });
           data.value.push(dormitory);
@@ -117,9 +151,9 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
         // 更新modelValue
         emit('update:modelValue', data.value);
 
-        factoryModalApi.close();
+        dormitoryModalApi.close();
       } finally {
-        factoryModalApi.lock(false);
+        dormitoryModalApi.lock(false);
       }
     }
   },
@@ -132,7 +166,7 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
         <div class="text-primary text-xl font-bold">
           {{ $t('page.dormitory.list') }}
         </div>
-        <Button type="primary" @click="handleAddFactory()">
+        <Button type="primary" @click="handleAddDormitory()">
           {{ $t('page.dormitory.create') }}
         </Button>
       </div>
@@ -162,14 +196,12 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
                   >
                     编辑
                   </Button>
-                  <Button
-                    type="primary"
-                    danger
-                    size="middle"
-                    @click="handleDeleteFactory(index)"
+                  <Popconfirm
+                    title="确认删除"
+                    @confirm="handleDeleteDormitory(index)"
                   >
-                    删除
-                  </Button>
+                    <Button type="primary" danger size="middle"> 删除 </Button>
+                  </Popconfirm>
                 </div>
               </div>
             </Card>
@@ -177,8 +209,8 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
         </div>
       </div>
     </div>
-    <FactoryItemModal :title="getTitle">
+    <DormitoryItemModal :title="getTitle">
       <Form />
-    </FactoryItemModal>
+    </DormitoryItemModal>
   </div>
 </template>

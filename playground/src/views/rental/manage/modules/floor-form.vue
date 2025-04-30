@@ -7,7 +7,7 @@ import { useVbenForm } from '@vben/common-ui';
 
 import { Button, Popconfirm } from 'ant-design-vue';
 
-import { useButtonStore } from '#/store';
+import { useParkStore } from '#/store';
 
 import { useFloorFormSchema } from '../data';
 
@@ -22,7 +22,7 @@ const props = defineProps({
 // 添加emit定义，用于更新表单值
 const emit = defineEmits(['update:modelValue']);
 
-const buttonStore = useButtonStore();
+const store = useParkStore();
 const floorData = ref<FloorItem[]>([]);
 
 // 初始化时，如果有传入的modelValue，则使用它
@@ -66,7 +66,7 @@ async function handleAddFloor() {
     usedArea: '0',
   });
   isFormVisible.value = true;
-  buttonStore.showButton(false);
+  store.buttonStatus = false;
 
   // 等待 DOM 更新后滚动
   await nextTick();
@@ -83,7 +83,7 @@ async function handleEditFloor(rowIndex: number) {
   floorFormApi.setValues(floorData.value[rowIndex] || {});
   currentEditIndex.value = rowIndex;
   isFormVisible.value = true;
-  buttonStore.showButton(false);
+  store.buttonStatus = false;
 
   // 等待 DOM 更新后滚动
   await nextTick();
@@ -142,7 +142,7 @@ async function saveFloorData() {
   floorData.value = updatedFloorData;
   // Emit 更新后的完整楼层数据
   emit('update:modelValue', updatedFloorData);
-  buttonStore.showButton(true);
+  store.buttonStatus = true;
 
   // 隐藏表单
   isFormVisible.value = false;
@@ -152,7 +152,7 @@ async function saveFloorData() {
 // 取消编辑
 function cancelEdit() {
   isFormVisible.value = false;
-  buttonStore.showButton(true);
+  store.buttonStatus = true;
 }
 
 // 删除楼层

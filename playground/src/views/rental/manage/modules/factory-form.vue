@@ -9,7 +9,7 @@ import { Button, Card, Divider, Popconfirm } from 'ant-design-vue';
 
 import { createFactory, deleteFactory, updateFactory } from '#/api/factory';
 import { $t } from '#/locales';
-import { useButtonStore } from '#/store';
+import { useParkStore } from '#/store';
 
 import { useFactoryItemFormSchema } from '../data';
 
@@ -24,10 +24,9 @@ const props = defineProps({
 // 添加emit定义，用于更新表单值
 const emit = defineEmits(['update:modelValue']);
 
-const store = useButtonStore();
+const store = useParkStore();
 
 const factoryData = ref<Factory[]>([]);
-const parkId = ref<number>();
 
 const getTitle = computed(() => {
   return currentEditIndex.value === null
@@ -41,9 +40,6 @@ watch(
   (val) => {
     if (val && Array.isArray(val) && val.length > 0) {
       factoryData.value = [...val] as Factory[];
-      if (factoryData.value.length > 0) {
-        parkId.value = factoryData.value[0]?.parkId;
-      }
     }
   },
   { immediate: true },
@@ -94,7 +90,7 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
   onClosed: () => {
     // 关闭Modal时重置当前编辑索引
     currentEditIndex.value = null;
-    store.visible = true;
+    store.buttonStatus = true;
   },
   async onConfirm() {
     const { valid } = await factoryItemFormApi.validate();
@@ -107,9 +103,17 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
         }
 
         if (currentEditIndex.value === null) {
-          // 添加新工厂数据
+          // 确保 props.parkId 有值再创建
+          if (!store.parkId) {
+            // 可以添加一些错误提示，例如：
+            // message.error('园区ID无效，无法创建厂房');
+            console.error('Park ID is missing, cannot create factory.');
+            factoryModalApi.lock(false); // 解锁
+            return; // 阻止继续执行
+          }
+          // 添加新工厂数据，并传入 parkId
           const factory = await createFactory({
-            parkId: parkId.value,
+            parkId: store.parkId, // <--- 添加 parkId
             ...values,
           });
           factoryData.value.push(factory);
@@ -189,11 +193,11 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
     <FactoryItemModal :title="getTitle">
       <FactoryItemForm />
       <template #footer>
-        <Button v-show="store.visible" @click="factoryModalApi.onCancel()">
+        <Button v-show="store.buttonStatus" @click="factoryModalApi.onCancel()">
           取消
         </Button>
         <Button
-          v-show="store.visible"
+          v-show="store.buttonStatus"
           type="primary"
           @click="factoryModalApi.onConfirm()"
         >

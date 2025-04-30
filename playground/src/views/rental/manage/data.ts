@@ -62,6 +62,51 @@ export interface Dormitory {
   usedRoomsOther: number;
 }
 
+const imageOnChange = (info: any) => {
+  const { file } = info;
+  if (file.status === 'done') {
+    // 从响应中获取文件名，如果后端没返回，则使用原始文件名
+    const name = file.response?.data?.name || file.name;
+    message.success(`${name} 上传成功`);
+  } else if (file.status === 'error') {
+    // 尝试从后端响应获取更详细的错误信息
+    const errorMsg = file.response?.message || '上传失败';
+    message.error(`${file.name} ${errorMsg}`);
+    console.error('Upload Error Response:', file.response); // 可以在控制台查看详细错误
+  }
+  // 你也可以在这里处理 'uploading' 状态，例如显示加载指示
+};
+
+const imageOnPreview = (file: any) => {
+  // 获取图片URL
+  const imageUrl = file.url || file.response.data.url;
+  // 创建图片预览
+  if (imageUrl) {
+    const image = new Image();
+    image.src = imageUrl;
+    const imgWindow = window.open('', '_blank');
+    if (imgWindow) {
+      // 使用 DOM API 替代 document.write
+      imgWindow.document.body.innerHTML = '';
+      const imgElement = imgWindow.document.createElement('img');
+      imgElement.src = imageUrl;
+      imgElement.style.maxWidth = '100%';
+      imgElement.style.maxHeight = '100%';
+      imgElement.style.position = 'absolute';
+      imgElement.style.top = '50%';
+      imgElement.style.left = '50%';
+      imgElement.style.transform = 'translate(-50%, -50%)';
+      imgWindow.document.body.append(imgElement);
+      imgWindow.document.title = file.name || '图片预览';
+    } else {
+      // 如果弹窗被阻止，则直接在新标签页打开
+      window.open(imageUrl, '_blank');
+    }
+  } else {
+    message.warning('无法预览，图片URL不存在');
+  }
+};
+
 /**
  * 获取园区表单的字段配置
  */
@@ -336,49 +381,8 @@ export function useFloorFormSchema(): VbenFormSchema[] {
         },
         multiple: true,
         // 添加 onChange 处理函数以显示上传状态消息
-        onChange: (info: any) => {
-          const { file } = info;
-          if (file.status === 'done') {
-            // 从响应中获取文件名，如果后端没返回，则使用原始文件名
-            const name = file.response?.data?.name || file.name;
-            message.success(`${name} 上传成功`);
-          } else if (file.status === 'error') {
-            // 尝试从后端响应获取更详细的错误信息
-            const errorMsg = file.response?.message || '上传失败';
-            message.error(`${file.name} ${errorMsg}`);
-            console.error('Upload Error Response:', file.response); // 可以在控制台查看详细错误
-          }
-          // 你也可以在这里处理 'uploading' 状态，例如显示加载指示
-        },
-        onPreview: (file: any) => {
-          // 获取图片URL
-          const imageUrl = file.url || file.response.data.url;
-          // 创建图片预览
-          if (imageUrl) {
-            const image = new Image();
-            image.src = imageUrl;
-            const imgWindow = window.open('', '_blank');
-            if (imgWindow) {
-              // 使用 DOM API 替代 document.write
-              imgWindow.document.body.innerHTML = '';
-              const imgElement = imgWindow.document.createElement('img');
-              imgElement.src = imageUrl;
-              imgElement.style.maxWidth = '100%';
-              imgElement.style.maxHeight = '100%';
-              imgElement.style.position = 'absolute';
-              imgElement.style.top = '50%';
-              imgElement.style.left = '50%';
-              imgElement.style.transform = 'translate(-50%, -50%)';
-              imgWindow.document.body.append(imgElement);
-              imgWindow.document.title = file.name || '图片预览';
-            } else {
-              // 如果弹窗被阻止，则直接在新标签页打开
-              window.open(imageUrl, '_blank');
-            }
-          } else {
-            message.warning('无法预览，图片URL不存在');
-          }
-        },
+        onChange: imageOnChange,
+        onPreview: imageOnPreview,
         listType: 'picture-card',
         // 添加预览处理函数
         // showUploadList: true,
@@ -411,6 +415,35 @@ export function useDormitoryFormSchema(): VbenFormSchema[] {
 
 export function useDormitoryItemFormSchema(): VbenFormSchema[] {
   return [
+    {
+      component: 'AutoComplete',
+      componentProps: {
+        // 添加自定义筛选函数
+        filterOption: (inputValue: string, option: { value: string }) => {
+          // 如果 option 或 option.value 不存在，则不匹配
+          if (!option || !option.value) {
+            return false;
+          }
+          // 将输入值和选项值都转为小写进行比较
+          return option.value.toLowerCase().includes(inputValue.toLowerCase());
+        },
+        options: [
+          { value: 'A栋宿舍' },
+          { value: 'B栋宿舍' },
+          { value: 'C栋宿舍' },
+          { value: 'D栋宿舍' },
+          { value: 'E栋宿舍' },
+        ],
+        placeholder: '请输入或选择厂房名称',
+        style: {
+          width: '90%',
+        },
+      },
+      defaultValue: '',
+      fieldName: 'dormitoryName',
+      label: $t('page.dormitory.name'),
+      rules: 'required',
+    },
     {
       component: 'InputNumber',
       componentProps: {
@@ -502,35 +535,6 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
       rules: 'required',
     },
     {
-      component: 'AutoComplete',
-      componentProps: {
-        // 添加自定义筛选函数
-        filterOption: (inputValue: string, option: { value: string }) => {
-          // 如果 option 或 option.value 不存在，则不匹配
-          if (!option || !option.value) {
-            return false;
-          }
-          // 将输入值和选项值都转为小写进行比较
-          return option.value.toLowerCase().includes(inputValue.toLowerCase());
-        },
-        options: [
-          { value: 'A栋宿舍' },
-          { value: 'B栋宿舍' },
-          { value: 'C栋宿舍' },
-          { value: 'D栋宿舍' },
-          { value: 'E栋宿舍' },
-        ],
-        placeholder: '请输入或选择厂房名称',
-        style: {
-          width: '90%',
-        },
-      },
-      defaultValue: '',
-      fieldName: 'dormitoryName',
-      label: $t('page.dormitory.name'),
-      rules: 'required',
-    },
-    {
       component: 'Input',
       componentProps: {
         style: { width: '90%' },
@@ -544,6 +548,35 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
           $t('ui.formRules.maxLength', [$t('system.rental.description'), 300]),
         )
         .optional(),
+    },
+    {
+      component: 'Upload',
+      componentProps: {
+        // 更多属性见：https://ant.design/components/upload-cn
+        accept: '.png,.jpg,.jpeg',
+        // 自动携带认证信息
+        // customRequest: uploadParkImage,
+        action: '/api/image/upload',
+        headers: {
+          Authorization: `Bearer ${accessStore.accessToken}`,
+        },
+        multiple: true,
+        // 添加 onChange 处理函数以显示上传状态消息
+        onChange: imageOnChange,
+        onPreview: imageOnPreview,
+        listType: 'picture-card',
+        // 添加预览处理函数
+        // showUploadList: true,
+        // 上传列表的内建样式，支持四种基本样式 text, picture, picture-card 和 picture-circle
+      },
+      fieldName: 'images',
+      formItemClass: 'col-span-3', // 根据你的布局调整
+      label: $t('page.factory.images'),
+      renderComponentContent: () => {
+        return {
+          default: () => $t('page.factory.upload-image'),
+        };
+      },
     },
   ];
 }
