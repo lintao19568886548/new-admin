@@ -37,6 +37,7 @@ async function fetchParkList() {
 // 在组件挂载时获取园区列表
 onMounted(() => {
   fetchParkList();
+  document.title = '访客登记';
 });
 
 // 删除或注释掉未使用的 rules 变量

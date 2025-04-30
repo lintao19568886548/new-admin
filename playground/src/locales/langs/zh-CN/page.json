@@ -10,7 +10,8 @@
   "access": {
     "car": "车辆管理",
     "title": "出入管理",
-    "visitor": "访客管理"
+    "visitor": "访客管理",
+    "register": "访客登记"
   },
   "agent": {
     "create": "新增中介人",

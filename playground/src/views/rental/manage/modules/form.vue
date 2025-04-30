@@ -83,11 +83,13 @@ const [Modal, modalApi] = useVbenModal({
       const parkValues = await parkFormApi.getValues();
       const factoryValues = await factoryFormApi.getValues();
       const dormitoryValues = await dormitoryFormApi.getValues();
-      factoryValues.factories.forEach((factory: any) => {
-        factory.buildTime = factory.buildTime
-          ? new Date(factory.buildTime).toISOString()
-          : undefined;
-      });
+      if (factoryValues.factories.length > 0) {
+        factoryValues.factories.forEach((factory: any) => {
+          factory.buildTime = factory.buildTime
+            ? new Date(factory.buildTime).toISOString()
+            : undefined;
+        });
+      }
 
       const values = {
         park: { ...parkValues },

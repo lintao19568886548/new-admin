@@ -27,8 +27,6 @@ services:
       - magic-network
   node:
     image: node:22.14.0
-    ports:
-      - '5320:5320'
     volumes:
       - ./node:/app
     working_dir: /app

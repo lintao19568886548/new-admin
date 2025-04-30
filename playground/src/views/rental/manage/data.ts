@@ -127,6 +127,7 @@ export function useParkFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: 'm²',
         style: { width: '100%' },
       },
       fieldName: 'area',
@@ -283,6 +284,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: 'm',
         style: {
           width: '90%',
         },
@@ -294,6 +296,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: '吨',
         style: {
           width: '90%',
         },
@@ -305,6 +308,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: '元/m²·月',
         style: {
           width: '90%',
         },
@@ -316,6 +320,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: 'm²',
         style: {
           width: '90%',
         },
@@ -327,6 +332,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: 'm²',
         style: {
           width: '90%',
         },
@@ -447,6 +453,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: '层',
         style: { width: '90%' },
       },
       defaultValue: 0,
@@ -457,6 +464,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: 'm²',
         style: { width: '90%' },
       },
       defaultValue: 0,
@@ -467,6 +475,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: '间',
         style: { width: '90%' },
       },
       defaultValue: 0,
@@ -477,6 +486,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: 'm',
         style: { width: '90%' },
       },
       defaultValue: 0,
@@ -487,6 +497,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: '元/m²·月',
         style: { width: '90%' },
       },
       defaultValue: 0,
@@ -497,6 +508,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: '间',
         style: { width: '90%' },
       },
       defaultValue: 0,
@@ -507,6 +519,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: 'm',
         style: { width: '90%' },
       },
       defaultValue: 0,
@@ -517,6 +530,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: '元/m²·月',
         style: { width: '90%' },
       },
       defaultValue: 0,
@@ -527,6 +541,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
     {
       component: 'InputNumber',
       componentProps: {
+        addonAfter: '间',
         style: { width: '90%' },
       },
       defaultValue: 0,
