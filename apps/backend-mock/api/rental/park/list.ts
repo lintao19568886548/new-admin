@@ -9,7 +9,9 @@ export default eventHandler(async (event) => {
     const skip = (currentPage - 1) * pageSize;
 
     // 构建查询条件
-    const where: any = {};
+    const where: any = {
+      isDeleted: false,
+    };
 
     // 园区名称查询
     if (query.parkName) {
