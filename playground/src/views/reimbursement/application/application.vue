@@ -48,6 +48,7 @@ const departmentOptions = [
 const formState = reactive({
   amount: undefined,
   department: undefined,
+  park: '',
   payee: '',
   purpose: '',
   remark: '',
@@ -61,6 +62,10 @@ const rules: Record<string, Rule[]> = {
   ],
   department: [
     { message: '请选择申请部门', required: true, trigger: 'change' },
+  ],
+  park: [
+    { message: '请填写所属园区', required: true, trigger: 'blur' },
+    { max: 50, message: '园区名称不能超过50个字符', trigger: 'blur' },
   ],
   payee: [
     { message: '请输入领款人姓名', required: true, trigger: 'blur' },
@@ -99,6 +104,7 @@ interface ReimbursementItem {
   date: string;
   department: string;
   id: number | string;
+  park: string;
   payee: string;
   purpose: string;
   remark?: string;
@@ -295,6 +301,15 @@ function showRecordModal() {
           <Input
             v-model:value="formState.payee"
             placeholder="请输入领款人姓名"
+            :maxlength="50"
+            show-count
+          />
+        </Form.Item>
+
+        <Form.Item name="park" label="所属园区">
+          <Input
+            v-model:value="formState.park"
+            placeholder="请输入所属园区名称"
             :maxlength="50"
             show-count
           />
