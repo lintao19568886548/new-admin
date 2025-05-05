@@ -75,6 +75,11 @@ export function useFormSchema(closeModal: () => void): VbenFormSchema[] {
     },
     {
       component: 'InputNumber',
+      // 添加 componentProps 以设置单位
+      componentProps: {
+        addonAfter: '㎡', // 在输入框后添加单位
+        style: { width: '100%' }, // 可以根据需要调整样式
+      },
       fieldName: 'intentArea',
       label: $t('page.agent.intentArea'),
     },
@@ -108,12 +113,12 @@ export function useFormSchema(closeModal: () => void): VbenFormSchema[] {
         valueField: 'parkId',
       },
       fieldName: 'parkId',
-      help: '新建园区请在 租赁管理-园区管理 中操作',
+      help: '新增园区请在 租赁管理-园区管理 中操作',
       // 使用 label 属性渲染自定义组件
       label: () =>
         h(ParkLabel, {
           beforeNavigate: closeModal, // 传递关闭模态框的回调
-          buttonText: '去管理', // 自定义按钮文本
+          buttonText: '新增园区', // 自定义按钮文本
           label: $t('page.common.park'),
           path: '/rental/manage/', // 传递跳转路径
         }),
