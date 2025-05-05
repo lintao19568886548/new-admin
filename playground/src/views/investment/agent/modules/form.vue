@@ -1,5 +1,7 @@
 <script lang="ts" setup>
 import { computed, ref } from 'vue';
+// useRouter 不再需要在 data.ts 中传递，因为 ParkLabel 内部处理了
+// import { useRouter } from 'vue-router';
 
 import { useVbenModal } from '@vben/common-ui';
 
@@ -19,17 +21,9 @@ const getTitle = computed(() => {
     : $t('ui.actionTitle.create', [$t('system.rental.tenant.item')]);
 });
 
-const [Form, formApi] = useVbenForm({
-  layout: 'vertical',
-  schema: useFormSchema(),
-  showDefaultActions: false,
-});
+// const router = useRouter(); // 不再需要在这里定义 router 给 data.ts
 
-function resetForm() {
-  formApi.resetForm();
-  formApi.setValues(formData.value || {});
-}
-
+// modalApi 在 useVbenModal 解构赋值时获取
 const [Modal, modalApi] = useVbenModal({
   async onConfirm() {
     const { valid } = await formApi.validate();
@@ -69,6 +63,27 @@ const [Modal, modalApi] = useVbenModal({
     }
   },
 });
+
+// 定义关闭模态框的函数
+function closeModal() {
+  modalApi.close();
+  // 这里可以返回 Promise 如果 modalApi.close 是异步的，但通常不是
+}
+
+// 将 closeModal 传递给 useFormSchema
+const [Form, formApi] = useVbenForm({
+  layout: 'vertical',
+  schema: useFormSchema(closeModal), // 传递 closeModal 函数
+  showDefaultActions: false,
+});
+
+function resetForm() {
+  formApi.resetForm();
+  formApi.setValues(formData.value || {});
+}
+
+// goToRentalManage 不再需要，导航逻辑移到 ParkLabel
+// function goToRentalManage() { ... }
 </script>
 
 <template>
