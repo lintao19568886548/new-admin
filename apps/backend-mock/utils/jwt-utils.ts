@@ -36,6 +36,9 @@ async function getUserInfo(username: string) {
               roleParks: {
                 where: {
                   isDeleted: false,
+                  park: {
+                    isDeleted: false,
+                  },
                 },
                 include: {
                   park: true,
@@ -77,6 +80,9 @@ export async function verifyAccessToken(
     };
     if (user.roles.some((item) => item.role.name === 'Super')) {
       userInfo.parks = await prismaClient.park.findMany({
+        where: {
+          isDeleted: false,
+        },
         select: { parkId: true, parkName: true },
       });
     } else {
@@ -116,6 +122,9 @@ export async function verifyRefreshToken(
     };
     if (user.roles.some((item) => item.role.name === 'Super')) {
       userInfo.parks = await prismaClient.park.findMany({
+        where: {
+          isDeleted: false,
+        },
         select: { parkId: true, parkName: true },
       });
     } else {
