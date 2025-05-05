@@ -1,13 +1,14 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
-import { h } from 'vue';
+import { h, markRaw } from 'vue'; // 导入 markRaw
 
 import { formatDateTime } from '@vben/utils';
 
 import { getParkList } from '#/api/park';
 // 确保导入路径正确，如果 ParkLabel 移动到了 playground/src/components
 import ParkLabel from '#/components/LabelRouter.vue';
+import MultiSelect from '#/components/MultiSelect.vue'; // 导入 MultiSelect 组件
 import { $t } from '#/locales';
 
 /**
@@ -164,16 +165,26 @@ export function useGridFormSchema(): VbenFormSchema[] {
       fieldName: 'intentLevel',
       label: $t('page.agent.intentLevel'),
     },
+    // 使用 MultiSelect 组件替换 minIntentArea 和 maxIntentArea
     {
-      component: 'InputNumber',
-      fieldName: 'minIntentArea',
-      label: $t('page.agent.minIntentArea'),
+      component: markRaw(MultiSelect),
+      componentProps: {
+        unit: '㎡', // 设置单位
+      },
+      disabledOnChangeListener: false,
+      fieldName: 'intentArea', // 字段名改为 intentArea
+      label: $t('page.agent.intentArea'),
     },
-    {
-      component: 'InputNumber',
-      fieldName: 'maxIntentArea',
-      label: $t('page.agent.maxIntentArea'),
-    },
+    // {
+    //   component: 'InputNumber',
+    //   fieldName: 'minIntentArea',
+    //   label: $t('page.agent.minIntentArea'),
+    // },
+    // {
+    //   component: 'InputNumber',
+    //   fieldName: 'maxIntentArea',
+    //   label: $t('page.agent.maxIntentArea'),
+    // },
     {
       component: 'Select',
       componentProps: {

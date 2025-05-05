@@ -12,8 +12,9 @@ export default eventHandler(async (event) => {
     agentName,
     tenantName,
     intentLevel,
-    minIntentArea,
-    maxIntentArea,
+    // minIntentArea, // 移除旧参数
+    // maxIntentArea, // 移除旧参数
+    intentArea, // 新增参数
     progress,
     startTime,
     endTime,
@@ -81,18 +82,24 @@ export default eventHandler(async (event) => {
     };
   }
 
-  // 意向面积查询
-  if (minIntentArea) {
-    where.intentArea = {
-      gte: Number(minIntentArea),
-    };
-  }
-
-  if (maxIntentArea) {
-    where.intentArea = {
-      ...where.intentArea,
-      lte: Number(maxIntentArea),
-    };
+  // 意向面积查询 - 支持等于和区间查询
+  if (intentArea) {
+    const areaQuery = String(intentArea).split(',');
+    if (areaQuery[0] === 'equal' && areaQuery[1]) {
+      const value = Number.parseFloat(areaQuery[1]);
+      if (!Number.isNaN(value)) {
+        where.intentArea = { equals: value };
+      }
+    } else if (areaQuery[0] === 'between' && areaQuery[1] && areaQuery[2]) {
+      const min = Number.parseFloat(areaQuery[1]);
+      const max = Number.parseFloat(areaQuery[2]);
+      if (!Number.isNaN(min) && !Number.isNaN(max)) {
+        where.intentArea = {
+          gte: min, // 大于等于最小值
+          lte: max, // 小于等于最大值
+        };
+      }
+    }
   }
 
   // 进度查询

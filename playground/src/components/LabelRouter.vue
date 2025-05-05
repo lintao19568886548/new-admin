@@ -36,7 +36,7 @@ async function goToRentalManage() {
     <span>{{ label }}</span>
     <Button type="link" size="small" @click="goToRentalManage" class="ml-1">
       <!-- 使用 prop 替换硬编码文本 -->
-      {{ buttonText || '管理' }}
+      {{ buttonText || '新建' }}
       <!-- 修改默认按钮文本为更通用的 '管理' -->
     </Button>
   </div>
