@@ -112,6 +112,8 @@
     "tenant": {
       "address": "租赁地点",
       "contractDate": "合同日期",
+      "contractStart": "开始日期",
+      "contractEnd": "结束日期",
       "increaseDate": "递增日期",
       "increaseRate": "递增比例",
       "item": "合同",

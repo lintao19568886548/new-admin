@@ -42,7 +42,10 @@ const [Modal, modalApi] = useVbenModal({
 
     // 处理日期格式，确保使用本地时间
     if (values.contractDate) {
-      values.contractDate = new Date(values.contractDate).toISOString();
+      console.warn('合同日期:', values.contractDate);
+      values.contractStart = new Date(values.contractDate[0]).toISOString(); // 转换为ISO字符串，确保正确的时间格式
+      values.contractEnd = new Date(values.contractDate[1]).toISOString(); // 转换为ISO字符串，确保正确的时间格式
+      delete values.contractDate;
     }
     if (values.increaseDate) {
       values.increaseDate = new Date(values.increaseDate).toISOString();
@@ -81,8 +84,11 @@ const [Modal, modalApi] = useVbenModal({
       formApi.resetForm();
       if (data && Object.keys(data).length > 0) {
         // 处理日期格式，将UTC时间转换为本地日期
-        if (data.contractDate) {
-          data.contractDate = dayjs(data.contractDate).format('YYYY-MM-DD');
+        if (data.contractStart && data.contractEnd) {
+          data.contractDate = [
+            dayjs(data.contractStart).format('YYYY-MM-DD'),
+            dayjs(data.contractEnd).format('YYYY-MM-DD'),
+          ];
         }
         if (data.increaseDate) {
           data.increaseDate = dayjs(data.increaseDate).format('YYYY-MM-DD');

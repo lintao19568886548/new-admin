@@ -33,6 +33,7 @@ const [FormModal, formModalApi] = useVbenModal({
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
+    fieldMappingTime: [['contractDate', ['contractStart', 'contractEnd']]],
     schema: useGridFormSchema(),
     submitOnChange: false, // 修改这里：改为false，不再自动提交
   },

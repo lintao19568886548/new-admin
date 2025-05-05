@@ -1,7 +1,9 @@
 // 租赁管理项目类型
 export interface RentalManagementItem {
   address: string;
-  contractDate: string;
+  contractDate: string[];
+  contractEnd: string;
+  contractStart: string;
   createTime: string;
   increaseDate: string;
   increaseRate: number;

@@ -42,14 +42,13 @@ export function useFormSchema(): VbenFormSchema[] {
       label: $t('system.rental.tenant.phone'),
       rules: 'required',
     },
-    // 删除重复的 RangePicker
     {
-      component: 'DatePicker', // 使用 DatePicker 而不是 RangePicker
+      component: 'RangePicker',
       componentProps: {
         format: 'YYYY-MM-DD',
-        placeholder: '请选择合同日期',
+        placeholder: ['开始日期', '结束日期'],
         style: { width: '100%' },
-        valueFormat: 'YYYY-MM-DD', // 简化日期格式
+        valueFormat: 'YYYY-MM-DD',
       },
       fieldName: 'contractDate',
       label: $t('system.rental.tenant.contractDate'),
@@ -225,12 +224,21 @@ export function useColumns<T = any>(
       width: 80,
     },
     {
-      field: 'contractDate',
+      field: 'contractStart',
       formatter: ({ cellValue }) => {
         if (!cellValue) return '';
         return dayjs(cellValue).format('YYYY-MM-DD');
       },
-      title: $t('system.rental.tenant.contractDate'),
+      title: $t('system.rental.tenant.contractStart'),
+      width: 120,
+    },
+    {
+      field: 'contractEnd',
+      formatter: ({ cellValue }) => {
+        if (!cellValue) return '';
+        return dayjs(cellValue).format('YYYY-MM-DD');
+      },
+      title: $t('system.rental.tenant.contractEnd'),
       width: 120,
     },
     {
