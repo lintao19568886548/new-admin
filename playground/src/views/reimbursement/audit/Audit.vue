@@ -24,7 +24,11 @@ import {
   Tag,
 } from 'ant-design-vue';
 
-import { getReimbursementList, updateReimbursement } from '#/api/reimbursement';
+import {
+  deleteReimbursement,
+  getReimbursementList,
+  updateReimbursement,
+} from '#/api/reimbursement';
 import { $t } from '#/locales';
 
 // 定义类型
@@ -34,6 +38,7 @@ interface ReimbursementItem {
   date: string;
   department: string;
   id: number | string;
+  park: string;
   payee: string;
   purpose: string;
   remark?: string;
@@ -53,9 +58,12 @@ const STATUS_MAP = {
 const departmentOptions = [
   { label: '技术部', value: 'tech' },
   { label: '财务部', value: 'finance' },
-  { label: '人力资源部', value: 'hr' },
+  { label: '人事部', value: 'hr' },
   { label: '市场部', value: 'marketing' },
-  { label: '行政部', value: 'admin' },
+  { label: '采购部', value: 'procure' },
+  { label: '工程部', value: 'engineering project  ' },
+  { label: '销售部', value: 'sales' },
+  { label: '客服部', value: 'customerService' },
 ];
 
 // 状态选项
@@ -191,6 +199,26 @@ async function submitAudit() {
   }
 }
 
+// 删除报销记录
+async function handleDelete(record: ReimbursementItem) {
+  Modal.confirm({
+    cancelText: '取消',
+    content: '确定要删除这条报销记录吗？',
+    okText: '确定',
+    async onOk() {
+      try {
+        await deleteReimbursement(Number(record.id));
+        message.success('删除成功');
+        fetchReimbursementList();
+      } catch (error) {
+        console.error('删除失败:', error);
+        message.error('删除失败');
+      }
+    },
+    title: '确认删除',
+  });
+}
+
 // 初始化加载数据
 onMounted(() => {
   fetchReimbursementList();
@@ -268,6 +296,7 @@ onMounted(() => {
             },
           },
           { title: '领款人', dataIndex: 'payee' },
+          { title: '所属园区', dataIndex: 'park' },
           {
             title: '申请日期',
             dataIndex: 'date',
@@ -300,6 +329,16 @@ onMounted(() => {
                     onClick: () => openAuditModal(record),
                   },
                   () => '审核',
+                ),
+                h(
+                  Button,
+                  {
+                    type: 'link',
+                    size: 'small',
+                    danger: true,
+                    onClick: () => handleDelete(record),
+                  },
+                  () => '删除',
                 ),
               ]);
             },
@@ -356,6 +395,10 @@ onMounted(() => {
           <div>
             <div class="text-gray-500">申请人</div>
             <div>{{ currentRecord?.userName }}</div>
+          </div>
+          <div>
+            <div class="text-gray-500">所属园区</div>
+            <div>{{ currentRecord?.park }}</div>
           </div>
         </div>
 

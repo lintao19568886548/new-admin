@@ -4,8 +4,8 @@ model RentalTenant {
   tenantName     String       @map("tenant_name") @db.VarChar(30)
   phoneNumber    String       @map("phone_number") @db.VarChar(20)
   status         String       @db.VarChar(20) // 当期、过期等状态
-  contractStart  DateTime     @map("contract_start")
-  contractEnd    DateTime     @map("contract_end")
+  contractStart  DateTime?     @map("contract_start")
+  contractEnd    DateTime?     @map("contract_end")
   increaseDate   DateTime     @map("increase_date")
   increaseRate   Decimal      @map("increase_rate") @db.Decimal(5, 2)
   address        String       @db.VarChar(200)
