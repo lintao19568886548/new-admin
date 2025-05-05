@@ -1,0 +1,51 @@
+services:
+  mysql:
+    image: mysql:8.0
+    ports:
+      - '127.0.0.1:3306:3306'
+    networks:
+      - magic-network
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: magic # 可选，创建一个初始数据库
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./magic.sql:/docker-entrypoint-initdb.d/init.sql # 挂载 SQL 文件
+    # command: --init-file=/docker-entrypoint-initdb.d/init.sql # 指定初始化文件
+  nginx:
+    image: nginx:latest
+    ports:
+      - '443:443'
+      - '80:80'
+    volumes:
+      - ./dist:/usr/share/nginx/html
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ../.acme.sh/yizuw.cn_ecc:/etc/nginx/certs/yizuw:ro
+      - uploads_data:/usr/share/nginx/html/uploads # <-- 新增：挂载共享卷到 Nginx 可访问路径
+    depends_on:
+      - node
+      - mysql
+    networks:
+      - magic-network
+
+  node:
+    image: node:22.14.0
+    volumes:
+      - ./node:/app
+      - uploads_data:/app/uploads # <-- 新增：挂载共享卷到 Node.js 图片存储路径 (请确保 /app/uploads 是你后端实际存储图片的路径)
+    working_dir: /app
+    environment:
+      - PORT=5320
+    command: node ./server/index.mjs
+    depends_on:
+      - mysql
+    networks:
+      - magic-network
+
+networks:
+  magic-network:
+    name: magic-network
+
+volumes:
+  mysql_data:
+  uploads_data: {} # <-- 新增：定义共享数据卷

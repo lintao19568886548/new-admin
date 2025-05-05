@@ -73,7 +73,7 @@ export default eventHandler(async (event) => {
     }
 
     // 4. 如果图片不存在，则保存文件并存入数据库
-    const uploadDir = join(process.cwd(), 'public', 'uploads');
+    const uploadDir = join(process.cwd(), 'uploads');
     if (!existsSync(uploadDir)) {
       await mkdir(uploadDir, { recursive: true });
     }
