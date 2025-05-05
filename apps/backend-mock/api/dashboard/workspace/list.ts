@@ -11,7 +11,11 @@ export default eventHandler(async (event) => {
   const { startTime, endTime, currentPage, pageSize } = query;
 
   // 构建查询条件
-  const where: any = {};
+  const where: any = {
+    username: {
+      not: 'vben', // 排除用户名为 vben 的记录
+    },
+  };
 
   // 请求时间范围查询
   if (startTime && endTime) {
