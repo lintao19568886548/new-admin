@@ -1,9 +1,13 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
+import { h } from 'vue';
+
 import { formatDateTime } from '@vben/utils';
 
 import { getParkList } from '#/api/park';
+// 确保导入路径正确，如果 ParkLabel 移动到了 playground/src/components
+import ParkLabel from '#/components/LabelRouter.vue';
 import { $t } from '#/locales';
 
 /**
@@ -39,7 +43,8 @@ export function getTagTypeOptions() {
   ];
 }
 
-export function useFormSchema(): VbenFormSchema[] {
+// 修改函数签名，接收 closeModal 函数
+export function useFormSchema(closeModal: () => void): VbenFormSchema[] {
   return [
     {
       component: 'Input',
@@ -102,7 +107,15 @@ export function useFormSchema(): VbenFormSchema[] {
         valueField: 'parkId',
       },
       fieldName: 'parkId',
-      label: $t('page.common.park'),
+      help: '新建园区请在 租赁管理-园区管理 中操作',
+      // 使用 label 属性渲染自定义组件
+      label: () =>
+        h(ParkLabel, {
+          beforeNavigate: closeModal, // 传递关闭模态框的回调
+          buttonText: '去管理', // 自定义按钮文本
+          label: $t('page.common.park'),
+          path: '/rental/manage/', // 传递跳转路径
+        }),
     },
     {
       component: 'DatePicker',

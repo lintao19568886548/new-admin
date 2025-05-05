@@ -11,12 +11,12 @@ import { message } from 'ant-design-vue';
 
 // 添加 dayjs 导入
 import { z } from '#/adapter/form';
+import MultiSelect from '#/components/MultiSelect.vue';
 import { $t } from '#/locales';
 
 import DormitoryForm from './modules/dormitory-form.vue';
 import FactoryForm from './modules/factory-form.vue';
 import FloorForm from './modules/floor-form.vue';
-import MultiSelect from './modules/multi-select.vue';
 
 const accessStore = useAccessStore();
 // 定义楼层数据的接口
@@ -608,6 +608,10 @@ export function useGridFormSchema(): VbenFormSchema[] {
     },
     {
       component: markRaw(MultiSelect),
+      // 添加 componentProps 来传递 unit
+      componentProps: {
+        unit: 'm²', // 设置单位为 m²
+      },
       disabledOnChangeListener: false,
       fieldName: 'area',
       label: $t('page.park.area'),
