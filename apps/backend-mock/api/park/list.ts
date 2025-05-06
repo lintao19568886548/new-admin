@@ -29,9 +29,9 @@ export default eventHandler(async (event) => {
   const parks = await prismaClient.park.findMany({
     where: {
       isDeleted: false,
-      parkName: {
-        in: userinfo.parks.map((park) => park.parkName),
-      },
+      // parkName: {
+      //   in: userinfo.parks.map((park) => park.parkName),
+      // },
     },
     select: { parkId: true, parkName: true },
   });

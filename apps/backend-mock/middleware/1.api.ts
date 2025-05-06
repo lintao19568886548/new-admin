@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
 
   // 获取用户名
   const userinfo = await verifyAccessToken(event);
-  const username = userinfo?.username || '';
+  const username = userinfo?.realName || '';
 
   const excludeList = {
     pathPatterns: ['/api/auth'],
