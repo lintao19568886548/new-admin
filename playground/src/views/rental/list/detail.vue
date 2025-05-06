@@ -45,8 +45,8 @@ const detail = ref<ParkDetail>({
   description: '',
   dormitories: [],
   factories: [],
-  imageUrls: ['/assets/微信图片_20250320150833.jpg'],
-  imgUrl: '/assets/微信图片_20250320150833.jpg',
+  imageUrls: [''],
+  imgUrl: '',
   parkId: 0,
   parkName: '',
   status: '',
@@ -109,8 +109,8 @@ async function fetchParkDetail() {
             ? factory.updateTime
             : null,
         })),
-        imageUrls: res.imageUrls || ['/assets/微信图片_20250320150833.jpg'],
-        imgUrl: res.imgUrl || '/assets/微信图片_20250320150833.jpg',
+        imageUrls: res.imageUrls || [''],
+        imgUrl: res.imgUrl || '',
         // 修正语法错误并优化日期验证
         updateTime: isValidDate(res.updateTime) ? res.updateTime : null,
       };
@@ -163,21 +163,27 @@ onMounted(() => {
             <Carousel
               v-if="detail.imageUrls && detail.imageUrls.length > 1"
               autoplay
+              :autoplay-speed="3000"
+              effect="fade"
+              dots-class="custom-dots"
             >
               <div v-for="(url, index) in detail.imageUrls" :key="index">
                 <Image
                   :src="url"
                   :alt="`${detail.parkName}-图片${index + 1}`"
-                  class="w-full rounded-lg shadow-md"
+                  class="aspect-video w-full rounded-lg object-cover shadow-md"
+                  :fallback="require('@/assets/images/placeholder.png')"
+                  :preview="false"
                 />
               </div>
             </Carousel>
             <!-- 如果只有一张图片，直接展示 -->
             <Image
               v-else
-              :src="detail.imgUrl"
+              :src="detail.imgUrl || require('@/assets/images/placeholder.png')"
               :alt="detail.parkName"
-              class="w-full rounded-lg shadow-md"
+              class="aspect-video w-full rounded-lg object-cover shadow-md"
+              :fallback="require('@/assets/images/placeholder.png')"
             />
           </div>
           <div class="p-4 md:w-2/3">

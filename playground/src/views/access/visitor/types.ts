@@ -1,6 +1,7 @@
 export interface VisitorItem {
   carNum?: string;
   createTime?: string;
+  parkName?: string; // 添加园区名称字段
   phoneNumber: string;
   registerTime: string;
   remark?: string;

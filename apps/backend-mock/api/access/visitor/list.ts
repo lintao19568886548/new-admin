@@ -81,13 +81,23 @@ export default eventHandler(async (event) => {
       where,
       skip,
       take: pageSize,
+      include: {
+        // 添加 include 来关联 Park 模型
+        park: true,
+      },
       orderBy: {
         createTime: 'desc',
       },
     });
 
+    // 转换数据，将 park.parkName 映射到 parkName
+    const formattedVisitors = visitors.map((visitor) => ({
+      ...visitor,
+      parkName: visitor.park?.parkName || '未知园区',
+    }));
+
     return useResponseSuccess({
-      items: visitors,
+      items: formattedVisitors, // 返回处理后的数据
       total,
       currentPage,
       pageSize,
