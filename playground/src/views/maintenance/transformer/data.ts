@@ -96,6 +96,20 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'parkId',
       label: $t('page.common.park'),
+      rules: 'required',
+    },
+    {
+      component: 'DatePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD HH:mm:ss',
+        placeholder: '请选择日期',
+        showTime: true,
+        style: { width: '100%' },
+        valueFormat: 'YYYY-MM-DD HH:mm:ss',
+      },
+      fieldName: 'checkTime',
+      label: $t('page.maintenance.checkTime'),
+      rules: 'required',
     },
     {
       component: 'Textarea',
@@ -162,11 +176,6 @@ export function useGridFormSchema(): VbenFormSchema[] {
     },
     {
       component: 'Input',
-      fieldName: 'remark',
-      label: $t('system.maintenance.transformer.remark'),
-    },
-    {
-      component: 'Input',
       fieldName: 'address',
       label: $t('system.rental.address'),
     },
@@ -205,11 +214,6 @@ export function useColumns<T = TransformerItem>(
       title: $t('system.maintenance.transformer.status.label'),
     },
     {
-      field: 'remark',
-      minWidth: 150,
-      title: $t('system.maintenance.transformer.remark'),
-    },
-    {
       field: 'address',
       minWidth: 200,
       title: $t('system.rental.address'),
@@ -226,6 +230,11 @@ export function useColumns<T = TransformerItem>(
       },
       minWidth: 120,
       title: $t('page.maintenance.checkTime'),
+    },
+    {
+      field: 'remark',
+      minWidth: 150,
+      title: $t('system.maintenance.transformer.remark'),
     },
     {
       align: 'center',
