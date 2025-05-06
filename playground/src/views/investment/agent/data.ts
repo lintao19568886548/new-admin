@@ -51,12 +51,26 @@ export function useFormSchema(closeModal: () => void): VbenFormSchema[] {
       component: 'Input',
       fieldName: 'tenantName',
       label: $t('page.tenant.name'),
-      rules: 'required',
     },
     {
       component: 'Input',
       fieldName: 'agentName',
       label: $t('page.agent.name'),
+    },
+    {
+      component: 'Select',
+      componentProps: {
+        options: [
+          { label: '初步接洽', value: '初步接洽' },
+          { label: '深入沟通', value: '深入沟通' },
+          { label: '合同准备', value: '合同准备' },
+          { label: '签约完成', value: '签约完成' },
+        ],
+        style: { width: '100%' },
+      },
+      fieldName: 'progress',
+      label: $t('page.agent.progress'),
+      rules: 'required',
     },
     {
       component: 'Select',
@@ -68,11 +82,13 @@ export function useFormSchema(closeModal: () => void): VbenFormSchema[] {
           { label: '低', value: '低' },
           { label: '很低', value: '很低' },
         ],
-        style: { width: '25%' },
+        style: { width: '100%' },
       },
       fieldName: 'intentLevel',
       label: $t('page.agent.intentLevel'),
+      rules: 'required',
     },
+
     {
       component: 'InputNumber',
       // 添加 componentProps 以设置单位
@@ -81,26 +97,28 @@ export function useFormSchema(closeModal: () => void): VbenFormSchema[] {
         style: { width: '100%' }, // 可以根据需要调整样式
       },
       fieldName: 'intentArea',
+      formItemClass: 'col-span-2',
       label: $t('page.agent.intentArea'),
     },
-    {
-      component: 'Select',
-      componentProps: {
-        options: [
-          { label: '初步接洽', value: '初步接洽' },
-          { label: '深入沟通', value: '深入沟通' },
-          { label: '合同准备', value: '合同准备' },
-          { label: '签约完成', value: '签约完成' },
-        ],
-        style: { width: '25%' },
-      },
-      fieldName: 'progress',
-      label: $t('page.agent.progress'),
-    },
+
     {
       component: 'Input',
       fieldName: 'phoneNumber',
+      formItemClass: 'col-span-2',
       label: $t('page.agent.phone'),
+    },
+    {
+      component: 'DatePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD HH:mm:ss',
+        placeholder: '请选择日期',
+        showTime: true,
+        style: { width: '100%' },
+        valueFormat: 'YYYY-MM-DD HH:mm:ss',
+      },
+      fieldName: 'meetingTime',
+      formItemClass: 'col-span-2',
+      label: $t('page.common.date'),
       rules: 'required',
     },
     {
@@ -113,6 +131,7 @@ export function useFormSchema(closeModal: () => void): VbenFormSchema[] {
         valueField: 'parkId',
       },
       fieldName: 'parkId',
+      formItemClass: 'col-span-2',
       help: '新增园区请在 租赁管理-园区管理 中操作',
       // 使用 label 属性渲染自定义组件
       label: () =>
@@ -122,22 +141,12 @@ export function useFormSchema(closeModal: () => void): VbenFormSchema[] {
           label: $t('page.common.park'),
           path: '/rental/manage/', // 传递跳转路径
         }),
-    },
-    {
-      component: 'DatePicker',
-      componentProps: {
-        format: 'YYYY-MM-DD HH:mm:ss',
-        placeholder: '请选择日期',
-        showTime: true,
-        style: { width: '100%' },
-        valueFormat: 'YYYY-MM-DD HH:mm:ss',
-      },
-      fieldName: 'meetingTime',
-      label: $t('page.common.date'),
+      rules: 'required',
     },
     {
       component: 'Input',
       fieldName: 'remark',
+      formItemClass: 'col-span-2',
       label: $t('page.common.remark'),
     },
   ];
@@ -168,6 +177,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
         ],
       },
       fieldName: 'intentLevel',
+      formItemClass: 'col-span-1',
       label: $t('page.agent.intentLevel'),
     },
     // 使用 MultiSelect 组件替换 minIntentArea 和 maxIntentArea
