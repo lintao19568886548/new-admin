@@ -19,6 +19,8 @@ model Park {
   firefighting  Firefighting[]    @relation("ParkToFirefighting")
   transformers  Transformer[]     @relation("ParkToTransformer")
   rentalTenants RentalTenant[]    @relation("ParkToRentalTenant")
+  // 添加与图片的关联
+  images        ParkImage[]       @relation("ParkToParkImage")
   createTime    DateTime          @default(now()) @map("create_time")
   updateTime    DateTime?         @updatedAt @map("update_time")
   isDeleted     Boolean           @default(false) @map("is_deleted") // 逻辑删除字段

@@ -8,6 +8,8 @@ model Image {
   floorImages     FactoryFloorImage[] @relation("ImageToFactoryFloorImage")
   // 添加与 DormitoryImage 的关联
   dormitoryImages DormitoryImage[]    @relation("ImageToDormitoryImage")
+  // 添加与 ParkImage 的关联
+  parkImages      ParkImage[]         @relation("ImageToParkImage")
 
   @@map("image")
 }
@@ -58,4 +60,20 @@ model DormitoryImage {
   @@index([dormitoryId])
   @@index([imgId])
   @@map("dormitory_image")
+}
+
+// 添加新的 ParkImage 模型
+model ParkImage {
+  id         Int       @id @default(autoincrement())
+  parkId     Int       @map("park_id")
+  imgId      Int       @map("img_id")
+  park       Park      @relation("ParkToParkImage", fields: [parkId], references: [parkId])
+  image      Image     @relation("ImageToParkImage", fields: [imgId], references: [imgId])
+  createTime DateTime? @default(now()) @map("create_time")
+  updateTime DateTime? @updatedAt @map("update_time")
+
+  @@unique([parkId, imgId]) // 确保 park/image 组合唯一
+  @@index([parkId])
+  @@index([imgId])
+  @@map("park_image")
 }
