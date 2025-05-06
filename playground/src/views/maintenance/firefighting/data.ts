@@ -52,6 +52,7 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'parkId',
       label: $t('page.common.park'),
+      rules: 'required',
     },
     {
       component: 'Input',
@@ -122,6 +123,7 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'checkTime',
       label: $t('page.maintenance.checkTime'),
+      rules: 'required',
     },
     {
       component: 'Textarea',

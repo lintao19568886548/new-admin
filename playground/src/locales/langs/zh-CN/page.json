@@ -155,6 +155,7 @@
     "list": "维护列表",
     "title": "维护管理",
     "transformer": "变压器管理",
+    "transformerList": "变压器列表",
     "view": "查看维修"
   },
   "park": {

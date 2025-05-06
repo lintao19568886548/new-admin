@@ -61,7 +61,7 @@ async function onDelete(row: any) {
       // 使用 try-catch 替代 then-catch 链
       await deleteFirefighting(firefightingId);
       message.success({
-        content: $t('ui.actionMessage.deleteSuccess', [row.tenantName]),
+        content: $t('ui.actionMessage.deleteSuccess', [row.firefightingName]),
         key: 'action_process_msg',
       });
       refreshGrid();
