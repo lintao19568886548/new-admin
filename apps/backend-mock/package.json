@@ -28,6 +28,6 @@
     "@types/jsonwebtoken": "catalog:",
     "h3": "catalog:",
     "nitropack": "^2.11.8",
-    "prisma": "^6.5.0"
+    "prisma": "^6.7.0"
   }
 }
