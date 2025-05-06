@@ -180,6 +180,11 @@ export function useColumns<T = SystemDeptApi.SystemDept>(
       width: 150,
     },
     {
+      field: 'parkName', // 新增园区名称字段
+      title: '园区名称',
+      width: 150,
+    },
+    {
       field: 'remark',
       title: '来访原因',
     },
