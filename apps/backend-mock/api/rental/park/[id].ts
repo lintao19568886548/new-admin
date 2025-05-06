@@ -46,6 +46,9 @@ export default eventHandler(async (event) => {
         },
         // 新增：包含园区图片信息
         images: {
+          orderBy: {
+            id: 'asc',
+          },
           include: {
             image: true, // 确保 Image 模型被包含，其中应有 imgUrl
           },

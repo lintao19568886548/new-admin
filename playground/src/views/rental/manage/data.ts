@@ -167,6 +167,35 @@ export function useParkFormSchema(): VbenFormSchema[] {
         )
         .optional(),
     },
+    {
+      component: 'Upload',
+      componentProps: {
+        // 更多属性见：https://ant.design/components/upload-cn
+        accept: '.png,.jpg,.jpeg',
+        // 自动携带认证信息
+        // customRequest: uploadParkImage,
+        action: '/api/image/upload',
+        headers: {
+          Authorization: `Bearer ${accessStore.accessToken}`,
+        },
+        multiple: true,
+        // 添加 onChange 处理函数以显示上传状态消息
+        onChange: imageOnChange,
+        onPreview: imageOnPreview,
+        listType: 'picture-card',
+        // 添加预览处理函数
+        // showUploadList: true,
+        // 上传列表的内建样式，支持四种基本样式 text, picture, picture-card 和 picture-circle
+      },
+      fieldName: 'images',
+      formItemClass: 'col-span-2', // 根据你的布局调整
+      label: $t('page.factory.images'),
+      renderComponentContent: () => {
+        return {
+          default: () => $t('page.factory.upload-image'),
+        };
+      },
+    },
   ];
 }
 

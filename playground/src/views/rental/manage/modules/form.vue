@@ -57,14 +57,42 @@ async function handleNext(step: number) {
   // 验证当前表单
   if (currentTab.value === 0) {
     const { valid } = await parkFormApi.validate();
-    const values = await parkFormApi.getValues();
+    const apiValues = await parkFormApi.getValues(); // 使用 apiValues 避免与 onConfirm 中的 values 混淆
     if (!valid) {
       message.warning('请完成园区信息表单的必填项');
       return;
     }
+
+    // 处理图片数据以符合 Prisma 嵌套写入的格式
+    if (apiValues.images && Array.isArray(apiValues.images)) {
+      const imageConnectInputs = apiValues.images
+        .map((img: any) => {
+          // 从新上传的图片或已存在的图片数据中获取 imgId
+          const imgId = img.response?.data?.imgId || img.imgId;
+          if (imgId) {
+            // 此结构假设 Park.images 是到 ParkImage 的关联,
+            // ParkImage 有一个 'image' 字段关联到 Image 模型。
+            // 我们正在创建 ParkImage 记录，每个记录连接到一个已存在的 Image。
+            return { image: { connect: { imgId: Number(imgId) } } };
+          }
+          return null;
+        })
+        .filter(Boolean); // 过滤掉无效的条目 (比如没有 imgId 的)
+
+      apiValues.images = {
+        create: imageConnectInputs,
+        ...(id.value ? { deleteMany: {} } : {}), // 如果是更新，则添加 deleteMany
+      };
+    } else {
+      // 如果没有提供图片
+      apiValues.images = id.value ? { deleteMany: {} } : undefined; // 更新则删除所有关联，创建则为 undefined
+    }
+
+    const parkDataForApi = { ...apiValues };
+
     const park = id.value
-      ? await updatePark(id.value, values)
-      : await createPark(values);
+      ? await updatePark(id.value, parkDataForApi)
+      : await createPark(parkDataForApi);
     id.value = park.parkId;
     parkStore.parkId = park.parkId;
   }

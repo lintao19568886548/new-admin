@@ -32,7 +32,9 @@ const route = useRoute();
 const router = useRouter();
 const id = ref(route.params.id);
 const loading = ref(false);
-const activeKey = ref(['1']); // 默认展开第一个折叠面板
+// const activeKey = ref(['1']); // 默认展开第一个折叠面板 // MODIFIED
+const activeFactoryKey = ref<string[]>([]); // 修改：厂房默认展开的key
+const activeDormitoryKey = ref<string[]>([]); // 新增：宿舍默认展开的key
 const activeTabKey = ref('1'); // 添加这行，定义 Tabs 的激活标签页
 
 // 返回列表页面
@@ -121,6 +123,20 @@ async function fetchParkDetail() {
       };
 
       detail.value = processedData;
+
+      // 默认展开前三个厂房
+      if (detail.value.factories && detail.value.factories.length > 0) {
+        activeFactoryKey.value = detail.value.factories
+          .slice(0, 3)
+          .map((factory: any) => String(factory.factoryId));
+      }
+
+      // 默认展开前三个宿舍
+      if (detail.value.dormitories && detail.value.dormitories.length > 0) {
+        activeDormitoryKey.value = detail.value.dormitories
+          .slice(0, 3)
+          .map((dorm: any) => String(dorm.dormitoryId));
+      }
     }
   } catch (error) {
     console.error('获取园区详情失败:', error);
@@ -243,21 +259,21 @@ onMounted(() => {
       <!-- 厂房信息 -->
       <Card title="厂房信息" class="mt-5">
         <div v-if="detail.factories && detail.factories.length > 0">
-          <Collapse v-model:active-key="activeKey">
+          <Collapse v-model:active-key="activeFactoryKey">
             <CollapsePanel
               v-for="factory in detail.factories"
               :key="factory.factoryId"
               :header="factory.factoryName"
             >
               <div class="flex flex-col md:flex-row">
-                <div class="p-4 md:w-1/3">
+                <!-- <div class="p-4 md:w-1/3"> // REMOVED Factory Image Display
                   <Image
                     :src="factory.imgUrl || store.defaultImgUrl"
                     :alt="factory.factoryName"
                     class="w-full rounded-lg shadow-md"
                   />
-                </div>
-                <div class="p-4 md:w-2/3">
+                </div> -->
+                <div class="p-4 md:w-full">
                   <Descriptions
                     bordered
                     :column="{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }"
@@ -297,7 +313,7 @@ onMounted(() => {
                         <div class="flex flex-col md:flex-row">
                           <div class="p-2 md:w-1/3">
                             <Image
-                              :src="floor.imgUrl"
+                              :src="floor.imgUrl || store.defaultImgUrl"
                               :alt="floor.floorName"
                               class="w-full rounded-lg shadow-md"
                             />
@@ -452,60 +468,82 @@ onMounted(() => {
       <!-- 宿舍信息 -->
       <Card title="宿舍信息" class="mt-5">
         <div v-if="detail.dormitories && detail.dormitories.length > 0">
-          <div
-            v-for="dorm in detail.dormitories"
-            :key="dorm.dormitoryId"
-            class="mb-4 border-b pb-4"
-          >
-            <div class="flex flex-col md:flex-row">
-              <div class="p-4 md:w-1/3">
-                <Image
-                  :src="dorm.imgUrl"
-                  :alt="`宿舍-${dorm.dormitoryId}`"
-                  class="w-full rounded-lg shadow-md"
-                />
+          <Collapse v-model:active-key="activeDormitoryKey">
+            <CollapsePanel
+              v-for="dorm in detail.dormitories"
+              :key="dorm.dormitoryId"
+              :header="dorm.dormitoryName"
+            >
+              <div class="flex flex-col md:flex-row">
+                <!-- 新增：宿舍图片展示 -->
+                <div class="p-4 md:w-1/3">
+                  <Carousel
+                    v-if="dorm.imageUrls && dorm.imageUrls.length > 1"
+                    autoplay
+                  >
+                    <div v-for="(url, index) in dorm.imageUrls" :key="index">
+                      <Image
+                        :src="url || store.defaultImgUrl"
+                        :alt="`${dorm.dormitoryName}-图片${index + 1}`"
+                        class="w-full rounded-lg shadow-md"
+                      />
+                    </div>
+                  </Carousel>
+                  <Image
+                    v-else
+                    :src="dorm.imgUrl || store.defaultImgUrl"
+                    :alt="dorm.dormitoryName"
+                    class="w-full rounded-lg shadow-md"
+                  />
+                </div>
+
+                <!-- 宿舍详细信息 -->
+                <div class="p-4 md:w-2/3">
+                  <Descriptions
+                    bordered
+                    :column="{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }"
+                  >
+                    <Descriptions.Item label="总层数">
+                      {{ dorm.floorCount }} 层
+                    </Descriptions.Item>
+                    <Descriptions.Item label="总房间数">
+                      {{ dorm.totalRooms }} 间
+                    </Descriptions.Item>
+                    <Descriptions.Item label="一楼层高">
+                      {{ dorm.floorHeightFirst }} m
+                    </Descriptions.Item>
+                    <Descriptions.Item label="其他层高">
+                      {{ dorm.floorHeightOther }} m
+                    </Descriptions.Item>
+                    <Descriptions.Item label="一楼已用房间数">
+                      {{ dorm.usedRoomsFirst }} 间
+                    </Descriptions.Item>
+                    <Descriptions.Item label="其他层已用房间数">
+                      {{ dorm.usedRoomsOther }} 间
+                    </Descriptions.Item>
+                    <Descriptions.Item label="一楼租金">
+                      {{ dorm.rentPriceFirst }} 元/间/月
+                    </Descriptions.Item>
+                    <Descriptions.Item label="其他层租金">
+                      {{ dorm.rentPriceOther }} 元/间/月
+                    </Descriptions.Item>
+                    <Descriptions.Item label="单间面积">
+                      {{ dorm.roomArea }} m²
+                    </Descriptions.Item>
+                  </Descriptions>
+                  <Divider orientation="left">宿舍备注</Divider>
+                  <p class="mb-6 text-base leading-relaxed">
+                    {{ dorm.remark || '暂无备注' }}
+                  </p>
+                </div>
               </div>
-              <div class="p-4 md:w-2/3">
-                <Descriptions
-                  bordered
-                  :column="{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }"
-                >
-                  <Descriptions.Item label="总层数">
-                    {{ dorm.floorCount }} 层
-                  </Descriptions.Item>
-                  <Descriptions.Item label="一楼层高">
-                    {{ dorm.floorHeightFirst || '-' }} 米
-                  </Descriptions.Item>
-                  <Descriptions.Item label="其他楼层层高">
-                    {{ dorm.floorHeightOther || '-' }} 米
-                  </Descriptions.Item>
-                  <Descriptions.Item label="单间面积">
-                    {{ dorm.roomArea || '-' }} m²
-                  </Descriptions.Item>
-                  <Descriptions.Item label="总房间数">
-                    {{ dorm.totalRooms }} 间
-                  </Descriptions.Item>
-                  <Descriptions.Item label="一楼已用房间">
-                    {{ dorm.usedRoomsFirst }} 间
-                  </Descriptions.Item>
-                  <Descriptions.Item label="其他楼层已用房间">
-                    {{ dorm.usedRoomsOther }} 间
-                  </Descriptions.Item>
-                  <Descriptions.Item label="一楼租金">
-                    {{ dorm.rentPriceFirst || '-' }} 元/间/月
-                  </Descriptions.Item>
-                  <Descriptions.Item label="其他楼层租金">
-                    {{ dorm.rentPriceOther || '-' }} 元/间/月
-                  </Descriptions.Item>
-                </Descriptions>
-                <Divider orientation="left">宿舍备注</Divider>
-                <p>{{ dorm.remark || '暂无备注' }}</p>
-              </div>
-            </div>
-          </div>
+            </CollapsePanel>
+          </Collapse>
         </div>
         <div v-else class="py-10 text-center text-gray-500">暂无宿舍信息</div>
       </Card>
     </Spin>
   </Page>
 </template>
+
+<style lang="scss" scoped></style>

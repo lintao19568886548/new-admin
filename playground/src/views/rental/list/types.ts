@@ -102,6 +102,7 @@ export interface DormitoryImageDetail {
 export interface DormitoryDetail {
   createTime: string;
   dormitoryId: number;
+  dormitoryName: string;
   floorCount: number;
   floorHeightFirst: number;
   floorHeightOther: number;

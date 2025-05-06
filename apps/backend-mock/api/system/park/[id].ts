@@ -17,6 +17,11 @@ export default eventHandler(async (event) => {
     const park = await prismaClient.park.findUnique({
       where: { parkId: id },
       include: {
+        images: {
+          include: {
+            image: true, // 包含图片详细信息
+          },
+        },
         factories: {
           include: {
             floors: {
@@ -49,6 +54,11 @@ export default eventHandler(async (event) => {
     // 处理返回数据，将图片关联数据转换为更易于前端使用的格式
     const result = {
       ...park,
+      images: park.images.map((imgRelation) => ({
+        imgId: imgRelation.imgId,
+        name: imgRelation.image?.imgUrl.split('/').at(-1) || '',
+        url: imgRelation.image?.imgUrl || '',
+      })),
       factories: park.factories.map((factory) => ({
         ...factory,
         floors: factory.floors.map((floor) => ({

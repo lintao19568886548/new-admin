@@ -7,6 +7,7 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
   const body = await readBody(event);
+  console.log(body);
   const id = Number(event.context.params?.id);
   try {
     // 使用事务处理创建操作

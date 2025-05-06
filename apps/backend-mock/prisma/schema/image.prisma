@@ -72,7 +72,6 @@ model ParkImage {
   createTime DateTime? @default(now()) @map("create_time")
   updateTime DateTime? @updatedAt @map("update_time")
 
-  @@unique([parkId, imgId]) // 确保 park/image 组合唯一
   @@index([parkId])
   @@index([imgId])
   @@map("park_image")
