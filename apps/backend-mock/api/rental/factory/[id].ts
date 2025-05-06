@@ -33,9 +33,6 @@ export default eventHandler(async (event) => {
       return useResponseError('厂房不存在', 404);
     }
 
-    // 处理图片数据
-    const defaultImgUrl = '/assets/微信图片_20250320150833.jpg';
-
     // 从楼层中获取图片
     const allImages = [];
     factory.floors.forEach((floor) => {
@@ -52,8 +49,8 @@ export default eventHandler(async (event) => {
 
       return {
         ...floor,
-        imgUrl: floorImages.length > 0 ? floorImages[0] : defaultImgUrl,
-        imageUrls: floorImages.length > 0 ? floorImages : [defaultImgUrl],
+        imgUrl: floorImages.length > 0 ? floorImages[0] : '',
+        imageUrls: floorImages.length > 0 ? floorImages : '',
       };
     });
 
@@ -61,17 +58,17 @@ export default eventHandler(async (event) => {
     return useResponseSuccess({
       ...factory,
       floors,
-      imgUrl: allImages.length > 0 ? allImages[0] : defaultImgUrl, // 主图
-      imageUrls: allImages.length > 0 ? allImages : [defaultImgUrl], // 所有图片
+      imgUrl: allImages.length > 0 ? allImages[0] : '', // 主图
+      imageUrls: allImages.length > 0 ? allImages : '', // 所有图片
       // 处理消防设施数据
       firefighting: factory.firefighting.map((item) => ({
         ...item,
-        imgUrl: item.imgUrl || defaultImgUrl,
+        imgUrl: item.imgUrl || '',
       })),
       // 处理变压器数据
       transformers: factory.transformers.map((item) => ({
         ...item,
-        imgUrl: item.imgUrl || defaultImgUrl,
+        imgUrl: item.imgUrl || '',
       })),
     });
   } catch (error) {

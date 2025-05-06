@@ -53,11 +53,9 @@ export default eventHandler(async (event) => {
 
     // 处理返回数据
     const items = parks.map((park) => {
-      const defaultImgUrl = '/assets/微信图片_20250320150833.jpg';
-
       return {
         ...park,
-        imgUrl: defaultImgUrl, // 使用默认图片
+        imgUrl: '', // 使用默认图片
         factoryCount: park.factories.length, // 厂房数量
         dormitoryCount: park.dormitories.length, // 宿舍数量
       };

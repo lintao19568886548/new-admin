@@ -24,6 +24,9 @@ import {
 } from 'ant-design-vue';
 
 import { getParkDetail } from '#/api/rental'; // 需要创建新的API
+import { useParkStore } from '#/store';
+
+const store = useParkStore();
 
 const route = useRoute();
 const router = useRouter();
@@ -45,8 +48,8 @@ const detail = ref<ParkDetail>({
   description: '',
   dormitories: [],
   factories: [],
-  imageUrls: [''],
-  imgUrl: '',
+  imageUrls: [store.defaultImgUrl], // 使用常量
+  imgUrl: store.defaultImgUrl, // 使用常量
   parkId: 0,
   parkName: '',
   status: '',
@@ -109,8 +112,10 @@ async function fetchParkDetail() {
             ? factory.updateTime
             : null,
         })),
-        imageUrls: res.imageUrls || [''],
-        imgUrl: res.imgUrl || '',
+        imageUrls: res.imageUrls?.length
+          ? res.imageUrls
+          : [store.defaultImgUrl], // 修改此行
+        imgUrl: res.imgUrl || store.defaultImgUrl, // 使用常量
         // 修正语法错误并优化日期验证
         updateTime: isValidDate(res.updateTime) ? res.updateTime : null,
       };
@@ -163,27 +168,21 @@ onMounted(() => {
             <Carousel
               v-if="detail.imageUrls && detail.imageUrls.length > 1"
               autoplay
-              :autoplay-speed="3000"
-              effect="fade"
-              dots-class="custom-dots"
             >
               <div v-for="(url, index) in detail.imageUrls" :key="index">
                 <Image
-                  :src="url"
+                  :src="url || store.defaultImgUrl"
                   :alt="`${detail.parkName}-图片${index + 1}`"
-                  class="aspect-video w-full rounded-lg object-cover shadow-md"
-                  :fallback="require('@/assets/images/placeholder.png')"
-                  :preview="false"
+                  class="w-full rounded-lg shadow-md"
                 />
               </div>
             </Carousel>
-            <!-- 如果只有一张图片，直接展示 -->
+            <!-- 如果只有一张图片，直接展示 (此处的 detail.imgUrl 已由脚本处理，无需修改) -->
             <Image
               v-else
-              :src="detail.imgUrl || require('@/assets/images/placeholder.png')"
+              :src="detail.imgUrl"
               :alt="detail.parkName"
-              class="aspect-video w-full rounded-lg object-cover shadow-md"
-              :fallback="require('@/assets/images/placeholder.png')"
+              class="w-full rounded-lg shadow-md"
             />
           </div>
           <div class="p-4 md:w-2/3">
@@ -253,7 +252,7 @@ onMounted(() => {
               <div class="flex flex-col md:flex-row">
                 <div class="p-4 md:w-1/3">
                   <Image
-                    :src="factory.imgUrl"
+                    :src="factory.imgUrl || store.defaultImgUrl"
                     :alt="factory.factoryName"
                     class="w-full rounded-lg shadow-md"
                   />

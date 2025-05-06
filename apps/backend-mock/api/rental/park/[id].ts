@@ -44,6 +44,12 @@ export default eventHandler(async (event) => {
             },
           },
         },
+        // 新增：包含园区图片信息
+        images: {
+          include: {
+            image: true, // 确保 Image 模型被包含，其中应有 imgUrl
+          },
+        },
       },
     });
 
@@ -51,18 +57,28 @@ export default eventHandler(async (event) => {
       return useResponseError('园区不存在', 404);
     }
 
+    // 新增：处理园区图片数据
+    const processedParkImages = park.images
+      ? park.images
+          .map((parkImageRelation) => parkImageRelation.image?.imgUrl) // 从关联的 Image 对象获取 imgUrl
+          .filter((url): url is string => !!url) // 过滤掉无效的 URL，并确保类型安全
+      : [];
+
+    const parkMainImgUrl =
+      processedParkImages.length > 0 ? processedParkImages[0] : '';
+    const parkImageUrlsList =
+      processedParkImages.length > 0 ? processedParkImages : [];
+
     // 处理厂房数据，添加图片URL
     const factories = park.factories.map((factory) => {
-      const defaultImgUrl = '/assets/微信图片_20250320150833.jpg';
-
       // 处理厂房楼层数据
       const floors = factory.floors.map((floor) => {
         const floorImages = floor.images.map((item) => item.image.imgUrl);
 
         return {
           ...floor,
-          imgUrl: floorImages.length > 0 ? floorImages[0] : defaultImgUrl,
-          imageUrls: floorImages.length > 0 ? floorImages : [defaultImgUrl],
+          imgUrl: floorImages.length > 0 ? floorImages[0] : '',
+          imageUrls: floorImages.length > 0 ? floorImages : [],
           createTime: floor.createTime ? floor.createTime.toISOString() : null,
           updateTime: floor.updateTime ? floor.updateTime.toISOString() : null,
         };
@@ -82,13 +98,9 @@ export default eventHandler(async (event) => {
 
       // 获取第一个楼层的图片作为厂房主图
       const firstFloorImages =
-        floors.length > 0 && floors[0].imageUrls
-          ? floors[0].imageUrls
-          : [defaultImgUrl];
+        floors.length > 0 && floors[0].imageUrls ? floors[0].imageUrls : [];
       const firstFloorMainImage =
-        floors.length > 0 && floors[0].imgUrl
-          ? floors[0].imgUrl
-          : defaultImgUrl;
+        floors.length > 0 && floors[0].imgUrl ? floors[0].imgUrl : '';
 
       return {
         ...safeFactory,
@@ -99,26 +111,25 @@ export default eventHandler(async (event) => {
         firefighting: factory.firefighting.map((item) => ({
           ...item,
           checkTime: item.checkTime ? item.checkTime.toISOString() : null,
-          imgUrl: item.imgUrl || defaultImgUrl,
+          imgUrl: item.imgUrl || '', // 使用常量
         })),
         // 处理变压器数据
         transformers: factory.transformers.map((item) => ({
           ...item,
           checkTime: item.checkTime ? item.checkTime.toISOString() : null,
-          imgUrl: item.imgUrl || defaultImgUrl,
+          imgUrl: item.imgUrl || '', // 使用常量
         })),
       };
     });
 
     // 处理宿舍数据
     const dormitories = park.dormitories.map((dorm) => {
-      const defaultImgUrl = '/assets/微信图片_20250320150833.jpg';
       const dormImages = dorm.images.map((item) => item.image.imgUrl);
 
       return {
         ...dorm,
-        imgUrl: dormImages.length > 0 ? dormImages[0] : defaultImgUrl,
-        imageUrls: dormImages.length > 0 ? dormImages : [defaultImgUrl],
+        imgUrl: dormImages.length > 0 ? dormImages[0] : '', // 使用常量
+        imageUrls: dormImages.length > 0 ? dormImages : [], // 使用常量
         createTime: dorm.createTime ? dorm.createTime.toISOString() : null,
         updateTime: dorm.updateTime ? dorm.updateTime.toISOString() : null,
       };
@@ -129,8 +140,8 @@ export default eventHandler(async (event) => {
       ...park,
       createTime: park.createTime ? park.createTime.toISOString() : null,
       updateTime: park.updateTime ? park.updateTime.toISOString() : null,
-      imgUrl: '/assets/微信图片_20250320150833.jpg', // 园区默认图片
-      imageUrls: ['/assets/微信图片_20250320150833.jpg'], // 园区图片列表
+      imgUrl: parkMainImgUrl, // 修改：使用处理后的园区主图片
+      imageUrls: parkImageUrlsList, // 修改：使用处理后的园区图片列表
       factories, // 处理后的厂房数据
       dormitories, // 处理后的宿舍数据
     });

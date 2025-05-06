@@ -10,6 +10,9 @@ import { formatDateTime } from '@vben/utils';
 import { Button, message, Spin, Tag } from 'ant-design-vue';
 
 import { getParkList } from '#/api/rental'; // 需要创建新的API
+import { useParkStore } from '#/store';
+
+const store = useParkStore();
 
 // 园区列表数据
 const projectItems = ref<ParkListItem[]>([]);
@@ -56,13 +59,13 @@ async function fetchParkList(isLoadMore = false) {
     // 转换后端数据为前端需要的格式
     const items = res.items.map((item: any) => {
       // 直接使用后端返回的imgUrl，如果没有则使用默认图片
-      const imgUrl = item.imgUrl || '/assets/微信图片_20250320150833.jpg';
+      const imgUrl = item.imgUrl || store.defaultImgUrl; // 使用常量
 
       return {
         address: item.address,
         area: item.area,
         content: item.description || '暂无描述',
-        date: formatDateTime(item.createTime),
+        date: item.createTime ? formatDateTime(item.createTime) : 'N/A', // 添加日期检查
         group: item.parkName, // 使用园区名称作为分组
         id: item.parkId,
         imgUrl,
@@ -202,3 +205,5 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
+
+<style lang="scss" scoped></style>
