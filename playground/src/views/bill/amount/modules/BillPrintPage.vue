@@ -22,7 +22,66 @@ const formattedCutoffDate = computed(() => {
     return `${date.date()}日${date.hour()}时`;
   } catch (error) {
     console.error('日期格式化错误:', error);
-    return query.value.cutoffDate;
+    return query.value.cutoffDate as string;
+  }
+});
+
+// 新增计算属性
+const paymentDeadlineDate = computed(() => {
+  if (!query.value.cutoffDate) return '5'; // Fallback to original day
+  try {
+    return dayjs(query.value.cutoffDate as string).date();
+  } catch (error) {
+    console.error('Error parsing cutoffDate for paymentDeadlineDate:', error);
+    return '5'; // Fallback
+  }
+});
+
+const lateFeeStartFullDate = computed(() => {
+  const fallback = { day: '6', monthStr: '本' }; // Fallback to original
+  if (!query.value.cutoffDate || !query.value.billingDate) {
+    return fallback;
+  }
+
+  try {
+    const lateFeeDate = dayjs(query.value.cutoffDate as string).add(1, 'day');
+    const billing = dayjs(query.value.billingDate as string);
+    let monthDisplay;
+
+    if (lateFeeDate.isSame(billing, 'month')) {
+      monthDisplay = '本';
+    } else if (lateFeeDate.isSame(billing.add(1, 'month'), 'month')) {
+      monthDisplay = '次';
+    } else {
+      monthDisplay = lateFeeDate.format('YYYY年M');
+    }
+    return { day: lateFeeDate.date(), monthStr: monthDisplay };
+  } catch (error) {
+    console.error('Error parsing dates for lateFeeStartFullDate:', error);
+    return fallback;
+  }
+});
+
+const cutoffMonthDisplay = computed(() => {
+  const fallback = '本'; // Fallback to original '本'
+  if (!query.value.cutoffDate || !query.value.billingDate) {
+    return fallback;
+  }
+
+  try {
+    const cutoff = dayjs(query.value.cutoffDate as string);
+    const billing = dayjs(query.value.billingDate as string);
+
+    if (cutoff.isSame(billing, 'month')) {
+      return '本';
+    } else if (cutoff.isSame(billing.add(1, 'month'), 'month')) {
+      return '次';
+    } else {
+      return cutoff.format('YYYY年M');
+    }
+  } catch (error) {
+    console.error('Error parsing dates for cutoffMonthDisplay:', error);
+    return fallback;
   }
 });
 
@@ -188,7 +247,9 @@ onMounted(async () => {
       <div class="bill-footer">
         <div class="payment-notice">
           <p>
-            以上款项烦请贵公司核对，请于本月5日之前把各项费用以现金或转账方式存入账户，
+            以上款项烦请贵公司核对，请于{{ cutoffMonthDisplay }}月{{
+              paymentDeadlineDate
+            }}日之前把各项费用以现金或转账方式存入账户，
             并请将转账凭证截屏发送或传真至我公司财务部或园区负责人。
           </p>
         </div>
@@ -200,10 +261,11 @@ onMounted(async () => {
           </div>
 
           <div class="warning-info">
-            温馨提示：如贵司不能在规定时间内将款项交至我公司，我公司从本月6日起按日收取
-            总金额{{
+            温馨提示：如贵司不能在规定时间内将款项交至我公司，我公司从{{
+              lateFeeStartFullDate.monthStr
+            }}月{{ lateFeeStartFullDate.day }}日起按日收取 总金额{{
               query.lateFeePercentage
-            }}%每天的滞纳金，并将按合同规定在本月{{
+            }}‰ 每天的滞纳金，并将按合同规定在{{ cutoffMonthDisplay }}月{{
               formattedCutoffDate
             }}停止对贵公司的供水、
             供电，直至缴清所有款项及滞纳金后再回复供水、供电。谢谢合作！
