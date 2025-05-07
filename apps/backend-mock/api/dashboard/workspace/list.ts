@@ -13,7 +13,7 @@ export default eventHandler(async (event) => {
   // 构建查询条件
   const where: any = {
     username: {
-      not: 'vben', // 排除用户名为 vben 的记录
+      notIn: ['vben', ''], // 排除用户名为 vben 的记录
     },
   };
 

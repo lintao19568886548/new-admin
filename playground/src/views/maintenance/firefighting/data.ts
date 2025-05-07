@@ -135,7 +135,7 @@ export function useFormSchema(): VbenFormSchema[] {
           width: '100%',
         },
       },
-      fieldName: 'description',
+      fieldName: 'remark',
       label: $t('system.rental.description'),
       rules: z
         .string()
