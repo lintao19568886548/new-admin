@@ -340,10 +340,10 @@ async function handlePrintOk() {
 
     const printSettings = {
       bankName: formData.bankName,
-      billingDate: formData.billingDate.format('YYYY-MM-DD'),
+      billingDate: dayjs(formData.billingDate).format('YYYY-MM-DD'),
       companyAccountName: formData.companyAccountName,
       companyAccountNumber: formData.companyAccountNumber,
-      cutoffDate: formData.cutoffDate.format('YYYY-MM-DD HH:00:00'),
+      cutoffDate: dayjs(formData.cutoffDate).format('YYYY-MM-DD HH:00:00'),
       lateFeePercentage: formData.lateFeePercentage,
       parkManager: formData.parkManager,
     };
@@ -407,12 +407,12 @@ function handlePrintCancel() {
         <Form.Item label="开户行" name="bankName">
           <Input v-model:value="printFormData.bankName" />
         </Form.Item>
-        <Form.Item label="滞纳金百分比" name="lateFeePercentage">
+        <Form.Item label="滞纳金千分比" name="lateFeePercentage">
           <InputNumber
             v-model:value="printFormData.lateFeePercentage"
             :min="0"
             :max="100"
-            addon-after="%"
+            addon-after="‰"
             class="w-full"
           />
         </Form.Item>
