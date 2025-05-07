@@ -69,6 +69,10 @@ function onEdit(row: AmountBill) {
   billFormRef.value?.open(row);
 }
 
+function onNext(row: AmountBill) {
+  billFormRef.value?.open(row, 'next');
+}
+
 /**
  * 创建新账单
  */
@@ -216,6 +220,10 @@ function onActionClick({ code, row }: OnActionClickParams<AmountBill>) {
     }
     case 'edit': {
       onEdit(row);
+      break;
+    }
+    case 'next': {
+      onNext(row);
       break;
     }
     case 'print': {
@@ -367,7 +375,6 @@ async function handlePrintOk() {
 function handlePrintCancel() {
   printModalVisible.value = false;
 }
-// --- 新增代码结束 ---
 </script>
 
 <template>

@@ -64,7 +64,6 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'increaseDate',
       label: $t('system.rental.tenant.increaseDate'),
-      rules: 'required',
     },
     {
       component: 'InputNumber',
@@ -75,8 +74,12 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'increaseRate',
       label: $t('system.rental.tenant.increaseRate'),
-      rules: 'required',
     },
+    // {
+    //   component: markRaw(IncreaseForm),
+    //   fieldName: 'increaseData', // 保持不变，已与接口一致
+    //   // label: $t('page.rental.increaseData'),
+    // },
     {
       component: 'Input',
       fieldName: 'address',
@@ -197,6 +200,21 @@ export function useGridFormSchema(): VbenFormSchema[] {
   ];
 }
 
+export function useIncreaseFormSchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      fieldName: 'tenantName',
+      label: $t('system.rental.tenant.name'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'tenantName',
+      label: $t('system.rental.tenant.name'),
+    },
+  ];
+}
+
 /**
  * 获取表格列配置
  */
@@ -206,13 +224,13 @@ export function useColumns<T = any>(
   return [
     {
       field: 'tenantName',
+      minWidth: 150,
       title: $t('system.rental.tenant.name'),
-      width: 100,
     },
     {
       field: 'phoneNumber',
+      minWidth: 130,
       title: $t('system.rental.tenant.phone'),
-      width: 130,
     },
     {
       cellRender: {
@@ -220,8 +238,8 @@ export function useColumns<T = any>(
         options: getTagTypeOptions(),
       },
       field: 'status',
+      minWidth: 80,
       title: $t('system.rental.tenant.status.label'),
-      width: 80,
     },
     {
       field: 'contractStart',
@@ -229,8 +247,8 @@ export function useColumns<T = any>(
         if (!cellValue) return '';
         return dayjs(cellValue).format('YYYY-MM-DD');
       },
+      minWidth: 100,
       title: $t('system.rental.tenant.contractStart'),
-      width: 120,
     },
     {
       field: 'contractEnd',
@@ -238,8 +256,8 @@ export function useColumns<T = any>(
         if (!cellValue) return '';
         return dayjs(cellValue).format('YYYY-MM-DD');
       },
+      minWidth: 100,
       title: $t('system.rental.tenant.contractEnd'),
-      width: 120,
     },
     {
       field: 'increaseDate',
@@ -247,16 +265,16 @@ export function useColumns<T = any>(
         if (!cellValue) return '';
         return dayjs(cellValue).format('YYYY-MM-DD');
       },
+      minWidth: 100,
       title: $t('system.rental.tenant.increaseDate'),
-      width: 120,
     },
     {
       field: 'increaseRate',
       formatter: ({ cellValue }) => {
         return cellValue ? `${cellValue}%` : '';
       },
+      minWidth: 100,
       title: $t('system.rental.tenant.increaseRate'),
-      width: 100,
     },
     {
       field: 'address',
@@ -283,8 +301,8 @@ export function useColumns<T = any>(
       },
       field: 'operation',
       fixed: 'right',
+      minWidth: 150,
       title: $t('system.rental.operation'),
-      width: 150,
     },
   ];
 }

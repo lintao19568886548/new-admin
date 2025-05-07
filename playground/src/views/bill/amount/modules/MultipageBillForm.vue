@@ -249,12 +249,44 @@ async function handleSave() {
 
 // 初始化数据
 // 在 script 部分修改初始化数据
-async function initData(data: any) {
+async function initData(data: any, type: string) {
   if (!data) return;
   // 复制账单数据
   if (data.billId) {
     const billDetail = await getAmountBillDetail(data.billId);
-    Object.assign(billData, billDetail);
+    if (type === 'next') {
+      const eleBills = billDetail.eleBills.map((item: any) => {
+        return {
+          meterName: item.meterName,
+          multiplier: item.multiplier,
+          previousReading: item.currentReading,
+          unitPrice: item.unitPrice,
+        };
+      });
+      const waterBills = billDetail.waterBills.map((item: any) => {
+        return {
+          meterName: item.meterName,
+          multiplier: item.multiplier,
+          previousReading: item.currentReading,
+          unitPrice: item.unitPrice,
+        };
+      });
+      const nextBillData = {
+        eleBills,
+        factoryRent: billDetail.factoryRent,
+        managementFee: billDetail.managementFee,
+        parkId: billDetail.parkId,
+        projectName: billDetail.projectName,
+        receiptTime: dayjs(billDetail.receiptTime)
+          .add(1, 'month')
+          .toISOString(),
+        tenantName: billDetail.tenantName,
+        waterBills,
+      };
+      Object.assign(billData, nextBillData);
+    } else {
+      Object.assign(billData, billDetail);
+    }
   } else {
     // 重置表单数据
     delete billData.billId;
@@ -310,7 +342,7 @@ defineExpose({
     _handleClose();
   },
   modalApi,
-  open: (data: any) => {
+  open: (data: any, type: string) => {
     // 更新模态窗口配置
     modalProps.value = {
       class:
@@ -330,7 +362,7 @@ defineExpose({
 
     // 设置数据并打开
     modalApi.setData(data);
-    initData(data);
+    initData(data, type);
     modalApi.open();
   },
 });

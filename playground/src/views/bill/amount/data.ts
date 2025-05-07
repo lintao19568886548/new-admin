@@ -186,30 +186,30 @@ export function useColumns<T = AmountBill>(
       minWidth: 120,
       title: '厂房租金',
     },
-    {
-      field: 'managementFee',
-      formatter: ({ cellValue }) => {
-        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
-      },
-      minWidth: 120,
-      title: '基本管理费',
-    },
-    {
-      field: 'serviceFee',
-      formatter: ({ cellValue }) => {
-        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
-      },
-      minWidth: 120,
-      title: '服务费',
-    },
-    {
-      field: 'invoiceTax',
-      formatter: ({ cellValue }) => {
-        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
-      },
-      minWidth: 120,
-      title: '开票税金',
-    },
+    // {
+    //   field: 'managementFee',
+    //   formatter: ({ cellValue }) => {
+    //     return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
+    //   },
+    //   minWidth: 120,
+    //   title: '基本管理费',
+    // },
+    // {
+    //   field: 'serviceFee',
+    //   formatter: ({ cellValue }) => {
+    //     return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
+    //   },
+    //   minWidth: 120,
+    //   title: '服务费',
+    // },
+    // {
+    //   field: 'invoiceTax',
+    //   formatter: ({ cellValue }) => {
+    //     return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
+    //   },
+    //   minWidth: 120,
+    //   title: '开票税金',
+    // },
     {
       field: 'totalFee',
       formatter: ({ cellValue }) => {
@@ -223,8 +223,8 @@ export function useColumns<T = AmountBill>(
       formatter: ({ cellValue }) => {
         return formatDateTime(cellValue);
       },
+      minWidth: 150,
       title: '收款时间',
-      width: 150,
     },
     {
       align: 'center',
@@ -237,17 +237,21 @@ export function useColumns<T = AmountBill>(
         name: 'CellOperation',
         options: [
           {
+            code: 'next',
+            text: '新增下月',
+          },
+          'edit',
+          {
             code: 'print',
             text: '打印',
           },
-          'edit',
           'delete',
         ],
       },
       field: 'operation',
       fixed: 'right',
+      minWidth: 150,
       title: '操作',
-      width: 150,
     },
   ];
 }
