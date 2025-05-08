@@ -250,7 +250,7 @@ export function useColumns<T = AmountBill>(
       },
       field: 'operation',
       fixed: 'right',
-      minWidth: 150,
+      minWidth: 200,
       title: '操作',
     },
   ];
