@@ -1,6 +1,9 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
+import { h } from 'vue';
+
+import { Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { z } from '#/adapter/form';
@@ -15,7 +18,7 @@ export function getTagTypeOptions() {
     {
       color: 'green',
       label: $t('system.rental.tenant.status.current'),
-      value: '当期',
+      value: '生效中',
     },
     {
       color: 'red',
@@ -37,12 +40,6 @@ export function useFormSchema(): VbenFormSchema[] {
       rules: 'required',
     },
     {
-      component: 'Input',
-      fieldName: 'phoneNumber',
-      label: $t('system.rental.tenant.phone'),
-      rules: 'required',
-    },
-    {
       component: 'RangePicker',
       componentProps: {
         format: 'YYYY-MM-DD',
@@ -54,6 +51,51 @@ export function useFormSchema(): VbenFormSchema[] {
       label: $t('system.rental.tenant.contractDate'),
       rules: 'required',
     },
+    {
+      component: 'Input',
+      fieldName: 'phoneNumber',
+      label: $t('system.rental.tenant.phone'),
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      fieldName: 'address',
+      label: $t('system.rental.tenant.address'),
+      rules: 'required',
+    },
+    {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '元/月',
+        precision: 2,
+        style: { width: '100%' },
+      },
+      fieldName: 'rent',
+      label: $t('page.common.rent'),
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '㎡',
+        precision: 2,
+        style: { width: '100%' },
+      },
+      fieldName: 'area',
+      label: $t('page.rental.area'),
+    },
+
     {
       component: 'DatePicker',
       componentProps: {
@@ -75,59 +117,53 @@ export function useFormSchema(): VbenFormSchema[] {
       fieldName: 'increaseRate',
       label: $t('system.rental.tenant.increaseRate'),
     },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '‰',
+        precision: 2,
+        style: { width: '100%' },
+      },
+      fieldName: 'penaltyRate',
+      label: $t('page.rental.penaltyRate'),
+    },
     // {
     //   component: markRaw(IncreaseForm),
     //   fieldName: 'increaseData', // 保持不变，已与接口一致
     //   // label: $t('page.rental.increaseData'),
     // },
-    {
-      component: 'Input',
-      fieldName: 'address',
-      label: $t('system.rental.tenant.address'),
-      rules: 'required',
-    },
-    {
-      component: 'ApiSelect',
-      componentProps: {
-        allowClear: true,
-        api: getParkList,
-        class: 'w-full',
-        labelField: 'parkName',
-        valueField: 'parkId',
-      },
-      fieldName: 'parkId',
-      label: $t('page.common.park'),
-    },
-    {
-      component: 'RadioGroup',
-      componentProps: {
-        buttonStyle: 'solid',
-        options: [
-          { label: $t('system.rental.tenant.status.current'), value: '当期' },
-          { label: $t('system.rental.tenant.status.expired'), value: '过期' },
-        ],
-        optionType: 'button',
-      },
-      defaultValue: '当期',
-      fieldName: 'status',
-      label: $t('system.rental.tenant.status.label'),
-    },
+
+    // {
+    //   component: 'RadioGroup',
+    //   componentProps: {
+    //     buttonStyle: 'solid',
+    //     options: [
+    //       { label: $t('system.rental.tenant.status.current'), value: '当期' },
+    //       { label: $t('system.rental.tenant.status.expired'), value: '过期' },
+    //     ],
+    //     optionType: 'button',
+    //   },
+    //   defaultValue: '当期',
+    //   fieldName: 'status',
+    //   label: $t('system.rental.tenant.status.label'),
+    // },
     {
       component: 'Textarea',
       componentProps: {
-        maxLength: 300,
-        rows: 5,
+        maxLength: 200,
+        rows: 4,
         showCount: true,
         style: {
           width: '100%',
         },
       },
       fieldName: 'remark',
-      label: $t('system.rental.description'),
+      formItemClass: 'col-span-3',
+      label: $t('page.common.remark'),
       rules: z
         .string()
         .max(
-          300,
+          200,
           $t('ui.formRules.maxLength', [$t('system.rental.description'), 300]),
         )
         .optional(),
@@ -232,32 +268,68 @@ export function useColumns<T = any>(
       minWidth: 130,
       title: $t('system.rental.tenant.phone'),
     },
+    // {
+    //   cellRender: {
+    //     name: 'CellTag',
+    //     options: getTagTypeOptions(),
+    //   },
+    //   field: 'status',
+    //   minWidth: 80,
+    //   title: $t('system.rental.tenant.status.label'),
+    // },
     {
-      cellRender: {
-        name: 'CellTag',
-        options: getTagTypeOptions(),
-      },
       field: 'status',
-      minWidth: 80,
+      minWidth: 100,
+      slots: {
+        default: ({ row }) => {
+          const isExpired = row.contractEnd
+            ? dayjs().isAfter(dayjs(row.contractEnd))
+            : false;
+          const status = isExpired ? '过期' : '生效中';
+          const option = getTagTypeOptions().find(
+            (opt) => opt.value === status,
+          );
+          return h(Tag, { color: option?.color }, () => status);
+        },
+      },
       title: $t('system.rental.tenant.status.label'),
     },
     {
-      field: 'contractStart',
-      formatter: ({ cellValue }) => {
-        if (!cellValue) return '';
-        return dayjs(cellValue).format('YYYY-MM-DD');
+      field: 'contractDate',
+      formatter: ({ row }) => {
+        const start = row.contractStart
+          ? dayjs(row.contractStart).format('YYYY.MM.DD')
+          : '';
+        const end = row.contractEnd
+          ? dayjs(row.contractEnd).format('YYYY.MM.DD')
+          : '';
+
+        if (!start && !end) return '';
+        if (start && !end) return start;
+        if (!start && end) return end;
+
+        return `${start} - ${end}`;
       },
-      minWidth: 100,
-      title: $t('system.rental.tenant.contractStart'),
+      minWidth: 160,
+      title: $t('system.rental.tenant.contractDate'),
     },
     {
-      field: 'contractEnd',
+      field: 'area',
       formatter: ({ cellValue }) => {
         if (!cellValue) return '';
-        return dayjs(cellValue).format('YYYY-MM-DD');
+        return `${cellValue}㎡`;
       },
       minWidth: 100,
-      title: $t('system.rental.tenant.contractEnd'),
+      title: $t('page.rental.area'),
+    },
+    {
+      field: 'rent',
+      formatter: ({ cellValue }) => {
+        if (!cellValue) return '';
+        return `${cellValue}元/月`;
+      },
+      minWidth: 100,
+      title: $t('page.common.rent'),
     },
     {
       field: 'increaseDate',
