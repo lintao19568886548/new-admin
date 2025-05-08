@@ -55,6 +55,14 @@ export default eventHandler(async (event) => {
       };
     }
 
+    if (query.status) {
+      where.status = Number(query.status);
+    }
+
+    if (query.parkId) {
+      where.parkId = Number(query.parkId);
+    }
+
     // 分页参数
     const pageNo = Number(query.pageNo) || 1;
     const pageSize = Number(query.pageSize) || 10;
@@ -71,10 +79,16 @@ export default eventHandler(async (event) => {
       orderBy: {
         createTime: 'desc',
       },
+      include: {
+        park: true,
+      },
     });
 
     return useResponseSuccess({
-      items: reimbursements,
+      items: reimbursements.map((item) => ({
+        ...item,
+        park: item.park?.parkName || '',
+      })),
       total,
     });
   } catch (error) {

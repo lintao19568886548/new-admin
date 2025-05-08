@@ -19,14 +19,7 @@ export default eventHandler(async (event) => {
     // 创建报销记录
     const reimbursement = await prismaClient.reimbursement.create({
       data: {
-        purpose: body.purpose,
-        amount: body.amount,
-        department: body.department,
-        payee: body.payee,
-        date: new Date(body.date),
-        remark: body.remark || null,
-        userName: body.userName || null,
-        park: body.park || null, // 添加userName字段
+        ...body,
       },
     });
 

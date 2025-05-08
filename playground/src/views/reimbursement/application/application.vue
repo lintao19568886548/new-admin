@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 import type { Rule } from 'ant-design-vue/es/form';
 
-import { h, reactive, ref } from 'vue';
+import type { Park } from '#/components/AreaSelector.vue';
+
+import { h, onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { useUserStore } from '@vben/stores';
@@ -14,12 +16,13 @@ import {
   Input,
   InputNumber,
   message,
-  Modal, // <-- 引入 Modal
+  Modal,
   Select,
   Table,
   Tag,
 } from 'ant-design-vue';
 
+import { getVisitorParkList } from '#/api/park';
 import { createReimbursement, getReimbursementList } from '#/api/reimbursement';
 import { $t } from '#/locales';
 
@@ -44,11 +47,30 @@ const departmentOptions = [
   { label: '客服部', value: 'customerService' },
 ];
 
+// 园区列表
+const parkList = ref<Park[]>([]);
+
+// 获取园区列表
+async function fetchParkList() {
+  try {
+    const result = await getVisitorParkList({ area: 'all' });
+    parkList.value = result || [];
+  } catch (error) {
+    console.error('获取园区列表失败:', error);
+    message.error('获取园区列表失败');
+  }
+}
+
+// 在组件挂载时获取园区列表
+onMounted(() => {
+  fetchParkList();
+});
+
 // 表单数据
 const formState = reactive({
   amount: undefined,
   department: undefined,
-  park: '',
+  parkId: undefined,
   payee: '',
   purpose: '',
   remark: '',
@@ -63,10 +85,7 @@ const rules: Record<string, Rule[]> = {
   department: [
     { message: '请选择申请部门', required: true, trigger: 'change' },
   ],
-  park: [
-    { message: '请填写所属园区', required: true, trigger: 'blur' },
-    { max: 50, message: '园区名称不能超过50个字符', trigger: 'blur' },
-  ],
+  parkId: [{ message: '请填写所属园区', required: true, trigger: 'blur' }],
   payee: [
     { message: '请输入领款人姓名', required: true, trigger: 'blur' },
     { max: 50, message: '领款人姓名不能超过50个字符', trigger: 'blur' },
@@ -289,13 +308,13 @@ function showRecordModal() {
           />
         </Form.Item>
 
-        <Form.Item name="department" label="申请部门">
+        <!-- <Form.Item name="department" label="申请部门">
           <Select
             v-model:value="formState.department"
             placeholder="请选择申请部门"
             :options="departmentOptions"
           />
-        </Form.Item>
+        </Form.Item> -->
 
         <Form.Item name="payee" label="领款人">
           <Input
@@ -306,13 +325,21 @@ function showRecordModal() {
           />
         </Form.Item>
 
-        <Form.Item name="park" label="所属园区">
-          <Input
-            v-model:value="formState.park"
-            placeholder="请输入所属园区名称"
-            :maxlength="50"
-            show-count
-          />
+        <Form.Item name="parkId" label="所属园区">
+          <Select
+            v-model:value="formState.parkId"
+            placeholder="请选择所属园区"
+            style="width: 100%"
+            allow-clear
+          >
+            <Select.Option
+              v-for="park in parkList"
+              :key="park.parkId"
+              :value="park.parkId"
+            >
+              {{ park.parkName }}
+            </Select.Option>
+          </Select>
         </Form.Item>
 
         <Form.Item name="remark" label="备注">

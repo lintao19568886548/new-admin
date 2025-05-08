@@ -7,6 +7,8 @@ import type {
   TablePaginationConfig,
 } from 'ant-design-vue/es/table/interface';
 
+import type { Park } from '#/components/AreaSelector.vue';
+
 import { h, onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -24,6 +26,7 @@ import {
   Tag,
 } from 'ant-design-vue';
 
+import { getVisitorParkList } from '#/api/park';
 import {
   deleteReimbursement,
   getReimbursementList,
@@ -55,16 +58,30 @@ const STATUS_MAP = {
 };
 
 // 部门选项
-const departmentOptions = [
-  { label: '技术部', value: 'tech' },
-  { label: '财务部', value: 'finance' },
-  { label: '人事部', value: 'hr' },
-  { label: '市场部', value: 'marketing' },
-  { label: '采购部', value: 'procure' },
-  { label: '工程部', value: 'engineering project  ' },
-  { label: '销售部', value: 'sales' },
-  { label: '客服部', value: 'customerService' },
-];
+// const departmentOptions = [
+//   { label: '技术部', value: 'tech' },
+//   { label: '财务部', value: 'finance' },
+//   { label: '人事部', value: 'hr' },
+//   { label: '市场部', value: 'marketing' },
+//   { label: '采购部', value: 'procure' },
+//   { label: '工程部', value: 'engineering project  ' },
+//   { label: '销售部', value: 'sales' },
+//   { label: '客服部', value: 'customerService' },
+// ];
+
+// 园区列表
+const parkList = ref<Park[]>([]);
+
+// 获取园区列表
+async function fetchParkList() {
+  try {
+    const result = await getVisitorParkList({ area: 'all' });
+    parkList.value = result || [];
+  } catch (error) {
+    console.error('获取园区列表失败:', error);
+    message.error('获取园区列表失败');
+  }
+}
 
 // 状态选项
 const statusOptions = [
@@ -86,11 +103,13 @@ const pagination = reactive({
 const filterForm = reactive<{
   dateRange: any[];
   department: string | undefined;
+  parkId: number | undefined;
   purpose: string;
   status: number | undefined;
 }>({
   dateRange: [],
   department: undefined,
+  parkId: undefined,
   purpose: '',
   status: undefined,
 });
@@ -130,6 +149,10 @@ async function fetchReimbursementList() {
       params.endDate = filterForm.dateRange[1]?.format('YYYY-MM-DD');
     }
 
+    if (filterForm.parkId) {
+      params.parkId = filterForm.parkId;
+    }
+
     const response = await getReimbursementList(params);
     tableData.value = response.items || [];
     pagination.total = response.total || 0;
@@ -157,6 +180,7 @@ function handleTableChange(
 function resetFilters() {
   filterForm.dateRange = [];
   filterForm.department = undefined;
+  filterForm.parkId = undefined;
   filterForm.purpose = '';
   filterForm.status = undefined;
   pagination.current = 1;
@@ -222,6 +246,7 @@ async function handleDelete(record: ReimbursementItem) {
 // 初始化加载数据
 onMounted(() => {
   fetchReimbursementList();
+  fetchParkList();
 });
 </script>
 
@@ -239,14 +264,21 @@ onMounted(() => {
         </div>
 
         <div class="flex items-center gap-2">
-          <span>部门:</span>
+          <span class="whitespace-nowrap">园区:</span>
           <Select
-            v-model:value="filterForm.department"
-            :options="departmentOptions"
-            placeholder="选择部门"
-            style="width: 150px"
+            v-model:value="filterForm.parkId"
+            placeholder="请选择园区"
+            style="width: 180px"
             allow-clear
-          />
+          >
+            <Select.Option
+              v-for="park in parkList"
+              :key="park.parkId"
+              :value="park.parkId"
+            >
+              {{ park.parkName }}
+            </Select.Option>
+          </Select>
         </div>
 
         <div class="flex items-center gap-2">
@@ -287,14 +319,14 @@ onMounted(() => {
             customRender: ({ text }) => `¥${Number(text).toFixed(2)}`,
             sorter: true,
           },
-          {
-            title: '部门',
-            dataIndex: 'department',
-            customRender: ({ text }) => {
-              const dept = departmentOptions.find((d) => d.value === text);
-              return dept ? dept.label : text;
-            },
-          },
+          // {
+          //   title: '部门',
+          //   dataIndex: 'department',
+          //   customRender: ({ text }) => {
+          //     const dept = departmentOptions.find((d) => d.value === text);
+          //     return dept ? dept.label : text;
+          //   },
+          // },
           { title: '领款人', dataIndex: 'payee' },
           { title: '所属园区', dataIndex: 'park' },
           {
@@ -374,7 +406,7 @@ onMounted(() => {
             <div class="text-gray-500">金额</div>
             <div>¥{{ Number(currentRecord?.amount).toFixed(2) }}</div>
           </div>
-          <div>
+          <!-- <div>
             <div class="text-gray-500">部门</div>
             <div>
               {{
@@ -383,7 +415,7 @@ onMounted(() => {
                 )?.label || currentRecord?.department
               }}
             </div>
-          </div>
+          </div> -->
           <div>
             <div class="text-gray-500">领款人</div>
             <div>{{ currentRecord?.payee }}</div>
