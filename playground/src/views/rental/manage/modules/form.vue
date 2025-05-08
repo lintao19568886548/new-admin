@@ -111,7 +111,7 @@ const [Modal, modalApi] = useVbenModal({
       const parkValues = await parkFormApi.getValues();
       const factoryValues = await factoryFormApi.getValues();
       const dormitoryValues = await dormitoryFormApi.getValues();
-      if (factoryValues.factories.length > 0) {
+      if (factoryValues.factories?.length > 0) {
         factoryValues.factories.forEach((factory: any) => {
           factory.buildTime = factory.buildTime
             ? new Date(factory.buildTime).toISOString()

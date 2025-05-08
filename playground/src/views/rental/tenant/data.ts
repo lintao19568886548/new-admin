@@ -54,7 +54,7 @@ export function useFormSchema(): VbenFormSchema[] {
     {
       component: 'Input',
       fieldName: 'phoneNumber',
-      label: $t('system.rental.tenant.phone'),
+      label: $t('page.tenant.phone'),
       rules: 'required',
     },
     {
@@ -184,14 +184,14 @@ export function useGridFormSchema(): VbenFormSchema[] {
     {
       component: 'Input',
       fieldName: 'phoneNumber',
-      label: $t('system.rental.tenant.phone'),
+      label: $t('page.tenant.phone'),
     },
     {
       component: 'Select',
       componentProps: {
         allowClear: true,
         options: [
-          { label: $t('system.rental.tenant.status.current'), value: '当期' },
+          { label: $t('system.rental.tenant.status.current'), value: '生效中' },
           { label: $t('system.rental.tenant.status.expired'), value: '过期' },
         ],
       },
@@ -265,8 +265,8 @@ export function useColumns<T = any>(
     },
     {
       field: 'phoneNumber',
-      minWidth: 130,
       title: $t('system.rental.tenant.phone'),
+      width: 120,
     },
     // {
     //   cellRender: {
@@ -279,7 +279,6 @@ export function useColumns<T = any>(
     // },
     {
       field: 'status',
-      minWidth: 100,
       slots: {
         default: ({ row }) => {
           const isExpired = row.contractEnd
@@ -293,6 +292,7 @@ export function useColumns<T = any>(
         },
       },
       title: $t('system.rental.tenant.status.label'),
+      width: 100,
     },
     {
       field: 'contractDate',
@@ -310,8 +310,8 @@ export function useColumns<T = any>(
 
         return `${start} - ${end}`;
       },
-      minWidth: 160,
       title: $t('system.rental.tenant.contractDate'),
+      width: 160,
     },
     {
       field: 'area',
@@ -319,8 +319,8 @@ export function useColumns<T = any>(
         if (!cellValue) return '';
         return `${cellValue}㎡`;
       },
-      minWidth: 100,
       title: $t('page.rental.area'),
+      width: 120,
     },
     {
       field: 'rent',
@@ -328,8 +328,8 @@ export function useColumns<T = any>(
         if (!cellValue) return '';
         return `${cellValue}元/月`;
       },
-      minWidth: 100,
       title: $t('page.common.rent'),
+      width: 120,
     },
     {
       field: 'increaseDate',
@@ -337,16 +337,16 @@ export function useColumns<T = any>(
         if (!cellValue) return '';
         return dayjs(cellValue).format('YYYY-MM-DD');
       },
-      minWidth: 100,
       title: $t('system.rental.tenant.increaseDate'),
+      width: 130,
     },
     {
       field: 'increaseRate',
       formatter: ({ cellValue }) => {
         return cellValue ? `${cellValue}%` : '';
       },
-      minWidth: 100,
       title: $t('system.rental.tenant.increaseRate'),
+      width: 80,
     },
     {
       field: 'address',

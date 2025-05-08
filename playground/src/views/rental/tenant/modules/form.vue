@@ -26,6 +26,7 @@ const [Form, formApi] = useVbenForm({
   layout: 'vertical',
   schema: useFormSchema(),
   showDefaultActions: false,
+  wrapperClass: 'grid-cols-3 gap-4',
 });
 
 function resetForm() {
@@ -35,6 +36,7 @@ function resetForm() {
 
 const id = ref();
 const [Modal, modalApi] = useVbenModal({
+  class: 'max-w-[90%] w-[60%]',
   async onConfirm() {
     const { valid } = await formApi.validate();
     if (!valid) return;

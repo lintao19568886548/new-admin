@@ -121,7 +121,7 @@
       "name": "合同人姓名",
       "phone": "手机号",
       "status": {
-        "current": "当期",
+        "current": "生效中",
         "expired": "过期",
         "label": "合同状态"
       }
