@@ -58,14 +58,22 @@ export function useFormSchema(): VbenFormSchema[] {
       rules: 'required',
     },
     {
-      component: 'InputNumber',
+      component: 'Input',
+      fieldName: 'address',
+      label: $t('system.rental.tenant.address'),
+      rules: 'required',
+    },
+    {
+      component: 'ApiSelect',
       componentProps: {
-        addonAfter: '㎡',
-        precision: 2,
-        style: { width: '100%' },
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
       },
-      fieldName: 'area',
-      label: $t('page.common.area'),
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
     },
     {
       component: 'InputNumber',
@@ -78,11 +86,16 @@ export function useFormSchema(): VbenFormSchema[] {
       label: $t('page.common.rent'),
     },
     {
-      component: 'Input',
-      fieldName: 'address',
-      label: $t('system.rental.tenant.address'),
-      rules: 'required',
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '㎡',
+        precision: 2,
+        style: { width: '100%' },
+      },
+      fieldName: 'area',
+      label: $t('page.rental.area'),
     },
+
     {
       component: 'DatePicker',
       componentProps: {
@@ -104,24 +117,22 @@ export function useFormSchema(): VbenFormSchema[] {
       fieldName: 'increaseRate',
       label: $t('system.rental.tenant.increaseRate'),
     },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '‰',
+        precision: 2,
+        style: { width: '100%' },
+      },
+      fieldName: 'penaltyRate',
+      label: $t('page.rental.penaltyRate'),
+    },
     // {
     //   component: markRaw(IncreaseForm),
     //   fieldName: 'increaseData', // 保持不变，已与接口一致
     //   // label: $t('page.rental.increaseData'),
     // },
 
-    {
-      component: 'ApiSelect',
-      componentProps: {
-        allowClear: true,
-        api: getParkList,
-        class: 'w-full',
-        labelField: 'parkName',
-        valueField: 'parkId',
-      },
-      fieldName: 'parkId',
-      label: $t('page.common.park'),
-    },
     // {
     //   component: 'RadioGroup',
     //   componentProps: {
@@ -148,7 +159,7 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'remark',
       formItemClass: 'col-span-3',
-      label: $t('system.rental.description'),
+      label: $t('page.common.remark'),
       rules: z
         .string()
         .max(

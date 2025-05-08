@@ -8,6 +8,7 @@ model RentalTenant {
   contractEnd    DateTime?    @map("contract_end")
   increaseDate   DateTime?    @map("increase_date")
   increaseRate   Decimal?     @map("increase_rate") @db.Decimal(5, 2)
+  penaltyRate    Decimal?     @map("penalty_rate") @db.Decimal(5, 2)
   rent           Decimal?     @map("rental_amount") @db.Decimal(10, 2)
   area           Decimal?     @map("area") @db.Decimal(10, 2)
   address        String       @db.VarChar(200)
