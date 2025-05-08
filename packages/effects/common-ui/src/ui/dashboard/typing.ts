@@ -32,8 +32,20 @@ interface WorkbenchQuickNavItem {
   title: string;
   url?: string;
 }
+
+interface WorkbenchProjectItem {
+  color?: string;
+  content: string;
+  date: string;
+  group: string;
+  icon: Component | string;
+  title: string;
+  url?: string;
+}
+
 export type {
   AnalysisOverviewItem,
+  WorkbenchProjectItem,
   WorkbenchQuickNavItem,
   WorkbenchTodoItem,
   WorkbenchTrendItem,

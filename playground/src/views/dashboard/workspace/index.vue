@@ -14,11 +14,11 @@ import {
   WorkbenchTodo,
   WorkbenchTrends,
 } from '@vben/common-ui';
-import { $t } from '@vben/locales';
 import { preferences } from '@vben/preferences';
 import { useUserStore } from '@vben/stores';
 import { openWindow } from '@vben/utils';
 
+import { Pagination } from 'ant-design-vue'; // <--- 添加这一行导入
 import { v4 as uuidv4 } from 'uuid'; // 引入 uuid 库，如果项目没有，需要安装 npm install uuid @types/uuid
 
 import { getDashboardWorkspaceList } from '#/api/dashboard';
@@ -197,71 +197,89 @@ const toggleTodoCompleted = (id: string) => {
 
 // 从API获取的动态数据
 const trendItems = ref<WorkbenchTrendItem[]>([]);
+const trendCurrentPage = ref(1);
+const trendPageSize = ref(6); // 例如每页显示5条动态
+const trendTotalItems = ref(0);
+const loading = ref(false); // 确保 loading 状态被管理
+
+// 获取操作文本的辅助函数
+function getActionText(method: string) {
+  switch (method) {
+    case 'DELETE': {
+      return '删除了';
+    }
+    case 'POST': {
+      return '新增了';
+    }
+    case 'PUT': {
+      return '更新了';
+    }
+    default: {
+      return '操作了';
+    }
+  }
+}
 
 // 获取API日志数据
-const fetchApiLogs = async () => {
+const fetchApiLogs = async (
+  page = trendCurrentPage.value,
+  size = trendPageSize.value,
+) => {
   try {
-    const res = await getDashboardWorkspaceList({
-      currentPage: 1,
-      pageSize: 10,
+    loading.value = true;
+    const responseData = await getDashboardWorkspaceList({
+      currentPage: page,
+      pageSize: size,
     });
 
-    console.warn('获取到的API日志数据:', res);
+    // 尝试从响应中提取 items 和 total
+    // 首先检查顶层是否有 items 和 total
+    let items = responseData.items;
+    let total = responseData.total;
 
-    // 修改判断条件，适应实际的数据格式
-    if (res && (res.items || (res.data && res.data.items))) {
-      // 根据实际数据结构获取items
-      const items = res.items || (res.data && res.data.items);
+    // 如果顶层没有，尝试从 responseData.data 中获取 (常见的API响应结构)
+    if (
+      items === undefined &&
+      responseData.data &&
+      responseData.data.items !== undefined
+    ) {
+      console.warn('Accessing items and total from responseData.data');
+      items = responseData.data.items;
+      total = responseData.data.total;
+    }
 
-      // 将API日志数据转换为动态列表格式
-      trendItems.value = items.map((item: any) => {
-        // 根据logId确定头像
-        const avatarIndex = (item.logId % 4) + 1;
-
-        // 根据method确定操作类型
-        let operation = '';
-        switch (item.method) {
-          case 'DELETE': {
-            operation = '删除';
-            break;
-          }
-          case 'POST': {
-            operation = '新增';
-            break;
-          }
-          case 'PUT': {
-            operation = '修改';
-            break;
-          }
-          default: {
-            operation = '操作';
-          }
-        }
-
-        // 格式化日期
-        const date = formatDate(new Date(item.requestTime));
-
-        // 国际化处理模块名称
-        const buttonText = $t(item.moduleNameCN);
-
-        item.itemName = item.itemName || '未命名';
-
-        return {
-          avatar: `svg:avatar-${avatarIndex}`,
-          content: `在 <a data-url="${item.refererPath}">${buttonText}</a>  ${operation} 了 ${item.itemName} 项目`,
-          date,
-          title: item.username || '匿名用户',
-          url: item.refererPath,
-        };
-      });
-
-      console.warn('转换后的趋势数据:', trendItems.value);
+    if (Array.isArray(items)) {
+      trendItems.value = items.map((log: any) => ({
+        avatar: userStore.userInfo?.avatar || preferences.app.defaultAvatar, // 使用一个默认头像
+        content: `在 <a href="#" data-url="${log.refererPath || '#'}">
+        ${log.moduleNameCN || '未知模块'}</a> ${getActionText(log.requestMethod)} ${log.summary || '未命名项目'}`, // <--- 修改这里，移除了包裹项目名称的<a>标签
+        date: formatDate(new Date(log.requestTime)),
+        title: log.username || 'guest',
+        url: log.refererPath || '#', // 为 navTo 提供一个可点击的链接
+      }));
+      trendTotalItems.value = Number(total) || 0;
     } else {
-      console.error('API返回数据格式不正确:', res);
+      console.error(
+        'Failed to parse items from API response. "items" is not an array:',
+        items,
+      );
+      trendItems.value = [];
+      trendTotalItems.value = 0;
     }
   } catch (error) {
-    console.error('获取API日志失败:', error);
+    console.error('Failed to fetch API logs:', error);
+    trendItems.value = [];
+    trendTotalItems.value = 0;
+  } finally {
+    loading.value = false;
   }
+};
+
+// 处理最新动态分页变化
+const handleTrendPageChange = (newPage: number, newPageSize: number) => {
+  trendCurrentPage.value = newPage;
+  trendPageSize.value = newPageSize;
+  fetchApiLogs(newPage, newPageSize);
 };
 
 // 格式化日期
@@ -301,8 +319,8 @@ const formatDate = (date: Date) => {
 
 // 页面加载时获取数据
 onMounted(() => {
-  fetchApiLogs();
-  loadTodoItems(); // 加载时会处理 id
+  fetchApiLogs(trendCurrentPage.value, trendPageSize.value);
+  loadTodoItems();
 });
 
 const router = useRouter();
@@ -341,7 +359,16 @@ function navTo(nav: WorkbenchQuickNavItem) {
 
     <div class="mt-5 flex flex-col lg:flex-row">
       <div class="mr-4 w-full lg:w-3/5">
-        <WorkbenchTrends :items="trendItems" class="mt-5" title="最新动态" />
+        <WorkbenchTrends :items="trendItems" title="最新动态" />
+        <div v-if="trendTotalItems > 0" class="mt-4 flex justify-end">
+          <Pagination
+            v-model:current="trendCurrentPage"
+            v-model:page-size="trendPageSize"
+            :total="trendTotalItems"
+            show-size-changer
+            @change="handleTrendPageChange"
+          />
+        </div>
       </div>
       <div class="w-full lg:w-2/5">
         <WorkbenchQuickNav
