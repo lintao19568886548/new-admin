@@ -14,6 +14,7 @@ import {
   WorkbenchTodo,
   WorkbenchTrends,
 } from '@vben/common-ui';
+import { $t } from '@vben/locales'; // <--- 确保 $t 已导入
 import { preferences } from '@vben/preferences';
 import { useUserStore } from '@vben/stores';
 import { openWindow } from '@vben/utils';
@@ -250,9 +251,9 @@ const fetchApiLogs = async (
 
     if (Array.isArray(items)) {
       trendItems.value = items.map((log: any) => ({
-        avatar: userStore.userInfo?.avatar || preferences.app.defaultAvatar, // 使用一个默认头像
-        content: `在 <a href="#" data-url="${log.refererPath || '#'}">
-        ${log.moduleNameCN || '未知模块'}</a> ${getActionText(log.requestMethod)} ${log.summary || '未命名项目'}`, // <--- 修改这里，移除了包裹项目名称的<a>标签
+        avatar: userStore.userInfo?.avatar || preferences.app.defaultAvatar,
+        content: `在 <a data-url="${log.refererPath || '#'}">
+        ${$t(log.moduleNameCN || '未知模块')}</a> ${getActionText(log.method)} ${log.itemName || '未命名项目'}`, // <--- 修改这里
         date: formatDate(new Date(log.requestTime)),
         title: log.username || 'guest',
         url: log.refererPath || '#', // 为 navTo 提供一个可点击的链接
