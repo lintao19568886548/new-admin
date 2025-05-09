@@ -14,7 +14,7 @@ export interface UserInfoForToken {
   realName: string;
   roles: string[];
   homePath?: string;
-  parks: Array<{ parkId: string; parkName: string }>;
+  parks: Array<{ parkId: number; parkName: string }>;
 }
 
 // Prisma返回的带有完整关联信息的用户类型 (近似表示)
@@ -74,7 +74,7 @@ export async function transformPrismaUserToUserInfo(
     ? prismaUser.roles.map((item) => item.role.name)
     : [];
 
-  let parks: Array<{ parkId: string; parkName: string }> = [];
+  let parks: Array<{ parkId: number; parkName: string }> = [];
 
   if (roles.includes('Super')) {
     const superAdminParks = await prismaClient.park.findMany({
@@ -82,20 +82,20 @@ export async function transformPrismaUserToUserInfo(
       where: { isDeleted: false }, // 确保只选择未删除的园区
     });
     parks = superAdminParks.map((p) => ({
-      parkId: String(p.parkId), // 确保 parkId 是字符串
+      parkId: Number(p.parkId), // 确保 parkId 是字符串
       parkName: String(p.parkName),
     }));
   } else {
     const userParks = prismaUser.roles.flatMap((userRole) =>
       userRole.role.roleParks.map((rp) => ({
-        parkId: String(rp.park.parkId), // 确保 parkId 是字符串
+        parkId: Number(rp.park.parkId), // 确保 parkId 是字符串
         parkName: String(rp.park.parkName),
       })),
     );
     // 去重，因为一个用户可能通过不同角色关联到同一个园区
     const uniqueParksMap = new Map<
-      string,
-      { parkId: string; parkName: string }
+      number,
+      { parkId: number; parkName: string }
     >();
     userParks.forEach((park) => uniqueParksMap.set(park.parkId, park));
     parks = [...uniqueParksMap.values()];
