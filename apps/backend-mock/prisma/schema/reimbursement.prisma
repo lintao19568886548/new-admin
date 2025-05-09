@@ -4,7 +4,8 @@ model Reimbursement {
   amount          Decimal                @db.Decimal(10, 2) // 报销金额
   payee           String                 @db.VarChar(50) // 收款人
   date            DateTime               @default(now()) // 报销日期
-  username        String                 @db.VarChar(50)
+  department      String?                @db.VarChar(50)
+  username        String?                @db.VarChar(50)
   remark          String?                @db.VarChar(200)
   createTime      DateTime?              @default(now()) @map("create_time")
   updateTime      DateTime?              @updatedAt @map("update_time")

@@ -24,7 +24,7 @@ export default eventHandler(async (event) => {
 
     // 根据用户名过滤：如果不是 vben 或 admin，则只查询自己的记录
     if (userinfo.username !== 'vben' && userinfo.username !== 'admin') {
-      where.userName = userinfo.username;
+      where.username = userinfo.username;
     }
 
     // 用途模糊查询
