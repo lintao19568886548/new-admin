@@ -18,7 +18,9 @@ export default eventHandler(async (event) => {
     console.log('后端收到的查询参数:', query);
 
     // 构建查询条件
-    const where: any = {};
+    const where: any = {
+      isDeleted: false,
+    };
 
     // 根据用户名过滤：如果不是 vben 或 admin，则只查询自己的记录
     if (userinfo.username !== 'vben' && userinfo.username !== 'admin') {
@@ -81,6 +83,11 @@ export default eventHandler(async (event) => {
       },
       include: {
         park: true,
+        images: {
+          include: {
+            image: true,
+          },
+        },
       },
     });
 
@@ -88,6 +95,7 @@ export default eventHandler(async (event) => {
       items: reimbursements.map((item) => ({
         ...item,
         park: item.park?.parkName || '',
+        images: item.images.map((imageItem) => imageItem.image.imgUrl),
       })),
       total,
     });

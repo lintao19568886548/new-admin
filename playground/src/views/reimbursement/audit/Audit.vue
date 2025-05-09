@@ -18,6 +18,7 @@ import {
   Button,
   Card,
   DatePicker,
+  Image,
   Input,
   message,
   Modal,
@@ -41,13 +42,14 @@ interface ReimbursementItem {
   date: string;
   department: string;
   id: number | string;
+  images?: string[];
   park: string;
   payee: string;
   purpose: string;
   remark?: string;
   status: number;
   updateTime?: string;
-  userName?: string;
+  username?: string;
 }
 
 // 状态映射
@@ -311,13 +313,19 @@ onMounted(() => {
       <!-- 表格区域 -->
       <Table
         :columns="[
-          { title: 'ID', dataIndex: 'id', width: 80 },
-          { title: '用途', dataIndex: 'purpose', ellipsis: true },
+          // { title: 'ID', dataIndex: 'id', width: 80, align: 'center' },
+          {
+            title: '用途',
+            dataIndex: 'purpose',
+            ellipsis: true,
+            align: 'center',
+          },
           {
             title: '金额(元)',
             dataIndex: 'amount',
             customRender: ({ text }) => `¥${Number(text).toFixed(2)}`,
             sorter: true,
+            align: 'center',
           },
           // {
           //   title: '部门',
@@ -326,16 +334,18 @@ onMounted(() => {
           //     const dept = departmentOptions.find((d) => d.value === text);
           //     return dept ? dept.label : text;
           //   },
+          //   align: 'center'
           // },
-          { title: '领款人', dataIndex: 'payee' },
-          { title: '所属园区', dataIndex: 'park' },
+          { title: '领款人', dataIndex: 'payee', align: 'center' },
+          { title: '所属园区', dataIndex: 'park', align: 'center' },
           {
             title: '申请日期',
             dataIndex: 'date',
             customRender: ({ text }) => formatDateTime(text),
             sorter: true,
+            align: 'center',
           },
-          { title: '申请人', dataIndex: 'userName' },
+          { title: '申请人', dataIndex: 'username', align: 'center' },
           {
             title: '状态',
             dataIndex: 'status',
@@ -346,13 +356,15 @@ onMounted(() => {
               };
               return h(Tag, { color: status.color }, () => status.text);
             },
+            align: 'center',
           },
           {
             title: '操作',
             key: 'action',
             width: 120,
+            align: 'center',
             customRender: ({ record }) => {
-              return h('div', { class: 'flex gap-2' }, [
+              return h('div', { class: 'flex gap-2 justify-center' }, [
                 h(
                   Button,
                   {
@@ -426,11 +438,33 @@ onMounted(() => {
           </div>
           <div>
             <div class="text-gray-500">申请人</div>
-            <div>{{ currentRecord?.userName }}</div>
+            <div>{{ currentRecord?.username }}</div>
           </div>
+
           <div>
             <div class="text-gray-500">所属园区</div>
             <div>{{ currentRecord?.park }}</div>
+          </div>
+          <div>
+            <div class="mb-2 text-gray-500">相关图片</div>
+            <div class="flex flex-wrap gap-2">
+              <Image.PreviewGroup>
+                <Image
+                  v-for="item in currentRecord.images"
+                  :key="item"
+                  :src="item"
+                  :width="80"
+                  :height="80"
+                  alt="报销凭证"
+                  class="rounded object-cover"
+                />
+              </Image.PreviewGroup>
+            </div>
+            <div
+              v-if="!currentRecord.images || currentRecord.images.length === 0"
+            >
+              无
+            </div>
           </div>
         </div>
 

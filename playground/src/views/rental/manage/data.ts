@@ -191,7 +191,6 @@ export function useParkFormSchema(): VbenFormSchema[] {
         headers: {
           Authorization: `Bearer ${accessStore.accessToken}`,
         },
-        multiple: true,
         // 添加 onChange 处理函数以显示上传状态消息
         onChange: imageOnChange,
         onPreview: imageOnPreview,
@@ -428,7 +427,6 @@ export function useFloorFormSchema(): VbenFormSchema[] {
         headers: {
           Authorization: `Bearer ${accessStore.accessToken}`,
         },
-        multiple: true,
         // 添加 onChange 处理函数以显示上传状态消息
         onChange: imageOnChange,
         onPreview: imageOnPreview,
@@ -619,7 +617,6 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
         headers: {
           Authorization: `Bearer ${accessStore.accessToken}`,
         },
-        multiple: true,
         // 添加 onChange 处理函数以显示上传状态消息
         onChange: imageOnChange,
         onPreview: imageOnPreview,
