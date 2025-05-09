@@ -4,7 +4,7 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue'; // <-- 确保导入 onMounted
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -12,7 +12,9 @@ import { Plus } from '@vben/icons';
 import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { getFactoryListByParkId } from '#/api/factory'; // <-- 新增导入
 import { deleteFirefighting, getFirefightingList } from '#/api/maintenance';
+// <-- 新增导入
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -95,7 +97,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
     fieldMappingTime: [['checkTime', ['startTime', 'endTime']]],
-    schema: useGridFormSchema(),
+    schema: useGridFormSchema(), // useGridFormSchema 现在不依赖外部 options
   },
   gridOptions: {
     columns: useColumns(onActionClick),
@@ -104,11 +106,28 @@ const [Grid, gridApi] = useVbenVxeGrid({
     proxyConfig: {
       ajax: {
         query: async (page) => {
-          const formData = (await gridApi.formApi?.getValues?.()) || {};
+          const rawFormData = (await gridApi.formApi?.getValues?.()) || {};
+          const formDataForQuery = { ...rawFormData };
+
+          // 处理来自筛选 Cascader 的 factoryId
+          if (
+            formDataForQuery.factoryId &&
+            Array.isArray(formDataForQuery.factoryId)
+          ) {
+            if (formDataForQuery.factoryId.length > 0) {
+              // 后端需要单个 factoryId
+              formDataForQuery.factoryId =
+                formDataForQuery.factoryId[
+                  formDataForQuery.factoryId.length - 1
+                ];
+            } else {
+              delete formDataForQuery.factoryId; // 如果数组为空，则不以此筛选
+            }
+          }
 
           // 构建查询参数，包含分页信息
           const params = {
-            ...formData,
+            ...formDataForQuery,
             currentPage: page.page?.currentPage || 1,
             currentPark: currentPark.value ? currentPark.value.parkId : -1,
             pageSize: page.page?.pageSize || 20,
@@ -146,6 +165,81 @@ const [Grid, gridApi] = useVbenVxeGrid({
       zoom: true,
     },
   } as VxeTableGridOptions,
+});
+
+onMounted(async () => {
+  try {
+    // 1. 仅调用 getFactoryListByParkId
+    const allFactoriesResponse = await getFactoryListByParkId();
+    // 预期的类型: Array<{ factoryId: number; factoryName: string; parkId: number; park: { parkName: string }; ... }>
+
+    if (
+      allFactoriesResponse &&
+      Array.isArray(allFactoriesResponse) &&
+      allFactoriesResponse.length > 0
+    ) {
+      const allFactories = allFactoriesResponse as Array<{
+        factoryId: number;
+        factoryName: string;
+        park: { parkName: string };
+        parkId: number;
+      }>;
+
+      const parksMap = new Map<
+        number,
+        {
+          children: Array<{ isLeaf: boolean; name: string; value: number }>;
+          name: string;
+          value: number;
+        }
+      >();
+
+      for (const factory of allFactories) {
+        if (!parksMap.has(factory.parkId)) {
+          parksMap.set(factory.parkId, {
+            name: factory.park.parkName,
+            value: factory.parkId,
+            children: [],
+          });
+        }
+        parksMap.get(factory.parkId)!.children.push({
+          isLeaf: true,
+          name: factory.factoryName,
+          value: factory.factoryId,
+        });
+      }
+
+      const parkCascaderOptions = [...parksMap.values()];
+
+      // 更新表格筛选区域的 Cascader options
+      gridApi.formApi?.updateSchema([
+        {
+          componentProps: {
+            options: parkCascaderOptions,
+          },
+          fieldName: 'factoryId', // 确保这是表格筛选表单中Cascader的字段名
+        },
+      ]);
+    } else {
+      console.error(
+        '加载园区或厂房数据失败 (list filter Cascader): 未获取到有效数据或数据为空',
+      );
+      gridApi.formApi?.updateSchema([
+        {
+          componentProps: { options: [] },
+          fieldName: 'factoryId',
+        },
+      ]);
+    }
+  } catch (error) {
+    console.error('加载园区及厂房数据失败 (list filter Cascader):', error);
+    gridApi.formApi?.updateSchema([
+      {
+        componentProps: { options: [] },
+        fieldName: 'factoryId',
+      },
+    ]);
+  }
 });
 
 /**

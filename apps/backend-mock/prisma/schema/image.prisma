@@ -1,15 +1,19 @@
 model Image {
-  imgId           Int                 @id @default(autoincrement()) @map("img_id")
-  imgUrl          String              @db.LongText @map("img_url")
-  hash            String              @unique @map("hash") // 新增：存储文件哈希值，并确保唯一性
-  createdTime     DateTime?           @default(now()) @map("created_time")
-  updatedTime     DateTime?           @updatedAt @map("updated_time")
-  investments     InvestmentImage[]   @relation("ImageToInvestmentImage")
-  floorImages     FactoryFloorImage[] @relation("ImageToFactoryFloorImage")
+  imgId              Int                 @id @default(autoincrement()) @map("img_id")
+  imgUrl             String              @db.LongText @map("img_url")
+  hash               String              @unique @map("hash") // 新增：存储文件哈希值，并确保唯一性
+  createdTime        DateTime?           @default(now()) @map("created_time")
+  updatedTime        DateTime?           @updatedAt @map("updated_time")
+  investments        InvestmentImage[]   @relation("ImageToInvestmentImage")
+  floorImages        FactoryFloorImage[] @relation("ImageToFactoryFloorImage")
   // 添加与 DormitoryImage 的关联
-  dormitoryImages DormitoryImage[]    @relation("ImageToDormitoryImage")
+  dormitoryImages    DormitoryImage[]    @relation("ImageToDormitoryImage")
   // 添加与 ParkImage 的关联
-  parkImages      ParkImage[]         @relation("ImageToParkImage")
+  parkImages         ParkImage[]         @relation("ImageToParkImage")
+  // 添加与 FirefightingImage 的关联
+  firefightingImages FirefightingImage[] @relation("ImageToFirefightingImage") // 新增此行
+  // 添加与 TransformerImage 的关联
+  transformerImages  TransformerImage[]  @relation("ImageToTransformerImage")  // 新增此行
 
   @@map("image")
 }
@@ -75,4 +79,32 @@ model ParkImage {
   @@index([parkId])
   @@index([imgId])
   @@map("park_image")
+}
+
+model FirefightingImage {
+  id             Int           @id @default(autoincrement())
+  firefightingId Int           @map("firefighting_id")
+  imgId          Int           @map("img_id")
+  firefighting   Firefighting? @relation("FirefightingToFirefightingImage", fields: [firefightingId], references: [firefightingId])
+  image          Image?        @relation("ImageToFirefightingImage", fields: [imgId], references: [imgId])
+  createTime     DateTime?     @default(now()) @map("create_time")
+  updateTime     DateTime?     @updatedAt @map("update_time")
+
+  @@index([firefightingId])
+  @@index([imgId])
+  @@map("firefighting_image")
+}
+
+model TransformerImage {
+  id            Int          @id @default(autoincrement())
+  transformerId Int          @map("transformer_id")
+  imgId         Int          @map("img_id")
+  transformer   Transformer? @relation("TransformerToTransformerImage", fields: [transformerId], references: [transformerId])
+  image         Image?       @relation("ImageToTransformerImage", fields: [imgId], references: [imgId])
+  createTime    DateTime?    @default(now()) @map("create_time")
+  updateTime    DateTime?    @updatedAt @map("update_time")
+  
+  @@index([transformerId])
+  @@index([imgId])  
+  @@map("transformer_image")
 }

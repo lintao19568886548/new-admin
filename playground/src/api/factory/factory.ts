@@ -19,3 +19,13 @@ export async function updateFactory(id: number, data: any) {
 export async function deleteFactory(id: number) {
   return requestClient.delete(`/factory/${id}`);
 }
+
+// 添加获取厂房列表的API函数
+export async function getFactoryListByParkId() {
+  try {
+    // return requestClient.get(`/factory/list-by-park?parkId=${parkId}`);
+    return requestClient.get(`/factory/list-by-park`);
+  } catch (error) {
+    console.error('获取厂房列表失败:', error);
+  }
+}

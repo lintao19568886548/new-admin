@@ -110,7 +110,9 @@
     "status": "厂房状态",
     "title": "厂房管理",
     "upload-image": "选择上传图片",
-    "view": "查看厂房"
+    "view": "查看厂房",
+    "firefightingRecord": "消防检查记录",
+    "transformerRecord": "变压器检查记录"
   },
   "finance": {
     "amount": "账单金额",

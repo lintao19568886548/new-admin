@@ -1,7 +1,7 @@
 import { getQuery } from 'h3';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
-import { useResponseSuccess } from '~/utils/response';
+import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -23,6 +23,7 @@ export default eventHandler(async (event) => {
     startTime,
     endTime,
     currentPark,
+    factoryId, // 新增厂房ID参数
     currentPage,
     pageSize,
   } = query;
@@ -63,6 +64,11 @@ export default eventHandler(async (event) => {
     } else {
       return useResponseError('没有查看权限');
     }
+  }
+
+  // 厂房ID查询
+  if (factoryId) {
+    where.factoryId = Number(factoryId);
   }
 
   // 标题查询
@@ -134,7 +140,7 @@ export default eventHandler(async (event) => {
     skip: (page - 1) * size,
     take: size,
   });
-  console.log('result', result);
+  // console.log('result', result);
 
   return useResponseSuccess({
     items: result,

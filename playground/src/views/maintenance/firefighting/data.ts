@@ -4,7 +4,8 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import { formatDateTime } from '@vben/utils';
 
 import { z } from '#/adapter/form';
-import { getParkList } from '#/api/park';
+// 新增导入 (如果之前没有)
+// <-- 新增导入
 import { $t } from '#/locales';
 
 /**
@@ -31,27 +32,27 @@ export function getTagTypeOptions() {
 }
 
 /**
- * 获取表单的字段配置
+ * 获取新增、修改表单的字段配置
  */
 export function useFormSchema(): VbenFormSchema[] {
   return [
     {
-      component: 'Input',
-      fieldName: 'firefightingName',
-      label: $t('system.rental.title'),
-      rules: 'required',
-    },
-    {
-      component: 'ApiSelect',
+      component: 'Cascader',
       componentProps: {
-        allowClear: true,
-        api: getParkList,
-        class: 'w-full',
-        labelField: 'parkName',
-        valueField: 'parkId',
+        changeOnSelect: false,
+        expandTrigger: 'hover',
+        fieldNames: {
+          label: 'name',
+          value: 'value',
+          children: 'children',
+        },
+        // loadData: async (...) => { ... }, // <-- 移除此行及整个 loadData 函数
+        options: [], // 数据将由 form.vue 动态填充
+        placeholder: '请选择园区和厂房',
       },
-      fieldName: 'parkId',
-      label: $t('page.common.park'),
+      defaultValue: [], // 值将是 [parkId, factoryId]
+      fieldName: 'factoryId', // 注意：此字段将持有数组值
+      label: '厂房名称',
       rules: 'required',
     },
     {
@@ -151,14 +152,23 @@ export function useFormSchema(): VbenFormSchema[] {
 /**
  * 获取表格查询表单配置
  */
-/**
- * 获取表格查询表单配置
- */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
-      component: 'Input',
-      fieldName: 'firefightingName',
+      component: 'Cascader',
+      componentProps: {
+        changeOnSelect: false,
+        expandTrigger: 'hover',
+        fieldNames: {
+          label: 'name',
+          value: 'value',
+          children: 'children',
+        },
+        // loadData: async (...) => { ... }, // <-- 移除此行及整个 loadData 函数
+        options: [], // 数据将由 list.vue 动态填充
+        placeholder: '请选择园区和厂房',
+      },
+      fieldName: 'factoryId', // 后端列表查询需要单个 factoryId
       label: '厂房名称',
     },
     {

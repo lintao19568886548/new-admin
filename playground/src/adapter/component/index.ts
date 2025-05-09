@@ -16,6 +16,7 @@ import { $t } from '@vben/locales';
 import {
   AutoComplete,
   Button,
+  Cascader, // 新增导入
   Checkbox,
   CheckboxGroup,
   DatePicker,
@@ -73,6 +74,7 @@ export type ComponentType =
   | 'ApiSelect'
   | 'ApiTreeSelect'
   | 'AutoComplete'
+  | 'Cascader' // 新增类型
   | 'Checkbox'
   | 'CheckboxGroup'
   | 'DatePicker'
@@ -136,6 +138,7 @@ async function initComponentAdapter() {
       );
     },
     AutoComplete,
+    Cascader: withDefaultPlaceholder(Cascader, 'select'), // 新增组件
     Checkbox,
     CheckboxGroup,
     DatePicker,
