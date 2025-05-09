@@ -7,6 +7,8 @@ import type {
   TablePaginationConfig,
 } from 'ant-design-vue/es/table/interface';
 
+import type { Park } from '#/components/AreaSelector.vue';
+
 import { h, onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -16,6 +18,7 @@ import {
   Button,
   Card,
   DatePicker,
+  Image,
   Input,
   message,
   Modal,
@@ -24,6 +27,7 @@ import {
   Tag,
 } from 'ant-design-vue';
 
+import { getVisitorParkList } from '#/api/park';
 import {
   deleteReimbursement,
   getReimbursementList,
@@ -38,13 +42,14 @@ interface ReimbursementItem {
   date: string;
   department: string;
   id: number | string;
+  images?: string[];
   park: string;
   payee: string;
   purpose: string;
   remark?: string;
   status: number;
   updateTime?: string;
-  userName?: string;
+  username?: string;
 }
 
 // 状态映射
@@ -55,16 +60,30 @@ const STATUS_MAP = {
 };
 
 // 部门选项
-const departmentOptions = [
-  { label: '技术部', value: 'tech' },
-  { label: '财务部', value: 'finance' },
-  { label: '人事部', value: 'hr' },
-  { label: '市场部', value: 'marketing' },
-  { label: '采购部', value: 'procure' },
-  { label: '工程部', value: 'engineering project  ' },
-  { label: '销售部', value: 'sales' },
-  { label: '客服部', value: 'customerService' },
-];
+// const departmentOptions = [
+//   { label: '技术部', value: 'tech' },
+//   { label: '财务部', value: 'finance' },
+//   { label: '人事部', value: 'hr' },
+//   { label: '市场部', value: 'marketing' },
+//   { label: '采购部', value: 'procure' },
+//   { label: '工程部', value: 'engineering project  ' },
+//   { label: '销售部', value: 'sales' },
+//   { label: '客服部', value: 'customerService' },
+// ];
+
+// 园区列表
+const parkList = ref<Park[]>([]);
+
+// 获取园区列表
+async function fetchParkList() {
+  try {
+    const result = await getVisitorParkList({ area: 'all' });
+    parkList.value = result || [];
+  } catch (error) {
+    console.error('获取园区列表失败:', error);
+    message.error('获取园区列表失败');
+  }
+}
 
 // 状态选项
 const statusOptions = [
@@ -86,11 +105,13 @@ const pagination = reactive({
 const filterForm = reactive<{
   dateRange: any[];
   department: string | undefined;
+  parkId: number | undefined;
   purpose: string;
   status: number | undefined;
 }>({
   dateRange: [],
   department: undefined,
+  parkId: undefined,
   purpose: '',
   status: undefined,
 });
@@ -130,6 +151,10 @@ async function fetchReimbursementList() {
       params.endDate = filterForm.dateRange[1]?.format('YYYY-MM-DD');
     }
 
+    if (filterForm.parkId) {
+      params.parkId = filterForm.parkId;
+    }
+
     const response = await getReimbursementList(params);
     tableData.value = response.items || [];
     pagination.total = response.total || 0;
@@ -157,6 +182,7 @@ function handleTableChange(
 function resetFilters() {
   filterForm.dateRange = [];
   filterForm.department = undefined;
+  filterForm.parkId = undefined;
   filterForm.purpose = '';
   filterForm.status = undefined;
   pagination.current = 1;
@@ -222,6 +248,7 @@ async function handleDelete(record: ReimbursementItem) {
 // 初始化加载数据
 onMounted(() => {
   fetchReimbursementList();
+  fetchParkList();
 });
 </script>
 
@@ -239,14 +266,21 @@ onMounted(() => {
         </div>
 
         <div class="flex items-center gap-2">
-          <span>部门:</span>
+          <span class="whitespace-nowrap">园区:</span>
           <Select
-            v-model:value="filterForm.department"
-            :options="departmentOptions"
-            placeholder="选择部门"
-            style="width: 150px"
+            v-model:value="filterForm.parkId"
+            placeholder="请选择园区"
+            style="width: 180px"
             allow-clear
-          />
+          >
+            <Select.Option
+              v-for="park in parkList"
+              :key="park.parkId"
+              :value="park.parkId"
+            >
+              {{ park.parkName }}
+            </Select.Option>
+          </Select>
         </div>
 
         <div class="flex items-center gap-2">
@@ -279,31 +313,39 @@ onMounted(() => {
       <!-- 表格区域 -->
       <Table
         :columns="[
-          { title: 'ID', dataIndex: 'id', width: 80 },
-          { title: '用途', dataIndex: 'purpose', ellipsis: true },
+          // { title: 'ID', dataIndex: 'id', width: 80, align: 'center' },
+          {
+            title: '用途',
+            dataIndex: 'purpose',
+            ellipsis: true,
+            align: 'center',
+          },
           {
             title: '金额(元)',
             dataIndex: 'amount',
             customRender: ({ text }) => `¥${Number(text).toFixed(2)}`,
             sorter: true,
+            align: 'center',
           },
-          {
-            title: '部门',
-            dataIndex: 'department',
-            customRender: ({ text }) => {
-              const dept = departmentOptions.find((d) => d.value === text);
-              return dept ? dept.label : text;
-            },
-          },
-          { title: '领款人', dataIndex: 'payee' },
-          { title: '所属园区', dataIndex: 'park' },
+          // {
+          //   title: '部门',
+          //   dataIndex: 'department',
+          //   customRender: ({ text }) => {
+          //     const dept = departmentOptions.find((d) => d.value === text);
+          //     return dept ? dept.label : text;
+          //   },
+          //   align: 'center'
+          // },
+          { title: '领款人', dataIndex: 'payee', align: 'center' },
+          { title: '所属园区', dataIndex: 'park', align: 'center' },
           {
             title: '申请日期',
             dataIndex: 'date',
             customRender: ({ text }) => formatDateTime(text),
             sorter: true,
+            align: 'center',
           },
-          { title: '申请人', dataIndex: 'userName' },
+          { title: '申请人', dataIndex: 'username', align: 'center' },
           {
             title: '状态',
             dataIndex: 'status',
@@ -314,13 +356,15 @@ onMounted(() => {
               };
               return h(Tag, { color: status.color }, () => status.text);
             },
+            align: 'center',
           },
           {
             title: '操作',
             key: 'action',
             width: 120,
+            align: 'center',
             customRender: ({ record }) => {
-              return h('div', { class: 'flex gap-2' }, [
+              return h('div', { class: 'flex gap-2 justify-center' }, [
                 h(
                   Button,
                   {
@@ -374,7 +418,7 @@ onMounted(() => {
             <div class="text-gray-500">金额</div>
             <div>¥{{ Number(currentRecord?.amount).toFixed(2) }}</div>
           </div>
-          <div>
+          <!-- <div>
             <div class="text-gray-500">部门</div>
             <div>
               {{
@@ -383,7 +427,7 @@ onMounted(() => {
                 )?.label || currentRecord?.department
               }}
             </div>
-          </div>
+          </div> -->
           <div>
             <div class="text-gray-500">领款人</div>
             <div>{{ currentRecord?.payee }}</div>
@@ -394,11 +438,33 @@ onMounted(() => {
           </div>
           <div>
             <div class="text-gray-500">申请人</div>
-            <div>{{ currentRecord?.userName }}</div>
+            <div>{{ currentRecord?.username }}</div>
           </div>
+
           <div>
             <div class="text-gray-500">所属园区</div>
             <div>{{ currentRecord?.park }}</div>
+          </div>
+          <div>
+            <div class="mb-2 text-gray-500">相关图片</div>
+            <div class="flex flex-wrap gap-2">
+              <Image.PreviewGroup>
+                <Image
+                  v-for="item in currentRecord.images"
+                  :key="item"
+                  :src="item"
+                  :width="80"
+                  :height="80"
+                  alt="报销凭证"
+                  class="rounded object-cover"
+                />
+              </Image.PreviewGroup>
+            </div>
+            <div
+              v-if="!currentRecord.images || currentRecord.images.length === 0"
+            >
+              无
+            </div>
           </div>
         </div>
 

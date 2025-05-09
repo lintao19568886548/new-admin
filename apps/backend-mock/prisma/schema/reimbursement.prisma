@@ -1,16 +1,20 @@
 model Reimbursement {
-  id              Int       @id @default(autoincrement())
-  purpose         String    @db.VarChar(100)
-  amount          Decimal   @db.Decimal(10, 2)
-  department      String    @db.VarChar(50)
-  payee           String    @db.VarChar(50)
-  date            DateTime
-  remark          String?   @db.VarChar(200)
-  createTime      DateTime? @default(now()) @map("create_time")
-  updateTime      DateTime? @updatedAt @map("update_time")
-  status          Int       @default(0)
-  park            String?   @db.VarChar(50)     
-  userName        String?    @db.VarChar(50)
+  id              Int                    @id @default(autoincrement())
+  purpose         String                 @db.VarChar(100) // 报销事由
+  amount          Decimal                @db.Decimal(10, 2) // 报销金额
+  payee           String                 @db.VarChar(50) // 收款人
+  date            DateTime               @default(now()) // 报销日期
+  department      String?                @db.VarChar(50)
+  username        String?                @db.VarChar(50)
+  remark          String?                @db.VarChar(200)
+  createTime      DateTime?              @default(now()) @map("create_time")
+  updateTime      DateTime?              @updatedAt @map("update_time")
+  status          Int                    @default(0)
+  isDeleted       Boolean                @default(false) @map("is_deleted")
+  parkId          Int?                   @map("park_id")
+  park            Park?                  @relation("ParkToReimbursement", fields: [parkId], references: [parkId])
+  images          ReimbursementImage[]   @relation("ReimbursementToReimbursementImage")
 
+  @@index([parkId])
   @@map("reimbursement")
 }

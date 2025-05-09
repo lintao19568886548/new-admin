@@ -49,7 +49,7 @@ export function forbiddenResponse(
 
 export function unAuthorizedResponse(event: H3Event<EventHandlerRequest>) {
   setResponseStatus(event, 401);
-  return useResponseError('Unauthorized Exception', 'Unauthorized Exception');
+  return useResponseError('验证失败', '验证失败');
 }
 
 export function sleep(ms: number) {

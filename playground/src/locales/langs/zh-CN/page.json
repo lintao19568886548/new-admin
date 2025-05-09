@@ -36,10 +36,22 @@
     "view": "查看中介"
   },
   "auth": {
+    "changePassword": "修改密码",
     "codeLogin": "验证码登录",
     "codeSentTo": "验证码已发送至{0}",
+    "confirmPassword": "确认密码",
     "forgetPassword": "忘记密码",
     "login": "登录",
+    "newPassword": "新密码",
+    "oldPassword": "旧密码",
+    "password": "密码",
+    "passwordChangeFailed": "修改失败",
+    "passwordChangeSuccess": "密码修改成功",
+    "passwordChangeSuccessTips": "密码修改成功",
+    "passwordIncorrect": "密码错误",
+    "passwordLengthTip": "密码不能少于6位",
+    "passwordNotMatch": "两次密码不一致",
+    "passwordStrength": "密码强度",
     "qrcodeLogin": "二维码登录",
     "register": "注册",
     "sendingCode": "正在发送验证码"

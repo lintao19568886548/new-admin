@@ -17,46 +17,46 @@ export default eventHandler(async (event) => {
     const where: any = {};
 
     // 区域查询
-    // if (query.currentPark) {
-    //   if (Number(query.currentPark) === -1) {
-    //     // 选择全部区域时,直接查询全部有权限的园区
-    //     const parks = await prismaClient.park.findMany({
-    //       where: {
-    //         parkName: {
-    //           in: userinfo.parks.map((park) => park.parkName),
-    //         },
-    //       },
-    //       select: { parkId: true },
-    //     });
+    if (query.currentPark) {
+      if (Number(query.currentPark) === -1) {
+        // 选择全部区域时,直接查询全部有权限的园区
+        const parks = await prismaClient.park.findMany({
+          where: {
+            parkName: {
+              in: userinfo.parks.map((park) => park.parkName),
+            },
+          },
+          select: { parkId: true },
+        });
 
-    //     if (parks.length > 0) {
-    //       where.parkId = {
-    //         in: parks.map((park) => park.parkId),
-    //       };
-    //     }
-    //   } else if (
-    //     userinfo.parks
-    //       .map((park) => park.parkId)
-    //       .includes(Number(query.currentPark))
-    //   ) {
-    //     // 当用户有权限查看特定园区时
-    //     const park = await prismaClient.park.findFirst({
-    //       where: { parkId: Number(query.currentPark) },
-    //       select: { parkId: true },
-    //     });
+        if (parks.length > 0) {
+          where.parkId = {
+            in: parks.map((park) => park.parkId),
+          };
+        }
+      } else if (
+        userinfo.parks
+          .map((park) => park.parkId)
+          .includes(Number(query.currentPark))
+      ) {
+        // 当用户有权限查看特定园区时
+        const park = await prismaClient.park.findFirst({
+          where: { parkId: Number(query.currentPark) },
+          select: { parkId: true },
+        });
 
-    //     if (park) {
-    //       where.parkId = park.parkId;
-    //     }
-    //   } else {
-    //     return useResponseError('没有查看权限');
-    //   }
-    // }
+        if (park) {
+          where.parkId = park.parkId;
+        }
+      } else {
+        return useResponseError('没有查看权限');
+      }
+    }
 
     // 区域查询
-    if (query.currentPark && Number(query.currentPark) !== -1) {
-      where.parkId = Number(query.currentPark);
-    }
+    // if (query.currentPark && Number(query.currentPark) !== -1) {
+    //   where.parkId = Number(query.currentPark);
+    // }
 
     if (query.tenantName) {
       where.tenantName = { contains: query.tenantName };

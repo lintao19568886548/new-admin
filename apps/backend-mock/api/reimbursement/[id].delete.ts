@@ -20,8 +20,11 @@ export default eventHandler(async (event) => {
     }
 
     // 删除报销记录
-    const deletedReimbursement = await prismaClient.reimbursement.delete({
+    const deletedReimbursement = await prismaClient.reimbursement.update({
       where: { id },
+      data: {
+        isDeleted: true,
+      },
     });
 
     console.log('删除报销记录成功:', deletedReimbursement);

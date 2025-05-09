@@ -1,19 +1,16 @@
 model Image {
-  imgId              Int                 @id @default(autoincrement()) @map("img_id")
-  imgUrl             String              @db.LongText @map("img_url")
-  hash               String              @unique @map("hash") // 新增：存储文件哈希值，并确保唯一性
-  createdTime        DateTime?           @default(now()) @map("created_time")
-  updatedTime        DateTime?           @updatedAt @map("updated_time")
-  investments        InvestmentImage[]   @relation("ImageToInvestmentImage")
-  floorImages        FactoryFloorImage[] @relation("ImageToFactoryFloorImage")
-  // 添加与 DormitoryImage 的关联
-  dormitoryImages    DormitoryImage[]    @relation("ImageToDormitoryImage")
-  // 添加与 ParkImage 的关联
-  parkImages         ParkImage[]         @relation("ImageToParkImage")
-  // 添加与 FirefightingImage 的关联
-  firefightingImages FirefightingImage[] @relation("ImageToFirefightingImage") // 新增此行
-  // 添加与 TransformerImage 的关联
-  transformerImages  TransformerImage[]  @relation("ImageToTransformerImage")  // 新增此行
+  imgId              Int                    @id @default(autoincrement()) @map("img_id")
+  imgUrl             String                 @db.LongText @map("img_url")
+  hash               String                 @unique @map("hash") // 新增：存储文件哈希值，并确保唯一性
+  createdTime        DateTime?              @default(now()) @map("created_time")
+  updatedTime        DateTime?              @updatedAt @map("updated_time")
+  investments        InvestmentImage[]      @relation("ImageToInvestmentImage")
+  floorImages        FactoryFloorImage[]    @relation("ImageToFactoryFloorImage")
+  dormitoryImages    DormitoryImage[]       @relation("ImageToDormitoryImage")
+  parkImages         ParkImage[]            @relation("ImageToParkImage")
+  Reimbursement      ReimbursementImage[]   @relation("ImageToReimbursementImage")
+  firefightingImages FirefightingImage[]    @relation("ImageToFirefightingImage") // 新增此行
+  transformerImages  TransformerImage[]     @relation("ImageToTransformerImage")  // 新增此行
 
   @@map("image")
 }
@@ -79,6 +76,19 @@ model ParkImage {
   @@index([parkId])
   @@index([imgId])
   @@map("park_image")
+}
+
+model ReimbursementImage {
+  id               Int              @id @default(autoincrement())
+  reimbursementId  Int              @map("reimbursement_id")
+  imgId            Int              @map("img_id")
+  reimbursement    Reimbursement?   @relation("ReimbursementToReimbursementImage", fields: [reimbursementId], references: [id])
+  image            Image?           @relation("ImageToReimbursementImage", fields: [imgId], references: [imgId])
+  createTime       DateTime?        @default(now()) @map("create_time")
+  updateTime       DateTime?        @updatedAt @map("update_time")
+  @@index([reimbursementId])
+  @@index([imgId])
+  @@map("reimbursement_image")
 }
 
 model FirefightingImage {

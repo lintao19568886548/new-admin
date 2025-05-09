@@ -107,6 +107,18 @@ const imageOnPreview = (file: any) => {
   }
 };
 
+const beforeUpload = (file: File) => {
+  const isImage = file.type.startsWith('image/');
+  if (!isImage) {
+    message.error('只能上传图片文件!');
+  }
+  const isLt2M = file.size / 1024 / 1024 < 10;
+  if (!isLt2M) {
+    message.error('图片必须小于10MB!');
+  }
+  return isImage && isLt2M;
+};
+
 /**
  * 获取园区表单的字段配置
  */
@@ -175,6 +187,7 @@ export function useParkFormSchema(): VbenFormSchema[] {
         // 自动携带认证信息
         // customRequest: uploadParkImage,
         action: '/api/image/upload',
+        beforeUpload,
         headers: {
           Authorization: `Bearer ${accessStore.accessToken}`,
         },
@@ -410,6 +423,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
         // 自动携带认证信息
         // customRequest: uploadParkImage,
         action: '/api/image/upload',
+        beforeUpload,
         headers: {
           Authorization: `Bearer ${accessStore.accessToken}`,
         },
@@ -599,6 +613,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
         // 自动携带认证信息
         // customRequest: uploadParkImage,
         action: '/api/image/upload',
+        beforeUpload,
         headers: {
           Authorization: `Bearer ${accessStore.accessToken}`,
         },

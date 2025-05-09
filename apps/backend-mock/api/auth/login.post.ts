@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import {
   clearRefreshTokenCookie,
   setRefreshTokenCookie,
@@ -5,6 +6,10 @@ import {
 import { prismaClient } from '~/utils/db';
 import { generateAccessToken, generateRefreshToken } from '~/utils/jwt-utils';
 import { forbiddenResponse } from '~/utils/response';
+import {
+  fetchUserWithDetails,
+  transformPrismaUserToUserInfo, // 如果需要直接使用此类型
+} from '~/utils/user-service';
 
 export default defineEventHandler(async (event) => {
   const { password, username } = await readBody(event);
@@ -16,68 +21,61 @@ export default defineEventHandler(async (event) => {
     );
   }
 
-  const userResult = await prismaClient.user.findUnique({
-    where: {
-      username,
-      password,
-    },
-    include: {
-      roles: {
-        include: {
-          role: {
-            include: {
-              roleParks: {
-                where: {
-                  isDeleted: false,
-                },
-                include: {
-                  park: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
+  // 1. 获取用户详细信息
+  const userResult = await fetchUserWithDetails(username);
 
   if (!userResult) {
     clearRefreshTokenCookie(event);
-    return forbiddenResponse(event, 'Username or password is incorrect.');
-  }
-  // 将数据库结果转换为 UserInfo 类型
-  const findUser: UserInfo = {
-    id: Number(userResult.id),
-    username: String(userResult.username),
-    password: String(userResult.password),
-    realName: String(userResult.realName),
-    roles: Array.isArray(userResult.roles)
-      ? userResult.roles.map((item) => item.role.name)
-      : [],
-    homePath: userResult.homePath ? String(userResult.homePath) : undefined,
-    parks: [],
-  };
-  if (userResult.roles.some((item) => item.role.name === 'Super')) {
-    findUser.parks = await prismaClient.park.findMany({
-      select: { parkId: true, parkName: true },
-    });
-  } else {
-    const parks = userResult.roles.flatMap((roles) =>
-      roles.role.roleParks.map((parks) => ({
-        parkId: parks.park.parkId,
-        parkName: parks.park.parkName,
-      })),
-    );
-    findUser.parks = parks;
+    return forbiddenResponse(event, '用户名或密码错误');
   }
 
-  const accessToken = generateAccessToken(findUser);
-  const refreshToken = generateRefreshToken(findUser);
+  // 2. 验证密码
+  let isPasswordValid = false;
+  try {
+    isPasswordValid = await bcrypt.compare(password, userResult.password);
+  } catch (error) {
+    console.warn(
+      `Bcrypt compare failed for user ${username}, possibly plaintext password. Error: ${error}`,
+    );
+  }
+
+  if (!isPasswordValid && password === userResult.password) {
+    isPasswordValid = true;
+    try {
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
+      // 原文密码时更新用户密码
+      await prismaClient.user.update({
+        where: { id: userResult.id },
+        data: { password: hashedPassword },
+      });
+      console.log(
+        `User ${username}'s password has been updated to hashed version.`,
+      );
+    } catch (hashError) {
+      console.error(
+        `Failed to hash and update password for user ${username}:`,
+        hashError,
+      );
+    }
+  }
+
+  if (!isPasswordValid) {
+    clearRefreshTokenCookie(event);
+    return forbiddenResponse(event, '用户名或密码错误');
+  }
+
+  // 3. 使用新服务转换用户信息
+  const userInfoForToken = await transformPrismaUserToUserInfo(userResult);
+
+  // 4. 生成令牌
+  const accessToken = generateAccessToken(userInfoForToken);
+  const refreshToken = generateRefreshToken(userInfoForToken);
 
   setRefreshTokenCookie(event, refreshToken);
 
   return useResponseSuccess({
-    ...findUser,
+    ...userInfoForToken, // 返回转换后的用户信息
     accessToken,
   });
 });

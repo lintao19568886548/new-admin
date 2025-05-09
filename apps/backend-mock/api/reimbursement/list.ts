@@ -18,11 +18,13 @@ export default eventHandler(async (event) => {
     console.log('后端收到的查询参数:', query);
 
     // 构建查询条件
-    const where: any = {};
+    const where: any = {
+      isDeleted: false,
+    };
 
     // 根据用户名过滤：如果不是 vben 或 admin，则只查询自己的记录
     if (userinfo.username !== 'vben' && userinfo.username !== 'admin') {
-      where.userName = userinfo.username;
+      where.username = userinfo.username;
     }
 
     // 用途模糊查询
@@ -55,6 +57,14 @@ export default eventHandler(async (event) => {
       };
     }
 
+    if (query.status) {
+      where.status = Number(query.status);
+    }
+
+    if (query.parkId) {
+      where.parkId = Number(query.parkId);
+    }
+
     // 分页参数
     const pageNo = Number(query.pageNo) || 1;
     const pageSize = Number(query.pageSize) || 10;
@@ -71,10 +81,22 @@ export default eventHandler(async (event) => {
       orderBy: {
         createTime: 'desc',
       },
+      include: {
+        park: true,
+        images: {
+          include: {
+            image: true,
+          },
+        },
+      },
     });
 
     return useResponseSuccess({
-      items: reimbursements,
+      items: reimbursements.map((item) => ({
+        ...item,
+        park: item.park?.parkName || '',
+        images: item.images.map((imageItem) => imageItem.image.imgUrl),
+      })),
       total,
     });
   } catch (error) {
