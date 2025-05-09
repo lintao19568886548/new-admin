@@ -604,6 +604,9 @@ importers:
       axios:
         specifier: ^1.8.4
         version: 1.8.4
+      bcryptjs:
+        specifier: ^3.0.2
+        version: 3.0.2
       better-sqlite3:
         specifier: ^11.9.1
         version: 11.9.1
@@ -620,6 +623,9 @@ importers:
         specifier: ^1.0.14
         version: 1.0.14
     devDependencies:
+      '@types/bcryptjs':
+        specifier: ^3.0.0
+        version: 3.0.0
       '@types/jsonwebtoken':
         specifier: 'catalog:'
         version: 9.0.9
@@ -4182,6 +4188,10 @@ packages:
   '@types/argparse@1.0.38':
     resolution: {integrity: sha512-ebDJ9b0e702Yr7pWgB0jzm+CX4Srzz8RcXtLJDJB+BSccqMa36uyH/zUsSYao5+BD1ytv3k3rPYCq4mAE1hsXA==}
 
+  '@types/bcryptjs@3.0.0':
+    resolution: {integrity: sha512-WRZOuCuaz8UcZZE4R5HXTco2goQSI2XxjGY3hbM/xDvwmqFWd4ivooImsMx65OKM6CtNKbnZ5YL+YwAwK7c1dg==}
+    deprecated: This is a stub types definition. bcryptjs provides its own type definitions, so you do not need this installed.
+
   '@types/bintrees@1.0.6':
     resolution: {integrity: sha512-pZWT4Bz+tWwxlDspSjdoIza4PE5lbGI4Xvs3FZV/2v5m5SDA8LwNpU8AXxlndmARO7OaQ1Vf3zFenOsNMzaRkQ==}
 
@@ -4896,6 +4906,10 @@ packages:
 
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
+
+  bcryptjs@3.0.2:
+    resolution: {integrity: sha512-k38b3XOZKv60C4E2hVsXTolJWfkGRMbILBIe2IBITXciy5bOsTKot5kDrf3ZfufQtQOUN5mXceUEpU1rTl9Uog==}
+    hasBin: true
 
   better-path-resolve@1.0.0:
     resolution: {integrity: sha512-pbnl5XzGBdrFU/wT4jqmJVPn2B6UHPBOhzMQkY/SPUPB6QtUXtmBHBIwCbXJol93mOpGMnQyP/+BB19q04xj7g==}
@@ -13162,6 +13176,10 @@ snapshots:
 
   '@types/argparse@1.0.38': {}
 
+  '@types/bcryptjs@3.0.0':
+    dependencies:
+      bcryptjs: 3.0.2
+
   '@types/bintrees@1.0.6': {}
 
   '@types/conventional-commits-parser@5.0.1':
@@ -14019,6 +14037,8 @@ snapshots:
     optional: true
 
   base64-js@1.5.1: {}
+
+  bcryptjs@3.0.2: {}
 
   better-path-resolve@1.0.0:
     dependencies:

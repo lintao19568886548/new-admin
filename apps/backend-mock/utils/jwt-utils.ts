@@ -1,143 +1,97 @@
-import type { EventHandlerRequest, H3Event } from 'h3';
+import type { H3Event } from 'h3';
+
+import type { UserInfoForToken } from './user-service'; // 导入 UserInfoForToken
 
 import jwt from 'jsonwebtoken';
 
-import { UserInfo } from './mock-data';
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'access-secret';
+const REFRESH_TOKEN_SECRET =
+  process.env.REFRESH_TOKEN_SECRET || 'refresh-secret';
 
-// TODO: Replace with your own secret key
-const ACCESS_TOKEN_SECRET = 'access_token_secret';
-const REFRESH_TOKEN_SECRET = 'refresh_token_secret';
+const ACCESS_TOKEN_EXPIRES_IN = '15m'; // 例如 15 分钟
+const REFRESH_TOKEN_EXPIRES_IN = '7d'; // 例如 7 天
 
-export interface UserPayload extends UserInfo {
-  iat: number;
-  exp: number;
-}
-
-export function generateAccessToken(user: UserInfo) {
-  return jwt.sign(user, ACCESS_TOKEN_SECRET, { expiresIn: '7d' });
-}
-
-export function generateRefreshToken(user: UserInfo) {
-  return jwt.sign(user, REFRESH_TOKEN_SECRET, {
-    expiresIn: '30d',
+/**
+ * 生成 Access Token
+ * @param userinfo 用户信息
+ * @returns Access Token
+ */
+export function generateAccessToken(userinfo: UserInfoForToken): string {
+  // 确保 userinfo 中不包含敏感信息，如密码
+  const payload = { ...userinfo };
+  // delete payload.password; // 如果 UserInfoForToken 可能意外包含 password，则删除
+  console.log(ACCESS_TOKEN_SECRET);
+  return jwt.sign(payload, ACCESS_TOKEN_SECRET, {
+    expiresIn: ACCESS_TOKEN_EXPIRES_IN,
   });
 }
 
-async function getUserInfo(username: string) {
-  return await prismaClient.user.findUnique({
-    where: {
-      username,
-    },
-    include: {
-      roles: {
-        include: {
-          role: {
-            include: {
-              roleParks: {
-                where: {
-                  isDeleted: false,
-                  park: {
-                    isDeleted: false,
-                  },
-                },
-                include: {
-                  park: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
+/**
+ * 生成 Refresh Token
+ * @param userinfo 用户信息
+ * @returns Refresh Token
+ */
+export function generateRefreshToken(userinfo: UserInfoForToken): string {
+  // 确保 userinfo 中不包含敏感信息
+  const payload = { ...userinfo };
+  // delete payload.password;
+
+  return jwt.sign(payload, REFRESH_TOKEN_SECRET, {
+    expiresIn: REFRESH_TOKEN_EXPIRES_IN,
   });
 }
 
+/**
+ * 验证 Access Token
+ * @param event H3Event
+ * @returns 用户信息或 null
+ */
 export async function verifyAccessToken(
-  event: H3Event<EventHandlerRequest>,
-): Promise<null | Promise<Omit<UserInfo, 'password'>>> {
-  const authHeader = getHeader(event, 'Authorization');
-  if (!authHeader?.startsWith('Bearer')) {
+  event: H3Event,
+): Promise<null | UserInfoForToken> {
+  const token = getHeader(event, 'Authorization')?.split(' ')[1];
+  if (!token) {
     return null;
   }
-
-  const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET) as UserPayload;
-
-    const username = decoded.username;
-    // 使用数据库查询替代硬编码的用户查找
-    const user = await getUserInfo(username);
-    if (!user) return null;
-    const userInfo: Omit<UserInfo, 'password'> = {
-      id: Number(user.id),
-      username: String(user.username),
-      realName: String(user.realName),
-      roles: Array.isArray(user.roles)
-        ? user.roles.map((item) => item.role.name)
-        : [],
-      parks: [],
-      homePath: user.homePath ? String(user.homePath) : undefined,
-    };
-    if (user.roles.some((item) => item.role.name === 'Super')) {
-      userInfo.parks = await prismaClient.park.findMany({
-        where: {
-          isDeleted: false,
-        },
-        select: { parkId: true, parkName: true },
-      });
-    } else {
-      const parks = user.roles.flatMap((roles) =>
-        roles.role.roleParks.map((parks) => ({
-          parkId: parks.park.parkId,
-          parkName: parks.park.parkName,
-        })),
-      );
-      userInfo.parks = parks;
+    const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET);
+    // 检查 decoded 是否为对象类型，并且包含 iat 和 exp
+    if (typeof decoded === 'object' && decoded !== null) {
+      const { iat: _iat, exp: _exp, ...userPayload } = decoded as any; // 使用 any 辅助解构
+      return userPayload as UserInfoForToken;
     }
-    return userInfo;
-  } catch {
+    // 如果 decoded 不是预期的对象结构，或者不包含 iat/exp (理论上 jwt.verify 会确保它们存在或抛错)
+    // 但为了类型安全和明确性，可以返回 null 或原始 decoded (如果认为外部调用者能处理)
+    // 在此场景下，我们期望 userPayload 符合 UserInfoForToken
+    return decoded as UserInfoForToken; // 或者根据严格程度返回 null
+  } catch (error) {
+    console.error('Access token verification failed:', error);
     return null;
   }
 }
 
+/**
+ * 验证 Refresh Token
+ * @param token Refresh Token 字符串
+ * @returns 用户信息或 null
+ */
 export async function verifyRefreshToken(
   token: string,
-): Promise<null | Promise<Omit<UserInfo, 'password'>>> {
+): Promise<null | UserInfoForToken> {
   try {
-    const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET) as UserPayload;
-    const username = decoded.username;
+    const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET);
 
-    // 使用数据库查询替代硬编码的用户查找
-    const user = await getUserInfo(username);
-    // 转换为 UserInfo 类型并排除密码
-    const userInfo: Omit<UserInfo, 'password'> = {
-      id: Number(user.id),
-      username: String(user.username),
-      realName: String(user.realName),
-      roles: Array.isArray(user.roles)
-        ? user.roles.map((item) => item.role.name)
-        : [],
-      parks: [],
-      homePath: user.homePath ? String(user.homePath) : undefined,
-    };
-    if (user.roles.some((item) => item.role.name === 'Super')) {
-      userInfo.parks = await prismaClient.park.findMany({
-        where: {
-          isDeleted: false,
-        },
-        select: { parkId: true, parkName: true },
-      });
-    } else {
-      const parks = user.roles.flatMap((roles) =>
-        roles.role.roleParks.map((parks) => ({
-          parkId: parks.park.parkId,
-          parkName: parks.park.parkName,
-        })),
-      );
-      userInfo.parks = parks;
+    console.log('refresh');
+
+    // 检查 decoded 是否为对象类型，并且包含 iat 和 exp
+    if (typeof decoded === 'object' && decoded !== null) {
+      const { iat: _iat, exp: _exp, ...userPayload } = decoded as any; // 使用 any 辅助解构
+      return userPayload as UserInfoForToken;
     }
-    return userInfo;
-  } catch {
+    // 同上，处理非预期结构的情况
+    return decoded as UserInfoForToken; // 或者根据严格程度返回 null
+  } catch (error) {
+    console.error('Refresh token verification failed:', error);
     return null;
   }
 }

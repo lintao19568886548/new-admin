@@ -50,6 +50,13 @@ export async function logoutApi() {
 }
 
 /**
+ * 修改密码
+ */
+export async function changePasswordApi(data: any) {
+  return requestClient.post('/auth/password', data);
+}
+
+/**
  * 获取用户权限码
  */
 export async function getAccessCodesApi() {
