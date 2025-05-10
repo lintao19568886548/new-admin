@@ -1,12 +1,7 @@
 // 消防设施模型 (maintenance/firefighting)
 model Firefighting {
   firefightingId     Int                 @id @default(autoincrement()) @map("firefighting_id")
-<<<<<<< HEAD
-  address            String?              @db.VarChar(200)
-=======
-  firefightingName   String?             @db.VarChar(100) @map("firefighting_name")
-  address            String              @db.VarChar(200)
->>>>>>> 536daea4354dc23ed9b1521cb0b366b6f11d5bdd
+  address            String?             @db.VarChar(200)
   extinguisher       String              @db.VarChar(10)  // 灭火器
   hydrant            String              @db.VarChar(10)  // 消防栓
   fireExit           String              @map("fire_exit") @db.VarChar(100) // 消防出口
@@ -17,13 +12,8 @@ model Firefighting {
   createTime         DateTime            @default(now()) @map("create_time")
   updateTime         DateTime?           @updatedAt @map("update_time")
   // 修改关联字段   
-<<<<<<< HEAD
   factoryId          Int?                @default(20) @map("factory_id")
   factory            Factory?            @relation("FactoryToFirefighting", fields: [factoryId], references: [factoryId])
-=======
-  factoryId          Int?                 @default(20) @map("factory_id")
-  factory            Factory?             @relation("FactoryToFirefighting", fields: [factoryId], references: [factoryId])
->>>>>>> 536daea4354dc23ed9b1521cb0b366b6f11d5bdd
   parkId             Int                 @map("park_id")
   park               Park                @relation("ParkToFirefighting", fields: [parkId], references: [parkId])
 
@@ -35,7 +25,7 @@ model Firefighting {
 // 变压器模型 (maintenance/transformer)
 model Transformer {
   transformerId    Int                 @id @default(autoincrement()) @map("transformer_id")
-  transformerName  String?              @db.VarChar(100) @map("transformer_name")
+  transformerName  String?             @db.VarChar(100) @map("transformer_name")
   address          String              @db.VarChar(200)
   contact          String              @db.VarChar(100)
   status           String              @db.VarChar(20) // 变压器状态：正常、异常、维护中
