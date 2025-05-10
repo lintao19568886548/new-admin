@@ -7,7 +7,6 @@ import { formatDateTime } from '@vben/utils';
 
 import { z } from '#/adapter/form';
 import { getFactoryListByParkId } from '#/api';
-import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
 /**
@@ -103,19 +102,6 @@ export function useFormSchema(): VbenFormSchema[] {
       defaultValue: '正常',
       fieldName: 'status',
       label: $t('system.maintenance.transformer.status.label'),
-    },
-    {
-      component: 'ApiSelect',
-      componentProps: {
-        allowClear: true,
-        api: getParkList,
-        class: 'w-full',
-        labelField: 'parkName',
-        valueField: 'parkId',
-      },
-      fieldName: 'parkId',
-      label: $t('page.common.park'),
-      rules: 'required',
     },
     {
       component: 'DatePicker',
@@ -231,9 +217,9 @@ export function useColumns<T = TransformerItem>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
-      field: 'transformerName',
+      field: 'factoryName', // 修改为 factoryName 或实际对应的厂房名字段
       minWidth: 150,
-      title: $t('system.maintenance.transformer.title'),
+      title: $t('厂房名称'), // 修改表头为厂房名称
     },
     {
       field: 'specifications',

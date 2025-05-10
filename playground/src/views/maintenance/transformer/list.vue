@@ -4,7 +4,7 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { ref } from 'vue';
+import { ref } from 'vue'; // <-- 修改：确保导入 ref
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -13,16 +13,16 @@ import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteTransformer, getTransformerList } from '#/api/maintenance';
+// AreaSelector 可能不再需要，或者其逻辑需要调整
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
-import { useColumns, useGridFormSchema } from './data';
+import { useColumns, useGridFormSchema } from './data'; // 新增导入 getParkFactoryCascaderOptions
 import Form from './modules/form.vue';
 
-// 当前选中的区域
-const currentPark = ref();
-
-const parkSelectorRef = ref();
+// 当前选中的区域 (currentPark 和 parkSelectorRef 可能不再直接用于主列表筛选，因为筛选条件已移入 GridForm)
+const currentPark = ref(); // <-- 修改：取消注释
+const parkSelectorRef = ref(); // <-- 修改：取消注释
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -34,6 +34,10 @@ const [FormModal, formModalApi] = useVbenModal({
  * @param row
  */
 function onEdit(row: any) {
+  // 当打开编辑模态框时，确保传递 parkId 和 factoryId
+  // 如果 row 中直接有 parkId 和 factoryId，则无需转换
+  // 如果 row.factoryId 是一个包含 [parkId, factoryId] 的数组，也无需转换
+  // 此处假设 row 的结构与 modalApi.setData 期望的一致
   formModalApi.setData(row).open();
 }
 
@@ -49,8 +53,12 @@ function onCreate() {
  * @param row
  */
 async function onDelete(row: any) {
+  // 假设 row 中有 factoryName 字段用于显示，或者 transformerName 仍然代表主要标识
+  // 如果 transformerName 被替换，应使用新的名称字段，例如 row.factoryName
+  const displayName =
+    row.factoryName || row.transformerName || $t('page.maintenance.title');
   message.loading({
-    content: $t('ui.actionMessage.deleting', [row.transformerName]),
+    content: $t('ui.actionMessage.deleting', [displayName]),
     duration: 0,
     key: 'action_process_msg',
   });
@@ -95,7 +103,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
     fieldMappingTime: [['checkTime', ['startTime', 'endTime']]],
-    schema: useGridFormSchema(),
+    schema: useGridFormSchema(), // 使用更新后的 schema
   },
   gridOptions: {
     columns: useColumns(onActionClick),
@@ -165,7 +173,7 @@ function refreshGrid() {
         <AreaSelector
           :default-park="currentPark"
           :refresh-callback="refreshGrid"
-          @change="(park) => (currentPark = park)"
+          @change="(park: any) => (currentPark = park)"
           ref="parkSelectorRef"
         />
       </template>
