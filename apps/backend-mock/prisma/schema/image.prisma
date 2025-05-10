@@ -58,6 +58,7 @@ model DormitoryImage {
   createTime  DateTime?  @default(now()) @map("create_time")
   updateTime  DateTime?  @updatedAt @map("update_time")
 
+  @@unique([dormitoryId, imgId])
   @@index([dormitoryId])
   @@index([imgId])
   @@map("dormitory_image")
