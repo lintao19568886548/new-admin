@@ -1,7 +1,15 @@
 <script lang="ts" setup>
 import type { ParkDetail, StatusTag } from './types';
 
-import { computed, onMounted, ref } from 'vue';
+import {
+  computed,
+  createApp,
+  h,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+} from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
@@ -15,7 +23,7 @@ import {
   CollapsePanel,
   Descriptions,
   Divider,
-  Image,
+  Image, // Image.PreviewGroup is part of Image
   message,
   Spin,
   TabPane,
@@ -23,21 +31,37 @@ import {
   Tag,
 } from 'ant-design-vue';
 
-import { getParkDetail } from '#/api/rental'; // 需要创建新的API
+import { getParkDetail } from '#/api/rental';
 import { useParkStore } from '#/store';
 
 const store = useParkStore();
+
+// 新增：辅助函数，用于确定图片URL列表
+const determineImageUrls = (
+  imageUrlsList?: (null | string)[] | null,
+  singleImgUrl?: null | string,
+): string[] => {
+  if (imageUrlsList && imageUrlsList.length > 0) {
+    // 过滤掉可能存在的 null 值，确保返回 string[]
+    const validUrls = imageUrlsList.filter((url) => url !== null) as string[];
+    if (validUrls.length > 0) {
+      return validUrls;
+    }
+  }
+  if (singleImgUrl) {
+    return [singleImgUrl];
+  }
+  return [store.defaultImgUrl]; // store 在 setup 作用域中可用
+};
 
 const route = useRoute();
 const router = useRouter();
 const id = ref(route.params.id);
 const loading = ref(false);
-// const activeKey = ref(['1']); // 默认展开第一个折叠面板 // MODIFIED
-const activeFactoryKey = ref<string[]>([]); // 修改：厂房默认展开的key
-const activeDormitoryKey = ref<string[]>([]); // 新增：宿舍默认展开的key
-const activeTabKey = ref('1'); // 添加这行，定义 Tabs 的激活标签页
+const activeFactoryKey = ref<string[]>([]);
+const activeDormitoryKey = ref<string[]>([]);
+const activeTabKey = ref('1');
 
-// 返回列表页面
 function goBack() {
   router.push({ name: 'RentalList' }); // 使用命名路由确保导航正确
 }
@@ -81,9 +105,10 @@ async function fetchParkDetail() {
         dormitories: (res.dormitories || []).map((dorm: any) => ({
           ...dorm,
           createTime: isValidDate(dorm.createTime) ? dorm.createTime : null,
+          imageUrls: determineImageUrls(dorm.imageUrls, dorm.imgUrl), // 使用辅助函数
+          imgUrl: dorm.imgUrl || store.defaultImgUrl, // 单个 imgUrl 仍需处理
           updateTime: isValidDate(dorm.updateTime) ? dorm.updateTime : null,
         })),
-        // 处理厂房中的日期字段
         factories: (res.factories || []).map((factory: any) => ({
           ...factory,
           buildTime: isValidDate(factory.buildTime) ? factory.buildTime : null,
@@ -103,7 +128,8 @@ async function fetchParkDetail() {
             createTime: isValidDate(floor.createTime) ? floor.createTime : null,
             updateTime: isValidDate(floor.updateTime) ? floor.updateTime : null,
           })),
-          // 处理变压器中的日期字段
+          imageUrls: determineImageUrls(factory.imageUrls, factory.imgUrl), // 使用辅助函数
+          imgUrl: factory.imgUrl || store.defaultImgUrl, // 单个 imgUrl 仍需处理
           transformers: (factory.transformers || []).map(
             (item: { checkTime: null | string | undefined }) => ({
               ...item,
@@ -114,24 +140,19 @@ async function fetchParkDetail() {
             ? factory.updateTime
             : null,
         })),
-        imageUrls: res.imageUrls?.length
-          ? res.imageUrls
-          : [store.defaultImgUrl], // 修改此行
-        imgUrl: res.imgUrl || store.defaultImgUrl, // 使用常量
-        // 修正语法错误并优化日期验证
+        imageUrls: determineImageUrls(res.imageUrls, res.imgUrl), // 对园区主图也使用辅助函数
+        imgUrl: res.imgUrl || store.defaultImgUrl, // 单个 imgUrl 仍需处理
         updateTime: isValidDate(res.updateTime) ? res.updateTime : null,
       };
 
       detail.value = processedData;
 
-      // 默认展开前三个厂房
       if (detail.value.factories && detail.value.factories.length > 0) {
         activeFactoryKey.value = detail.value.factories
           .slice(0, 3)
           .map((factory: any) => String(factory.factoryId));
       }
 
-      // 默认展开前三个宿舍
       if (detail.value.dormitories && detail.value.dormitories.length > 0) {
         activeDormitoryKey.value = detail.value.dormitories
           .slice(0, 3)
@@ -164,6 +185,74 @@ const parkFeatures = computed(() => {
   return featureList;
 });
 
+// NEW: Function to open image preview
+function openImagePreview(
+  imgList: (null | string | undefined)[],
+  startIndex: number = 0,
+) {
+  const validImgList = imgList
+    .map((url) => url || store.defaultImgUrl) // Use default if URL is null/undefined
+    .filter((url) => !!url) as string[]; // Filter out any remaining invalid URLs
+
+  if (validImgList.length === 0) {
+    message.warn('没有可预览的图片');
+    return;
+  }
+
+  // Ensure startIndex is within bounds
+  const initialIndex = Math.max(
+    0,
+    Math.min(startIndex, validImgList.length - 1),
+  );
+
+  const previewContainer = document.createElement('div');
+  document.body.append(previewContainer);
+
+  const previewApp = createApp({
+    setup() {
+      const visible = ref(false);
+
+      onMounted(() => {
+        nextTick(() => {
+          visible.value = true;
+        });
+      });
+
+      onUnmounted(() => {
+        if (document.body.contains(previewContainer)) {
+          previewContainer.remove();
+        }
+      });
+
+      return () =>
+        h(
+          Image.PreviewGroup,
+          {
+            preview: {
+              current: initialIndex, // Set the initial image by index
+              onVisibleChange: (v: boolean) => {
+                visible.value = v;
+                if (!v) {
+                  setTimeout(() => {
+                    previewApp.unmount();
+                  }, 200); // Delay unmount for closing animation
+                }
+              },
+              visible: visible.value,
+            },
+          },
+          validImgList.map((src: string) =>
+            h(Image, {
+              src,
+              style: { display: 'none' }, // Images are part of the group but not displayed individually here
+            }),
+          ),
+        );
+    },
+  });
+  previewApp.mount(previewContainer);
+}
+
 onMounted(() => {
   fetchParkDetail();
 });
@@ -184,21 +273,30 @@ onMounted(() => {
             <Carousel
               v-if="detail.imageUrls && detail.imageUrls.length > 1"
               autoplay
+              arrows
             >
-              <div v-for="(url, index) in detail.imageUrls" :key="index">
+              <div
+                v-for="(url, index) in detail.imageUrls"
+                :key="index"
+                class="cursor-pointer"
+                @click="openImagePreview(detail.imageUrls, index)"
+              >
                 <Image
                   :src="url || store.defaultImgUrl"
                   :alt="`${detail.parkName}-图片${index + 1}`"
                   class="w-full rounded-lg shadow-md"
+                  :preview="false"
                 />
               </div>
             </Carousel>
             <!-- 如果只有一张图片，直接展示 (此处的 detail.imgUrl 已由脚本处理，无需修改) -->
             <Image
               v-else
-              :src="detail.imgUrl"
+              :src="detail.imageUrls[0] || store.defaultImgUrl"
               :alt="detail.parkName"
-              class="w-full rounded-lg shadow-md"
+              class="w-full cursor-pointer rounded-lg shadow-md"
+              :preview="false"
+              @click="openImagePreview(detail.imageUrls)"
             />
           </div>
           <div class="p-4 md:w-2/3">
@@ -266,14 +364,36 @@ onMounted(() => {
               :header="factory.factoryName"
             >
               <div class="flex flex-col md:flex-row">
-                <!-- <div class="p-4 md:w-1/3"> // REMOVED Factory Image Display
+                <div class="p-4 md:w-1/3">
+                  <Carousel
+                    v-if="factory.imageUrls && factory.imageUrls.length > 1"
+                    autoplay
+                    arrows
+                  >
+                    <div
+                      v-for="(url, index) in factory.imageUrls"
+                      :key="index"
+                      class="cursor-pointer"
+                      @click="openImagePreview(factory.imageUrls, index)"
+                    >
+                      <Image
+                        :src="url || store.defaultImgUrl"
+                        :alt="`${factory.factoryName}-图片${index + 1}`"
+                        class="w-full rounded-lg shadow-md"
+                        :preview="false"
+                      />
+                    </div>
+                  </Carousel>
                   <Image
-                    :src="factory.imgUrl || store.defaultImgUrl"
+                    v-else
+                    :src="factory.imageUrls[0] || store.defaultImgUrl"
                     :alt="factory.factoryName"
-                    class="w-full rounded-lg shadow-md"
+                    class="w-full cursor-pointer rounded-lg shadow-md"
+                    :preview="false"
+                    @click="openImagePreview(factory.imageUrls)"
                   />
-                </div> -->
-                <div class="p-4 md:w-full">
+                </div>
+                <div class="p-4 md:w-2/3">
                   <Descriptions
                     bordered
                     :column="{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }"
@@ -315,7 +435,13 @@ onMounted(() => {
                             <Image
                               :src="floor.imgUrl || store.defaultImgUrl"
                               :alt="floor.floorName"
-                              class="w-full rounded-lg shadow-md"
+                              class="w-full cursor-pointer rounded-lg shadow-md"
+                              :preview="false"
+                              @click="
+                                openImagePreview([
+                                  floor.imgUrl || store.defaultImgUrl,
+                                ])
+                              "
                             />
                           </div>
                           <div class="p-2 md:w-2/3">
@@ -376,18 +502,11 @@ onMounted(() => {
                           class="mb-4 border-b pb-4"
                         >
                           <div class="flex flex-col md:flex-row">
-                            <div class="p-2 md:w-1/4">
-                              <Image
-                                :src="item.imgUrl"
-                                :alt="item.title"
-                                class="w-full rounded-lg shadow-md"
-                              />
-                            </div>
-                            <div class="p-2 md:w-3/4">
+                            <!-- REMOVED: Firefighting Image -->
+                            <div class="p-2 md:w-full">
                               <h3 class="mb-2 text-lg font-bold">
                                 {{ item.title }}
                               </h3>
-                              <p><strong>地址:</strong> {{ item.address }}</p>
                               <p>
                                 <strong>灭火器:</strong> {{ item.extinguisher }}
                               </p>
@@ -424,14 +543,8 @@ onMounted(() => {
                           class="mb-4 border-b pb-4"
                         >
                           <div class="flex flex-col md:flex-row">
-                            <div class="p-2 md:w-1/4">
-                              <Image
-                                :src="item.imgUrl"
-                                :alt="item.title"
-                                class="w-full rounded-lg shadow-md"
-                              />
-                            </div>
-                            <div class="p-2 md:w-3/4">
+                            <!-- REMOVED: Transformer Image -->
+                            <div class="p-2 md:w-full">
                               <h3 class="mb-2 text-lg font-bold">
                                 {{ item.title }}
                               </h3>
@@ -475,25 +588,33 @@ onMounted(() => {
               :header="dorm.dormitoryName"
             >
               <div class="flex flex-col md:flex-row">
-                <!-- 新增：宿舍图片展示 -->
                 <div class="p-4 md:w-1/3">
                   <Carousel
                     v-if="dorm.imageUrls && dorm.imageUrls.length > 1"
                     autoplay
+                    arrows
                   >
-                    <div v-for="(url, index) in dorm.imageUrls" :key="index">
+                    <div
+                      v-for="(url, index) in dorm.imageUrls"
+                      :key="index"
+                      class="cursor-pointer"
+                      @click="openImagePreview(dorm.imageUrls, index)"
+                    >
                       <Image
                         :src="url || store.defaultImgUrl"
                         :alt="`${dorm.dormitoryName}-图片${index + 1}`"
                         class="w-full rounded-lg shadow-md"
+                        :preview="false"
                       />
                     </div>
                   </Carousel>
                   <Image
                     v-else
-                    :src="dorm.imgUrl || store.defaultImgUrl"
+                    :src="dorm.imageUrls[0] || store.defaultImgUrl"
                     :alt="dorm.dormitoryName"
-                    class="w-full rounded-lg shadow-md"
+                    class="w-full cursor-pointer rounded-lg shadow-md"
+                    :preview="false"
+                    @click="openImagePreview(dorm.imageUrls)"
                   />
                 </div>
 
