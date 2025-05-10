@@ -4,7 +4,7 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue'; // <-- 修改：确保导入 ref
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -13,16 +13,20 @@ import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteTransformer, getTransformerList } from '#/api/maintenance';
-import AreaSelector from '#/components/AreaSelector.vue';
+// AreaSelector 可能不再需要，或者其逻辑需要调整
+// import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
-import { useColumns, useGridFormSchema } from './data';
+import {
+  getParkFactoryCascaderOptions,
+  useColumns,
+  useGridFormSchema,
+} from './data'; // 新增导入 getParkFactoryCascaderOptions
 import Form from './modules/form.vue';
 
-// 当前选中的区域
-const currentPark = ref();
-
-const parkSelectorRef = ref();
+// 当前选中的区域 (currentPark 和 parkSelectorRef 可能不再直接用于主列表筛选，因为筛选条件已移入 GridForm)
+const currentPark = ref(); // <-- 修改：取消注释
+const parkSelectorRef = ref(); // <-- 修改：取消注释
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -34,6 +38,10 @@ const [FormModal, formModalApi] = useVbenModal({
  * @param row
  */
 function onEdit(row: any) {
+  // 当打开编辑模态框时，确保传递 parkId 和 factoryId
+  // 如果 row 中直接有 parkId 和 factoryId，则无需转换
+  // 如果 row.factoryId 是一个包含 [parkId, factoryId] 的数组，也无需转换
+  // 此处假设 row 的结构与 modalApi.setData 期望的一致
   formModalApi.setData(row).open();
 }
 
@@ -49,8 +57,12 @@ function onCreate() {
  * @param row
  */
 async function onDelete(row: any) {
+  // 假设 row 中有 factoryName 字段用于显示，或者 transformerName 仍然代表主要标识
+  // 如果 transformerName 被替换，应使用新的名称字段，例如 row.factoryName
+  const displayName =
+    row.factoryName || row.transformerName || $t('page.maintenance.title');
   message.loading({
-    content: $t('ui.actionMessage.deleting', [row.transformerName]),
+    content: $t('ui.actionMessage.deleting', [displayName]),
     duration: 0,
     key: 'action_process_msg',
   });
@@ -95,7 +107,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
     fieldMappingTime: [['checkTime', ['startTime', 'endTime']]],
-    schema: useGridFormSchema(),
+    schema: useGridFormSchema(), // 使用更新后的 schema
   },
   gridOptions: {
     columns: useColumns(onActionClick),
@@ -104,34 +116,35 @@ const [Grid, gridApi] = useVbenVxeGrid({
     proxyConfig: {
       ajax: {
         query: async (page) => {
-          const formData = (await gridApi.formApi?.getValues?.()) || {};
-
-          // 构建查询参数，包含分页信息
-          const params = {
-            ...formData,
+          const rawFormData = (await gridApi.formApi?.getValues?.()) || {};
+          const params: Record<string, any> = {
+            ...rawFormData,
             currentPage: page.page?.currentPage || 1,
-            currentPark: currentPark.value ? currentPark.value.parkId : -1,
             pageSize: page.page?.pageSize || 20,
+            // currentPark: currentPark.value ? currentPark.value.parkId : -1, // 此行可能不再需要
           };
-          try {
-            // 调用API获取数据
-            const result = await getTransformerList(params);
-            // 返回格式化后的数据
-            return {
-              ...result,
-            };
-          } catch (error) {
-            console.error('获取账单列表失败:', error);
-            message.error('获取账单列表失败');
-            return {
-              page: {
-                currentPage: 1,
-                pageSize: 20,
-                total: 0,
-              },
-              items: [],
-            };
+
+          // 处理 Cascader 的 factoryId
+          if (rawFormData.factoryId && Array.isArray(rawFormData.factoryId)) {
+            if (rawFormData.factoryId.length === 2) {
+              params.parkId = rawFormData.factoryId[0];
+              params.factoryId = rawFormData.factoryId[1]; // 后端查询需要的是 factoryId
+            } else if (rawFormData.factoryId.length === 1) {
+              params.parkId = rawFormData.factoryId[0];
+              // params.factoryId = undefined; // 或者根据后端API要求处理
+            }
+            // 从 params 中移除原始的数组 factoryId，因为它已经被拆分
+            // delete params.factoryId; // 注意：上面已将 params.factoryId 赋值为 cascaderValue[1]
+          } else {
+            // 如果 factoryId 不是数组或为空，确保不传递错误的 factoryId 和 parkId
+            // delete params.factoryId; // 确保不传递
+            // delete params.parkId; // 确保不传递
           }
+
+          // 移除 currentPark，因为园区选择已通过 factoryId[0] (即 parkId) 处理
+          delete params.currentPark;
+
+          return getTransformerList(params);
         },
       },
     },
@@ -146,6 +159,44 @@ const [Grid, gridApi] = useVbenVxeGrid({
       zoom: true,
     },
   } as VxeTableGridOptions,
+});
+
+// onMounted 用于加载 Grid 表单中 Cascader 的 options
+onMounted(async () => {
+  try {
+    const parkCascaderOptions = await getParkFactoryCascaderOptions();
+    if (gridApi.formApi && parkCascaderOptions.length > 0) {
+      gridApi.formApi.updateSchema([
+        {
+          componentProps: {
+            options: parkCascaderOptions,
+          },
+          fieldName: 'factoryId',
+        },
+      ]);
+    } else if (gridApi.formApi) {
+      gridApi.formApi.updateSchema([
+        {
+          componentProps: {
+            options: [],
+          },
+          fieldName: 'factoryId',
+        },
+      ]);
+    }
+  } catch (error) {
+    console.error('在 list.vue 中加载 Grid 表单的园区及厂房数据失败:', error);
+    if (gridApi.formApi) {
+      gridApi.formApi.updateSchema([
+        {
+          componentProps: {
+            options: [],
+          },
+          fieldName: 'factoryId',
+        },
+      ]);
+    }
+  }
 });
 
 /**
@@ -165,7 +216,7 @@ function refreshGrid() {
         <AreaSelector
           :default-park="currentPark"
           :refresh-callback="refreshGrid"
-          @change="(park) => (currentPark = park)"
+          @change="(park: any) => (currentPark = park)"
           ref="parkSelectorRef"
         />
       </template>

@@ -51,13 +51,14 @@ model FactoryFloorImage {
 // 添加新的 DormitoryImage 模型
 model DormitoryImage {
   id          Int        @id @default(autoincrement())
-  dormitoryId Int        @map("dormitory_id") @unique
-  imgId       Int        @map("img_id") @unique
+  dormitoryId Int        @map("dormitory_id") 
+  imgId       Int        @map("img_id")
   dormitory   Dormitory? @relation("DormitoryToDormitoryImage", fields: [dormitoryId], references: [dormitoryId]) // 需要在 Dormitory 模型中添加反向关联
   image       Image?     @relation("ImageToDormitoryImage", fields: [imgId], references: [imgId]) // 需要在 Image 模型中添加反向关联
   createTime  DateTime?  @default(now()) @map("create_time")
   updateTime  DateTime?  @updatedAt @map("update_time")
 
+  @@unique([dormitoryId, imgId])
   @@index([dormitoryId])
   @@index([imgId])
   @@map("dormitory_image")

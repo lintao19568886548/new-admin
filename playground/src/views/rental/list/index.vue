@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { ParkListItem } from './types';
 
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onActivated, onMounted, onUnmounted, ref } from 'vue'; // 导入 onActivated
 import { useRouter } from 'vue-router';
 
 import { RentalProject } from '@vben/common-ui';
@@ -155,9 +155,20 @@ async function handleScroll() {
   }
 }
 
+// 新增：刷新列表数据的函数
+const refreshListData = () => {
+  currentPage.value = 1; // 重置到第一页
+  projectItems.value = []; // 清空现有项目，以便显示加载状态或避免旧数据闪烁
+  fetchParkList(); // 获取第一页数据
+};
+
 onMounted(() => {
-  fetchParkList();
+  refreshListData(); // 修改为调用新的刷新函数
   window.addEventListener('scroll', handleScroll);
+});
+
+onActivated(() => {
+  refreshListData(); // 当组件被激活时，也刷新数据
 });
 
 onUnmounted(() => {
