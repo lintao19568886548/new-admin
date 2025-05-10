@@ -8,6 +8,7 @@ import { ref } from 'vue'; // <-- 修改：确保导入 ref
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
+import { formatDateTime } from '@vben/utils';
 
 import { Button, message } from 'ant-design-vue';
 
@@ -32,7 +33,17 @@ const [FormModal, formModalApi] = useVbenModal({
  * @param row
  */
 function onEdit(row: any) {
-  formModalApi.setData(row).open();
+  // 当打开编辑模态框时，确保传递 parkId 和 factoryId
+  // 如果 row 中直接有 parkId 和 factoryId，则无需转换
+  // 如果 row.factoryId 是一个包含 [parkId, factoryId] 的数组，也无需转换
+  // 此处假设 row 的结构与 modalApi.setData 期望的一致
+  // 复制行数据以避免修改原始数据
+  const editData = { ...row };
+
+  if (editData.checkTime) {
+    editData.checkTime = formatDateTime(editData.checkTime) as string;
+  }
+  formModalApi.setData(editData).open();
 }
 
 /**
