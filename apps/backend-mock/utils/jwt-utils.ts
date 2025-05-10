@@ -8,8 +8,8 @@ const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'access-secret';
 const REFRESH_TOKEN_SECRET =
   process.env.REFRESH_TOKEN_SECRET || 'refresh-secret';
 
-const ACCESS_TOKEN_EXPIRES_IN = '15m'; // 例如 15 分钟
-const REFRESH_TOKEN_EXPIRES_IN = '7d'; // 例如 7 天
+const ACCESS_TOKEN_EXPIRES_IN = '7d'; // 例如 1 天
+const REFRESH_TOKEN_EXPIRES_IN = '30d'; // 例如 7 天
 
 /**
  * 生成 Access Token
