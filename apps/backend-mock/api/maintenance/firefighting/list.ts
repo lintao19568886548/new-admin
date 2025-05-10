@@ -139,11 +139,25 @@ export default eventHandler(async (event) => {
     },
     skip: (page - 1) * size,
     take: size,
+    include: {
+      factory: {
+        select: {
+          factoryName: true,
+        },
+      },
+    },
   });
   // console.log('result', result);
 
+  const items = result.map((item) => {
+    return {
+      ...item,
+      factory: item.factory?.factoryName || '',
+    };
+  });
+
   return useResponseSuccess({
-    items: result,
+    items,
     total,
   });
 });

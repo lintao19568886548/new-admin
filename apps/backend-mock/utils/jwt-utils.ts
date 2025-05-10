@@ -20,7 +20,6 @@ export function generateAccessToken(userinfo: UserInfoForToken): string {
   // 确保 userinfo 中不包含敏感信息，如密码
   const payload = { ...userinfo };
   // delete payload.password; // 如果 UserInfoForToken 可能意外包含 password，则删除
-  console.log(ACCESS_TOKEN_SECRET);
   return jwt.sign(payload, ACCESS_TOKEN_SECRET, {
     expiresIn: ACCESS_TOKEN_EXPIRES_IN,
   });
@@ -80,9 +79,6 @@ export async function verifyRefreshToken(
 ): Promise<null | UserInfoForToken> {
   try {
     const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET);
-
-    console.log('refresh');
-
     // 检查 decoded 是否为对象类型，并且包含 iat 和 exp
     if (typeof decoded === 'object' && decoded !== null) {
       const { iat: _iat, exp: _exp, ...userPayload } = decoded as any; // 使用 any 辅助解构

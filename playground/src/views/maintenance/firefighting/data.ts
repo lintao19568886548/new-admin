@@ -329,7 +329,7 @@ export function useColumns(
 ): VxeTableGridOptions['columns'] {
   return [
     {
-      field: 'firefightingName',
+      field: 'factory',
       minWidth: 150,
       title: '厂房名称',
     },
