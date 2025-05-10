@@ -140,6 +140,7 @@ export function useFormSchema(): VbenFormSchema[] {
         // loadData: async (...) => { ... }, // <-- 移除此行及整个 loadData 函数
         options: [], // 数据将由 form.vue 动态填充
         placeholder: '请选择园区和厂房',
+        style: { width: '100%' },
       },
       defaultValue: [], // 值将是 [parkId, factoryId]
       fieldName: 'factoryId', // 注意：此字段将持有数组值

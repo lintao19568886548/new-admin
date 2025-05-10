@@ -145,6 +145,11 @@ export default eventHandler(async (event) => {
           factoryName: true,
         },
       },
+      park: {
+        select: {
+          parkName: true,
+        },
+      },
     },
   });
   // console.log('result', result);
@@ -153,6 +158,7 @@ export default eventHandler(async (event) => {
     return {
       ...item,
       factory: item.factory?.factoryName || '',
+      park: item.park?.parkName || '',
     };
   });
 

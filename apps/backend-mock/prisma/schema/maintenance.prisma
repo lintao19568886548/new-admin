@@ -1,6 +1,7 @@
 // 消防设施模型 (maintenance/firefighting)
 model Firefighting {
   firefightingId     Int                 @id @default(autoincrement()) @map("firefighting_id")
+  firefightingName   String?             @db.VarChar(100) @map("firefighting_name")
   address            String              @db.VarChar(200)
   extinguisher       String              @db.VarChar(10)  // 灭火器
   hydrant            String              @db.VarChar(10)  // 消防栓
@@ -12,8 +13,8 @@ model Firefighting {
   createTime         DateTime            @default(now()) @map("create_time")
   updateTime         DateTime?           @updatedAt @map("update_time")
   // 修改关联字段   
-  factoryId          Int                 @default(20) @map("factory_id")
-  factory            Factory             @relation("FactoryToFirefighting", fields: [factoryId], references: [factoryId])
+  factoryId          Int?                 @default(20) @map("factory_id")
+  factory            Factory?             @relation("FactoryToFirefighting", fields: [factoryId], references: [factoryId])
   parkId             Int                 @map("park_id")
   park               Park                @relation("ParkToFirefighting", fields: [parkId], references: [parkId])
 
