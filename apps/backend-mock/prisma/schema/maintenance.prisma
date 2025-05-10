@@ -1,7 +1,6 @@
 // 消防设施模型 (maintenance/firefighting)
 model Firefighting {
   firefightingId     Int                 @id @default(autoincrement()) @map("firefighting_id")
-  firefightingName   String              @db.VarChar(100) @map("firefighting_name")
   address            String              @db.VarChar(200)
   extinguisher       String              @db.VarChar(10)  // 灭火器
   hydrant            String              @db.VarChar(10)  // 消防栓
@@ -26,7 +25,7 @@ model Firefighting {
 // 变压器模型 (maintenance/transformer)
 model Transformer {
   transformerId    Int                 @id @default(autoincrement()) @map("transformer_id")
-  transformerName  String              @db.VarChar(100) @map("transformer_name")
+  transformerName  String?              @db.VarChar(100) @map("transformer_name")
   address          String              @db.VarChar(200)
   contact          String              @db.VarChar(100)
   status           String              @db.VarChar(20) // 变压器状态：正常、异常、维护中
