@@ -35,7 +35,7 @@ export function getTagTypeOptions() {
 const parkCascaderOptions = await getFactoryListByParkId();
 
 /**
- * 获取表单的字段配置
+ * 获取新增、修改表单的字段配置
  */
 export function useFormSchema(): VbenFormSchema[] {
   return [

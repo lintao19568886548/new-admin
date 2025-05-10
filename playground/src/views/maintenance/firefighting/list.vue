@@ -8,6 +8,7 @@ import { ref } from 'vue'; // <-- 确保导入 onMounted
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
+import { formatDateTime } from '@vben/utils';
 
 import { Button, message } from 'ant-design-vue';
 
@@ -34,7 +35,13 @@ const [FormModal, formModalApi] = useVbenModal({
  * @param row
  */
 function onEdit(row: any) {
-  formModalApi.setData(row).open();
+  // 复制行数据以避免修改原始数据
+  const editData = { ...row };
+
+  if (editData.checkTime) {
+    editData.checkTime = formatDateTime(editData.checkTime) as string;
+  }
+  formModalApi.setData(editData).open();
 }
 
 /**
