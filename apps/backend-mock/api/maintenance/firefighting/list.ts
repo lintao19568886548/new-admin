@@ -37,8 +37,8 @@ export default eventHandler(async (event) => {
       // 选择全部区域时,直接查询全部有权限的园区
       const parks = await prismaClient.park.findMany({
         where: {
-          parkName: {
-            in: userinfo.parks.map((park) => park.parkName),
+          parkId: {
+            in: userinfo.parks.map((park) => park.parkId),
           },
         },
         select: { parkId: true },
@@ -145,6 +145,11 @@ export default eventHandler(async (event) => {
           factoryName: true,
         },
       },
+      park: {
+        select: {
+          parkName: true,
+        },
+      },
     },
   });
   // console.log('result', result);
@@ -153,6 +158,7 @@ export default eventHandler(async (event) => {
     return {
       ...item,
       factory: item.factory?.factoryName || '',
+      park: item.park?.parkName || '',
     };
   });
 

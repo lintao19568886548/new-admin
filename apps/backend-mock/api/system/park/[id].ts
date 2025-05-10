@@ -85,7 +85,7 @@ export default eventHandler(async (event) => {
     console.log(result);
     return useResponseSuccess(result);
   } catch (error) {
-    console.error('获取园区详情失败:', error);
+    console.error('前端api获取园区详情失败:', error);
     return useResponseError('获取园区详情失败', 500);
   }
 });

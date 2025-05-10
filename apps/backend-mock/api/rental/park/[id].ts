@@ -28,9 +28,19 @@ export default eventHandler(async (event) => {
               },
             },
             // 包含消防设施
-            firefighting: true,
+            firefighting: {
+              orderBy: {
+                checkTime: 'desc',
+              },
+              take: 1,
+            },
             // 包含变压器
-            transformers: true,
+            transformers: {
+              orderBy: {
+                checkTime: 'desc',
+              },
+              take: 1,
+            },
           },
         },
         // 包含宿舍信息
@@ -114,13 +124,11 @@ export default eventHandler(async (event) => {
         firefighting: factory.firefighting.map((item) => ({
           ...item,
           checkTime: item.checkTime ? item.checkTime.toISOString() : null,
-          imgUrl: item.imgUrl || '', // 使用常量
         })),
         // 处理变压器数据
         transformers: factory.transformers.map((item) => ({
           ...item,
           checkTime: item.checkTime ? item.checkTime.toISOString() : null,
-          imgUrl: item.imgUrl || '', // 使用常量
         })),
       };
     });
@@ -149,7 +157,7 @@ export default eventHandler(async (event) => {
       dormitories, // 处理后的宿舍数据
     });
   } catch (error) {
-    console.error('获取园区详情失败:', error);
+    console.error('后端获取园区详情失败:', error);
     return useResponseError('获取园区详情失败', 500);
   }
 });

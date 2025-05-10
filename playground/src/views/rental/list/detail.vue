@@ -252,6 +252,22 @@ function openImagePreview(
   });
   previewApp.mount(previewContainer);
 }
+const getTagColor = (status: string) => {
+  switch (status) {
+    case '异常': {
+      return 'red';
+    }
+    case '正常': {
+      return 'green';
+    }
+    case '维护': {
+      return 'blue';
+    }
+    default: {
+      return 'default';
+    }
+  }
+};
 
 onMounted(() => {
   fetchParkDetail();
@@ -495,34 +511,57 @@ onMounted(() => {
                           factory.firefighting &&
                           factory.firefighting.length > 0
                         "
+                        class="space-y-4"
                       >
                         <div
                           v-for="item in factory.firefighting"
                           :key="item.firefightingId"
-                          class="mb-4 border-b pb-4"
+                          size="small"
+                          class="flex flex-col md:flex-row"
                         >
-                          <div class="flex flex-col md:flex-row">
-                            <!-- REMOVED: Firefighting Image -->
-                            <div class="p-2 md:w-full">
-                              <h3 class="mb-2 text-lg font-bold">
-                                {{ item.title }}
-                              </h3>
-                              <p>
-                                <strong>灭火器:</strong> {{ item.extinguisher }}
-                              </p>
-                              <p><strong>消防栓:</strong> {{ item.hydrant }}</p>
-                              <p>
-                                <strong>消防出口:</strong> {{ item.fireExit }}
-                              </p>
-                              <p><strong>检查人:</strong> {{ item.checker }}</p>
-                              <p>
-                                <strong>检查时间:</strong>
+                          <div class="p-2 md:w-2/3">
+                            <h3 class="mb-2 text-lg font-semibold">
+                              {{ item.title }}
+                            </h3>
+                            <Descriptions
+                              bordered
+                              :column="{
+                                xxl: 3,
+                                xl: 2,
+                                lg: 2,
+                                md: 1,
+                                sm: 1,
+                                xs: 1,
+                              }"
+                            >
+                              <Descriptions.Item label="灭火器">
+                                <Tag :color="getTagColor(item.extinguisher)">
+                                  {{ item.extinguisher }}
+                                </Tag>
+                              </Descriptions.Item>
+                              <Descriptions.Item label="消防栓">
+                                <Tag :color="getTagColor(item.hydrant)">
+                                  {{ item.hydrant }}
+                                </Tag>
+                              </Descriptions.Item>
+                              <Descriptions.Item label="消防出口">
+                                <Tag :color="getTagColor(item.fireExit)">
+                                  {{ item.fireExit }}
+                                </Tag>
+                              </Descriptions.Item>
+                              <Descriptions.Item label="检查人">
+                                {{ item.checker }}
+                              </Descriptions.Item>
+                              <Descriptions.Item label="检查时间">
                                 {{ formatDateTime(item.checkTime) }}
-                              </p>
-                              <p v-if="item.remark">
-                                <strong>备注:</strong> {{ item.remark }}
-                              </p>
-                            </div>
+                              </Descriptions.Item>
+                              <Descriptions.Item
+                                v-if="item.remark"
+                                label="备注"
+                              >
+                                {{ item.remark }}
+                              </Descriptions.Item>
+                            </Descriptions>
                           </div>
                         </div>
                       </div>
@@ -536,11 +575,12 @@ onMounted(() => {
                           factory.transformers &&
                           factory.transformers.length > 0
                         "
+                        class="space-y-4"
                       >
-                        <div
+                        <Card
                           v-for="item in factory.transformers"
                           :key="item.transformerId"
-                          class="mb-4 border-b pb-4"
+                          size="small"
                         >
                           <div class="flex flex-col md:flex-row">
                             <!-- REMOVED: Transformer Image -->
@@ -548,22 +588,32 @@ onMounted(() => {
                               <h3 class="mb-2 text-lg font-bold">
                                 {{ item.title }}
                               </h3>
-                              <p><strong>地址:</strong> {{ item.address }}</p>
-                              <p><strong>联系人:</strong> {{ item.contact }}</p>
-                              <p><strong>状态:</strong> {{ item.status }}</p>
-                              <p>
-                                <strong>规格:</strong> {{ item.specifications }}
-                              </p>
-                              <p>
-                                <strong>检查时间:</strong>
-                                {{ formatDateTime(item.checkTime) }}
-                              </p>
-                              <p v-if="item.remark">
-                                <strong>备注:</strong> {{ item.remark }}
-                              </p>
+                              <Descriptions :column="1" size="small">
+                                <Descriptions.Item label="地址">
+                                  {{ item.address }}
+                                </Descriptions.Item>
+                                <Descriptions.Item label="联系人">
+                                  {{ item.contact }}
+                                </Descriptions.Item>
+                                <Descriptions.Item label="状态">
+                                  {{ item.status }}
+                                </Descriptions.Item>
+                                <Descriptions.Item label="规格">
+                                  {{ item.specifications }}
+                                </Descriptions.Item>
+                                <Descriptions.Item label="检查时间">
+                                  {{ formatDateTime(item.checkTime) }}
+                                </Descriptions.Item>
+                                <Descriptions.Item
+                                  v-if="item.remark"
+                                  label="备注"
+                                >
+                                  {{ item.remark }}
+                                </Descriptions.Item>
+                              </Descriptions>
                             </div>
                           </div>
-                        </div>
+                        </Card>
                       </div>
                       <div v-else class="py-10 text-center text-gray-500">
                         暂无变压器信息
