@@ -13,16 +13,14 @@ import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteTransformer, getTransformerList } from '#/api/maintenance';
-// AreaSelector 可能不再需要，或者其逻辑需要调整
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
-import { useColumns, useGridFormSchema } from './data'; // 新增导入 getParkFactoryCascaderOptions
+import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
-// 当前选中的区域 (currentPark 和 parkSelectorRef 可能不再直接用于主列表筛选，因为筛选条件已移入 GridForm)
-const currentPark = ref(); // <-- 修改：取消注释
-const parkSelectorRef = ref(); // <-- 修改：取消注释
+const currentPark = ref();
+const parkSelectorRef = ref();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -34,10 +32,6 @@ const [FormModal, formModalApi] = useVbenModal({
  * @param row
  */
 function onEdit(row: any) {
-  // 当打开编辑模态框时，确保传递 parkId 和 factoryId
-  // 如果 row 中直接有 parkId 和 factoryId，则无需转换
-  // 如果 row.factoryId 是一个包含 [parkId, factoryId] 的数组，也无需转换
-  // 此处假设 row 的结构与 modalApi.setData 期望的一致
   formModalApi.setData(row).open();
 }
 
@@ -102,7 +96,10 @@ function onActionClick({ code, row }: OnActionClickParams) {
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
-    fieldMappingTime: [['checkTime', ['startTime', 'endTime']]],
+    fieldMappingTime: [
+      ['checkTime', ['startTime', 'endTime']],
+      // ['factoryId', ['factoryId', 'parkId']],
+    ],
     schema: useGridFormSchema(), // 使用更新后的 schema
   },
   gridOptions: {
@@ -113,6 +110,11 @@ const [Grid, gridApi] = useVbenVxeGrid({
       ajax: {
         query: async (page) => {
           const formData = (await gridApi.formApi?.getValues?.()) || {};
+
+          if (formData.factoryId) {
+            formData.parkId = formData.factoryId[0];
+            formData.factoryId = formData.factoryId[1];
+          }
 
           // 构建查询参数，包含分页信息
           const params = {

@@ -164,10 +164,8 @@ export function useGridFormSchema(): VbenFormSchema[] {
           width: '100%',
         },
       },
-      defaultValue: [], // 值将是 [parkId, factoryId]
       fieldName: 'factoryId', // 注意：此字段将持有数组值
       label: '厂房名称',
-      rules: 'required',
     },
     {
       component: 'Input',
@@ -217,6 +215,11 @@ export function useColumns<T = TransformerItem>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
+      field: 'park',
+      minWidth: 150,
+      title: $t('system.rental.address'),
+    },
+    {
       field: 'factoryName', // 修改为 factoryName 或实际对应的厂房名字段
       minWidth: 150,
       title: $t('厂房名称'), // 修改表头为厂房名称
@@ -235,11 +238,7 @@ export function useColumns<T = TransformerItem>(
       minWidth: 100,
       title: $t('system.maintenance.transformer.status.label'),
     },
-    {
-      field: 'address',
-      minWidth: 200,
-      title: $t('system.rental.address'),
-    },
+
     {
       field: 'contact',
       minWidth: 150,

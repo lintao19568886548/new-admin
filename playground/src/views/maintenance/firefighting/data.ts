@@ -242,6 +242,11 @@ export function useColumns(
 ): VxeTableGridOptions['columns'] {
   return [
     {
+      field: 'park',
+      minWidth: 150,
+      title: $t('page.park.item'),
+    },
+    {
       field: 'factory',
       minWidth: 150,
       title: '厂房名称',
@@ -286,11 +291,6 @@ export function useColumns(
       title: '安全通道检查',
     },
 
-    {
-      field: 'address',
-      minWidth: 200,
-      title: $t('system.rental.address'),
-    },
     {
       field: 'checker',
       minWidth: 150,
