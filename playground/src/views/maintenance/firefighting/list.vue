@@ -12,13 +12,15 @@ import { Plus } from '@vben/icons';
 import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { getFactoryListByParkId } from '#/api/factory'; // <-- 新增导入
 import { deleteFirefighting, getFirefightingList } from '#/api/maintenance';
-// <-- 新增导入
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
-import { useColumns, useGridFormSchema } from './data';
+import {
+  getParkFactoryCascaderOptions,
+  useColumns,
+  useGridFormSchema,
+} from './data'; // <-- 新增导入 getParkFactoryCascaderOptions
 import Form from './modules/form.vue';
 
 // 当前选中的区域
@@ -169,48 +171,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
 
 onMounted(async () => {
   try {
-    // 1. 仅调用 getFactoryListByParkId
-    const allFactoriesResponse = await getFactoryListByParkId();
-    // 预期的类型: Array<{ factoryId: number; factoryName: string; parkId: number; park: { parkName: string }; ... }>
+    const parkCascaderOptions = await getParkFactoryCascaderOptions();
 
-    if (
-      allFactoriesResponse &&
-      Array.isArray(allFactoriesResponse) &&
-      allFactoriesResponse.length > 0
-    ) {
-      const allFactories = allFactoriesResponse as Array<{
-        factoryId: number;
-        factoryName: string;
-        park: { parkName: string };
-        parkId: number;
-      }>;
-
-      const parksMap = new Map<
-        number,
-        {
-          children: Array<{ isLeaf: boolean; name: string; value: number }>;
-          name: string;
-          value: number;
-        }
-      >();
-
-      for (const factory of allFactories) {
-        if (!parksMap.has(factory.parkId)) {
-          parksMap.set(factory.parkId, {
-            name: factory.park.parkName,
-            value: factory.parkId,
-            children: [],
-          });
-        }
-        parksMap.get(factory.parkId)!.children.push({
-          isLeaf: true,
-          name: factory.factoryName,
-          value: factory.factoryId,
-        });
-      }
-
-      const parkCascaderOptions = [...parksMap.values()];
-
+    if (parkCascaderOptions.length > 0) {
       // 更新表格筛选区域的 Cascader options
       gridApi.formApi?.updateSchema([
         {
@@ -232,7 +195,7 @@ onMounted(async () => {
       ]);
     }
   } catch (error) {
-    console.error('加载园区及厂房数据失败 (list filter Cascader):', error);
+    console.error('在 list.vue 中加载园区及厂房数据失败:', error);
     gridApi.formApi?.updateSchema([
       {
         componentProps: { options: [] },

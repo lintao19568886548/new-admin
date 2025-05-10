@@ -6,12 +6,10 @@ import { useVbenModal } from '@vben/common-ui';
 import { Button } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { getFactoryListByParkId } from '#/api/factory'; // <-- 确保这个导入存在
-// import { getParkList } from '#/api/park'; // <-- 移除这个导入
 import { createFirefighting, updateFirefighting } from '#/api/maintenance';
 import { $t } from '#/locales';
 
-import { useFormSchema } from '../data';
+import { getParkFactoryCascaderOptions, useFormSchema } from '../data'; // <-- 新增导入 getParkFactoryCascaderOptions
 
 const emit = defineEmits(['success']);
 const formData = ref();
@@ -29,61 +27,21 @@ const [Form, formApi] = useVbenForm({
 
 onMounted(async () => {
   try {
-    // 1. 仅调用 getFactoryListByParkId，它现在会返回包含园区信息的厂房列表
-    const allFactoriesResponse = await getFactoryListByParkId();
-    // 预期的类型: Array<{ factoryId: number; factoryName: string; parkId: number; park: { parkName: string }; ... }>
+    const parkCascaderOptions = await getParkFactoryCascaderOptions();
 
-    if (
-      allFactoriesResponse &&
-      Array.isArray(allFactoriesResponse) &&
-      allFactoriesResponse.length > 0
-    ) {
-      const allFactories = allFactoriesResponse as Array<{
-        factoryId: number;
-        factoryName: string;
-        park: { parkName: string };
-        parkId: number;
-      }>;
-
-      // 使用 Map 来收集唯一的园区并聚合其下的厂房
-      const parksMap = new Map<
-        number,
-        {
-          children: Array<{ isLeaf: boolean; name: string; value: number }>;
-          name: string;
-          value: number;
-        }
-      >();
-
-      for (const factory of allFactories) {
-        if (!parksMap.has(factory.parkId)) {
-          parksMap.set(factory.parkId, {
-            name: factory.park.parkName, // 园区名称
-            value: factory.parkId, // 园区ID
-            children: [],
-          });
-        }
-        // 为对应园区添加厂房
-        parksMap.get(factory.parkId)!.children.push({
-          isLeaf: true, // 厂房是叶子节点
-          name: factory.factoryName, // 厂房名称
-          value: factory.factoryId, // 厂房ID
-        });
-      }
-
-      const parkCascaderOptions = [...parksMap.values()];
-
+    if (parkCascaderOptions.length > 0) {
       // 更新 Cascader 组件的 options
       formApi.updateSchema([
         {
           componentProps: {
-            loadData: undefined,
+            loadData: undefined, // 确保移除旧的 loadData
             options: parkCascaderOptions,
           },
           fieldName: 'factoryId',
         },
       ]);
     } else {
+      // 处理获取 options 失败或为空的情况
       console.error(
         '加载园区或厂房数据失败 (form Cascader): 未获取到有效数据或数据为空',
       );
@@ -95,7 +53,8 @@ onMounted(async () => {
       ]);
     }
   } catch (error) {
-    console.error('加载园区及厂房数据失败 (form Cascader):', error);
+    // 进一步的错误处理（虽然 getParkFactoryCascaderOptions 内部已经 console.error）
+    console.error('在 form.vue 中加载园区及厂房数据失败:', error);
     formApi.updateSchema([
       {
         componentProps: { loadData: undefined, options: [] },

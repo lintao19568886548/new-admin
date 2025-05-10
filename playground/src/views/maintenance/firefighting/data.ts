@@ -4,9 +4,15 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import { formatDateTime } from '@vben/utils';
 
 import { z } from '#/adapter/form';
+import { getFactoryListByParkId } from '#/api/factory'; // 确保导入
 // 新增导入 (如果之前没有)
 // <-- 新增导入
 import { $t } from '#/locales';
+
+// 定义一个模块级变量来缓存园区厂房的级联选择器选项
+let parkFactoryCascaderOptionsCache: Array<any> | null = null;
+// 新增：用于跟踪正在进行的API请求的Promise
+let parkFactoryCascaderOptionsPromise: null | Promise<Array<any>> = null;
 
 /**
  * 获取标签颜色
@@ -29,6 +35,91 @@ export function getTagTypeOptions() {
       value: '维护',
     },
   ];
+}
+
+/**
+ * 获取园区及厂房的级联选择器选项
+ */
+export async function getParkFactoryCascaderOptions(): Promise<Array<any>> {
+  // 1. 如果缓存中已有数据，则直接返回缓存数据的副本
+  if (parkFactoryCascaderOptionsCache !== null) {
+    return [...parkFactoryCascaderOptionsCache];
+  }
+
+  // 2. 如果已有正在进行的请求，则返回该请求的Promise
+  if (parkFactoryCascaderOptionsPromise) {
+    return parkFactoryCascaderOptionsPromise;
+  }
+
+  // 3. 没有缓存且没有正在进行的请求，发起新的API调用
+  parkFactoryCascaderOptionsPromise = (async () => {
+    try {
+      const allFactoriesResponse = await getFactoryListByParkId();
+      if (
+        allFactoriesResponse &&
+        Array.isArray(allFactoriesResponse) &&
+        allFactoriesResponse.length > 0
+      ) {
+        const allFactories = allFactoriesResponse as Array<{
+          factoryId: number;
+          factoryName: string;
+          park: { parkName: string };
+          parkId: number;
+        }>;
+
+        const parksMap = new Map<
+          number,
+          {
+            children: Array<{ isLeaf: boolean; name: string; value: number }>;
+            name: string;
+            value: number;
+          }
+        >();
+
+        for (const factory of allFactories) {
+          if (!parksMap.has(factory.parkId)) {
+            parksMap.set(factory.parkId, {
+              name: factory.park.parkName, // 园区名称
+              value: factory.parkId, // 园区ID
+              children: [],
+            });
+          }
+          // 为对应园区添加厂房
+          const parkEntry = parksMap.get(factory.parkId);
+          if (parkEntry) {
+            // Add this check
+            parkEntry.children.push({
+              isLeaf: true, // 厂房是叶子节点
+              name: factory.factoryName, // 厂房名称
+              value: factory.factoryId, // 厂房ID
+            });
+          }
+        }
+        const processedData = [...parksMap.values()];
+        // 将处理后的数据存入缓存
+        parkFactoryCascaderOptionsCache = processedData;
+        return [...processedData]; // 返回处理后数据的副本
+      } else {
+        console.error(
+          '加载园区或厂房数据失败 (getParkFactoryCascaderOptions): 未获取到有效数据或数据为空',
+        );
+        parkFactoryCascaderOptionsCache = null; // 清空缓存
+        return [];
+      }
+    } catch (error) {
+      console.error(
+        '加载园区及厂房数据失败 (getParkFactoryCascaderOptions):',
+        error,
+      );
+      parkFactoryCascaderOptionsCache = null; // 请求异常时，清空缓存
+      return [];
+    } finally {
+      // 请求完成后，无论成功或失败，都清除Promise引用，以便下次可以重新发起请求（如果需要）
+      parkFactoryCascaderOptionsPromise = null;
+    }
+  })();
+
+  return parkFactoryCascaderOptionsPromise;
 }
 
 /**
