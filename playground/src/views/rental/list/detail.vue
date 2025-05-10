@@ -380,36 +380,7 @@ onMounted(() => {
               :header="factory.factoryName"
             >
               <div class="flex flex-col md:flex-row">
-                <div class="p-4 md:w-1/3">
-                  <Carousel
-                    v-if="factory.imageUrls && factory.imageUrls.length > 1"
-                    autoplay
-                    arrows
-                  >
-                    <div
-                      v-for="(url, index) in factory.imageUrls"
-                      :key="index"
-                      class="cursor-pointer"
-                      @click="openImagePreview(factory.imageUrls, index)"
-                    >
-                      <Image
-                        :src="url || store.defaultImgUrl"
-                        :alt="`${factory.factoryName}-图片${index + 1}`"
-                        class="w-full rounded-lg shadow-md"
-                        :preview="false"
-                      />
-                    </div>
-                  </Carousel>
-                  <Image
-                    v-else
-                    :src="factory.imageUrls[0] || store.defaultImgUrl"
-                    :alt="factory.factoryName"
-                    class="w-full cursor-pointer rounded-lg shadow-md"
-                    :preview="false"
-                    @click="openImagePreview(factory.imageUrls)"
-                  />
-                </div>
-                <div class="p-4 md:w-2/3">
+                <div class="p-4">
                   <Descriptions
                     bordered
                     :column="{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }"
