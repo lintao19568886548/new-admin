@@ -379,7 +379,7 @@ onMounted(() => {
               :key="factory.factoryId"
               :header="factory.factoryName"
             >
-              <div class="flex flex-col md:flex-row">
+              <div class="flex flex-col">
                 <div class="p-4">
                   <Descriptions
                     bordered

@@ -212,7 +212,7 @@ export function useColumns<T = TransformerItem>(
     {
       field: 'park',
       minWidth: 150,
-      title: $t('system.rental.address'),
+      title: $t('page.park.item'),
     },
     {
       field: 'factoryName', // 修改为 factoryName 或实际对应的厂房名字段
