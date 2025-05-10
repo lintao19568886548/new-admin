@@ -4,7 +4,7 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { onMounted, ref } from 'vue'; // <-- 确保导入 onMounted
+import { ref } from 'vue'; // <-- 确保导入 onMounted
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -16,11 +16,7 @@ import { deleteFirefighting, getFirefightingList } from '#/api/maintenance';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
-import {
-  getParkFactoryCascaderOptions,
-  useColumns,
-  useGridFormSchema,
-} from './data'; // <-- 新增导入 getParkFactoryCascaderOptions
+import { useColumns, useGridFormSchema } from './data'; // <-- 新增导入 getParkFactoryCascaderOptions
 import Form from './modules/form.vue';
 
 // 当前选中的区域
@@ -167,42 +163,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
       zoom: true,
     },
   } as VxeTableGridOptions,
-});
-
-onMounted(async () => {
-  try {
-    const parkCascaderOptions = await getParkFactoryCascaderOptions();
-
-    if (parkCascaderOptions.length > 0) {
-      // 更新表格筛选区域的 Cascader options
-      gridApi.formApi?.updateSchema([
-        {
-          componentProps: {
-            options: parkCascaderOptions,
-          },
-          fieldName: 'factoryId', // 确保这是表格筛选表单中Cascader的字段名
-        },
-      ]);
-    } else {
-      console.error(
-        '加载园区或厂房数据失败 (list filter Cascader): 未获取到有效数据或数据为空',
-      );
-      gridApi.formApi?.updateSchema([
-        {
-          componentProps: { options: [] },
-          fieldName: 'factoryId',
-        },
-      ]);
-    }
-  } catch (error) {
-    console.error('在 list.vue 中加载园区及厂房数据失败:', error);
-    gridApi.formApi?.updateSchema([
-      {
-        componentProps: { options: [] },
-        fieldName: 'factoryId',
-      },
-    ]);
-  }
 });
 
 /**

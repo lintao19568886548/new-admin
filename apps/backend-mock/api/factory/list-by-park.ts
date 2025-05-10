@@ -18,7 +18,7 @@ export default eventHandler(async (event) => {
   // 获取查询参数
   try {
     // 查询指定园区下的厂房列表，并包含园区信息
-    const factoriesWithParkInfo = await prismaClient.factory.findMany({
+    const parks = await prismaClient.park.findMany({
       where: {
         parkId: {
           in: authorizedParkIds, // 确保只查询用户有权限的园区下的厂房
@@ -26,21 +26,32 @@ export default eventHandler(async (event) => {
         isDeleted: false,
       },
       select: {
-        factoryId: true,
-        factoryName: true,
-        address: true, // 如果前端Cascader不需要地址，可以考虑移除以减少数据量
-        parkId: true, // 直接从厂房记录中获取 parkId
-        park: {
-          // 关联查询园区信息
+        parkId: true,
+        parkName: true,
+        factories: {
+          where: {
+            isDeleted: false,
+          },
           select: {
-            parkName: true, // 获取园区名称
+            factoryId: true,
+            factoryName: true,
           },
         },
       },
     });
 
+    const result = parks.map((park) => ({
+      name: park.parkName,
+      value: park.parkId,
+      children: park.factories.map((factory) => ({
+        isLeaf: true,
+        value: factory.factoryId,
+        name: factory.factoryName,
+      })),
+    }));
+
     // 返回的数据结构会是: Array<{ factoryId, factoryName, address, parkId, park: { parkName } }>
-    return useResponseSuccess(factoriesWithParkInfo);
+    return useResponseSuccess(result);
   } catch (error) {
     console.error('获取厂房列表失败:', error);
     return useResponseError('获取厂房列表失败', 500);

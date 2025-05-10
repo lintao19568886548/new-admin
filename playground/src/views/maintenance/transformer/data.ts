@@ -6,6 +6,7 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import { formatDateTime } from '@vben/utils';
 
 import { z } from '#/adapter/form';
+import { getFactoryListByParkId } from '#/api';
 import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
@@ -32,15 +33,33 @@ export function getTagTypeOptions() {
   ];
 }
 
+const parkCascaderOptions = await getFactoryListByParkId();
+
 /**
  * 获取表单的字段配置
  */
 export function useFormSchema(): VbenFormSchema[] {
   return [
     {
-      component: 'Input',
-      fieldName: 'transformerName',
-      label: $t('system.maintenance.transformer.title'),
+      component: 'Cascader',
+      componentProps: {
+        changeOnSelect: false,
+        expandTrigger: 'hover',
+        fieldNames: {
+          label: 'name',
+          value: 'value',
+          children: 'children',
+        },
+        // loadData: async (...) => { ... }, // <-- 移除此行及整个 loadData 函数
+        options: parkCascaderOptions, // 数据将由 form.vue 动态填充
+        placeholder: '请选择园区和厂房',
+        style: {
+          width: '100%',
+        },
+      },
+      defaultValue: [], // 值将是 [parkId, factoryId]
+      fieldName: 'factoryId', // 注意：此字段将持有数组值
+      label: '厂房名称',
       rules: 'required',
     },
     {
@@ -143,9 +162,26 @@ export function useFormSchema(): VbenFormSchema[] {
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
-      component: 'Input',
-      fieldName: 'transformerName',
-      label: $t('system.maintenance.transformer.title'),
+      component: 'Cascader',
+      componentProps: {
+        changeOnSelect: false,
+        expandTrigger: 'hover',
+        fieldNames: {
+          label: 'name',
+          value: 'value',
+          children: 'children',
+        },
+        // loadData: async (...) => { ... }, // <-- 移除此行及整个 loadData 函数
+        options: parkCascaderOptions, // 数据将由 form.vue 动态填充
+        placeholder: '请选择园区和厂房',
+        style: {
+          width: '100%',
+        },
+      },
+      defaultValue: [], // 值将是 [parkId, factoryId]
+      fieldName: 'factoryId', // 注意：此字段将持有数组值
+      label: '厂房名称',
+      rules: 'required',
     },
     {
       component: 'Input',
