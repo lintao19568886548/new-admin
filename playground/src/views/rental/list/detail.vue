@@ -419,16 +419,36 @@ onMounted(() => {
                       >
                         <div class="flex flex-col md:flex-row">
                           <div class="p-2 md:w-1/3">
+                            <Carousel
+                              v-if="
+                                floor.imageUrls && floor.imageUrls.length > 1
+                              "
+                              autoplay
+                              arrows
+                            >
+                              <div
+                                v-for="(url, index) in floor.imageUrls"
+                                :key="index"
+                                class="cursor-pointer"
+                                @click="
+                                  openImagePreview(floor.imageUrls, index)
+                                "
+                              >
+                                <Image
+                                  :src="url || store.defaultImgUrl"
+                                  :alt="`${floor.floorName}-图片${index + 1}`"
+                                  class="w-full cursor-pointer rounded-lg shadow-md"
+                                  :preview="false"
+                                />
+                              </div>
+                            </Carousel>
                             <Image
-                              :src="floor.imgUrl || store.defaultImgUrl"
+                              v-else
+                              :src="floor.imageUrls[0] || store.defaultImgUrl"
                               :alt="floor.floorName"
                               class="w-full cursor-pointer rounded-lg shadow-md"
                               :preview="false"
-                              @click="
-                                openImagePreview([
-                                  floor.imgUrl || store.defaultImgUrl,
-                                ])
-                              "
+                              @click="openImagePreview(floor.imageUrls)"
                             />
                           </div>
                           <div class="p-2 md:w-2/3">
