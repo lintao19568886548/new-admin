@@ -59,12 +59,12 @@ export function useFormSchema(): VbenFormSchema[] {
       label: '厂房名称',
       rules: 'required',
     },
-    {
-      component: 'Input',
-      fieldName: 'address',
-      label: '地址',
-      rules: 'required',
-    },
+    // {
+    //   component: 'Input',
+    //   fieldName: 'address',
+    //   label: '地址',
+    //   rules: 'required',
+    // },
     {
       component: 'RadioGroup',
       componentProps: {
@@ -141,13 +141,10 @@ export function useFormSchema(): VbenFormSchema[] {
         },
       },
       fieldName: 'remark',
-      label: $t('system.rental.description'),
+      label: $t('page.common.remark'),
       rules: z
         .string()
-        .max(
-          300,
-          $t('ui.formRules.maxLength', [$t('system.rental.description'), 300]),
-        )
+        .max(300, $t('ui.formRules.maxLength', [$t('page.common.remark'), 300]))
         .optional(),
     },
   ];
@@ -290,7 +287,6 @@ export function useColumns(
       minWidth: 120,
       title: '安全通道检查',
     },
-
     {
       field: 'checker',
       minWidth: 150,
@@ -303,6 +299,11 @@ export function useColumns(
       },
       minWidth: 120,
       title: $t('page.maintenance.checkTime'),
+    },
+    {
+      field: 'remark',
+      minWidth: 150,
+      title: $t('page.common.remark'),
     },
     {
       align: 'center',

@@ -67,12 +67,12 @@ export function useFormSchema(): VbenFormSchema[] {
       label: $t('system.maintenance.transformer.specifications'),
       rules: 'required',
     },
-    {
-      component: 'Input',
-      fieldName: 'address',
-      label: $t('system.rental.address'),
-      rules: 'required',
-    },
+    // {
+    //   component: 'Input',
+    //   fieldName: 'address',
+    //   label: $t('system.rental.address'),
+    //   rules: 'required',
+    // },
     {
       component: 'Input',
       fieldName: 'contact',
@@ -193,11 +193,6 @@ export function useGridFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'status',
       label: $t('system.maintenance.transformer.status.label'),
-    },
-    {
-      component: 'Input',
-      fieldName: 'address',
-      label: $t('system.rental.address'),
     },
     {
       component: 'RangePicker',
