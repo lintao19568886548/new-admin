@@ -40,15 +40,17 @@ export default eventHandler(async (event) => {
       },
     });
 
-    const result = parks.map((park) => ({
-      label: park.parkName,
-      value: park.parkId,
-      children: park.factories.map((factory) => ({
-        isLeaf: true,
-        value: factory.factoryId,
-        label: factory.factoryName,
-      })),
-    }));
+    const result = parks
+      .filter((park) => park.factories.length > 0)
+      .map((park) => ({
+        label: park.parkName,
+        value: park.parkId,
+        children: park.factories.map((factory) => ({
+          isLeaf: true,
+          value: factory.factoryId,
+          label: factory.factoryName,
+        })),
+      }));
 
     // 返回的数据结构会是: Array<{ factoryId, factoryName, address, parkId, park: { parkName } }>
     return useResponseSuccess(result);
