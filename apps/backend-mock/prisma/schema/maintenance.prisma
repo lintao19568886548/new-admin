@@ -27,7 +27,7 @@ model Firefighting {
 model Transformer {
   transformerId    Int                 @id @default(autoincrement()) @map("transformer_id")
   transformerName  String?             @db.VarChar(100) @map("transformer_name")
-  address          String              @db.VarChar(200)
+  address          String?              @db.VarChar(200)
   contact          String              @db.VarChar(100)
   status           String              @db.VarChar(20) // 变压器状态：正常、异常、维护中
   specifications   String              @db.VarChar(50) // 变压器规格
@@ -45,4 +45,41 @@ model Transformer {
   @@index([factoryId])
   @@index([parkId])
   @@map("transformer")
+}
+
+// 厂房维护模型 (maintenance/factory_maintenance)
+model factoryMaintenance {
+  factoryMaintenanceId   Int                 @id @default(autoincrement()) @map("factory_maintenance_id") // 建议将 @map 的值也修改以保持一致性
+  maintenanceItem        String              @db.VarChar(100) @map("maintenance_item") // 维护项目
+  maintenanceStatus      String              @db.VarChar(20)  @map("maintenance_status") // 维护状态
+  personInCharge         String              @db.VarChar(50)  @map("person_in_charge") // 负责人
+  startTime              DateTime            @map("start_time") // 开始时间
+  endTime                DateTime?           @map("end_time") // 结束时间
+  remark                 String?             @db.VarChar(100)
+  createTime             DateTime            @default(now()) @map("create_time")
+  updateTime             DateTime?           @updatedAt @map("update_time")
+  factoryId              Int                 @default(20) @map("factory_id")
+  factory                Factory             @relation("FactoryToFactoryMaintenance", fields: [factoryId], references: [factoryId])
+
+  @@index([factoryId]) // 建议添加索引以提高查询性能
+  @@map("factory_maintenance") // 建议将 @@map 的值也修改以保持一致性
+}
+
+// 卫生评比模型 (maintenance/hygiene_assessment)
+model HygieneAssessment {
+  hygieneAssessmentId   Int                 @id @default(autoincrement()) @map("hygiene_assessment_id")
+  assessmentItems       String              @db.VarChar(100) @map("assessment_items") // 评比项目
+  assessmentScore       Decimal             @map("assessment_score") // 评比分数
+  assessmentPerson      String              @db.VarChar(50)  @map("assessment_person") // 评比人
+  assessmentDate        DateTime            @map("assessment_date") // 评比日期
+  assessmentResult      String              @db.VarChar(100) @map("assessment_result") // 评比结果
+  remark                String?             @db.VarChar(100)
+  createTime            DateTime            @default(now()) @map("create_time")
+  updateTime            DateTime?           @updatedAt @map("update_time")
+  // 修改关联字段
+  factoryId             Int                 @default(20) @map("factory_id")
+  factory               Factory             @relation("FactoryToHygieneAssessment", fields: [factoryId], references: [factoryId])
+
+  @@index([factoryId])
+  @@map("hygiene_assessment")
 }

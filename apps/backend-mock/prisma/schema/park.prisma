@@ -32,24 +32,22 @@ model Park {
 
 // 厂房表 (合并了 RentalManage 的字段)
 model Factory {
-  factoryId      Int            @id @default(autoincrement()) @map("factory_id")
-  factoryName    String         @map("factory_name") @db.VarChar(100)
-  parkId         Int            @map("park_id")
-  park           Park           @relation("ParkToFactory", fields: [parkId], references: [parkId])
-  buildTime      DateTime       @db.Date @map("build_time") // 建造年份
-  address        String         @db.VarChar(200) // 详细地址
-  contact        String         @db.VarChar(100) // 联系人
-  description    String?        @db.Text // 描述
-  // 移除 images 关联
-  // images         FactoryImage[] @relation("FactoryToFactoryImage")
-  // 添加与楼层的关联
-  floors         FactoryFloor[] @relation("FactoryToFactoryFloor")
-  // 添加与消防设施和变压器的关联
-  firefighting   Firefighting[] @relation("FactoryToFirefighting")
-  transformers   Transformer[]  @relation("FactoryToTransformer")
-  createTime     DateTime       @default(now()) @map("create_time")
-  updateTime     DateTime?      @updatedAt @map("update_time")
-  isDeleted      Boolean        @default(false) @map("is_deleted") // 逻辑删除字段
+  factoryId           Int                  @id @default(autoincrement()) @map("factory_id")
+  factoryName         String               @map("factory_name") @db.VarChar(100)
+  parkId              Int                  @map("park_id")
+  park                Park                 @relation("ParkToFactory", fields: [parkId], references: [parkId])
+  buildTime           DateTime             @db.Date @map("build_time") // 建造年份
+  address             String               @db.VarChar(200) // 详细地址
+  contact             String               @db.VarChar(100) // 联系人
+  description         String?              @db.Text // 描述
+  floors              FactoryFloor[]       @relation("FactoryToFactoryFloor")
+  firefighting        Firefighting[]       @relation("FactoryToFirefighting")
+  transformers        Transformer[]        @relation("FactoryToTransformer")
+  factoryMaintenances factoryMaintenance[] @relation("FactoryToFactoryMaintenance")
+  hygieneAssessment   HygieneAssessment[]  @relation("FactoryToHygieneAssessment")
+  createTime          DateTime             @default(now()) @map("create_time")
+  updateTime          DateTime?            @updatedAt @map("update_time")
+  isDeleted           Boolean              @default(false) @map("is_deleted") // 逻辑删除字段
 
   @@index([parkId])
   @@map("factory")
