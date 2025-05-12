@@ -41,12 +41,12 @@ export default eventHandler(async (event) => {
     });
 
     const result = parks.map((park) => ({
-      name: park.parkName,
+      label: park.parkName,
       value: park.parkId,
       children: park.factories.map((factory) => ({
         isLeaf: true,
         value: factory.factoryId,
-        name: factory.factoryName,
+        label: factory.factoryName,
       })),
     }));
 

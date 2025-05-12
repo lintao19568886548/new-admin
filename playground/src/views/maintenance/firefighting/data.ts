@@ -32,27 +32,21 @@ export function getTagTypeOptions() {
   ];
 }
 
-const parkCascaderOptions = await getFactoryListByParkId();
-
 /**
  * 获取新增、修改表单的字段配置
  */
 export function useFormSchema(): VbenFormSchema[] {
   return [
     {
-      component: 'Cascader',
+      component: 'ApiCascader',
       componentProps: {
+        api: getFactoryListByParkId,
         changeOnSelect: false,
         expandTrigger: 'hover',
-        fieldNames: {
-          label: 'name',
-          value: 'value',
-          children: 'children',
-        },
-        // loadData: async (...) => { ... }, // <-- 移除此行及整个 loadData 函数
-        options: parkCascaderOptions, // 数据将由 form.vue 动态填充
         placeholder: '请选择园区和厂房',
-        style: { width: '100%' },
+        style: {
+          width: '100%',
+        },
       },
       defaultValue: [], // 值将是 [parkId, factoryId]
       fieldName: 'factoryId', // 注意：此字段将持有数组值
@@ -156,20 +150,17 @@ export function useFormSchema(): VbenFormSchema[] {
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
-      component: 'Cascader',
+      component: 'ApiCascader',
       componentProps: {
+        api: getFactoryListByParkId,
         changeOnSelect: false,
         expandTrigger: 'hover',
-        fieldNames: {
-          label: 'name',
-          value: 'value',
-          children: 'children',
-        },
-        // loadData: async (...) => { ... }, // <-- 移除此行及整个 loadData 函数
-        options: parkCascaderOptions, // 数据将由 list.vue 动态填充
         placeholder: '请选择园区和厂房',
+        style: {
+          width: '100%',
+        },
       },
-      fieldName: 'factoryId', // 后端列表查询需要单个 factoryId
+      fieldName: 'factoryId', // 注意：此字段将持有数组值
       label: '厂房名称',
     },
     {
