@@ -42,7 +42,6 @@ model FactoryFloorImage {
   createTime   DateTime?     @default(now()) @map("create_time")
   updateTime   DateTime?     @updatedAt @map("update_time")
 
-  @@unique([floorId, imgId])
   @@index([floorId])
   @@index([imgId])
   @@map("factory_floor_image")
@@ -58,7 +57,6 @@ model DormitoryImage {
   createTime  DateTime?  @default(now()) @map("create_time")
   updateTime  DateTime?  @updatedAt @map("update_time")
 
-  @@unique([dormitoryId, imgId])
   @@index([dormitoryId])
   @@index([imgId])
   @@map("dormitory_image")

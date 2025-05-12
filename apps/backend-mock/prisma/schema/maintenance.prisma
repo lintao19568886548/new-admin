@@ -2,6 +2,7 @@
 model Firefighting {
   firefightingId     Int                 @id @default(autoincrement()) @map("firefighting_id")
   address            String?             @db.VarChar(200)
+  firefightingName   String?             @db.VarChar(100) @map("firefighting_name")
   extinguisher       String              @db.VarChar(10)  // 灭火器
   hydrant            String              @db.VarChar(10)  // 消防栓
   fireExit           String              @map("fire_exit") @db.VarChar(100) // 消防出口
@@ -36,8 +37,8 @@ model Transformer {
   createTime       DateTime            @default(now()) @map("create_time")
   updateTime       DateTime?           @updatedAt @map("update_time")
   // 修改关联字段  
-  factoryId        Int                 @default(20) @map("factory_id")
-  factory          Factory             @relation("FactoryToTransformer", fields: [factoryId], references: [factoryId])
+  factoryId        Int?                @default(20) @map("factory_id")
+  factory          Factory?            @relation("FactoryToTransformer", fields: [factoryId], references: [factoryId])
   parkId           Int                 @map("park_id")
   park             Park                @relation("ParkToTransformer", fields: [parkId], references: [parkId])
 
