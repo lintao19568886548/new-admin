@@ -125,8 +125,6 @@ const [Modal, modalApi] = useVbenModal({
         ...dormitoryValues,
       };
 
-      console.warn('提交表单，数据:', values);
-
       try {
         if (id.value) {
           // await updateSystemPark(id.value, values);
@@ -160,13 +158,11 @@ const [Modal, modalApi] = useVbenModal({
   async onOpenChange(isOpen) {
     if (isOpen) {
       const data = modalApi.getData();
-      console.warn('打开表单，数据:', data);
       parkFormApi.resetForm();
       if (data && Object.keys(data).length > 0) {
         formData.value = data;
         id.value = data.parkId;
         const parkDetail = await getSystemParkDetail(data.parkId);
-        console.warn('设置表单数据:', parkDetail);
         parkFormApi.setValues(parkDetail);
         factoryFormApi.setValues(parkDetail);
         dormitoryFormApi.setValues(parkDetail);

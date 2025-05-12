@@ -8,11 +8,6 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
-  console.log(
-    'userinfouserinfo.parks.map((park) => park.parkId):\n',
-    userinfo.parks.map((park) => park.parkId),
-  );
-
   const authorizedParkIds = userinfo.parks.map((park) => park.parkId);
 
   // 获取查询参数

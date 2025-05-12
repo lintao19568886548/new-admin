@@ -72,12 +72,12 @@ async function handleEditFactory(index: number) {
 const currentEditIndex = ref<null | number>(null);
 
 // 添加删除工厂的方法
-function handleDeleteFactory(index: number) {
+async function handleDeleteFactory(index: number) {
   const currentFactory = factoryData.value[index];
   if (currentFactory?.factoryId) {
-    deleteFactory(currentFactory?.factoryId);
+    await deleteFactory(currentFactory?.factoryId);
+    factoryData.value.splice(index, 1);
   }
-  factoryData.value.splice(index, 1);
   // 更新modelValue
   emit('update:modelValue', factoryData.value);
 }

@@ -158,8 +158,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
             params.currentPage = page?.currentPage || 1;
             params.pageSize = page?.pageSize || 20;
 
-            console.warn('处理后的查询参数:', params);
-
             // 调用API获取数据
             const result = await getSystemParkList(params);
 

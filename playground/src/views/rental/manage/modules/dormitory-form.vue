@@ -74,12 +74,12 @@ async function handleEdit(index: number) {
 const currentEditIndex = ref<null | number>(null);
 
 // 添加删除工厂的方法
-function handleDeleteDormitory(index: number) {
+async function handleDeleteDormitory(index: number) {
   const currentFactory = data.value[index];
   if (currentFactory?.dormitoryId) {
-    deleteDormitory(currentFactory?.dormitoryId);
+    await deleteDormitory(currentFactory?.dormitoryId);
+    data.value.splice(index, 1);
   }
-  data.value.splice(index, 1);
   // 更新modelValue
   emit('update:modelValue', data.value);
 }

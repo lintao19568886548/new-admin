@@ -86,7 +86,10 @@ export default eventHandler(async (event) => {
     const factories = park.factories.map((factory) => {
       // 处理厂房楼层数据
       const floors = factory.floors.map((floor) => {
-        const floorImages = floor.images.map((item) => item.image.imgUrl);
+        // 添加空值检查
+        const floorImages = floor.images
+          .map((item) => item.image?.imgUrl)
+          .filter(Boolean); // 过滤掉undefined和null
 
         return {
           ...floor,
@@ -135,12 +138,15 @@ export default eventHandler(async (event) => {
 
     // 处理宿舍数据
     const dormitories = park.dormitories.map((dorm) => {
-      const dormImages = dorm.images.map((item) => item.image.imgUrl);
+      // 添加空值检查
+      const dormImages = dorm.images
+        .map((item) => item.image?.imgUrl)
+        .filter(Boolean); // 过滤掉undefined和null
 
       return {
         ...dorm,
-        imgUrl: dormImages.length > 0 ? dormImages[0] : '', // 使用常量
-        imageUrls: dormImages.length > 0 ? dormImages : [], // 使用常量
+        imgUrl: dormImages.length > 0 ? dormImages[0] : '',
+        imageUrls: dormImages.length > 0 ? dormImages : [],
         createTime: dorm.createTime ? dorm.createTime.toISOString() : null,
         updateTime: dorm.updateTime ? dorm.updateTime.toISOString() : null,
       };

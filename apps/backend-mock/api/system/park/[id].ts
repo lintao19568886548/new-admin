@@ -23,6 +23,9 @@ export default eventHandler(async (event) => {
           },
         },
         factories: {
+          where: {
+            isDeleted: false,
+          },
           include: {
             floors: {
               include: {
@@ -36,6 +39,9 @@ export default eventHandler(async (event) => {
           },
         },
         dormitories: {
+          where: {
+            isDeleted: false,
+          },
           include: {
             images: {
               include: {
