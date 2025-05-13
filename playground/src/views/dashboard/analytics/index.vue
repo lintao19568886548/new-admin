@@ -19,15 +19,18 @@ import {
 
 import { getAnalyticsData } from '#/api/analytics';
 
-// 业务组件
-import AnalyticsExpenseData from './analytics-expense-data.vue';
-import AnalyticsExpenseSales from './analytics-expense-sales.vue';
-import AnalyticsExpenseSource from './analytics-expense-source.vue';
-import AnalyticsIncomeData from './analytics-income-data.vue';
-import AnalyticsIncomeSales from './analytics-income-sales.vue';
-import AnalyticsIncomeSource from './analytics-income-source.vue';
-import AnalyticsMonthly from './analytics-monthly.vue'; // 重命名组件
-import AnalyticsTrends from './analytics-trends.vue';
+// 导入重构后的业务组件
+import {
+  AnalyticsExpenseData,
+  AnalyticsExpenseSales,
+  AnalyticsExpenseSource,
+  AnalyticsIncomeData,
+  AnalyticsIncomeSales,
+  AnalyticsIncomeSource,
+  AnalyticsMonthly,
+  AnalyticsParkElectricity,
+  AnalyticsTrends,
+} from './components';
 
 // 数据初始化
 const analyticsData = ref({
@@ -171,5 +174,9 @@ const chartTabs: TabOption[] = [
         <AnalyticsIncomeSales />
       </AnalysisChartCard>
     </div>
+
+    <AnalysisChartCard class="mt-5 w-full" title="各园区实收电度数和电费金额">
+      <AnalyticsParkElectricity />
+    </AnalysisChartCard>
   </div>
 </template>

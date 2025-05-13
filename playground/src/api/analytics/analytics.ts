@@ -14,3 +14,7 @@ export async function getAnalyticsMonth() {
 export async function getAnalyticsTotal() {
   return requestClient.get(`/analytics/total`);
 }
+
+export async function getAnalyticsParkElectricity() {
+  return requestClient.get(`/analytics/park-electricity`);
+}
