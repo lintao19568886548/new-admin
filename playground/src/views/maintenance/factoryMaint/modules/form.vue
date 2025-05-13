@@ -6,7 +6,7 @@ import { useVbenModal } from '@vben/common-ui';
 import { Button } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { createFirefighting, updateFirefighting } from '#/api/maintenance';
+import { createFactoryMaint, updateFactoryMaint } from '#/api/maintenance';
 import { $t } from '#/locales';
 
 import { useFormSchema } from '../data'; // <-- 新增导入 getParkFactoryCascaderOptions
@@ -36,7 +36,7 @@ const [Modal, modalApi] = useVbenModal({
     if (valid) {
       modalApi.lock();
       const rawData = await formApi.getValues();
-      const dataToSubmit = { ...rawData };
+      const dataToSubmit: Record<string, any> = { ...rawData };
 
       // 从 Cascader 的数组值中提取 parkId 和 factoryId
       const cascaderValue = rawData.factoryId;
@@ -53,19 +53,31 @@ const [Modal, modalApi] = useVbenModal({
           delete dataToSubmit.factoryId;
           delete dataToSubmit.parkId;
         }
+      } else {
+        // If not an array or empty, ensure they are not submitted if not part of rawData
+        // or handle as per backend requirements if they are mandatory from another source
+        if (!rawData.parkId) delete dataToSubmit.parkId;
+        if (!rawData.factoryId && !Array.isArray(cascaderValue))
+          delete dataToSubmit.factoryId;
       }
 
-      const { firefightingId: recordIdToUpdate } = modalApi.getData();
+      const { factoryMaintenanceId: recordIdToUpdate } =
+        modalApi.getData() || {};
       try {
-        if (dataToSubmit.checkTime) {
-          dataToSubmit.checkTime = new Date(
-            dataToSubmit.checkTime,
+        // Convert dates to ISO string format for backend
+        if (dataToSubmit.startTime) {
+          dataToSubmit.startTime = new Date(
+            dataToSubmit.startTime,
           ).toISOString();
         }
+        // Ensure endTime is null or not sent if empty, depending on backend expectation
+        dataToSubmit.endTime = dataToSubmit.endTime
+          ? new Date(dataToSubmit.endTime).toISOString()
+          : null; // Or delete dataToSubmit.endTime;
 
         await (recordIdToUpdate
-          ? updateFirefighting(recordIdToUpdate, dataToSubmit)
-          : createFirefighting(dataToSubmit));
+          ? updateFactoryMaint(recordIdToUpdate, dataToSubmit)
+          : createFactoryMaint(dataToSubmit));
         modalApi.close();
         emit('success');
       } finally {
@@ -79,9 +91,10 @@ const [Modal, modalApi] = useVbenModal({
       if (data) {
         formData.value = { ...data };
         // 为 Cascader 准备初始值：[parkId, factoryId]
-        data.parkId && data.factoryId
-          ? (formData.value.factoryId = [data.parkId, data.factoryId])
-          : (formData.value.factoryId = []); // 如果没有，则为空数组
+        formData.value.factoryId =
+          data.parkId && data.factoryId ? [data.parkId, data.factoryId] : []; // 如果没有，则为空数组
+        // Dates are expected to be in 'YYYY-MM-DD HH:mm:ss' by DatePicker if valueFormat is set
+        // No special formatting needed here if data from API is already in a compatible format or ISO string
         formApi.setValues(formData.value);
       } else {
         formData.value = undefined;

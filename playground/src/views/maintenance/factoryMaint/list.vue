@@ -13,7 +13,7 @@ import { formatDateTime } from '@vben/utils';
 import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { deleteFirefighting, getFirefightingList } from '#/api/maintenance';
+import { deleteFactoryMaint, getFactoryMaintList } from '#/api/maintenance';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -38,8 +38,11 @@ function onEdit(row: any) {
   // 复制行数据以避免修改原始数据
   const editData = { ...row };
 
-  if (editData.checkTime) {
-    editData.checkTime = formatDateTime(editData.checkTime) as string;
+  if (editData.startTime) {
+    editData.startTime = formatDateTime(editData.startTime) as string;
+  }
+  if (editData.endTime) {
+    editData.endTime = formatDateTime(editData.endTime) as string;
   }
   formModalApi.setData(editData).open();
 }
@@ -57,18 +60,18 @@ function onCreate() {
  */
 async function onDelete(row: any) {
   message.loading({
-    content: $t('ui.actionMessage.deleting', [row.firefightingName]),
+    content: $t('ui.actionMessage.deleting', [row.maintenanceItem]),
     duration: 0,
     key: 'action_process_msg',
   });
 
-  const { firefightingId } = row;
-  if (firefightingId) {
+  const { factoryMaintenanceId } = row;
+  if (factoryMaintenanceId) {
     try {
       // 使用 try-catch 替代 then-catch 链
-      await deleteFirefighting(firefightingId);
+      await deleteFactoryMaint(factoryMaintenanceId);
       message.success({
-        content: $t('ui.actionMessage.deleteSuccess', [row.firefightingName]),
+        content: $t('ui.actionMessage.deleteSuccess', [row.maintenanceItem]),
         key: 'action_process_msg',
       });
       refreshGrid();
@@ -101,7 +104,7 @@ function onActionClick({ code, row }: OnActionClickParams) {
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
-    fieldMappingTime: [['checkTime', ['startTime', 'endTime']]],
+    fieldMappingTime: [['maintenancePeriod', ['startTime', 'endTime']]], // Updated fieldMappingTime
     schema: useGridFormSchema(), // useGridFormSchema 现在不依赖外部 options
   },
   gridOptions: {
@@ -130,6 +133,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
             }
           }
 
+          // startTime and endTime will be populated by fieldMappingTime from maintenancePeriod
+          // Ensure your API client (getFactoryMaintList) handles these parameters.
+
           // 构建查询参数，包含分页信息
           const params = {
             ...formDataForQuery,
@@ -139,14 +145,14 @@ const [Grid, gridApi] = useVbenVxeGrid({
           };
           try {
             // 调用API获取数据
-            const result = await getFirefightingList(params);
+            const result = await getFactoryMaintList(params);
             // 返回格式化后的数据
             return {
               ...result,
             };
           } catch (error) {
-            console.error('获取账单列表失败:', error);
-            message.error('获取账单列表失败');
+            console.error('获取厂房维护列表失败:', error);
+            message.error('获取厂房维护列表失败');
             return {
               page: {
                 currentPage: 1,
@@ -183,7 +189,7 @@ function refreshGrid() {
 <template>
   <Page auto-content-height>
     <FormModal @success="refreshGrid" />
-    <Grid :table-title="$t('page.maintenance.firefightingList')">
+    <Grid :table-title="$t('page.maintenance.factoryMaintenanceList')">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector

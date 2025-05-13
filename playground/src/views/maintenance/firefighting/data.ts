@@ -10,29 +10,6 @@ import { getFactoryListByParkId } from '#/api/factory'; // 确保导入
 import { $t } from '#/locales';
 
 /**
- * 获取标签颜色
- */
-export function getTagTypeOptions() {
-  return [
-    {
-      color: 'green',
-      label: $t('system.rental.status.vacant'),
-      value: '空闲',
-    },
-    {
-      color: 'red',
-      label: $t('system.rental.status.rented'),
-      value: '已租',
-    },
-    {
-      color: 'processing',
-      label: $t('system.rental.status.maintenance'),
-      value: '维护',
-    },
-  ];
-}
-
-/**
  * 获取新增、修改表单的字段配置
  */
 export function useFormSchema(): VbenFormSchema[] {

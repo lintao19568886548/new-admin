@@ -10,29 +10,6 @@ import { getFactoryListByParkId } from '#/api/factory'; // 确保导入
 import { $t } from '#/locales';
 
 /**
- * 获取标签颜色
- */
-export function getTagTypeOptions() {
-  return [
-    {
-      color: 'green',
-      label: $t('system.rental.status.vacant'),
-      value: '空闲',
-    },
-    {
-      color: 'red',
-      label: $t('system.rental.status.rented'),
-      value: '已租',
-    },
-    {
-      color: 'processing',
-      label: $t('system.rental.status.maintenance'),
-      value: '维护',
-    },
-  ];
-}
-
-/**
  * 获取新增、修改表单的字段配置
  */
 export function useFormSchema(): VbenFormSchema[] {
@@ -53,26 +30,11 @@ export function useFormSchema(): VbenFormSchema[] {
       label: '厂房名称',
       rules: 'required',
     },
-    // {
-    //   component: 'Input',
-    //   fieldName: 'address',
-    //   label: '地址',
-    //   rules: 'required',
-    // },
     {
-      component: 'RadioGroup',
-      componentProps: {
-        buttonStyle: 'solid',
-        options: [
-          { label: '正常', value: '正常' },
-          { label: '异常', value: '异常' },
-          { label: '维护', value: '维护' },
-        ],
-        optionType: 'button',
-      },
-      defaultValue: '正常',
-      fieldName: 'extinguisher',
-      label: '灭火器检查',
+      component: 'Input',
+      fieldName: 'maintenanceItem',
+      label: '维护项目', // New field
+      rules: 'required',
     },
     {
       component: 'RadioGroup',
@@ -86,43 +48,40 @@ export function useFormSchema(): VbenFormSchema[] {
         optionType: 'button',
       },
       defaultValue: '正常',
-      fieldName: 'hydrant',
-      label: '消防栓检查',
-    },
-
-    {
-      component: 'RadioGroup',
-      componentProps: {
-        buttonStyle: 'solid',
-        options: [
-          { label: '正常', value: '正常' },
-          { label: '异常', value: '异常' },
-          { label: '维护', value: '维护' },
-        ],
-        optionType: 'button',
-      },
-      defaultValue: '正常',
-      fieldName: 'fireExit',
-      label: '安全通道检查',
+      fieldName: 'maintenanceStatus', // New field
+      label: '维护状态', // New field
     },
     {
       component: 'Input',
-      fieldName: 'checker',
-      label: $t('system.rental.checker'),
+      fieldName: 'personInCharge', // Renamed from checker
+      label: '负责人', // Updated label, consider using $t
       rules: 'required',
     },
     {
       component: 'DatePicker',
       componentProps: {
         format: 'YYYY-MM-DD HH:mm:ss',
-        placeholder: '请选择日期',
+        placeholder: '请选择开始时间',
         showTime: true,
         style: { width: '100%' },
         valueFormat: 'YYYY-MM-DD HH:mm:ss',
       },
-      fieldName: 'checkTime',
-      label: $t('page.maintenance.checkTime'),
+      fieldName: 'startTime', // Renamed from checkTime
+      label: '开始时间', // Updated label, consider using $t
       rules: 'required',
+    },
+    {
+      component: 'DatePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD HH:mm:ss',
+        placeholder: '请选择结束时间 (可选)',
+        showTime: true,
+        style: { width: '100%' },
+        valueFormat: 'YYYY-MM-DD HH:mm:ss',
+      },
+      fieldName: 'endTime', // New field
+      label: '结束时间', // New field
+      // rules: 'required', // Optional, so no 'required' rule
     },
     {
       component: 'Textarea',
@@ -164,50 +123,27 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: '厂房名称',
     },
     {
-      component: 'Select',
-      componentProps: {
-        allowClear: true,
-        options: [
-          { label: '正常', value: '正常' },
-          { label: '异常', value: '异常' },
-          { label: '维护', value: '维护' },
-        ],
-      },
-      fieldName: 'extinguisher',
-      label: '灭火器检查',
+      component: 'Input',
+      fieldName: 'maintenanceItem', // New field
+      label: '维护项目',
     },
     {
       component: 'Select',
       componentProps: {
         allowClear: true,
-        filterOptions: true,
         options: [
           { label: '正常', value: '正常' },
           { label: '异常', value: '异常' },
           { label: '维护', value: '维护' },
         ],
       },
-      fieldName: 'hydrant',
-      label: '消防栓检查',
-    },
-    {
-      component: 'Select',
-      componentProps: {
-        allowClear: true,
-        filterOptions: true,
-        options: [
-          { label: '正常', value: '正常' },
-          { label: '异常', value: '异常' },
-          { label: '维护', value: '维护' },
-        ],
-      },
-      fieldName: 'fireExit',
-      label: '安全通道检查',
+      fieldName: 'maintenanceStatus', // New field
+      label: '维护状态',
     },
     {
       component: 'Input',
-      fieldName: 'address',
-      label: $t('system.rental.address'),
+      fieldName: 'personInCharge', // New field
+      label: '负责人',
     },
     {
       component: 'RangePicker',
@@ -216,8 +152,8 @@ export function useGridFormSchema(): VbenFormSchema[] {
         placeholder: ['开始日期', '结束日期'],
         valueFormat: 'YYYY-MM-DD',
       },
-      fieldName: 'checkTime',
-      label: $t('page.maintenance.checkTime'),
+      fieldName: 'maintenancePeriod', // New field for date range, maps to startTime and endTime
+      label: '维护时段', // Updated label
     },
   ];
 }
@@ -240,56 +176,43 @@ export function useColumns(
       title: '厂房名称',
     },
     {
-      cellRender: {
-        name: 'CellTag',
-        options: [
-          { color: 'green', label: '正常', value: '正常' },
-          { color: 'red', label: '异常', value: '异常' },
-          { color: 'processing', label: '维护', value: '维护' },
-        ],
-      },
-      field: 'extinguisher',
-      minWidth: 120,
-      title: '灭火器检查',
-    },
-    {
-      cellRender: {
-        name: 'CellTag',
-        options: [
-          { color: 'green', label: '正常', value: '正常' },
-          { color: 'red', label: '异常', value: '异常' },
-          { color: 'processing', label: '维护', value: '维护' },
-        ],
-      },
-      field: 'hydrant',
-      minWidth: 120,
-      title: '消防栓检查',
-    },
-    {
-      cellRender: {
-        name: 'CellTag',
-        options: [
-          { color: 'green', label: '正常', value: '正常' },
-          { color: 'red', label: '异常', value: '异常' },
-          { color: 'processing', label: '维护', value: '维护' },
-        ],
-      },
-      field: 'fireExit',
-      minWidth: 120,
-      title: '安全通道检查',
-    },
-    {
-      field: 'checker',
+      field: 'maintenanceItem', // New column
       minWidth: 150,
-      title: $t('system.rental.checker'),
+      title: '维护项目',
     },
     {
-      field: 'checkTime',
-      formatter: ({ cellValue }) => {
-        return formatDateTime(cellValue);
+      cellRender: {
+        name: 'CellTag',
+        options: [
+          { color: 'green', label: '正常', value: '正常' },
+          { color: 'red', label: '异常', value: '异常' },
+          { color: 'processing', label: '维护', value: '维护' },
+        ],
       },
+      field: 'maintenanceStatus', // New column
       minWidth: 120,
-      title: $t('page.maintenance.checkTime'),
+      title: '维护状态',
+    },
+    {
+      field: 'personInCharge', // Renamed from checker
+      minWidth: 150,
+      title: '负责人', // Updated title
+    },
+    {
+      field: 'startTime', // Renamed from checkTime
+      formatter: ({ cellValue }) => {
+        return cellValue ? formatDateTime(cellValue) : '';
+      },
+      minWidth: 180, // Adjusted width for datetime
+      title: '开始时间', // Updated title
+    },
+    {
+      field: 'endTime', // New column
+      formatter: ({ cellValue }) => {
+        return cellValue ? formatDateTime(cellValue) : '';
+      },
+      minWidth: 180, // Adjusted width for datetime
+      title: '结束时间',
     },
     {
       field: 'remark',
@@ -300,8 +223,8 @@ export function useColumns(
       align: 'center',
       cellRender: {
         attrs: {
-          nameField: 'firefightingName',
-          nameTitle: $t('system.rental.name'),
+          nameField: 'maintenanceItem', // Updated nameField
+          nameTitle: '维护项目', // Updated nameTitle
           onClick: onActionClick,
         },
         name: 'CellOperation',
