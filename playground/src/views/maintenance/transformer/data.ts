@@ -67,8 +67,8 @@ export function useFormSchema(): VbenFormSchema[] {
     // },
     {
       component: 'Input',
-      fieldName: 'contact',
-      label: $t('system.rental.contact'),
+      fieldName: 'checker',
+      label: $t('system.rental.checker'),
       rules: 'required',
     },
     {
@@ -221,9 +221,9 @@ export function useColumns<T = TransformerItem>(
     },
 
     {
-      field: 'contact',
+      field: 'checker',
       minWidth: 150,
-      title: $t('system.rental.contact'),
+      title: $t('system.rental.checker'),
     },
     {
       field: 'checkTime',

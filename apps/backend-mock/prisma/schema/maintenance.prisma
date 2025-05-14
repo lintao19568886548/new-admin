@@ -28,7 +28,8 @@ model Transformer {
   transformerId    Int                 @id @default(autoincrement()) @map("transformer_id")
   transformerName  String?             @db.VarChar(100) @map("transformer_name")
   address          String?             @db.VarChar(200)
-  contact          String              @db.VarChar(100)
+  contact          String?             @db.VarChar(100)
+  checker          String?             @db.VarChar(10)  // 检查人
   status           String              @db.VarChar(20) // 变压器状态：正常、异常、维护中
   specifications   String              @db.VarChar(50) // 变压器规格
   checkTime        DateTime            @map("check_time")

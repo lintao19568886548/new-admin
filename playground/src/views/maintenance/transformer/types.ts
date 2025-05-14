@@ -2,10 +2,10 @@
 export interface TransformerItem {
   // 地址
   address: string;
+  // 检查人
+  checker: string;
   // 检查时间
   checkTime: string;
-  // 联系人
-  contact: string;
   // 创建时间
   createTime?: string;
   // 园区ID

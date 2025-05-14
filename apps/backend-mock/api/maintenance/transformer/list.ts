@@ -13,7 +13,7 @@ export default eventHandler(async (event) => {
   const {
     transformerName,
     address,
-    contact,
+    checker,
     status,
     specifications,
     startTime,
@@ -75,10 +75,10 @@ export default eventHandler(async (event) => {
     };
   }
 
-  // 联系人查询
-  if (contact) {
-    where.contact = {
-      contains: contact,
+  // 检查人查询
+  if (checker) {
+    where.checker = {
+      contains: checker,
     };
   }
 
