@@ -27,7 +27,7 @@ model Firefighting {
 model Transformer {
   transformerId    Int                 @id @default(autoincrement()) @map("transformer_id")
   transformerName  String?             @db.VarChar(100) @map("transformer_name")
-  address          String?              @db.VarChar(200)
+  address          String?             @db.VarChar(200)
   contact          String              @db.VarChar(100)
   status           String              @db.VarChar(20) // 变压器状态：正常、异常、维护中
   specifications   String              @db.VarChar(50) // 变压器规格
@@ -65,21 +65,19 @@ model factoryMaintenance {
   @@map("factory_maintenance") // 建议将 @@map 的值也修改以保持一致性
 }
 
-// 卫生评比模型 (maintenance/hygiene_assessment)
-model HygieneAssessment {
-  hygieneAssessmentId   Int                 @id @default(autoincrement()) @map("hygiene_assessment_id")
-  assessmentItems       String              @db.VarChar(100) @map("assessment_items") // 评比项目
-  assessmentScore       Decimal             @map("assessment_score") // 评比分数
-  assessmentPerson      String              @db.VarChar(50)  @map("assessment_person") // 评比人
-  assessmentDate        DateTime            @map("assessment_date") // 评比日期
-  assessmentResult      String              @db.VarChar(100) @map("assessment_result") // 评比结果
-  remark                String?             @db.VarChar(100)
-  createTime            DateTime            @default(now()) @map("create_time")
-  updateTime            DateTime?           @updatedAt @map("update_time")
-  // 修改关联字段
-  factoryId             Int                 @default(20) @map("factory_id")
-  factory               Factory             @relation("FactoryToHygieneAssessment", fields: [factoryId], references: [factoryId])
+// 卫生检查模型 (maintenance/hygiene_check)
+model HygieneCheck {
+  hygieneCheckId   Int                 @id @default(autoincrement()) @map("hygiene_check_id") 
+  checkItems       String              @db.VarChar(100) @map("check_items") // 检查项目 
+  checker          String              @db.VarChar(10)  // 检查人 
+  checkDate        DateTime            @map("check_date") // 检查日期 
+  checkResult      String              @db.VarChar(100) @map("check_result") // 检查结果 
+  remark           String?             @db.VarChar(100)
+  createTime       DateTime            @default(now()) @map("create_time")
+  updateTime       DateTime?           @updatedAt @map("update_time")
+  factoryId        Int                 @default(20) @map("factory_id")
+  factory          Factory             @relation("FactoryToHygieneCheck", fields: [factoryId], references: [factoryId])
 
   @@index([factoryId])
-  @@map("hygiene_assessment")
+  @@map("hygiene_check")
 }

@@ -175,7 +175,8 @@
     "view": "查看维修",
     "factoryMaintenance": "厂房维护",
     "factoryMaintenanceList": "厂房维护列表",
-    "hygieneAssessment": "卫生评估"
+    "hygieneCheck": "卫生检查",
+    "hygieneCheckList": "卫生检查列表"
   },
   "park": {
     "address": "园区地址",

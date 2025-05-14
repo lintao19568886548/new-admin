@@ -32,7 +32,7 @@ services:
     image: node:22.14.0
     volumes:
       - ./node:/app
-      - uploads_data:/app/uploads # <-- 新增：挂载共享卷到 Node.js 图片存储路径 (请确保 /app/uploads 是你后端实际存储图片的路径)
+      - uploads_data:/app/public/uploads # <-- 新增：挂载共享卷到 Node.js 图片存储路径 (请确保 /app/uploads 是你后端实际存储图片的路径)
     working_dir: /app
     environment:
       - PORT=5320

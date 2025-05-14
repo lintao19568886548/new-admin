@@ -6,7 +6,8 @@ import { useVbenModal } from '@vben/common-ui';
 import { Button } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { createFirefighting, updateFirefighting } from '#/api/maintenance';
+// 修改: 导入新的 API 函数
+import { createHygieneCheck, updateHygieneCheck } from '#/api/maintenance';
 import { $t } from '#/locales';
 
 import { useFormSchema } from '../data'; // <-- 新增导入 getParkFactoryCascaderOptions
@@ -14,9 +15,9 @@ import { useFormSchema } from '../data'; // <-- 新增导入 getParkFactoryCasca
 const emit = defineEmits(['success']);
 const formData = ref();
 const getTitle = computed(() => {
-  return formData.value?.id
-    ? $t('ui.actionTitle.edit', [$t('page.maintenance.title')])
-    : $t('ui.actionTitle.create', [$t('page.maintenance.title')]);
+  return formData.value?.hygieneCheckId // 修改: id -> hygieneCheckId (假设后端主键是 hygieneCheckId)
+    ? $t('ui.actionTitle.edit', [$t('page.maintenance.hygieneCheck')])
+    : $t('ui.actionTitle.create', [$t('page.maintenance.hygieneCheck')]);
 });
 
 const [Form, formApi] = useVbenForm({
@@ -45,27 +46,31 @@ const [Modal, modalApi] = useVbenModal({
           dataToSubmit.parkId = cascaderValue[0];
           dataToSubmit.factoryId = cascaderValue[1];
         } else if (cascaderValue.length === 1) {
-          // 如果只选择了一个层级（例如，如果 changeOnSelect 为 true）
-          // 这里根据实际需求处理，当前配置 changeOnSelect: false，应总是有两个值或为空
-          dataToSubmit.factoryId = cascaderValue[0]; // 或者根据情况设置 parkId
+          dataToSubmit.factoryId = cascaderValue[0];
         } else {
-          // 清除或设置默认值，如果选择不完整
           delete dataToSubmit.factoryId;
           delete dataToSubmit.parkId;
         }
+      } else {
+        // 如果 factoryId 不是数组 (例如直接是ID), 则不需要这部分处理
+        // 或者如果它是可选的，并且不是数组，则可能需要删除 parkId
+        delete dataToSubmit.parkId;
       }
 
-      const { firefightingId: recordIdToUpdate } = modalApi.getData();
+      // 修改: firefightingId -> hygieneCheckId
+      const { hygieneCheckId: recordIdToUpdate } = modalApi.getData() || {};
       try {
-        if (dataToSubmit.checkTime) {
-          dataToSubmit.checkTime = new Date(
-            dataToSubmit.checkTime,
+        // 修改: checkTime -> checkDate
+        if (dataToSubmit.checkDate) {
+          dataToSubmit.checkDate = new Date(
+            dataToSubmit.checkDate,
           ).toISOString();
         }
 
+        // 修改: API 函数调用
         await (recordIdToUpdate
-          ? updateFirefighting(recordIdToUpdate, dataToSubmit)
-          : createFirefighting(dataToSubmit));
+          ? updateHygieneCheck(recordIdToUpdate, dataToSubmit)
+          : createHygieneCheck(dataToSubmit));
         modalApi.close();
         emit('success');
       } finally {
@@ -79,9 +84,15 @@ const [Modal, modalApi] = useVbenModal({
       if (data) {
         formData.value = { ...data };
         // 为 Cascader 准备初始值：[parkId, factoryId]
-        data.parkId && data.factoryId
-          ? (formData.value.factoryId = [data.parkId, data.factoryId])
-          : (formData.value.factoryId = []); // 如果没有，则为空数组
+        // 确保 data 中有 parkId 和 factoryId
+        if (data.parkId && data.factoryId) {
+          formData.value.factoryId = [data.parkId, data.factoryId];
+        } else if (data.factoryId) {
+          // 如果只有 factoryId (例如，非级联选择)
+          formData.value.factoryId = data.factoryId;
+        } else {
+          formData.value.factoryId = [];
+        }
         formApi.setValues(formData.value);
       } else {
         formData.value = undefined;

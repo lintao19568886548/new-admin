@@ -13,7 +13,8 @@ import { formatDateTime } from '@vben/utils';
 import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { deleteFirefighting, getFirefightingList } from '#/api/maintenance';
+// 修改: 导入新的 API 函数
+import { deleteHygieneCheck, getHygieneCheckList } from '#/api/maintenance';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -38,8 +39,8 @@ function onEdit(row: any) {
   // 复制行数据以避免修改原始数据
   const editData = { ...row };
 
-  if (editData.checkTime) {
-    editData.checkTime = formatDateTime(editData.checkTime) as string;
+  if (editData.checkDate) {
+    editData.checkDate = formatDateTime(editData.checkDate) as string;
   }
   formModalApi.setData(editData).open();
 }
@@ -57,28 +58,23 @@ function onCreate() {
  */
 async function onDelete(row: any) {
   message.loading({
-    content: $t('ui.actionMessage.deleting', [row.firefightingName]),
+    content: $t('ui.actionMessage.deleting', [row.checkItems]),
     duration: 0,
     key: 'action_process_msg',
   });
-
-  const { firefightingId } = row;
-  if (firefightingId) {
-    try {
-      // 使用 try-catch 替代 then-catch 链
-      await deleteFirefighting(firefightingId);
-      message.success({
-        content: $t('ui.actionMessage.deleteSuccess', [row.firefightingName]),
-        key: 'action_process_msg',
-      });
-      refreshGrid();
-    } catch (error) {
-      console.error('删除账单失败:', error);
-      message.error({
-        content: $t('ui.actionMessage.operationFailed', [error]),
-        key: 'action_process_msg',
-      });
-    }
+  try {
+    // 修改: API 函数调用和参数
+    await deleteHygieneCheck(row.hygieneCheckId);
+    message.success({
+      content: $t('ui.actionMessage.deleteSuccess', [row.firefightingName]),
+      key: 'action_process_msg',
+    });
+    refreshGrid();
+  } catch (error) {
+    message.error({
+      content: $t('ui.actionMessage.operationFailed', [error]),
+      key: 'action_process_msg',
+    });
   }
 }
 
@@ -101,8 +97,9 @@ function onActionClick({ code, row }: OnActionClickParams) {
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
-    fieldMappingTime: [['checkTime', ['startTime', 'endTime']]],
-    schema: useGridFormSchema(), // useGridFormSchema 现在不依赖外部 options
+    // 修改: checkTime -> checkDate
+    fieldMappingTime: [['checkDate', ['startTime', 'endTime']]],
+    schema: useGridFormSchema(),
   },
   gridOptions: {
     columns: useColumns(onActionClick),
@@ -129,6 +126,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
               delete formDataForQuery.factoryId; // 如果数组为空，则不以此筛选
             }
           }
+          // 如果 factoryId 不是数组而是单个值，则上面的逻辑可能不需要
 
           // 构建查询参数，包含分页信息
           const params = {
@@ -138,15 +136,15 @@ const [Grid, gridApi] = useVbenVxeGrid({
             pageSize: page.page?.pageSize || 20,
           };
           try {
-            // 调用API获取数据
-            const result = await getFirefightingList(params);
-            // 返回格式化后的数据
+            // 修改: API 函数调用
+            const result = await getHygieneCheckList(params);
             return {
-              ...result,
+              ...result, // 假设 result 已经是 { items: [], total: 0 } 格式
             };
           } catch (error) {
-            console.error('获取账单列表失败:', error);
-            message.error('获取账单列表失败');
+            // 修改: 错误消息
+            console.error('获取卫生检查列表失败:', error);
+            message.error('获取卫生检查列表失败');
             return {
               page: {
                 currentPage: 1,
@@ -157,6 +155,11 @@ const [Grid, gridApi] = useVbenVxeGrid({
             };
           }
         },
+        // 如果有删除操作的 proxy，也需要更新
+        // delete: async ({ body }) => {
+        //   const idsToDelete = body.removeRecords.map(record => record.hygieneCheckId);
+        //   await deleteHygieneCheck(idsToDelete); // 假设 deleteHygieneCheck 支持批量删除
+        // },
       },
     },
     rowConfig: {
@@ -183,7 +186,7 @@ function refreshGrid() {
 <template>
   <Page auto-content-height>
     <FormModal @success="refreshGrid" />
-    <Grid :table-title="$t('page.maintenance.firefightingList')">
+    <Grid :table-title="$t('page.maintenance.hygieneCheckList')">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector

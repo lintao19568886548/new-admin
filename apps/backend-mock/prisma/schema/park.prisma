@@ -44,7 +44,7 @@ model Factory {
   firefighting        Firefighting[]       @relation("FactoryToFirefighting")
   transformers        Transformer[]        @relation("FactoryToTransformer")
   factoryMaintenances factoryMaintenance[] @relation("FactoryToFactoryMaintenance")
-  hygieneAssessment   HygieneAssessment[]  @relation("FactoryToHygieneAssessment")
+  HygieneCheck        HygieneCheck[]       @relation("FactoryToHygieneCheck")
   createTime          DateTime             @default(now()) @map("create_time")
   updateTime          DateTime?            @updatedAt @map("update_time")
   isDeleted           Boolean              @default(false) @map("is_deleted") // 逻辑删除字段
