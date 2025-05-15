@@ -56,18 +56,31 @@ export default eventHandler(async (event) => {
       }
 
       // 更新或创建电费账单记录
+      // 定义基准时间
+      const eleBaseTime = new Date();
+
       await Promise.all(
-        eleBills.map((eleBill) => {
+        eleBills.map((eleBill, index) => {
           const { eleId, billId: _billId, ...eleBillData } = eleBill; // 移除不需要的字段
+
+          // 为每条记录添加轻微的时间偏移（每条记录增加1秒）
+          const recordTime = new Date(eleBaseTime);
+          recordTime.setSeconds(recordTime.getSeconds() + index);
+
+          console.log(eleBill);
           return eleId
             ? tx.eleBill.update({
                 where: { eleId, billId: billData.billId },
-                data: eleBillData, // 使用清理后的数据进行更新
+                data: {
+                  ...eleBillData,
+                  updateTime: recordTime, // 添加更新时间
+                }, // 使用清理后的数据进行更新
               })
             : tx.eleBill.create({
                 data: {
                   ...eleBillData,
                   billId: billData.billId,
+                  updateTime: recordTime, // 添加更新时间
                 },
               });
         }),
@@ -102,19 +115,26 @@ export default eventHandler(async (event) => {
         });
       }
 
+      const waterBaseTime = new Date();
       // 更新或创建水费账单记录
       await Promise.all(
-        waterBills.map((waterBill) => {
+        waterBills.map((waterBill, index) => {
           const { waterId, billId: _billId, ...waterBillData } = waterBill; // 移除不需要的字段
+          const recordTime = new Date(waterBaseTime);
+          recordTime.setSeconds(recordTime.getSeconds() + index);
           return waterId
             ? tx.waterBill.update({
                 where: { waterId, billId: billData.billId },
-                data: waterBillData, // 使用清理后的数据进行更新
+                data: {
+                  ...waterBillData,
+                  updateTime: recordTime,
+                },
               })
             : tx.waterBill.create({
                 data: {
                   ...waterBillData,
                   billId: billData.billId,
+                  updateTime: recordTime,
                 },
               });
         }),

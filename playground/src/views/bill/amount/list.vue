@@ -83,7 +83,7 @@ function onCreate() {
     factoryRent: 0,
     invoiceTax: 0,
     managementFee: 0,
-    receiptTime: dayjs(),
+    receiptTime: dayjs().toISOString(),
     serviceFee: 0,
     tenantName: '',
     totalFee: 0,

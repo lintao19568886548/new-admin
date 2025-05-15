@@ -1,5 +1,3 @@
-import type { Dayjs } from 'dayjs';
-
 import type { BillDetailConfig } from './modules/BillBaseConfig';
 import type { BillFormConfig } from './modules/BillForm.vue';
 
@@ -16,17 +14,17 @@ export interface AmountBill {
   createTime?: Date | string; // 创建时间
   eleBills?: any[]; // 电费账单项（详情用）
   eleFee: number; // 电费合计
-  factoryRent?: number; // 厂房租金
-  invoiceTax?: number; // 开票税金
-  managementFee?: number; // 基本管理费
+  factoryRent: number; // 厂房租金
+  invoiceTax: number; // 开票税金
+  managementFee: number; // 基本管理费
   parkId?: number; // 园区ID
   projectName?: string; // 项目名称
-  receiptTime?: Dayjs; // 收款时间
+  receiptTime?: string; // 收款时间
   remark?: string; // 备注
   serviceFee?: number; // 服务费
   tenant?: any; // 租户信息
   tenantId?: number; // 租户ID
-  tenantName: string; // 租户名称
+  tenantName?: string; // 租户名称
   totalFee: number; // 总费用
   waterBills?: any[]; // 水费账单项（详情用）
   waterFee: number; // 水费合计
@@ -61,21 +59,6 @@ export const summaryFormConfig: BillFormConfig = {
 };
 
 /**
- * 电费账单详情配置
- */
-export const electricityDetailConfig: BillDetailConfig = {
-  amountLabel: '电费金额',
-  defaultItemName: '主楼电费',
-  defaultSubItemName: '附楼电费',
-  modalClass: 'electricity-bill-detail-modal max-w-[90%] w-auto',
-  modalTitle: '电费账单详情',
-  readingLabel: '电表数',
-  unitLabel: '度',
-  usageLabel: '度数',
-  itemsField: 'eleBills',
-};
-
-/**
  * 电费账单表单配置
  */
 export const electricityFormConfig: BillFormConfig = {
@@ -89,21 +72,6 @@ export const electricityFormConfig: BillFormConfig = {
 };
 
 /**
- * 水费账单详情配置
- */
-export const waterDetailConfig: BillDetailConfig = {
-  amountLabel: '水费金额',
-  defaultItemName: '主楼水费',
-  defaultSubItemName: '附楼水费',
-  modalClass: 'water-bill-detail-modal max-w-[90%] w-auto',
-  modalTitle: '水费账单详情',
-  readingLabel: '水表数',
-  unitLabel: '吨',
-  usageLabel: '用量',
-  itemsField: 'waterBills',
-};
-
-/**
  * 水费账单表单配置
  */
 export const waterFormConfig: BillFormConfig = {
@@ -111,7 +79,7 @@ export const waterFormConfig: BillFormConfig = {
   modalClass: 'water-bill-form-modal max-w-[90%] w-auto',
   modalTitle: '水费账单表单',
   readingLabel: '水表数',
-  unitLabel: '吨',
+  unitLabel: '㎡',
   usageLabel: '用量',
   itemsField: 'water',
 };

@@ -7,7 +7,7 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
   const body = await readBody(event);
-  const { eleBills, waterBills, ...billData } = body;
+  const { eleBills, waterBills, parkId, tenantId, ...billData } = body;
   try {
     // 使用事务处理创建操作
     const bill = await prismaClient.$transaction(async (prisma) => {
@@ -15,6 +15,17 @@ export default eventHandler(async (event) => {
       return await prisma.amountBill.create({
         data: {
           ...billData,
+          // 使用 connect 连接已存在的 Park 记录
+          park: parkId
+            ? {
+                connect: { parkId },
+              }
+            : undefined,
+          tenant: tenantId
+            ? {
+                connect: { rentalTenantId: tenantId },
+              }
+            : undefined,
           eleBills: {
             create: eleBills,
           },

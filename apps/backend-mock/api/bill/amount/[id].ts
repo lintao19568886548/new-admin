@@ -16,8 +16,16 @@ export default eventHandler(async (event) => {
       billId,
     },
     include: {
-      eleBills: true,
-      waterBills: true,
+      eleBills: {
+        orderBy: {
+          updateTime: 'asc',
+        },
+      },
+      waterBills: {
+        orderBy: {
+          updateTime: 'asc',
+        },
+      },
     },
   });
   return useResponseSuccess(bill);
