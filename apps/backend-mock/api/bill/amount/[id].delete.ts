@@ -1,5 +1,5 @@
 import { prismaClient } from '~/utils/db';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import { serverErrorResponse, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -40,6 +40,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(result);
   } catch (error) {
     console.error('删除账单失败:', error);
-    return useResponseError('删除账单失败', 500);
+    return serverErrorResponse(`删除账单失败\n${error}`, event);
   }
 });

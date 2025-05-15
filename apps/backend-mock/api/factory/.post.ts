@@ -1,5 +1,5 @@
 import { prismaClient } from '~/utils/db';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import { useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -57,9 +57,9 @@ export default eventHandler(async (event) => {
   } catch (error) {
     console.error('创建厂房及关联数据失败:', error);
     // 提供更详细的错误信息给前端可能有助于调试，但生产环境要注意信息安全
-    return useResponseError(
+    return serverErrorResponse(
       `创建厂房失败: ${error.message || '未知错误'}`,
-      500,
+      event,
     );
   }
 });

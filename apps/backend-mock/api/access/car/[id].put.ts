@@ -1,5 +1,9 @@
 import { prismaClient } from '~/utils/db';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import {
+  serverErrorResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -24,6 +28,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(accessCar);
   } catch (error) {
     console.error('更新车辆信息失败:', error);
-    return useResponseError('更新车辆信息失败', 500);
+    return serverErrorResponse(`更新车辆信息失败\n${error}`, event);
   }
 });

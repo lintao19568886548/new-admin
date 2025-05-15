@@ -1,5 +1,9 @@
 import { prismaClient } from '~/utils/db';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import {
+  serverErrorResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
 
 export default eventHandler(async (event) => {
   try {
@@ -7,15 +11,15 @@ export default eventHandler(async (event) => {
 
     // 验证必填字段
     if (!body.visitorName) {
-      return useResponseError('姓名不能为空', 400);
+      return useResponseError('姓名不能为空');
     }
 
     if (!body.phoneNumber || !/^1[3-9]\d{9}$/.test(body.phoneNumber)) {
-      return useResponseError('请输入正确的手机号码', 400);
+      return useResponseError('请输入正确的手机号码');
     }
 
     if (body.status === undefined || body.status === null) {
-      return useResponseError('访问状态不能为空', 400);
+      return useResponseError('访问状态不能为空');
     }
 
     // 确保状态值为数字类型
@@ -53,6 +57,6 @@ export default eventHandler(async (event) => {
     });
   } catch (error) {
     console.error('创建访客信息失败:', error);
-    return useResponseError('创建访客信息失败', 500);
+    return serverErrorResponse(`创建访客信息失败\n${error}`, event);
   }
 });

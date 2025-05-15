@@ -1,5 +1,5 @@
 import { prismaClient } from '~/utils/db';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import { useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
   try {
@@ -101,6 +101,6 @@ export default eventHandler(async (event) => {
     });
   } catch (error) {
     console.error('获取园区列表失败:', error);
-    return useResponseError('获取园区列表失败', 500);
+    return serverErrorResponse(`获取园区列表失败\n${error}`, event);
   }
 });

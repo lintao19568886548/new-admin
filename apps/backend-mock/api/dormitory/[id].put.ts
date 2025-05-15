@@ -10,7 +10,7 @@ export default eventHandler(async (event) => {
   const id = Number(event.context.params?.id);
 
   if (Number.isNaN(id)) {
-    return useResponseError('无效的宿舍ID', 400);
+    return useResponseError('无效的宿舍ID');
   }
 
   // 从 body 中分离出 images 数据和 dormitory 的基本数据
@@ -85,9 +85,9 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(result);
   } catch (error) {
     console.error('更新宿舍信息时发生错误:', error);
-    return useResponseError(
+    return serverErrorResponse(
       `更新宿舍失败: ${error.message || '未知错误'}`,
-      500,
+      event,
     );
   }
 });

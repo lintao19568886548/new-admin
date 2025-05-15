@@ -119,9 +119,9 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(result);
   } catch (error) {
     console.error('更新厂房信息时发生错误:', error);
-    return useResponseError(
+    return serverErrorResponse(
       `更新厂房失败: ${error.message || '未知错误'}`,
-      500,
+      event,
     );
   }
 });

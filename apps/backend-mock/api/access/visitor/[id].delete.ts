@@ -1,5 +1,5 @@
 import { prismaClient } from '~/utils/db';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import { serverErrorResponse, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -20,6 +20,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(null);
   } catch (error) {
     console.error('删除访客信息失败:', error);
-    return useResponseError('删除访客信息失败', 500);
+    return serverErrorResponse(`删除访客信息失败\n${error}`, event);
   }
 });

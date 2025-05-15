@@ -20,6 +20,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(null);
   } catch (error) {
     console.error('删除租户失败:', error);
-    return useResponseError('删除租户失败', 500);
+    return serverErrorResponse(`删除租户失败\n${error}`, event);
   }
 });

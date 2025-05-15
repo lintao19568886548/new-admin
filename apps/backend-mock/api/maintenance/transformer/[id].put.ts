@@ -25,6 +25,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(transformer);
   } catch (error) {
     console.error('更新变压器数据失败:', error);
-    return useResponseError('更新变压器数据失败', 500);
+    return serverErrorResponse(`更新变压器数据失败\n${error}`, event);
   }
 });

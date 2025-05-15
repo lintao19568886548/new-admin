@@ -31,9 +31,9 @@ export default eventHandler(async (event) => {
       return useResponseError(`未找到 ID 为 ${factoryId} 的厂房`, 404);
     }
     // 返回通用错误
-    return useResponseError(
+    return serverErrorResponse(
       `删除厂房失败: ${error.message || '未知错误'}`,
-      500,
+      event,
     );
   }
 });

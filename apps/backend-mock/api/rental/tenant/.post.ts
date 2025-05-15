@@ -1,5 +1,5 @@
 import { prismaClient } from '~/utils/db';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import { useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -19,6 +19,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(tenant);
   } catch (error) {
     console.error('创建租户失败:', error);
-    return useResponseError('创建租户失败', 500);
+    return serverErrorResponse(`创建租户失败\n${error}`, event);
   }
 });

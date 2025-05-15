@@ -88,13 +88,27 @@ export default eventHandler(async (event) => {
   });
 
   // 查询分页数据
-  const items = await prismaClient.amountBill.findMany({
+  const result = await prismaClient.amountBill.findMany({
     where,
     orderBy: {
       receiptTime: 'desc',
     },
     skip: (page - 1) * size,
     take: size,
+    include: {
+      tenant: {
+        select: {
+          tenantName: true,
+        },
+      },
+    },
+  });
+
+  const items = result.map((item) => {
+    return {
+      ...item,
+      tenantName: item.tenant.tenantName,
+    };
   });
 
   return useResponseSuccess({

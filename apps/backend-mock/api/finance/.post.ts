@@ -1,5 +1,5 @@
 import { prismaClient } from '~/utils/db';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import { useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -22,6 +22,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(finance);
   } catch (error) {
     console.error('插入财务数据失败:', error);
-    return useResponseError('插入财务数据失败', 500);
+    return serverErrorResponse(`插入财务数据失败\n${error}`, event);
   }
 });

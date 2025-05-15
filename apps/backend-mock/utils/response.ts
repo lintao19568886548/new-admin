@@ -30,13 +30,26 @@ export function usePageResponseSuccess<T = any>(
   };
 }
 
-export function useResponseError(message: string, error: any = null) {
+export function useResponseError(
+  message: string,
+  error: any = null,
+  code?: number,
+) {
   return {
-    code: -1,
+    code,
     data: null,
     error,
     message,
   };
+}
+
+export function serverErrorResponse(
+  message: string,
+  event: H3Event<EventHandlerRequest>,
+  code = 500,
+) {
+  setResponseStatus(event, code);
+  return useResponseError(message, message, code);
 }
 
 export function forbiddenResponse(
