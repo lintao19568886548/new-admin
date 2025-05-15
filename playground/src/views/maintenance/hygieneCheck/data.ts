@@ -54,11 +54,9 @@ export function useFormSchema(): VbenFormSchema[] {
       rules: 'required',
     },
     {
-      component: 'Textarea',
+      component: 'Input',
       componentProps: {
-        maxLength: 500,
         placeholder: '请输入检查项目详情',
-        rows: 3,
         showCount: true,
       },
       fieldName: 'checkItems',

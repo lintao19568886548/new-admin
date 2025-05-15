@@ -42,7 +42,6 @@ const [Modal, modalApi] = useVbenModal({
       const cascaderValue = rawData.factoryId;
       if (cascaderValue && Array.isArray(cascaderValue)) {
         if (cascaderValue.length === 2) {
-          dataToSubmit.parkId = cascaderValue[0];
           dataToSubmit.factoryId = cascaderValue[1];
         } else if (cascaderValue.length === 1) {
           // 如果只选择了一个层级（例如，如果 changeOnSelect 为 true）
@@ -56,7 +55,6 @@ const [Modal, modalApi] = useVbenModal({
       } else {
         // If not an array or empty, ensure they are not submitted if not part of rawData
         // or handle as per backend requirements if they are mandatory from another source
-        if (!rawData.parkId) delete dataToSubmit.parkId;
         if (!rawData.factoryId && !Array.isArray(cascaderValue))
           delete dataToSubmit.factoryId;
       }

@@ -74,6 +74,7 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'parkId',
       label: $t('page.common.park'),
+      rules: 'required',
     },
     {
       component: 'InputNumber',

@@ -39,22 +39,19 @@ const [Modal, modalApi] = useVbenModal({
       const rawData = await formApi.getValues();
       const dataToSubmit = { ...rawData };
 
-      // 从 Cascader 的数组值中提取 parkId 和 factoryId
+      // 从 Cascader 的数组值中提取和 factoryId
       const cascaderValue = rawData.factoryId;
       if (cascaderValue && Array.isArray(cascaderValue)) {
         if (cascaderValue.length === 2) {
-          dataToSubmit.parkId = cascaderValue[0];
           dataToSubmit.factoryId = cascaderValue[1];
         } else if (cascaderValue.length === 1) {
           dataToSubmit.factoryId = cascaderValue[0];
         } else {
           delete dataToSubmit.factoryId;
-          delete dataToSubmit.parkId;
         }
       } else {
         // 如果 factoryId 不是数组 (例如直接是ID), 则不需要这部分处理
         // 或者如果它是可选的，并且不是数组，则可能需要删除 parkId
-        delete dataToSubmit.parkId;
       }
 
       // 修改: firefightingId -> hygieneCheckId
@@ -85,14 +82,11 @@ const [Modal, modalApi] = useVbenModal({
         formData.value = { ...data };
         // 为 Cascader 准备初始值：[parkId, factoryId]
         // 确保 data 中有 parkId 和 factoryId
-        if (data.parkId && data.factoryId) {
-          formData.value.factoryId = [data.parkId, data.factoryId];
-        } else if (data.factoryId) {
-          // 如果只有 factoryId (例如，非级联选择)
-          formData.value.factoryId = data.factoryId;
-        } else {
-          formData.value.factoryId = [];
-        }
+        data.factoryId
+          ? // 如果只有 factoryId (例如，非级联选择)
+            (formData.value.factoryId = data.factoryId)
+          : (formData.value.factoryId = []);
+
         formApi.setValues(formData.value);
       } else {
         formData.value = undefined;
