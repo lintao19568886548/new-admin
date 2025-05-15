@@ -274,7 +274,6 @@ export function useFactoryItemFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'buildTime', // 保持不变，已与接口一致
       label: $t('page.factory.buildTime'),
-      rules: 'required',
     },
     {
       component: 'Textarea',

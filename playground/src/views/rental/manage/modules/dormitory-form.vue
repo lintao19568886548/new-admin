@@ -86,6 +86,7 @@ async function handleDeleteDormitory(index: number) {
 
 const [DormitoryItemModal, dormitoryModalApi] = useVbenModal({
   class: 'max-w-[90%] w-auto',
+  closeOnClickModal: false,
   destroyOnClose: false,
   onCancel: () => {
     // 关闭Modal时重置当前编辑索引

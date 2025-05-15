@@ -103,7 +103,6 @@ const [Modal, modalApi] = useVbenModal({
   // 或者使用class设置样式
   class: 'max-w-[90%] w-[1500px]',
   closeOnClickModal: false,
-  closeOnPressEscape: false,
   async onConfirm() {
     const { valid } = await dormitoryFormApi.validate();
     if (valid) {

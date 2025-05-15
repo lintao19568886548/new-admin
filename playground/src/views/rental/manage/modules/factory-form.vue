@@ -85,7 +85,6 @@ async function handleDeleteFactory(index: number) {
 const [FactoryItemModal, factoryModalApi] = useVbenModal({
   class: 'max-w-[90%] w-auto',
   closeOnClickModal: false,
-  closeOnPressEscape: false,
   destroyOnClose: false,
   onClosed: () => {
     // 关闭Modal时重置当前编辑索引
