@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">魔镜</string>
+    <string name="title_activity_main">魔镜</string>
+    <string name="package_name">cn.yizuw.magic</string>
+    <string name="custom_url_scheme">cn.yizuw.magic</string>
+</resources>
