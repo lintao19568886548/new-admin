@@ -22,9 +22,20 @@ export default eventHandler(async (event) => {
       isDeleted: false,
     };
 
-    // 根据用户名过滤：如果不是 vben 或 admin，则只查询自己的记录
-    if (userinfo.username !== 'vben' && userinfo.username !== 'admin') {
-      where.username = userinfo.username;
+    // 根据用户权限过滤：如果不是 vben 或 admin，则只查询用户所在园区的记录
+    if (
+      userinfo.username !== 'vben' &&
+      userinfo.username !== '董事长' &&
+      userinfo.username !== '总监'
+    ) {
+      // 获取用户所属的第一个园区ID
+      const parkId = userinfo.parks?.[0]?.parkId;
+      if (parkId) {
+        where.parkId = parkId;
+      } else {
+        // 如果用户没有关联园区，则只查询自己的记录
+        where.username = userinfo.username;
+      }
     }
 
     // 用途模糊查询

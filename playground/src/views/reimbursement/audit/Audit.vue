@@ -32,11 +32,14 @@ const {
   auditModalVisible,
   auditRemark,
   auditStatus,
+  availableStatusOptions,
+  checkAuditPermission,
   currentRecord,
   filterForm,
   handleDelete,
   handleSearch,
   handleTableChange,
+  hasAuditPermission,
   loading,
   openAuditModal,
   pagination,
@@ -160,6 +163,9 @@ const {
                   {
                     type: 'primary',
                     size: 'small',
+                    disabled:
+                      !hasAuditPermission ||
+                      !checkAuditPermission(record as ReimbursementItem),
                     onClick: () => openAuditModal(record as ReimbursementItem),
                   },
                   () => '审核',
@@ -252,7 +258,7 @@ const {
           <div class="mb-2">审核状态</div>
           <Select
             v-model:value="auditStatus"
-            :options="statusOptions"
+            :options="availableStatusOptions"
             style="width: 100%"
           />
         </div>
