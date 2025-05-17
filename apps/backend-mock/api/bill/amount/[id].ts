@@ -26,6 +26,11 @@ export default eventHandler(async (event) => {
           updateTime: 'asc',
         },
       },
+      tenant: {
+        select: {
+          tenantName: true,
+        },
+      },
     },
   });
   return useResponseSuccess(bill);

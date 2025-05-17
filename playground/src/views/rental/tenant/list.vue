@@ -38,7 +38,42 @@ const [Grid, gridApi] = useVbenVxeGrid({
     submitOnChange: false, // 修改这里：改为false，不再自动提交
   },
   gridOptions: {
+    border: true,
     columns: useColumns(onActionClick),
+    footerAlign: 'center',
+    footerMethod({ columns, data }) {
+      // 返回一个合计行
+      return [
+        columns.map((column) => {
+          // 根据列的字段名称进行不同的合计计算
+          if (column.field === 'tenantName') {
+            return '合计';
+          }
+
+          // 如果有需要计算合计的数值列，可以在这里添加
+          // 例如：计算某个数值列的合计
+          if (column.field === 'area') {
+            const sum = data.reduce((sum, row) => {
+              return sum + (Number(row.area) || 0);
+            }, 0);
+            return `${sum}㎡`;
+          }
+
+          if (column.field === 'rent') {
+            const sum = data.reduce((sum, row) => {
+              return sum + (Number(row.rent) || 0);
+            }, 0);
+            return `${sum}元`;
+          }
+          // 其他列不显示合计
+          return '';
+        }),
+      ];
+    },
+    footerRowStyle: {
+      color: 'black',
+      fontSize: '15px',
+    },
     height: 'auto',
     keepSource: true,
     // 添加分页配置
@@ -102,6 +137,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
     rowConfig: {
       keyField: 'tenantId',
     },
+    showFooter: true,
     toolbarConfig: {
       custom: true,
       export: false,
