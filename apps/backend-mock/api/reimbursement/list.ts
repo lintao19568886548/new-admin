@@ -28,10 +28,10 @@ export default eventHandler(async (event) => {
       userinfo.username !== '董事长' &&
       userinfo.username !== '总监'
     ) {
-      // 获取用户所属的第一个园区ID
-      const parkId = userinfo.parks?.[0]?.parkId;
-      if (parkId) {
-        where.parkId = parkId;
+      // 获取用户所属的全部园区ID
+      const parkIds = userinfo.parks?.map((park) => park.parkId);
+      if (parkIds?.length) {
+        where.parkId = { in: parkIds };
       } else {
         // 如果用户没有关联园区，则只查询自己的记录
         where.username = userinfo.username;
