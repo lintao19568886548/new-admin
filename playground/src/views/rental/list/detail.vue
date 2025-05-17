@@ -587,11 +587,8 @@ onMounted(() => {
                                 xs: 1,
                               }"
                             >
-                              <Descriptions.Item label="地址">
-                                {{ item.address }}
-                              </Descriptions.Item>
-                              <Descriptions.Item label="联系人">
-                                {{ item.contact }}
+                              <Descriptions.Item label="检查人">
+                                {{ item.checker }}
                               </Descriptions.Item>
                               <Descriptions.Item label="状态">
                                 <Tag :color="getTagColor(item.status)">
