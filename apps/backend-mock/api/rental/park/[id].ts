@@ -15,9 +15,15 @@ export default eventHandler(async (event) => {
       include: {
         // 包含厂房信息
         factories: {
+          where: {
+            isDeleted: false,
+          },
           include: {
             // 包含厂房楼层
             floors: {
+              where: {
+                isDeleted: false,
+              },
               include: {
                 // 包含楼层图片
                 images: {
@@ -45,6 +51,9 @@ export default eventHandler(async (event) => {
         },
         // 包含宿舍信息
         dormitories: {
+          where: {
+            isDeleted: false,
+          },
           include: {
             // 包含宿舍图片
             images: {
