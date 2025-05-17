@@ -1,14 +1,14 @@
 // API请求日志模型
 model ApiLog {
-  logId        Int       @id @default(autoincrement()) @map("log_id")
-  method       String    @db.VarChar(10)  // 请求方法：DELETE, POST, PUT等
-  path         String?    @db.VarChar(255) // 请求路径
-  refererPath  String    @db.VarChar(255) @map("referer_path") // 访问路径
-  itemName     String?   @db.VarChar(50) @map("item_name") // 操作项名称
-  username     String?   @db.VarChar(50)  // 用户名
-  requestTime  DateTime  @default(now()) @map("request_time") // 请求时间
-  createTime   DateTime? @default(now()) @map("create_time")
-  updateTime   DateTime? @updatedAt @map("update_time")
+  logId       Int       @id @default(autoincrement()) @map("log_id")
+  method      String    @db.VarChar(10) // 请求方法：DELETE, POST, PUT等
+  path        String?   @db.VarChar(255) // 请求路径
+  refererPath String    @map("referer_path") @db.VarChar(255) // 访问路径
+  itemName    String?   @map("item_name") @db.VarChar(50) // 操作项名称
+  username    String?   @db.VarChar(50) // 用户名
+  requestTime DateTime  @default(now()) @map("request_time") // 请求时间
+  createTime  DateTime? @default(now()) @map("create_time")
+  updateTime  DateTime? @updatedAt @map("update_time")
 
   @@map("api_log")
 }

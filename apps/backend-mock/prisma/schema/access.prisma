@@ -3,7 +3,7 @@ model AccessVisitor {
   visitorName  String   @map("visitor_name") @db.VarChar(50)
   carNum       String?  @map("car_num") @db.LongText
   phoneNumber  String   @map("phone_number") @db.LongText
-  status       Int      // 0: 进入, 1: 离开
+  status       Int // 0: 进入, 1: 离开
   registerTime DateTime @map("register_time") // 将 Int 改为 DateTime 类型，更适合存储时间
   remark       String?  @db.VarChar(100)
   createTime   DateTime @default(now()) @map("create_time")

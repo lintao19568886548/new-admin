@@ -69,8 +69,23 @@ const numEditRender = reactive({
       }, 50);
     },
     change: ({ column, row }: any) => {
-      if (column.field === 'monthlyUsage') {
-        row._isMonthlyUsageEdited = true;
+      switch (column.field) {
+        case 'amount': {
+          row._isAmountEdited = true;
+
+          break;
+        }
+        case 'monthlyUsage': {
+          row._isMonthlyUsageEdited = true;
+
+          break;
+        }
+        case 'totalUsage': {
+          row._isTotalUsageEdited = true;
+
+          break;
+        }
+        // No default
       }
       updateCalculatedFields(row);
     },
@@ -245,6 +260,10 @@ function updateCalculatedFields(row: any) {
 
   // 检查是否是通过编辑 monthlyUsage 字段触发的更新
   const isMonthlyUsageEdited = row._isMonthlyUsageEdited;
+  // 检查是否是通过编辑 totalUsage 字段触发的更新
+  const isTotalUsageEdited = row._isTotalUsageEdited;
+  // 检查是否是通过编辑 amount 字段触发的更新
+  const isAmountEdited = row._isAmountEdited;
 
   // 如果用户没有手动编辑 monthlyUsage，则根据读数计算
   if (isMonthlyUsageEdited) {
@@ -256,13 +275,26 @@ function updateCalculatedFields(row: any) {
     row.monthlyUsage = Number.parseFloat(monthlyUsageVal.toFixed(2));
   }
 
-  // 计算总用量: 月用量 * 倍数
-  const totalUsageVal = row.monthlyUsage * multiplier;
-  row.totalUsage = Number.parseFloat(totalUsageVal.toFixed(2));
+  // 处理 totalUsage 字段
+  if (isTotalUsageEdited) {
+    // 用户手动编辑了 totalUsage，保留用户输入的值
+    row.totalUsage = Number(row.totalUsage) || 0;
+  } else {
+    // 计算总用量: 月用量 * 倍数
+    const totalUsageVal = row.monthlyUsage * multiplier;
+    row.totalUsage = Number.parseFloat(totalUsageVal.toFixed(2));
+  }
 
-  // 计算金额: 总用量 * 单价
-  const amountVal = row.totalUsage * unitPriceVal;
-  row.amount = Number.parseFloat(amountVal.toFixed(2));
+  // 处理 amount 字段
+  if (isAmountEdited) {
+    // 用户手动编辑了 amount，保留用户输入的值
+    row.amount = Number(row.amount) || 0;
+  } else {
+    // 计算金额: 总用量 * 单价
+    const amountVal = row.totalUsage * unitPriceVal;
+    row.amount = Number.parseFloat(amountVal.toFixed(2));
+  }
+
   dataSource.value[row._id] = row;
   // 更新合计行并刷新表格
   updateTotalRow();

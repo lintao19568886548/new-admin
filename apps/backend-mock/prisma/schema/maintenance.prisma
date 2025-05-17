@@ -1,22 +1,22 @@
 // 消防设施模型 (maintenance/firefighting)
 model Firefighting {
-  firefightingId     Int                 @id @default(autoincrement()) @map("firefighting_id")
-  address            String?             @db.VarChar(200)
-  firefightingName   String?             @db.VarChar(100) @map("firefighting_name")
-  extinguisher       String              @db.VarChar(10)  // 灭火器
-  hydrant            String              @db.VarChar(10)  // 消防栓
-  fireExit           String              @map("fire_exit") @db.VarChar(100) // 消防出口
-  checker            String              @db.VarChar(10)  // 检查人
-  checkTime          DateTime            @map("check_time") 
-  remark             String?             @db.VarChar(100)
-  images             FirefightingImage[] @relation("FirefightingToFirefightingImage") // 添加此行
-  createTime         DateTime            @default(now()) @map("create_time")
-  updateTime         DateTime?           @updatedAt @map("update_time")
+  firefightingId   Int                 @id @default(autoincrement()) @map("firefighting_id")
+  address          String?             @db.VarChar(200)
+  firefightingName String?             @map("firefighting_name") @db.VarChar(100)
+  extinguisher     String              @db.VarChar(10) // 灭火器
+  hydrant          String              @db.VarChar(10) // 消防栓
+  fireExit         String              @map("fire_exit") @db.VarChar(100) // 消防出口
+  checker          String              @db.VarChar(10) // 检查人
+  checkTime        DateTime            @map("check_time")
+  remark           String?             @db.VarChar(100)
+  images           FirefightingImage[] @relation("FirefightingToFirefightingImage") // 添加此行
+  createTime       DateTime            @default(now()) @map("create_time")
+  updateTime       DateTime?           @updatedAt @map("update_time")
   // 修改关联字段   
-  factoryId          Int?                @default(20) @map("factory_id")
-  factory            Factory?            @relation("FactoryToFirefighting", fields: [factoryId], references: [factoryId])
-  parkId             Int                 @map("park_id")
-  park               Park                @relation("ParkToFirefighting", fields: [parkId], references: [parkId])
+  factoryId        Int?                @default(20) @map("factory_id")
+  factory          Factory?            @relation("FactoryToFirefighting", fields: [factoryId], references: [factoryId])
+  parkId           Int                 @map("park_id")
+  park             Park                @relation("ParkToFirefighting", fields: [parkId], references: [parkId])
 
   @@index([factoryId])
   @@index([parkId])
@@ -25,23 +25,23 @@ model Firefighting {
 
 // 变压器模型 (maintenance/transformer)
 model Transformer {
-  transformerId    Int                 @id @default(autoincrement()) @map("transformer_id")
-  transformerName  String?             @db.VarChar(100) @map("transformer_name")
-  address          String?             @db.VarChar(200)
-  contact          String?             @db.VarChar(100)
-  checker          String?             @db.VarChar(10)  // 检查人
-  status           String              @db.VarChar(20) // 变压器状态：正常、异常、维护中
-  specifications   String              @db.VarChar(50) // 变压器规格
-  checkTime        DateTime            @map("check_time")
-  remark           String?             @db.VarChar(100)
-  images           TransformerImage[]  @relation("TransformerToTransformerImage") // 添加此行
-  createTime       DateTime            @default(now()) @map("create_time")
-  updateTime       DateTime?           @updatedAt @map("update_time")
+  transformerId   Int                @id @default(autoincrement()) @map("transformer_id")
+  transformerName String?            @map("transformer_name") @db.VarChar(100)
+  address         String?            @db.VarChar(200)
+  contact         String?            @db.VarChar(100)
+  checker         String?            @db.VarChar(10) // 检查人
+  status          String             @db.VarChar(20) // 变压器状态：正常、异常、维护中
+  specifications  String             @db.VarChar(50) // 变压器规格
+  checkTime       DateTime           @map("check_time")
+  remark          String?            @db.VarChar(100)
+  images          TransformerImage[] @relation("TransformerToTransformerImage") // 添加此行
+  createTime      DateTime           @default(now()) @map("create_time")
+  updateTime      DateTime?          @updatedAt @map("update_time")
   // 修改关联字段  
-  factoryId        Int?                @default(20) @map("factory_id")
-  factory          Factory?            @relation("FactoryToTransformer", fields: [factoryId], references: [factoryId])
-  parkId           Int                 @map("park_id")
-  park             Park                @relation("ParkToTransformer", fields: [parkId], references: [parkId])
+  factoryId       Int?               @default(20) @map("factory_id")
+  factory         Factory?           @relation("FactoryToTransformer", fields: [factoryId], references: [factoryId])
+  parkId          Int                @map("park_id")
+  park            Park               @relation("ParkToTransformer", fields: [parkId], references: [parkId])
 
   @@index([factoryId])
   @@index([parkId])
@@ -50,17 +50,17 @@ model Transformer {
 
 // 厂房维护模型 (maintenance/factory_maintenance)
 model factoryMaintenance {
-  factoryMaintenanceId   Int                 @id @default(autoincrement()) @map("factory_maintenance_id") // 建议将 @map 的值也修改以保持一致性
-  maintenanceItem        String              @db.VarChar(100) @map("maintenance_item") // 维护项目
-  maintenanceStatus      String              @db.VarChar(20)  @map("maintenance_status") // 维护状态
-  personInCharge         String              @db.VarChar(50)  @map("person_in_charge") // 负责人
-  startTime              DateTime            @map("start_time") // 开始时间
-  endTime                DateTime?           @map("end_time") // 结束时间
-  remark                 String?             @db.VarChar(100)
-  createTime             DateTime            @default(now()) @map("create_time")
-  updateTime             DateTime?           @updatedAt @map("update_time")
-  factoryId              Int                 @default(20) @map("factory_id")
-  factory                Factory             @relation("FactoryToFactoryMaintenance", fields: [factoryId], references: [factoryId])
+  factoryMaintenanceId Int       @id @default(autoincrement()) @map("factory_maintenance_id") // 建议将 @map 的值也修改以保持一致性
+  maintenanceItem      String    @map("maintenance_item") @db.VarChar(100) // 维护项目
+  maintenanceStatus    String    @map("maintenance_status") @db.VarChar(20) // 维护状态
+  personInCharge       String    @map("person_in_charge") @db.VarChar(50) // 负责人
+  startTime            DateTime  @map("start_time") // 开始时间
+  endTime              DateTime? @map("end_time") // 结束时间
+  remark               String?   @db.VarChar(100)
+  createTime           DateTime  @default(now()) @map("create_time")
+  updateTime           DateTime? @updatedAt @map("update_time")
+  factoryId            Int       @default(20) @map("factory_id")
+  factory              Factory   @relation("FactoryToFactoryMaintenance", fields: [factoryId], references: [factoryId])
 
   @@index([factoryId]) // 建议添加索引以提高查询性能
   @@map("factory_maintenance") // 建议将 @@map 的值也修改以保持一致性
@@ -68,16 +68,16 @@ model factoryMaintenance {
 
 // 卫生检查模型 (maintenance/hygiene_check)
 model HygieneCheck {
-  hygieneCheckId   Int                 @id @default(autoincrement()) @map("hygiene_check_id") 
-  checkItems       String              @db.VarChar(100) @map("check_items") // 检查项目 
-  checker          String              @db.VarChar(10)  // 检查人 
-  checkDate        DateTime            @map("check_date") // 检查日期 
-  checkResult      String              @db.VarChar(100) @map("check_result") // 检查结果 
-  remark           String?             @db.VarChar(100)
-  createTime       DateTime            @default(now()) @map("create_time")
-  updateTime       DateTime?           @updatedAt @map("update_time")
-  factoryId        Int                 @default(20) @map("factory_id")
-  factory          Factory             @relation("FactoryToHygieneCheck", fields: [factoryId], references: [factoryId])
+  hygieneCheckId Int       @id @default(autoincrement()) @map("hygiene_check_id")
+  checkItems     String    @map("check_items") @db.VarChar(100) // 检查项目 
+  checker        String    @db.VarChar(10) // 检查人 
+  checkDate      DateTime  @map("check_date") // 检查日期 
+  checkResult    String    @map("check_result") @db.VarChar(100) // 检查结果 
+  remark         String?   @db.VarChar(100)
+  createTime     DateTime  @default(now()) @map("create_time")
+  updateTime     DateTime? @updatedAt @map("update_time")
+  factoryId      Int       @default(20) @map("factory_id")
+  factory        Factory   @relation("FactoryToHygieneCheck", fields: [factoryId], references: [factoryId])
 
   @@index([factoryId])
   @@map("hygiene_check")

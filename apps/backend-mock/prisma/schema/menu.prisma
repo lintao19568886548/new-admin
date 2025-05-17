@@ -14,7 +14,6 @@ model Menu {
   parent     Menu?      @relation("MenuToMenu", fields: [pid], references: [menuId], onDelete: NoAction, onUpdate: NoAction)
   meta       MenuMeta?  @relation("MenuToMenuMeta")
 
-
   @@index([pid])
   @@map("menu")
 }
