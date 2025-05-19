@@ -30,6 +30,8 @@
     "build:docker": "./scripts/deploy/build-local-docker-image.sh",
     "build:docs": "pnpm run build --filter=@vben/docs",
     "build:play": "pnpm run build --filter=@vben/playground",
+    "build:play:sync:android": "pnpm run build --filter=@vben/playground && cd playground && npx cap sync android",
+    "cap:sync:android": "cd playground && npx cap sync android",
     "changeset": "pnpm exec changeset",
     "check": "pnpm run check:circular && pnpm run check:dep && pnpm run check:type && pnpm check:cspell",
     "check:circular": "vsh check-circular",
