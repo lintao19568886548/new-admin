@@ -1,14 +1,10 @@
 <script lang="ts" setup>
-import type { Park } from '#/components/AreaSelector.vue';
-
 import { onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
-import { message } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { createVisitor } from '#/api/access/visitor';
-import { getVisitorParkList } from '#/api/park';
 
 const route = useRoute();
 const query = route.query;
@@ -24,22 +20,9 @@ const formData = reactive({
 });
 
 // 园区列表
-const parkList = ref<Park[]>([]);
-
-// 获取园区列表
-async function fetchParkList() {
-  try {
-    const result = await getVisitorParkList({ area: 'all' });
-    parkList.value = result || [];
-  } catch (error) {
-    console.error('获取园区列表失败:', error);
-    message.error('获取园区列表失败');
-  }
-}
 
 // 在组件挂载时获取园区列表
 onMounted(() => {
-  fetchParkList();
   document.title = '访客登记';
 });
 
