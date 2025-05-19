@@ -1,6 +1,9 @@
 import { prismaClient } from '~/utils/db';
 import { useResponseSuccess } from '~/utils/response';
 
+const IMG_BASE_URL =
+  process.env.NODE_ENV === 'production' ? 'https://yizuw.cn' : '';
+
 export default eventHandler(async (event) => {
   try {
     const query = getQuery(event);
@@ -73,7 +76,11 @@ export default eventHandler(async (event) => {
       // park.images 现在是一个数组，每个元素包含 { image: { imgUrl: '...' } }
       const parkImageUrls = park.images
         ? park.images
-            .map((parkImageRelation) => parkImageRelation.image?.imgUrl) // 提取 imgUrl
+            .map((parkImageRelation) =>
+              parkImageRelation.image?.imgUrl
+                ? `${IMG_BASE_URL}${parkImageRelation.image?.imgUrl}`
+                : '',
+            ) // 提取 imgUrl
             .filter((url): url is string => !!url) // 过滤掉无效的 URL (null 或 undefined)
         : [];
 
