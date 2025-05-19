@@ -5,6 +5,10 @@ export default eventHandler(async (event) => {
   const body = await readBody(event);
 
   try {
+    if (body.parkId === undefined || body.parkId === null) {
+      return useResponseError('园区ID错误');
+    }
+
     const accessVisitor = await prismaClient.accessVisitor.create({
       data: {
         ...body,

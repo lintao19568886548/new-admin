@@ -27,76 +27,91 @@ export default eventHandler(async (event) => {
     },
   });
 
-  // 获取每个园区的电费数据
-  const parkElectricityData = await Promise.all(
-    parks.map(async (park) => {
-      // 查询园区下的所有账单
-      const bills = await prismaClient.amountBill.findMany({
-        where: {
-          parkId: park.parkId,
-          receiptTime: {
-            gte: startDate,
-            lte: endDate,
-          },
+  // 获取所有园区ID
+  const parkIds = parks.map((park) => park.parkId);
+
+  // 一次性查询所有园区的账单数据
+  const allBills = await prismaClient.amountBill.findMany({
+    where: {
+      parkId: {
+        in: parkIds,
+      },
+      receiptTime: {
+        gte: startDate,
+        lte: endDate,
+      },
+    },
+    include: {
+      eleBills: true,
+      tenant: {
+        select: {
+          rentalTenantId: true,
+          tenantName: true,
         },
-        include: {
-          eleBills: true,
-          tenant: {
-            select: {
-              rentalTenantId: true,
-              tenantName: true,
-            },
-          },
-        },
-      });
-      console.log('当前园区账单数量:', park.parkId, bills.length);
-      bills.forEach((bill) => {
-        console.log('账单ID:', bill.id, '包含电表数量:', bill.eleBills.length);
-        bill.eleBills.forEach((e) =>
-          console.log('电表名称:', e.meter_name, '用量:', e.totalUsage),
-        );
-      });
+      },
+    },
+  });
 
-      // 计算园区总电度数和总电费
-      let totalUsage = 0;
-      let totalAmount = 0;
+  // 按园区ID分组账单 - 使用 forEach 替代 reduce
+  const billsByPark = {};
+  for (const parkId of parkIds) {
+    billsByPark[parkId] = allBills.filter((bill) => bill.parkId === parkId);
+  }
 
-      // 按租户分组的数据
-      const tenantData = [];
+  // 处理每个园区的数据
+  const parkElectricityData = parks.map((park) => {
+    const bills = billsByPark[park.parkId] || [];
 
-      // 处理每个账单的电费数据
-      bills.forEach((bill) => {
-        // 计算账单中的总电度数和总电费
-        // 筛选合计电表数据
-        const totalEleBill = bill.eleBills.find((e) => e.meterName === '合计');
-        const billTotalUsage = totalEleBill
-          ? Number(totalEleBill.totalUsage)
-          : 0;
-        const billTotalAmount = totalEleBill ? Number(totalEleBill.amount) : 0;
+    console.log('当前园区账单数量:', park.parkId, bills.length);
+    bills.forEach((bill) => {
+      console.log(
+        '账单ID:',
+        bill.billId,
+        '包含电表数量:',
+        bill.eleBills.length,
+      );
+      bill.eleBills.forEach((e) =>
+        console.log('电表名称:', e.meterName, '用量:', e.totalUsage),
+      );
+    });
 
-        totalUsage += billTotalUsage;
-        totalAmount += billTotalAmount;
+    // 计算园区总电度数和总电费
+    let totalUsage = 0;
+    let totalAmount = 0;
 
-        // 如果有租户信息，添加到租户数据中
-        if (bill.tenant) {
-          tenantData.push({
-            tenantId: bill.tenant.rentalTenantId,
-            tenantName: bill.tenant.tenantName,
-            usage: totalEleBill ? Number(totalEleBill.totalUsage) : 0,
-            amount: totalEleBill ? Number(totalEleBill.amount) : 0,
-          });
-        }
-      });
+    // 按租户分组的数据
+    const tenantData = [];
 
-      return {
-        parkId: park.parkId,
-        parkName: park.parkName,
-        totalUsage,
-        totalAmount,
-        tenants: tenantData,
-      };
-    }),
-  );
+    // 处理每个账单的电费数据
+    bills.forEach((bill) => {
+      // 计算账单中的总电度数和总电费
+      // 筛选合计电表数据
+      const totalEleBill = bill.eleBills.find((e) => e.meterName === '合计');
+      const billTotalUsage = totalEleBill ? Number(totalEleBill.totalUsage) : 0;
+      const billTotalAmount = totalEleBill ? Number(totalEleBill.amount) : 0;
+
+      totalUsage += billTotalUsage;
+      totalAmount += billTotalAmount;
+
+      // 如果有租户信息，添加到租户数据中
+      if (bill.tenant) {
+        tenantData.push({
+          tenantId: bill.tenant.rentalTenantId,
+          tenantName: bill.tenant.tenantName,
+          usage: totalEleBill ? Number(totalEleBill.totalUsage) : 0,
+          amount: totalEleBill ? Number(totalEleBill.amount) : 0,
+        });
+      }
+    });
+
+    return {
+      parkId: park.parkId,
+      parkName: park.parkName,
+      totalUsage,
+      totalAmount,
+      tenants: tenantData,
+    };
+  });
 
   return useResponseSuccess(parkElectricityData);
 });

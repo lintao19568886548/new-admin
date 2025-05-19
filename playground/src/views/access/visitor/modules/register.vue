@@ -2,6 +2,7 @@
 import type { Park } from '#/components/AreaSelector.vue';
 
 import { onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { message } from 'ant-design-vue';
 import dayjs from 'dayjs';
@@ -9,6 +10,8 @@ import dayjs from 'dayjs';
 import { createVisitor } from '#/api/access/visitor';
 import { getVisitorParkList } from '#/api/park';
 
+const route = useRoute();
+const query = route.query;
 // 表单数据
 const formData = reactive({
   carNum: '',
@@ -87,7 +90,11 @@ async function handleSubmit() {
   submitting.value = true;
 
   // 准备提交数据
-  const submitData = { ...formData } as { [key: string]: any };
+  const submitData = { ...formData } as {
+    [key: string]: any;
+  };
+
+  submitData.parkId = Number(query.id);
 
   // 处理状态值，将字符串转换为数字
   const statusMap = {
@@ -166,7 +173,7 @@ function closeMessage() {
         </select>
       </div> -->
 
-      <div class="form-group">
+      <!-- <div class="form-group">
         <label for="parkId">园区：</label>
         <select id="parkId" v-model="formData.parkId" required>
           <option
@@ -177,7 +184,7 @@ function closeMessage() {
             {{ park.parkName }}
           </option>
         </select>
-      </div>
+      </div> -->
 
       <div class="form-group">
         <label for="plate">车牌号：</label>
