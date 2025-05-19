@@ -5,15 +5,15 @@ import type { Park } from '#/components/AreaSelector.vue';
 
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
-import { useVbenModal } from '@vben/common-ui';
+import { useVbenForm, useVbenModal } from '@vben/common-ui';
 
 import {
   Button,
-  Cascader,
-  DatePicker,
-  Input,
-  InputNumber,
+  Card,
+  Descriptions, // 新增导入
+  DescriptionsItem, // 新增导入
   message,
+  Statistic,
   Steps,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
@@ -24,8 +24,8 @@ import {
   getAmountBillDetail,
   updateAmountBill,
 } from '#/api/bill';
-// 添加园区API导入
 
+import { useTenantFormSchema } from './BillBaseConfig';
 import BillForm from './BillForm.vue';
 
 /**
@@ -86,7 +86,6 @@ const modalProps = ref({
 
 // 关闭处理函数
 function _handleClose() {
-  cascaderData.value = [];
   modalApi.close();
   emit('close');
 }
@@ -94,7 +93,22 @@ function _handleClose() {
 // 创建模态窗口
 const [Modal, modalApi] = useVbenModal(modalProps.value);
 
-const cascaderData = ref<any[]>([]);
+const [TenantForm, tenantFormApi] = useVbenForm({
+  commonConfig: {
+    // 所有表单项
+    componentProps: {
+      class: 'mb-2 w-full',
+    },
+  },
+  handleValuesChange(values) {
+    Object.assign(billData, values);
+  },
+
+  layout: 'horizontal',
+  schema: useTenantFormSchema(),
+  showDefaultActions: false,
+  wrapperClass: 'grid-cols-3',
+});
 
 // 账单数据
 const billData = reactive<AmountBill>({
@@ -131,6 +145,7 @@ watch(
     () => billData.waterFee,
     () => billData.factoryRent,
     () => billData.managementFee,
+    () => billData.garbageFee,
     () => billData.serviceFee,
     () => billData.invoiceTax,
   ],
@@ -140,16 +155,84 @@ watch(
       Number(billData.waterFee || 0) +
       Number(billData.factoryRent || 0) +
       Number(billData.managementFee || 0) +
+      Number(billData.garbageFee || 0) +
       Number(billData.serviceFee || 0) +
       Number(billData.invoiceTax || 0);
   },
 );
 
-function validate() {
+watch([() => billData.serviceRate, () => billData.eleFee], () => {
+  if (!billData.serviceRate) {
+    billData.serviceFee = 0;
+    return;
+  }
+  billData.serviceFee = billData.eleFee * (billData.serviceRate / 100);
+});
+
+watch([() => billData.garbageRate], () => {
+  if (!billData.garbageRate) {
+    billData.garbageFee = 0;
+    return;
+  }
+  const waterBill = billData.waterBills?.find(
+    (item) => item.meterName === '合计',
+  );
+
+  billData.garbageFee = waterBill.totalUsage * (billData.garbageRate / 100);
+});
+
+watch(
+  [
+    () => billData.waterTaxRate,
+    () => billData.eleTaxRate,
+    () => billData.rentTaxRate,
+    () => billData.waterFee, // 也应作为依赖，因为在回调中读取
+    () => billData.eleFee, // 也应作为依赖
+    () => billData.factoryRent, // 也应作为依赖
+  ],
+  () => {
+    const calculateItemTax = (
+      fee: null | number | undefined,
+      rate: null | number | undefined,
+    ): number => {
+      const numericFee = Number(fee);
+      const numericRate = Number(rate);
+
+      // 如果费用或税率无效 (NaN) 或为零，则该项税额为0
+      if (
+        Number.isNaN(numericFee) ||
+        numericFee === 0 ||
+        Number.isNaN(numericRate) ||
+        numericRate === 0
+      ) {
+        return 0;
+      }
+      return numericFee * (numericRate / 100);
+    };
+
+    const waterInvoiceTax = calculateItemTax(
+      billData.waterFee,
+      billData.waterTaxRate,
+    );
+    const eleInvoiceTax = calculateItemTax(
+      billData.eleFee,
+      billData.eleTaxRate,
+    );
+    const rentInvoiceTax = calculateItemTax(
+      billData.factoryRent,
+      billData.rentTaxRate,
+    );
+
+    billData.invoiceTax = waterInvoiceTax + eleInvoiceTax + rentInvoiceTax;
+  },
+);
+
+async function validate() {
   const errors = [];
 
-  if (!cascaderData.value || !billData.projectName || !billData.receiptTime) {
-    errors.push('请选择完整的园区和租户信息');
+  const { valid: tenantValid } = await tenantFormApi.validate();
+  if (!tenantValid) {
+    errors.push('请填写完整租户信息');
   }
 
   if (!billData.eleBills || billData.eleBills?.length === 0) {
@@ -172,9 +255,8 @@ function validate() {
 // 电费表单提交回调
 function handleEleSuccess(data: any) {
   if (data) {
-    billData.eleBills = data.eleBills || [];
     // 计算电费合计
-
+    billData.eleBills = data.eleBills || [];
     const item = data.eleBills.find((item: any) => item.meterName === '合计');
     billData.eleFee = item?.amount || 0;
   }
@@ -194,15 +276,36 @@ function handleWaterSuccess(data: any) {
 // 保存总表单
 async function handleSave() {
   // 验证必填字段
-  if (!validate()) {
+  if (!(await validate())) {
     return;
   }
-  // 校验费用项
+
+  // 处理租户信息
+  const tenantForm = await tenantFormApi.getValues();
+  const {
+    _divider,
+    eleTaxRate,
+    rentTaxRate,
+    tenant,
+    waterTaxRate,
+    ...tenantData
+  } = tenantForm;
+  const tenantSubmit = {
+    ...tenantData,
+    parkId: tenant[0],
+    taxRate: JSON.stringify({
+      eleTaxRate,
+      rentTaxRate,
+      waterTaxRate,
+    }),
+    tenantId: tenant[1],
+  };
+
+  // 处理提交数据
   const saveData = {
-    ...billData,
+    ...tenantSubmit,
     eleBills: billData.eleBills?.map((item: any) => {
       delete item.updateTime;
-      delete item.createTime;
       item.receiptTime =
         item.receiptTime && item.receiptTime !== ''
           ? item.receiptTime
@@ -210,16 +313,12 @@ async function handleSave() {
       return item;
     }),
     eleFee: Number(billData.eleFee) || 0,
-    factoryRent: Number(billData.factoryRent) || 0,
+    garbageFee: Number(billData.garbageFee) || 0,
     invoiceTax: Number(billData.invoiceTax) || 0,
-    managementFee: Number(billData.managementFee) || 0,
-    parkId: cascaderData.value[0],
     serviceFee: Number(billData.serviceFee) || 0,
-    tenantId: cascaderData.value[1],
     totalFee: Number(billData.totalFee) || 0,
     waterBills: billData.waterBills?.map((item: any) => {
       delete item.updateTime;
-      delete item.createTime;
       item.receiptTime =
         item.receiptTime && item.receiptTime !== ''
           ? item.receiptTime
@@ -228,10 +327,10 @@ async function handleSave() {
     }),
     waterFee: Number(billData.waterFee) || 0,
   };
-  // console.log('billData.tenant', billData.tenant);
+
   // 提交数据
-  await (saveData.billId
-    ? updateAmountBill(saveData)
+  await (billData.billId
+    ? updateAmountBill(billData.billId, saveData)
     : createAmountBill(saveData));
   emit('success', { ...saveData });
   _handleClose();
@@ -243,7 +342,15 @@ async function initData(data: any, type: string) {
   // 复制账单数据
   if (data.billId) {
     const billDetail = await getAmountBillDetail(data.billId);
-    cascaderData.value = [billDetail.parkId, billDetail.tenantId];
+    const tenantDetail = {
+      ...billDetail,
+      ...(billDetail.taxRate ? JSON.parse(billDetail.taxRate) : undefined),
+      tenant: billDetail.tenantId
+        ? [billDetail.parkId, billDetail.tenantId]
+        : undefined,
+    };
+    tenantFormApi.setValues(tenantDetail);
+
     if (type === 'next') {
       const eleBills = billDetail.eleBills.map((item: any) => {
         return {
@@ -262,27 +369,12 @@ async function initData(data: any, type: string) {
         };
       });
       const nextBillData: Partial<AmountBill> = {
-        // Use Partial for type safety
         eleBills,
-        factoryRent: billDetail.factoryRent,
-        managementFee: billDetail.managementFee,
-        parkId: billDetail.parkId,
-        projectName: billDetail.projectName,
-        receiptTime: dayjs(billDetail.receiptTime)
-          .add(1, 'month')
-          .toISOString(),
-        tenantId: billDetail.tenantId, // Carry over tenantId
         waterBills,
       };
       Object.assign(billData, nextBillData);
     } else {
       Object.assign(billData, billDetail);
-      // Ensure tenant is set after assigning billDetail
-      // billData.tenant =
-      //   typeof billDetail.parkId === 'number' &&
-      //   typeof billDetail.tenantId === 'number'
-      //     ? [billDetail.parkId, billDetail.tenantId]
-      //     : [];
     }
   } else {
     // 重置表单数据
@@ -300,9 +392,8 @@ async function initData(data: any, type: string) {
         (billData as any)[key] = undefined;
       }
     });
-    // Explicitly set defaults for crucial fields after generic reset
-    billData.billId = undefined;
-    billData.createTime = undefined;
+    delete billData.billId;
+    delete billData.createTime;
     billData.eleFee = 0;
     billData.waterFee = 0;
     billData.totalFee = 0;
@@ -312,29 +403,10 @@ async function initData(data: any, type: string) {
     billData.projectName = '';
     billData.remark = '';
     billData.receiptTime = defaultReceiptTime;
+    tenantFormApi.resetForm();
   }
 
-  // // 初始化子表单
-  // nextTick(() => {
-  //   // 准备电费数据
-  //   const eleBillData = {
-  //     eleBills: billData.eleBills || [],
-  //   };
-
-  //   // 准备水费数据
-  //   const waterBillData = {
-  //     waterBills: billData.waterBills || [],
-  //   };
-
-  //   // 设置子表单数据
-  //   if (eleFormRef.value) {
-  //     eleFormRef.value.modalApi.setData(eleBillData);
-  //   }
-
-  //   if (waterFormRef.value) {
-  //     waterFormRef.value.modalApi.setData(waterBillData);
-  //   }
-  // });
+  // 设置数据
 
   // 重置页签
   activeKey.value = 1;
@@ -360,7 +432,6 @@ defineExpose({
       title: config.value.modalTitle || '账单表单',
     };
 
-    // 设置数据并打开
     modalApi.setData(data);
     initData(data, type);
     modalApi.open();
@@ -382,42 +453,10 @@ defineExpose({
       <div v-show="activeKey === 1" class="tab-pane">
         <div class="bill-items-container">
           <h3 class="mb-4 text-lg font-medium">租户基本信息</h3>
-          <div class="info-text mb-4">
-            请填写完整的租户基本信息，包括公司名称、项目名称和收款时间
-          </div>
-
-          <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <!-- 4. Replace Tenant Name Input with Cascader -->
-            <div class="rounded border bg-white p-4 shadow-sm">
-              <div class="text-gray-500">选择租户</div>
-              <Cascader
-                v-model:value="cascaderData"
-                :options="tenantList"
-                expand-trigger="hover"
-                class="mt-1 w-full"
-                placeholder="请选择租户"
-                :show-search="true"
-              />
-            </div>
-            <div class="rounded border bg-white p-4 shadow-sm">
-              <div class="text-gray-500">项目名称</div>
-              <Input
-                v-model:value="billData.projectName"
-                class="mt-1"
-                placeholder="请输入项目名称"
-              />
-            </div>
-            <div class="rounded border bg-white p-4 shadow-sm">
-              <div class="text-gray-500">收款时间</div>
-              <DatePicker
-                v-model:value="billData.receiptTime"
-                class="mt-1 w-full"
-                format="YYYY-MM-DD"
-                value-format="YYYY-MM-DDTHH:mm:ss.SSSZ"
-                placeholder="请选择收款时间"
-              />
-            </div>
-          </div>
+          <div class="info-text mb-4">请填写租户基本信息</div>
+          <Card>
+            <TenantForm />
+          </Card>
         </div>
       </div>
 
@@ -480,89 +519,65 @@ defineExpose({
 
       <!-- 费用合计表单 -->
       <div v-show="activeKey === 4" class="tab-pane">
-        <div class="bill-summary-form">
+        <div class="bill-items-container">
           <h3 class="mb-4 text-lg font-medium">费用合计</h3>
-
-          <div class="mb-6 grid grid-cols-2 gap-4">
-            <div class="rounded border p-3">
-              <div class="text-gray-500">电费合计</div>
-              <InputNumber
-                v-model:value="billData.eleFee"
-                :disabled="true"
-                class="mt-1 w-full"
+          <div class="info-text mb-4">请核对金额是否正确</div>
+          <Descriptions bordered>
+            <DescriptionsItem
+              v-if="billData.waterFee > 0"
+              label="水费"
+              :span="1"
+            >
+              <Statistic :value="billData.waterFee" :precision="2" prefix="¥" />
+            </DescriptionsItem>
+            <DescriptionsItem v-if="billData.eleFee > 0" label="电费">
+              <Statistic :value="billData.eleFee" :precision="2" prefix="¥" />
+            </DescriptionsItem>
+            <DescriptionsItem v-if="billData.factoryRent > 0" label="厂房租金">
+              <Statistic
+                :value="billData.factoryRent"
                 :precision="2"
-                addon-after="元"
-                :controls="false"
+                prefix="¥"
               />
-            </div>
-
-            <div class="rounded border p-3">
-              <div class="text-gray-500">水费合计</div>
-              <InputNumber
-                v-model:value="billData.waterFee"
-                :disabled="true"
-                class="mt-1 w-full"
+            </DescriptionsItem>
+            <DescriptionsItem
+              v-if="billData.managementFee > 0"
+              label="基本管理费"
+            >
+              <Statistic
+                :value="billData.managementFee"
                 :precision="2"
-                addon-after="元"
-                :controls="false"
+                prefix="¥"
               />
-            </div>
-
-            <div class="rounded border p-3">
-              <div class="text-gray-500">厂房租金</div>
-              <InputNumber
-                v-model:value="billData.factoryRent"
-                class="mt-1 w-full"
+            </DescriptionsItem>
+            <DescriptionsItem
+              v-if="billData.garbageFee! > 0"
+              label="垃圾处理费"
+            >
+              <Statistic
+                :value="billData.garbageFee"
                 :precision="2"
-                addon-after="元"
-                :controls="false"
+                prefix="¥"
               />
-            </div>
-            <div class="rounded border p-3">
-              <div class="text-gray-500">基本管理费</div>
-              <InputNumber
-                v-model:value="billData.managementFee"
-                class="mt-1 w-full"
+            </DescriptionsItem>
+            <DescriptionsItem v-if="billData.serviceFee! > 0" label="服务费">
+              <Statistic
+                :value="billData.serviceFee"
                 :precision="2"
-                addon-after="元"
-                :controls="false"
+                prefix="¥"
               />
-            </div>
-
-            <div class="rounded border p-3">
-              <div class="text-gray-500">服务费</div>
-              <InputNumber
-                v-model:value="billData.serviceFee"
-                class="mt-1 w-full"
+            </DescriptionsItem>
+            <DescriptionsItem v-if="billData.invoiceTax > 0" label="开票税金">
+              <Statistic
+                :value="billData.invoiceTax"
                 :precision="2"
-                addon-after="元"
-                :controls="false"
+                prefix="¥"
               />
-            </div>
-
-            <div class="rounded border p-3">
-              <div class="text-gray-500">开票税金</div>
-              <InputNumber
-                v-model:value="billData.invoiceTax"
-                class="mt-1 w-full"
-                :precision="2"
-                addon-after="元"
-                :controls="false"
-              />
-            </div>
-
-            <div class="col-span-2 rounded border bg-green-50 p-3">
-              <div class="font-medium text-gray-700">本月收费金额合计</div>
-              <InputNumber
-                v-model:value="billData.totalFee"
-                :disabled="true"
-                class="mt-1 w-full"
-                :precision="2"
-                addon-after="元"
-                :controls="false"
-              />
-            </div>
-          </div>
+            </DescriptionsItem>
+            <DescriptionsItem label="本月收费金额" :span="2">
+              <Statistic :value="billData.totalFee" :precision="2" prefix="¥" />
+            </DescriptionsItem>
+          </Descriptions>
         </div>
       </div>
     </div>

@@ -6,20 +6,22 @@ export default eventHandler(async (event) => {
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
+  const billId = Number.parseInt(event.context.params.id);
+  if (!billId) {
+    return useResponseError('billId错误');
+  }
   const body = await readBody(event);
-  const { eleBills, waterBills, ...billData } = body;
+
+  const { eleBills, waterBills, parkId, tenantId, ...billData } = body;
   delete billData.tenant;
   delete billData.createTime;
   delete billData.updateTime;
-  if (!billData.billId) {
-    return useResponseError('billId错误');
-  }
 
   // 使用事务来确保所有操作都成功或都失败
   const updateBill = await prismaClient.$transaction(async (tx) => {
     // 获取当前数据库中的电费和水费账单记录
     const existingBill = await tx.amountBill.findUnique({
-      where: { billId: billData.billId },
+      where: { billId },
       include: {
         eleBills: true,
         waterBills: true,
@@ -27,13 +29,25 @@ export default eventHandler(async (event) => {
     });
 
     if (!existingBill) {
-      throw new Error(`未找到ID为${billData.billId}的账单记录`);
+      throw new Error(`未找到ID为${billId}的账单记录`);
     }
 
     // 更新主账单
     const updatedAmountBill = await tx.amountBill.update({
-      where: { billId: billData.billId },
-      data: { ...billData },
+      where: { billId },
+      data: {
+        ...billData,
+        park: parkId
+          ? {
+              connect: { parkId },
+            }
+          : undefined,
+        tenant: tenantId
+          ? {
+              connect: { rentalTenantId: tenantId },
+            }
+          : undefined,
+      },
     });
 
     // 处理电费账单
@@ -50,7 +64,7 @@ export default eventHandler(async (event) => {
         await tx.eleBill.deleteMany({
           where: {
             eleId: { in: eleIdsToDelete },
-            billId: billData.billId,
+            billId,
           },
         });
       }
@@ -70,7 +84,7 @@ export default eventHandler(async (event) => {
           console.log(eleBill);
           return eleId
             ? tx.eleBill.update({
-                where: { eleId, billId: billData.billId },
+                where: { eleId, billId },
                 data: {
                   ...eleBillData,
                   updateTime: recordTime, // 添加更新时间
@@ -79,7 +93,7 @@ export default eventHandler(async (event) => {
             : tx.eleBill.create({
                 data: {
                   ...eleBillData,
-                  billId: billData.billId,
+                  billId,
                   updateTime: recordTime, // 添加更新时间
                 },
               });
@@ -88,7 +102,7 @@ export default eventHandler(async (event) => {
     } else if (existingBill.eleBills.length > 0) {
       // 如果前端没有传入电费账单数据，但数据库中存在，则删除所有电费账单
       await tx.eleBill.deleteMany({
-        where: { billId: billData.billId },
+        where: { billId },
       });
     }
 
@@ -110,7 +124,7 @@ export default eventHandler(async (event) => {
         await tx.waterBill.deleteMany({
           where: {
             waterId: { in: waterIdsToDelete },
-            billId: billData.billId,
+            billId,
           },
         });
       }
@@ -124,7 +138,7 @@ export default eventHandler(async (event) => {
           recordTime.setSeconds(recordTime.getSeconds() + index);
           return waterId
             ? tx.waterBill.update({
-                where: { waterId, billId: billData.billId },
+                where: { waterId, billId },
                 data: {
                   ...waterBillData,
                   updateTime: recordTime,
@@ -133,7 +147,7 @@ export default eventHandler(async (event) => {
             : tx.waterBill.create({
                 data: {
                   ...waterBillData,
-                  billId: billData.billId,
+                  billId,
                   updateTime: recordTime,
                 },
               });
@@ -142,7 +156,7 @@ export default eventHandler(async (event) => {
     } else if (existingBill.waterBills.length > 0) {
       // 如果前端没有传入水费账单数据，但数据库中存在，则删除所有水费账单
       await tx.waterBill.deleteMany({
-        where: { billId: billData.billId },
+        where: { billId },
       });
     }
 

@@ -55,6 +55,21 @@ export function useFormSchema(): VbenFormSchema[] {
       fieldName: 'remark',
       label: $t('system.role.remark'),
     },
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        class: 'w-full',
+        options: [
+          { label: '1', value: 1 },
+          { label: '2', value: 2 },
+          { label: '3', value: 3 },
+          { label: '4', value: 4 },
+        ],
+      },
+      fieldName: 'privilegeLevel',
+      label: '权限等级',
+    },
   ];
 }
 

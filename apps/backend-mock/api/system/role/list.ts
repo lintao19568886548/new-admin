@@ -86,6 +86,7 @@ export default eventHandler(async (event) => {
       // 提取关联的菜单ID
       permissions: role.roleMenus.map((rm) => rm.menu.menuId),
       parkIds: role.roleParks.map((rp) => rp.park.parkId),
+      level: role.privilegeLevel,
     };
   });
 

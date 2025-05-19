@@ -14,20 +14,28 @@ export interface AmountBill {
   createTime?: Date | string; // 创建时间
   eleBills?: any[]; // 电费账单项（详情用）
   eleFee: number; // 电费合计
+  eleTaxRate?: number; // 电费税金
   factoryRent: number; // 厂房租金
+  garbageFee?: number; // 垃圾管理费
+  garbageRate?: number; // 垃圾费比率
   invoiceTax: number; // 开票税金
   managementFee: number; // 基本管理费
   parkId?: number; // 园区ID
+  penaltyRate?: number; // 滞纳金比率
   projectName?: string; // 项目名称
   receiptTime?: string; // 收款时间
   remark?: string; // 备注
+  rentTaxRate?: number; // 租金税金
   serviceFee?: number; // 服务费
+  serviceRate?: number; // 服务费比率
+  taxRate?: string; // 开票税金
   tenant?: any; // 租户信息
   tenantId?: number; // 租户ID
   tenantName?: string; // 租户名称
   totalFee: number; // 总费用
   waterBills?: any[]; // 水费账单项（详情用）
   waterFee: number; // 水费合计
+  waterTaxRate?: number; // 水费税金
 }
 
 /**

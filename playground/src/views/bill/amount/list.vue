@@ -19,7 +19,6 @@ import {
   DatePicker,
   Form,
   Input,
-  InputNumber,
   message,
   Modal,
 } from 'ant-design-vue';
@@ -149,7 +148,6 @@ const printFormData = ref({
   companyAccountName: '',
   companyAccountNumber: '4430 4001 0400 21090',
   cutoffDate: dayjs().add(10, 'day'), // 默认为10天后
-  lateFeePercentage: 10,
   parkManager: '',
 });
 
@@ -188,14 +186,6 @@ const printFormRules: Record<string, Rule[]> = {
   ],
   cutoffDate: [
     { message: '请选择停止供水供电时间', required: true, trigger: 'change' },
-  ],
-  lateFeePercentage: [
-    {
-      message: '请输入滞纳金百分比',
-      required: true,
-      trigger: 'change',
-      type: 'number',
-    },
   ],
   parkManager: [
     { message: '请输入园区负责人信息', required: true, trigger: 'blur' },
@@ -352,7 +342,6 @@ async function handlePrintOk() {
       companyAccountName: formData.companyAccountName,
       companyAccountNumber: formData.companyAccountNumber,
       cutoffDate: dayjs(formData.cutoffDate).format('YYYY-MM-DD HH:00:00'),
-      lateFeePercentage: formData.lateFeePercentage,
       parkManager: formData.parkManager,
     };
 
@@ -413,15 +402,6 @@ function handlePrintCancel() {
         </Form.Item>
         <Form.Item label="开户行" name="bankName">
           <Input v-model:value="printFormData.bankName" />
-        </Form.Item>
-        <Form.Item label="滞纳金千分比" name="lateFeePercentage">
-          <InputNumber
-            v-model:value="printFormData.lateFeePercentage"
-            :min="0"
-            :max="100"
-            addon-after="‰"
-            class="w-full"
-          />
         </Form.Item>
         <Form.Item label="水电停供时间" name="cutoffDate">
           <DatePicker

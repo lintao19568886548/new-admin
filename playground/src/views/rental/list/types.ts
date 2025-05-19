@@ -45,6 +45,7 @@ export interface FirefightingDetail {
 // 变压器详情
 export interface TransformerDetail {
   address: string;
+  checker: string;
   checkTime: string;
   contact: string;
   imgUrl: string;

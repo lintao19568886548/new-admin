@@ -1,9 +1,8 @@
-import type { VbenFormSchema } from '#/adapter/form';
-import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
+import type { VbenFormSchema } from '@vben/common-ui';
 
-import { formatDateTime } from '@vben/utils';
+import { h } from 'vue';
 
-import { z } from '#/adapter/form';
+import { getTenantSelectList } from '#/api';
 
 /**
  * 账单详情配置接口
@@ -83,280 +82,139 @@ export const commonAreaList = [
   { key: 'north', name: '佛山' },
   { key: 'west', name: '珠海' },
 ];
-
-/**
- * 通用表单字段配置生成器
- * @param readingLabel 读数标签
- * @param usageLabel 用量标签
- * @param unitLabel 单位标签
- * @param amountLabel 金额标签
- */
-export function createFormSchema(
-  readingLabel: string,
-  usageLabel: string,
-  unitLabel: string,
-  amountLabel: string,
-): VbenFormSchema[] {
+export function useTenantFormSchema(): VbenFormSchema[] {
   return [
+    {
+      component: 'ApiCascader',
+      componentProps: {
+        api: getTenantSelectList,
+        changeOnSelect: false,
+        expandTrigger: 'hover',
+        placeholder: '请选择租户',
+        // showSearch: true,
+      },
+      fieldName: 'tenant',
+      formItemClass: 'p-4', // 增加底部内边距
+      label: '选择租户',
+      rules: 'required',
+    },
     {
       component: 'Input',
       componentProps: {
-        placeholder: '请输入表计名称',
+        placeholder: '请输入项目名称',
       },
-      fieldName: 'meterName',
-      label: '表计名称',
-      rules: z.string().min(2).max(50),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        placeholder: `请输入上月${readingLabel}`,
-        precision: 2,
-        style: { width: '100%' },
-      },
-      fieldName: 'previousReading',
-      label: `上月${readingLabel}`,
-      rules: z.number().min(0),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        placeholder: `请输入本月${readingLabel}`,
-        precision: 2,
-        style: { width: '100%' },
-      },
-      fieldName: 'currentReading',
-      label: `本月${readingLabel}`,
-      rules: z.number().min(0),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        disabled: true,
-        precision: 2,
-        style: { background: '#f5f5f5', width: '100%' },
-      },
-      fieldName: 'monthlyUsage',
-      label: `本月${usageLabel}`,
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        precision: 2,
-        style: { width: '100%' },
-      },
-      defaultValue: 1,
-      fieldName: 'multiplier',
-      label: '倍数',
-      rules: z.number().min(0),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        disabled: true,
-        precision: 2,
-        style: { background: '#f5f5f5', width: '100%' },
-      },
-      fieldName: 'totalUsage',
-      label: `总${usageLabel}`,
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        addonAfter: `元/${unitLabel}`,
-        min: 0,
-        precision: 2,
-        style: { width: '100%' },
-      },
-      fieldName: 'unitPrice',
-      label: '单价',
-      rules: z.number().min(0),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        addonAfter: '元',
-        disabled: true,
-        precision: 2,
-        style: { background: '#f5f5f5', width: '100%' },
-      },
-      fieldName: 'amount',
-      label: amountLabel,
+      fieldName: 'projectName',
+      formItemClass: 'p-4', // 增加底部内边距
+      label: '项目名称',
+      rules: 'required',
     },
     {
       component: 'DatePicker',
       componentProps: {
-        format: 'YYYY-MM-DD HH:mm:ss',
+        format: 'YYYY-MM-DD',
         placeholder: '请选择收款时间',
-        showTime: true,
-        style: { width: '100%' },
-        valueFormat: 'YYYY-MM-DD HH:mm:ss',
+        valueFormat: 'YYYY-MM-DDTHH:mm:ss.SSSZ',
       },
       fieldName: 'receiptTime',
+      formItemClass: 'p-4',
       label: '收款时间',
       rules: 'required',
-    },
-    {
-      component: 'Textarea',
-      componentProps: {
-        placeholder: '请输入备注信息',
-        rows: 4,
-      },
-      fieldName: 'remarks',
-      label: '备注',
-    },
-  ];
-}
-
-/**
- * 总账单表单配置
- */
-export function createAmountBillFormSchema(): VbenFormSchema[] {
-  return [
-    {
-      component: 'Input',
-      componentProps: {
-        placeholder: '请输入租户名称',
-      },
-      fieldName: 'tenantName',
-      label: '租户名称',
-      rules: z.string().min(2).max(50),
     },
     {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '元',
-        min: 0,
-        precision: 2,
-        style: { width: '100%' },
+        placeholder: '请输入厂房租金',
       },
       fieldName: 'factoryRent',
+      formItemClass: 'p-4',
       label: '厂房租金',
-      rules: z.number().min(0),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        addonAfter: '元',
-        min: 0,
-        precision: 2,
-        style: { width: '100%' },
-      },
-      fieldName: 'managementFee',
-      label: '管理费',
-      rules: z.number().min(0),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        addonAfter: '元',
-        min: 0,
-        precision: 2,
-        style: { width: '100%' },
-      },
-      fieldName: 'serviceFee',
-      label: '服务费',
-      rules: z.number().min(0),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        addonAfter: '元',
-        min: 0,
-        precision: 2,
-        style: { width: '100%' },
-      },
-      fieldName: 'invoiceTax',
-      label: '发票税费',
-      rules: z.number().min(0),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        addonAfter: '元',
-        disabled: true,
-        precision: 2,
-        style: { background: '#f5f5f5', width: '100%' },
-      },
-      fieldName: 'totalFee',
-      label: '总费用',
-    },
-    {
-      component: 'DatePicker',
-      componentProps: {
-        format: 'YYYY-MM-DD HH:mm:ss',
-        placeholder: '请选择收款时间',
-        showTime: true,
-        style: { width: '100%' },
-        valueFormat: 'YYYY-MM-DD HH:mm:ss',
-      },
-      fieldName: 'receiptTime',
-      label: '收款时间',
       rules: 'required',
     },
-  ];
-}
-
-/**
- * 通用表格查询表单配置
- */
-export function createGridFormSchema(): VbenFormSchema[] {
-  return [
     {
-      component: 'Input',
-      fieldName: 'tenantName',
-      label: '租户名称',
-    },
-    {
-      component: 'RangePicker',
-      fieldName: 'receiptTime',
-      label: '收款时间',
-    },
-  ];
-}
-
-/**
- * 通用表格列配置生成器
- */
-export function createColumns<T>(
-  _onActionClick: OnActionClickFn<T>,
-): VxeTableGridOptions['columns'] {
-  return [
-    {
-      field: 'billId',
-      minWidth: 80,
-      title: '账单ID',
-    },
-    {
-      field: 'tenantName',
-      minWidth: 150,
-      title: '租户名称',
-    },
-    {
-      field: 'totalFee',
-      minWidth: 120,
-      title: '总费用(元)',
-    },
-    {
-      field: 'receiptTime',
-      formatter: ({ cellValue }) => {
-        return formatDateTime(cellValue);
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '元',
+        placeholder: '请输入基本管理费',
       },
-      title: '收款时间',
-      width: 150,
+      fieldName: 'managementFee',
+      formItemClass: 'p-4',
+      label: '基本管理费',
     },
     {
-      align: 'center',
-      field: 'operate',
-      fixed: 'right',
-      slots: {
-        default: 'action',
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '%',
+        placeholder: '请输入服务费比率',
       },
-      title: '操作',
-      width: 200,
+      fieldName: 'serviceRate',
+      formItemClass: 'col-start-1 p-4',
+      label: '服务费',
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '%',
+        placeholder: '请输入垃圾费比率',
+      },
+      fieldName: 'garbageRate',
+      formItemClass: 'p-4',
+      label: '垃圾处理费',
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '‰',
+        placeholder: '请输入滞纳金比率',
+      },
+      fieldName: 'penaltyRate',
+      formItemClass: 'p-4',
+      label: '滞纳金',
+    },
+    {
+      component: 'Divider',
+      componentProps: {
+        orientation: 'left',
+        style: 'margin-bottom: 0; padding-bottom: 0;', // 减少底部间距
+      },
+      fieldName: '_divider',
+      formItemClass: 'col-span-3 mb-0', // 减少底部 margin
+      hideLabel: true,
+      renderComponentContent: () => {
+        return {
+          default: () => h('div', '开票税金'),
+        };
+      },
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '%',
+        placeholder: '请输入水费税金比率',
+      },
+      fieldName: 'waterTaxRate',
+      formItemClass: 'p-4 pt-2', // 减少顶部内边距
+      label: '水费税金',
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '%',
+        placeholder: '请输入电费税金比率',
+      },
+      fieldName: 'eleTaxRate',
+      formItemClass: 'p-4',
+      label: '电费税金',
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '%',
+        placeholder: '请输入房租税金比率',
+      },
+      fieldName: 'rentTaxRate',
+      formItemClass: 'p-4',
+      label: '房租税金',
     },
   ];
 }

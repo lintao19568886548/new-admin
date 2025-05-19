@@ -105,7 +105,7 @@ onMounted(async () => {
   <div class="bill-print-container">
     <div class="bill-header">
       <div class="bill-title">收款通知单</div>
-      <div class="bill-recipient">TO：{{ billData?.tenantName }}</div>
+      <div class="bill-recipient">TO：{{ billData?.tenant.tenantName }}</div>
     </div>
     <div class="bill-content">
       <div class="project-table">
@@ -140,13 +140,21 @@ onMounted(async () => {
         >
           <div class="td name-column">{{ item.meterName }}</div>
           <div class="td">
-            {{ Number(item.previousReading) === 0 ? '' : item.previousReading }}
+            {{
+              !['合计', '公共'].some((name) => item.meterName.includes(name))
+                ? item.previousReading
+                : ''
+            }}
           </div>
           <div class="td">
-            {{ Number(item.currentReading) === 0 ? '' : item.currentReading }}
+            {{
+              !['合计', '公共'].some((name) => item.meterName.includes(name))
+                ? item.currentReading
+                : ''
+            }}
           </div>
           <div class="td">
-            {{ Number(item.monthlyUsage) === 0 ? '' : item.monthlyUsage }}
+            {{ item.meterName !== '合计' ? item.monthlyUsage : '' }}
           </div>
           <div class="td">
             {{ Number(item.multiplier) === 1 ? '' : item.multiplier }}
@@ -183,10 +191,18 @@ onMounted(async () => {
         >
           <div class="td name-column">{{ item.meterName }}</div>
           <div class="td">
-            {{ Number(item.previousReading) === 0 ? '' : item.previousReading }}
+            {{
+              !['合计', '公共'].some((name) => item.meterName.includes(name))
+                ? item.previousReading
+                : ''
+            }}
           </div>
           <div class="td">
-            {{ Number(item.currentReading) === 0 ? '' : item.currentReading }}
+            {{
+              !['合计', '公共'].some((name) => item.meterName.includes(name))
+                ? item.currentReading
+                : ''
+            }}
           </div>
           <div class="td">
             {{ Number(item.monthlyUsage) === 0 ? '' : item.monthlyUsage }}
@@ -225,13 +241,19 @@ onMounted(async () => {
             {{ billData?.managementFee }}
           </div>
         </div>
-        <div class="summary-row">
+        <div class="summary-row" v-if="Number(billData?.serviceFee) !== 0">
           <div class="summary-cell summary-label">服务费</div>
           <div class="summary-cell summary-value">
             {{ billData?.serviceFee }}
           </div>
         </div>
-        <div class="summary-row">
+        <div class="summary-row" v-if="Number(billData?.garbageFee) !== 0">
+          <div class="summary-cell summary-label">垃圾处理费</div>
+          <div class="summary-cell summary-value">
+            {{ billData?.garbageFee }}
+          </div>
+        </div>
+        <div class="summary-row" v-if="Number(billData?.invoiceTax) !== 0">
           <div class="summary-cell summary-label">开票税金</div>
           <div class="summary-cell summary-value">
             {{ billData?.invoiceTax }}
@@ -264,7 +286,7 @@ onMounted(async () => {
             温馨提示：如贵司不能在规定时间内将款项交至我公司，我公司从{{
               lateFeeStartFullDate.monthStr
             }}月{{ lateFeeStartFullDate.day }}日起按日收取 总金额{{
-              query.lateFeePercentage
+              billData?.penaltyRate
             }}‰ 每天的滞纳金，并将按合同规定在{{ cutoffMonthDisplay }}月{{
               formattedCutoffDate
             }}停止对贵公司的供水、

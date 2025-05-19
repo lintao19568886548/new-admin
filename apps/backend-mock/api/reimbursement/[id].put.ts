@@ -23,7 +23,10 @@ export default eventHandler(async (event) => {
     const body = await readBody(event);
 
     // 验证状态值
-    if (body.status !== undefined && ![0, 1, 2].includes(Number(body.status))) {
+    if (
+      body.status !== undefined &&
+      ![0, 1, 2, 3, 4].includes(Number(body.status))
+    ) {
       return useResponseError('无效的状态值', 400);
     }
 
