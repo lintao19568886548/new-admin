@@ -1,6 +1,9 @@
 import { prismaClient } from '~/utils/db';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
+const IMG_BASE_URL =
+  process.env.NODE_ENV === 'production' ? 'https://yizuw.cn' : '';
+
 export default eventHandler(async (event) => {
   try {
     const id = Number(event.context.params?.id);
@@ -82,7 +85,11 @@ export default eventHandler(async (event) => {
     // 新增：处理园区图片数据
     const processedParkImages = park.images
       ? park.images
-          .map((parkImageRelation) => parkImageRelation.image?.imgUrl) // 从关联的 Image 对象获取 imgUrl
+          .map((parkImageRelation) =>
+            parkImageRelation.image?.imgUrl
+              ? `${IMG_BASE_URL}${parkImageRelation.image?.imgUrl}`
+              : '',
+          ) // 从关联的 Image 对象获取 imgUrl
           .filter((url): url is string => !!url) // 过滤掉无效的 URL，并确保类型安全
       : [];
 
@@ -97,7 +104,9 @@ export default eventHandler(async (event) => {
       const floors = factory.floors.map((floor) => {
         // 添加空值检查
         const floorImages = floor.images
-          .map((item) => item.image?.imgUrl)
+          .map((item) =>
+            item.image?.imgUrl ? `${IMG_BASE_URL}${item.image?.imgUrl}` : '',
+          )
           .filter(Boolean); // 过滤掉undefined和null
 
         return {
@@ -149,7 +158,9 @@ export default eventHandler(async (event) => {
     const dormitories = park.dormitories.map((dorm) => {
       // 添加空值检查
       const dormImages = dorm.images
-        .map((item) => item.image?.imgUrl)
+        .map((item) =>
+          item.image?.imgUrl ? `${IMG_BASE_URL}${item.image?.imgUrl}` : '',
+        )
         .filter(Boolean); // 过滤掉undefined和null
 
       return {
