@@ -192,20 +192,24 @@ onMounted(async () => {
           <div class="td name-column">{{ item.meterName }}</div>
           <div class="td">
             {{
-              !['合计', '公共'].some((name) => item.meterName.includes(name))
+              !['合计', '公共', '公摊'].some((name) =>
+                item.meterName.includes(name),
+              )
                 ? item.previousReading
                 : ''
             }}
           </div>
           <div class="td">
             {{
-              !['合计', '公共'].some((name) => item.meterName.includes(name))
+              !['合计', '公共', '公摊'].some((name) =>
+                item.meterName.includes(name),
+              )
                 ? item.currentReading
                 : ''
             }}
           </div>
           <div class="td">
-            {{ Number(item.monthlyUsage) === 0 ? '' : item.monthlyUsage }}
+            {{ item.meterName !== '合计' ? item.monthlyUsage : '' }}
           </div>
           <div class="td"></div>
           <div class="td">{{ item.totalUsage }}</div>
