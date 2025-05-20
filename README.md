@@ -11,7 +11,7 @@
 
 * [cap相关命令](#cap相关命令)
 * [关于双端同步开发的建议](#关于双端同步开发的建议)
-* [关于`git cherry-pick`的用法](#关于-git-cherry-pick-的用法)
+* [关于`git cherry-pick`的用法](#关于git-cherry-pick的用法)
 
 ---
 
