@@ -177,8 +177,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="p-5">
-    <div class="mt-5 flex flex-col lg:flex-row">
+  <div class="ml-4">
+    <div class="flex flex-col lg:flex-row">
       <div class="mr-4 w-full">
         <Spin :spinning="loading">
           <RentalProject
