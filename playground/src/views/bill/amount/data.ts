@@ -14,6 +14,7 @@ export interface AmountBill {
   createTime?: Date | string; // 创建时间
   eleBills?: any[]; // 电费账单项（详情用）
   eleFee: number; // 电费合计
+  eleTax?: number; // 电费税金
   eleTaxRate?: number; // 电费税金
   factoryRent: number; // 厂房租金
   garbageFee?: number; // 垃圾管理费
@@ -25,6 +26,7 @@ export interface AmountBill {
   projectName?: string; // 项目名称
   receiptTime?: string; // 收款时间
   remark?: string; // 备注
+  rentTax?: number; // 租金税金
   rentTaxRate?: number; // 租金税金
   serviceFee?: number; // 服务费
   serviceRate?: number; // 服务费比率
@@ -35,6 +37,7 @@ export interface AmountBill {
   totalFee: number; // 总费用
   waterBills?: any[]; // 水费账单项（详情用）
   waterFee: number; // 水费合计
+  waterTax?: number; // 水费税金
   waterTaxRate?: number; // 水费税金
 }
 

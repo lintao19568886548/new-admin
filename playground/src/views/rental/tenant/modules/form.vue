@@ -44,16 +44,32 @@ const [Modal, modalApi] = useVbenModal({
 
     // 处理日期格式，确保使用本地时间
     if (values.contractDate) {
-      console.warn('合同日期:', values.contractDate);
       values.contractStart = new Date(values.contractDate[0]).toISOString(); // 转换为ISO字符串，确保正确的时间格式
       values.contractEnd = new Date(values.contractDate[1]).toISOString(); // 转换为ISO字符串，确保正确的时间格式
       delete values.contractDate;
     }
-    if (values.increaseDate) {
-      values.increaseDate = new Date(values.increaseDate).toISOString();
+    if (values.increaseData) {
+      // 确保increaseData是数组
+      if (Array.isArray(values.increaseData)) {
+        const increaseData = [];
+        for (const item of values.increaseData) {
+          if (item.date && item.rate) {
+            increaseData.push({
+              date: item.date,
+              rate: item.rate,
+            });
+          }
+        }
+        values.increaseData = JSON.stringify(increaseData);
+      } else {
+        // 如果不是数组，设置为空数组的JSON字符串
+        values.increaseData = '[]';
+      }
+    } else {
+      // 如果不存在，设置为空数组的JSON字符串
+      values.increaseData = '[]';
     }
 
-    console.warn('提交表单数据', values);
     modalApi.lock();
 
     try {
@@ -82,7 +98,6 @@ const [Modal, modalApi] = useVbenModal({
   onOpenChange(isOpen) {
     if (isOpen) {
       const data = modalApi.getData<RentalManagementItem>();
-      console.warn('打开表单，数据:', data);
       formApi.resetForm();
       if (data && Object.keys(data).length > 0) {
         // 处理日期格式，将UTC时间转换为本地日期
@@ -92,12 +107,41 @@ const [Modal, modalApi] = useVbenModal({
             dayjs(data.contractEnd).format('YYYY-MM-DD'),
           ];
         }
-        if (data.increaseDate) {
-          data.increaseDate = dayjs(data.increaseDate).format('YYYY-MM-DD');
+
+        // 处理增租数据
+        if (data.increaseData) {
+          try {
+            // 检查increaseData是否已经是对象数组
+            let increaseFrom =
+              typeof data.increaseData === 'string'
+                ? JSON.parse(data.increaseData)
+                : data.increaseData;
+
+            // 确保increaseFrom是数组
+            if (!Array.isArray(increaseFrom)) {
+              increaseFrom = [];
+            }
+
+            // 直接设置increaseData为数组，让子组件处理具体的表单项
+            data.increaseData = increaseFrom;
+          } catch (error) {
+            console.error('处理增租数据失败:', error);
+            // 出错时设置为空数组，避免后续处理出错
+            data.increaseData = [];
+          }
+        } else {
+          // 如果没有增租数据，设置为空数组
+          data.increaseData = [];
         }
-        formData.value = data;
+
+        // 先设置formData，确保子组件能够访问到数据
+        formData.value = { ...data };
         id.value = data.rentalTenantId;
-        formApi.setValues(data);
+
+        // 延迟设置表单值，确保子组件有时间初始化
+        setTimeout(() => {
+          formApi.setValues(data);
+        }, 100);
       } else {
         id.value = undefined;
         formData.value = undefined;

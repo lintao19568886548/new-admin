@@ -97,7 +97,7 @@ const [TenantForm, tenantFormApi] = useVbenForm({
   commonConfig: {
     // 所有表单项
     componentProps: {
-      class: 'mb-2 w-full',
+      class: 'mb-1 w-full',
     },
   },
   handleValuesChange(values) {
@@ -186,6 +186,9 @@ watch(
     () => billData.waterTaxRate,
     () => billData.eleTaxRate,
     () => billData.rentTaxRate,
+    () => billData.waterTax,
+    () => billData.eleTax,
+    () => billData.rentTax,
     () => billData.waterFee, // 也应作为依赖，因为在回调中读取
     () => billData.eleFee, // 也应作为依赖
     () => billData.factoryRent, // 也应作为依赖
@@ -211,15 +214,15 @@ watch(
     };
 
     const waterInvoiceTax = calculateItemTax(
-      billData.waterFee,
+      billData.waterTax || billData.waterFee,
       billData.waterTaxRate,
     );
     const eleInvoiceTax = calculateItemTax(
-      billData.eleFee,
+      billData.eleTax || billData.eleFee,
       billData.eleTaxRate,
     );
     const rentInvoiceTax = calculateItemTax(
-      billData.factoryRent,
+      billData.rentTax || billData.factoryRent,
       billData.rentTaxRate,
     );
 
@@ -284,9 +287,12 @@ async function handleSave() {
   const tenantForm = await tenantFormApi.getValues();
   const {
     _divider,
+    eleTax,
     eleTaxRate,
+    rentTax,
     rentTaxRate,
     tenant,
+    waterTax,
     waterTaxRate,
     ...tenantData
   } = tenantForm;
@@ -294,8 +300,11 @@ async function handleSave() {
     ...tenantData,
     parkId: tenant[0],
     taxRate: JSON.stringify({
+      eleTax,
       eleTaxRate,
+      rentTax,
       rentTaxRate,
+      waterTax,
       waterTaxRate,
     }),
     tenantId: tenant[1],
@@ -452,8 +461,8 @@ defineExpose({
       <!-- 租户信息 -->
       <div v-show="activeKey === 1" class="tab-pane">
         <div class="bill-items-container">
-          <h3 class="mb-4 text-lg font-medium">租户基本信息</h3>
-          <div class="info-text mb-4">请填写租户基本信息</div>
+          <h3 class="mb-2 text-lg font-medium">租户基本信息</h3>
+          <div class="info-text mb-2">请填写租户基本信息</div>
           <Card>
             <TenantForm />
           </Card>
