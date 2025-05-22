@@ -1,8 +1,10 @@
 import type { VbenFormSchema } from '@vben/common-ui';
 
-import { h } from 'vue';
+import { h, markRaw } from 'vue';
 
 import { getTenantSelectList } from '#/api';
+
+import PenaltyForm from './penalty-form.vue';
 
 /**
  * 账单详情配置接口
@@ -148,7 +150,7 @@ export function useTenantFormSchema(): VbenFormSchema[] {
         placeholder: '请输入服务费比率',
       },
       fieldName: 'serviceRate',
-      formItemClass: 'col-start-1 p-4',
+      formItemClass: 'p-4',
       label: '服务费',
     },
     {
@@ -172,6 +174,12 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       label: '滞纳金',
     },
     {
+      component: markRaw(PenaltyForm),
+      fieldName: 'penalty', // 保持不变，已与接口一致
+      formItemClass: 'p-4',
+      // label: $t('page.rental.increaseData'),
+    },
+    {
       component: 'Divider',
       componentProps: {
         orientation: 'left',
@@ -190,31 +198,61 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '%',
-        placeholder: '请输入水费税金比率',
+        placeholder: '请输入水费税率',
       },
       fieldName: 'waterTaxRate',
       formItemClass: 'p-4 pt-2', // 减少顶部内边距
-      label: '水费税金',
+      label: '水费税率',
     },
     {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '%',
-        placeholder: '请输入电费税金比率',
+        placeholder: '请输入电费税率',
       },
       fieldName: 'eleTaxRate',
       formItemClass: 'p-4',
-      label: '电费税金',
+      label: '电费税率',
     },
     {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '%',
-        placeholder: '请输入房租税金比率',
+        placeholder: '请输入房租税率',
       },
       fieldName: 'rentTaxRate',
       formItemClass: 'p-4',
-      label: '房租税金',
+      label: '房租税率',
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '元',
+        placeholder: '请输入开票金额',
+      },
+      fieldName: 'waterTax',
+      formItemClass: 'p-4 pt-2', // 减少顶部内边距
+      label: '开票金额',
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '元',
+        placeholder: '请输入开票金额',
+      },
+      fieldName: 'eleTax',
+      formItemClass: 'p-4 pt-2', // 减少顶部内边距
+      label: '开票金额',
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '元',
+        placeholder: '请输入开票金额',
+      },
+      fieldName: 'rentTax',
+      formItemClass: 'p-4 pt-2', // 减少顶部内边距
+      label: '开票金额',
     },
   ];
 }

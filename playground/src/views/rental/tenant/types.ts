@@ -5,6 +5,7 @@ export interface RentalManagementItem {
   contractEnd: string;
   contractStart: string;
   createTime: string;
+  increaseData: object | string;
   increaseDate: string;
   increaseRate: number;
   phoneNumber: string;
