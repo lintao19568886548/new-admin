@@ -1,7 +1,7 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
-import { h } from 'vue';
+import { h, markRaw, ref } from 'vue';
 
 import { Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
@@ -9,6 +9,8 @@ import dayjs from 'dayjs';
 import { z } from '#/adapter/form';
 import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
+
+import IncreaseForm from './modules/increase-form.vue';
 
 /**
  * 获取标签颜色
@@ -96,42 +98,45 @@ export function useFormSchema(): VbenFormSchema[] {
       fieldName: 'area',
       label: $t('page.rental.area'),
     },
-
     {
-      component: 'DatePicker',
+      component: markRaw(IncreaseForm),
       componentProps: {
-        format: 'YYYY-MM-DD',
-        placeholder: '请选择涨租日期',
-        style: { width: '100%' },
-        valueFormat: 'YYYY-MM-DD', // 简化日期格式
-      },
-      fieldName: 'increaseDate',
-      label: $t('system.rental.tenant.increaseDate'),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        addonAfter: '%',
-        precision: 2,
         style: { width: '100%' },
       },
-      fieldName: 'increaseRate',
-      label: $t('system.rental.tenant.increaseRate'),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        addonAfter: '‰',
-        precision: 2,
-        style: { width: '100%' },
-      },
-      fieldName: 'penaltyRate',
-      label: $t('page.rental.penaltyRate'),
+      fieldName: 'increaseData', // 保持不变，已与接口一致
+      formItemClass: 'col-span-2',
+      // label: $t('page.rental.increaseData'),
     },
     // {
-    //   component: markRaw(IncreaseForm),
-    //   fieldName: 'increaseData', // 保持不变，已与接口一致
-    //   // label: $t('page.rental.increaseData'),
+    //   component: 'DatePicker',
+    //   componentProps: {
+    //     format: 'YYYY-MM-DD',
+    //     placeholder: '请选择涨租日期',
+    //     style: { width: '100%' },
+    //     valueFormat: 'YYYY-MM-DD', // 简化日期格式
+    //   },
+    //   fieldName: 'increaseDate',
+    //   label: $t('system.rental.tenant.increaseDate'),
+    // },
+    // {
+    //   component: 'InputNumber',
+    //   componentProps: {
+    //     addonAfter: '%',
+    //     precision: 2,
+    //     style: { width: '100%' },
+    //   },
+    //   fieldName: 'increaseRate',
+    //   label: $t('system.rental.tenant.increaseRate'),
+    // },
+    // {
+    //   component: 'InputNumber',
+    //   componentProps: {
+    //     addonAfter: '‰',
+    //     precision: 2,
+    //     style: { width: '100%' },
+    //   },
+    //   fieldName: 'penaltyRate',
+    //   label: $t('page.rental.penaltyRate'),
     // },
 
     // {
@@ -237,19 +242,65 @@ export function useGridFormSchema(): VbenFormSchema[] {
   ];
 }
 
+// 创建一个全局的选项数组，避免每次重新生成
+const getIncreaseFormOptions = ref([
+  { label: '无', value: '无' },
+  { label: '一次递增', value: '1' },
+  { label: '二次递增', value: '2' },
+  { label: '三次递增', value: '3' },
+]);
+
 export function useIncreaseFormSchema(): VbenFormSchema[] {
-  return [
+  // 构建表单架构
+  const formItems: VbenFormSchema[] = [
     {
-      component: 'Input',
-      fieldName: 'tenantName',
-      label: $t('system.rental.tenant.name'),
-    },
-    {
-      component: 'Input',
-      fieldName: 'tenantName',
-      label: $t('system.rental.tenant.name'),
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        options: getIncreaseFormOptions,
+      },
+      defaultValue: '无',
+      fieldName: 'increase',
+      label: $t('system.rental.tenant.increase'),
     },
   ];
+
+  // 添加所有可能的递增级别字段
+  for (let i = 1; i <= 3; i++) {
+    const level = i.toString();
+    formItems.push(
+      {
+        component: 'InputNumber',
+        componentProps: {
+          addonAfter: '年',
+        },
+        dependencies: {
+          show: (values) => {
+            return values.increase === level;
+          },
+          triggerFields: ['increase'],
+        },
+        fieldName: `increaseDate_${i}`,
+        label: $t('system.rental.tenant.increaseDate'),
+      },
+      {
+        component: 'InputNumber',
+        componentProps: {
+          addonAfter: '%',
+        },
+        dependencies: {
+          show: (values) => {
+            return values.increase === level;
+          },
+          triggerFields: ['increase'],
+        },
+        fieldName: `increaseRate_${i}`,
+        label: $t('system.rental.tenant.increaseRate'),
+      },
+    );
+  }
+
+  return formItems;
 }
 
 /**
@@ -334,17 +385,310 @@ export function useColumns<T = any>(
     },
     {
       field: 'increaseDate',
-      formatter: ({ cellValue }) => {
-        if (!cellValue) return '';
-        return dayjs(cellValue).format('YYYY-MM-DD');
+      formatter: ({ row }) => {
+        if (!row.increaseData || !row.contractStart) return '';
+
+        try {
+          // 解析增租数据
+          const rowData =
+            typeof row.increaseData === 'string'
+              ? JSON.parse(row.increaseData)
+              : row.increaseData;
+
+          if (rowData.length <= 0) return '';
+
+          // 获取当前时间
+          const now = dayjs();
+          // 合同开始时间
+          const contractStart = dayjs(row.contractStart);
+          // 合同结束时间
+          const contractEnd = row.contractEnd ? dayjs(row.contractEnd) : null;
+
+          // 如果只有一个递增元素
+          if (rowData.length === 1) {
+            const item = rowData[0];
+
+            // 如果递增年数为0，直接返回特定提示，避免无限循环
+            if (item.date === 0) {
+              return '';
+            }
+
+            let nextIncreaseDate;
+            let years = item.date;
+
+            // 循环计算，直到找到大于当前时间的递增日期
+            while (true) {
+              nextIncreaseDate = contractStart.add(years, 'year');
+
+              // 如果大于当前时间，检查是否也大于合同结束时间
+              if (nextIncreaseDate.isAfter(now)) {
+                if (contractEnd && nextIncreaseDate.isAfter(contractEnd)) {
+                  return nextIncreaseDate.format('YYYY-MM-DD');
+                }
+                return nextIncreaseDate.format('YYYY-MM-DD');
+              }
+
+              // 继续计算下一个递增日期（每次增加相同的年数）
+              years += item.date;
+
+              // 避免无限循环
+              if (years > 100 || item.date === 0) {
+                return '';
+              }
+            }
+          }
+          // 如果有多个递增元素
+          else {
+            // 解析增租数据，过滤掉递增年数为0的项
+            let validRowData = [...rowData];
+
+            // 检查是否存在递增年数为0的情况
+            if (validRowData.some((item: any) => item.date === 0)) {
+              // 找到所有递增年数大于0的项目
+              validRowData = validRowData.filter((item: any) => item.date > 0);
+
+              // 如果没有有效的递增项，返回最后一个递增率
+              if (validRowData.length === 0) {
+                return `${rowData[rowData.length - 1].rate}%`;
+              }
+            }
+
+            // 计算初始递增周期
+            let currentDate = contractStart;
+            let nextDates: dayjs.Dayjs[] = [];
+            const rateMap: Record<string, number> = {}; // 用于保存日期对应的递增率
+
+            // 先计算基础递增周期内的所有递增日期
+            for (const item of validRowData) {
+              currentDate = currentDate.add(item.date, 'year');
+              nextDates.push(currentDate);
+              // 保存这个日期对应的递增率
+              rateMap[currentDate.format('YYYY-MM-DD')] = item.rate;
+            }
+
+            // 获取基础周期的总年数
+            const totalYears = validRowData.reduce(
+              (sum: number, item: any) => sum + item.date,
+              0,
+            );
+
+            // 从基础周期开始，循环计算后续递增日期
+            const lastDate = nextDates[nextDates.length - 1];
+
+            if (!lastDate) {
+              return ''; // 防止未定义错误
+            }
+
+            // 如果基础周期内的最后一个日期已经大于当前时间，则直接在基础周期内寻找
+            if (lastDate.isAfter(now)) {
+              for (const date of nextDates) {
+                if (date && date.isAfter(now)) {
+                  // 检查是否大于合同结束时间
+                  if (contractEnd && date.isAfter(contractEnd)) {
+                    // 返回"已过期"提示
+                    return '已过期';
+                  }
+                  // 返回对应的递增日期
+                  return date.format('YYYY-MM-DD');
+                }
+              }
+            }
+
+            // 计算后续周期的递增日期
+            let currentCycleCount = 1;
+            while (currentCycleCount < 10) {
+              // 限制最多10个周期，避免无限循环
+              const newDates: dayjs.Dayjs[] = [];
+              for (const date of nextDates) {
+                if (date) {
+                  newDates.push(date.add(totalYears, 'year'));
+                }
+              }
+
+              // 更新nextDates为新计算的日期
+              nextDates = newDates;
+
+              // 检查这个周期内的日期
+              for (const date of nextDates) {
+                if (date && date.isAfter(now)) {
+                  // 检查是否大于合同结束时间
+                  if (contractEnd && date.isAfter(contractEnd)) {
+                    // 返回"已过期"提示
+                    return '已过期';
+                  }
+                  // 返回对应的递增日期
+                  return date.format('YYYY-MM-DD');
+                }
+              }
+
+              currentCycleCount++;
+            }
+
+            // 如果10个周期内都没找到，返回已递增状态
+            return '已递增';
+          }
+        } catch (error) {
+          console.error('计算递增日期失败:', error);
+          return '';
+        }
       },
       title: $t('system.rental.tenant.increaseDate'),
       width: 130,
     },
     {
       field: 'increaseRate',
-      formatter: ({ cellValue }) => {
-        return cellValue ? `${cellValue}%` : '';
+      formatter: ({ row }) => {
+        if (!row.increaseData || !row.contractStart) return '';
+
+        try {
+          // 解析增租数据
+          const rowData =
+            typeof row.increaseData === 'string'
+              ? JSON.parse(row.increaseData)
+              : row.increaseData;
+
+          if (rowData.length <= 0) return '';
+
+          // 获取当前时间
+          const now = dayjs();
+          // 合同开始时间
+          const contractStart = dayjs(row.contractStart);
+          // 合同结束时间
+          const contractEnd = row.contractEnd ? dayjs(row.contractEnd) : null;
+
+          // 如果只有一个递增元素
+          if (rowData.length === 1) {
+            const item = rowData[0];
+
+            // 如果递增年数为0，直接返回增租率，避免无限循环
+            if (item.date === 0) {
+              return `${item.rate}%`;
+            }
+
+            let nextIncreaseDate;
+            let years = item.date;
+
+            // 循环计算，直到找到大于当前时间的递增日期
+            while (true) {
+              nextIncreaseDate = contractStart.add(years, 'year');
+
+              // 如果大于当前时间，检查是否也大于合同结束时间
+              if (nextIncreaseDate.isAfter(now)) {
+                if (contractEnd && nextIncreaseDate.isAfter(contractEnd)) {
+                  return `${item.rate}%`;
+                }
+                return `${item.rate}%`;
+              }
+
+              // 继续计算下一个递增日期（每次增加相同的年数）
+              years += item.date;
+
+              // 避免无限循环
+              if (years > 100 || item.date === 0) {
+                return `${item.rate}%`;
+              }
+            }
+          }
+          // 如果有多个递增元素
+          else {
+            // 解析增租数据，过滤掉递增年数为0的项
+            let validRowData = [...rowData];
+
+            // 检查是否存在递增年数为0的情况
+            if (validRowData.some((item: any) => item.date === 0)) {
+              // 找到所有递增年数大于0的项目
+              validRowData = validRowData.filter((item: any) => item.date > 0);
+
+              // 如果没有有效的递增项，返回最后一个递增率
+              if (validRowData.length === 0) {
+                return `${rowData[rowData.length - 1].rate}%`;
+              }
+            }
+
+            // 计算初始递增周期
+            let currentDate = contractStart;
+            let nextDates: dayjs.Dayjs[] = [];
+            const rateMap: Record<string, number> = {}; // 用于保存日期对应的递增率
+
+            // 先计算基础递增周期内的所有递增日期
+            for (const item of validRowData) {
+              currentDate = currentDate.add(item.date, 'year');
+              nextDates.push(currentDate);
+              // 保存这个日期对应的递增率
+              rateMap[currentDate.format('YYYY-MM-DD')] = item.rate;
+            }
+
+            // 获取基础周期的总年数
+            const totalYears = validRowData.reduce(
+              (sum: number, item: any) => sum + item.date,
+              0,
+            );
+
+            // 从基础周期开始，循环计算后续递增日期
+            const lastDate = nextDates[nextDates.length - 1];
+
+            if (!lastDate) {
+              return ''; // 防止未定义错误
+            }
+
+            // 如果基础周期内的最后一个日期已经大于当前时间，则直接在基础周期内寻找
+            if (lastDate.isAfter(now)) {
+              for (const [i, date] of nextDates.entries()) {
+                if (date && date.isAfter(now)) {
+                  // 检查是否大于合同结束时间
+                  if (contractEnd && date.isAfter(contractEnd)) {
+                    // 返回最后一个递增率
+                    return `${validRowData[validRowData.length - 1].rate}%`;
+                  }
+                  // 返回对应的递增率
+                  if (i < validRowData.length) {
+                    return `${validRowData[i].rate}%`;
+                  }
+                  return `${validRowData[validRowData.length - 1].rate}%`;
+                }
+              }
+            }
+
+            // 计算后续周期的递增日期
+            let currentCycleCount = 1;
+            while (currentCycleCount < 10) {
+              // 限制最多10个周期，避免无限循环
+              const newDates: dayjs.Dayjs[] = [];
+              for (const date of nextDates) {
+                if (date) {
+                  newDates.push(date.add(totalYears, 'year'));
+                }
+              }
+
+              // 更新nextDates为新计算的日期
+              nextDates = newDates;
+
+              // 检查这个周期内的日期
+              for (const [i, date] of nextDates.entries()) {
+                if (date && date.isAfter(now)) {
+                  // 检查是否大于合同结束时间
+                  if (contractEnd && date.isAfter(contractEnd)) {
+                    // 返回最后一个递增率
+                    return `${validRowData[validRowData.length - 1].rate}%`;
+                  }
+                  // 返回对应的递增率
+                  if (i < validRowData.length) {
+                    return `${validRowData[i].rate}%`;
+                  }
+                  return `${validRowData[validRowData.length - 1].rate}%`;
+                }
+              }
+
+              currentCycleCount++;
+            }
+
+            // 如果10个周期内都没找到，返回最后一个递增率
+            return `${validRowData[validRowData.length - 1].rate}%`;
+          }
+        } catch (error) {
+          console.error('计算递增率失败:', error);
+          return '';
+        }
       },
       title: $t('system.rental.tenant.increaseRate'),
       width: 80,
