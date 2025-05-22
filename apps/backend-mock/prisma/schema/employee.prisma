@@ -1,0 +1,19 @@
+model Employee {
+  employeeId      Int       @id @default(autoincrement()) @map("employee_id")
+  name            String    @db.VarChar(50)  // 姓名
+  gender          String    @db.VarChar(10)  // 性别
+  phone           String    @db.VarChar(20)  // 电话
+  age             Int?      // 年龄
+  idNumber        String?   @unique @map("id_number") @db.VarChar(18) // 身份证号
+  address         String?   @db.VarChar(200) // 住址信息
+  education       String?   @db.VarChar(50)  // 学历
+  department      String?   @db.VarChar(50)  // 部门
+  createTime      DateTime  @default(now()) @map("create_time") // 创建时间
+  hireDate        DateTime?  @map("hire_date") // 入职日期
+  leaveDate       DateTime?  @map("leave_date") // 离职日期
+  remark          String?   @db.VarChar(500) // 备注
+  updateTime      DateTime? @updatedAt @map("update_time") // 更新时间
+  isDeleted       Boolean   @default(false) @map("is_deleted") // 逻辑删除字段
+
+  @@map("employee")
+}
