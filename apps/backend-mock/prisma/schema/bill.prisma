@@ -10,6 +10,7 @@ model AmountBill {
   totalFee      Decimal?      @default(0.00) @map("total_fee") @db.Decimal(10, 2)
   serviceFee    Decimal?      @default(0.00) @map("service_fee") @db.Decimal(10, 2)
   garbageFee    Decimal?      @default(0.00) @map("garbage_fee") @db.Decimal(10, 2)
+  penaltyFee    Decimal?      @default(0.00) @map("penalty_fee") @db.Decimal(10, 2)
   serviceRate   Decimal?      @map("service_rate") @db.Decimal(5, 2)
   garbageRate   Decimal?      @map("garbage_rate") @db.Decimal(5, 2)
   penaltyRate   Decimal?      @map("penalty_rate") @db.Decimal(5, 2)

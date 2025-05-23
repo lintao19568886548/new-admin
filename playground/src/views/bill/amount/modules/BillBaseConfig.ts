@@ -163,21 +163,26 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       formItemClass: 'p-4',
       label: '垃圾处理费',
     },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        addonAfter: '‰',
-        placeholder: '请输入滞纳金比率',
-      },
-      fieldName: 'penaltyRate',
-      formItemClass: 'p-4',
-      label: '滞纳金',
-    },
+    // {
+    //   component: 'InputNumber',
+    //   componentProps: {
+    //     addonAfter: '‰',
+    //     placeholder: '请输入滞纳金比率',
+    //   },
+    //   fieldName: 'penaltyRate',
+    //   formItemClass: 'p-4',
+    //   label: '滞纳金',
+    // },
     {
       component: markRaw(PenaltyForm),
+      componentProps: {
+        penaltyAmount: 0,
+        penaltyDays: 0,
+        penaltyRate: 0,
+      },
       fieldName: 'penalty', // 保持不变，已与接口一致
-      formItemClass: 'p-4',
-      // label: $t('page.rental.increaseData'),
+      formItemClass: 'col-span-2 p-4',
+      label: '滞纳金明细',
     },
     {
       component: 'Divider',

@@ -161,6 +161,7 @@ watch(
   },
 );
 
+// 服务费计算
 watch([() => billData.serviceRate, () => billData.eleFee], () => {
   if (!billData.serviceRate) {
     billData.serviceFee = 0;
@@ -169,6 +170,7 @@ watch([() => billData.serviceRate, () => billData.eleFee], () => {
   billData.serviceFee = billData.eleFee * (billData.serviceRate / 100);
 });
 
+// 垃圾处理费计算
 watch([() => billData.garbageRate], () => {
   if (!billData.garbageRate) {
     billData.garbageFee = 0;
@@ -181,6 +183,52 @@ watch([() => billData.garbageRate], () => {
   billData.garbageFee = waterBill.totalUsage * (billData.garbageRate / 100);
 });
 
+// 滞纳金计算
+watch([() => billData.penalty], () => {
+  // 如果penalty不存在，则滞纳金为0
+  if (!billData.penalty) {
+    billData.penaltyFee = 0;
+    return;
+  }
+
+  try {
+    // 尝试获取滞纳金数据
+    const penaltyData = billData.penalty as unknown as {
+      penaltyList?: [number | undefined, number | undefined][];
+      penaltyRate?: number;
+    };
+
+    // 如果没有必要的数据，则滞纳金为0
+    if (!penaltyData.penaltyList?.length || !penaltyData.penaltyRate) {
+      billData.penaltyFee = 0;
+      return;
+    }
+
+    // 计算所有期数的滞纳金总和
+    let totalPenalty = 0;
+
+    // 遍历所有滞纳期数
+    for (const penaltyItem of penaltyData.penaltyList) {
+      const [days, amount] = penaltyItem;
+
+      // 如果任一值为空，则跳过此期数
+      if (days === undefined || amount === undefined) {
+        continue;
+      }
+
+      // 计算当前期数的滞纳金：天数 * 金额 * 比率(‰)
+      const periodPenalty = days * amount * (penaltyData.penaltyRate / 1000);
+      totalPenalty += periodPenalty;
+    }
+
+    billData.penaltyFee = totalPenalty;
+  } catch (error) {
+    console.error('计算滞纳金时出错:', error);
+    billData.penaltyFee = 0;
+  }
+});
+
+// 开票税金计算
 watch(
   [
     () => billData.waterTaxRate,
@@ -289,6 +337,7 @@ async function handleSave() {
     _divider,
     eleTax,
     eleTaxRate,
+    penalty, // 提取 penalty 对象
     rentTax,
     rentTaxRate,
     tenant,
@@ -296,9 +345,21 @@ async function handleSave() {
     waterTaxRate,
     ...tenantData
   } = tenantForm;
+
+  // 从 penalty 对象中提取滞纳金相关值
+  let penaltyRate;
+  if (penalty && typeof penalty === 'object') {
+    // 如果是新的格式（对象），直接获取penaltyRate
+    const penaltyData = penalty as unknown as {
+      penaltyRate?: number;
+    };
+    penaltyRate = penaltyData.penaltyRate;
+  }
+
   const tenantSubmit = {
     ...tenantData,
     parkId: tenant[0],
+    penaltyRate, // 添加滞纳金比率
     taxRate: JSON.stringify({
       eleTax,
       eleTaxRate,
@@ -324,6 +385,7 @@ async function handleSave() {
     eleFee: Number(billData.eleFee) || 0,
     garbageFee: Number(billData.garbageFee) || 0,
     invoiceTax: Number(billData.invoiceTax) || 0,
+    penaltyFee: Number(billData.penaltyFee) || 0,
     serviceFee: Number(billData.serviceFee) || 0,
     totalFee: Number(billData.totalFee) || 0,
     waterBills: billData.waterBills?.map((item: any) => {
@@ -354,6 +416,11 @@ async function initData(data: any, type: string) {
     const tenantDetail = {
       ...billDetail,
       ...(billDetail.taxRate ? JSON.parse(billDetail.taxRate) : undefined),
+      // 设置 penalty 对象，使用账单中的滞纳金相关字段
+      penalty: {
+        penaltyList: billDetail.penaltyList || [[undefined, undefined]],
+        penaltyRate: Number(billDetail.penaltyRate) || undefined,
+      },
       tenant: billDetail.tenantId
         ? [billDetail.parkId, billDetail.tenantId]
         : undefined,
@@ -531,7 +598,7 @@ defineExpose({
         <div class="bill-items-container">
           <h3 class="mb-4 text-lg font-medium">费用合计</h3>
           <div class="info-text mb-4">请核对金额是否正确</div>
-          <Descriptions bordered>
+          <Descriptions bordered :column="2">
             <DescriptionsItem
               v-if="billData.waterFee > 0"
               label="水费"
@@ -572,6 +639,13 @@ defineExpose({
             <DescriptionsItem v-if="billData.serviceFee! > 0" label="服务费">
               <Statistic
                 :value="billData.serviceFee"
+                :precision="2"
+                prefix="¥"
+              />
+            </DescriptionsItem>
+            <DescriptionsItem v-if="billData.penaltyFee! > 0" label="滞纳金">
+              <Statistic
+                :value="billData.penaltyFee"
                 :precision="2"
                 prefix="¥"
               />

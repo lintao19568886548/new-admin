@@ -22,7 +22,9 @@ export interface AmountBill {
   invoiceTax: number; // 开票税金
   managementFee: number; // 基本管理费
   parkId?: number; // 园区ID
-  penaltyRate?: number; // 滞纳金比率
+  penalty?: number[]; // 滞纳金数据
+  penaltyFee?: number; // 滞纳金
+  penaltyRate?: number;
   projectName?: string; // 项目名称
   receiptTime?: string; // 收款时间
   remark?: string; // 备注
