@@ -1,6 +1,6 @@
 <!-- eslint-disable no-empty-pattern -->
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref, unref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { Search } from '@vben/icons';
@@ -23,7 +23,11 @@ import {
 import { $t } from '#/locales';
 
 import { AUDITOR_LEVEL_MAP, useColumns, useFormRules } from './data';
-import { statusOptions, useReimbursementAudit } from './modules';
+import {
+  getUserPrivilegeInfo,
+  statusOptions,
+  useReimbursementAudit,
+} from './modules/type';
 
 // 获取用户信息
 const userStore = useUserStore();
@@ -48,6 +52,7 @@ const {
   searchForm,
   showAuditModal,
   submitting,
+  userPrivilegeLevel,
 } = useReimbursementAudit();
 
 // 表单相关
@@ -60,6 +65,11 @@ const rules = useFormRules();
 const previewVisible = ref(false);
 const previewImage = ref('');
 const previewTitle = ref('');
+
+// 添加用户权限等级信息计算属性
+const userPrivilegeInfo = computed(() => {
+  return getUserPrivilegeInfo(unref(userPrivilegeLevel));
+});
 
 // 处理图片预览
 function handleImagePreview(src: string, title: string = '预览图片') {
@@ -78,39 +88,49 @@ onMounted(() => {
 <template>
   <Page>
     <Card :title="$t('报销审核')" class="mb-4">
-      <!-- 搜索区域 -->
-      <div class="mb-4 flex flex-wrap gap-2">
-        <DatePicker.RangePicker
-          v-model:value="searchForm.dateRange"
-          placeholder="选择申请日期范围"
-          class="w-64"
-        />
-        <Input
-          v-model:value="searchForm.purpose"
-          placeholder="搜索用途"
-          class="w-48"
-          allow-clear
-        />
-        <Input
-          v-model:value="searchForm.username"
-          placeholder="搜索申请人"
-          class="w-48"
-          allow-clear
-          :disabled="!hasAuditPermission"
-          :title="!hasAuditPermission ? '您只能查看自己的报销申请记录' : ''"
-        />
-        <Select
-          v-model:value="searchForm.status"
-          :options="statusOptions"
-          placeholder="选择状态"
-          class="w-32"
-          allow-clear
-        />
-        <Button type="primary" @click="handleSearch">
-          <Search class="mr-1 h-4 w-4" />
-          搜索
-        </Button>
-        <Button @click="resetSearch">重置</Button>
+      <div class="mb-4 flex flex-col gap-4">
+        <div class="flex items-center justify-between gap-4">
+          <h2 class="text-lg font-semibold">报销审核</h2>
+          <div v-if="hasAuditPermission" class="text-sm text-gray-600">
+            当前审核权限：{{ userPrivilegeInfo.text }}（可审核{{
+              userPrivilegeInfo.maxAmount
+            }}）
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-4 rounded-md bg-white p-4 shadow-sm">
+          <DatePicker.RangePicker
+            v-model:value="searchForm.dateRange"
+            placeholder="选择申请日期范围"
+            class="w-64"
+          />
+          <Input
+            v-model:value="searchForm.purpose"
+            placeholder="搜索用途"
+            class="w-48"
+            allow-clear
+          />
+          <Input
+            v-model:value="searchForm.username"
+            placeholder="搜索申请人"
+            class="w-48"
+            allow-clear
+            :disabled="!hasAuditPermission"
+            :title="!hasAuditPermission ? '您只能查看自己的报销申请记录' : ''"
+          />
+          <Select
+            v-model:value="searchForm.status"
+            :options="statusOptions"
+            placeholder="选择状态"
+            class="w-32"
+            allow-clear
+          />
+          <Button type="primary" @click="handleSearch">
+            <Search class="mr-1 h-4 w-4" />
+            搜索
+          </Button>
+          <Button @click="resetSearch">重置</Button>
+        </div>
       </div>
 
       <Spin :spinning="loading" tip="加载中...">
@@ -190,6 +210,18 @@ onMounted(() => {
             <p class="text-gray-500">金额</p>
             <p class="text-lg font-bold text-red-500">
               ￥{{ Number(currentRecord.amount).toFixed(2) }}
+              <span
+                v-if="
+                  currentRecord.status === 0 &&
+                  ((userPrivilegeLevel === 2 &&
+                    Number(currentRecord.amount) > 10000) ||
+                    (userPrivilegeLevel === 3 &&
+                      Number(currentRecord.amount) > 20000))
+                "
+                class="ml-2 text-xs text-red-500"
+              >
+                超出审核权限
+              </span>
             </p>
           </div>
           <div>
@@ -214,6 +246,27 @@ onMounted(() => {
               }}
             </p>
           </div>
+        </div>
+
+        <!-- 权限警告提示 -->
+        <div
+          v-if="
+            currentRecord.status === 0 &&
+            ((userPrivilegeLevel === 2 &&
+              Number(currentRecord.amount) > 10000) ||
+              (userPrivilegeLevel === 3 &&
+                Number(currentRecord.amount) > 20000))
+          "
+          class="mb-4 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-600"
+        >
+          <p v-if="userPrivilegeLevel === 2">
+            <strong>警告：</strong>
+            园区经理仅可审核10000元以下的报销申请，此申请金额超出您的审核权限
+          </p>
+          <p v-else-if="userPrivilegeLevel === 3">
+            <strong>警告：</strong>
+            总监仅可审核20000元以下的报销申请，此申请金额超出您的审核权限
+          </p>
         </div>
 
         <div v-if="currentRecord.remark" class="mb-4">

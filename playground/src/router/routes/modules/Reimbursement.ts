@@ -4,8 +4,7 @@ import { $t } from '#/locales';
 
 const routes: RouteRecordRaw[] = [
   {
-    component: () =>
-      import('#/views/reimbursement/application/application.vue'),
+    component: () => import('#/views/reimbursement/application/list.vue'),
     meta: {
       icon: 'mdi:file-document-multiple', // 更改为账单/文档图标
       order: -1,
@@ -13,6 +12,16 @@ const routes: RouteRecordRaw[] = [
     },
     name: 'Reimbursement',
     path: '/reimbursement',
+  },
+  {
+    component: () => import('#/views/reimbursement/audit/list.vue'),
+    meta: {
+      icon: 'mdi:file-document-multiple', // 更改为账单/文档图标
+      order: -1,
+      title: $t('报销审核'),
+    },
+    name: 'ReimbursementAudit',
+    path: '/reimbursement/audit',
   },
 ];
 

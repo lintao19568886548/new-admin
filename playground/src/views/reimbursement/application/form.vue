@@ -301,10 +301,9 @@ async function fetchReimbursements() {
       pageNo: pagination.current,
       pageSize: pagination.pageSize,
     };
-    // 检查用户名是否为 'vben' 或 'admin'
-    if (currentUsername !== 'vben' && currentUsername !== 'admin') {
-      params.username = currentUsername;
-    }
+    // 所有用户只能查看自己的申请记录
+    params.username = currentUsername;
+
     // 根据条件调用 API
     const res = await getReimbursementList(params);
     reimbursementList.value = res.items || [];

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { ReimbursementItem } from './data';
 
-import { computed, onMounted, reactive, ref, shallowRef } from 'vue';
+import { onMounted, reactive, ref, shallowRef } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { Search } from '@vben/icons';
@@ -50,7 +50,6 @@ const searchForm = reactive({
   dateRange: null,
   purpose: '',
   status: undefined,
-  username: '',
 });
 
 // 分页相关状态
@@ -69,9 +68,6 @@ const statusOptions = Object.entries(STATUS_MAP).map(([value, item]) => ({
   value: Number(value),
 }));
 
-// 判断当前用户是否为管理员
-const isAdmin = computed(() => ['admin', 'vben'].includes(currentUsername));
-
 // 获取报销列表
 async function fetchReimbursements() {
   loading.value = true;
@@ -81,14 +77,8 @@ async function fetchReimbursements() {
       pageSize: pagination.pageSize,
     };
 
-    // 普通用户只能查看自己的申请记录，管理员可以查看全部
-    if (!isAdmin.value) {
-      // 非管理员只能看到自己的记录
-      params.username = currentUsername;
-    } else if (searchForm.username) {
-      // 管理员可以按用户名筛选
-      params.username = searchForm.username;
-    }
+    // 所有用户只能查看自己的申请记录
+    params.username = currentUsername;
 
     // 添加其他搜索条件
     if (searchForm.purpose) {
@@ -162,7 +152,6 @@ function resetSearch() {
   searchForm.dateRange = null;
   searchForm.purpose = '';
   searchForm.status = undefined;
-  searchForm.username = '';
   pagination.current = 1;
   fetchReimbursements();
 }
@@ -173,7 +162,6 @@ function handleModalClose() {
   searchForm.dateRange = null;
   searchForm.purpose = '';
   searchForm.status = undefined;
-  searchForm.username = '';
   pagination.current = 1;
 }
 
@@ -324,12 +312,6 @@ onMounted(() => {
     Authorization: `Bearer ${accessStore.accessToken}`,
   };
 });
-
-// 新增查看我的申请的函数
-function viewMyApplications() {
-  searchForm.username = currentUsername;
-  handleSearch();
-}
 </script>
 
 <template>
@@ -433,7 +415,7 @@ function viewMyApplications() {
     <!-- 记录列表弹窗 -->
     <Modal
       v-model:visible="isRecordModalVisible"
-      :title="$t(isAdmin.value ? '报销申请记录' : '我的报销申请')"
+      :title="$t('我的报销申请')"
       width="85%"
       :footer="null"
       :destroy-on-close="true"
@@ -459,23 +441,11 @@ function viewMyApplications() {
           class="w-32"
           allow-clear
         />
-        <!-- 仅管理员可见用户名搜索 -->
-        <Input
-          v-if="isAdmin.value"
-          v-model:value="searchForm.username"
-          placeholder="搜索用户名"
-          class="w-48"
-          allow-clear
-        />
         <Button type="primary" @click="handleSearch">
           <Search class="mr-1 h-4 w-4" />
           搜索
         </Button>
         <Button @click="resetSearch">重置</Button>
-        <!-- 管理员可以查看自己的申请 -->
-        <Button v-if="isAdmin.value" type="primary" @click="viewMyApplications">
-          我的申请
-        </Button>
       </div>
 
       <Spin :spinning="loading" tip="加载中...">
