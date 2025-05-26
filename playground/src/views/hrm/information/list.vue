@@ -5,7 +5,7 @@ import type {
 } from '#/adapter/vxe-table';
 import type { EmployeeApi } from '#/api/hrm/employee';
 
-import { computed, shallowRef } from 'vue';
+import { shallowRef } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -29,23 +29,6 @@ interface QueryParams {
 // 使用shallowRef存储表格实例和数据，提升性能
 const tableLoading = shallowRef(false);
 const employeeData = shallowRef<any>({ total: 0, items: [] });
-
-// 处理后的员工数据（过滤掉isDeleted=1的记录）
-const filteredEmployeeData = computed(() => {
-  if (!employeeData.value || !employeeData.value.items) {
-    return { total: 0, items: [] };
-  }
-
-  // 过滤掉isDeleted为1或true的员工
-  const filteredItems = employeeData.value.items.filter(
-    (item: any) => !(item.isDeleted === 1 || item.isDeleted === true),
-  );
-
-  return {
-    total: filteredItems.length,
-    items: filteredItems,
-  };
-});
 
 // 表单模态窗口
 const [FormModal, formModalApi] = useVbenModal({
@@ -171,7 +154,6 @@ async function fetchEmployeeList(params: QueryParams) {
     const requestParams = {
       ...queryParams,
       currentPage,
-      isDeleted: 0, // 请求只要未删除的员工 (isDeleted=0)
       pageSize,
     };
 
@@ -181,7 +163,7 @@ async function fetchEmployeeList(params: QueryParams) {
     employeeData.value = result;
 
     // 返回过滤后的数据（作为双重保障）
-    return filteredEmployeeData.value;
+    return result;
   } catch (error) {
     messageHandler.error(error, '获取员工列表失败');
     throw error;

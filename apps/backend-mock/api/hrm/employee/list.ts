@@ -10,14 +10,22 @@ export default eventHandler(async (event) => {
   try {
     console.log('[HRM Debug] 请求获取所有员工数据, User:', userinfo.username);
 
+    const query = getQuery(event);
+    const { currentPage, pageSize } = query;
+
     // 获取所有员工数据
     const employees = await prismaClient.employee.findMany({
+      where: {
+        isDeleted: false,
+      },
       orderBy: {
         createTime: 'desc',
       },
+      skip: (Number(currentPage) - 1) * Number(pageSize),
+      take: Number(pageSize),
     });
 
-    const total = employees.length;
+    const total = await prismaClient.employee.count({});
 
     console.log('[HRM Debug] 数据库查询结果:', {
       totalEmployees: total,
@@ -27,8 +35,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess({
       items: employees,
       total,
-      currentPage: 1,
-      pageSize: total > 0 ? total : 1,
     });
   } catch (error) {
     console.error('获取员工列表失败:', error);
