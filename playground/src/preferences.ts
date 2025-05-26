@@ -14,6 +14,15 @@ export const overridesPreferences = defineOverridesPreferences({
   breadcrumb: {
     showHome: true,
   },
+  copyright: {
+    companyName: '宜租网络',
+    companySiteLink: 'https://www.yizuw.cn',
+    date: '2025',
+    enable: true,
+    icp: '',
+    icpLink: '',
+    settingShow: true,
+  },
   logo: {
     source: '/assets/favicon.png',
   },
