@@ -93,7 +93,7 @@ defineExpose({
 });
 </script>
 <template>
-  <Dropdown class="ml-3">
+  <Dropdown class="ml-1">
     <template #overlay>
       <Menu>
         <Menu.Item

@@ -517,7 +517,7 @@ defineExpose({
 
 <template>
   <Modal>
-    <Steps class="mb-6" :current="activeKey - 1">
+    <Steps class="mb-3" :current="activeKey - 1">
       <Steps.Step @click="activeKey = 1" title="租户信息" />
       <Steps.Step @click="activeKey = 2" title="电费信息" />
       <Steps.Step @click="activeKey = 3" title="水费信息" />
@@ -529,7 +529,7 @@ defineExpose({
       <div v-show="activeKey === 1" class="tab-pane">
         <div class="bill-items-container">
           <h3 class="mb-2 text-lg font-medium">租户基本信息</h3>
-          <div class="info-text mb-2">请填写租户基本信息</div>
+          <div class="info-text mb-1">请填写租户基本信息</div>
           <Card>
             <TenantForm />
           </Card>
@@ -599,64 +599,63 @@ defineExpose({
           <h3 class="mb-4 text-lg font-medium">费用合计</h3>
           <div class="info-text mb-4">请核对金额是否正确</div>
           <Descriptions bordered :column="2">
-            <DescriptionsItem
-              v-if="billData.waterFee > 0"
-              label="水费"
-              :span="1"
-            >
+            <!-- 第一行：水费和电费 -->
+            <DescriptionsItem label="水费" :span="1">
               <Statistic :value="billData.waterFee" :precision="2" prefix="¥" />
             </DescriptionsItem>
-            <DescriptionsItem v-if="billData.eleFee > 0" label="电费">
+            <DescriptionsItem label="电费" :span="1">
               <Statistic :value="billData.eleFee" :precision="2" prefix="¥" />
             </DescriptionsItem>
-            <DescriptionsItem v-if="billData.factoryRent > 0" label="厂房租金">
+
+            <!-- 第二行：厂房租金和基本管理费 -->
+            <DescriptionsItem label="厂房租金" :span="1">
               <Statistic
                 :value="billData.factoryRent"
                 :precision="2"
                 prefix="¥"
               />
             </DescriptionsItem>
-            <DescriptionsItem
-              v-if="billData.managementFee > 0"
-              label="基本管理费"
-            >
+            <DescriptionsItem label="基本管理费" :span="1">
               <Statistic
-                :value="billData.managementFee"
+                :value="billData.managementFee || 0"
                 :precision="2"
                 prefix="¥"
               />
             </DescriptionsItem>
-            <DescriptionsItem
-              v-if="billData.garbageFee! > 0"
-              label="垃圾处理费"
-            >
+
+            <!-- 第三行：垃圾处理费和服务费 -->
+            <DescriptionsItem label="垃圾处理费" :span="1">
               <Statistic
-                :value="billData.garbageFee"
+                :value="billData.garbageFee || 0"
                 :precision="2"
                 prefix="¥"
               />
             </DescriptionsItem>
-            <DescriptionsItem v-if="billData.serviceFee! > 0" label="服务费">
+            <DescriptionsItem label="服务费" :span="1">
               <Statistic
-                :value="billData.serviceFee"
+                :value="billData.serviceFee || 0"
                 :precision="2"
                 prefix="¥"
               />
             </DescriptionsItem>
-            <DescriptionsItem v-if="billData.penaltyFee! > 0" label="滞纳金">
+
+            <!-- 第四行：滞纳金和开票税金 -->
+            <DescriptionsItem label="滞纳金" :span="1">
               <Statistic
-                :value="billData.penaltyFee"
+                :value="billData.penaltyFee || 0"
                 :precision="2"
                 prefix="¥"
               />
             </DescriptionsItem>
-            <DescriptionsItem v-if="billData.invoiceTax > 0" label="开票税金">
+            <DescriptionsItem label="开票税金" :span="1">
               <Statistic
-                :value="billData.invoiceTax"
+                :value="billData.invoiceTax || 0"
                 :precision="2"
                 prefix="¥"
               />
             </DescriptionsItem>
+
+            <!-- 第五行：本月收费金额（占据整行） -->
             <DescriptionsItem label="本月收费金额" :span="2">
               <Statistic :value="billData.totalFee" :precision="2" prefix="¥" />
             </DescriptionsItem>
@@ -707,7 +706,7 @@ defineExpose({
 }
 
 .bill-items-container {
-  padding: 20px;
+  padding: 10px 20px;
   border: 1px solid #f0f0f0;
   border-radius: 6px;
   background-color: #fafafa;

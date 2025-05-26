@@ -8,7 +8,7 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router'; // 新增: 引入 useRouter
 
 import { Page } from '@vben/common-ui';
@@ -21,13 +21,16 @@ import {
   Input,
   message,
   Modal,
+  Select,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { deleteAmountBill, getAmountBillList } from '#/api/bill';
+import { deleteAmountBill, getAmountBillList, getExportData } from '#/api/bill';
+import { getVisitorParkList } from '#/api/park';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
+import { executeBill } from '#/utils/excel';
 
 import {
   electricityFormConfig,
@@ -39,6 +42,14 @@ import {
 } from './data';
 import MultipageBillDetail from './modules/MultipageBillDetail.vue';
 import MultipageBillForm from './modules/MultipageBillForm.vue';
+
+onMounted(async () => {
+  const parkList = await getVisitorParkList({ area: 'all' });
+  options.value = parkList.map((park: any) => ({
+    label: park.parkName,
+    value: park.parkId,
+  }));
+});
 
 const currentPark = ref();
 const parkSelectorRef = ref();
@@ -293,13 +304,26 @@ const [Grid, gridApi] = useVbenVxeGrid({
     showOverflow: true,
     toolbarConfig: {
       custom: true,
-      export: false,
       refresh: { code: 'query' },
       search: true,
       zoom: true,
     },
   } as VxeTableGridOptions,
 });
+
+// 导出Excel模态框相关状态
+const exportModalVisible = ref(false);
+const exportLoading = ref(false);
+const exportParks = ref([]);
+const options = ref([]);
+
+async function onExport() {
+  const exportData = await getExportData({
+    parkIds: exportParks.value,
+  });
+  // const data = [[1, 2, 3]];
+  executeBill(exportData);
+}
 
 /**
  * 刷新表格
@@ -426,6 +450,26 @@ function handlePrintCancel() {
     </Modal>
     <!-- --- 新增代码结束 --- -->
 
+    <!-- 导出Excel模态框 -->
+    <Modal
+      v-model:visible="exportModalVisible"
+      title="导出Excel"
+      @ok="onExport"
+      :confirm-loading="exportLoading"
+      ok-text="导出"
+      cancel-text="取消"
+    >
+      <div class="mb-4">
+        <Select
+          v-model:value="exportParks"
+          mode="multiple"
+          style="width: 100%"
+          :options="options"
+          placeholder="请选择园区"
+        />
+      </div>
+    </Modal>
+
     <Grid table-title="总账单" class="amount-bill-grid">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
@@ -437,10 +481,17 @@ function handlePrintCancel() {
         />
       </template>
       <template #toolbar-tools>
-        <Button type="primary" @click="onCreate">
+        <Button type="primary" @click="onCreate" style="margin-right: 10px">
           <Plus class="size-5" />
           {{ $t('ui.actionTitle.create', ['总账单']) }}
         </Button>
+        <!-- <Button
+          type="primary"
+          shape="circle"
+          @click="exportModalVisible = true"
+        >
+          <Download class="size-5" />
+        </Button> -->
       </template>
     </Grid>
   </Page>

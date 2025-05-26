@@ -4,6 +4,7 @@ model AmountBill {
   tenantName    String?       @map("tenant_name")
   eleFee        Decimal?      @default(0.00) @map("ele_fee") @db.Decimal(10, 2)
   waterFee      Decimal?      @default(0.00) @map("water_fee") @db.Decimal(10, 2)
+  receiveFee    Decimal?      @default(0.00) @map("receive_fee") @db.Decimal(10, 2)
   factoryRent   Decimal?      @default(0.00) @map("factory_rent") @db.Decimal(10, 2)
   managementFee Decimal?      @default(0.00) @map("management_fee") @db.Decimal(10, 2)
   invoiceTax    Decimal?      @default(0.00) @map("invoice_tax") @db.Decimal(10, 2)
