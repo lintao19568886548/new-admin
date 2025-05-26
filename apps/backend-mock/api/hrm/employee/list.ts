@@ -13,11 +13,13 @@ export default eventHandler(async (event) => {
     const query = getQuery(event);
     const { currentPage, pageSize } = query;
 
+    const where = {
+      isDeleted: false,
+    };
+
     // 获取所有员工数据
     const employees = await prismaClient.employee.findMany({
-      where: {
-        isDeleted: false,
-      },
+      where,
       orderBy: {
         createTime: 'desc',
       },
@@ -25,7 +27,7 @@ export default eventHandler(async (event) => {
       take: Number(pageSize),
     });
 
-    const total = await prismaClient.employee.count({});
+    const total = await prismaClient.employee.count({ where });
 
     console.log('[HRM Debug] 数据库查询结果:', {
       totalEmployees: total,
