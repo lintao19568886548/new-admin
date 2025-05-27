@@ -87,6 +87,7 @@ const modalProps = ref({
 
 // 关闭处理函数
 function _handleClose() {
+  delete billData.billId;
   modalApi.close();
   emit('close');
 }
