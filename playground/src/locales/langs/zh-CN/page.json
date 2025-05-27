@@ -176,7 +176,9 @@
     "factoryMaintenance": "厂房维护",
     "factoryMaintenanceList": "厂房维护列表",
     "hygieneCheck": "卫生检查",
-    "hygieneCheckList": "卫生检查列表"
+    "hygieneCheckList": "卫生检查列表",
+    "elevator": "电梯管理",
+    "elevatorList": "电梯列表"
   },
   "park": {
     "address": "园区地址",

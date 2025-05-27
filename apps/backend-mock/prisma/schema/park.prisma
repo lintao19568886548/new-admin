@@ -20,6 +20,7 @@ model Park {
   transformers  Transformer[]   @relation("ParkToTransformer")
   rentalTenants RentalTenant[]  @relation("ParkToRentalTenant")
   Reimbursement Reimbursement[] @relation("ParkToReimbursement")
+  Elevator      Elevator[]      @relation("ParkToElevator")
   // 添加与图片的关联
   images        ParkImage[]     @relation("ParkToParkImage")
   createTime    DateTime        @default(now()) @map("create_time")
@@ -44,6 +45,7 @@ model Factory {
   transformers        Transformer[]        @relation("FactoryToTransformer")
   factoryMaintenances factoryMaintenance[] @relation("FactoryToFactoryMaintenance")
   HygieneCheck        HygieneCheck[]       @relation("FactoryToHygieneCheck")
+  Elevator            Elevator[]           @relation("FactoryToElevator")
   createTime          DateTime             @default(now()) @map("create_time")
   updateTime          DateTime?            @updatedAt @map("update_time")
   isDeleted           Boolean              @default(false) @map("is_deleted") // 逻辑删除字段

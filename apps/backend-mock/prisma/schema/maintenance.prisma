@@ -82,3 +82,25 @@ model HygieneCheck {
   @@index([factoryId])
   @@map("hygiene_check")
 }
+
+// 升降机管理模型 (maintenance/elevator)
+model Elevator {
+  elevatorId     Int       @id @default(autoincrement()) @map("elevator_id") // 升降机ID
+  name           String?   @db.VarChar(100) // 升降机名称
+  area           Decimal?  @db.Decimal(10,2) // 面积
+  loadCapacity   Decimal?  @map("load_capacity") @db.Decimal(10,2) // 承重
+  brand          String?   @db.VarChar(50) // 品牌
+  checker        String    @db.VarChar(10) // 检查人
+  checkTime      DateTime  @map("check_time") // 检查时间
+  remark         String?   @db.VarChar(100) // 备注
+  createTime     DateTime  @default(now()) @map("create_time") // 创建时间
+  updateTime     DateTime? @updatedAt @map("update_time") // 更新时间
+  factoryId      Int       @default(20) @map("factory_id") // 厂房ID
+  factory        Factory   @relation("FactoryToElevator", fields: [factoryId], references: [factoryId]) // 关联厂房
+  parkId         Int       @map("park_id")
+  park           Park      @relation("ParkToElevator", fields: [parkId], references: [parkId])
+
+  @@index([factoryId])
+  @@index([parkId])
+  @@map("elevator")
+}
