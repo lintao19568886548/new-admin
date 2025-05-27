@@ -154,13 +154,32 @@ watch(
 );
 
 // 服务费计算
-watch([() => billData.serviceRate, () => billData.eleFee], () => {
-  if (!billData.serviceRate) {
-    billData.serviceFee = 0;
-    return;
-  }
-  billData.serviceFee = billData.eleFee * (billData.serviceRate / 100);
-});
+watch(
+  [
+    () => billData.serviceRate,
+    () => billData.eleFee,
+    () => billData.peakAndValleyEleRate,
+  ],
+  () => {
+    if (!billData.serviceRate) {
+      billData.serviceFee = 0;
+      return;
+    }
+    // 计算服务费
+    billData.serviceFee = billData.eleFee * (billData.serviceRate / 100);
+    if (billData.peakAndValleyEleRate) {
+      const peakAndValleyEle = billData.eleBills
+        ?.filter((item) => ['尖', '峰', '平', '谷'].includes(item.meterName))
+        ?.reduce(
+          (sum, item) => Number(sum) + (Number(item.totalUsage) || 0),
+          0,
+        );
+      const peakAndValleyEleFee =
+        (peakAndValleyEle || 0) * (billData.peakAndValleyEleRate / 100);
+      billData.serviceFee += peakAndValleyEleFee;
+    }
+  },
+);
 
 // 垃圾处理费计算
 // watch([() => billData.waterFee], () => {

@@ -142,7 +142,9 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       fieldName: 'managementFee',
       formItemClass: 'p-4',
       label: '基本管理费',
+      rules: 'required',
     },
+
     // {
     //   component: 'InputNumber',
     //   componentProps: {
@@ -163,6 +165,16 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       fieldName: 'serviceRate',
       formItemClass: 'p-4',
       label: '服务费',
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '%',
+        placeholder: '需收取尖峰平谷服务费时填入',
+      },
+      fieldName: 'peakAndValleyEleRate',
+      formItemClass: 'p-4',
+      label: '峰谷服务费',
     },
     // {
     //   component: 'InputNumber',
