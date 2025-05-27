@@ -91,6 +91,7 @@ function onCreate() {
     eleBills: [],
     eleFee: 0,
     factoryRent: 0,
+    garbageFee: 0,
     invoiceTax: 0,
     managementFee: 0,
     receiptTime: dayjs().toISOString(),

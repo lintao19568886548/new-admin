@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { ReimbursementItem } from './data';
 
-import { onMounted, reactive, ref, shallowRef } from 'vue';
+import { computed, onMounted, reactive, ref, shallowRef, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { Search } from '@vben/icons';
@@ -39,7 +39,7 @@ const isRecordModalVisible = ref(false);
 // 获取用户存储
 const userStore = useUserStore();
 const accessStore = useAccessStore();
-const currentUsername = userStore.userInfo?.username || '';
+const currentUsername = computed(() => userStore.userInfo?.username || '');
 
 // 使用shallowRef优化性能
 const reimbursementList = shallowRef<ReimbursementItem[]>([]);
@@ -71,6 +71,17 @@ const statusOptions = Object.entries(STATUS_MAP).map(([value, item]) => ({
 // 获取报销列表
 async function fetchReimbursements() {
   loading.value = true;
+  console.warn(
+    `[ReimbursementList] fetchReimbursements 调用时 currentUsername: ${currentUsername.value}`,
+  );
+  // 如果当前用户名为空，则不进行查询，直接返回并提示错误
+  if (!currentUsername.value) {
+    reimbursementList.value = [];
+    pagination.total = 0;
+    loading.value = false;
+    message.error($t('无法获取当前用户信息，请检查登录状态或联系管理员。'));
+    return;
+  }
   try {
     const params: any = {
       pageNo: pagination.current,
@@ -78,7 +89,7 @@ async function fetchReimbursements() {
     };
 
     // 所有用户只能查看自己的申请记录
-    params.username = currentUsername;
+    params.username = currentUsername.value;
 
     // 添加其他搜索条件
     if (searchForm.purpose) {
@@ -136,10 +147,59 @@ async function handleCancelReimbursement(record: ReimbursementItem) {
 
 // 显示记录弹窗
 function showRecordModal() {
+  // 重置搜索表单字段
+  searchForm.dateRange = null;
+  searchForm.purpose = '';
+  searchForm.status = undefined;
+  pagination.current = 1;
+
+  // 清空可能存在的旧列表数据
+  reimbursementList.value = [];
+  pagination.total = 0;
+
   isRecordModalVisible.value = true;
-  // 重置搜索条件以确保用户看到最新申请
-  resetSearch();
+  // 数据加载将由下面的 watch 触发
 }
+
+// 侦听用户名和弹窗可见性的变化
+watch(
+  [currentUsername, isRecordModalVisible],
+  ([newUsername, modalVisible], [oldUsername, oldModalVisible]) => {
+    if (modalVisible) {
+      if (newUsername) {
+        // 弹窗可见且用户名有效
+        // 在以下任一情况下获取数据:
+        // 1. 弹窗刚刚打开 (之前不可见)
+        // 2. 用户名刚刚变为有效 (之前无效)
+        // 3. 用户名在弹窗打开期间发生了变化
+        if (!oldModalVisible || !oldUsername || newUsername !== oldUsername) {
+          console.warn(
+            `[ReimbursementList] 用户名: ${newUsername}, 弹窗已显示。准备获取报销记录。`,
+          );
+          // 确保在获取数据前重置搜索条件
+          searchForm.dateRange = null;
+          searchForm.purpose = '';
+          searchForm.status = undefined;
+          pagination.current = 1;
+          fetchReimbursements();
+        }
+      } else {
+        // 弹窗可见但用户名无效
+        console.warn(
+          '[ReimbursementList] 用户名无效但弹窗已显示。清空列表并提示错误。',
+        );
+        reimbursementList.value = [];
+        pagination.total = 0;
+        loading.value = false; // 关闭加载状态
+        message.error($t('无法获取当前用户信息，请检查登录状态或联系管理员。'));
+      }
+    } else {
+      // 弹窗不可见，不执行任何操作
+      // console.log('[ReimbursementList] 弹窗已关闭。');
+    }
+  },
+  { immediate: false }, // 不在组件挂载时立即执行，等待变化
+);
 
 // 处理搜索
 function handleSearch() {
@@ -282,7 +342,7 @@ async function handleSubmit() {
           };
         }),
       status: 0, // 初始状态：待审核
-      username: currentUsername, // 添加当前用户名
+      username: currentUsername.value, // 添加当前用户名
     };
 
     // 调用API提交数据

@@ -17,8 +17,7 @@ export interface AmountBill {
   eleTax?: number; // 电费税金
   eleTaxRate?: number; // 电费税金
   factoryRent: number; // 厂房租金
-  garbageFee?: number; // 垃圾管理费
-  garbageRate?: number; // 垃圾费比率
+  garbageFee: number; // 垃圾管理费
   invoiceTax: number; // 开票税金
   managementFee: number; // 基本管理费
   parkId?: number; // 园区ID

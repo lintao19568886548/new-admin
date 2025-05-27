@@ -70,6 +70,7 @@ const activeKey = ref(1);
 // 表单引用
 const eleFormRef = ref();
 const waterFormRef = ref();
+const waterAmountItem = ref();
 
 // 模态窗口参数
 const modalProps = ref({
@@ -112,26 +113,17 @@ const [TenantForm, tenantFormApi] = useVbenForm({
 
 // 账单数据
 const billData = reactive<AmountBill>({
-  // Initialize other fields from AmountBill as needed
-  eleBills: [],
   eleFee: 0,
   factoryRent: 0,
+  garbageFee: 0,
   invoiceTax: 0,
   managementFee: 0,
-  parkId: undefined, // Ensure parkId is part of AmountBill or handled
-  projectName: '',
-  receiptTime: dayjs().toISOString(), // Initialize as ISO string
-  remark: '',
-  serviceFee: 0,
-  tenant: [], // For Cascader's v-model
-  tenantId: undefined, // Add tenantId
-  tenantName: '', // Will be derived from Cascader
+  receiptTime: dayjs().toISOString(),
   totalFee: 0,
-  waterBills: [],
   waterFee: 0,
 });
 
-const tenantList = ref<Park[]>([]); // This is used for Cascader
+const tenantList = ref<Park[]>([]);
 
 // 在组件挂载时获取租户列表 (tenantList includes park info)
 onMounted(async () => {
@@ -171,17 +163,17 @@ watch([() => billData.serviceRate, () => billData.eleFee], () => {
 });
 
 // 垃圾处理费计算
-watch([() => billData.garbageRate], () => {
-  if (!billData.garbageRate) {
-    billData.garbageFee = 0;
-    return;
-  }
-  const waterBill = billData.waterBills?.find(
-    (item) => item.meterName === '合计',
-  );
+// watch([() => billData.waterFee], () => {
+//   if (!billData.waterFee) {
+//     billData.garbageFee = 0;
+//     return;
+//   }
+//   const waterBill = billData.waterBills?.find(
+//     (item) => item.meterName === '合计',
+//   );
 
-  billData.garbageFee = waterBill.totalUsage * (billData.garbageRate / 100);
-});
+//   billData.garbageFee = waterBill.totalUsage * 1.5;
+// });
 
 // 滞纳金计算
 watch([() => billData.penalty], () => {
@@ -320,7 +312,8 @@ function handleWaterSuccess(data: any) {
 
     // 计算水费合计
     const item = data.waterBills.find((item: any) => item.meterName === '合计');
-    billData.waterFee = item?.amount || 0;
+    waterAmountItem.value = item;
+    billData.waterFee = item?.amount + item?.totalUsage * 1.5 || 0;
   }
 }
 
@@ -451,6 +444,9 @@ async function initData(data: any, type: string) {
       Object.assign(billData, nextBillData);
     } else {
       Object.assign(billData, billDetail);
+      waterAmountItem.value = billDetail.waterBills?.find(
+        (item: any) => item.meterName === '合计',
+      );
     }
   } else {
     // 重置表单数据
@@ -588,7 +584,7 @@ defineExpose({
             打开水费表单
           </Button>
           <div v-if="billData.waterFee > 0" class="mt-4 text-green-600">
-            已添加水费明细，合计金额：{{ billData.waterFee }} 元
+            已添加水费明细，合计金额：{{ waterAmountItem?.amount || 0 }} 元
           </div>
         </div>
       </div>
@@ -624,13 +620,13 @@ defineExpose({
             </DescriptionsItem>
 
             <!-- 第三行：垃圾处理费和服务费 -->
-            <DescriptionsItem label="垃圾处理费" :span="1">
+            <!-- <DescriptionsItem label="垃圾处理费" :span="1">
               <Statistic
                 :value="billData.garbageFee || 0"
                 :precision="2"
                 prefix="¥"
               />
-            </DescriptionsItem>
+            </DescriptionsItem> -->
             <DescriptionsItem label="服务费" :span="1">
               <Statistic
                 :value="billData.serviceFee || 0"
@@ -640,7 +636,11 @@ defineExpose({
             </DescriptionsItem>
 
             <!-- 第四行：滞纳金和开票税金 -->
-            <DescriptionsItem label="滞纳金" :span="1">
+            <DescriptionsItem
+              v-if="billData.penaltyFee && billData.penaltyFee > 0"
+              label="滞纳金"
+              :span="1"
+            >
               <Statistic
                 :value="billData.penaltyFee || 0"
                 :precision="2"
