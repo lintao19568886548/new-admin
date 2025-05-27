@@ -63,8 +63,12 @@ const originData = ref();
 
 const numEditRender = reactive({
   events: {
-    blur: () => {
+    blur: ({ column, rowIndex }: any) => {
       setTimeout(() => {
+        gridApi.grid.setEditCell(
+          gridApi.grid.getData(rowIndex + 1),
+          column.field,
+        );
         enableDarg.value = true;
       }, 50);
     },
@@ -376,7 +380,10 @@ function updateTotalRow() {
   // 使用for循环计算totalUsage，排除包含"公共"的行
   let totalUsage = 0;
   for (const row of regularRows) {
-    if (row.meterName && row.meterName.includes('公共')) {
+    if (
+      row.meterName &&
+      (row.meterName.includes('公共') || row.meterName.includes('公摊'))
+    ) {
       continue;
     }
     totalUsage += Number(row.totalUsage) || 0;
@@ -445,7 +452,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     height: window.innerHeight * 0.6,
     keepSource: true,
-
     pagerConfig: {
       enabled: false,
     },
