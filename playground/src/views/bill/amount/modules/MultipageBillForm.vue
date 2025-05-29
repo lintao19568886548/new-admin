@@ -160,6 +160,7 @@ watch(
     () => billData.serviceRate,
     () => billData.eleFee,
     () => billData.peakAndValleyEleRate,
+    () => billData.peakAndValleyEleItem,
   ],
   () => {
     if (!billData.serviceRate) {
@@ -168,9 +169,18 @@ watch(
     }
     // 计算服务费
     billData.serviceFee = billData.eleFee * (billData.serviceRate / 100);
-    if (billData.peakAndValleyEleRate) {
+    if (
+      billData.peakAndValleyEleRate &&
+      Array.isArray(billData.peakAndValleyEleItem) &&
+      billData.peakAndValleyEleItem.length > 0
+    ) {
+      // 使用peakAndValleyEleItem数组中的值来过滤电费项
       const peakAndValleyEle = billData.eleBills
-        ?.filter((item) => ['尖', '峰', '平', '谷'].includes(item.meterName))
+        ?.filter(
+          (item) =>
+            billData.peakAndValleyEleItem &&
+            billData.peakAndValleyEleItem.includes(item.meterName),
+        )
         ?.reduce(
           (sum, item) => Number(sum) + (Number(item.totalUsage) || 0),
           0,
@@ -372,6 +382,9 @@ async function handleSave() {
   const tenantSubmit = {
     ...tenantData,
     parkId: tenant[0],
+    peakAndValleyEleItem: Array.isArray(billData.peakAndValleyEleItem)
+      ? billData.peakAndValleyEleItem.join(',')
+      : billData.peakAndValleyEleItem,
     penaltyRate, // 添加滞纳金比率
     taxRate: JSON.stringify({
       eleTax,
@@ -426,8 +439,40 @@ async function initData(data: any, type: string) {
   // 复制账单数据
   if (data.billId) {
     const billDetail = await getAmountBillDetail(data.billId);
+
+    // 提取电表项作为Select组件的选项
+    const eleOptions =
+      billDetail.eleBills
+        ?.filter((item: any) => item.meterName !== '合计')
+        .map((item: any) => ({
+          label: item.meterName,
+          value: item.meterName,
+        })) || [];
+
+    // 更新TenantForm中Select组件的选项
+    tenantFormApi.updateSchema([
+      {
+        componentProps: {
+          options: eleOptions,
+        },
+        fieldName: 'peakAndValleyEleItem',
+      },
+    ]);
+
+    let peakAndValleyEleItemProcessed: string[] = [];
+    if (
+      typeof billDetail.peakAndValleyEleItem === 'string' &&
+      billDetail.peakAndValleyEleItem.length > 0
+    ) {
+      peakAndValleyEleItemProcessed =
+        billDetail.peakAndValleyEleItem.split(',');
+    } else if (Array.isArray(billDetail.peakAndValleyEleItem)) {
+      peakAndValleyEleItemProcessed = billDetail.peakAndValleyEleItem;
+    }
+
     const tenantDetail = {
       ...billDetail,
+      peakAndValleyEleItem: peakAndValleyEleItemProcessed,
       ...(billDetail.taxRate ? JSON.parse(billDetail.taxRate) : undefined),
       // 设置 penalty 对象，使用账单中的滞纳金相关字段
       penalty: {
@@ -496,6 +541,16 @@ async function initData(data: any, type: string) {
     billData.remark = '';
     billData.receiptTime = defaultReceiptTime;
     tenantFormApi.resetForm();
+
+    // 重置Select组件的选项
+    tenantFormApi.updateSchema([
+      {
+        componentProps: {
+          options: [],
+        },
+        fieldName: 'peakAndValleyEleItem',
+      },
+    ]);
   }
 
   // 设置数据
@@ -567,7 +622,7 @@ defineExpose({
             type="primary"
             @click="
               eleFormRef?.open({
-                eleBills: billData.eleBills,
+                eleBills: billData.eleBills || [],
                 itemsField: 'eleBills',
               })
             "
@@ -596,7 +651,7 @@ defineExpose({
             type="primary"
             @click="
               waterFormRef?.open({
-                waterBills: billData.waterBills,
+                waterBills: billData.waterBills || [],
                 itemsField: 'waterBills',
               })
             "

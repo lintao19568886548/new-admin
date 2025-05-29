@@ -21,7 +21,8 @@ export interface AmountBill {
   invoiceTax: number; // 开票税金
   managementFee: number; // 基本管理费
   parkId?: number; // 园区ID
-  peakAndValleyEleRate?: number; // 峰谷服务费比率;
+  peakAndValleyEleItem?: string[]; // 额外服务费项;
+  peakAndValleyEleRate?: number; // 额外服务费比率;
   penalty?: number[]; // 滞纳金数据
   penaltyFee?: number; // 滞纳金
   penaltyRate?: number;

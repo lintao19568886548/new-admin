@@ -63,12 +63,8 @@ const originData = ref();
 
 const numEditRender = reactive({
   events: {
-    blur: ({ column, rowIndex }: any) => {
+    blur: () => {
       setTimeout(() => {
-        gridApi.grid.setEditCell(
-          gridApi.grid.getData(rowIndex + 1),
-          column.field,
-        );
         enableDarg.value = true;
       }, 50);
     },
@@ -96,6 +92,16 @@ const numEditRender = reactive({
     focus: () => {
       enableDarg.value = false;
     },
+    keydown: ({ column, rowIndex }: any) => {
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          gridApi.grid.setEditCell(
+            gridApi.grid.getData(rowIndex + 1),
+            column.field,
+          );
+        }
+      });
+    },
   },
   immediate: true,
   name: 'input',
@@ -113,6 +119,16 @@ const strEditRender = reactive({
     },
     focus: () => {
       enableDarg.value = false;
+    },
+    keydown: ({ column, rowIndex }: any) => {
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          gridApi.grid.setEditCell(
+            gridApi.grid.getData(rowIndex + 1),
+            column.field,
+          );
+        }
+      });
     },
   },
   immediate: true,
@@ -213,11 +229,17 @@ const templates = {
 // 初始化数据
 function initData(data: any) {
   // 根据数据类型选择模板
-  if (data?.eleBills?.length === 0) {
+  if (
+    data?.itemsField === 'eleBills' &&
+    (!data?.eleBills || data?.eleBills?.length === 0)
+  ) {
     dataSource.value = templates.ele;
     return;
   }
-  if (data?.waterBills?.length === 0) {
+  if (
+    data?.itemsField === 'waterBills' &&
+    (!data?.waterBills || data?.waterBills?.length === 0)
+  ) {
     dataSource.value = templates.water;
     return;
   }
@@ -315,7 +337,22 @@ const handleAdd = () => {
     newData.billId = dataSource.value[0].billId;
   }
 
-  dataSource.value.splice(-1, 0, newData);
+  // 检查dataSource.value是否为空或不是数组
+  if (!Array.isArray(dataSource.value) || dataSource.value.length === 0) {
+    dataSource.value = [newData];
+  } else {
+    // 如果有合计行，在合计行前插入新行
+    const totalRowIndex = dataSource.value.findIndex(
+      (item) => item.meterName === '合计',
+    );
+    if (totalRowIndex === -1) {
+      // 如果没有合计行，直接添加到末尾
+      dataSource.value.push(newData);
+    } else {
+      dataSource.value.splice(totalRowIndex, 0, newData);
+    }
+  }
+
   refreshGrid();
 };
 

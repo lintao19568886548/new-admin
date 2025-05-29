@@ -453,7 +453,7 @@ function handlePrintCancel() {
 
     <!-- 导出Excel模态框 -->
     <Modal
-      v-model:visible="exportModalVisible"
+      v-model:open="exportModalVisible"
       title="导出Excel"
       @ok="onExport"
       :confirm-loading="exportLoading"

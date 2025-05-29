@@ -16,6 +16,7 @@ model AmountBill {
   garbageRate          Decimal?      @map("garbage_rate") @db.Decimal(5, 2)
   penaltyRate          Decimal?      @map("penalty_rate") @db.Decimal(5, 2)
   peakAndValleyEleRate Decimal?      @map("peak_and_valley_ele_rate") @db.Decimal(5, 2)
+  peakAndValleyEleItem String?       @map("peak_and_valley_ele_item") @db.VarChar(200)
   taxRate              String?       @map("tax_rate") @db.LongText /// 开票税金, 以json格式存储
   tenantId             Int?          @map("tenant_id")
   remark               String?       @db.VarChar(100)
