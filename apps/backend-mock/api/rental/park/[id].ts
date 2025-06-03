@@ -50,6 +50,13 @@ export default eventHandler(async (event) => {
               },
               take: 1,
             },
+            // 新增：包含升降机
+            elevator: {
+              orderBy: {
+                checkTime: 'desc',
+              },
+              take: 1,
+            },
           },
         },
         // 包含宿舍信息
@@ -148,6 +155,11 @@ export default eventHandler(async (event) => {
         })),
         // 处理变压器数据
         transformers: factory.transformers.map((item) => ({
+          ...item,
+          checkTime: item.checkTime ? item.checkTime.toISOString() : null,
+        })),
+        // 新增：处理升降机数据
+        elevators: factory.elevator.map((item) => ({
           ...item,
           checkTime: item.checkTime ? item.checkTime.toISOString() : null,
         })),

@@ -33,7 +33,7 @@ export function useFormSchema(): VbenFormSchema[] {
     {
       component: 'Input',
       fieldName: 'name',
-      label: '电梯名称',
+      label: '升降机名称',
       rules: 'required',
     },
     {
@@ -115,7 +115,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
     {
       component: 'Input',
       fieldName: 'name',
-      label: '电梯名称',
+      label: '升降机名称',
     },
     {
       component: 'Input',
@@ -170,7 +170,7 @@ export function useColumns(
     {
       field: 'name',
       minWidth: 150,
-      title: '电梯名称',
+      title: '升降机名称',
     },
     {
       field: 'area',
@@ -209,8 +209,8 @@ export function useColumns(
       align: 'center',
       cellRender: {
         attrs: {
-          nameField: 'name', // 更新为电梯名称字段
-          nameTitle: '电梯名称',
+          nameField: 'name', // 更新为升降机名称字段
+          nameTitle: '升降机名称',
           onClick: onActionClick,
         },
         name: 'CellOperation',

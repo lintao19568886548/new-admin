@@ -615,6 +615,75 @@ onMounted(() => {
                         暂无变压器信息
                       </div>
                     </TabPane>
+                    <TabPane key="3" tab="升降机">
+                      <!-- 升降机信息展示 -->
+                      <div
+                        v-if="factory.elevators && factory.elevators.length > 0"
+                        class="space-y-4"
+                      >
+                        <div
+                          v-for="item in factory.elevators"
+                          :key="item.elevatorId"
+                          class="flex flex-col md:flex-row"
+                        >
+                          <div class="p-2 md:w-2/3">
+                            <h3 class="mb-2 text-lg font-semibold">
+                              {{ item.name || '未命名升降机' }}
+                              <!-- 使用升降机名称 -->
+                            </h3>
+                            <Descriptions
+                              bordered
+                              :column="{
+                                xxl: 3,
+                                xl: 2,
+                                lg: 2,
+                                md: 1,
+                                sm: 1,
+                                xs: 1,
+                              }"
+                            >
+                              <!-- 函数级注释：显示升降机品牌 -->
+                              <Descriptions.Item label="品牌">
+                                {{ item.brand }}
+                              </Descriptions.Item>
+                              <!-- 函数级注释：显示升降机面积 -->
+                              <Descriptions.Item label="面积(㎡)">
+                                {{ item.area }}
+                              </Descriptions.Item>
+                              <!-- 函数级注释：显示升降机承重 -->
+                              <Descriptions.Item label="承重(kg)">
+                                {{ item.loadCapacity }}
+                              </Descriptions.Item>
+                              <!-- 函数级注释：显示检查人 -->
+                              <Descriptions.Item label="检查人">
+                                {{ item.checker }}
+                              </Descriptions.Item>
+                              <!-- 函数级注释：显示检查时间，并格式化 -->
+                              <Descriptions.Item label="检查时间">
+                                {{ formatDateTime(item.checkTime) }}
+                              </Descriptions.Item>
+                              <!-- 可以根据需要添加其他字段，例如状态 -->
+                              <!-- <Descriptions.Item label="状态">
+                                <Tag :color="getTagColor(item.status)">
+                                  {{ item.status }}
+                                </Tag>
+                              </Descriptions.Item> -->
+                              <!-- 函数级注释：如果存在备注，则显示备注 -->
+                              <Descriptions.Item
+                                v-if="item.remark"
+                                label="备注"
+                              >
+                                {{ item.remark }}
+                              </Descriptions.Item>
+                            </Descriptions>
+                          </div>
+                        </div>
+                      </div>
+                      <!-- 函数级注释：如果没有升降机信息，显示提示文本 -->
+                      <div v-else class="py-10 text-center text-gray-500">
+                        暂无升降机信息
+                      </div>
+                    </TabPane>
                   </Tabs>
                 </div>
               </div>

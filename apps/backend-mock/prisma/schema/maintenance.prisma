@@ -61,8 +61,11 @@ model factoryMaintenance {
   updateTime           DateTime? @updatedAt @map("update_time")
   factoryId            Int       @default(20) @map("factory_id")
   factory              Factory   @relation("FactoryToFactoryMaintenance", fields: [factoryId], references: [factoryId])
+  parkId               Int       @map("park_id")
+  park                 Park      @relation("ParkToFactoryMaintenance", fields: [parkId], references: [parkId])
 
   @@index([factoryId]) // 建议添加索引以提高查询性能
+  @@index([parkId])
   @@map("factory_maintenance") // 建议将 @@map 的值也修改以保持一致性
 }
 
@@ -78,8 +81,11 @@ model HygieneCheck {
   updateTime     DateTime? @updatedAt @map("update_time")
   factoryId      Int       @default(20) @map("factory_id")
   factory        Factory   @relation("FactoryToHygieneCheck", fields: [factoryId], references: [factoryId])
+  parkId         Int       @map("park_id")
+  park           Park      @relation("ParkToHygieneCheck", fields: [parkId], references: [parkId])
 
   @@index([factoryId])
+  @@index([parkId])
   @@map("hygiene_check")
 }
 
