@@ -1,10 +1,10 @@
 import { requestClient } from '#/api/request';
 
-export async function getVisitorParkList(params: any) {
+export async function getVisitorParkList(params?: any) {
   return requestClient.get('/park/visitor-list', { params });
 }
 
-export async function getParkList(params: any) {
+export async function getParkList(params?: any) {
   return requestClient.get('/park/list', { params });
 }
 

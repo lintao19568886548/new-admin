@@ -1,15 +1,13 @@
 <script lang="ts" setup>
-import { ref } from 'vue';
+import type { Park } from '#/store/park'; // 导入类型
+
+import { onMounted, ref } from 'vue';
 
 import { ChevronDown } from '@vben/icons';
-import { useUserStore } from '@vben/stores';
 
 import { Button, Dropdown, Menu, message } from 'ant-design-vue';
 
-export interface Park {
-  parkId: number;
-  parkName: string;
-}
+import { useParkStore } from '#/store/park';
 
 // 定义组件属性
 const props = withDefaults(
@@ -40,18 +38,14 @@ const emit = defineEmits<{
   (e: 'refresh'): void;
 }>();
 
-const userStore = useUserStore();
 const currentPark = ref<Park>(props.defaultPark);
-// 区域列表
-const parks = userStore.userInfo?.parks || [];
+// 获取园区状态管理
+const parkStore = useParkStore();
 
-// 检查是否已存在"全部区域"选项，如果不存在才添加
-if (parks.length > 0 && !parks.some((park: any) => park.parkId === -1)) {
-  parks.unshift({
-    parkId: -1,
-    parkName: '全部区域',
-  });
-}
+onMounted(async () => {
+  // 使用store的方法获取园区列表（包含全部区域选项）
+  await parkStore.fetchParkList();
+});
 
 // 处理区域切换
 function switchArea(park: Park) {
@@ -59,6 +53,8 @@ function switchArea(park: Park) {
 
   // 更新当前选中的区域
   currentPark.value = park;
+  // 更新全局状态中的当前园区
+  parkStore.setCurrentPark(park);
 
   // 显示加载提示
   message.loading({
@@ -97,7 +93,7 @@ defineExpose({
     <template #overlay>
       <Menu>
         <Menu.Item
-          v-for="park in parks"
+          v-for="park in parkStore.parkList"
           :key="park.parkName"
           @click="() => switchArea(park)"
         >
@@ -105,7 +101,7 @@ defineExpose({
         </Menu.Item>
       </Menu>
     </template>
-    <Button type="primary">
+    <Button type="primary" :loading="parkStore.loading">
       {{ currentPark?.parkName || '全部区域' }}
       <ChevronDown class="ml-1 size-4" />
     </Button>

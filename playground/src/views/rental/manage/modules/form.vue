@@ -93,6 +93,9 @@ async function handleNext(step: number) {
     const park = id.value
       ? await updatePark(id.value, parkDataForApi)
       : await createPark(parkDataForApi);
+
+    // 操作成功后，强制刷新store中的园区列表数据
+    await parkStore.fetchParkList(true);
     id.value = park.parkId;
     parkStore.parkId = park.parkId;
   }
@@ -140,6 +143,7 @@ const [Modal, modalApi] = useVbenModal({
             ]),
           });
         }
+
         modalApi.close();
         emit('success');
       } catch (error) {
