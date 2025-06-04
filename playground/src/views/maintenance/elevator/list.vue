@@ -196,7 +196,7 @@ function refreshGrid() {
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">
           <Plus class="size-5" />
-          {{ $t('ui.actionTitle.create', [$t('升降机')]) }}
+          {{ $t('ui.actionTitle.create', [$t('电梯')]) }}
         </Button>
       </template>
     </Grid>

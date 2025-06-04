@@ -615,8 +615,8 @@ onMounted(() => {
                         暂无变压器信息
                       </div>
                     </TabPane>
-                    <TabPane key="3" tab="升降机">
-                      <!-- 升降机信息展示 -->
+                    <TabPane key="3" tab="电梯">
+                      <!-- 电梯信息展示 -->
                       <div
                         v-if="factory.elevators && factory.elevators.length > 0"
                         class="space-y-4"
@@ -628,8 +628,8 @@ onMounted(() => {
                         >
                           <div class="p-2 md:w-2/3">
                             <h3 class="mb-2 text-lg font-semibold">
-                              {{ item.name || '未命名升降机' }}
-                              <!-- 使用升降机名称 -->
+                              {{ item.name || '未命名电梯' }}
+                              <!-- 使用电梯名称 -->
                             </h3>
                             <Descriptions
                               bordered
@@ -642,15 +642,15 @@ onMounted(() => {
                                 xs: 1,
                               }"
                             >
-                              <!-- 函数级注释：显示升降机品牌 -->
+                              <!-- 函数级注释：显示电梯品牌 -->
                               <Descriptions.Item label="品牌">
                                 {{ item.brand }}
                               </Descriptions.Item>
-                              <!-- 函数级注释：显示升降机面积 -->
+                              <!-- 函数级注释：显示电梯面积 -->
                               <Descriptions.Item label="面积(㎡)">
                                 {{ item.area }}
                               </Descriptions.Item>
-                              <!-- 函数级注释：显示升降机承重 -->
+                              <!-- 函数级注释：显示电梯承重 -->
                               <Descriptions.Item label="承重(kg)">
                                 {{ item.loadCapacity }}
                               </Descriptions.Item>
@@ -679,9 +679,9 @@ onMounted(() => {
                           </div>
                         </div>
                       </div>
-                      <!-- 函数级注释：如果没有升降机信息，显示提示文本 -->
+                      <!-- 函数级注释：如果没有电梯信息，显示提示文本 -->
                       <div v-else class="py-10 text-center text-gray-500">
-                        暂无升降机信息
+                        暂无电梯信息
                       </div>
                     </TabPane>
                   </Tabs>
