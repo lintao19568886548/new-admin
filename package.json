@@ -54,6 +54,9 @@
     "update:deps": "npx taze -r -w",
     "version": "pnpm exec changeset version && pnpm install --no-frozen-lockfile"
   },
+  "dependencies": {
+    "@ant-design/icons-vue": "^7.0.1"
+  },
   "devDependencies": {
     "@changesets/changelog-github": "catalog:",
     "@changesets/cli": "catalog:",
@@ -112,8 +115,5 @@
       "canvas",
       "node-gyp"
     ]
-  },
-  "dependencies": {
-    "@ant-design/icons-vue": "^7.0.1"
   }
 }
