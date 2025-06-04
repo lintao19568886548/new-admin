@@ -29,6 +29,7 @@
     "#/*": "./src/*"
   },
   "dependencies": {
+    "@ant-design/icons-vue": "^7.0.1",
     "@tanstack/vue-query": "catalog:",
     "@types/lodash-es": "^4.17.12",
     "@vben-core/menu-ui": "workspace:*",
