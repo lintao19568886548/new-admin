@@ -1,42 +1,57 @@
 import type { RouteRecordRaw } from 'vue-router';
 
+import { $t } from '#/locales';
+
+// const LAYOUT = () => import('@/layouts/default/index.vue'); // Removed this line
+
 const routes: RouteRecordRaw[] = [
   {
     meta: {
-      icon: 'material-symbols:group-outline',
-      order: 9000,
-      title: '人力资源',
+      icon: 'mdi:account-group-outline',
+      order: 10, // Example order
+      title: $t('人事管理'),
     },
-    name: 'HRM',
+    name: 'Hrm',
     path: '/hrm',
+    // component: LAYOUT, // Removed this line
     redirect: '/hrm/information',
     children: [
       {
-        path: '/hrm/information',
+        path: 'information', // Ensure relative path
         name: 'HrmInformation',
         component: () => import('#/views/hrm/information/list.vue'),
         meta: {
-          icon: 'mdi:account-multiple-outline',
-          title: '人员管理',
+          title: $t('员工信息'),
         },
       },
       {
-        path: '/hrm/attendance',
+        path: 'mobile-information', // Ensure relative path
+        name: 'HrmMobileInformation',
+        component: () => import('#/views/hrm/information/mobile-list.vue'),
+        meta: {
+          hideMenu: true,
+          title: $t('移动端员工信息'),
+        },
+      },
+      {
+        path: 'attendance', // Corrected to relative path
         name: 'HrmAttendance',
+        // component: undefined, // Or a placeholder if needed, but usually not for parent if children exist
         meta: {
           icon: 'mdi:calendar-clock',
           title: '考勤管理',
         },
-        children: [],
+        // children: [], // If no children, can be omitted or set to undefined if it's a direct component route
       },
       {
-        path: '/hrm/payroll',
+        path: 'payroll', // Corrected to relative path
         name: 'HrmPayroll',
+        // component: undefined,
         meta: {
           icon: 'mdi:cash-multiple',
           title: '薪资管理',
         },
-        children: [],
+        // children: [],
       },
     ],
   },
