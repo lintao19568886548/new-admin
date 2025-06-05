@@ -166,8 +166,14 @@ watch(
       billData.serviceFee = 0;
       return;
     }
-    // 计算服务费
-    billData.serviceFee = billData.eleFee * (billData.serviceRate / 100);
+    // 计算服务费 - 确保使用数字类型
+    const eleFee = Number(billData.eleFee || 0);
+    const serviceRate = Number(billData.serviceRate || 0);
+
+    // 计算基本服务费
+    billData.serviceFee = eleFee * (serviceRate / 100);
+
+    // 计算峰谷电费服务费
     if (
       billData.peakAndValleyEleRate &&
       Array.isArray(billData.peakAndValleyEleItem) &&
@@ -185,9 +191,15 @@ watch(
           0,
         );
       const peakAndValleyEleFee =
-        (peakAndValleyEle || 0) * (billData.peakAndValleyEleRate / 100);
+        (peakAndValleyEle || 0) * (Number(billData.peakAndValleyEleRate) / 100);
       billData.serviceFee += peakAndValleyEleFee;
     }
+
+    // 确保 serviceFee 是数字类型
+    billData.serviceFee = Number(billData.serviceFee);
+  },
+  {
+    immediate: true,
   },
 );
 
@@ -258,9 +270,9 @@ watch(
     () => billData.waterTax,
     () => billData.eleTax,
     () => billData.rentTax,
-    () => billData.waterFee, // 也应作为依赖，因为在回调中读取
-    () => billData.eleFee, // 也应作为依赖
-    () => billData.factoryRent, // 也应作为依赖
+    () => billData.waterFee,
+    () => billData.eleFee,
+    () => billData.factoryRent,
     () => billData.serviceFee,
   ],
   () => {
@@ -283,20 +295,36 @@ watch(
       return numericFee * (numericRate / 100);
     };
 
+    // 确保所有输入都是数字类型
+    const waterFee = Number(billData.waterFee || 0);
+    const eleFee = Number(billData.eleFee || 0);
+    const serviceFee = Number(billData.serviceFee || 0);
+    const factoryRent = Number(billData.factoryRent || 0);
+
+    // 水费税金计算
     const waterInvoiceTax = calculateItemTax(
-      billData.waterTax || billData.waterFee,
+      billData.waterTax || waterFee,
       billData.waterTaxRate,
     );
+
+    // 电费税金计算 (包括服务费)
     const eleInvoiceTax = calculateItemTax(
-      billData.eleTax || billData.eleFee + billData.serviceFee,
+      billData.eleTax || eleFee + serviceFee,
       billData.eleTaxRate,
     );
+
+    // 租金税金计算
     const rentInvoiceTax = calculateItemTax(
-      billData.rentTax || billData.factoryRent,
+      billData.rentTax || factoryRent,
       billData.rentTaxRate,
     );
 
+    // 设置总税金
     billData.invoiceTax = waterInvoiceTax + eleInvoiceTax + rentInvoiceTax;
+  },
+  {
+    deep: true,
+    immediate: true,
   },
 );
 
@@ -331,7 +359,45 @@ function handleEleSuccess(data: any) {
     // 计算电费合计
     billData.eleBills = data.eleBills || [];
     const item = data.eleBills.find((item: any) => item.meterName === '合计');
-    billData.eleFee = item?.amount || 0;
+
+    // 确保 eleFee 是数字类型
+    billData.eleFee = Number(item?.amount || 0);
+
+    // 如果设置了服务费率，手动触发服务费计算
+    if (billData.serviceRate) {
+      // 重新计算服务费
+      const eleFee = Number(billData.eleFee || 0);
+      const serviceRate = Number(billData.serviceRate || 0);
+
+      // 计算基本服务费
+      billData.serviceFee = eleFee * (serviceRate / 100);
+
+      // 计算峰谷电费服务费
+      if (
+        billData.peakAndValleyEleRate &&
+        Array.isArray(billData.peakAndValleyEleItem) &&
+        billData.peakAndValleyEleItem.length > 0
+      ) {
+        // 使用peakAndValleyEleItem数组中的值来过滤电费项
+        const peakAndValleyEle = billData.eleBills
+          ?.filter(
+            (item) =>
+              billData.peakAndValleyEleItem &&
+              billData.peakAndValleyEleItem.includes(item.meterName),
+          )
+          ?.reduce(
+            (sum, item) => Number(sum) + (Number(item.totalUsage) || 0),
+            0,
+          );
+        const peakAndValleyEleFee =
+          (peakAndValleyEle || 0) *
+          (Number(billData.peakAndValleyEleRate) / 100);
+        billData.serviceFee += peakAndValleyEleFee;
+      }
+
+      // 确保 serviceFee 是数字类型
+      billData.serviceFee = Number(billData.serviceFee);
+    }
   }
 }
 
@@ -470,10 +536,26 @@ async function initData(data: any, type: string) {
       peakAndValleyEleItemProcessed = billDetail.peakAndValleyEleItem;
     }
 
+    // 解析税率数据，确保是数字类型
+    let taxRateData: Record<string, any> = {};
+    if (billDetail.taxRate) {
+      try {
+        taxRateData = JSON.parse(billDetail.taxRate);
+        // 确保税率是数字类型
+        ['eleTaxRate', 'waterTaxRate', 'rentTaxRate'].forEach((key) => {
+          if (taxRateData[key]) {
+            taxRateData[key] = Number(taxRateData[key]);
+          }
+        });
+      } catch (error) {
+        console.error('解析税率数据出错:', error);
+      }
+    }
+
     const tenantDetail = {
       ...billDetail,
       peakAndValleyEleItem: peakAndValleyEleItemProcessed,
-      ...(billDetail.taxRate ? JSON.parse(billDetail.taxRate) : undefined),
+      ...taxRateData,
       // 设置 penalty 对象，使用账单中的滞纳金相关字段
       penalty: {
         penaltyList: billDetail.penaltyList || [[undefined, undefined]],
@@ -508,6 +590,23 @@ async function initData(data: any, type: string) {
       };
       Object.assign(billData, nextBillData);
     } else {
+      // 确保数值字段是数字类型
+      [
+        'eleFee',
+        'waterFee',
+        'factoryRent',
+        'serviceFee',
+        'invoiceTax',
+        'serviceRate',
+        'eleTaxRate',
+        'waterTaxRate',
+        'rentTaxRate',
+      ].forEach((key) => {
+        if (billDetail[key] !== undefined) {
+          billDetail[key] = Number(billDetail[key]);
+        }
+      });
+
       Object.assign(billData, billDetail);
       waterAmountItem.value = billDetail.waterBills?.find(
         (item: any) => item.meterName === '合计',
