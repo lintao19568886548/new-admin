@@ -31,7 +31,7 @@ export interface AmountBill {
   remark?: string; // 备注
   rentTax?: number; // 租金税金
   rentTaxRate?: number; // 租金税金
-  serviceFee?: number; // 服务费
+  serviceFee: number; // 服务费
   serviceRate?: number; // 服务费比率
   taxRate?: string; // 开票税金
   tenant?: any; // 租户信息

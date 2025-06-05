@@ -50,13 +50,13 @@
     "@vueuse/core": "catalog:",
     "ant-design-vue": "catalog:",
     "dayjs": "catalog:",
+    "exceljs": "^4.4.0",
     "lodash-es": "^4.17.21",
     "pinia": "catalog:",
     "uuid": "^11.1.0",
     "vue": "catalog:",
     "vue-pdf-embed": "^2.1.2",
-    "vue-router": "catalog:",
-    "xlsx": "^0.18.5"
+    "vue-router": "catalog:"
   },
   "devDependencies": {
     "@types/uuid": "^10.0.0"

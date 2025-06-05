@@ -44,6 +44,7 @@ export default eventHandler(async (event) => {
           receiveFee: bill.receiveFee,
           garbageFee: bill.garbageFee,
           penaltyFee: bill.penaltyFee,
+          totalFee: bill.totalFee,
         };
       }),
     };
