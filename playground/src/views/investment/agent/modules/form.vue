@@ -1,12 +1,11 @@
 <script lang="ts" setup>
 import type { InvestmentAgent } from '../data'; // 导入 InvestmentAgent 接口
 
-import { computed, ref, shallowRef } from 'vue';
+import { computed, shallowRef } from 'vue';
 // useRouter 不再需要在 data.ts 中传递，因为 ParkLabel 内部处理了
 // import { useRouter } from 'vue-router';
 
 import { useVbenModal } from '@vben/common-ui';
-import { formatDateTime } from '@vben/utils';
 
 import { Button, message } from 'ant-design-vue'; // 导入 message 用于错误提示
 
@@ -18,7 +17,6 @@ import { useFormSchema } from '../data';
 
 const emit = defineEmits(['success']);
 const formData = shallowRef<InvestmentAgent | undefined>(); // 使用 shallowRef 提高性能
-const formState = ref<'create' | 'edit'>('create');
 
 const getTitle = computed(() => {
   // 更新国际化键名以匹配投资代理项目上下文
@@ -73,25 +71,7 @@ const [Modal, modalApi] = useVbenModal({
   },
   onOpenChange(isOpen) {
     if (isOpen) {
-      const data: InvestmentAgent | undefined =
-        modalApi.getData<InvestmentAgent>();
-
-      if (data) {
-        formData.value = data;
-        formState.value = 'edit';
-        // 如果 meetingTime 是 ISO 字符串，DatePicker 需要转换为正确格式
-        const formValues = { ...data };
-        if (formValues.meetingTime) {
-          formValues.meetingTime = String(
-            formatDateTime(formValues.meetingTime),
-          ); // 假设此函数返回正确格式
-        }
-        formApi.setValues(formValues);
-      } else {
-        formData.value = undefined;
-        formState.value = 'create';
-        formApi.resetForm();
-      }
+      /* empty */
     } else {
       // 模态框关闭时重置表单，避免下次打开时显示旧数据
       formApi.resetForm();
