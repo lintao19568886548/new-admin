@@ -15,9 +15,9 @@ const billData = ref<AmountBill | null>(null);
 const loading = ref(false);
 
 const [Modal, modalApi] = useVbenModal({
+  closable: true, // Replace maskClosable with closable
   draggable: false,
   footer: false, // 详情页面通常不需要底部操作按钮
-  maskClosable: true,
   onOpenChange: async (isOpen) => {
     if (isOpen) {
       billData.value = null; // Clear previous data
@@ -40,7 +40,7 @@ const [Modal, modalApi] = useVbenModal({
       billData.value = null; // 关闭时清空数据
     }
   },
-  width: '95%', // 手机友好宽度
+  // width: '95%', // Removed invalid property
 });
 
 const getModalTitle = computed(() => {
@@ -52,7 +52,8 @@ const getModalTitle = computed(() => {
 
 // 暴露 open 方法给父组件调用
 function open(data: AmountBill) {
-  modalApi.open({ data });
+  modalApi.setData(data);
+  modalApi.open();
 }
 
 defineExpose({ open });
@@ -80,9 +81,10 @@ const formatFee = (value?: number) => {
             <span class="font-medium">项目名称:</span>
             {{ billData.projectName }}
           </p>
-          <p>
+          <p v-if="billData.receiptTime">
+            <!-- Re-add v-if here -->
             <span class="font-medium">收款时间:</span>
-            {{ formatDateTime(billData.receiptTime, 'YYYY-MM-DD HH:mm:ss') }}
+            {{ formatDateTime(billData.receiptTime) }}
           </p>
           <p>
             <span class="font-medium">备注:</span> {{ billData.remark || '无' }}

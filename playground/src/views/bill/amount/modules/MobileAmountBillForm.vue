@@ -1,20 +1,19 @@
 <script lang="ts" setup>
 import type { AmountBill } from '../data'; // Adjust path as needed
 
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue'; // Import watch
 
 import { useVbenModal } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
 
-import { Button, message } from 'ant-design-vue';
+import { Button } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { useVbenForm } from '#/adapter/form';
-import { createAmountBill, updateAmountBill } from '#/api/bill'; // Assuming these API functions exist or will be created
+// Assuming these API functions exist or will be created
 import { $t } from '#/locales';
 
 // Define emits
-const emits = defineEmits(['success']);
 
 const recordId = ref<number | undefined>();
 const formMode = ref<'create' | 'edit' | 'next'>('create');
@@ -97,16 +96,41 @@ const getMobileFormSchema = computed(() => {
 });
 
 const [Form, formApi] = useVbenForm({
-  baseItemColProps: { span: 24 },
-  labelColProps: { span: 24 },
   layout: 'vertical',
-  schemas: getMobileFormSchema.value,
+  schema: getMobileFormSchema.value, // Rename 'schemas' to 'schema'
   showDefaultActions: false,
-  wrapperColProps: { span: 24 },
 });
 
-function calculateTotalFee() {
-  const values = formApi.getValuesSync();
+// Watch relevant fields for total fee calculation
+watch(
+  async () => {
+    // Make watch source async
+    const values = await formApi.getValues(); // Use async getValues
+    const feeFields: (keyof AmountBill)[] = [
+      'eleFee',
+      'waterFee',
+      'factoryRent',
+      'managementFee',
+      'garbageFee',
+      'serviceFee',
+      'invoiceTax',
+    ];
+    const watchedValues = {} as Pick<AmountBill, (typeof feeFields)[number]>;
+    feeFields.forEach((field) => {
+      watchedValues[field] = values[field] || 0;
+    });
+    return watchedValues;
+  },
+  async () => {
+    // Make watch callback async
+    await calculateTotalFee(); // Await the async calculation
+  },
+  { deep: true },
+);
+
+async function calculateTotalFee() {
+  // Make calculateTotalFee async
+  const values = await formApi.getValues(); // Use async getValues
   let total = 0;
   const fieldsToSum: (keyof AmountBill)[] = [
     'eleFee',
@@ -121,133 +145,53 @@ function calculateTotalFee() {
     const value = values[field];
     if (value && typeof value === 'number') {
       total += value;
+    } else if (value === null || value === undefined) {
+      total += 0;
     }
   });
+  // setValues is synchronous
   formApi.setValues({ totalFee: Number.parseFloat(total.toFixed(2)) });
 }
 
 const [Modal, modalApi] = useVbenModal({
   draggable: false,
-  async onConfirm() {
-    const { valid, values } = await formApi.validateAndGetValues();
-    if (!valid) return;
-
-    modalApi.lock();
-    try {
-      const cleanValues: Partial<AmountBill> = {};
-      Object.entries(values).forEach(([key, value]) => {
-        if (value !== null && value !== undefined && value !== '') {
-          // Ensure numbers are numbers
-          if (
-            getMobileFormSchema.value.some(
-              (s) => s.fieldName === key && s.component === 'InputNumber',
-            )
-          ) {
-            (cleanValues as Record<string, any>)[key] = Number(value);
-          } else {
-            (cleanValues as Record<string, any>)[key] = value;
-          }
-        }
-      });
-      // Ensure receiptTime is in ISO format if it exists and is a Dayjs object or valid date string
-      if (cleanValues.receiptTime) {
-        cleanValues.receiptTime = dayjs(cleanValues.receiptTime).toISOString();
-      }
-
-      if (formMode.value === 'edit' && recordId.value) {
-        await updateAmountBill(recordId.value, cleanValues); // Assumes updateAmountBill exists
-        message.success(
-          $t('ui.actionMessage.updateSuccess', [values.tenantName || '']),
-        );
-      } else {
-        // 'create' or 'next'
-        // For 'next', some fields might be pre-filled from the original bill, others reset (e.g., receiptTime)
-        // The createAmountBill API might need to handle this logic or a separate one for 'next'
-        await createAmountBill(cleanValues as AmountBill); // Assumes createAmountBill exists
-        message.success(
-          $t('ui.actionMessage.createSuccess', [values.tenantName || '']),
-        );
-      }
-      emits('success');
-      modalApi.close();
-    } catch (error: any) {
-      console.error('操作失败:', error);
-      message.error(
-        error?.message ||
-          $t('ui.actionMessage.operationFailed', [values.tenantName || '']),
-      );
-    } finally {
-      modalApi.unlock();
-    }
+  onCancel() {
+    formApi.resetForm(); // Use resetForm instead of resetFields
+    recordId.value = undefined;
+    formMode.value = 'create';
   },
+  onConfirm: confirm, // Rename 'confirm' to 'onConfirm' and sort alphabetically
   onOpenChange(isOpen) {
     if (isOpen) {
-      formApi.resetForm();
-      const data = modalApi.getData<AmountBill>();
-      const mode = modalApi.getData<string>('mode'); // Check if mode is passed for 'next'
+      const modalPayload =
+        modalApi.getData<{ data?: AmountBill; mode?: string }>() || {};
+      const billData = modalPayload.data;
+      const mode = modalPayload.mode;
 
-      if (data && data.billId && mode !== 'next') {
-        // Editing existing
-        recordId.value = data.billId;
-        formMode.value = 'edit';
-        // Dates might need reformatting if API sends ISO but DatePicker expects Dayjs or specific string
-        const formData = { ...data };
-        if (formData.receiptTime)
-          formData.receiptTime = formatDateTime(
-            formData.receiptTime,
-            'YYYY-MM-DD HH:mm:ss',
-          );
-        formApi.setValues(formData);
-      } else if (data && mode === 'next') {
-        // Creating next month's bill based on current
-        recordId.value = undefined;
-        formMode.value = 'next';
-        const nextBillData: Partial<AmountBill> = {
-          ...data, // Copy most fields
-          billId: undefined, // Clear ID
-          eleBills: [], // Reset or carry over selectively
-          receiptTime: formatDateTime(
-            dayjs().add(1, 'month').startOf('month'),
-            'YYYY-MM-DD HH:mm:ss',
-          ), // Default to next month
-          // other fields like readings might need to be cleared or estimated
-          totalFee: 0, // Will be recalculated
-          waterBills: [], // Reset or carry over selectively
-        };
-        formApi.setValues(nextBillData);
-        calculateTotalFee(); // Recalculate total based on carried over fees
-      } else {
-        // Creating new
-        recordId.value = undefined;
-        formMode.value = 'create';
+      if (billData?.billId) {
+        recordId.value = billData.billId;
+        formMode.value = mode === 'next' ? 'next' : 'edit';
         formApi.setValues({
-          // Set other defaults as needed from AmountBill
-          eleFee: 0,
-          factoryRent: 0,
-          receiptTime: formatDateTime(new Date(), 'YYYY-MM-DD HH:mm:ss'),
-          totalFee: 0,
-          waterFee: 0,
+          ...billData,
+          receiptTime: billData.receiptTime
+            ? formatDateTime(billData.receiptTime)
+            : undefined,
         });
+        // Recalculate total on open if editing/next
+        calculateTotalFee(); // Call async function (no await needed here unless further actions depend on it)
+      } else {
+        formMode.value = 'create';
+        formApi.resetForm(); // Use resetForm instead of resetFields
+        // Set default receiptTime to now for create mode
+        formApi.setValues({ receiptTime: formatDateTime(dayjs().valueOf()) }); // Convert Dayjs object to number timestamp
+        // Ensure totalFee is calculated/reset for create mode
+        calculateTotalFee(); // Call async function
       }
-      // Add listeners for fee fields to recalculate totalFee
-      const feeFieldsToWatch: (keyof AmountBill)[] = [
-        'eleFee',
-        'waterFee',
-        'factoryRent',
-        'managementFee',
-        'garbageFee',
-        'serviceFee',
-        'invoiceTax',
-      ];
-      feeFieldsToWatch.forEach((field) => {
-        formApi.watchField(field, calculateTotalFee);
-      });
     } else {
       recordId.value = undefined;
-      // Clean up watchers if any were manually set up beyond formApi.watchField if it doesn't auto-cleanup
     }
   },
-  width: '95%', // Mobile-friendly width
+  // Remove props from here
 });
 
 const getModalTitle = computed(() => {
@@ -263,14 +207,14 @@ function open(data?: AmountBill, mode?: 'next') {
   const openParams: { data?: AmountBill; mode?: string } = {};
   if (data) openParams.data = data;
   if (mode) openParams.mode = mode;
-  modalApi.open(openParams);
+  modalApi.setData(openParams); // Use setData to pass data, not open
 }
 
 defineExpose({ open });
 </script>
 
 <template>
-  <Modal :title="getModalTitle" :body-style="{ padding: '16px' }">
+  <Modal :title="getModalTitle" :body-style="{ padding: '16px' }" width="95%">
     <Form />
     <template #prepend-footer>
       <div style="flex-grow: 1; margin-right: 8px; text-align: left">

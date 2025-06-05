@@ -324,16 +324,12 @@ const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
                   </Button>
                   <template #overlay>
                     <Menu>
-                      <MenuItem @click="handleView(item)">
-                        {{ $t('common.view') }}
-                      </MenuItem>
+                      <MenuItem @click="handleView(item)"> 查看 </MenuItem>
                       <MenuItem @click="handleEdit(item)">
                         {{ $t('common.edit') }}
                       </MenuItem>
                       <MenuItem @click="handleNext(item)">新增下月</MenuItem>
-                      <MenuItem @click="handlePrint(item)">
-                        {{ $t('common.print') }}
-                      </MenuItem>
+                      <MenuItem @click="handlePrint(item)"> 打印 </MenuItem>
                       <MenuItem @click="handleDelete(item)" danger>
                         {{ $t('common.delete') }}
                       </MenuItem>
@@ -354,9 +350,10 @@ const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
                 </template>
                 <template #description>
                   <div class="space-y-1 text-xs">
-                    <p>
+                    <p v-if="item.receiptTime">
+                      <!-- Add v-if here -->
                       收款时间:
-                      {{ formatDateTime(item.receiptTime, 'YYYY-MM-DD') }}
+                      {{ formatDateTime(item.receiptTime) }}
                     </p>
                     <p>
                       总费用:
