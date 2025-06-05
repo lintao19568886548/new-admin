@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { RentalManagementItem } from '../types';
+import type { RentalManagementItem } from './types';
 
 import { computed, h, onMounted, ref } from 'vue';
 
