@@ -1,8 +1,6 @@
 <script lang="ts" setup>
 import type { AmountBill } from '../data';
 
-import type { Park } from '#/components/AreaSelector.vue';
-
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
 import { useVbenForm, useVbenModal } from '@vben/common-ui';
@@ -120,11 +118,12 @@ const billData = reactive<AmountBill>({
   invoiceTax: 0,
   managementFee: 0,
   receiptTime: dayjs().toISOString(),
+  serviceFee: 0,
   totalFee: 0,
   waterFee: 0,
 });
 
-const tenantList = ref<Park[]>([]);
+const tenantList = ref([]);
 
 // 在组件挂载时获取租户列表 (tenantList includes park info)
 onMounted(async () => {
@@ -262,6 +261,7 @@ watch(
     () => billData.waterFee, // 也应作为依赖，因为在回调中读取
     () => billData.eleFee, // 也应作为依赖
     () => billData.factoryRent, // 也应作为依赖
+    () => billData.serviceFee,
   ],
   () => {
     const calculateItemTax = (
@@ -288,7 +288,7 @@ watch(
       billData.waterTaxRate,
     );
     const eleInvoiceTax = calculateItemTax(
-      billData.eleTax || billData.eleFee,
+      billData.eleTax || billData.eleFee + billData.serviceFee,
       billData.eleTaxRate,
     );
     const rentInvoiceTax = calculateItemTax(

@@ -201,24 +201,12 @@ const dataSource = ref<BillItem[]>([]);
 // 定义默认数据模板
 const templates = {
   ele: [
-    { meterName: '尖' },
-    { meterName: '峰' },
-    { meterName: '平' },
-    { meterName: '谷' },
-    { meterName: '办公室用电' },
-    { meterName: '宿舍热水电表' },
-    { meterName: '宿舍用电' },
-    { meterName: '公共用电' },
+    { meterName: '' },
     { meterName: '' },
     { meterName: '' },
     { meterName: '合计' },
   ],
   water: [
-    { meterName: '厂房用水' },
-    { meterName: '办公室用水' },
-    { meterName: '宿舍用水（冷水）' },
-    { meterName: '宿舍用水（热水）' },
-    { meterName: '公共用水' },
     { meterName: '' },
     { meterName: '' },
     { meterName: '' },
