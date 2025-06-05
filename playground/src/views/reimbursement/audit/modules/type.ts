@@ -31,6 +31,7 @@ import { AUDITOR_LEVEL_MAP } from '../data';
  */
 export interface ReimbursementItem {
   amount: number;
+  auditorLevel?: number; // Add missing auditorLevel property
   createTime?: string;
   date: string;
   department: string;

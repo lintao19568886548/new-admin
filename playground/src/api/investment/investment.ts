@@ -1,3 +1,5 @@
+import type { InvestmentAgent } from '#/views/investment/agent/data';
+
 import { requestClient } from '#/api/request';
 
 export async function getInvestmentList(params: any) {
@@ -12,8 +14,11 @@ export async function createInvestment(data: any) {
   return requestClient.post('/investment', data);
 }
 
-export async function updateInvestment(data: any) {
-  return requestClient.put('/investment', data);
+export async function updateInvestment(
+  id: number | string,
+  data: Partial<InvestmentAgent>,
+) {
+  return requestClient.put(`/investment/${id}`, data);
 }
 
 export async function deleteInvestment(billId: number) {

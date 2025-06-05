@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { InvestmentAgent } from './data'; // 导入 InvestmentAgent 接口
+
 import type {
   OnActionClickParams,
   VxeTableGridOptions,
@@ -32,9 +34,9 @@ const [FormModal, formModalApi] = useVbenModal({
  * 编辑租赁项目
  * @param row
  */
-function onEdit(row: any) {
+function onEdit(row: InvestmentAgent) {
   const rowData = { ...row };
-  rowData.meetingTime = formatDateTime(rowData.meetingTime);
+  rowData.meetingTime = String(formatDateTime(rowData.meetingTime));
   formModalApi.setData(rowData).open();
 }
 
@@ -49,9 +51,9 @@ function onCreate() {
  * 删除租赁项目
  * @param row
  */
-async function onDelete(row: any) {
+async function onDelete(row: InvestmentAgent) {
   message.loading({
-    content: $t('ui.actionMessage.deleting', [row.title]),
+    content: $t('ui.actionMessage.deleting', [row.agentName || '']), // 使用 agentName 或其他合适字段
     duration: 0,
     key: 'action_process_msg',
   });
@@ -59,15 +61,14 @@ async function onDelete(row: any) {
   const { investmentId } = row;
   if (investmentId) {
     try {
-      // 使用 try-catch 替代 then-catch 链
       await deleteInvestment(investmentId);
       message.success({
-        content: $t('ui.actionMessage.deleteSuccess', [row.tenantName]),
+        content: $t('ui.actionMessage.deleteSuccess', [row.tenantName || '']), // 使用 tenantName
         key: 'action_process_msg',
       });
       refreshGrid();
     } catch (error) {
-      console.error('删除账单失败:', error);
+      console.error('删除投资项目失败:', error); // 修正错误消息
       message.error({
         content: $t('ui.actionMessage.operationFailed', [error]),
         key: 'action_process_msg',
@@ -80,38 +81,27 @@ async function onDelete(row: any) {
  * 查看租赁项目详情
  * @param row
  */
-function onView(row: any) {
-  // 处理图片数组，如果是数组就使用，否则创建一个只有一个元素的数组
+function onView(row: InvestmentAgent) {
+  let imgList: string[] = [];
+  if (Array.isArray(row.imageUrlList)) {
+    imgList = row.imageUrlList;
+  } else if (row.imageUrlList) {
+    imgList = [row.imageUrlList];
+  }
 
-  // const testImgUrl = [
-  //   '/assets/微信图片_20250320150833.jpg',
-  //   '/assets/微信图片_20250320150846.jpg',
-  //   'https://unpkg.com/@vbenjs/static-source@0.1.7/source/logo-v1.webp',
-  // ];
-  // const imgList = testImgUrl;
-
-  // 检查imgUrl是否为数组，如果不是则创建一个只有一个元素的数组，否则直接使用imgUrl
-  const imgList = Array.isArray(row.imageUrlList)
-    ? row.imageUrlList
-    : [row.imageUrlList];
-
-  // 创建一个包含预览组件的div
   const previewContainer = document.createElement('div');
   document.body.append(previewContainer);
 
-  // 创建一个小型应用来渲染预览组件
   const previewApp = createApp({
     setup() {
       const visible = ref(false);
 
-      // 在组件卸载时移除容器
       onUnmounted(() => {
         if (document.body.contains(previewContainer)) {
           previewContainer.remove();
         }
       });
 
-      // 使用nextTick确保组件挂载后再显示预览，这样可以有动画效果
       onMounted(() => {
         nextTick(() => {
           visible.value = true;
@@ -126,7 +116,6 @@ function onView(row: any) {
               onVisibleChange: (v) => {
                 visible.value = v;
                 if (!v) {
-                  // 添加延迟，让关闭动画完成后再卸载
                   setTimeout(() => {
                     previewApp.unmount();
                   }, 200);
@@ -135,26 +124,28 @@ function onView(row: any) {
               visible: visible.value,
             },
           },
-          // 为每个图片路径创建一个Image组件
-          imgList.map((src: any) =>
-            h(Image, {
-              preview: {},
-              src,
-              style: { display: 'none' },
-            }),
+          imgList.map(
+            (
+              src: string, // 将 any 替换为 string
+            ) =>
+              h(Image, {
+                preview: {},
+                src,
+                style: { display: 'none' },
+              }),
           ),
         );
     },
   });
 
-  // 挂载应用
   previewApp.mount(previewContainer);
 }
 
 /**
  * 表格操作按钮的回调函数
  */
-function onActionClick({ code, row }: OnActionClickParams) {
+function onActionClick({ code, row }: OnActionClickParams<InvestmentAgent>) {
+  // 使用 InvestmentAgent
   switch (code) {
     case 'delete': {
       onDelete(row);
@@ -186,7 +177,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
         query: async (page) => {
           const formData = (await gridApi.formApi?.getValues?.()) || {};
 
-          // 构建查询参数，包含分页信息
           const params = {
             ...formData,
             currentPage: page.page?.currentPage || 1,
@@ -194,15 +184,13 @@ const [Grid, gridApi] = useVbenVxeGrid({
             pageSize: page.page?.pageSize || 20,
           };
           try {
-            // 调用API获取数据
             const result = await getInvestmentList(params);
-            // 返回格式化后的数据
             return {
               ...result,
             };
           } catch (error) {
-            console.error('获取账单列表失败:', error);
-            message.error('获取账单列表失败');
+            console.error('获取投资项目列表失败:', error); // 修正错误消息
+            message.error('获取投资项目列表失败'); // 修正错误消息
             return {
               page: {
                 currentPage: 1,
@@ -216,7 +204,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
     },
     rowConfig: {
-      keyField: 'id',
+      keyField: 'investmentId', // 更新为 investmentId
     },
     toolbarConfig: {
       custom: true,

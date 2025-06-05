@@ -12,6 +12,28 @@ import MultiSelect from '#/components/MultiSelect.vue'; // 导入 MultiSelect �
 import { $t } from '#/locales';
 
 /**
+ * 投资代理项目接口
+ */
+export interface InvestmentAgent {
+  agentName: string; // 代理人名称
+  createTime?: string; // 创建时间
+  imageUrlList?: string[]; // 图片URL列表
+  intentArea?: number; // 意向面积 (平方米)
+  intentLevel: string; // 意向等级 (e.g., '很高', '高')
+  investmentId?: number; // 项目ID
+  meetingTime: string; // 会谈时间 (ISO 格式字符串)
+  operator?: string; // 操作人
+  parkId: number; // 园区ID
+  parkName?: string; // 园区名称 (可能由parkId解析)
+  phoneNumber: string; // 电话号码
+  progress: string; // 进展阶段 (e.g., '初步接洽', '深入沟通')
+  remark?: string; // 备注
+  tenantName: string; // 租户名称
+  title?: string; // 项目标题，用于消息提示等
+  updateTime?: string; // 更新时间
+}
+
+/**
  * 获取标签颜色
  */
 export function getTagTypeOptions() {
@@ -227,8 +249,8 @@ export function useGridFormSchema(): VbenFormSchema[] {
   ];
 }
 
-export function useColumns(
-  onActionClick: OnActionClickFn,
+export function useColumns<T = InvestmentAgent>(
+  onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
   return [
     {

@@ -1,11 +1,14 @@
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
+import type { InvestmentAgent } from '../data'; // 导入 InvestmentAgent 接口
+
+import { computed, ref, shallowRef } from 'vue';
 // useRouter 不再需要在 data.ts 中传递，因为 ParkLabel 内部处理了
 // import { useRouter } from 'vue-router';
 
 import { useVbenModal } from '@vben/common-ui';
+import { formatDateTime } from '@vben/utils';
 
-import { Button } from 'ant-design-vue';
+import { Button, message } from 'ant-design-vue'; // 导入 message 用于错误提示
 
 import { useVbenForm } from '#/adapter/form';
 import { createInvestment, updateInvestment } from '#/api/investment';
@@ -14,11 +17,14 @@ import { $t } from '#/locales';
 import { useFormSchema } from '../data';
 
 const emit = defineEmits(['success']);
-const formData = ref();
+const formData = shallowRef<InvestmentAgent | undefined>(); // 使用 shallowRef 提高性能
+const formState = ref<'create' | 'edit'>('create');
+
 const getTitle = computed(() => {
+  // 更新国际化键名以匹配投资代理项目上下文
   return formData.value?.investmentId
-    ? $t('ui.actionTitle.edit', [$t('system.rental.tenant.item')])
-    : $t('ui.actionTitle.create', [$t('system.rental.tenant.item')]);
+    ? $t('page.agent.edit', [$t('page.agent.item')]) // 假设存在 page.agent.edit 和 page.agent.item
+    : $t('page.agent.create', [$t('page.agent.item')]); // 假设存在 page.agent.create 和 page.agent.item
 });
 
 // const router = useRouter(); // 不再需要在这里定义 router 给 data.ts
@@ -29,21 +35,37 @@ const [Modal, modalApi] = useVbenModal({
     const { valid } = await formApi.validate();
     if (valid) {
       modalApi.lock();
-      const data = await formApi.getValues();
-      const { investmentId } = modalApi.getData();
+      const data: Partial<InvestmentAgent> = await formApi.getValues(); // 明确类型
+      const originalData: InvestmentAgent | undefined =
+        modalApi.getData<InvestmentAgent>();
+      const investmentId = originalData?.investmentId; // 从原始数据中获取 ID
+
       try {
         if (data.meetingTime) {
           data.meetingTime = new Date(data.meetingTime).toISOString();
         }
 
         if (investmentId) {
-          data.investmentId = investmentId;
-          await updateInvestment(data);
+          await updateInvestment(investmentId, data); // 假设 updateInvestment 接收 ID 和数据
+          message.success(
+            $t('ui.actionMessage.updateSuccess', [
+              originalData?.agentName || '',
+            ]),
+          ); // 提示更新成功
         } else {
-          await createInvestment(data);
+          await createInvestment(data as InvestmentAgent); // 确保类型匹配
+          message.success(
+            $t('ui.actionMessage.createSuccess', [data.agentName || '']),
+          ); // 提示创建成功
         }
         modalApi.close();
         emit('success');
+      } catch (error: any) {
+        console.error('操作失败:', error);
+        message.error(
+          error?.message ||
+            $t('ui.actionMessage.operationFailed', [data.agentName || '']),
+        );
       } finally {
         modalApi.lock(false);
       }
@@ -51,15 +73,29 @@ const [Modal, modalApi] = useVbenModal({
   },
   onOpenChange(isOpen) {
     if (isOpen) {
-      const data = modalApi.getData();
+      const data: InvestmentAgent | undefined =
+        modalApi.getData<InvestmentAgent>();
 
       if (data) {
         formData.value = data;
-        formApi.setValues(formData.value);
+        formState.value = 'edit';
+        // 如果 meetingTime 是 ISO 字符串，DatePicker 需要转换为正确格式
+        const formValues = { ...data };
+        if (formValues.meetingTime) {
+          formValues.meetingTime = String(
+            formatDateTime(formValues.meetingTime),
+          ); // 假设此函数返回正确格式
+        }
+        formApi.setValues(formValues);
       } else {
         formData.value = undefined;
+        formState.value = 'create';
         formApi.resetForm();
       }
+    } else {
+      // 模态框关闭时重置表单，避免下次打开时显示旧数据
+      formApi.resetForm();
+      formData.value = undefined; // 清空数据
     }
   },
 });
@@ -80,11 +116,13 @@ const [Form, formApi] = useVbenForm({
 
 function resetForm() {
   formApi.resetForm();
-  formApi.setValues(formData.value || {});
+  formData.value = undefined;
 }
 
 // goToRentalManage 不再需要，导航逻辑移到 ParkLabel
 // function goToRentalManage() { ... }
+
+// 删除未使用的 openModal 函数
 </script>
 
 <template>

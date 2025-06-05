@@ -23,6 +23,28 @@ const routes: RouteRecordRaw[] = [
     name: 'ReimbursementAudit',
     path: '/reimbursement/audit',
   },
+  {
+    component: () => import('#/views/reimbursement/application/mobile.vue'),
+    meta: {
+      hideMenu: true, // 通常移动端专项页面不在主菜单显示
+      icon: 'mdi:cellphone-check', // 移动端图标
+      order: -1,
+      title: $t('移动端报销申请'),
+    },
+    name: 'ReimbursementMobileApply',
+    path: '/reimbursement/mobile-apply',
+  },
+  {
+    component: () => import('#/views/reimbursement/audit/mobile.vue'),
+    meta: {
+      hideMenu: true, // 通常移动端专项页面不在主菜单显示
+      icon: 'mdi:cellphone-text', // 移动端审核图标
+      order: -1,
+      title: $t('移动端报销审核'),
+    },
+    name: 'ReimbursementMobileAudit',
+    path: '/reimbursement/mobile-audit',
+  },
 ];
 
 export default routes;

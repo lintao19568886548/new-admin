@@ -45,6 +45,17 @@ const routes: RouteRecordRaw[] = [
     name: 'Investment',
     path: '/investment',
   },
+  {
+    component: () => import('#/views/investment/agent/mobile-list.vue'),
+    meta: {
+      hideMenu: true, // 通常移动端页面不在主菜单显示
+      icon: 'mdi:cellphone-text', // 手机图标
+      order: 0, // 调整顺序，如果需要
+      title: $t('page.agent.mobileListTitle'), // 需要在语言文件中添加此key
+    },
+    name: 'InvestmentAgentMobileList',
+    path: '/investment/agent/mobile',
+  },
 ];
 
 export default routes;
