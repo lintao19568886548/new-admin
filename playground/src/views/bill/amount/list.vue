@@ -12,7 +12,7 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router'; // 新增: 引入 useRouter
 
 import { Page } from '@vben/common-ui';
-import { Plus } from '@vben/icons';
+import { Download, Plus } from '@vben/icons';
 
 import {
   Button,
@@ -486,13 +486,13 @@ function handlePrintCancel() {
           <Plus class="size-5" />
           {{ $t('ui.actionTitle.create', ['总账单']) }}
         </Button>
-        <!-- <Button
+        <Button
           type="primary"
           shape="circle"
           @click="exportModalVisible = true"
         >
           <Download class="size-5" />
-        </Button> -->
+        </Button>
       </template>
     </Grid>
   </Page>
