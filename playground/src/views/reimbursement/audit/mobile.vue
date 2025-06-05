@@ -294,10 +294,10 @@ function triggerShowAuditModal(record: ReimbursementItem) {
           </div>
 
           <div
-            v-if="currentRecord.auditNotes && currentRecord.status !== 0"
+            v-if="currentRecord.remark && currentRecord.status !== 0"
             class="full-width-detail"
           >
-            <p><strong>审核意见:</strong> {{ currentRecord.reason }}</p>
+            <p><strong>审核意见:</strong> {{ currentRecord.remark }}</p>
           </div>
 
           <div
