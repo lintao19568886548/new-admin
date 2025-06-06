@@ -29,10 +29,10 @@
     "#/*": "./src/*"
   },
   "dependencies": {
+    "@ant-design/icons-vue": "^7.0.1",
     "@capacitor/android": "^7.2.0",
     "@capacitor/status-bar": "^7.0.1",
     "@capawesome/capacitor-android-edge-to-edge-support": "^7.2.2",
-    "@ant-design/icons-vue": "^7.0.1",
     "@tanstack/vue-query": "catalog:",
     "@types/lodash-es": "^4.17.12",
     "@vben-core/menu-ui": "workspace:*",
