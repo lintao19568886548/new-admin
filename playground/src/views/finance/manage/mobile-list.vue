@@ -1,53 +1,48 @@
+<!-- eslint-disable vue/html-closing-bracket-newline -->
 <script lang="ts" setup>
 import type { FinanceItem } from './types';
 
-import { onMounted, ref, shallowRef } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
-import { Plus, Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
+import { MoreOutlined, PlusOutlined } from '@ant-design/icons-vue';
 import {
-  Modal as AModal,
+  Avatar,
   Button,
+  Dropdown,
   Empty,
+  List,
+  Menu,
+  MenuItem,
   message,
-  Pagination,
+  Modal,
   Spin,
   Tag,
-} from 'ant-design-vue'; // Renamed Modal to AModal to avoid conflict
+} from 'ant-design-vue';
 
-import { useVbenForm } from '#/adapter/form';
 import { deleteFinance, getFinanceList } from '#/api/finance';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
-import { getTagTypeOptions, useGridFormSchema } from './data';
-import MobileForm from './modules/mobile-form.vue';
-
-interface QueryParams {
-  [key: string]: any;
-  currentPage?: number;
-  endTime?: string;
-  pageSize?: number;
-  startTime?: string;
-}
-
-const loading = shallowRef(false);
-const financeList = shallowRef<FinanceItem[]>([]);
-const paginationState = ref({
-  currentPage: 1,
-  pageSize: 10,
-  total: 0,
-});
-
-const searchParams = ref<Partial<QueryParams>>({});
-const currentPark = ref<any>(); // For AreaSelector
+import { getTagTypeOptions } from './data';
+import Form from './modules/form.vue';
 
 const [FormModal, formModalApi] = useVbenModal({
-  connectedComponent: MobileForm,
+  connectedComponent: Form,
   destroyOnClose: true,
 });
+
+const bills = ref<FinanceItem[]>([]);
+const currentPage = ref(1);
+const pageSize = ref(15);
+const totalBills = ref(0);
+const loading = ref(false);
+const allLoaded = ref(false);
+
+const currentPark = ref();
+const parkSelectorRef = ref();
 
 const tagOptions = getTagTypeOptions();
 const getTagDisplay = (value: string) => {
@@ -57,362 +52,230 @@ const getTagDisplay = (value: string) => {
     : { color: 'default', text: value };
 };
 
-async function fetchFinanceData(params: QueryParams = {}) {
+const formatFee = (value?: number | string) => {
+  const numValue = Number(value);
+  return Number.isNaN(numValue) ? '¥ 0.00' : `¥ ${numValue.toFixed(2)}`;
+};
+
+async function fetchBillList(isRefresh = false) {
+  if (loading.value || (!isRefresh && allLoaded.value)) return;
   loading.value = true;
+  if (isRefresh) {
+    currentPage.value = 1;
+    bills.value = [];
+    allLoaded.value = false;
+  }
+
   try {
-    const query: QueryParams = {
-      ...searchParams.value,
-      currentPage: params.currentPage || paginationState.value.currentPage,
-      pageSize: params.pageSize || paginationState.value.pageSize,
-      parkId: currentPark.value?.parkId, // Add parkId from AreaSelector
+    const params: Record<string, any> = {
+      currentPage: currentPage.value,
+      pageSize: pageSize.value,
+      parkId: currentPark.value ? currentPark.value.parkId : -1,
     };
 
-    const activeQueryParams: Record<string, any> = {};
-    for (const key in query) {
-      if (
-        query[key] !== null &&
-        query[key] !== undefined &&
-        query[key] !== ''
-      ) {
-        activeQueryParams[key] = query[key];
-      }
-    }
-    // Handle date range specifically for API if 'transactionTime' is an array from RangePicker
-    if (
-      activeQueryParams.transactionTime &&
-      Array.isArray(activeQueryParams.transactionTime)
-    ) {
-      activeQueryParams.startTime = activeQueryParams.transactionTime[0];
-      activeQueryParams.endTime = activeQueryParams.transactionTime[1];
-      delete activeQueryParams.transactionTime; // Remove original array
-    }
+    const result = await getFinanceList(params);
 
-    const result = await getFinanceList(activeQueryParams as any);
-    financeList.value = result.items || [];
-    paginationState.value.total = result.total || 0;
-    paginationState.value.currentPage = activeQueryParams.currentPage as number;
-    paginationState.value.pageSize = activeQueryParams.pageSize as number;
-  } catch (error) {
-    message.error($t('page.finance.fetchFailed'));
-    console.error('Fetch finance data failed:', error);
+    if (result && result.items && typeof result.total === 'number') {
+      bills.value = [...bills.value, ...result.items];
+      totalBills.value = result.total;
+      if (bills.value.length >= totalBills.value) {
+        allLoaded.value = true;
+      }
+    } else {
+      message.warn('获取账单列表失败，数据结构异常。');
+      bills.value = [];
+      totalBills.value = 0;
+    }
+  } catch (error: any) {
+    message.error(error?.message || '获取账单列表失败');
   } finally {
     loading.value = false;
   }
 }
 
-// Simplified search schema for mobile - reuse or adapt from data.ts as needed
-const simplifiedSearchSchema = useGridFormSchema().map((s) => {
-  if (s.fieldName === 'amount') {
-    return {
-      ...s,
-      componentProps: {
-        ...s.componentProps,
-        placeholder: $t('page.finance.amountPlaceholderMobile'),
-      },
-    };
+onMounted(() => {
+  fetchBillList(true);
+});
+
+function handleLoadMore() {
+  if (!allLoaded.value) {
+    currentPage.value++;
+    fetchBillList();
   }
-  return s;
-});
-
-const [SearchForm, searchFormApi] = useVbenForm({
-  layout: 'vertical',
-  schema: simplifiedSearchSchema,
-  showDefaultActions: false, // Custom buttons for search and reset
-});
-
-async function handleSearch() {
-  paginationState.value.currentPage = 1;
-  searchParams.value = await searchFormApi.getValues();
-  fetchFinanceData();
 }
 
-function handleResetSearch() {
-  searchFormApi.resetForm();
-  searchParams.value = {};
-  paginationState.value.currentPage = 1;
-  fetchFinanceData();
+function refreshList() {
+  fetchBillList(true);
 }
 
-function handleAddNew() {
-  formModalApi.setData(null).open();
+function handleCreate() {
+  formModalApi.open();
 }
 
-function handleEdit(item: FinanceItem) {
-  formModalApi.setData(item).open();
+async function handleEdit(item: FinanceItem) {
+  formModalApi.setData({ data: item });
+  formModalApi.open();
 }
 
-function handleDelete(item: FinanceItem) {
-  AModal.confirm({
+async function handleDelete(item: FinanceItem) {
+  Modal.confirm({
     cancelText: $t('common.cancel'),
-    content: $t('ui.actionMessage.deleteConfirm', [item.billName]),
-    okText: $t('common.delete'),
+    content: $t('ui.actionMessage.deleteConfirm', [item.billName || '该记录']),
+    okText: $t('common.confirm'),
     okType: 'danger',
-    onOk: async () => {
-      const hideLoading = message.loading(
-        $t('ui.actionMessage.deleting', [item.billName]),
-        0,
-      );
+    async onOk() {
+      if (!item.financeId) return;
       try {
         await deleteFinance(item.financeId);
         message.success($t('ui.actionMessage.deleteSuccess', [item.billName]));
-        fetchFinanceData(); // Refresh list
-      } catch (error) {
-        message.error($t('ui.actionMessage.deleteFailed', [item.billName]));
-        console.error('Delete failed:', error);
-      } finally {
-        hideLoading();
+        refreshList();
+      } catch (error: any) {
+        message.error(
+          error?.message ||
+            $t('ui.actionMessage.operationFailed', [item.billName]),
+        );
       }
     },
-    title: $t('ui.actionTitle.deleteConfirm'),
+    title: $t('common.confirmDelete'),
   });
 }
 
-function onPageChange(page: number, pageSize: number) {
-  paginationState.value.currentPage = page;
-  paginationState.value.pageSize = pageSize;
-  fetchFinanceData();
+function handleFormSuccess() {
+  refreshList();
 }
 
-async function onAreaChange(area: any) {
-  currentPark.value = area;
-  await handleSearch(); // Trigger search when area changes
+function onParkChange(park: any) {
+  currentPark.value = park;
+  refreshList();
 }
 
-onMounted(() => {
-  fetchFinanceData();
-});
+const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
 </script>
 
 <template>
-  <Page auto-content-height class="mobile-finance-list-container">
-    <FormModal @success="fetchFinanceData" />
-
-    <div class="page-header">
+  <Page
+    :title="$t('page.finance.mobileTitle', '财务明细')"
+    class="finance-mobile-page"
+  >
+    <div
+      class="relative z-10 flex items-center justify-between bg-white p-2 shadow-sm dark:bg-black"
+    >
       <AreaSelector
         :default-area="currentPark"
-        :refresh-callback="fetchFinanceData"
-        @change="onAreaChange"
-        class="area-selector-mobile"
+        :refresh-callback="refreshList"
+        @change="onParkChange"
+        ref="parkSelectorRef"
+        size="small"
       />
-      <Button type="primary" @click="handleAddNew" block class="add-button">
-        <Plus class="size-5" />
-        {{ $t('page.finance.create') }}
+      <Button type="primary" @click="handleCreate" size="small">
+        <PlusOutlined /> {{ $t('page.finance.createBill', '新增账单') }}
       </Button>
     </div>
 
-    <details class="search-details">
-      <summary class="search-summary">
-        {{ $t('common.searchFilter') }} <Search class="inline-icon" />
-      </summary>
-      <div class="search-form-container">
-        <SearchForm />
-        <div class="search-actions-buttons">
-          <Button type="primary" @click="handleSearch" block>
-            {{ $t('common.search') }}
-          </Button>
-          <Button @click="handleResetSearch" block>
-            {{ $t('common.reset') }}
-          </Button>
-        </div>
-      </div>
-    </details>
-
-    <Spin :spinning="loading">
-      <div v-if="financeList.length > 0" class="finance-card-list">
-        <div
-          v-for="item in financeList"
-          :key="item.financeId"
-          class="finance-card"
+    <div class="p-2">
+      <Spin :spinning="loading && currentPage === 1">
+        <List
+          item-layout="horizontal"
+          :data-source="bills"
+          :loading="loading && currentPage > 1"
+          :split="false"
         >
-          <div class="card-header">
-            <span class="bill-name">{{ item.billName }}</span>
-            <Tag :color="getTagDisplay(item.transactionType).color">
-              {{ getTagDisplay(item.transactionType).text }}
-            </Tag>
-          </div>
-          <div class="card-content">
-            <p>
-              <strong>{{ $t('page.finance.billCategory') }}:</strong>
-              {{ item.billCategory }}
-            </p>
-            <p>
-              <strong>{{ $t('page.finance.amount') }}:</strong>
-              <!-- eslint-disable-next-line vue/html-closing-bracket-newline -->
-              <span
-                :class="
-                  item.transactionType === '收入'
-                    ? 'amount-income'
-                    : 'amount-expense'
-                "
-              >
-                ¥{{ Number(item.amount).toFixed(2) }}
-              </span>
-            </p>
-            <p>
-              <strong>{{ $t('page.finance.transactionTime') }}:</strong>
-              {{ formatDateTime(item.transactionTime) }}
-            </p>
-            <p v-if="item.remark">
-              <strong>{{ $t('page.finance.remark') }}:</strong>
-              {{ item.remark }}
-            </p>
-          </div>
-          <div class="card-actions">
-            <Button size="small" @click="handleEdit(item)">
-              {{ $t('common.edit') }}
-            </Button>
-            <Button size="small" type="link" danger @click="handleDelete(item)">
-              {{ $t('common.delete') }}
-            </Button>
-          </div>
-        </div>
-      </div>
-      <Empty
-        v-else
-        :description="
-          loading ? $t('common.loading') : $t('page.finance.noData')
-        "
-      />
-    </Spin>
+          <template #renderItem="{ item }: { item: FinanceItem }">
+            <List.Item
+              class="mb-2 rounded-md bg-white p-3 shadow-sm dark:bg-zinc-800"
+            >
+              <template #actions>
+                <Dropdown placement="bottomRight" :trigger="['click']">
+                  <Button type="text" size="small" class="px-1" @click.stop>
+                    <MoreOutlined class="text-lg text-gray-500" />
+                  </Button>
+                  <template #overlay>
+                    <Menu>
+                      <MenuItem @click="handleEdit(item)">
+                        {{ $t('common.edit') }}
+                      </MenuItem>
+                      <MenuItem @click="handleDelete(item)" danger>
+                        {{ $t('common.delete') }}
+                      </MenuItem>
+                    </Menu>
+                  </template>
+                </Dropdown>
+              </template>
+              <List.Item.Meta>
+                <template #title>
+                  <div class="flex items-center">
+                    <span class="font-semibold">{{ item.billName }}</span>
+                    <Tag
+                      v-if="item.billCategory"
+                      color="cyan"
+                      class="ml-2 text-xs"
+                    >
+                      {{ item.billCategory }}
+                    </Tag>
+                  </div>
+                </template>
+                <template #description>
+                  <div class="mt-1 text-sm">
+                    <span
+                      :class="
+                        item.transactionType === '收入'
+                          ? 'text-green-500'
+                          : 'text-red-500'
+                      "
+                      class="font-medium"
+                      >{{ formatFee(item.amount) }}
+                    </span>
+                    <p
+                      v-if="item.transactionTime"
+                      class="mt-1 text-xs text-gray-400"
+                    >
+                      {{ formatDateTime(item.transactionTime) }}
+                    </p>
+                  </div>
+                </template>
+                <template #avatar>
+                  <Avatar
+                    shape="circle"
+                    :class="
+                      getTagDisplay(item.transactionType).color === 'green'
+                        ? 'bg-green-500'
+                        : 'bg-red-500'
+                    "
+                    class="flex-shrink-0 text-white"
+                  >
+                    {{ getTagDisplay(item.transactionType).text.charAt(0) }}
+                  </Avatar>
+                </template>
+              </List.Item.Meta>
+            </List.Item>
+          </template>
 
-    <Pagination
-      v-if="paginationState.total > 0"
-      :current="paginationState.currentPage"
-      :page-size="paginationState.pageSize"
-      :total="paginationState.total"
-      @change="onPageChange"
-      size="small"
-      class="list-pagination"
-      :show-size-changer="false"
-    />
+          <template #loadMore v-if="!allLoaded && !loading">
+            <div class="my-4 text-center">
+              <Button @click="handleLoadMore">加载更多</Button>
+            </div>
+          </template>
+          <template #header v-if="listIsEmpty">
+            <Empty
+              class="py-10"
+              :description="$t('page.finance.noData', '暂无财务数据')"
+            />
+          </template>
+        </List>
+      </Spin>
+    </div>
+
+    <!-- The form is now handled by the modal -->
+    <FormModal @success="handleFormSuccess" />
   </Page>
 </template>
 
 <style scoped>
-.mobile-finance-list-container {
-  padding: 8px;
+.finance-mobile-page {
   background-color: #f0f2f5;
 }
 
-.page-header {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.area-selector-mobile {
-  width: 100%;
-}
-
-.add-button {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-  padding: 10px 0;
-  font-size: 1em;
-}
-
-.search-details {
-  padding: 0;
-  margin-bottom: 12px;
-  background-color: #fff;
-  border: 1px solid #e8e8e8;
-  border-radius: 4px;
-}
-
-.search-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.search-summary .inline-icon {
-  width: 1em;
-  height: 1em;
-}
-
-.search-form-container {
-  padding: 12px;
-  border-top: 1px solid #e8e8e8;
-}
-
-.search-actions-buttons {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.search-actions-buttons .ant-btn {
-  flex-grow: 1;
-}
-
-.finance-card-list {
-  padding-bottom: 8px;
-}
-
-.finance-card {
-  padding: 12px;
-  margin-bottom: 8px;
-  background-color: #fff;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 8px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.bill-name {
-  font-size: 1.1em;
-  font-weight: bold;
-  color: #333;
-}
-
-.card-content p {
-  margin-bottom: 4px;
-  font-size: 0.9em;
-  line-height: 1.5;
-  color: #555;
-}
-
-.card-content p strong {
-  display: inline-block;
-  min-width: 70px; /* Ensure alignment */
-  color: #333;
-}
-
-.amount-income {
-  font-weight: bold;
-  color: #52c41a; /* Ant Design green */
-}
-
-.amount-expense {
-  font-weight: bold;
-  color: #f5222d; /* Ant Design red */
-}
-
-.card-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  padding-top: 8px;
-  margin-top: 10px;
-  text-align: right;
-  border-top: 1px solid #f0f0f0;
-}
-
-.list-pagination {
-  margin-top: 12px;
-  text-align: center;
+.dark .finance-mobile-page {
+  background-color: #1a1a1a;
 }
 </style>

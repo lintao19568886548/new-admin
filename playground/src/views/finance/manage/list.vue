@@ -50,9 +50,8 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     proxyConfig: {
       ajax: {
-        query: async (page) => {
+        query: async ({ page }) => {
           try {
-            // 直接从formApi获取表单数据
             const params = (await gridApi.formApi?.getValues?.()) || {};
 
             // 处理日期范围
@@ -62,7 +61,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
             }
 
             // 处理金额查询
-            if (params.amount !== undefined && params.amount !== null) {
+            if (params.amount) {
               const amountStr = String(params.amount);
               if (
                 amountStr.includes('>') ||
@@ -78,52 +77,37 @@ const [Grid, gridApi] = useVbenVxeGrid({
               ? currentPark.value.parkId
               : -1;
 
-            // 添加分页参数
-            const currentPage = page.page?.currentPage || 1;
-            const pageSize = page.page?.pageSize || 20;
-
-            params.currentPage = currentPage;
-            params.pageSize = pageSize;
-
-            console.warn('处理后的查询参数:', params);
-
-            // 参数序列化处理（从finance.ts移过来）
-            const cleanParams = {};
-            Object.entries(params).forEach(([key, value]) => {
-              if (value !== null && value !== undefined && value !== '') {
-                (cleanParams as Record<string, any>)[key] = value;
+            const cleanParams: Record<string, any> = {};
+            for (const key in params) {
+              if (
+                Object.prototype.hasOwnProperty.call(params, key) &&
+                params[key] !== null &&
+                params[key] !== undefined &&
+                params[key] !== ''
+              ) {
+                cleanParams[key] = params[key];
               }
-            });
+            }
 
-            // 调用API获取数据
+            cleanParams.currentPage = page.currentPage;
+            cleanParams.pageSize = page.pageSize;
+
             const response = await getFinanceList(cleanParams);
 
-            // 确保返回的数据格式一致（从finance.ts移过来）
-            // 使用三元表达式替代if-else语句
-            const result =
-              response && !response.items
-                ? {
-                    currentPage: params.currentPage || 1,
-                    pageSize: params.pageSize || 20,
-                    total: Array.isArray(response) ? response.length : 0,
-                    items: Array.isArray(response) ? response : [],
-                  }
-                : response;
-
-            // 返回格式化后的数据，包含分页信息
             return {
-              ...result,
+              page: {
+                total: response.total || 0,
+              },
+              result: response.items || [],
             };
           } catch (error) {
             console.error('获取财务数据失败:', error);
             message.error('获取账单列表失败');
             return {
               page: {
-                currentPage: 1,
-                pageSize: 20,
                 total: 0,
               },
-              items: [],
+              result: [],
             };
           }
         },
@@ -164,13 +148,10 @@ function onActionClick(e: OnActionClickParams<FinanceItem>) {
 }
 
 function onEdit(row: FinanceItem) {
-  // 复制行数据以避免修改原始数据
   const editData = { ...row };
 
   if (editData.transactionTime) {
-    editData.transactionTime = formatDateTime(
-      editData.transactionTime,
-    ) as string;
+    editData.transactionTime = formatDateTime(editData.transactionTime);
   }
 
   formModalApi.setData(editData).open();
@@ -178,22 +159,19 @@ function onEdit(row: FinanceItem) {
 
 function onDelete(row: FinanceItem) {
   Modal.confirm({
-    cancelText: $t('common.no'),
+    cancelText: $t('common.cancel'),
     content: $t('ui.actionMessage.deleteConfirm', [row.billName]),
-    okText: $t('common.yes'),
+    okText: $t('common.confirm'),
     okType: 'danger',
     async onOk() {
       try {
-        const hideLoading = message.loading({
+        message.loading({
           content: $t('ui.actionMessage.deleting', [row.billName]),
           duration: 0,
           key: 'action_process_msg',
         });
 
         await deleteFinance(row.financeId);
-
-        // 手动关闭加载提示
-        hideLoading();
 
         message.success({
           content: $t('ui.actionMessage.deleteSuccess', [row.billName]),
@@ -208,31 +186,21 @@ function onDelete(row: FinanceItem) {
         });
       }
     },
-    title: $t('ui.actionTitle.delete', [row.billName]),
+    title: $t('common.confirmDelete'),
   });
 }
 
 function onRefresh() {
-  // 直接从formApi获取最新表单数据并传递给query方法
-  gridApi.formApi
-    .getValues()
-    .then((formValues) => {
-      gridApi.query({
-        form: formValues || {},
-      });
-      console.warn('刷新表格数据');
-    })
-    .catch((error) => {
-      console.error('获取表单数据失败:', error);
-      // 出错时使用空对象查询
-      gridApi.query({
-        form: {},
-      });
-    });
+  gridApi.commitProxy('query');
 }
 
 function onCreate() {
   formModalApi.setData({}).open();
+}
+
+function onParkChange(area: any) {
+  currentPark.value = area;
+  onRefresh();
 }
 
 // 修改搜索函数，添加参数类型定义
@@ -289,7 +257,7 @@ function onSearch(params: any) {
         <AreaSelector
           :default-area="currentPark"
           :refresh-callback="onRefresh"
-          @change="(area) => (currentPark = area)"
+          @change="onParkChange"
           ref="parkSelectorRef"
         />
       </template>

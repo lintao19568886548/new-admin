@@ -4,8 +4,10 @@ import type { FinanceItem } from '../types';
 import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
+import { formatDateTime } from '@vben/utils';
 
 import { Button, message } from 'ant-design-vue';
+import dayjs from 'dayjs';
 
 import { useVbenForm } from '#/adapter/form';
 import { createFinance, updateFinance } from '#/api/finance';
@@ -15,7 +17,7 @@ import { useFormSchema } from '../data';
 
 const emits = defineEmits(['success']);
 
-const formData = ref<FinanceItem>();
+const recordId = ref<number | string | undefined>();
 
 const [Form, formApi] = useVbenForm({
   layout: 'vertical',
@@ -25,59 +27,53 @@ const [Form, formApi] = useVbenForm({
 
 function resetForm() {
   formApi.resetForm();
-  formApi.setValues(formData.value || {});
+  // Since we only store the id, we need to handle resetting to initial edit data differently
+  // For now, resetForm clears it, which is acceptable for this flow.
 }
 
-const id = ref();
 const [Modal, modalApi] = useVbenModal({
   async onConfirm() {
-    const { valid } = await formApi.validate();
+    const { valid, values } = await formApi.validateAndGetValues();
     if (!valid) return;
-    const values = await formApi.getValues();
-    console.warn('表单数据:', values);
 
-    // 确保金额是数字类型
-    if (values.amount !== undefined && values.amount !== null) {
-      values.amount = Number(values.amount);
+    const cleanValues = Object.fromEntries(
+      Object.entries(values).filter(
+        ([, value]) => value !== null && value !== undefined && value !== '',
+      ),
+    );
+
+    if (cleanValues.amount) {
+      cleanValues.amount = Number(cleanValues.amount);
     }
 
-    if (values.transactionTime) {
-      values.transactionTime = new Date(values.transactionTime).toISOString();
+    if (cleanValues.transactionTime) {
+      cleanValues.transactionTime = new Date(
+        cleanValues.transactionTime as string,
+      ).toISOString();
     }
 
-    // 清理数据，移除空值（从finance.ts移过来的逻辑）
-    const cleanValues = {};
-    Object.entries(values).forEach(([key, value]) => {
-      if (value !== null && value !== undefined && value !== '') {
-        (cleanValues as Record<string, any>)[key] = value;
-      }
-    });
-
-    console.warn('提交表单数据', cleanValues);
     modalApi.lock();
 
     try {
-      // 根据是否有ID判断是创建还是更新
-      if (id.value) {
-        // 更新财务记录
-        await updateFinance(id.value, cleanValues);
-        message.success({
-          content: $t('ui.actionMessage.updateSuccess', [values.billName]),
-        });
+      if (recordId.value) {
+        await updateFinance(recordId.value, cleanValues);
+        message.success(
+          $t('ui.actionMessage.updateSuccess', [values.billName]),
+        );
       } else {
-        // 创建财务记录
-        await createFinance(cleanValues);
-        message.success({
-          content: $t('ui.actionMessage.createSuccess', [values.billName]),
-        });
+        await createFinance(cleanValues as FinanceItem);
+        message.success(
+          $t('ui.actionMessage.createSuccess', [values.billName]),
+        );
       }
       emits('success');
       modalApi.close();
-    } catch (error) {
+    } catch (error: any) {
       console.error('操作失败:', error);
-      message.error({
-        content: $t('ui.actionMessage.operationFailed', [values.billName]),
-      });
+      message.error(
+        error?.message ||
+          $t('ui.actionMessage.operationFailed', [values.billName]),
+      );
     } finally {
       modalApi.unlock();
     }
@@ -85,18 +81,14 @@ const [Modal, modalApi] = useVbenModal({
   onOpenChange(isOpen) {
     if (isOpen) {
       const data = modalApi.getData<FinanceItem>();
-      console.warn('打开表单，数据:', data);
       formApi.resetForm();
-      if (data && Object.keys(data).length > 0) {
-        formData.value = data;
-        id.value = data.financeId; // 使用financeId作为主键
+      if (data && data.financeId) {
+        recordId.value = data.financeId;
         formApi.setValues(data);
       } else {
-        id.value = undefined;
-        formData.value = undefined;
-        // 设置默认值
+        recordId.value = undefined;
         formApi.setValues({
-          transactionTime: new Date().toISOString(),
+          transactionTime: formatDateTime(dayjs()),
           transactionType: '支出',
         });
       }
@@ -105,9 +97,7 @@ const [Modal, modalApi] = useVbenModal({
 });
 
 const getDrawerTitle = computed(() => {
-  return formData.value?.financeId
-    ? $t('page.finance.edit')
-    : $t('page.finance.create');
+  return recordId.value ? $t('page.finance.edit') : $t('page.finance.create');
 });
 </script>
 <template>
