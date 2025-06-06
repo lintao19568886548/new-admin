@@ -1,5 +1,6 @@
 import { prismaClient } from '~/utils/db';
-import { useResponseSuccess } from '~/utils/response';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -52,28 +53,15 @@ export default eventHandler(async (event) => {
     },
   });
 
-  // 按园区ID分组账单 - 使用 forEach 替代 reduce
+  // 按园区ID分组账单
   const billsByPark = {};
-  for (const parkId of parkIds) {
+  parkIds.forEach((parkId) => {
     billsByPark[parkId] = allBills.filter((bill) => bill.parkId === parkId);
-  }
+  });
 
   // 处理每个园区的数据
   const parkElectricityData = parks.map((park) => {
     const bills = billsByPark[park.parkId] || [];
-
-    console.log('当前园区账单数量:', park.parkId, bills.length);
-    bills.forEach((bill) => {
-      console.log(
-        '账单ID:',
-        bill.billId,
-        '包含电表数量:',
-        bill.eleBills.length,
-      );
-      bill.eleBills.forEach((e) =>
-        console.log('电表名称:', e.meterName, '用量:', e.totalUsage),
-      );
-    });
 
     // 计算园区总电度数和总电费
     let totalUsage = 0;

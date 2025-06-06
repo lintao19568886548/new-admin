@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { RentalManagementItem } from './types';
+
 import type {
   OnActionClickParams,
   VxeTableGridOptions,
@@ -41,7 +43,13 @@ const [Grid, gridApi] = useVbenVxeGrid({
     border: true,
     columns: useColumns(onActionClick),
     footerAlign: 'center',
-    footerMethod({ columns, data }) {
+    footerMethod({
+      columns,
+      data,
+    }: {
+      columns: any[];
+      data: RentalManagementItem[];
+    }) {
       // 返回一个合计行
       return [
         columns.map((column) => {
@@ -53,14 +61,14 @@ const [Grid, gridApi] = useVbenVxeGrid({
           // 如果有需要计算合计的数值列，可以在这里添加
           // 例如：计算某个数值列的合计
           if (column.field === 'area') {
-            const sum = data.reduce((sum, row) => {
+            const sum = data.reduce((sum, row: RentalManagementItem) => {
               return sum + (Number(row.area) || 0);
             }, 0);
             return `${sum}㎡`;
           }
 
           if (column.field === 'rent') {
-            const sum = data.reduce((sum, row) => {
+            const sum = data.reduce((sum, row: RentalManagementItem) => {
               return sum + (Number(row.rent) || 0);
             }, 0);
             return `${sum}元`;
@@ -135,7 +143,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
     },
     rowConfig: {
-      keyField: 'tenantId',
+      keyField: 'rentalTenantId',
     },
     showFooter: true,
     toolbarConfig: {
@@ -145,13 +153,13 @@ const [Grid, gridApi] = useVbenVxeGrid({
       search: true,
       zoom: true,
     },
-  } as VxeTableGridOptions<any>,
+  } as VxeTableGridOptions<RentalManagementItem>,
 });
 
 /**
  * 处理表格操作按钮点击
  */
-function onActionClick(e: OnActionClickParams<any>) {
+function onActionClick(e: OnActionClickParams<RentalManagementItem>) {
   switch (e.code) {
     case 'delete': {
       onDelete(e.row);
@@ -171,7 +179,7 @@ function onActionClick(e: OnActionClickParams<any>) {
 /**
  * 编辑租户
  */
-function onEdit(row: any) {
+function onEdit(row: RentalManagementItem) {
   formModalApi.setData(row).open();
 }
 
@@ -185,7 +193,7 @@ function onCreate() {
 /**
  * 删除租户
  */
-function onDelete(row: any) {
+function onDelete(row: RentalManagementItem) {
   message.loading({
     content: $t('ui.actionMessage.deleting', [row.tenantName]),
     duration: 0,
@@ -212,7 +220,7 @@ function onDelete(row: any) {
 /**
  * 查看租户详情
  */
-function onView(row: any) {
+function onView(row: RentalManagementItem) {
   formModalApi.setData({ ...row, readonly: true }).open();
 }
 

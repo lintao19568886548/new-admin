@@ -15,6 +15,11 @@
     "delete": "删除{0}",
     "view": "查看{0}"
   },
+  "action": {
+    "view": "查看",
+    "edit": "编辑",
+    "delete": "删除"
+  },
   "actionMessage": {
     "deleteConfirm": "确定删除 {0} 吗？",
     "deleting": "正在删除 {0} ...",

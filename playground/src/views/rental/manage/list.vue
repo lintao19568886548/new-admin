@@ -14,11 +14,13 @@ import { Button, message } from 'ant-design-vue';
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteSystemPark, getSystemParkList } from '#/api/system/park';
 import { $t } from '#/locales';
+import { useParkStore } from '#/store';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 const router = useRouter();
+const parkStore = useParkStore();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -57,6 +59,10 @@ function onDelete(row: any) {
         content: $t('ui.actionMessage.deleteSuccess', [row.factoryName]),
         key: 'action_process_msg',
       });
+
+      // 删除成功后，强制刷新store中的园区列表
+      parkStore.fetchParkList(true);
+
       refreshGrid();
     })
     .catch((error) => {

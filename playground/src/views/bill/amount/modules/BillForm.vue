@@ -92,6 +92,16 @@ const numEditRender = reactive({
     focus: () => {
       enableDarg.value = false;
     },
+    keydown: ({ column, rowIndex }: any) => {
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          gridApi.grid.setEditCell(
+            gridApi.grid.getData(rowIndex + 1),
+            column.field,
+          );
+        }
+      });
+    },
   },
   immediate: true,
   name: 'input',
@@ -109,6 +119,16 @@ const strEditRender = reactive({
     },
     focus: () => {
       enableDarg.value = false;
+    },
+    keydown: ({ column, rowIndex }: any) => {
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          gridApi.grid.setEditCell(
+            gridApi.grid.getData(rowIndex + 1),
+            column.field,
+          );
+        }
+      });
     },
   },
   immediate: true,
@@ -181,24 +201,12 @@ const dataSource = ref<BillItem[]>([]);
 // 定义默认数据模板
 const templates = {
   ele: [
-    { meterName: '尖' },
-    { meterName: '峰' },
-    { meterName: '平' },
-    { meterName: '谷' },
-    { meterName: '办公室用电' },
-    { meterName: '宿舍热水电表' },
-    { meterName: '宿舍用电' },
-    { meterName: '公共用电' },
+    { meterName: '' },
     { meterName: '' },
     { meterName: '' },
     { meterName: '合计' },
   ],
   water: [
-    { meterName: '厂房用水' },
-    { meterName: '办公室用水' },
-    { meterName: '宿舍用水（冷水）' },
-    { meterName: '宿舍用水（热水）' },
-    { meterName: '公共用水' },
     { meterName: '' },
     { meterName: '' },
     { meterName: '' },
@@ -209,11 +217,17 @@ const templates = {
 // 初始化数据
 function initData(data: any) {
   // 根据数据类型选择模板
-  if (data?.eleBills?.length === 0) {
+  if (
+    data?.itemsField === 'eleBills' &&
+    (!data?.eleBills || data?.eleBills?.length === 0)
+  ) {
     dataSource.value = templates.ele;
     return;
   }
-  if (data?.waterBills?.length === 0) {
+  if (
+    data?.itemsField === 'waterBills' &&
+    (!data?.waterBills || data?.waterBills?.length === 0)
+  ) {
     dataSource.value = templates.water;
     return;
   }
@@ -311,7 +325,22 @@ const handleAdd = () => {
     newData.billId = dataSource.value[0].billId;
   }
 
-  dataSource.value.splice(-1, 0, newData);
+  // 检查dataSource.value是否为空或不是数组
+  if (!Array.isArray(dataSource.value) || dataSource.value.length === 0) {
+    dataSource.value = [newData];
+  } else {
+    // 如果有合计行，在合计行前插入新行
+    const totalRowIndex = dataSource.value.findIndex(
+      (item) => item.meterName === '合计',
+    );
+    if (totalRowIndex === -1) {
+      // 如果没有合计行，直接添加到末尾
+      dataSource.value.push(newData);
+    } else {
+      dataSource.value.splice(totalRowIndex, 0, newData);
+    }
+  }
+
   refreshGrid();
 };
 
@@ -376,7 +405,10 @@ function updateTotalRow() {
   // 使用for循环计算totalUsage，排除包含"公共"的行
   let totalUsage = 0;
   for (const row of regularRows) {
-    if (row.meterName && row.meterName.includes('公共')) {
+    if (
+      row.meterName &&
+      (row.meterName.includes('公共') || row.meterName.includes('公摊'))
+    ) {
       continue;
     }
     totalUsage += Number(row.totalUsage) || 0;
@@ -445,7 +477,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     height: window.innerHeight * 0.6,
     keepSource: true,
-
     pagerConfig: {
       enabled: false,
     },

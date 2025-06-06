@@ -142,7 +142,20 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       fieldName: 'managementFee',
       formItemClass: 'p-4',
       label: '基本管理费',
+      rules: 'required',
     },
+
+    // {
+    //   component: 'InputNumber',
+    //   componentProps: {
+    //     addonAfter: '元',
+    //     placeholder: '请输入收款金额',
+    //   },
+    //   fieldName: 'receiveFee',
+    //   formItemClass: 'p-4',
+    //   label: '收款金额',
+    //   rules: 'required',
+    // },
     {
       component: 'InputNumber',
       componentProps: {
@@ -150,34 +163,57 @@ export function useTenantFormSchema(): VbenFormSchema[] {
         placeholder: '请输入服务费比率',
       },
       fieldName: 'serviceRate',
-      formItemClass: 'p-4',
+      formItemClass: 'col-start-1 p-4',
       label: '服务费',
     },
     {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '%',
-        placeholder: '请输入垃圾费比率',
+        mode: 'multiple',
+        placeholder: '请输入额外服务费比率',
       },
-      fieldName: 'garbageRate',
+      fieldName: 'peakAndValleyEleRate',
       formItemClass: 'p-4',
-      label: '垃圾处理费',
+      label: '额外服务费',
     },
     {
-      component: 'InputNumber',
+      component: 'Select',
       componentProps: {
-        addonAfter: '‰',
-        placeholder: '请输入滞纳金比率',
+        allowClear: true,
+        mode: 'multiple',
+        placeholder: '请选择额外服务费',
       },
-      fieldName: 'penaltyRate',
+      fieldName: 'peakAndValleyEleItem',
       formItemClass: 'p-4',
-      label: '滞纳金',
+      hideLabel: true,
+      // label: '',
     },
+    // {
+    //   component: 'InputNumber',
+    //   componentProps: {
+    //     addonAfter: '%',
+    //     placeholder: '请输入垃圾费比率',
+    //   },
+    //   fieldName: 'garbageRate',
+    //   formItemClass: 'p-4',
+    //   label: '垃圾处理费',
+    // },
+    // {
+    //   component: 'InputNumber',
+    //   componentProps: {
+    //     addonAfter: '‰',
+    //     placeholder: '请输入滞纳金比率',
+    //   },
+    //   fieldName: 'penaltyRate',
+    //   formItemClass: 'p-4',
+    //   label: '滞纳金',
+    // },
     {
       component: markRaw(PenaltyForm),
       fieldName: 'penalty', // 保持不变，已与接口一致
-      formItemClass: 'p-4',
-      // label: $t('page.rental.increaseData'),
+      formItemClass: 'col-span-2 p-4',
+      label: '滞纳金明细',
     },
     {
       component: 'Divider',
@@ -228,7 +264,7 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '元',
-        placeholder: '请输入开票金额',
+        placeholder: '请输入水费开票金额',
       },
       fieldName: 'waterTax',
       formItemClass: 'p-4 pt-2', // 减少顶部内边距
@@ -238,7 +274,7 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '元',
-        placeholder: '请输入开票金额',
+        placeholder: '请输入电费开票金额',
       },
       fieldName: 'eleTax',
       formItemClass: 'p-4 pt-2', // 减少顶部内边距
@@ -248,7 +284,7 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '元',
-        placeholder: '请输入开票金额',
+        placeholder: '请输入房租开票金额',
       },
       fieldName: 'rentTax',
       formItemClass: 'p-4 pt-2', // 减少顶部内边距

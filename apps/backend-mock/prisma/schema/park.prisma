@@ -1,30 +1,33 @@
 // 园区表
 model Park {
-  parkId        Int             @id @default(autoincrement()) @map("park_id")
-  parkName      String          @map("park_name") @db.VarChar(100)
-  address       String          @db.VarChar(200)
-  area          Decimal         @db.Decimal(10, 2) // 总面积(平方米)
-  description   String?         @db.Text
-  status        String?         @db.VarChar(20) // 状态：运营中、建设中、规划中等
-  manager       String?         @db.VarChar(100) // 负责人
-  contact       String?         @db.VarChar(100) // 联系方式
-  factories     Factory[]       @relation("ParkToFactory")
-  dormitories   Dormitory[]     @relation("ParkToDormitory")
-  roleParks     RolePark[]      @relation("ParkToRolePark")
-  amountBills   AmountBill[]    @relation("ParkToAmountBill")
-  finances      Finance[]       @relation("ParkToFinance")
-  visitors      AccessVisitor[] @relation("ParkToVisitor")
-  cars          AccessCar[]     @relation("ParkToCar")
-  investments   Investment[]    @relation("ParkToInvestment")
-  firefighting  Firefighting[]  @relation("ParkToFirefighting")
-  transformers  Transformer[]   @relation("ParkToTransformer")
-  rentalTenants RentalTenant[]  @relation("ParkToRentalTenant")
-  Reimbursement Reimbursement[] @relation("ParkToReimbursement")
-  // 添加与图片的关联
-  images        ParkImage[]     @relation("ParkToParkImage")
-  createTime    DateTime        @default(now()) @map("create_time")
-  updateTime    DateTime?       @updatedAt @map("update_time")
-  isDeleted     Boolean         @default(false) @map("is_deleted") // 逻辑删除字段
+  parkId             Int                  @id @default(autoincrement()) @map("park_id")
+  parkName           String               @map("park_name") @db.VarChar(100)
+  address            String               @db.VarChar(200)
+  area               Decimal              @db.Decimal(10, 2) // 总面积(平方米)
+  description        String?              @db.Text
+  status             String?              @db.VarChar(20) // 状态：运营中、建设中、规划中等
+  manager            String?              @db.VarChar(100) // 负责人
+  contact            String?              @db.VarChar(100) // 联系方式
+  factories          Factory[]            @relation("ParkToFactory")
+  dormitories        Dormitory[]          @relation("ParkToDormitory")
+  roleParks          RolePark[]           @relation("ParkToRolePark")
+  amountBills        AmountBill[]         @relation("ParkToAmountBill")
+  finances           Finance[]            @relation("ParkToFinance")
+  visitors           AccessVisitor[]      @relation("ParkToVisitor")
+  cars               AccessCar[]          @relation("ParkToCar")
+  investments        Investment[]         @relation("ParkToInvestment")
+  firefighting       Firefighting[]       @relation("ParkToFirefighting")
+  transformers       Transformer[]        @relation("ParkToTransformer")
+  factoryMaintenance factoryMaintenance[] @relation("ParkToFactoryMaintenance")
+  HygieneCheck       HygieneCheck[]       @relation("ParkToHygieneCheck")
+  rentalTenants      RentalTenant[]       @relation("ParkToRentalTenant")
+  Reimbursement      Reimbursement[]      @relation("ParkToReimbursement")
+  elevator           Elevator[]           @relation("ParkToElevator")
+
+  images             ParkImage[]          @relation("ParkToParkImage")
+  createTime         DateTime             @default(now()) @map("create_time")
+  updateTime         DateTime?            @updatedAt @map("update_time")
+  isDeleted          Boolean              @default(false) @map("is_deleted") // 逻辑删除字段
 
   @@map("park")
 }
@@ -44,6 +47,7 @@ model Factory {
   transformers        Transformer[]        @relation("FactoryToTransformer")
   factoryMaintenances factoryMaintenance[] @relation("FactoryToFactoryMaintenance")
   HygieneCheck        HygieneCheck[]       @relation("FactoryToHygieneCheck")
+  elevator            Elevator[]           @relation("FactoryToElevator")
   createTime          DateTime             @default(now()) @map("create_time")
   updateTime          DateTime?            @updatedAt @map("update_time")
   isDeleted           Boolean              @default(false) @map("is_deleted") // 逻辑删除字段

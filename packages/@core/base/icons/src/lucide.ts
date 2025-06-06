@@ -19,6 +19,7 @@ export {
   CircleHelp,
   Copy,
   CornerDownLeft,
+  Download,
   Ellipsis,
   Expand,
   ExternalLink,

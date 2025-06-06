@@ -13,6 +13,16 @@ const routes: RouteRecordRaw[] = [
     name: 'Bill',
     path: '/bill',
   },
+  {
+    component: () => import('#/views/bill/amount/mobile-list.vue'),
+    meta: {
+      icon: 'mdi:cellphone',
+      order: 0,
+      title: $t('page.bill.amount.mobileTitle'),
+    },
+    name: 'BillMobileList',
+    path: '/bill/mobile-list',
+  },
 ];
 
 export default routes;

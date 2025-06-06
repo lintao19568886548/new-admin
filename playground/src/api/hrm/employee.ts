@@ -47,9 +47,12 @@ export namespace EmployeeApi {
  * @param params 查询参数
  */
 export async function getEmployeeList(params?: EmployeeApi.EmployeeQuery) {
-  return requestClient.get<EmployeeApi.EmployeePageResult>('/hrm/employee', {
-    params,
-  });
+  return requestClient.get<EmployeeApi.EmployeePageResult>(
+    '/hrm/employee/list',
+    {
+      params,
+    },
+  );
 }
 
 /**
@@ -59,7 +62,7 @@ export async function getEmployeeList(params?: EmployeeApi.EmployeeQuery) {
 export async function createEmployee(
   data: Omit<EmployeeApi.Employee, 'createTime' | 'employeeId' | 'updateTime'>,
 ) {
-  return requestClient.post<EmployeeApi.Employee>('/hrm', data, {});
+  return requestClient.post<EmployeeApi.Employee>('/hrm/employee', data);
 }
 
 /**

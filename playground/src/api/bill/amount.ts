@@ -8,6 +8,10 @@ export async function getAmountBillDetail(id: number) {
   return requestClient.get(`/bill/amount/${id}`);
 }
 
+export async function getExportData(data: any) {
+  return requestClient.post(`/bill/amount/export`, data);
+}
+
 export async function createAmountBill(data: any) {
   return requestClient.post('/bill/amount', data);
 }

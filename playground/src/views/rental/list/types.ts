@@ -56,6 +56,21 @@ export interface TransformerDetail {
   transformerId: number;
 }
 
+// 升降机详情
+export interface ElevatorDetail {
+  address: string;
+  area: number;
+  brand: string;
+  checker: string;
+  checkTime: string;
+  elevatorId: number; // 假设有一个ID字段
+  imgUrl: string;
+  loadCapacity: number;
+  name: string;
+  remark: string;
+  title: string;
+}
+
 // 厂房楼层图片
 export interface FactoryFloorImageDetail {
   createTime: string;
@@ -128,6 +143,7 @@ export interface FactoryDetail {
   contact: string;
   createTime: string;
   description: string;
+  elevators: ElevatorDetail[]; // 添加升降机数组
   factoryId: number;
   factoryName: string;
   // 关联数据

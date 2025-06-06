@@ -43,6 +43,7 @@ const [Modal, modalApi] = useVbenModal({
       const cascaderValue = rawData.factoryId;
       if (cascaderValue && Array.isArray(cascaderValue)) {
         if (cascaderValue.length === 2) {
+          dataToSubmit.parkId = cascaderValue[0];
           dataToSubmit.factoryId = cascaderValue[1];
         } else if (cascaderValue.length === 1) {
           dataToSubmit.factoryId = cascaderValue[0];

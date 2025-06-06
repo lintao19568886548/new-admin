@@ -263,6 +263,12 @@ onMounted(async () => {
             {{ billData?.invoiceTax }}
           </div>
         </div>
+        <div class="summary-row" v-if="Number(billData?.penaltyFee) !== 0">
+          <div class="summary-cell summary-label">滞纳金</div>
+          <div class="summary-cell summary-value">
+            {{ billData?.penaltyFee }}
+          </div>
+        </div>
         <div class="summary-row">
           <div class="summary-cell summary-label">本月收费金额</div>
           <div class="summary-cell summary-value">{{ billData?.totalFee }}</div>
