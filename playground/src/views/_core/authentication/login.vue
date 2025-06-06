@@ -122,10 +122,45 @@ async function onSubmit(params: Recordable<any>) {
 </script>
 
 <template>
-  <AuthenticationLogin
-    ref="loginRef"
-    :form-schema="formSchema"
-    :loading="authStore.loginLoading"
-    @submit="onSubmit"
-  />
+  <div class="page-safe-area-container">
+    <AuthenticationLogin
+      ref="loginRef"
+      :form-schema="formSchema"
+      :loading="authStore.loginLoading"
+      @submit="onSubmit"
+    />
+  </div>
 </template>
+
+<style scoped>
+.page-safe-area-container {
+  /* 确保容器是块级元素并且其内边距不会导致溢出或尺寸计算问题 */
+
+  /* Ensure the container is a block-level element and its padding doesn't cause overflow or size calculation issues */
+  box-sizing: border-box;
+
+  /* 让容器至少占据整个视口的高度，宽度默认为100% */
+
+  /* Make the container take at least the full viewport height, width defaults to 100% */
+  width: 100%;
+  min-height: 100vh; /* 或者使用 100% 如果父元素已设定高度 */
+
+  /* 使用 CSS 环境变量为容器的四边添加内边距 */
+
+  /* Apply padding to the four sides of the container using CSS environment variables */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+
+  /* 可选：如果需要内容垂直居中或有特定布局需求 */
+
+  /* Optional: if content needs to be vertically centered or for specific layout needs */
+
+  /* display: flex; */
+
+  /* flex-direction: column; */
+
+  /* align-items: center; */
+
+  /* justify-content: center; */
+}
+</style>

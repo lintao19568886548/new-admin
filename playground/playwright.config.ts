@@ -87,7 +87,7 @@ const config: PlaywrightTestConfig = {
     /* Maximum time each action such as `click()` can take. Defaults to 0 (no limit). */
     actionTimeout: 0,
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:5555',
+    baseURL: 'http://localhost:5556',
     /* Only on CI systems run the tests headless */
     headless: !!process.env.CI,
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
@@ -96,8 +96,8 @@ const config: PlaywrightTestConfig = {
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: process.env.CI ? 'pnpm preview --port 5555' : 'pnpm dev',
-    port: 5555,
+    command: process.env.CI ? 'pnpm preview --port 5556' : 'pnpm dev',
+    port: 5556,
     reuseExistingServer: !process.env.CI,
   },
 

@@ -6,7 +6,7 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -17,10 +17,38 @@ import { Button, message, Modal } from 'ant-design-vue';
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteFinance, getFinanceList } from '#/api/finance';
 import AreaSelector from '#/components/AreaSelector.vue';
+import { usePlatform } from '#/hooks/usePlatform';
 import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
+
+// 在 setup 作用域定义 isNativePlatform，并直接通过 Capacitor.isNativePlatform() 初始化 // 这行将被移除
+// 这样可以确保在 useVbenVxeGrid 读取配置之前，isNativePlatform 的值是准确的 // 这行将被移除
+// const isNativePlatform = ref(Capacitor.isNativePlatform()); // 移除此行
+
+// 使用 usePlatform Hook 获取平台信息
+const { isNativePlatform, platformName } = usePlatform(); // 新增此行
+
+/**
+ * @function onMounted
+ * @description 组件挂载后执行的生命周期钩子函数。
+ *              主要用于执行一些需要在 DOM 挂载后进行的操作，例如日志记录。
+ *              平台的判断已通过 usePlatform Hook 在 setup 顶层完成。
+ */
+onMounted(() => {
+  // 平台信息已在 setup 阶段通过 usePlatform Hook 初始化，此处主要用于调试日志
+  console.warn(
+    '当前平台是否为原生 (onMounted, value from usePlatform):',
+    isNativePlatform.value,
+  ); // 用于调试输出
+
+  // 可选: 获取具体平台名称 (例如 'ios', 'android')
+  if (isNativePlatform.value) {
+    // const platformName = Capacitor.getPlatform(); // 此行不再需要，platformName 已从 usePlatform 获取
+    console.warn('原生平台名称 (from usePlatform):', platformName.value); // 用于调试输出
+  }
+});
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -126,10 +154,14 @@ const [Grid, gridApi] = useVbenVxeGrid({
     showOverflow: true,
     toolbarConfig: {
       custom: true,
-      export: false,
-      refresh: { code: 'query' },
-      search: true,
-      zoom: true,
+      // 根据平台动态配置 refresh 和 zoom 按钮
+      // 如果不是原生平台 (即网页端)，则启用刷新按钮，并指定其行为代码为 'query'
+      // 如果是原生平台，则禁用刷新按钮 (设置为 false)
+      refresh: true, // .value ? false : { code: 'query' },
+      search: !isNativePlatform.value,
+      // 如果不是原生平台 (即网页端)，则启用缩放按钮
+      // 如果是原生平台，则禁用缩放按钮 (设置为 false)
+      zoom: !isNativePlatform.value,
     },
   } as VxeTableGridOptions<FinanceItem>,
 });
@@ -262,9 +294,15 @@ function onSearch(params: any) {
         />
       </template>
       <template #toolbar-tools>
-        <Button type="primary" @click="onCreate">
-          <Plus class="size-5" />
+        <!-- 网页端按钮样式 -->
+        <Button v-if="!isNativePlatform" type="primary" @click="onCreate">
+          <Plus class="mr-1 size-5" />
+          <!-- 稍微调整图标和文字间距 -->
           {{ $t('ui.actionTitle.create', [$t('page.finance.name')]) }}
+        </Button>
+        <!-- 原生移动端按钮样式 (圆形) -->
+        <Button v-else type="primary" shape="circle" @click="onCreate">
+          <Plus class="size-5" />
         </Button>
       </template>
     </Grid>
