@@ -1,3 +1,4 @@
+<!-- eslint-disable jsdoc/check-param-names -->
 <script lang="ts" setup>
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -55,7 +56,7 @@ const [FormModal, formModalApi] = useVbenModal({
  * 编辑租赁项目
  * @param row
  */
-function onEdit(row) {
+function onEdit(row: any) {
   formModalApi.setData(row).open();
 }
 
@@ -70,10 +71,10 @@ function onCreate() {
  * 删除租赁项目
  * @param row
  */
-function onDelete(row) {
+function onDelete(row: { parkId: number; parkName: unknown }) {
   loading.value = true;
   message.loading({
-    content: $t('ui.actionMessage.deleting', [row.factoryName]),
+    content: $t('ui.actionMessage.deleting', [row.parkName]),
     duration: 0,
     key: 'action_process_msg',
   });
@@ -81,7 +82,7 @@ function onDelete(row) {
   deleteSystemPark(row.parkId)
     .then(() => {
       message.success({
-        content: $t('ui.actionMessage.deleteSuccess', [row.factoryName]),
+        content: $t('ui.actionMessage.deleteSuccess', [row.parkName]),
         key: 'action_process_msg',
       });
 
@@ -93,7 +94,7 @@ function onDelete(row) {
     .catch((error) => {
       console.error('删除租户失败:', error);
       message.error({
-        content: $t('ui.actionMessage.deleteFailed', [row.factoryName]),
+        content: $t('ui.actionMessage.deleteFailed', [row.parkName]),
         key: 'action_process_msg',
       });
     })
@@ -106,7 +107,7 @@ function onDelete(row) {
  * 查看租赁项目详情
  * @param row
  */
-function onView(row) {
+function onView(row: { parkId: any }) {
   // 可以跳转到详情页面
   router.push(`/rental/detail/${row.parkId}`);
 }
@@ -118,27 +119,33 @@ async function fetchParkList() {
   loading.value = true;
   try {
     // 准备查询参数
-    const params = { ...formData.value };
+    const initialParams = { ...formData.value };
+    const apiParams: Record<string, any> = {}; // Use a record for the final API params
 
-    // 清理空值
-    Object.keys(params).forEach((key) => {
-      if (
-        params[key] === undefined ||
-        params[key] === null ||
-        params[key] === ''
-      ) {
-        delete params[key];
-      } else if (key === 'area' && Array.isArray(params[key])) {
-        params[key] = params[key].join(',');
+    // 清理空值 and transform for API
+    Object.keys(initialParams).forEach((key) => {
+      const currentKey = key as keyof typeof initialParams;
+      const value = initialParams[currentKey];
+
+      // Only include non-empty values
+      if (value !== undefined && value !== null && value !== '') {
+        // eslint-disable-next-line unicorn/prefer-ternary
+        if (currentKey === 'area' && Array.isArray(value)) {
+          // Join the array into a comma-separated string for the API
+          apiParams[currentKey] = value.join(',');
+        } else {
+          // Assign other valid values directly
+          apiParams[currentKey] = value;
+        }
       }
     });
 
     // 添加分页参数
-    params.currentPage = pagination.value.current;
-    params.pageSize = pagination.value.pageSize;
+    apiParams.currentPage = pagination.value.current;
+    apiParams.pageSize = pagination.value.pageSize;
 
     // 调用API获取数据
-    const result = await getSystemParkList(params);
+    const result = await getSystemParkList(apiParams); // Pass the correctly typed object
     parkList.value = result.items || [];
     pagination.value.total = result.page?.total || 0;
   } catch (error) {
@@ -154,7 +161,7 @@ async function fetchParkList() {
 /**
  * 处理分页变化
  */
-function handlePaginationChange(page, pageSize) {
+function handlePaginationChange(page: number, pageSize: number) {
   pagination.value.current = page;
   pagination.value.pageSize = pageSize;
   fetchParkList();
@@ -214,17 +221,23 @@ onMounted(() => {
     </div>
 
     <div class="mobile-content">
+      <!-- Conditionally render Empty component if parkList is empty -->
+      <Empty
+        v-if="!parkList || parkList.length === 0"
+        description="暂无数据，请尝试更换筛选条件"
+        image="https://gw.alipayobjects.com/mdn/miniapp_social/afts/img/A*pevERLJC9v0AAAAAAAAAAABjAQAAAQ/original"
+        class="mt-10"
+      />
+      <!-- Render List only if parkList has data -->
       <List
+        v-else
         :loading="loading"
         :data-source="parkList"
         :pagination="false"
         item-layout="horizontal"
         class="park-list"
       >
-        <template #renderEmpty>
-          <Empty :description="$t('ui.table.empty')" />
-        </template>
-
+        <!-- Removed <template #empty> here -->
         <template #renderItem="{ item }">
           <List.Item>
             <Card class="park-card" :bordered="false">
@@ -240,7 +253,7 @@ onMounted(() => {
                     </Button>
                     <Popconfirm
                       :title="
-                        $t('ui.actionMessage.deleteConfirm', [item.factoryName])
+                        $t('ui.actionMessage.deleteConfirm', [item.parkName])
                       "
                       @confirm="onDelete(item)"
                     >
@@ -292,7 +305,7 @@ onMounted(() => {
     <!-- 搜索表单抽屉 -->
     <Drawer
       :title="$t('ui.search.title')"
-      :visible="searchFormVisible"
+      v-model:open="searchFormVisible"
       placement="right"
       @close="searchFormVisible = false"
       width="300px"

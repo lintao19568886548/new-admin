@@ -44,7 +44,6 @@ export function useFormSchema(): VbenFormSchema[] {
           { label: '燃气费', value: '燃气费' },
           { label: '其他费用', value: '其他费用' },
         ],
-        style: { width: '25%' },
       },
       fieldName: 'billCategory',
       label: $t('page.finance.billCategory'),

@@ -6,7 +6,7 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -17,10 +17,38 @@ import { Button, message, Modal } from 'ant-design-vue';
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteFinance, getFinanceList } from '#/api/finance';
 import AreaSelector from '#/components/AreaSelector.vue';
+import { usePlatform } from '#/hooks/usePlatform';
 import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
+
+// 在 setup 作用域定义 isNativePlatform，并直接通过 Capacitor.isNativePlatform() 初始化 // 这行将被移除
+// 这样可以确保在 useVbenVxeGrid 读取配置之前，isNativePlatform 的值是准确的 // 这行将被移除
+// const isNativePlatform = ref(Capacitor.isNativePlatform()); // 移除此行
+
+// 使用 usePlatform Hook 获取平台信息
+const { isNativePlatform, platformName } = usePlatform(); // 新增此行
+
+/**
+ * @function onMounted
+ * @description 组件挂载后执行的生命周期钩子函数。
+ *              主要用于执行一些需要在 DOM 挂载后进行的操作，例如日志记录。
+ *              平台的判断已通过 usePlatform Hook 在 setup 顶层完成。
+ */
+onMounted(() => {
+  // 平台信息已在 setup 阶段通过 usePlatform Hook 初始化，此处主要用于调试日志
+  console.warn(
+    '当前平台是否为原生 (onMounted, value from usePlatform):',
+    isNativePlatform.value,
+  ); // 用于调试输出
+
+  // 可选: 获取具体平台名称 (例如 'ios', 'android')
+  if (isNativePlatform.value) {
+    // const platformName = Capacitor.getPlatform(); // 此行不再需要，platformName 已从 usePlatform 获取
+    console.warn('原生平台名称 (from usePlatform):', platformName.value); // 用于调试输出
+  }
+});
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -50,9 +78,8 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     proxyConfig: {
       ajax: {
-        query: async (page) => {
+        query: async ({ page }) => {
           try {
-            // 直接从formApi获取表单数据
             const params = (await gridApi.formApi?.getValues?.()) || {};
 
             // 处理日期范围
@@ -62,7 +89,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
             }
 
             // 处理金额查询
-            if (params.amount !== undefined && params.amount !== null) {
+            if (params.amount) {
               const amountStr = String(params.amount);
               if (
                 amountStr.includes('>') ||
@@ -78,52 +105,37 @@ const [Grid, gridApi] = useVbenVxeGrid({
               ? currentPark.value.parkId
               : -1;
 
-            // 添加分页参数
-            const currentPage = page.page?.currentPage || 1;
-            const pageSize = page.page?.pageSize || 20;
-
-            params.currentPage = currentPage;
-            params.pageSize = pageSize;
-
-            console.warn('处理后的查询参数:', params);
-
-            // 参数序列化处理（从finance.ts移过来）
-            const cleanParams = {};
-            Object.entries(params).forEach(([key, value]) => {
-              if (value !== null && value !== undefined && value !== '') {
-                (cleanParams as Record<string, any>)[key] = value;
+            const cleanParams: Record<string, any> = {};
+            for (const key in params) {
+              if (
+                Object.prototype.hasOwnProperty.call(params, key) &&
+                params[key] !== null &&
+                params[key] !== undefined &&
+                params[key] !== ''
+              ) {
+                cleanParams[key] = params[key];
               }
-            });
+            }
 
-            // 调用API获取数据
+            cleanParams.currentPage = page.currentPage;
+            cleanParams.pageSize = page.pageSize;
+
             const response = await getFinanceList(cleanParams);
 
-            // 确保返回的数据格式一致（从finance.ts移过来）
-            // 使用三元表达式替代if-else语句
-            const result =
-              response && !response.items
-                ? {
-                    currentPage: params.currentPage || 1,
-                    pageSize: params.pageSize || 20,
-                    total: Array.isArray(response) ? response.length : 0,
-                    items: Array.isArray(response) ? response : [],
-                  }
-                : response;
-
-            // 返回格式化后的数据，包含分页信息
             return {
-              ...result,
+              page: {
+                total: response.total || 0,
+              },
+              result: response.items || [],
             };
           } catch (error) {
             console.error('获取财务数据失败:', error);
             message.error('获取账单列表失败');
             return {
               page: {
-                currentPage: 1,
-                pageSize: 20,
                 total: 0,
               },
-              items: [],
+              result: [],
             };
           }
         },
@@ -142,10 +154,14 @@ const [Grid, gridApi] = useVbenVxeGrid({
     showOverflow: true,
     toolbarConfig: {
       custom: true,
-      export: false,
-      refresh: { code: 'query' },
-      search: true,
-      zoom: true,
+      // 根据平台动态配置 refresh 和 zoom 按钮
+      // 如果不是原生平台 (即网页端)，则启用刷新按钮，并指定其行为代码为 'query'
+      // 如果是原生平台，则禁用刷新按钮 (设置为 false)
+      refresh: true, // .value ? false : { code: 'query' },
+      search: !isNativePlatform.value,
+      // 如果不是原生平台 (即网页端)，则启用缩放按钮
+      // 如果是原生平台，则禁用缩放按钮 (设置为 false)
+      zoom: !isNativePlatform.value,
     },
   } as VxeTableGridOptions<FinanceItem>,
 });
@@ -164,13 +180,10 @@ function onActionClick(e: OnActionClickParams<FinanceItem>) {
 }
 
 function onEdit(row: FinanceItem) {
-  // 复制行数据以避免修改原始数据
   const editData = { ...row };
 
   if (editData.transactionTime) {
-    editData.transactionTime = formatDateTime(
-      editData.transactionTime,
-    ) as string;
+    editData.transactionTime = formatDateTime(editData.transactionTime);
   }
 
   formModalApi.setData(editData).open();
@@ -178,22 +191,19 @@ function onEdit(row: FinanceItem) {
 
 function onDelete(row: FinanceItem) {
   Modal.confirm({
-    cancelText: $t('common.no'),
+    cancelText: $t('common.cancel'),
     content: $t('ui.actionMessage.deleteConfirm', [row.billName]),
-    okText: $t('common.yes'),
+    okText: $t('common.confirm'),
     okType: 'danger',
     async onOk() {
       try {
-        const hideLoading = message.loading({
+        message.loading({
           content: $t('ui.actionMessage.deleting', [row.billName]),
           duration: 0,
           key: 'action_process_msg',
         });
 
         await deleteFinance(row.financeId);
-
-        // 手动关闭加载提示
-        hideLoading();
 
         message.success({
           content: $t('ui.actionMessage.deleteSuccess', [row.billName]),
@@ -208,31 +218,21 @@ function onDelete(row: FinanceItem) {
         });
       }
     },
-    title: $t('ui.actionTitle.delete', [row.billName]),
+    title: $t('common.confirmDelete'),
   });
 }
 
 function onRefresh() {
-  // 直接从formApi获取最新表单数据并传递给query方法
-  gridApi.formApi
-    .getValues()
-    .then((formValues) => {
-      gridApi.query({
-        form: formValues || {},
-      });
-      console.warn('刷新表格数据');
-    })
-    .catch((error) => {
-      console.error('获取表单数据失败:', error);
-      // 出错时使用空对象查询
-      gridApi.query({
-        form: {},
-      });
-    });
+  gridApi.commitProxy('query');
 }
 
 function onCreate() {
   formModalApi.setData({}).open();
+}
+
+function onParkChange(area: any) {
+  currentPark.value = area;
+  onRefresh();
 }
 
 // 修改搜索函数，添加参数类型定义
@@ -289,14 +289,20 @@ function onSearch(params: any) {
         <AreaSelector
           :default-area="currentPark"
           :refresh-callback="onRefresh"
-          @change="(area) => (currentPark = area)"
+          @change="onParkChange"
           ref="parkSelectorRef"
         />
       </template>
       <template #toolbar-tools>
-        <Button type="primary" @click="onCreate">
-          <Plus class="size-5" />
+        <!-- 网页端按钮样式 -->
+        <Button v-if="!isNativePlatform" type="primary" @click="onCreate">
+          <Plus class="mr-1 size-5" />
+          <!-- 稍微调整图标和文字间距 -->
           {{ $t('ui.actionTitle.create', [$t('page.finance.name')]) }}
+        </Button>
+        <!-- 原生移动端按钮样式 (圆形) -->
+        <Button v-else type="primary" shape="circle" @click="onCreate">
+          <Plus class="size-5" />
         </Button>
       </template>
     </Grid>
