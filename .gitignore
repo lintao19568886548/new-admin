@@ -54,4 +54,6 @@ vite.config.ts.*
 playground/src/views/rental/list/example/
 playground/src/views/dashboard/workspace/example/
 playground/public/uploads/
+playground/src/*.txt
+playground/src/views/finance/manage/*copy.vue
 apps/backend-mock/.env
