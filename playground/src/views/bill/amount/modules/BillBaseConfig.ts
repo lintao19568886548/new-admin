@@ -141,7 +141,7 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'managementFee',
       formItemClass: 'p-4',
-      label: '基本管理费',
+      label: '基本电费',
       rules: 'required',
     },
 
@@ -171,18 +171,18 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       componentProps: {
         addonAfter: '%',
         mode: 'multiple',
-        placeholder: '请输入额外服务费比率',
+        placeholder: '请输入电费附加费比率',
       },
       fieldName: 'peakAndValleyEleRate',
       formItemClass: 'p-4',
-      label: '额外服务费',
+      label: '电费附加费',
     },
     {
       component: 'Select',
       componentProps: {
         allowClear: true,
         mode: 'multiple',
-        placeholder: '请选择额外服务费',
+        placeholder: '请选择电费附加费',
       },
       fieldName: 'peakAndValleyEleItem',
       formItemClass: 'p-4',

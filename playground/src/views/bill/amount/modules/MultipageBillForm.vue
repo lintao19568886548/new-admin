@@ -274,6 +274,7 @@ watch(
     () => billData.eleFee,
     () => billData.factoryRent,
     () => billData.serviceFee,
+    () => billData.managementFee,
   ],
   () => {
     const calculateItemTax = (
@@ -300,6 +301,7 @@ watch(
     const eleFee = Number(billData.eleFee || 0);
     const serviceFee = Number(billData.serviceFee || 0);
     const factoryRent = Number(billData.factoryRent || 0);
+    const managementFee = Number(billData.managementFee || 0);
 
     // 水费税金计算
     const waterInvoiceTax = calculateItemTax(
@@ -309,7 +311,7 @@ watch(
 
     // 电费税金计算 (包括服务费)
     const eleInvoiceTax = calculateItemTax(
-      billData.eleTax || eleFee + serviceFee,
+      billData.eleTax || eleFee + serviceFee + managementFee,
       billData.eleTaxRate,
     );
 
@@ -785,7 +787,7 @@ defineExpose({
                 prefix="¥"
               />
             </DescriptionsItem>
-            <DescriptionsItem label="基本管理费" :span="1">
+            <DescriptionsItem label="基本电费" :span="1">
               <Statistic
                 :value="billData.managementFee || 0"
                 :precision="2"
