@@ -19,7 +19,7 @@ const config: CapacitorConfig = {
      */
     cleartext: true,
     // hostname: 'localhost', // 如果不使用实时重载，可以保持注释
-    url: 'http://10.0.2.2:5556', // 前端服务路径，如果不使用实时重载，可以保持注释。打包前记得注释。
+    url: 'http://10.0.2.2:5556', // 前端服务路径，如果不使用实时重载，可以保持注释。安卓打包前记得注释。
   },
   webDir: 'dist',
   // bundledWebRuntime: false, // 默认为 false，Capacitor 核心功能通过原生代码提供

@@ -7,9 +7,13 @@ import { computed, markRaw, useTemplateRef } from 'vue';
 import { AuthenticationLogin, SliderCaptcha, z } from '@vben/common-ui';
 import { $t } from '@vben/locales';
 
+import { usePlatform } from '#/hooks/usePlatform';
 import { useAuthStore } from '#/store';
 
 defineOptions({ name: 'Login' });
+
+// 使用 usePlatform Hook 获取平台信息
+const { isNativePlatform } = usePlatform();
 
 const authStore = useAuthStore();
 
@@ -121,14 +125,28 @@ async function onSubmit(params: Recordable<any>) {
 }
 </script>
 
+<!-- eslint-disable vue/no-multiple-template-root -->
 <template>
-  <div class="page-safe-area-container">
-    <AuthenticationLogin
-      ref="loginRef"
-      :form-schema="formSchema"
-      :loading="authStore.loginLoading"
-      @submit="onSubmit"
-    />
+  <!-- Web Platform Login -->
+
+  <AuthenticationLogin
+    ref="loginRef"
+    v-if="!isNativePlatform"
+    :form-schema="formSchema"
+    :loading="authStore.loginLoading"
+    @submit="onSubmit"
+  />
+
+  <!-- Native Platform Login with Safe Area -->
+  <div v-else class="h-full">
+    <div class="page-safe-area-container">
+      <AuthenticationLogin
+        ref="loginRef"
+        :form-schema="formSchema"
+        :loading="authStore.loginLoading"
+        @submit="onSubmit"
+      />
+    </div>
   </div>
 </template>
 
