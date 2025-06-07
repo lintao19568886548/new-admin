@@ -62,6 +62,12 @@ const [Modal, modalApi] = useVbenModal({
             dataToSubmit.checkTime,
           ).toISOString();
         }
+        // 将 productionDate 转换为 ISO-8601 格式
+        if (dataToSubmit.productionDate) {
+          dataToSubmit.productionDate = new Date(
+            dataToSubmit.productionDate,
+          ).toISOString();
+        }
 
         await (recordIdToUpdate
           ? updateElevator(recordIdToUpdate, dataToSubmit)

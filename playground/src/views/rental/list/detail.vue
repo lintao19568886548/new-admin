@@ -642,17 +642,17 @@ onMounted(() => {
                                 xs: 1,
                               }"
                             >
-                              <!-- 函数级注释：显示电梯品牌 -->
-                              <Descriptions.Item label="品牌">
-                                {{ item.brand }}
-                              </Descriptions.Item>
-                              <!-- 函数级注释：显示电梯面积 -->
-                              <Descriptions.Item label="面积(㎡)">
-                                {{ item.area }}
-                              </Descriptions.Item>
                               <!-- 函数级注释：显示电梯承重 -->
-                              <Descriptions.Item label="承重(kg)">
+                              <Descriptions.Item label="承重(吨)">
                                 {{ item.loadCapacity }}
+                              </Descriptions.Item>
+                              <!-- 函数级注释：显示电梯尺寸 -->
+                              <Descriptions.Item label="尺寸">
+                                {{ item.size }}
+                              </Descriptions.Item>
+                              <!-- 函数级注释：显示生产日期，并格式化 -->
+                              <Descriptions.Item label="生产日期">
+                                {{ formatDateTime(item.productionDate) }}
                               </Descriptions.Item>
                               <!-- 函数级注释：显示检查人 -->
                               <Descriptions.Item label="检查人">

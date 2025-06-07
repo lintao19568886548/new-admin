@@ -19,13 +19,20 @@ export default eventHandler(async (event) => {
     loadCapacity, // 承重
     brand, // 品牌
     checker, // 检查人
-    startTime, // 开始时间
-    endTime, // 结束时间
+    size, // 尺寸
+    productionDateStart, // 生产日期开始
+    productionDateEnd, // 生产日期结束
+    checkTimeStart, // 检查日期开始
+    checkTimeEnd, // 检查日期结束
     currentPark, // 当前园区
     factoryId, // 厂房ID
     currentPage,
     pageSize,
   } = query;
+
+  // 重命名时间范围变量以避免冲突
+  const startTime = checkTimeStart;
+  const endTime = checkTimeEnd;
 
   // 构建查询条件
   const where: any = {};
@@ -105,7 +112,22 @@ export default eventHandler(async (event) => {
     };
   }
 
-  // 时间范围查询 - 使用startTime和endTime
+  // 生产日期范围查询
+  if (productionDateStart && productionDateEnd) {
+    where.productionDate = {
+      gte: new Date(productionDateStart as string),
+      lte: new Date(productionDateEnd as string),
+    };
+  }
+
+  // 尺寸查询
+  if (size) {
+    where.size = {
+      contains: size,
+    };
+  }
+
+  // 检查时间范围查询 - 使用startTime和endTime
   if (startTime && endTime) {
     where.checkTime = {
       gte: new Date(startTime as string),
@@ -115,7 +137,7 @@ export default eventHandler(async (event) => {
 
   // 计算分页参数
   const page = Number(currentPage) || 1;
-  const size = Number(pageSize) || 20;
+  const limit = Number(pageSize) || 20; // 将 size 重命名为 limit 避免冲突
 
   console.log('where', where);
   // 查询总记录数
@@ -129,8 +151,8 @@ export default eventHandler(async (event) => {
     orderBy: {
       checkTime: 'desc',
     },
-    skip: (page - 1) * size,
-    take: size,
+    skip: (page - 1) * limit,
+    take: limit,
     include: {
       factory: {
         select: {

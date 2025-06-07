@@ -37,24 +37,33 @@ export function useFormSchema(): VbenFormSchema[] {
       rules: 'required',
     },
     {
-      component: 'Input', // 或者使用 InputNumber 如果需要数字输入
-      fieldName: 'area',
-      label: '面积',
-      // rules: 'required', // 根据业务需求决定是否必填，以及具体校验规则
-    },
-    {
       component: 'InputNumber', // 或者使用 InputNumber 如果需要数字输入
       componentProps: {
         addonAfter: '吨',
       },
       fieldName: 'loadCapacity',
       label: '承重',
-      // rules: 'required', // 根据业务需求决定是否必填，以及具体校验规则
+      rules: 'required', // 根据业务需求决定是否必填，以及具体校验规则
     },
     {
       component: 'Input',
-      fieldName: 'brand',
-      label: '品牌',
+      componentProps: {
+        placeholder: '长*宽*高 (米)',
+      },
+      fieldName: 'size',
+      label: '尺寸',
+      rules: 'required',
+    },
+    {
+      component: 'DatePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD',
+        placeholder: '请选择生产日期',
+        style: { width: '100%' },
+        valueFormat: 'YYYY-MM-DD',
+      },
+      fieldName: 'productionDate',
+      label: '生产日期',
       // rules: 'required', // 根据业务需求决定是否必填
     },
     {
@@ -63,6 +72,7 @@ export function useFormSchema(): VbenFormSchema[] {
       label: $t('system.rental.checker'),
       rules: 'required',
     },
+    // Removed duplicate productionDate
     {
       component: 'DatePicker',
       componentProps: {
@@ -76,6 +86,7 @@ export function useFormSchema(): VbenFormSchema[] {
       label: $t('page.maintenance.checkTime'),
       rules: 'required',
     },
+    // Removed duplicate productionDate
     {
       component: 'Textarea',
       componentProps: {
@@ -121,11 +132,6 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: '电梯名称',
     },
     {
-      component: 'Input',
-      fieldName: 'area',
-      label: '面积',
-    },
-    {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '吨',
@@ -135,8 +141,8 @@ export function useGridFormSchema(): VbenFormSchema[] {
     },
     {
       component: 'Input',
-      fieldName: 'brand',
-      label: '品牌',
+      fieldName: 'size',
+      label: '尺寸',
     },
     {
       component: 'Input',
@@ -152,6 +158,16 @@ export function useGridFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'checkTime',
       label: $t('page.maintenance.checkTime'),
+    },
+    {
+      component: 'RangePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD',
+        placeholder: ['生产开始日期', '生产结束日期'],
+        valueFormat: 'YYYY-MM-DD',
+      },
+      fieldName: 'productionDate',
+      label: '生产日期',
     },
   ];
 }
@@ -179,19 +195,23 @@ export function useColumns(
       title: '电梯名称',
     },
     {
-      field: 'area',
-      minWidth: 100,
-      title: '面积',
-    },
-    {
       field: 'loadCapacity',
       minWidth: 100,
       title: '承重',
     },
     {
-      field: 'brand',
-      minWidth: 120,
-      title: '品牌',
+      field: 'size',
+      minWidth: 100,
+      title: '尺寸',
+    },
+    {
+      field: 'productionDate',
+      formatter: ({ cellValue }) => {
+        // 仅格式化日期部分
+        return formatDateTime(cellValue);
+      },
+      minWidth: 150,
+      title: '生产日期',
     },
     {
       field: 'checker',

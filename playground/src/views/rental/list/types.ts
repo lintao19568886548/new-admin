@@ -67,7 +67,9 @@ export interface ElevatorDetail {
   imgUrl: string;
   loadCapacity: number;
   name: string;
+  productionDate: string;
   remark: string;
+  size: string;
   title: string;
 }
 

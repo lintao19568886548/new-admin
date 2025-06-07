@@ -128,7 +128,6 @@ async function onSubmit(params: Recordable<any>) {
 <!-- eslint-disable vue/no-multiple-template-root -->
 <template>
   <!-- Web Platform Login -->
-
   <AuthenticationLogin
     ref="loginRef"
     v-if="!isNativePlatform"

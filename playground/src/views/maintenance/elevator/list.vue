@@ -101,7 +101,11 @@ function onActionClick({ code, row }: OnActionClickParams) {
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
-    fieldMappingTime: [['checkTime', ['startTime', 'endTime']]],
+    // 将 productionDate 映射到后端期望的 productionDateStart 和 productionDateEnd
+    fieldMappingTime: [
+      ['checkTime', ['startTime', 'endTime']],
+      ['productionDate', ['productionDateStart', 'productionDateEnd']],
+    ],
     schema: useGridFormSchema(), // useGridFormSchema 现在不依赖外部 options
   },
   gridOptions: {
@@ -135,7 +139,8 @@ const [Grid, gridApi] = useVbenVxeGrid({
             ...formDataForQuery,
             currentPage: page.page?.currentPage || 1,
             currentPark: currentPark.value ? currentPark.value.parkId : -1,
-            pageSize: page.page?.pageSize || 20,
+            // 后端分页参数已从 pageSize 改为 limit
+            limit: page.page?.pageSize || 20,
           };
           try {
             // 调用API获取数据
