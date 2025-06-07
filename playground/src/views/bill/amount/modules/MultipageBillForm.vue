@@ -140,6 +140,7 @@ watch(
     () => billData.garbageFee,
     () => billData.serviceFee,
     () => billData.invoiceTax,
+    () => billData.penaltyFee,
   ],
   () => {
     billData.totalFee =
@@ -149,7 +150,8 @@ watch(
       Number(billData.managementFee || 0) +
       Number(billData.garbageFee || 0) +
       Number(billData.serviceFee || 0) +
-      Number(billData.invoiceTax || 0);
+      Number(billData.invoiceTax || 0) +
+      Number(billData.penaltyFee || 0);
   },
 );
 
