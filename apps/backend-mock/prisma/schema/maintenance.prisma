@@ -93,6 +93,7 @@ model HygieneCheck {
 model Elevator {
   elevatorId     Int       @id @default(autoincrement()) @map("elevator_id") // 升降机ID
   name           String?   @db.VarChar(100) // 升降机名称
+  status         String?    @db.VarChar(20) // 升降机状态
   size           String?   @db.VarChar(100) // 尺寸
   loadCapacity   Decimal?  @map("load_capacity") @db.Decimal(10,2) // 承重
   productionDate DateTime? @map("production_date") // 生产日期
