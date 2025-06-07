@@ -11,11 +11,14 @@ export default eventHandler(async (event) => {
   // 构建查询条件
   const where: any = {
     isDeleted: false,
+    parkName: {
+      notIn: ['宜租网络', '总部'],
+    },
   };
 
   // 修改查询条件，匹配前端表单字段
   if (parkName) {
-    where.parkName = { contains: parkName };
+    where.parkName.contains = parkName;
   }
 
   if (address) {

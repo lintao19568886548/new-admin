@@ -14,11 +14,14 @@ export default eventHandler(async (event) => {
     // 构建查询条件
     const where: any = {
       isDeleted: false,
+      parkName: {
+        notIn: ['宜租网络', '总部'],
+      },
     };
 
     // 园区名称查询
     if (query.parkName) {
-      where.parkName = { contains: query.parkName };
+      where.parkName.contains = query.parkName;
     }
 
     // 地址查询
