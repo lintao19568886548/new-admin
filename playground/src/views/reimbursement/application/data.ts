@@ -54,6 +54,9 @@ export function useFormRules(): Record<string, Rule[]> {
       { message: '请输入报销金额', required: true, trigger: 'blur' },
       { message: '金额必须是数字', trigger: 'blur', type: 'number' },
     ],
+    applicant: [
+      { message: '请输入申请人姓名', required: true, trigger: 'blur' },
+    ],
     department: [{ message: '请输入部门', required: true, trigger: 'blur' }],
     parkId: [{ message: '请选择所属园区', required: true, trigger: 'change' }],
     payee: [{ message: '请输入领款人', required: true, trigger: 'blur' }],

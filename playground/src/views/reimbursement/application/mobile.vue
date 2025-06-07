@@ -34,6 +34,7 @@ const headers = ref();
 // 表单数据
 const formState = reactive({
   amount: undefined as number | undefined,
+  applicant: currentUsername.value,
   department: undefined as string | undefined, // Retained department from form.vue in case it's needed
   images: [] as any[], // Simplified type for now
   parkId: undefined as number | string | undefined,
@@ -84,25 +85,27 @@ const beforeUpload = (file: File) => {
 };
 
 // To store file name during getBase64 conversion
-let tempFileNameForPreview = '';
+const tempFileNameForPreview = '';
 
 const handleChange = (info: any) => {
   if (info.file.status === 'uploading') {
     return;
   }
-  if (
-    info.file.status === 'done' && // Antdv Upload component's fileList items might not have originFileObj if not handled correctly.
-    // For preview, we'd ideally use info.file.response if it contains the URL,
-    // or ensure originFileObj is available for getBase64.
-    // This simplified getBase64 call is for direct preview if needed,
-    // actual file handling for submission is via file.response.
-    info.file.originFileObj
-  ) {
-    tempFileNameForPreview = info.file.name; // Store name before conversion
-    getBase64(info.file.originFileObj); // For potential local preview, not strictly necessary if server returns URL
+  if (info.file.status === 'done') {
+    // 当上传成功后，从服务器响应中提取 imgId 并附加到文件对象上
+    const responseData = info.file.response?.data;
+    if (responseData && responseData.imgId) {
+      info.file.imgId = responseData.imgId;
+    } else {
+      // 如果响应格式不正确或缺少imgId，将状态标记为错误并提示
+      info.file.status = 'error';
+      message.error(
+        `文件 ${info.file.name} 上传成功，但无法获取图片ID，请检查服务器响应。`,
+      );
+    }
   }
   if (info.file.status === 'error') {
-    message.error('图片上传失败');
+    message.error(`文件 ${info.file.name} 上传失败。`);
   }
   // Update formState.images to ensure it reflects the Upload component's internal list
   formState.images = info.fileList;
@@ -153,16 +156,16 @@ async function handleSubmit() {
     await formRef.value.validate();
     submitting.value = true;
 
+    const { applicant, ...dataToSubmit } = formState;
+
     const submitData = {
-      ...formState,
+      ...dataToSubmit,
       date: new Date().toISOString(), // Keep full ISO string like in list.vue
       images: formState.images
-        .filter(
-          (file: any) => file.status === 'done' && file.response?.data?.imgId,
-        )
-        .map((file: any) => ({ imgId: file.response.data.imgId })),
+        .filter((file: any) => file.status === 'done' && file.imgId)
+        .map((file: any) => ({ imgId: file.imgId })),
       status: 0, // 初始状态：待审核
-      username: currentUsername.value,
+      username: applicant,
     };
 
     await createReimbursement(submitData);
@@ -213,6 +216,15 @@ onMounted(() => {
         name="reimbursementMobileForm"
         class="reimbursement-form"
       >
+        <Form.Item name="applicant" :label="$t('申请人')">
+          <Input
+            v-model:value="formState.applicant"
+            :placeholder="$t('请输入申请人姓名')"
+            :maxlength="50"
+            show-count
+          />
+        </Form.Item>
+
         <Form.Item name="purpose" :label="$t('用途')">
           <Input
             v-model:value="formState.purpose"

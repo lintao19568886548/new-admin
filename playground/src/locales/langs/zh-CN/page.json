@@ -5,7 +5,8 @@
     "edit": "修改项目",
     "list": "项目列表",
     "title": "招商管理",
-    "view": "查看项目"
+    "view": "查看项目",
+    "mobileListTitle": "招商管理-mobile"
   },
   "access": {
     "car": "车辆管理",

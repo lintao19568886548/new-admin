@@ -234,6 +234,7 @@ const headers = ref();
 // 表单数据
 const formState = reactive({
   amount: undefined,
+  applicant: userStore.userInfo?.username || '',
   department: undefined,
   images: [], // 添加图片列表字段
   parkId: undefined,
@@ -288,11 +289,20 @@ const handleChange = (info: any) => {
     return;
   }
   if (info.file.status === 'done') {
-    // Get this url from response in real world.
-    getBase64(info.file.originFileObj);
+    // 当上传成功后，从服务器响应中提取 imgId 并附加到文件对象上
+    const responseData = info.file.response?.data;
+    if (responseData && responseData.imgId) {
+      info.file.imgId = responseData.imgId;
+    } else {
+      // 如果响应格式不正确或缺少imgId，将状态标记为错误并提示
+      info.file.status = 'error';
+      message.error(
+        `文件 ${info.file.name} 上传成功，但无法获取图片ID，请检查服务器响应。`,
+      );
+    }
   }
   if (info.file.status === 'error') {
-    message.error('upload error');
+    message.error(`文件 ${info.file.name} 上传失败。`);
   }
 };
 
@@ -329,20 +339,23 @@ async function handleSubmit() {
 
     submitting.value = true;
 
+    // 从 formState 中排除 applicant 字段
+    const { applicant: _applicant, ...dataToSubmit } = formState;
+
     // 构建提交数据，添加当前日期和用户名
     const submitData = {
-      ...formState,
+      ...dataToSubmit,
       date: new Date().toISOString(),
-      // 处理图片数据，通常只需要保存上传成功后的URL
+      // 处理图片数据，直接从文件对象中获取imgId
       images: formState.images
-        .filter((file: any) => file.status === 'done')
+        .filter((file: any) => file.status === 'done' && file.imgId)
         .map((file: any) => {
           return {
-            imgId: file.response?.data?.imgId,
+            imgId: file.imgId,
           };
         }),
       status: 0, // 初始状态：待审核
-      username: currentUsername.value, // 添加当前用户名
+      username: formState.payee, // 使用"领款人"作为记录的用户名
     };
 
     // 调用API提交数据
@@ -384,6 +397,14 @@ onMounted(() => {
         layout="vertical"
         name="reimbursementForm"
       >
+        <Form.Item name="applicant" label="申请人">
+          <Input
+            v-model:value="formState.applicant"
+            placeholder="请输入申请人姓名"
+            :maxlength="50"
+            show-count
+          />
+        </Form.Item>
         <Form.Item name="purpose" label="用途">
           <Input
             v-model:value="formState.purpose"

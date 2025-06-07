@@ -61,22 +61,10 @@ const formRef = ref(null);
 // 表单验证规则
 const rules = useFormRules();
 
-// 预览图片相关
-const previewVisible = ref(false);
-const previewImage = ref('');
-const previewTitle = ref('');
-
 // 添加用户权限等级信息计算属性
 const userPrivilegeInfo = computed(() => {
   return getUserPrivilegeInfo(unref(userPrivilegeLevel));
 });
-
-// 处理图片预览
-function handleImagePreview(src: string, title: string = '预览图片') {
-  previewImage.value = src;
-  previewTitle.value = title;
-  previewVisible.value = true;
-}
 
 // 组件挂载时初始化
 onMounted(() => {
@@ -246,62 +234,36 @@ onMounted(() => {
               }}
             </p>
           </div>
-        </div>
-
-        <!-- 权限警告提示 -->
-        <div
-          v-if="
-            currentRecord.status === 0 &&
-            ((userPrivilegeLevel === 2 &&
-              Number(currentRecord.amount) > 10000) ||
-              (userPrivilegeLevel === 3 &&
-                Number(currentRecord.amount) > 20000))
-          "
-          class="mb-4 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-600"
-        >
-          <p v-if="userPrivilegeLevel === 2">
-            <strong>警告：</strong>
-            园区经理仅可审核10000元以下的报销申请，此申请金额超出您的审核权限
-          </p>
-          <p v-else-if="userPrivilegeLevel === 3">
-            <strong>警告：</strong>
-            总监仅可审核20000元以下的报销申请，此申请金额超出您的审核权限
-          </p>
-        </div>
-
-        <div v-if="currentRecord.remark" class="mb-4">
-          <p class="text-gray-500">备注</p>
-          <p>{{ currentRecord.remark }}</p>
-        </div>
-
-        <div v-if="currentRecord.reason" class="mb-4">
-          <p class="text-gray-500">审核意见</p>
-          <p>{{ currentRecord.reason }}</p>
-        </div>
-
-        <div
-          v-if="currentRecord.images && currentRecord.images.length > 0"
-          class="mb-4"
-        >
-          <p class="mb-2 text-gray-500">相关图片</p>
-          <div class="flex flex-wrap gap-2">
-            <div
-              v-for="(img, index) in currentRecord.images"
-              :key="index"
-              class="cursor-pointer"
-              @click="handleImagePreview(img, `凭证图片 ${index + 1}`)"
-            >
-              <Image
-                :src="img"
-                alt="报销凭证"
-                :width="80"
-                :height="80"
-                class="rounded object-cover"
-              />
+          <div v-if="currentRecord.status > 0">
+            <p class="text-gray-500">审核结果</p>
+            <p>{{ currentRecord.statusText }}</p>
+          </div>
+          <div v-if="currentRecord.reason" class="mb-4">
+            <p class="text-gray-500">审核意见</p>
+            <p>{{ currentRecord.reason }}</p>
+          </div>
+          <div
+            v-if="currentRecord.images && currentRecord.images.length > 0"
+            class="col-span-2"
+          >
+            <p class="text-gray-500">相关图片</p>
+            <div class="flex flex-wrap gap-2">
+              <div
+                v-for="(img, index) in currentRecord.images"
+                :key="index"
+                class="cursor-pointer"
+              >
+                <Image
+                  :src="img"
+                  alt="报销凭证"
+                  :width="80"
+                  :height="80"
+                  class="rounded object-cover"
+                />
+              </div>
             </div>
           </div>
         </div>
-
         <!-- 仅在新审核时显示表单 -->
         <Form
           v-if="currentRecord.status === 0"
@@ -317,7 +279,6 @@ onMounted(() => {
               :options="availableStatusOptions"
             />
           </Form.Item>
-
           <Form.Item name="reason" label="审核意见">
             <Input.TextArea
               v-model:value="auditForm.reason"
@@ -329,15 +290,6 @@ onMounted(() => {
           </Form.Item>
         </Form>
       </div>
-    </Modal>
-
-    <!-- 图片预览 -->
-    <Modal
-      v-model:visible="previewVisible"
-      :title="previewTitle"
-      :footer="null"
-    >
-      <img alt="预览图片" style="width: 100%" :src="previewImage" />
     </Modal>
   </Page>
 </template>

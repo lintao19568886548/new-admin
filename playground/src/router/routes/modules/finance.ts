@@ -19,7 +19,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/finance/manage/list.vue'),
         meta: {
           // icon: 'mdi:currency-usd', // Icon can be inherited or specific
-          title: $t('page.finance.manage.title'), // More specific title for this page
+          title: $t('page.finance.manage'), // More specific title for this page
         },
       },
       {
@@ -28,7 +28,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/finance/manage/mobile-list.vue'),
         meta: {
           hideMenu: true, // Hide from main menu if it's a mobile-specific view
-          title: $t('page.finance.mobileManage.title'),
+          title: $t('page.finance.mobileManage'),
         },
       },
     ],

@@ -66,18 +66,6 @@ const auditModalFormRef = ref(); // Changed name to avoid conflict if a page for
 // 表单验证规则
 const rules = useFormRules();
 
-// 预览图片相关 (恢复)
-const imagePreviewVisible = ref(false);
-const imageToPreview = ref('');
-const imagePreviewTitle = ref('');
-
-// 处理图片预览 (恢复)
-function handleImagePreview(src: string, title: string = '预览图片') {
-  imageToPreview.value = src;
-  imagePreviewTitle.value = title;
-  imagePreviewVisible.value = true;
-}
-
 // 添加用户权限等级信息计算属性
 const userPrivilegeInfo = computed(() => {
   return getUserPrivilegeInfo(unref(userPrivilegeLevel));
@@ -212,7 +200,6 @@ function triggerShowAuditModal(record: ReimbursementItem) {
                   :height="40"
                   :src="img"
                   class="thumbnail-image"
-                  @click="handleImagePreview(img, `凭证 ${index + 1}`)"
                 />
               </Image.PreviewGroup>
             </div>
@@ -314,7 +301,6 @@ function triggerShowAuditModal(record: ReimbursementItem) {
                   :height="60"
                   :src="img"
                   class="detail-image-item"
-                  @click="handleImagePreview(img, `相关图片 ${index + 1}`)"
                 />
               </Image.PreviewGroup>
             </div>
@@ -380,16 +366,6 @@ function triggerShowAuditModal(record: ReimbursementItem) {
           </Form.Item>
         </Form>
       </div>
-    </Modal>
-
-    <!-- 单独的图片预览弹窗 (如果AntD的Image.PreviewGroup不够用或者样式冲突) -->
-    <Modal
-      :visible="imagePreviewVisible"
-      :title="imagePreviewTitle"
-      :footer="null"
-      @cancel="imagePreviewVisible = false"
-    >
-      <img alt="预览图片" style="width: 100%" :src="imageToPreview" />
     </Modal>
   </div>
 </template>

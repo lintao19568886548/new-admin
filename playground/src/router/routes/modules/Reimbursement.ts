@@ -10,8 +10,8 @@ const routes: RouteRecordRaw[] = [
       order: -1,
       title: $t('报销申请'),
     },
-    name: 'Reimbursement',
-    path: '/reimbursement',
+    name: 'ReimbursementApplication',
+    path: '/reimbursement/application',
   },
   {
     component: () => import('#/views/reimbursement/audit/list.vue'),
