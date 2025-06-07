@@ -43,7 +43,10 @@ export function useFormSchema(): VbenFormSchema[] {
       // rules: 'required', // 根据业务需求决定是否必填，以及具体校验规则
     },
     {
-      component: 'Input', // 或者使用 InputNumber 如果需要数字输入
+      component: 'InputNumber', // 或者使用 InputNumber 如果需要数字输入
+      componentProps: {
+        addonAfter: '吨',
+      },
       fieldName: 'loadCapacity',
       label: '承重',
       // rules: 'required', // 根据业务需求决定是否必填，以及具体校验规则
@@ -118,10 +121,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: '电梯名称',
     },
     {
-      component: 'InputNumber',
-      componentProps: {
-        addonAfter: 'm²',
-      },
+      component: 'Input',
       fieldName: 'area',
       label: '面积',
     },
