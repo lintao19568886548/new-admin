@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { Dayjs } from 'dayjs';
+
 import type { ReimbursementItem } from './data';
 
 import { computed, onMounted, reactive, ref, shallowRef, watch } from 'vue';
@@ -46,8 +48,12 @@ const reimbursementList = shallowRef<ReimbursementItem[]>([]);
 const loading = ref(false);
 
 // 搜索条件
-const searchForm = reactive({
-  dateRange: null,
+const searchForm = reactive<{
+  dateRange: [Dayjs, Dayjs] | undefined; // Changed null to undefined
+  purpose: string;
+  status: number | undefined;
+}>({
+  dateRange: undefined, // Changed null to undefined
   purpose: '',
   status: undefined,
 });
@@ -148,7 +154,7 @@ async function handleCancelReimbursement(record: ReimbursementItem) {
 // 显示记录弹窗
 function showRecordModal() {
   // 重置搜索表单字段
-  searchForm.dateRange = null;
+  searchForm.dateRange = undefined;
   searchForm.purpose = '';
   searchForm.status = undefined;
   pagination.current = 1;
@@ -177,7 +183,7 @@ watch(
             `[ReimbursementList] 用户名: ${newUsername}, 弹窗已显示。准备获取报销记录。`,
           );
           // 确保在获取数据前重置搜索条件
-          searchForm.dateRange = null;
+          searchForm.dateRange = undefined;
           searchForm.purpose = '';
           searchForm.status = undefined;
           pagination.current = 1;
@@ -209,7 +215,7 @@ function handleSearch() {
 
 // 重置搜索条件
 function resetSearch() {
-  searchForm.dateRange = null;
+  searchForm.dateRange = undefined;
   searchForm.purpose = '';
   searchForm.status = undefined;
   pagination.current = 1;
@@ -219,7 +225,7 @@ function resetSearch() {
 // 处理弹窗关闭
 function handleModalClose() {
   // 重置搜索条件，确保下次打开时是干净的状态
-  searchForm.dateRange = null;
+  searchForm.dateRange = undefined;
   searchForm.purpose = '';
   searchForm.status = undefined;
   pagination.current = 1;
@@ -442,10 +448,10 @@ onMounted(() => {
           >
             <Select.Option
               v-for="park in parkList"
-              :key="park.parkId"
-              :value="park.parkId"
+              :key="(park as any).parkId"
+              :value="(park as any).parkId"
             >
-              {{ park.parkName }}
+              {{ (park as any).parkName }}
             </Select.Option>
           </Select>
         </Form.Item>
@@ -506,7 +512,7 @@ onMounted(() => {
       <div class="mb-4 flex flex-wrap gap-2">
         <DatePicker.RangePicker
           v-model:value="searchForm.dateRange"
-          placeholder="选择申请日期范围"
+          :placeholder="['开始日期', '结束日期']"
           class="w-64"
         />
         <Input

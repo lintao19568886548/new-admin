@@ -1,6 +1,8 @@
 <!-- eslint-disable no-empty-pattern -->
 <script lang="ts" setup>
-import { computed, onMounted, ref, unref } from 'vue';
+import type { ReimbursementItem } from './data';
+
+import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { Search } from '@vben/icons';
@@ -22,7 +24,12 @@ import {
 
 import { $t } from '#/locales';
 
-import { AUDITOR_LEVEL_MAP, useColumns, useFormRules } from './data';
+import {
+  AUDITOR_LEVEL_MAP,
+  STATUS_MAP,
+  useColumns,
+  useFormRules,
+} from './data';
 import {
   getUserPrivilegeInfo,
   statusOptions,
@@ -63,7 +70,7 @@ const rules = useFormRules();
 
 // 添加用户权限等级信息计算属性
 const userPrivilegeInfo = computed(() => {
-  return getUserPrivilegeInfo(unref(userPrivilegeLevel));
+  return getUserPrivilegeInfo(userPrivilegeLevel.value);
 });
 
 // 组件挂载时初始化
@@ -89,7 +96,8 @@ onMounted(() => {
         <div class="flex flex-wrap gap-4 rounded-md bg-white p-4 shadow-sm">
           <DatePicker.RangePicker
             v-model:value="searchForm.dateRange"
-            placeholder="选择申请日期范围"
+            :placeholder="['开始日期', '结束日期']"
+            value-format="YYYY-MM-DD"
             class="w-64"
           />
           <Input
@@ -139,7 +147,7 @@ onMounted(() => {
                 <Button
                   type="primary"
                   size="small"
-                  @click="showAuditModal(record)"
+                  @click="showAuditModal(record as ReimbursementItem)"
                   :disabled="record.status !== 0"
                 >
                   审核
@@ -148,7 +156,7 @@ onMounted(() => {
                   type="link"
                   danger
                   size="small"
-                  @click="handleDelete(record)"
+                  @click="handleDelete(record as ReimbursementItem)"
                   v-if="
                     hasAuditPermission ||
                     record.username ===
@@ -178,11 +186,9 @@ onMounted(() => {
       :ok-text="
         currentRecord && currentRecord.status > 0 ? $t('关闭') : $t('确定')
       "
-      :cancel-button-props="{
-        style: {
-          display: currentRecord && currentRecord.status > 0 ? 'none' : '',
-        },
-      }"
+      :cancel-text="
+        currentRecord && currentRecord.status > 0 ? null : $t('取消')
+      "
     >
       <div v-if="currentRecord" class="p-4">
         <div class="mb-4 grid grid-cols-2 gap-4">
@@ -229,18 +235,25 @@ onMounted(() => {
             <p>
               {{
                 currentRecord.auditorLevel
-                  ? AUDITOR_LEVEL_MAP[currentRecord.auditorLevel] || '未知'
+                  ? AUDITOR_LEVEL_MAP[
+                      currentRecord.auditorLevel as keyof typeof AUDITOR_LEVEL_MAP
+                    ] || '未知'
                   : '无'
               }}
             </p>
           </div>
           <div v-if="currentRecord.status > 0">
             <p class="text-gray-500">审核结果</p>
-            <p>{{ currentRecord.statusText }}</p>
+            <p>
+              {{
+                STATUS_MAP[currentRecord.status as keyof typeof STATUS_MAP]
+                  ?.text || '未知状态'
+              }}
+            </p>
           </div>
-          <div v-if="currentRecord.reason" class="mb-4">
+          <div v-if="(currentRecord as any).reason" class="mb-4">
             <p class="text-gray-500">审核意见</p>
-            <p>{{ currentRecord.reason }}</p>
+            <p>{{ (currentRecord as any).reason }}</p>
           </div>
           <div
             v-if="currentRecord.images && currentRecord.images.length > 0"
@@ -267,7 +280,7 @@ onMounted(() => {
         <!-- 仅在新审核时显示表单 -->
         <Form
           v-if="currentRecord.status === 0"
-          :ref="(el) => (formRef = el)"
+          ref="formRef"
           :model="auditForm"
           :rules="rules"
           layout="vertical"

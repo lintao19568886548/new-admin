@@ -183,7 +183,8 @@ function onEdit(row: FinanceItem) {
   const editData = { ...row };
 
   if (editData.transactionTime) {
-    editData.transactionTime = formatDateTime(editData.transactionTime);
+    // Ensure the result is always a string to match the expected type
+    editData.transactionTime = String(formatDateTime(editData.transactionTime));
   }
 
   formModalApi.setData(editData).open();
@@ -223,7 +224,7 @@ function onDelete(row: FinanceItem) {
 }
 
 function onRefresh() {
-  gridApi.commitProxy('query');
+  gridApi.query();
 }
 
 function onCreate() {

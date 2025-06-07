@@ -2,8 +2,6 @@
 import type { Rule } from 'ant-design-vue/es/form';
 import type { ColumnsType } from 'ant-design-vue/es/table';
 
-import type { Park } from '#/components/AreaSelector.vue';
-
 import { h, onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -59,7 +57,7 @@ const isRecordModalVisible = ref(false);
 // ];
 
 // 园区列表
-const parkList = ref<Park[]>([]);
+const parkList = ref<any>([]);
 
 // 获取园区列表
 async function fetchParkList() {

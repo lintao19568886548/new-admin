@@ -7,7 +7,6 @@ import { useVbenModal } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
 
 import { Button, message } from 'ant-design-vue';
-import dayjs from 'dayjs';
 
 import { useVbenForm } from '#/adapter/form';
 import { createFinance, updateFinance } from '#/api/finance';
@@ -33,11 +32,11 @@ function resetForm() {
 
 const [Modal, modalApi] = useVbenModal({
   async onConfirm() {
-    const { valid, values } = await formApi.validateAndGetValues();
+    const { valid, values } = await formApi.validate();
     if (!valid) return;
 
     const cleanValues = Object.fromEntries(
-      Object.entries(values).filter(
+      Object.entries(values || {}).filter(
         ([, value]) => value !== null && value !== undefined && value !== '',
       ),
     );
@@ -56,14 +55,14 @@ const [Modal, modalApi] = useVbenModal({
 
     try {
       if (recordId.value) {
-        await updateFinance(recordId.value, cleanValues);
+        await updateFinance(Number(recordId.value), cleanValues);
         message.success(
-          $t('ui.actionMessage.updateSuccess', [values.billName]),
+          $t('ui.actionMessage.updateSuccess', [values?.billName ?? '']),
         );
       } else {
-        await createFinance(cleanValues as FinanceItem);
+        await createFinance(cleanValues as unknown as FinanceItem);
         message.success(
-          $t('ui.actionMessage.createSuccess', [values.billName]),
+          $t('ui.actionMessage.createSuccess', [values?.billName ?? '']),
         );
       }
       emits('success');
@@ -72,7 +71,7 @@ const [Modal, modalApi] = useVbenModal({
       console.error('操作失败:', error);
       message.error(
         error?.message ||
-          $t('ui.actionMessage.operationFailed', [values.billName]),
+          $t('ui.actionMessage.operationFailed', [values?.billName ?? '']),
       );
     } finally {
       modalApi.unlock();
@@ -88,7 +87,7 @@ const [Modal, modalApi] = useVbenModal({
       } else {
         recordId.value = undefined;
         formApi.setValues({
-          transactionTime: formatDateTime(dayjs()),
+          transactionTime: formatDateTime,
           transactionType: '支出',
         });
       }

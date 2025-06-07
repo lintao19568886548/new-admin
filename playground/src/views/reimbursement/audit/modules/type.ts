@@ -4,8 +4,7 @@ import type {
   TableCurrentDataSource,
   TablePaginationConfig,
 } from 'ant-design-vue/es/table/interface';
-
-import type { Park } from '#/components/AreaSelector.vue';
+import type { Dayjs } from 'dayjs'; // 导入 Dayjs 类型
 
 import { computed, onMounted, reactive, ref } from 'vue';
 
@@ -242,7 +241,7 @@ export function useReimbursementAudit() {
   });
 
   // 园区列表
-  const parkList = ref<Park[]>([]);
+  const parkList = ref<any>([]);
 
   // 获取园区列表
   async function fetchParkList() {
@@ -281,8 +280,13 @@ export function useReimbursementAudit() {
   });
 
   // 搜索表单 - 此处在list.vue中使用
-  const searchForm = reactive({
-    dateRange: [],
+  const searchForm = reactive<{
+    dateRange: [Dayjs, Dayjs] | undefined; // 修改类型为包含两个Dayjs对象的元组或undefined
+    purpose: string;
+    status: number | undefined;
+    username: string;
+  }>({
+    dateRange: undefined, // 修改初始值为undefined
     purpose: '',
     status: undefined,
     username: '',
@@ -290,7 +294,7 @@ export function useReimbursementAudit() {
 
   // 重置搜索 - 此处在list.vue中使用
   function resetSearch() {
-    searchForm.dateRange = [];
+    searchForm.dateRange = undefined; // 修改重置值为undefined
     searchForm.purpose = '';
     searchForm.status = undefined;
     searchForm.username = '';
@@ -336,8 +340,9 @@ export function useReimbursementAudit() {
 
       // 日期范围
       if (searchForm.dateRange && searchForm.dateRange.length === 2) {
-        params.startDate = searchForm.dateRange[0].format('YYYY-MM-DD');
-        params.endDate = searchForm.dateRange[1].format('YYYY-MM-DD');
+        // 使用可选链确保 dateRange[0] 和 dateRange[1] 存在 format 方法
+        params.startDate = searchForm.dateRange[0]?.format('YYYY-MM-DD');
+        params.endDate = searchForm.dateRange[1]?.format('YYYY-MM-DD');
       }
 
       // 只有具有审核权限的人才能查看全部用户的申请
@@ -564,11 +569,9 @@ export function useReimbursementAudit() {
     // 总监可以审核金额低于限额的申请
     if (userPrivilegeLevel.value === PRIVILEGE_LEVELS.DIRECTOR) {
       // 总监权限限制在20000元以下
-      return (
-        record.amount <= 20_000 ||
-        // 或者是园区经理已经审核通过的申请
-        record.status === 3
-      );
+      return record.amount <= 20_000;
+      // 注释掉原先的逻辑： || record.status === 3
+      // 原因：在此处 record.status 必定为 0，此条件永远为 false，且与函数意图（检查是否能审核 status 0 的记录）相悖。
     }
 
     // 园区经理只能审核自己园区的，且金额较小的申请
