@@ -162,10 +162,10 @@ watch(
     () => billData.peakAndValleyEleItem,
   ],
   () => {
-    if (!billData.serviceRate) {
-      billData.serviceFee = 0;
-      return;
-    }
+    // if (!billData.serviceRate) {
+    //   billData.serviceFee = 0;
+    //   return;
+    // }
     // 计算服务费 - 确保使用数字类型
     const eleFee = Number(billData.eleFee || 0);
     const serviceRate = Number(billData.serviceRate || 0);
@@ -400,6 +400,24 @@ function handleEleSuccess(data: any) {
       // 确保 serviceFee 是数字类型
       billData.serviceFee = Number(billData.serviceFee);
     }
+
+    const eleOptions =
+      billData.eleBills
+        ?.filter((item: any) => item.meterName !== '合计')
+        .map((item: any) => ({
+          label: item.meterName,
+          value: item.meterName,
+        })) || [];
+
+    // 更新TenantForm中Select组件的选项
+    tenantFormApi.updateSchema([
+      {
+        componentProps: {
+          options: eleOptions,
+        },
+        fieldName: 'peakAndValleyEleItem',
+      },
+    ]);
   }
 }
 
