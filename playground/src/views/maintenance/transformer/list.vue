@@ -114,6 +114,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
     schema: useGridFormSchema(), // 使用更新后的 schema
   },
   gridOptions: {
+    border: true,
     columns: useColumns(onActionClick),
     height: 'auto',
     keepSource: true,

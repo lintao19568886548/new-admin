@@ -129,6 +129,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
     submitOnChange: false, // 修改为false，不再自动提交
   },
   gridOptions: {
+    border: true,
     columns: useColumns(onActionClick),
     height: 'auto',
     keepSource: true,

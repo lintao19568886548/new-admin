@@ -175,6 +175,7 @@ async function fetchEmployeeList(params: QueryParams) {
 // 表格配置
 const [Grid, gridApi] = useVbenVxeGrid({
   gridOptions: {
+    border: true,
     columns: useColumns(onActionClick),
     height: 'auto',
     keepSource: true,
