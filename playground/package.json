@@ -35,6 +35,7 @@
     "@capawesome/capacitor-android-edge-to-edge-support": "^7.2.2",
     "@tanstack/vue-query": "catalog:",
     "@types/lodash-es": "^4.17.12",
+    "@univerjs/presets": "^0.7.0",
     "@vben-core/menu-ui": "workspace:*",
     "@vben/access": "workspace:*",
     "@vben/common-ui": "workspace:*",

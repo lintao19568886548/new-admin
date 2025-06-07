@@ -120,7 +120,6 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       fieldName: 'receiptTime',
       formItemClass: 'p-4',
       label: '收款时间',
-      rules: 'required',
     },
     {
       component: 'InputNumber',
@@ -181,6 +180,7 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       component: 'Select',
       componentProps: {
         allowClear: true,
+        // api: getElectricityList,
         mode: 'multiple',
         placeholder: '请选择电费附加费',
       },
