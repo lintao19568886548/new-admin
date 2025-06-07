@@ -118,12 +118,18 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: '电梯名称',
     },
     {
-      component: 'Input',
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: 'm²',
+      },
       fieldName: 'area',
       label: '面积',
     },
     {
-      component: 'Input',
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '吨',
+      },
       fieldName: 'loadCapacity',
       label: '承重',
     },
