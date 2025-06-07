@@ -1,7 +1,5 @@
 <!-- eslint-disable no-empty-pattern -->
 <script lang="ts" setup>
-import type { ReimbursementItem } from './data';
-
 import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -20,6 +18,7 @@ import {
   Select,
   Spin,
   Table,
+  Tag,
 } from 'ant-design-vue';
 
 import { $t } from '#/locales';
@@ -147,7 +146,7 @@ onMounted(() => {
                 <Button
                   type="primary"
                   size="small"
-                  @click="showAuditModal(record as ReimbursementItem)"
+                  @click="showAuditModal(record as any)"
                   :disabled="record.status !== 0"
                 >
                   审核
@@ -156,7 +155,7 @@ onMounted(() => {
                   type="link"
                   danger
                   size="small"
-                  @click="handleDelete(record as ReimbursementItem)"
+                  @click="handleDelete(record as any)"
                   v-if="
                     hasAuditPermission ||
                     record.username ===
@@ -245,10 +244,17 @@ onMounted(() => {
           <div v-if="currentRecord.status > 0">
             <p class="text-gray-500">审核结果</p>
             <p>
-              {{
-                STATUS_MAP[currentRecord.status as keyof typeof STATUS_MAP]
-                  ?.text || '未知状态'
-              }}
+              <Tag
+                :color="
+                  STATUS_MAP[currentRecord.status as keyof typeof STATUS_MAP]
+                    ?.color || 'default'
+                "
+              >
+                {{
+                  STATUS_MAP[currentRecord.status as keyof typeof STATUS_MAP]
+                    ?.text || '未知'
+                }}
+              </Tag>
             </p>
           </div>
           <div v-if="(currentRecord as any).reason" class="mb-4">
