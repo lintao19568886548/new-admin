@@ -15,6 +15,7 @@ export default eventHandler(async (event) => {
   console.log('query', query);
   const {
     name, // 升降机名称
+    status, // 状态
     area, // 面积
     loadCapacity, // 承重
     brand, // 品牌
@@ -81,6 +82,13 @@ export default eventHandler(async (event) => {
   if (name) {
     where.name = {
       contains: name,
+    };
+  }
+
+  // 状态查询
+  if (status) {
+    where.status = {
+      contains: status,
     };
   }
 

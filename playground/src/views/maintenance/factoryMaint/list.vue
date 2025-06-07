@@ -108,6 +108,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
     schema: useGridFormSchema(), // useGridFormSchema 现在不依赖外部 options
   },
   gridOptions: {
+    border: true,
     columns: useColumns(onActionClick),
     height: 'auto',
     keepSource: true,

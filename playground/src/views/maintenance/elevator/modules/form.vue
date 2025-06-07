@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref } from 'vue'; // <-- 新增导入 onMounted
+import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
@@ -23,6 +23,7 @@ const [Form, formApi] = useVbenForm({
   layout: 'vertical',
   schema: useFormSchema(),
   showDefaultActions: false,
+  wrapperClass: 'grid-cols-3 gap-4',
 });
 
 function resetForm() {
@@ -37,6 +38,19 @@ const [Modal, modalApi] = useVbenModal({
       modalApi.lock();
       const rawData = await formApi.getValues();
       const dataToSubmit = { ...rawData };
+
+      // 合并尺寸字段
+      if (
+        dataToSubmit.sizeLength &&
+        dataToSubmit.sizeWidth &&
+        dataToSubmit.sizeHeight
+      ) {
+        dataToSubmit.size = `长${dataToSubmit.sizeLength}米*宽${dataToSubmit.sizeWidth}米*高${dataToSubmit.sizeHeight}米`;
+      }
+      // 删除原始尺寸字段
+      delete dataToSubmit.sizeLength;
+      delete dataToSubmit.sizeWidth;
+      delete dataToSubmit.sizeHeight;
 
       // 从 Cascader 的数组值中提取 parkId 和 factoryId
       const cascaderValue = rawData.factoryId;
@@ -84,6 +98,19 @@ const [Modal, modalApi] = useVbenModal({
       const data = modalApi.getData(); // 编辑时的数据
       if (data) {
         formData.value = { ...data };
+
+        // 解析 size 字符串填充长宽高字段
+        if (data.size?.length > 0) {
+          const sizeMatch = data.size.match(
+            /长(\d+(\.\d+)?)米\*宽(\d+(\.\d+)?)米\*高(\d+(\.\d+)?)米/,
+          );
+          if (sizeMatch) {
+            formData.value.sizeLength = sizeMatch[1];
+            formData.value.sizeWidth = sizeMatch[3];
+            formData.value.sizeHeight = sizeMatch[5];
+          }
+        }
+
         // 为 Cascader 准备初始值：[parkId, factoryId]
         data.parkId && data.factoryId
           ? (formData.value.factoryId = [data.parkId, data.factoryId])

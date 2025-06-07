@@ -27,31 +27,73 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       defaultValue: [], // 值将是 [parkId, factoryId]
       fieldName: 'factoryId', // 注意：此字段将持有数组值
+      formItemClass: 'col-span-3',
       label: '厂房名称',
       rules: 'required',
     },
     {
       component: 'Input',
       fieldName: 'name',
+      formItemClass: 'col-span-3',
       label: '电梯名称',
+      rules: 'required',
+    },
+    {
+      component: 'RadioGroup',
+      componentProps: {
+        buttonStyle: 'solid',
+        options: [
+          { label: '正常', value: '正常' },
+          { label: '异常', value: '异常' },
+          { label: '维护', value: '维护' },
+        ],
+        optionType: 'button',
+      },
+      defaultValue: '正常',
+      fieldName: 'status',
+      formItemClass: 'col-span-3',
+      label: '电梯状态',
       rules: 'required',
     },
     {
       component: 'InputNumber', // 或者使用 InputNumber 如果需要数字输入
       componentProps: {
         addonAfter: '吨',
+        style: {
+          width: '100%',
+        },
       },
       fieldName: 'loadCapacity',
+      formItemClass: 'col-span-3',
       label: '承重',
       rules: 'required', // 根据业务需求决定是否必填，以及具体校验规则
     },
     {
       component: 'Input',
       componentProps: {
-        placeholder: '长*宽*高 (米)',
+        addonAfter: '米',
+        addonBefore: '长',
       },
-      fieldName: 'size',
+      fieldName: 'sizeLength',
       label: '尺寸',
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      componentProps: {
+        addonAfter: '米',
+        addonBefore: '宽',
+      },
+      fieldName: 'sizeWidth',
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      componentProps: {
+        addonAfter: '米',
+        addonBefore: '高',
+      },
+      fieldName: 'sizeHeight',
       rules: 'required',
     },
     {
@@ -63,12 +105,14 @@ export function useFormSchema(): VbenFormSchema[] {
         valueFormat: 'YYYY-MM-DD',
       },
       fieldName: 'productionDate',
+      formItemClass: 'col-span-3',
       label: '生产日期',
       // rules: 'required', // 根据业务需求决定是否必填
     },
     {
       component: 'Input',
       fieldName: 'checker',
+      formItemClass: 'col-span-3',
       label: $t('system.rental.checker'),
       rules: 'required',
     },
@@ -83,6 +127,7 @@ export function useFormSchema(): VbenFormSchema[] {
         valueFormat: 'YYYY-MM-DD HH:mm:ss',
       },
       fieldName: 'checkTime',
+      formItemClass: 'col-span-3',
       label: $t('page.maintenance.checkTime'),
       rules: 'required',
     },
@@ -98,6 +143,7 @@ export function useFormSchema(): VbenFormSchema[] {
         },
       },
       fieldName: 'remark',
+      formItemClass: 'col-span-3',
       label: $t('page.common.remark'),
       rules: z
         .string()
@@ -130,6 +176,11 @@ export function useGridFormSchema(): VbenFormSchema[] {
       component: 'Input',
       fieldName: 'name',
       label: '电梯名称',
+    },
+    {
+      component: 'Input',
+      fieldName: 'status',
+      label: '电梯状态',
     },
     {
       component: 'InputNumber',
@@ -195,13 +246,29 @@ export function useColumns(
       title: '电梯名称',
     },
     {
+      cellRender: {
+        name: 'CellTag',
+        options: [
+          { color: 'green', label: '正常', value: '正常' },
+          { color: 'red', label: '异常', value: '异常' },
+          { color: 'processing', label: '维护', value: '维护' },
+        ],
+      },
+      field: 'status',
+      minWidth: 100,
+      title: '电梯状态',
+    },
+    {
       field: 'loadCapacity',
+      formatter: ({ cellValue }) => {
+        return cellValue ? `${cellValue} 吨` : '';
+      },
       minWidth: 100,
       title: '承重',
     },
     {
       field: 'size',
-      minWidth: 100,
+      minWidth: 150,
       title: '尺寸',
     },
     {
@@ -223,12 +290,12 @@ export function useColumns(
       formatter: ({ cellValue }) => {
         return formatDateTime(cellValue);
       },
-      minWidth: 180, // 调整宽度以适应日期时间格式
+      minWidth: 150, // 调整宽度以适应日期时间格式
       title: $t('page.maintenance.checkTime'),
     },
     {
       field: 'remark',
-      minWidth: 150,
+      minWidth: 100,
       title: $t('page.common.remark'),
     },
     {

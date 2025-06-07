@@ -249,7 +249,54 @@ const [Grid, gridApi] = useVbenVxeGrid({
     wrapperClass: 'grid-cols-1 lg:grid-cols-3 gap-4',
   },
   gridOptions: {
+    border: true,
     columns: useColumns(onActionClick),
+    footerAlign: 'center',
+    footerMethod({ columns, data }: { columns: any[]; data: any[] }) {
+      // 返回一个合计行
+      return [
+        columns.map((column) => {
+          // 根据列的字段名称进行不同的合计计算
+          if (column.field === 'projectName') {
+            return '合计';
+          }
+
+          // 如果有需要计算合计的数值列，可以在这里添加
+          // 例如：计算某个数值列的合计
+          if (column.field === 'eleFee') {
+            const sum = data.reduce((sum, row) => {
+              return sum + (Number(row.eleFee) || 0);
+            }, 0);
+            return `${sum.toFixed(2)}元`;
+          }
+
+          if (column.field === 'waterFee') {
+            const sum = data.reduce((sum, row) => {
+              return sum + (Number(row.waterFee) || 0);
+            }, 0);
+            return `${sum.toFixed(2)}元`;
+          }
+          if (column.field === 'factoryRent') {
+            const sum = data.reduce((sum, row) => {
+              return sum + (Number(row.factoryRent) || 0);
+            }, 0);
+            return `${sum.toFixed(2)}元`;
+          }
+          if (column.field === 'totalFee') {
+            const sum = data.reduce((sum, row) => {
+              return sum + (Number(row.totalFee) || 0);
+            }, 0);
+            return `${sum.toFixed(2)}元`;
+          }
+          // 其他列不显示合计
+          return '';
+        }),
+      ];
+    },
+    footerRowStyle: {
+      color: 'black',
+      fontSize: '15px',
+    },
     height: '100%',
     keepSource: true,
     // 添加分页配置
@@ -302,6 +349,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
     scrollY: {
       enabled: true,
     },
+    showFooter: true,
     showOverflow: true,
     toolbarConfig: {
       custom: true,
