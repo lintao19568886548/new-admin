@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, watch } from 'vue';
 
 import { ArrowDown, ArrowUp } from '@vben/icons'; // 使用 @vben/icons 中的图标
 
@@ -33,6 +33,22 @@ const periodValues = reactive<
 >({
   1: [undefined, undefined], // 初始化第一期
 });
+
+// Watch for changes in the modelValue from the parent component
+// and update the internal periodValues cache.
+watch(
+  () => modelValue.value.penaltyList,
+  (newList) => {
+    if (newList) {
+      // Repopulate the cache from the new source of truth
+      newList.forEach((item, index) => {
+        const period = index + 1;
+        periodValues[period] = [...item]; // Use spread to create a copy
+      });
+    }
+  },
+  { deep: true, immediate: true }, // immediate: run on component load
+);
 
 // 检查并添加新期数的数据槽
 function ensurePeriodOption(period: number) {
