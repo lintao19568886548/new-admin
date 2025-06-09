@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import type { EChartsOption } from 'echarts';
-
 import type { EchartsUIType } from '@vben/plugins/echarts';
 
 import { onMounted, ref } from 'vue';
@@ -9,7 +7,7 @@ import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 interface Props {
   // 图表配置函数，接收数据并返回ECharts配置
-  chartConfigFn: (data: any) => EChartsOption;
+  chartConfigFn: (data: any) => any;
   // 数据获取函数
   fetchDataFn: () => Promise<any>;
   // 数据处理函数
@@ -19,13 +17,14 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  processDataFn: (data) => data,
+  processDataFn: (data: any) => data,
   showLoading: true,
 });
 
 const chartRef = ref<EchartsUIType>();
 const loading = ref(false);
 const error = ref('');
+const isDataEmpty = ref(false);
 const { renderEcharts } = useEcharts(chartRef);
 
 // 暴露出图表实例和相关方法，以便父组件可以直接操作图表
@@ -38,6 +37,7 @@ onMounted(async () => {
   try {
     loading.value = props.showLoading;
     error.value = '';
+    isDataEmpty.value = false;
 
     // 获取数据
     const data = await props.fetchDataFn();
@@ -45,17 +45,14 @@ onMounted(async () => {
     // 数据加工处理
     const processedData = props.processDataFn(data);
 
-    // Check if processedData is effectively empty for charting
-    let isEmptyData = false;
-    if (processedData === null || processedData === undefined) {
-      isEmptyData = true;
-    } else if (Array.isArray(processedData) && processedData.length === 0) {
-      // Consider an empty array as a "no data" scenario for these charts
-      isEmptyData = true;
-    }
-
-    if (isEmptyData) {
-      throw new Error('暂无数据');
+    // 检查数据是否为空
+    if (
+      processedData === null ||
+      processedData === undefined ||
+      (Array.isArray(processedData) && processedData.length === 0)
+    ) {
+      isDataEmpty.value = true;
+      return;
     }
 
     // 生成图表配置并渲染
@@ -83,6 +80,12 @@ onMounted(async () => {
       class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-60"
     >
       {{ error }}
+    </div>
+    <div
+      v-if="isDataEmpty"
+      class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-60"
+    >
+      暂无数据
     </div>
     <EchartsUI ref="chartRef" />
   </div>
