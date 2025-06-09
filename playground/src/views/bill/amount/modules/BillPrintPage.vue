@@ -293,13 +293,27 @@ onMounted(async () => {
           </p>
         </div>
         <div class="account-info">
-          <div class="bank-info" v-if="publicAccount">
+          <div
+            class="bank-info"
+            v-if="
+              query.accountType?.includes('public') &&
+              publicAccount &&
+              Object.keys(publicAccount).length > 0
+            "
+          >
             <div>对公户名：{{ publicAccount.name }}</div>
             <div>对公账号：{{ publicAccount.number }}</div>
             <div>开户行：{{ publicAccount.bank }}</div>
           </div>
-          <div class="bank-info" v-if="privateAccount">
-            <div>对私户名{{ privateAccount.name }}</div>
+          <div
+            class="bank-info"
+            v-if="
+              query.accountType?.includes('private') &&
+              privateAccount &&
+              Object.keys(privateAccount).length > 0
+            "
+          >
+            <div>对私户名：{{ privateAccount.name }}</div>
             <div>对私账号：{{ privateAccount.number }}</div>
             <div>开户行：{{ privateAccount.bank }}</div>
           </div>

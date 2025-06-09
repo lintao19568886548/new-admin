@@ -16,6 +16,7 @@ import { Download, Plus } from '@vben/icons';
 
 import {
   Button,
+  Checkbox,
   DatePicker,
   Form,
   message,
@@ -154,6 +155,7 @@ const currentPrintingBillId = ref<number | string | undefined>(undefined); // �
 
 // 打印设置表单数据模型
 const printFormData = ref({
+  accountType: [], // 改为数组以支持多选
   billingDate: dayjs(), // 默认为当天
   cutoffDate: dayjs().add(10, 'day'), // 默认为10天后
 });
@@ -172,6 +174,7 @@ const printFormRules: Record<string, Rule[]> = {
 function onPrint(row: AmountBill) {
   currentPrintingBillId.value = row.billId; // 保存当前账单ID
   // 可以根据需要重置或预设表单值
+  printFormData.value.accountType = [];
   printModalVisible.value = true; // 打开模态框
 }
 
@@ -365,6 +368,7 @@ async function handlePrintOk() {
     const formData = printFormData.value;
 
     const printSettings = {
+      accountType: formData.accountType,
       billingDate: dayjs(formData.billingDate).format('YYYY-MM-DD'),
       cutoffDate: dayjs(formData.cutoffDate).format('YYYY-MM-DD HH:00:00'),
     };
@@ -433,6 +437,12 @@ function handlePrintCancel() {
             value-format="YYYY-MM-DD"
             class="w-full"
           />
+        </Form.Item>
+        <Form.Item label="账户类型" name="accountType">
+          <Checkbox.Group v-model:value="printFormData.accountType">
+            <Checkbox value="public">对公账户</Checkbox>
+            <Checkbox value="private">对私账户</Checkbox>
+          </Checkbox.Group>
         </Form.Item>
       </Form>
     </Modal>

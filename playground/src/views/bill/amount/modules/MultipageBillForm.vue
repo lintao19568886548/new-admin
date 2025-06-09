@@ -474,16 +474,22 @@ async function handleSave() {
     parkId: tenant[0],
     // 将滞纳金明细转为 JSON 字符串存储
     penaltyItem: penalty ? JSON.stringify(penalty) : undefined,
-    privateBankAccount: JSON.stringify({
-      bank: privateAccountBank,
-      name: privateAccountName,
-      number: privateAccountNumber,
-    }),
-    publicBankAccount: JSON.stringify({
-      bank: publicAccountBank,
-      name: publicAccountName,
-      number: publicAccountNumber,
-    }),
+    privateBankAccount:
+      privateAccountBank && privateAccountName && privateAccountNumber
+        ? JSON.stringify({
+            bank: privateAccountBank,
+            name: privateAccountName,
+            number: privateAccountNumber,
+          })
+        : '{}',
+    publicBankAccount:
+      publicAccountBank && publicAccountName && publicAccountNumber
+        ? JSON.stringify({
+            bank: publicAccountBank,
+            name: publicAccountName,
+            number: publicAccountNumber,
+          })
+        : '{}',
     taxRate: JSON.stringify({
       eleTax,
       eleTaxRate,
