@@ -206,17 +206,23 @@ watch(
 );
 
 // 垃圾处理费计算
-// watch([() => billData.waterFee], () => {
-//   if (!billData.waterFee) {
-//     billData.garbageFee = 0;
-//     return;
-//   }
-//   const waterBill = billData.waterBills?.find(
-//     (item) => item.meterName === '合计',
-//   );
-
-//   billData.garbageFee = waterBill.totalUsage * 1.5;
-// });
+watch(
+  [() => billData.waterBills, () => billData.garbageRate],
+  () => {
+    if (!billData.waterBills?.length || !billData.garbageRate) {
+      billData.garbageFee = 0;
+      return;
+    }
+    const waterBill = billData.waterBills?.find(
+      (item) => item.meterName === '合计',
+    );
+    if (waterBill) {
+      billData.garbageFee = waterBill.totalUsage * billData.garbageRate;
+      billData.waterFee = Number(waterBill.amount) + billData.garbageFee;
+    }
+  },
+  { deep: true },
+);
 
 // 滞纳金计算
 watch(
@@ -434,7 +440,7 @@ function handleWaterSuccess(data: any) {
     // 计算水费合计
     const item = data.waterBills.find((item: any) => item.meterName === '合计');
     waterAmountItem.value = item;
-    billData.waterFee = item?.amount + item?.totalUsage * 1.5 || 0;
+    billData.waterFee = item?.amount + billData.garbageFee;
   }
 }
 
