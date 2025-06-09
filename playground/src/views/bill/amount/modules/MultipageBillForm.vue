@@ -457,23 +457,14 @@ async function handleSave() {
     ...tenantData
   } = tenantForm;
 
-  // 从 penalty 对象中提取滞纳金相关值
-  let penaltyRate;
-  if (penalty && typeof penalty === 'object') {
-    // 如果是新的格式（对象），直接获取penaltyRate
-    const penaltyData = penalty as unknown as {
-      penaltyRate?: number;
-    };
-    penaltyRate = penaltyData.penaltyRate;
-  }
-
   const tenantSubmit = {
     ...tenantData,
     parkId: tenant[0],
     peakAndValleyEleItem: Array.isArray(billData.peakAndValleyEleItem)
       ? billData.peakAndValleyEleItem.join(',')
       : billData.peakAndValleyEleItem,
-    penaltyRate, // 添加滞纳金比率
+    // 将滞纳金明细转为 JSON 字符串存储
+    penaltyItem: penalty ? JSON.stringify(penalty) : undefined,
     taxRate: JSON.stringify({
       eleTax,
       eleTaxRate,
@@ -574,15 +565,32 @@ async function initData(data: any, type: string) {
       }
     }
 
+    let penaltyData: any;
+    if (billDetail.penaltyItem) {
+      try {
+        penaltyData = JSON.parse(billDetail.penaltyItem);
+      } catch (error) {
+        console.error('解析滞纳金明细失败:', error);
+        // 解析失败时提供默认值
+        penaltyData = {
+          penaltyList: [[undefined, undefined]],
+          penaltyRate: undefined,
+        };
+      }
+    } else {
+      // 兼容旧数据
+      penaltyData = {
+        penaltyList: billDetail.penaltyList || [[undefined, undefined]],
+        penaltyRate: Number(billDetail.penaltyRate) || undefined,
+      };
+    }
+
     const tenantDetail = {
       ...billDetail,
       peakAndValleyEleItem: peakAndValleyEleItemProcessed,
       ...taxRateData,
       // 设置 penalty 对象，使用账单中的滞纳金相关字段
-      penalty: {
-        penaltyList: billDetail.penaltyList || [[undefined, undefined]],
-        penaltyRate: Number(billDetail.penaltyRate) || undefined,
-      },
+      penalty: penaltyData,
       tenant: billDetail.tenantId
         ? [billDetail.parkId, billDetail.tenantId]
         : undefined,
