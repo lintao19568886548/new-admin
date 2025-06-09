@@ -47,9 +47,12 @@ const parkSelectorRef = ref();
 const tagOptions = getTagTypeOptions();
 const getTagDisplay = (value: string) => {
   const option = tagOptions.find((opt) => opt.value === value);
-  return option
-    ? { color: option.color, text: option.label }
-    : { color: 'default', text: value };
+  const color = option?.color || 'default';
+  return {
+    bgColor: color === 'green' ? 'bg-green-500' : 'bg-red-500',
+    color,
+    text: option?.label || value,
+  };
 };
 
 const formatFee = (value?: number | string) => {
@@ -109,12 +112,11 @@ function refreshList() {
 }
 
 function handleCreate() {
-  formModalApi.open();
+  formModalApi.setData({}).open();
 }
 
 async function handleEdit(item: FinanceItem) {
-  formModalApi.setData({ data: item });
-  formModalApi.open();
+  formModalApi.setData({ ...item }).open();
 }
 
 async function handleDelete(item: FinanceItem) {
@@ -126,14 +128,23 @@ async function handleDelete(item: FinanceItem) {
     async onOk() {
       if (!item.financeId) return;
       try {
+        message.loading({
+          content: $t('ui.actionMessage.deleting', [item.billName]),
+          duration: 0,
+          key: 'action_process_msg',
+        });
         await deleteFinance(item.financeId);
-        message.success($t('ui.actionMessage.deleteSuccess', [item.billName]));
+        message.success({
+          content: $t('ui.actionMessage.deleteSuccess', [item.billName]),
+          key: 'action_process_msg',
+        });
         refreshList();
-      } catch (error: any) {
-        message.error(
-          error?.message ||
-            $t('ui.actionMessage.operationFailed', [item.billName]),
-        );
+      } catch (error) {
+        console.error('删除失败:', error);
+        message.error({
+          content: $t('ui.actionMessage.deleteFailed', [item.billName]),
+          key: 'action_process_msg',
+        });
       }
     },
     title: $t('common.confirmDelete'),
@@ -157,6 +168,7 @@ const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
     :title="$t('page.finance.mobileTitle', '财务明细')"
     class="finance-mobile-page"
   >
+    <FormModal @success="handleFormSuccess" />
     <div
       class="relative z-10 flex items-center justify-between bg-white p-2 shadow-sm dark:bg-black"
     >
@@ -236,11 +248,7 @@ const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
                 <template #avatar>
                   <Avatar
                     shape="circle"
-                    :class="
-                      getTagDisplay(item.transactionType).color === 'green'
-                        ? 'bg-green-500'
-                        : 'bg-red-500'
-                    "
+                    :class="getTagDisplay(item.transactionType).bgColor"
                     class="flex-shrink-0 text-white"
                   >
                     {{ getTagDisplay(item.transactionType).text.charAt(0) }}
@@ -264,9 +272,6 @@ const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
         </List>
       </Spin>
     </div>
-
-    <!-- The form is now handled by the modal -->
-    <FormModal @success="handleFormSuccess" />
   </Page>
 </template>
 

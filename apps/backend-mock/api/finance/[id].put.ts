@@ -14,15 +14,16 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const finance = await prismaClient.finance.update({
-      where: {
-        financeId,
-      },
+    const updatedFinance = await prismaClient.finance.update({
+      where: { financeId },
       data: {
         ...body,
+        transactionTime: body.transactionTime
+          ? new Date(body.transactionTime)
+          : undefined,
       },
     });
-    return useResponseSuccess(finance);
+    return useResponseSuccess(updatedFinance);
   } catch (error) {
     console.error('更新财务数据失败:', error);
     return serverErrorResponse(`更新财务数据失败\n${error}`, event);

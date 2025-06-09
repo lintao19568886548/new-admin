@@ -4,7 +4,6 @@ import type { FinanceItem } from '../types';
 import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
-import { formatDateTime } from '@vben/utils';
 
 import { Button, message } from 'ant-design-vue';
 
@@ -35,32 +34,28 @@ const [Modal, modalApi] = useVbenModal({
     const { valid, values } = await formApi.validate();
     if (!valid) return;
 
-    const cleanValues = Object.fromEntries(
-      Object.entries(values || {}).filter(
-        ([, value]) => value !== null && value !== undefined && value !== '',
-      ),
-    );
+    // Use getValues to ensure we get the latest form data
+    const latestValues = (await formApi.getValues()) as FinanceItem;
 
-    if (cleanValues.amount) {
-      cleanValues.amount = Number(cleanValues.amount);
-    }
-
-    if (cleanValues.transactionTime) {
-      cleanValues.transactionTime = new Date(
-        cleanValues.transactionTime as string,
-      ).toISOString();
-    }
+    const submissionData = {
+      ...values,
+      ...latestValues,
+      amount: Number(latestValues.amount) || 0,
+      transactionTime: latestValues.transactionTime
+        ? new Date(latestValues.transactionTime as string).toISOString()
+        : new Date().toISOString(),
+    };
 
     modalApi.lock();
 
     try {
       if (recordId.value) {
-        await updateFinance(Number(recordId.value), cleanValues);
+        await updateFinance(Number(recordId.value), submissionData);
         message.success(
           $t('ui.actionMessage.updateSuccess', [values?.billName ?? '']),
         );
       } else {
-        await createFinance(cleanValues as unknown as FinanceItem);
+        await createFinance(submissionData as unknown as FinanceItem);
         message.success(
           $t('ui.actionMessage.createSuccess', [values?.billName ?? '']),
         );
@@ -87,7 +82,9 @@ const [Modal, modalApi] = useVbenModal({
       } else {
         recordId.value = undefined;
         formApi.setValues({
-          transactionTime: formatDateTime,
+          billCategory: '其他费用',
+          billName: '',
+          transactionTime: new Date().toISOString(),
           transactionType: '支出',
         });
       }

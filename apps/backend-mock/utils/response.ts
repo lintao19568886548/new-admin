@@ -65,6 +65,15 @@ export function unAuthorizedResponse(event: H3Event<EventHandlerRequest>) {
   return useResponseError('验证失败', '验证失败');
 }
 
+export function badRequestResponse(
+  message: string,
+  event: H3Event<EventHandlerRequest>,
+  code = 400,
+) {
+  setResponseStatus(event, code);
+  return useResponseError(message, message, code);
+}
+
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

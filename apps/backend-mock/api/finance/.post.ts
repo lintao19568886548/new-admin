@@ -1,24 +1,50 @@
 import { prismaClient } from '~/utils/db';
-import { useResponseSuccess } from '~/utils/response';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  badRequestResponse,
+  serverErrorResponse,
+  unAuthorizedResponse,
+  useResponseSuccess,
+} from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
-    console.log('userinfo', userinfo);
     return unAuthorizedResponse(event);
   }
   const body = await readBody(event);
-  console.log('请求体参数:', body);
+
+  const {
+    billName,
+    billCategory,
+    transactionType,
+    amount,
+    parkId,
+    remark,
+    transactionTime,
+  } = body;
+
+  // 确保 billName 存在
+  if (!billName) {
+    return badRequestResponse('账单名称 (billName) 是必填项', event);
+  }
 
   try {
+    const financeData = {
+      amount,
+      billCategory,
+      billName,
+      parkId,
+      remark,
+      transactionTime: transactionTime ? new Date(transactionTime) : new Date(),
+      transactionType,
+    };
+
     // 创建财务记录
     const finance = await prismaClient.finance.create({
-      data: {
-        ...body,
-      },
+      data: financeData,
     });
 
-    console.log('插入财务数据成功:', finance);
     return useResponseSuccess(finance);
   } catch (error) {
     console.error('插入财务数据失败:', error);

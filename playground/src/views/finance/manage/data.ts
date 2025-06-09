@@ -26,6 +26,16 @@ export function getTagTypeOptions() {
   ];
 }
 
+export function getBillCategoryOptions() {
+  return [
+    { label: '房租', value: '房租' },
+    { label: '水费', value: '水费' },
+    { label: '电费', value: '电费' },
+    { label: '燃气费', value: '燃气费' },
+    { label: '其他费用', value: '其他费用' },
+  ];
+}
+
 export function useFormSchema(): VbenFormSchema[] {
   return [
     {
@@ -37,13 +47,7 @@ export function useFormSchema(): VbenFormSchema[] {
     {
       component: 'Select',
       componentProps: {
-        options: [
-          { label: '房租', value: '房租' },
-          { label: '水费', value: '水费' },
-          { label: '电费', value: '电费' },
-          { label: '燃气费', value: '燃气费' },
-          { label: '其他费用', value: '其他费用' },
-        ],
+        options: getBillCategoryOptions(),
       },
       fieldName: 'billCategory',
       label: $t('page.finance.billCategory'),
@@ -121,13 +125,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
       component: 'Select',
       componentProps: {
         allowClear: true,
-        options: [
-          { label: '房租', value: '房租' },
-          { label: '水费', value: '水费' },
-          { label: '电费', value: '电费' },
-          { label: '燃气费', value: '燃气费' },
-          { label: '其他费用', value: '其他费用' },
-        ],
+        options: getBillCategoryOptions(),
       },
       fieldName: 'billCategory',
       label: $t('page.finance.billCategory'),

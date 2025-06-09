@@ -1,6 +1,11 @@
 import Nzh from 'nzh';
 import { prismaClient } from '~/utils/db';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  unAuthorizedResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
 
 // 使用nzh库的简体中文转换器
 const nzhcn = Nzh.cn;
@@ -129,31 +134,17 @@ export default eventHandler(async (event) => {
     }
 
     // 区域查询
-    if (query.currentPark) {
-      if (Number(query.currentPark) === -1) {
-        // 选择全部区域时,直接查询全部有权限的园区
-        const parks = await prismaClient.park.findMany({
-          where: {
-            parkId: {
-              in: userinfo.parks.map((park) => park.parkId),
-            },
-          },
-          select: { parkId: true },
-        });
-
-        if (parks.length > 0) {
-          where.parkId = {
-            in: parks.map((park) => park.parkId),
-          };
-        }
+    if (query.parkId) {
+      if (Number(query.parkId) === -1) {
+        // 选择全部区域时,不需要额外的过滤
+        console.log('查询所有区域数据');
       } else if (
-        userinfo.parks
-          .map((park) => park.parkId)
-          .includes(Number(query.currentPark))
+        userinfo.parks &&
+        userinfo.parks.map((park) => park.parkId).includes(Number(query.parkId))
       ) {
         // 当用户有权限查看特定园区时
         const park = await prismaClient.park.findFirst({
-          where: { parkId: Number(query.currentPark) },
+          where: { parkId: Number(query.parkId) },
           select: { parkId: true },
         });
 
@@ -161,8 +152,18 @@ export default eventHandler(async (event) => {
           where.parkId = park.parkId;
         }
       } else {
-        return useResponseError('没有查看权限');
+        console.log('用户没有查看权限，当前用户parks:', userinfo.parks);
+        console.log('请求查询的parkId:', query.parkId);
+        // 非严格模式下，不返回错误，而是返回空结果
+        return useResponseSuccess({
+          items: [],
+          total: 0,
+          currentPage: Number(query.currentPage) || 1,
+          pageSize: Number(query.pageSize) || 20,
+        });
       }
+    } else {
+      console.log('未指定查询区域，查询所有数据');
     }
 
     console.log('构建的查询条件:', where);

@@ -10,7 +10,6 @@ import { onMounted, ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
-import { formatDateTime } from '@vben/utils';
 
 import { Button, message, Modal } from 'ant-design-vue';
 
@@ -23,32 +22,8 @@ import { $t } from '#/locales';
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
-// 在 setup 作用域定义 isNativePlatform，并直接通过 Capacitor.isNativePlatform() 初始化 // 这行将被移除
-// 这样可以确保在 useVbenVxeGrid 读取配置之前，isNativePlatform 的值是准确的 // 这行将被移除
-// const isNativePlatform = ref(Capacitor.isNativePlatform()); // 移除此行
-
 // 使用 usePlatform Hook 获取平台信息
-const { isNativePlatform, platformName } = usePlatform(); // 新增此行
-
-/**
- * @function onMounted
- * @description 组件挂载后执行的生命周期钩子函数。
- *              主要用于执行一些需要在 DOM 挂载后进行的操作，例如日志记录。
- *              平台的判断已通过 usePlatform Hook 在 setup 顶层完成。
- */
-onMounted(() => {
-  // 平台信息已在 setup 阶段通过 usePlatform Hook 初始化，此处主要用于调试日志
-  console.warn(
-    '当前平台是否为原生 (onMounted, value from usePlatform):',
-    isNativePlatform.value,
-  ); // 用于调试输出
-
-  // 可选: 获取具体平台名称 (例如 'ios', 'android')
-  if (isNativePlatform.value) {
-    // const platformName = Capacitor.getPlatform(); // 此行不再需要，platformName 已从 usePlatform 获取
-    console.warn('原生平台名称 (from usePlatform):', platformName.value); // 用于调试输出
-  }
-});
+const { isNativePlatform } = usePlatform();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -58,6 +33,12 @@ const [FormModal, formModalApi] = useVbenModal({
 // 当前选中的区域
 const currentPark = ref();
 const parkSelectorRef = ref();
+
+// 组件挂载后初始化查询
+onMounted(() => {
+  // 初始加载数据
+  gridApi.query();
+});
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
@@ -79,9 +60,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     proxyConfig: {
       ajax: {
-        query: async ({ page }) => {
+        query: async ({ form, page }) => {
           try {
-            const params = (await gridApi.formApi?.getValues?.()) || {};
+            const params = form || {};
 
             // 处理日期范围
             if (params.startTime && params.endTime) {
@@ -102,33 +83,23 @@ const [Grid, gridApi] = useVbenVxeGrid({
             }
 
             // 添加区域参数
-            params.currentPark = currentPark.value
-              ? currentPark.value.parkId
-              : -1;
+            params.parkId = currentPark.value ? currentPark.value.parkId : -1;
 
             const cleanParams: Record<string, any> = {};
-            for (const key in params) {
-              if (
-                Object.prototype.hasOwnProperty.call(params, key) &&
-                params[key] !== null &&
-                params[key] !== undefined &&
-                params[key] !== ''
-              ) {
-                cleanParams[key] = params[key];
+            for (const [key, value] of Object.entries(params)) {
+              if (value !== null && value !== undefined && value !== '') {
+                cleanParams[key] = value;
               }
             }
 
             cleanParams.currentPage = page.currentPage;
             cleanParams.pageSize = page.pageSize;
 
+            console.warn('发送查询参数:', cleanParams);
             const response = await getFinanceList(cleanParams);
+            console.warn('获取到的响应数据:', response);
 
-            return {
-              page: {
-                total: response.total || 0,
-              },
-              result: response.items || [],
-            };
+            return response;
           } catch (error) {
             console.error('获取财务数据失败:', error);
             message.error('获取账单列表失败');
@@ -181,14 +152,7 @@ function onActionClick(e: OnActionClickParams<FinanceItem>) {
 }
 
 function onEdit(row: FinanceItem) {
-  const editData = { ...row };
-
-  if (editData.transactionTime) {
-    // Ensure the result is always a string to match the expected type
-    editData.transactionTime = String(formatDateTime(editData.transactionTime));
-  }
-
-  formModalApi.setData(editData).open();
+  formModalApi.setData({ ...row }).open();
 }
 
 function onDelete(row: FinanceItem) {
@@ -234,58 +198,13 @@ function onCreate() {
 
 function onParkChange(area: any) {
   currentPark.value = area;
-  onRefresh();
-}
-
-// 修改搜索函数，添加参数类型定义
-// 修改搜索函数，正确处理搜索事件参数
-function onSearch(params: any) {
-  console.warn('触发搜索，原始参数:', params);
-
-  // 检查参数格式
-  let searchParams = params;
-
-  // 如果params是事件对象，尝试从中提取表单数据
-  if (params && params.form) {
-    searchParams = params.form;
-  } else if (params && params.$event && params.$event.form) {
-    searchParams = params.$event.form;
-  } else if (params && params.data) {
-    // vxe-table可能将表单数据放在data属性中
-    searchParams = params.data;
-  } else if (!params || typeof params !== 'object') {
-    // 如果没有有效参数，则使用空对象
-    searchParams = {};
-  }
-
-  console.warn('处理后的搜索参数对象:', searchParams);
-
-  // 清理空值参数
-  const cleanParams: Record<string, any> = {};
-  if (searchParams && typeof searchParams === 'object') {
-    for (const [key, value] of Object.entries(searchParams)) {
-      if (value !== null && value !== undefined && value !== '') {
-        cleanParams[key] = value;
-      }
-    }
-  }
-
-  console.warn('清理后的搜索参数:', cleanParams);
-
-  // 使用表单数据进行查询
-  gridApi.query({
-    form: cleanParams,
-  });
+  gridApi.query();
 }
 </script>
 <template>
   <Page auto-content-height>
     <FormModal @success="onRefresh" />
-    <Grid
-      :table-title="$t('page.finance.list-title')"
-      @search="onSearch"
-      @form-submit="onSearch"
-    >
+    <Grid :table-title="$t('page.finance.list-title')">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector
