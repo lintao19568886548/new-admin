@@ -16,17 +16,19 @@ export interface AmountBill {
   eleFee: number; // 电费合计
   eleTax?: number; // 电费税金
   eleTaxRate?: number; // 电费税金
+  extraEleItem?: string[]; // 额外服务费项;
+  extraEleRate?: number; // 额外服务费比率;
   factoryRent: number; // 厂房租金
   garbageFee: number; // 垃圾管理费
   invoiceTax: number; // 开票税金
   managementFee: number; // 基本管理费
   parkId?: number; // 园区ID
-  peakAndValleyEleItem?: string[]; // 额外服务费项;
-  peakAndValleyEleRate?: number; // 额外服务费比率;
   penalty?: number[]; // 滞纳金数据
   penaltyFee?: number; // 滞纳金
   penaltyRate?: number;
+  privateBankAccount?: string; // 对私银行账户
   projectName?: string; // 项目名称
+  publicBankAccount?: string; // 对公银行账户
   receiptTime?: string; // 收款时间
   remark?: string; // 备注
   rentTax?: number; // 租金税金
@@ -134,6 +136,11 @@ export function useColumns<T = AmountBill>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
   return [
+    {
+      field: 'parkName',
+      minWidth: 150,
+      title: '园区',
+    },
     {
       field: 'projectName',
       minWidth: 150,

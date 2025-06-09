@@ -101,6 +101,11 @@ export default eventHandler(async (event) => {
           tenantName: true,
         },
       },
+      park: {
+        select: {
+          parkName: true,
+        },
+      },
     },
   });
 
@@ -108,6 +113,7 @@ export default eventHandler(async (event) => {
     return {
       ...item,
       tenantName: item.tenant.tenantName,
+      parkName: item.park.parkName,
     };
   });
 
