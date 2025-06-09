@@ -32,87 +32,139 @@ import {
   AnalyticsTrends,
 } from './components';
 
-// 数据初始化
-const analyticsData = ref({
-  monthData: {
-    expenseData: [],
-    incomeData: [],
-  },
-  yearData: {
-    expenseDatamonths: [],
-    incomeDatamonths: [],
-  },
+// 重构数据结构，使其更具可读性
+const analyticsData = ref<{
+  daily: {
+    expense: number[];
+    income: number[];
+  };
+  monthly: {
+    expense: number[];
+    income: number[];
+  };
+}>({
+  daily: { expense: [], income: [] },
+  monthly: { expense: [], income: [] },
 });
 
 // 获取数据
 onMounted(async () => {
   try {
-    const yearResult = await getAnalyticsData({ type: 'months' });
-    analyticsData.value.yearData = yearResult;
+    // 获取月度数据
+    const monthlyResult = await getAnalyticsData({ type: 'months' });
+    analyticsData.value.monthly = {
+      expense: monthlyResult.expenseDatamonths || [],
+      income: monthlyResult.incomeDatamonths || [],
+    };
 
-    const monthResult = await getAnalyticsData({ type: 'days' });
-    analyticsData.value.monthData = monthResult;
+    // 获取每日数据
+    const dailyResult = await getAnalyticsData({ type: 'days' });
+    analyticsData.value.daily = {
+      expense: dailyResult.expenseData || [],
+      income: dailyResult.incomeData || [],
+    };
   } catch (error) {
     console.error('获取数据失败:', error);
   }
 });
 
-// 计算环比增长率
+// 计算增长率，代码更健壮
 const calculateGrowth = (data: number[] = []) => {
-  if (data.length === 0) return 0;
-  const currentMonth = data[data.length - 1] || 0;
-  const lastMonth = data[data.length - 2] || 0;
-  return lastMonth
-    ? Math.round(((currentMonth - lastMonth) / lastMonth) * 100)
-    : 0;
+  if (data.length < 2) {
+    return 0;
+  }
+  const current = data[data.length - 1];
+  const previous = data[data.length - 2];
+  if (previous === 0) {
+    // 当上一个值为0时，如果当前值大于0，可以认为增长率为100%或无穷大
+    // 这里为简化处理，返回100；如果当前值也为0，则增长为0
+    return current > 0 ? 100 : 0;
+  }
+  return Math.round(((current - previous) / previous) * 100);
 };
 
+// --- 提取计算属性以提高可读性 ---
+
+// 本月总收入 (基于每日数据累加)
+const totalMonthlyIncome = computed(() =>
+  analyticsData.value.daily.income.reduce((sum, curr) => sum + Number(curr), 0),
+);
+
+// 本月总支出 (基于每日数据累加)
+const totalMonthlyExpense = computed(() =>
+  analyticsData.value.daily.expense.reduce(
+    (sum, curr) => sum + Number(curr),
+    0,
+  ),
+);
+
+// 年度总收入 (基于每月数据累加)
+const totalAnnualIncome = computed(() =>
+  analyticsData.value.monthly.income.reduce(
+    (sum, curr) => sum + Number(curr),
+    0,
+  ),
+);
+
+// 年度总支出 (基于每月数据累加)
+const totalAnnualExpense = computed(() =>
+  analyticsData.value.monthly.expense.reduce(
+    (sum, curr) => sum + Number(curr),
+    0,
+  ),
+);
+
+// 最新日收入
+const latestDailyIncome = computed(() => {
+  const { income } = analyticsData.value.daily;
+  return income.length > 0 ? income[income.length - 1] : 0;
+});
+
+// 最新日支出
+const latestDailyExpense = computed(() => {
+  const { expense } = analyticsData.value.daily;
+  return expense.length > 0 ? expense[expense.length - 1] : 0;
+});
+
+// 日收入环比增长
+const dailyIncomeGrowth = computed(() =>
+  calculateGrowth(analyticsData.value.daily.income),
+);
+
+// 日支出环比增长
+const dailyExpenseGrowth = computed(() =>
+  calculateGrowth(analyticsData.value.daily.expense),
+);
+
+// 更新概览项以提高清晰度和一致性
 const overviewItems = computed<AnalysisOverviewItem[]>(() => [
   {
     icon: SvgCardIcon,
-    title: '收入总额',
-    totalTitle: '年度收入',
-    totalValue: analyticsData.value.yearData.incomeDatamonths.reduce(
-      (sum, curr) => sum + Number(curr),
-      0,
-    ),
-    value: analyticsData.value.monthData.incomeData.reduce(
-      (sum, curr) => sum + Number(curr),
-      0,
-    ),
+    title: '本月总收入',
+    totalTitle: '年度总收入',
+    totalValue: totalAnnualIncome.value,
+    value: totalMonthlyIncome.value,
   },
   {
     icon: SvgCakeIcon,
-    title: '支出总额',
-    totalTitle: '年度支出',
-    totalValue: analyticsData.value.yearData.expenseDatamonths.reduce(
-      (sum, curr) => sum + Number(curr),
-      0,
-    ),
-    value: analyticsData.value.monthData.expenseData.reduce(
-      (sum, curr) => sum + Number(curr),
-      0,
-    ),
+    title: '本月总支出',
+    totalTitle: '年度总支出',
+    totalValue: totalAnnualExpense.value,
+    value: totalMonthlyExpense.value,
   },
   {
     icon: SvgDownloadIcon,
-    title: '本月收入',
-    totalTitle: '环比增长',
-    totalValue:
-      analyticsData.value.monthData.incomeData[
-        analyticsData.value.monthData.incomeData.length - 1
-      ] || 0,
-    value: calculateGrowth(analyticsData.value.monthData.incomeData),
+    title: '最新日收入',
+    totalTitle: '日环比增长',
+    totalValue: dailyIncomeGrowth.value,
+    value: latestDailyIncome.value,
   },
   {
     icon: SvgBellIcon,
-    title: '本月支出',
-    totalTitle: '环比增长',
-    totalValue:
-      analyticsData.value.monthData.expenseData[
-        analyticsData.value.monthData.expenseData.length - 1
-      ] || 0,
-    value: calculateGrowth(analyticsData.value.monthData.expenseData),
+    title: '最新日支出',
+    totalTitle: '日环比增长',
+    totalValue: dailyExpenseGrowth.value,
+    value: latestDailyExpense.value,
   },
 ]);
 
