@@ -31,6 +31,11 @@ export default eventHandler(async (event) => {
           tenantName: true,
         },
       },
+      park: {
+        select: {
+          manager: true,
+        },
+      },
     },
   });
   return useResponseSuccess(bill);

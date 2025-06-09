@@ -172,7 +172,7 @@ export function useTenantFormSchema(): VbenFormSchema[] {
         mode: 'multiple',
         placeholder: '请输入电费附加费比率',
       },
-      fieldName: 'peakAndValleyEleRate',
+      fieldName: 'extraEleRate',
       formItemClass: 'p-4',
       label: '电费附加费',
     },
@@ -184,7 +184,7 @@ export function useTenantFormSchema(): VbenFormSchema[] {
         mode: 'multiple',
         placeholder: '请选择电费附加费',
       },
-      fieldName: 'peakAndValleyEleItem',
+      fieldName: 'extraEleItem',
       formItemClass: 'p-4',
       hideLabel: true,
       // label: '',
@@ -214,6 +214,94 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       fieldName: 'penalty', // 保持不变，已与接口一致
       formItemClass: 'col-span-2 p-4',
       label: '滞纳金明细',
+    },
+    {
+      component: 'Input',
+      componentProps: {
+        placeholder: '请输入对公户名',
+      },
+      fieldName: 'publicAccountName',
+      formItemClass: 'col-start-1 p-4', // 增加底部内边距
+      label: '对公账户',
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      componentProps: {
+        placeholder: '请输入对公账号',
+      },
+      fieldName: 'publicAccountNumber',
+      formItemClass: 'p-4', // 增加底部内边距
+      hideLabel: true,
+      label: '对公账号',
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      componentProps: {
+        placeholder: '请输入开户行',
+      },
+      fieldName: 'publicAccountBank',
+      formItemClass: 'p-4', // 增加底部内边距
+      hideLabel: true,
+      label: '开户行',
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      componentProps: {
+        placeholder: '请输入对私户名',
+      },
+      dependencies: {
+        rules: (values) => {
+          if (values.privateAccountNumber || values.privateAccountBank) {
+            return 'required';
+          }
+          return null;
+        },
+        triggerFields: ['privateAccountNumber', 'privateAccountBank'],
+      },
+      fieldName: 'privateAccountName',
+      formItemClass: 'col-start-1 p-4', // 增加底部内边距
+      label: '对私账户',
+    },
+    {
+      component: 'Input',
+      componentProps: {
+        placeholder: '请输入对私账号',
+      },
+      dependencies: {
+        rules: (values) => {
+          if (values.privateAccountName || values.privateAccountBank) {
+            return 'required';
+          }
+          return null;
+        },
+        triggerFields: ['privateAccountName', 'privateAccountBank'],
+      },
+      fieldName: 'privateAccountNumber',
+      formItemClass: 'p-4', // 增加底部内边距
+      hideLabel: true,
+      label: '对私账号',
+    },
+    {
+      component: 'Input',
+      componentProps: {
+        placeholder: '请输入开户行',
+      },
+      dependencies: {
+        rules: (values) => {
+          if (values.privateAccountName || values.privateAccountNumber) {
+            return 'required';
+          }
+          return null;
+        },
+        triggerFields: ['privateAccountName', 'privateAccountNumber'],
+      },
+      fieldName: 'privateAccountBank',
+      formItemClass: 'p-4', // 增加底部内边距
+      hideLabel: true,
+      label: '开户行',
     },
     {
       component: 'Divider',

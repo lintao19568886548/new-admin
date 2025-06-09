@@ -18,7 +18,6 @@ import {
   Button,
   DatePicker,
   Form,
-  Input,
   message,
   Modal,
   Select,
@@ -155,52 +154,17 @@ const currentPrintingBillId = ref<number | string | undefined>(undefined); // �
 
 // 打印设置表单数据模型
 const printFormData = ref({
-  bankName: '',
   billingDate: dayjs(), // 默认为当天
-  companyAccountName: '',
-  companyAccountNumber: '4430 4001 0400 21090',
   cutoffDate: dayjs().add(10, 'day'), // 默认为10天后
-  parkManager: '',
 });
-
-// 从 Local Storage 加载保存的设置
-try {
-  const savedSettings = localStorage.getItem('billPrintSettings');
-  if (savedSettings) {
-    const parsedSettings = JSON.parse(savedSettings);
-    // 只更新存在的字段
-    if (parsedSettings.bankName)
-      printFormData.value.bankName = parsedSettings.bankName;
-    if (parsedSettings.companyAccountName)
-      printFormData.value.companyAccountName =
-        parsedSettings.companyAccountName;
-    if (parsedSettings.companyAccountNumber)
-      printFormData.value.companyAccountNumber =
-        parsedSettings.companyAccountNumber;
-    if (parsedSettings.parkManager)
-      printFormData.value.parkManager = parsedSettings.parkManager;
-  }
-} catch (error) {
-  console.error('加载保存的打印设置失败:', error);
-}
 
 // 表单验证规则 (可选，根据需要添加)
 const printFormRules: Record<string, Rule[]> = {
-  bankName: [{ message: '请输入开户行', required: true, trigger: 'blur' }],
   billingDate: [
     { message: '请选择制单日期', required: true, trigger: 'change' },
   ],
-  companyAccountName: [
-    { message: '请输入对公户名', required: true, trigger: 'blur' },
-  ],
-  companyAccountNumber: [
-    { message: '请输入对公账号', required: true, trigger: 'blur' },
-  ],
   cutoffDate: [
     { message: '请选择停止供水供电时间', required: true, trigger: 'change' },
-  ],
-  parkManager: [
-    { message: '请输入园区负责人信息', required: true, trigger: 'blur' },
   ],
 };
 // --- 新增代码结束 ---
@@ -390,7 +354,7 @@ function handleFormSuccess(_data: any) {
   message.success('保存成功');
   refreshGrid();
 }
-// --- 新增代码开始 ---
+
 /**
  * 处理打印设置模态框确认事件
  */
@@ -398,24 +362,11 @@ async function handlePrintOk() {
   try {
     await printFormRef.value?.validate(); // 触发表单验证
 
-    // 验证成功后保存关键数据到 Local Storage
-    const storageData = {
-      bankName: printFormData.value.bankName,
-      companyAccountName: printFormData.value.companyAccountName,
-      companyAccountNumber: printFormData.value.companyAccountNumber,
-      parkManager: printFormData.value.parkManager,
-    };
-    localStorage.setItem('billPrintSettings', JSON.stringify(storageData));
-
     const formData = printFormData.value;
 
     const printSettings = {
-      bankName: formData.bankName,
       billingDate: dayjs(formData.billingDate).format('YYYY-MM-DD'),
-      companyAccountName: formData.companyAccountName,
-      companyAccountNumber: formData.companyAccountNumber,
       cutoffDate: dayjs(formData.cutoffDate).format('YYYY-MM-DD HH:00:00'),
-      parkManager: formData.parkManager,
     };
 
     const routeData = router.resolve({
@@ -467,15 +418,6 @@ function handlePrintCancel() {
         layout="horizontal"
         class="mt-4"
       >
-        <Form.Item label="对公户名" name="companyAccountName">
-          <Input v-model:value="printFormData.companyAccountName" />
-        </Form.Item>
-        <Form.Item label="对公账号" name="companyAccountNumber">
-          <Input v-model:value="printFormData.companyAccountNumber" />
-        </Form.Item>
-        <Form.Item label="开户行" name="bankName">
-          <Input v-model:value="printFormData.bankName" />
-        </Form.Item>
         <Form.Item label="水电停供时间" name="cutoffDate">
           <DatePicker
             v-model:value="printFormData.cutoffDate"
@@ -484,9 +426,6 @@ function handlePrintCancel() {
             value-format="YYYY-MM-DD HH:00:00"
             class="w-full"
           />
-        </Form.Item>
-        <Form.Item label="园区负责人" name="parkManager">
-          <Input v-model:value="printFormData.parkManager" />
         </Form.Item>
         <Form.Item label="制单日期" name="billingDate">
           <DatePicker

@@ -160,8 +160,8 @@ watch(
   [
     () => billData.serviceRate,
     () => billData.eleFee,
-    () => billData.peakAndValleyEleRate,
-    () => billData.peakAndValleyEleItem,
+    () => billData.extraEleRate,
+    () => billData.extraEleItem,
   ],
   () => {
     // if (!billData.serviceRate) {
@@ -177,23 +177,23 @@ watch(
 
     // 计算峰谷电费服务费
     if (
-      billData.peakAndValleyEleRate &&
-      Array.isArray(billData.peakAndValleyEleItem) &&
-      billData.peakAndValleyEleItem.length > 0
+      billData.extraEleRate &&
+      Array.isArray(billData.extraEleItem) &&
+      billData.extraEleItem.length > 0
     ) {
-      // 使用peakAndValleyEleItem数组中的值来过滤电费项
+      // 使用extraEleItem数组中的值来过滤电费项
       const peakAndValleyEle = billData.eleBills
         ?.filter(
           (item) =>
-            billData.peakAndValleyEleItem &&
-            billData.peakAndValleyEleItem.includes(item.meterName),
+            billData.extraEleItem &&
+            billData.extraEleItem.includes(item.meterName),
         )
         ?.reduce(
           (sum, item) => Number(sum) + (Number(item.totalUsage) || 0),
           0,
         );
       const peakAndValleyEleFee =
-        (peakAndValleyEle || 0) * (Number(billData.peakAndValleyEleRate) / 100);
+        (peakAndValleyEle || 0) * (Number(billData.extraEleRate) / 100);
       billData.serviceFee += peakAndValleyEleFee;
     }
 
@@ -219,49 +219,53 @@ watch(
 // });
 
 // 滞纳金计算
-watch([() => billData.penalty], () => {
-  // 如果penalty不存在，则滞纳金为0
-  if (!billData.penalty) {
-    billData.penaltyFee = 0;
-    return;
-  }
-
-  try {
-    // 尝试获取滞纳金数据
-    const penaltyData = billData.penalty as unknown as {
-      penaltyList?: [number | undefined, number | undefined][];
-      penaltyRate?: number;
-    };
-
-    // 如果没有必要的数据，则滞纳金为0
-    if (!penaltyData.penaltyList?.length || !penaltyData.penaltyRate) {
+watch(
+  () => billData.penalty,
+  () => {
+    // 如果penalty不存在，则滞纳金为0
+    if (!billData.penalty) {
       billData.penaltyFee = 0;
       return;
     }
 
-    // 计算所有期数的滞纳金总和
-    let totalPenalty = 0;
+    try {
+      // 尝试获取滞纳金数据
+      const penaltyData = billData.penalty as unknown as {
+        penaltyList?: [number | undefined, number | undefined][];
+        penaltyRate?: number;
+      };
 
-    // 遍历所有滞纳期数
-    for (const penaltyItem of penaltyData.penaltyList) {
-      const [days, amount] = penaltyItem;
-
-      // 如果任一值为空，则跳过此期数
-      if (days === undefined || amount === undefined) {
-        continue;
+      // 如果没有必要的数据，则滞纳金为0
+      if (!penaltyData.penaltyList?.length || !penaltyData.penaltyRate) {
+        billData.penaltyFee = 0;
+        return;
       }
 
-      // 计算当前期数的滞纳金：天数 * 金额 * 比率(‰)
-      const periodPenalty = days * amount * (penaltyData.penaltyRate / 1000);
-      totalPenalty += periodPenalty;
-    }
+      // 计算所有期数的滞纳金总和
+      let totalPenalty = 0;
 
-    billData.penaltyFee = totalPenalty;
-  } catch (error) {
-    console.error('计算滞纳金时出错:', error);
-    billData.penaltyFee = 0;
-  }
-});
+      // 遍历所有滞纳期数
+      for (const penaltyItem of penaltyData.penaltyList) {
+        const [days, amount] = penaltyItem;
+
+        // 如果任一值为空，则跳过此期数
+        if (days === undefined || amount === undefined) {
+          continue;
+        }
+
+        // 计算当前期数的滞纳金：天数 * 金额 * 比率(‰)
+        const periodPenalty = days * amount * (penaltyData.penaltyRate / 1000);
+        totalPenalty += periodPenalty;
+      }
+
+      billData.penaltyFee = totalPenalty;
+    } catch (error) {
+      console.error('计算滞纳金时出错:', error);
+      billData.penaltyFee = 0;
+    }
+  },
+  { deep: true },
+);
 
 // 开票税金计算
 watch(
@@ -378,24 +382,23 @@ function handleEleSuccess(data: any) {
 
       // 计算峰谷电费服务费
       if (
-        billData.peakAndValleyEleRate &&
-        Array.isArray(billData.peakAndValleyEleItem) &&
-        billData.peakAndValleyEleItem.length > 0
+        billData.extraEleRate &&
+        Array.isArray(billData.extraEleItem) &&
+        billData.extraEleItem.length > 0
       ) {
-        // 使用peakAndValleyEleItem数组中的值来过滤电费项
+        // 使用extraEleItem数组中的值来过滤电费项
         const peakAndValleyEle = billData.eleBills
           ?.filter(
             (item) =>
-              billData.peakAndValleyEleItem &&
-              billData.peakAndValleyEleItem.includes(item.meterName),
+              billData.extraEleItem &&
+              billData.extraEleItem.includes(item.meterName),
           )
           ?.reduce(
             (sum, item) => Number(sum) + (Number(item.totalUsage) || 0),
             0,
           );
         const peakAndValleyEleFee =
-          (peakAndValleyEle || 0) *
-          (Number(billData.peakAndValleyEleRate) / 100);
+          (peakAndValleyEle || 0) * (Number(billData.extraEleRate) / 100);
         billData.serviceFee += peakAndValleyEleFee;
       }
 
@@ -417,7 +420,7 @@ function handleEleSuccess(data: any) {
         componentProps: {
           options: eleOptions,
         },
-        fieldName: 'peakAndValleyEleItem',
+        fieldName: 'extraEleItem',
       },
     ]);
   }
@@ -449,6 +452,12 @@ async function handleSave() {
     eleTax,
     eleTaxRate,
     penalty, // 提取 penalty 对象
+    privateAccountBank,
+    privateAccountName,
+    privateAccountNumber,
+    publicAccountBank,
+    publicAccountName,
+    publicAccountNumber,
     rentTax,
     rentTaxRate,
     tenant,
@@ -459,12 +468,22 @@ async function handleSave() {
 
   const tenantSubmit = {
     ...tenantData,
+    extraEleItem: Array.isArray(billData.extraEleItem)
+      ? billData.extraEleItem.join(',')
+      : billData.extraEleItem,
     parkId: tenant[0],
-    peakAndValleyEleItem: Array.isArray(billData.peakAndValleyEleItem)
-      ? billData.peakAndValleyEleItem.join(',')
-      : billData.peakAndValleyEleItem,
     // 将滞纳金明细转为 JSON 字符串存储
     penaltyItem: penalty ? JSON.stringify(penalty) : undefined,
+    privateBankAccount: JSON.stringify({
+      bank: privateAccountBank,
+      name: privateAccountName,
+      number: privateAccountNumber,
+    }),
+    publicBankAccount: JSON.stringify({
+      bank: publicAccountBank,
+      name: publicAccountName,
+      number: publicAccountNumber,
+    }),
     taxRate: JSON.stringify({
       eleTax,
       eleTaxRate,
@@ -534,19 +553,18 @@ async function initData(data: any, type: string) {
         componentProps: {
           options: eleOptions,
         },
-        fieldName: 'peakAndValleyEleItem',
+        fieldName: 'extraEleItem',
       },
     ]);
 
-    let peakAndValleyEleItemProcessed: string[] = [];
+    let extraEleItemProcessed: string[] = [];
     if (
-      typeof billDetail.peakAndValleyEleItem === 'string' &&
-      billDetail.peakAndValleyEleItem.length > 0
+      typeof billDetail.extraEleItem === 'string' &&
+      billDetail.extraEleItem.length > 0
     ) {
-      peakAndValleyEleItemProcessed =
-        billDetail.peakAndValleyEleItem.split(',');
-    } else if (Array.isArray(billDetail.peakAndValleyEleItem)) {
-      peakAndValleyEleItemProcessed = billDetail.peakAndValleyEleItem;
+      extraEleItemProcessed = billDetail.extraEleItem.split(',');
+    } else if (Array.isArray(billDetail.extraEleItem)) {
+      extraEleItemProcessed = billDetail.extraEleItem;
     }
 
     // 解析税率数据，确保是数字类型
@@ -562,6 +580,23 @@ async function initData(data: any, type: string) {
         });
       } catch (error) {
         console.error('解析税率数据出错:', error);
+      }
+    }
+    // 解析银行账户数据
+    let privateAccount: Record<string, any> = {};
+    let publicAccount: Record<string, any> = {};
+    if (billDetail.privateBankAccount) {
+      try {
+        privateAccount = JSON.parse(billDetail.privateBankAccount);
+      } catch (error) {
+        console.error('解析私户银行账户数据出错:', error);
+      }
+    }
+    if (billDetail.publicBankAccount) {
+      try {
+        publicAccount = JSON.parse(billDetail.publicBankAccount);
+      } catch (error) {
+        console.error('解析公户银行账户数据出错:', error);
       }
     }
 
@@ -587,7 +622,13 @@ async function initData(data: any, type: string) {
 
     const tenantDetail = {
       ...billDetail,
-      peakAndValleyEleItem: peakAndValleyEleItemProcessed,
+      extraEleItem: extraEleItemProcessed,
+      privateAccountBank: privateAccount.bank,
+      privateAccountName: privateAccount.name,
+      privateAccountNumber: privateAccount.number,
+      publicAccountBank: publicAccount.bank,
+      publicAccountName: publicAccount.name,
+      publicAccountNumber: publicAccount.number,
       ...taxRateData,
       // 设置 penalty 对象，使用账单中的滞纳金相关字段
       penalty: penaltyData,
@@ -677,7 +718,7 @@ async function initData(data: any, type: string) {
         componentProps: {
           options: [],
         },
-        fieldName: 'peakAndValleyEleItem',
+        fieldName: 'extraEleItem',
       },
     ]);
   }

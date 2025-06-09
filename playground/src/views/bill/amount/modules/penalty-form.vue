@@ -206,13 +206,13 @@ onMounted(() => {
 });
 
 function onChange() {
-  // 准备返回的数据结构
-  const result = {
+  // 准备返回的数据结构，通过创建新对象来触发 v-model 更新
+  modelValue.value = {
     penaltyList: modelValue.value.penaltyList,
     penaltyRate: modelValue.value.penaltyRate,
   };
 
-  emit('change', result);
+  emit('change', modelValue.value);
 }
 </script>
 

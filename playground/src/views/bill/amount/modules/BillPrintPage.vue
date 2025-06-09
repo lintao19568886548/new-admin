@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { AmountBill } from '../data';
-
 import { computed, nextTick, onMounted, ref } from 'vue'; // 添加 computed
 import { useRoute } from 'vue-router';
 
@@ -9,7 +7,7 @@ import dayjs from 'dayjs'; // 添加 dayjs 导入
 import { getAmountBillDetail } from '#/api/bill';
 
 // 组件属性定义
-const billData = ref<AmountBill>();
+const billData = ref();
 const route = useRoute();
 const query = ref(route.query);
 
@@ -85,11 +83,20 @@ const cutoffMonthDisplay = computed(() => {
   }
 });
 
+const publicAccount = ref<Record<string, any>>();
+const privateAccount = ref<Record<string, any>>();
+
 onMounted(async () => {
   // 从路径参数中获取 id
   const billId = route.params.id ? Number(route.params.id) : undefined;
   if (billId) {
     billData.value = await getAmountBillDetail(billId);
+    if (billData.value?.publicBankAccount) {
+      publicAccount.value = JSON.parse(billData.value.publicBankAccount);
+    }
+    if (billData.value?.privateBankAccount) {
+      privateAccount.value = JSON.parse(billData.value.privateBankAccount);
+    }
     await nextTick();
     setTimeout(() => {
       // window.print();
@@ -286,10 +293,15 @@ onMounted(async () => {
           </p>
         </div>
         <div class="account-info">
-          <div class="bank-info">
-            <div>对公户名：{{ query.companyAccountName }}</div>
-            <div>对公账号：{{ query.companyAccountNumber }}</div>
-            <div>开户行：{{ query.bankName }}</div>
+          <div class="bank-info" v-if="publicAccount">
+            <div>对公户名：{{ publicAccount.name }}</div>
+            <div>对公账号：{{ publicAccount.number }}</div>
+            <div>开户行：{{ publicAccount.bank }}</div>
+          </div>
+          <div class="bank-info" v-if="privateAccount">
+            <div>对私户名{{ privateAccount.name }}</div>
+            <div>对私账号：{{ privateAccount.number }}</div>
+            <div>开户行：{{ privateAccount.bank }}</div>
           </div>
 
           <div class="warning-info">
@@ -303,7 +315,7 @@ onMounted(async () => {
             供电，直至缴清所有款项及滞纳金后再回复供水、供电。谢谢合作！
           </div>
           <div class="contact-info">
-            <span>园区负责人： {{ query.parkManager }}</span>
+            <span>园区负责人： {{ billData?.park.manager }}</span>
             <div>
               <span class="ml-20">制单日期：</span>
               <span>{{ query.billingDate }}</span>
