@@ -17,7 +17,10 @@ import {
   SvgDownloadIcon,
 } from '@vben/icons';
 
+import { notification } from 'ant-design-vue';
+
 import { getAnalyticsData } from '#/api/analytics';
+import { getPendingReimbursementCount } from '#/api/reimbursement';
 
 // 导入重构后的业务组件
 import {
@@ -52,6 +55,15 @@ onMounted(async () => {
 
     const monthResult = await getAnalyticsData({ type: 'days' });
     analyticsData.value.monthData = monthResult;
+
+    const pendingReimbursement = await getPendingReimbursementCount();
+    if (pendingReimbursement.count > 0) {
+      notification.info({
+        description: `您有 ${pendingReimbursement.count} 条报销申请待处理`,
+        duration: null, // 不自动关闭
+        message: '待办提醒',
+      });
+    }
   } catch (error) {
     console.error('获取数据失败:', error);
   }

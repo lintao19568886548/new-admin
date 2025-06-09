@@ -37,3 +37,7 @@ export async function updateReimbursement(id: number, data: any) {
 export async function deleteReimbursement(id: number) {
   return requestClient.delete(`/reimbursement/${id}`);
 }
+
+export async function getPendingReimbursementCount() {
+  return requestClient.get<{ count: number }>('/reimbursement/pending-count');
+}
