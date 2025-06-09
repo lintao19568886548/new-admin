@@ -221,7 +221,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       return [
         columns.map((column) => {
           // 根据列的字段名称进行不同的合计计算
-          if (column.field === 'projectName') {
+          if (column.field === 'parkName') {
             return '合计';
           }
 

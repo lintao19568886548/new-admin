@@ -143,6 +143,17 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       label: '基本电费',
       rules: 'required',
     },
+    // {
+    //   component: 'InputNumber',
+    //   componentProps: {
+    //     addonAfter: '元/方',
+    //     placeholder: '请输入垃圾处理费',
+    //   },
+    //   fieldName: 'garbageRate',
+    //   formItemClass: 'p-4',
+    //   label: '垃圾处理费',
+    //   // rules: 'required',
+    // },
 
     // {
     //   component: 'InputNumber',
@@ -220,32 +231,56 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       componentProps: {
         placeholder: '请输入对公户名',
       },
+      dependencies: {
+        rules: (values) => {
+          if (values.publicAccountNumber || values.publicAccountBank) {
+            return 'required';
+          }
+          return null;
+        },
+        triggerFields: ['publicAccountNumber', 'publicAccountBank'],
+      },
       fieldName: 'publicAccountName',
       formItemClass: 'col-start-1 p-4', // 增加底部内边距
       label: '对公账户',
-      rules: 'required',
     },
     {
       component: 'Input',
       componentProps: {
         placeholder: '请输入对公账号',
       },
+      dependencies: {
+        rules: (values) => {
+          if (values.publicAccountName || values.publicAccountBank) {
+            return 'required';
+          }
+          return null;
+        },
+        triggerFields: ['publicAccountName', 'publicAccountBank'],
+      },
       fieldName: 'publicAccountNumber',
       formItemClass: 'p-4', // 增加底部内边距
       hideLabel: true,
       label: '对公账号',
-      rules: 'required',
     },
     {
       component: 'Input',
       componentProps: {
         placeholder: '请输入开户行',
       },
+      dependencies: {
+        rules: (values) => {
+          if (values.publicAccountName || values.publicAccountNumber) {
+            return 'required';
+          }
+          return null;
+        },
+        triggerFields: ['publicAccountName', 'publicAccountNumber'],
+      },
       fieldName: 'publicAccountBank',
       formItemClass: 'p-4', // 增加底部内边距
       hideLabel: true,
       label: '开户行',
-      rules: 'required',
     },
     {
       component: 'Input',

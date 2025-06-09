@@ -137,6 +137,11 @@ export function useColumns<T = AmountBill>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
+      field: 'parkName',
+      minWidth: 150,
+      title: '园区',
+    },
+    {
       field: 'projectName',
       minWidth: 150,
       title: '项目',
