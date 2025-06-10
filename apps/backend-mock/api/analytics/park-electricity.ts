@@ -17,18 +17,15 @@ export default eventHandler(async (event) => {
   const startDate = new Date(currentYear, currentMonth - 1, 1);
   const endDate = new Date(currentYear, currentMonth, 0); // 当月最后一天
 
-  // 查询所有园区
-  const parks = await prismaClient.park.findMany({
-    where: {
-      isDeleted: false,
-    },
-    select: {
-      parkId: true,
-      parkName: true,
-    },
-  });
+  // 从用户信息中获取用户有权访问的园区
+  const parks = userinfo.parks || [];
 
-  // 获取所有园区ID
+  // 如果用户没有任何园区权限，则直接返回空数据
+  if (!parks || parks.length === 0) {
+    return useResponseSuccess([]);
+  }
+
+  // 获取用户有权访问的园区ID
   const parkIds = parks.map((park) => park.parkId);
 
   // 一次性查询所有园区的账单数据
@@ -63,32 +60,43 @@ export default eventHandler(async (event) => {
   const parkElectricityData = parks.map((park) => {
     const bills = billsByPark[park.parkId] || [];
 
-    // 计算园区总电度数和总电费
     let totalUsage = 0;
     let totalAmount = 0;
+    const tenantDataMap = new Map();
 
-    // 按租户分组的数据
-    const tenantData = [];
-
-    // 处理每个账单的电费数据
     bills.forEach((bill) => {
-      // 计算账单中的总电度数和总电费
-      // 筛选合计电表数据
+      let billTotalUsage = 0;
+      let billTotalAmount = 0;
+
       const totalEleBill = bill.eleBills.find((e) => e.meterName === '合计');
-      const billTotalUsage = totalEleBill ? Number(totalEleBill.totalUsage) : 0;
-      const billTotalAmount = totalEleBill ? Number(totalEleBill.amount) : 0;
+
+      if (totalEleBill) {
+        billTotalUsage = Number(totalEleBill.totalUsage) || 0;
+        billTotalAmount = Number(totalEleBill.amount) || 0;
+      } else {
+        bill.eleBills.forEach((e) => {
+          billTotalUsage += Number(e.totalUsage) || 0;
+          billTotalAmount += Number(e.amount) || 0;
+        });
+      }
 
       totalUsage += billTotalUsage;
       totalAmount += billTotalAmount;
 
-      // 如果有租户信息，添加到租户数据中
       if (bill.tenant) {
-        tenantData.push({
-          tenantId: bill.tenant.rentalTenantId,
-          tenantName: bill.tenant.tenantName,
-          usage: totalEleBill ? Number(totalEleBill.totalUsage) : 0,
-          amount: totalEleBill ? Number(totalEleBill.amount) : 0,
-        });
+        const tenantId = bill.tenant.rentalTenantId;
+        if (tenantDataMap.has(tenantId)) {
+          const tenant = tenantDataMap.get(tenantId);
+          tenant.usage += billTotalUsage;
+          tenant.amount += billTotalAmount;
+        } else {
+          tenantDataMap.set(tenantId, {
+            tenantId,
+            tenantName: bill.tenant.tenantName,
+            usage: billTotalUsage,
+            amount: billTotalAmount,
+          });
+        }
       }
     });
 
@@ -97,7 +105,7 @@ export default eventHandler(async (event) => {
       parkName: park.parkName,
       totalUsage,
       totalAmount,
-      tenants: tenantData,
+      tenants: [...tenantDataMap.values()],
     };
   });
 
