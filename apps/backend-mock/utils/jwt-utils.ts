@@ -9,7 +9,7 @@ const REFRESH_TOKEN_SECRET =
   process.env.REFRESH_TOKEN_SECRET || 'refresh-secret';
 
 const ACCESS_TOKEN_EXPIRES_IN =
-  process.env.NODE_ENV === 'development' ? '1d' : '15m'; // 例如 1 天
+  process.env.NODE_ENV === 'development' ? '1d' : '30m'; // 例如 1 天
 const REFRESH_TOKEN_EXPIRES_IN = '30d'; // 例如 7 天
 
 /**
