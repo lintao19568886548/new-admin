@@ -9,6 +9,7 @@ model Role {
   userRoles      UserRole[] @relation("RoleToUserRole")
   roleParks      RolePark[] @relation("RoleToPark")
   privilegeLevel Int?       @map("privilege_level")
+  rates          Int?       @map("rates")
 
   @@map("role")
 }
