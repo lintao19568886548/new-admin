@@ -151,6 +151,42 @@ async function handleCancelReimbursement(record: ReimbursementItem) {
   });
 }
 
+// 修改报销申请
+function handleModifyReimbursement(record: ReimbursementItem) {
+  Modal.confirm({
+    cancelText: '取消',
+    content:
+      '修改此申请将删除原记录，并将数据加载到主表单中以便重新提交。确定要继续吗？',
+    okText: '确认修改',
+    onOk: async () => {
+      try {
+        // 1. 删除旧记录
+        await deleteReimbursement(Number(record.id));
+
+        // 2. 填充表单
+        formState.amount = record.amount;
+        formState.applicant = record.username || '';
+        formState.parkId = record.parkId;
+        formState.payee = record.payee;
+        formState.purpose = record.purpose;
+        formState.remark = record.remark || '';
+        formState.images = []; // 图片需要重新上传
+
+        // 3. 关闭弹窗并提示
+        isRecordModalVisible.value = false;
+        message.success('原申请已删除，请在表单中修改后重新提交。');
+
+        // 4. 刷新背景列表
+        await fetchReimbursements();
+      } catch (error) {
+        console.error('修改申请（删除步骤）失败:', error);
+        message.error('删除原申请失败，请重试');
+      }
+    },
+    title: '确认修改并删除',
+  });
+}
+
 // 显示记录弹窗
 function showRecordModal() {
   // 重置搜索表单字段
@@ -240,8 +276,7 @@ const headers = ref();
 // 表单数据
 const formState = reactive({
   amount: undefined,
-  applicant: userStore.userInfo?.username || '',
-  department: undefined,
+  applicant: '',
   images: [], // 添加图片列表字段
   parkId: undefined,
   payee: '',
@@ -335,6 +370,7 @@ const handlePreview = async (file: any) => {
 // 重置表单
 function resetForm() {
   formRef.value?.resetFields();
+  formState.images = [];
 }
 
 // 提交表单
@@ -345,29 +381,27 @@ async function handleSubmit() {
 
     submitting.value = true;
 
-    // 从 formState 中排除 applicant 字段
-    const { applicant: _applicant, ...dataToSubmit } = formState;
+    // 关键改动：创建一个纯净的提交对象，而不是从formState派生。
+    // 这避免了任何可能从`formState`泄露的旧数据。
+    const newImages = formState.images
+      .filter((file: any) => file.status === 'done' && file.imgId)
+      .map((file: any) => ({
+        imgId: file.imgId,
+      }));
 
-    // 构建提交数据，添加当前日期和用户名
-    const submitData = {
-      ...dataToSubmit,
+    // 创建模式：构建完整的创建数据
+    const createData = {
+      amount: formState.amount,
       date: new Date().toISOString(),
-      // 处理图片数据，直接从文件对象中获取imgId
-      images: formState.images
-        .filter((file: any) => file.status === 'done' && file.imgId)
-        .map((file: any) => {
-          return {
-            imgId: file.imgId,
-          };
-        }),
+      images: newImages,
+      parkId: formState.parkId,
+      payee: formState.payee,
+      purpose: formState.purpose,
+      remark: formState.remark,
       status: 0, // 初始状态：待审核
-      username: formState.payee, // 使用"领款人"作为记录的用户名
+      username: formState.applicant, // 使用"申请人"作为记录的用户名
     };
-
-    // 调用API提交数据
-    await createReimbursement(submitData);
-
-    // 提交成功后的处理
+    await createReimbursement(createData);
     message.success('报销申请提交成功');
 
     // 重置表单
@@ -537,7 +571,9 @@ onMounted(() => {
 
       <Spin :spinning="loading" tip="加载中...">
         <Table
-          :columns="useColumns(handleCancelReimbursement)"
+          :columns="
+            useColumns(handleCancelReimbursement, handleModifyReimbursement)
+          "
           :data-source="reimbursementList"
           row-key="id"
           :pagination="pagination"

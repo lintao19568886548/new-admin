@@ -57,7 +57,7 @@ export function useFormRules(): Record<string, Rule[]> {
     applicant: [
       { message: '请输入申请人姓名', required: true, trigger: 'blur' },
     ],
-    department: [{ message: '请输入部门', required: true, trigger: 'blur' }],
+    // department: [{ message: '请输入部门', required: true, trigger: 'blur' }],
     parkId: [{ message: '请选择所属园区', required: true, trigger: 'change' }],
     payee: [{ message: '请输入领款人', required: true, trigger: 'blur' }],
     purpose: [
@@ -71,10 +71,12 @@ export function useFormRules(): Record<string, Rule[]> {
 /**
  * 获取表格列配置
  * @param onCancelFn 撤销操作的回调函数
+ * @param onModifyFn 修改操作的回调函数
  * @returns 表格列配置
  */
 export function useColumns(
   onCancelFn: (record: ReimbursementItem) => void,
+  onModifyFn: (record: ReimbursementItem) => void,
 ): ColumnsType<any> {
   return [
     {
@@ -154,17 +156,31 @@ export function useColumns(
     {
       align: 'center',
       customRender: ({ record }: { record: ReimbursementItem }) => {
-        return h(
-          Button,
-          {
-            danger: true,
-            disabled: record.status !== 0, // 只有待审核状态可以撤销
-            onClick: () => onCancelFn(record),
-            size: 'small',
-            type: 'link',
-          },
-          { default: () => '撤销' },
-        );
+        const isActionable = record.status === 0;
+
+        return h('div', { class: 'flex items-center justify-center gap-1' }, [
+          h(
+            Button,
+            {
+              disabled: !isActionable,
+              onClick: () => onModifyFn(record),
+              size: 'small',
+              type: 'link',
+            },
+            { default: () => '修改' },
+          ),
+          h(
+            Button,
+            {
+              danger: true,
+              disabled: !isActionable, // 只有待审核状态可以撤销
+              onClick: () => onCancelFn(record),
+              size: 'small',
+              type: 'link',
+            },
+            { default: () => '撤销' },
+          ),
+        ]);
       },
       key: 'action',
       title: '操作',

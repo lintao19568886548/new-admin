@@ -71,6 +71,35 @@ export async function verifyAccessToken(
 }
 
 /**
+ * 仅解码 Access Token 以获取用户信息，不进行签名验证
+ * @param event H3Event
+ * @returns 用户信息或 null
+ */
+export function decodeAccessToken(event: H3Event): null | UserInfoForToken {
+  const token = getHeader(event, 'Authorization')?.split(' ')[1];
+  if (!token) {
+    return null;
+  }
+  try {
+    // 只解码，不验证
+    const decoded = jwt.decode(token);
+    // 检查 decoded 是否为对象类型
+    if (typeof decoded === 'object' && decoded !== null) {
+      // 假设 payload 结构符合 UserInfoForToken (可能需要调整类型断言)
+      // 注意：这里没有 iat 和 exp 的显式检查，因为 decode 不保证它们存在
+      // 如果需要，可以在这里添加对特定字段的检查
+      const { iat: _iat, exp: _exp, ...userPayload } = decoded as any; // 使用 any 辅助解构
+      return userPayload as UserInfoForToken;
+    }
+    return null; // 如果解码结果不是对象，则返回 null
+  } catch (error) {
+    // decode 一般不会因为格式错误之外的原因抛错，但以防万一
+    console.error('Access token decoding failed:', error);
+    return null;
+  }
+}
+
+/**
  * 验证 Refresh Token
  * @param token Refresh Token 字符串
  * @returns 用户信息或 null

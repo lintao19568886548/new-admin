@@ -34,7 +34,7 @@ const headers = ref();
 // 表单数据
 const formState = reactive({
   amount: undefined as number | undefined,
-  applicant: currentUsername.value,
+  applicant: '',
   department: undefined as string | undefined, // Retained department from form.vue in case it's needed
   images: [] as any[], // Simplified type for now
   parkId: undefined as number | string | undefined,

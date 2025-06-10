@@ -1,3 +1,5 @@
+import { decodeAccessToken } from '../utils/jwt-utils';
+
 export default defineEventHandler(async (event) => {
   event.node.res.setHeader(
     'Access-Control-Allow-Origin',
@@ -13,8 +15,8 @@ export default defineEventHandler(async (event) => {
   // 记录请求开始时间
   const startTime = Date.now();
 
-  // 获取用户名
-  const userinfo = await verifyAccessToken(event);
+  // 获取用户名 (仅解码，不验证签名)
+  const userinfo = decodeAccessToken(event);
   const username = userinfo?.realName || '';
 
   const excludeList = {
