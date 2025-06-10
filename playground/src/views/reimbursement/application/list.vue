@@ -240,7 +240,7 @@ const headers = ref();
 // 表单数据
 const formState = reactive({
   amount: undefined,
-  applicant: userStore.userInfo?.username || '',
+  applicant: '',
   department: undefined,
   images: [], // 添加图片列表字段
   parkId: undefined,
@@ -346,7 +346,7 @@ async function handleSubmit() {
     submitting.value = true;
 
     // 从 formState 中排除 applicant 字段
-    const { applicant: _applicant, ...dataToSubmit } = formState;
+    const { applicant, ...dataToSubmit } = formState;
 
     // 构建提交数据，添加当前日期和用户名
     const submitData = {
@@ -361,7 +361,7 @@ async function handleSubmit() {
           };
         }),
       status: 0, // 初始状态：待审核
-      username: formState.payee, // 使用"领款人"作为记录的用户名
+      username: applicant, // 使用"申请人"作为记录的用户名
     };
 
     // 调用API提交数据

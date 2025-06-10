@@ -81,6 +81,7 @@ onMounted(() => {
 // 表单数据
 const formState = reactive({
   amount: undefined,
+  applicant: '',
   department: undefined,
   images: [], // 添加图片列表字段
   parkId: undefined,
@@ -331,8 +332,9 @@ async function handleSubmit() {
     submitting.value = true;
 
     // 构建提交数据，添加当前日期和用户名
+    const { applicant, ...restOfForm } = formState;
     const submitData = {
-      ...formState,
+      ...restOfForm,
       date: new Date().toISOString(),
       // 处理图片数据，通常只需要保存上传成功后的URL
       images: formState.images
@@ -343,7 +345,7 @@ async function handleSubmit() {
           };
         }),
       status: 0, // 初始状态：待审核
-      username: currentUsername, // 添加当前用户名
+      username: applicant, // 使用表单中的'applicant'字段作为'username'
     };
 
     // 调用API提交数据
@@ -454,6 +456,14 @@ const handlePreview = async (file: any) => {
         layout="vertical"
         name="reimbursementForm"
       >
+        <Form.Item name="applicant" label="申请人">
+          <Input
+            v-model:value="formState.applicant"
+            placeholder="请输入申请人姓名"
+            :maxlength="50"
+            show-count
+          />
+        </Form.Item>
         <Form.Item name="purpose" label="用途">
           <Input
             v-model:value="formState.purpose"
