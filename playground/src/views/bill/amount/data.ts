@@ -20,6 +20,7 @@ export interface AmountBill {
   extraEleRate?: number; // 额外服务费比率;
   factoryRent: number; // 厂房租金
   garbageFee: number; // 垃圾管理费
+  garbageRate?: number; // 垃圾管理费比率;
   invoiceTax: number; // 开票税金
   managementFee: number; // 基本管理费
   parkId?: number; // 园区ID

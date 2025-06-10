@@ -143,17 +143,17 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       label: '基本电费',
       rules: 'required',
     },
-    // {
-    //   component: 'InputNumber',
-    //   componentProps: {
-    //     addonAfter: '元/方',
-    //     placeholder: '请输入垃圾处理费',
-    //   },
-    //   fieldName: 'garbageRate',
-    //   formItemClass: 'p-4',
-    //   label: '垃圾处理费',
-    //   // rules: 'required',
-    // },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        addonAfter: '元/方',
+        placeholder: '请输入垃圾处理费',
+      },
+      fieldName: 'garbageRate',
+      formItemClass: 'p-4',
+      label: '垃圾处理费',
+      // rules: 'required',
+    },
 
     // {
     //   component: 'InputNumber',
