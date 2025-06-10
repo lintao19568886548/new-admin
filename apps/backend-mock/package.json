@@ -6,7 +6,7 @@
   "license": "MIT",
   "author": "",
   "scripts": {
-    "build": "npx prisma generate && nitro build",
+    "build": "npx prisma generate && nitro build && node ./scripts/zip-nitro-output.mjs",
     "start": "npx prisma generate && nitro dev",
     "generate": "npx prisma generate",
     "push": "npx prisma db push"
@@ -28,6 +28,7 @@
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
     "@types/jsonwebtoken": "catalog:",
+    "archiver": "^7.0.1",
     "h3": "catalog:",
     "nitropack": "^2.11.8",
     "prisma": "^6.7.0"
