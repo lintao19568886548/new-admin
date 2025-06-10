@@ -105,17 +105,28 @@ export default eventHandler(async (event) => {
       },
     });
 
+    // const result = parks
+    //   .filter((park) => park.rentalTenants.length > 0)
+    //   .map((park) => ({
+    //     label: park.parkName,
+    //     value: park.parkId,
+    //     children: park.rentalTenants.map((tenant) => ({
+    //       isLeaf: true,
+    //       value: tenant.rentalTenantId,
+    //       label: tenant.tenantName,
+    //     })),
+    //   }));
+
     const result = parks
       .filter((park) => park.rentalTenants.length > 0)
-      .map((park) => ({
-        label: park.parkName,
-        value: park.parkId,
-        children: park.rentalTenants.map((tenant) => ({
-          isLeaf: true,
-          value: tenant.rentalTenantId,
-          label: tenant.tenantName,
-        })),
-      }));
+      .flatMap((park) =>
+        park.rentalTenants.map((tenant) => {
+          return {
+            value: tenant.rentalTenantId,
+            label: `${tenant.tenantName}`,
+          };
+        }),
+      );
 
     console.log(result);
 

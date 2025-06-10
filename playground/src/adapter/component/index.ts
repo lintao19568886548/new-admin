@@ -71,6 +71,7 @@ const withDefaultPlaceholder = <T extends Component>(
 
 // 这里需要自行根据业务组件库进行适配，需要用到的组件都需要在这里类型说明
 export type ComponentType =
+  | 'ApiAutoComplete'
   | 'ApiCascader' // 新增API类型
   | 'ApiSelect'
   | 'ApiTreeSelect'
@@ -106,6 +107,19 @@ async function initComponentAdapter() {
     // Button: () =>
     // import('xxx').then((res) => res.Button),
 
+    ApiAutoComplete: (props, { attrs, slots }) => {
+      return h(
+        ApiComponent,
+        {
+          placeholder: $t('ui.placeholder.input'),
+          ...props,
+          ...attrs,
+          component: AutoComplete,
+          modelPropName: 'value',
+        },
+        slots,
+      );
+    },
     ApiCascader: (props, { attrs, slots }) => {
       return h(
         ApiComponent,

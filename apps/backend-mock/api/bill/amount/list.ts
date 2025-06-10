@@ -112,8 +112,10 @@ export default eventHandler(async (event) => {
   const items = result.map((item) => {
     return {
       ...item,
-      tenantName: item.tenant.tenantName,
-      parkName: item.park.parkName,
+      // 使用可选链安全地访问 tenantName
+      tenantName: item.tenant?.tenantName || item.tenantName,
+      // 对 parkName 也同样处理
+      parkName: item.park?.parkName,
     };
   });
 

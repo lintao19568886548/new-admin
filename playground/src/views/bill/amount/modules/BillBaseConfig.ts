@@ -3,6 +3,7 @@ import type { VbenFormSchema } from '@vben/common-ui';
 import { h, markRaw } from 'vue';
 
 import { getTenantSelectList } from '#/api';
+import { getParkList } from '#/api/park';
 
 import PenaltyForm from './penalty-form.vue';
 
@@ -84,21 +85,43 @@ export const commonAreaList = [
   { key: 'north', name: '佛山' },
   { key: 'west', name: '珠海' },
 ];
+
 export function useTenantFormSchema(): VbenFormSchema[] {
   return [
     {
-      component: 'ApiCascader',
+      component: 'ApiSelect',
       componentProps: {
         api: getTenantSelectList,
-        changeOnSelect: false,
-        expandTrigger: 'hover',
-        placeholder: '请选择租户',
-        // showSearch: true,
+        // 确保指定了正确的 label 字段
+        // 如果需要自定义过滤逻辑，可以添加 filterOption
+        filterOption: (input: string, option: any) => {
+          // 假设选项的标签字段是 'name'
+          // 进行不区分大小写的模糊匹配
+          return option?.label?.toLowerCase().includes(input.toLowerCase());
+        },
+        labelInValue: true,
+        maxCount: 1,
+        mode: 'tags',
+        placeholder: '请选择或输入租户',
+        showSearch: true,
       },
       fieldName: 'tenant',
       formItemClass: 'p-4', // 增加底部内边距
-      label: '选择租户',
+      label: '租户名称',
       rules: 'required',
+    },
+    {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      formItemClass: 'p-4', // 增加底部内边距
+      label: '所属园区',
     },
     {
       component: 'Input',
@@ -109,17 +132,6 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       formItemClass: 'p-4', // 增加底部内边距
       label: '项目名称',
       rules: 'required',
-    },
-    {
-      component: 'DatePicker',
-      componentProps: {
-        format: 'YYYY-MM-DD',
-        placeholder: '请选择收款时间',
-        valueFormat: 'YYYY-MM-DDTHH:mm:ss.SSSZ',
-      },
-      fieldName: 'receiptTime',
-      formItemClass: 'p-4',
-      label: '收款时间',
     },
     {
       component: 'InputNumber',
@@ -225,6 +237,17 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       fieldName: 'penalty', // 保持不变，已与接口一致
       formItemClass: 'col-span-2 p-4',
       label: '滞纳金明细',
+    },
+    {
+      component: 'DatePicker',
+      componentProps: {
+        format: 'YYYY-MM-DD',
+        placeholder: '请选择收款时间',
+        valueFormat: 'YYYY-MM-DDTHH:mm:ss.SSSZ',
+      },
+      fieldName: 'receiptTime',
+      formItemClass: 'p-4',
+      label: '收款时间',
     },
     {
       component: 'Input',

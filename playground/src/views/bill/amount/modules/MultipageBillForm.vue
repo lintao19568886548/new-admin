@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { AmountBill } from '../data';
 
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 
 import { useVbenForm, useVbenModal } from '@vben/common-ui';
 
@@ -16,7 +16,6 @@ import {
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
-import { getTenantSelectList } from '#/api';
 import {
   createAmountBill,
   getAmountBillDetail,
@@ -123,13 +122,6 @@ const billData = reactive<AmountBill>({
   waterFee: 0,
 });
 
-const tenantList = ref([]);
-
-// 在组件挂载时获取租户列表 (tenantList includes park info)
-onMounted(async () => {
-  tenantList.value = (await getTenantSelectList()) || [];
-});
-
 // 自动计算总金额
 watch(
   [
@@ -164,10 +156,6 @@ watch(
     () => billData.extraEleItem,
   ],
   () => {
-    // if (!billData.serviceRate) {
-    //   billData.serviceFee = 0;
-    //   return;
-    // }
     // 计算服务费 - 确保使用数字类型
     const eleFee = Number(billData.eleFee || 0);
     const serviceRate = Number(billData.serviceRate || 0);
@@ -371,8 +359,8 @@ async function validate() {
 function handleEleSuccess(data: any) {
   if (data) {
     // 计算电费合计
-    billData.eleBills = data.eleBills || [];
-    const item = data.eleBills.find((item: any) => item.meterName === '合计');
+    billData.eleBills = data || [];
+    const item = data.find((item: any) => item.meterName === '合计');
 
     // 确保 eleFee 是数字类型
     billData.eleFee = Number(item?.amount || 0);
@@ -412,6 +400,7 @@ function handleEleSuccess(data: any) {
       billData.serviceFee = Number(billData.serviceFee);
     }
 
+    // 更新TenantForm中Select组件的选项
     const eleOptions =
       billData.eleBills
         ?.filter((item: any) => item.meterName !== '合计')
@@ -420,7 +409,6 @@ function handleEleSuccess(data: any) {
           value: item.meterName,
         })) || [];
 
-    // 更新TenantForm中Select组件的选项
     tenantFormApi.updateSchema([
       {
         componentProps: {
@@ -435,10 +423,10 @@ function handleEleSuccess(data: any) {
 // 水费表单提交回调
 function handleWaterSuccess(data: any) {
   if (data) {
-    billData.waterBills = data.waterBills || [];
+    billData.waterBills = data || [];
 
     // 计算水费合计
-    const item = data.waterBills.find((item: any) => item.meterName === '合计');
+    const item = data.find((item: any) => item.meterName === '合计');
     waterAmountItem.value = item;
     billData.waterFee = item?.amount + billData.garbageFee;
   }
@@ -457,7 +445,7 @@ async function handleSave() {
     _divider,
     eleTax,
     eleTaxRate,
-    penalty, // 提取 penalty 对象
+    penalty,
     privateAccountBank,
     privateAccountName,
     privateAccountNumber,
@@ -472,12 +460,25 @@ async function handleSave() {
     ...tenantData
   } = tenantForm;
 
+  let tenantName;
+  let tenantId;
+  if (typeof tenant === 'object') {
+    if (typeof tenant[0]?.value === 'string') {
+      tenantName = tenant[0]?.value;
+    } else {
+      tenantId = tenant[0]?.value;
+      tenantName = tenant[0]?.label;
+    }
+  } else if (typeof tenant === 'string') {
+    tenantName = tenant;
+  } else {
+    tenantId = tenant;
+  }
   const tenantSubmit = {
     ...tenantData,
     extraEleItem: Array.isArray(billData.extraEleItem)
       ? billData.extraEleItem.join(',')
       : billData.extraEleItem,
-    parkId: tenant[0],
     // 将滞纳金明细转为 JSON 字符串存储
     penaltyItem: penalty ? JSON.stringify(penalty) : undefined,
     privateBankAccount:
@@ -504,7 +505,8 @@ async function handleSave() {
       waterTax,
       waterTaxRate,
     }),
-    tenantId: tenant[1],
+    tenantId,
+    tenantName,
   };
 
   // 处理提交数据
@@ -644,9 +646,7 @@ async function initData(data: any, type: string) {
       ...taxRateData,
       // 设置 penalty 对象，使用账单中的滞纳金相关字段
       penalty: penaltyData,
-      tenant: billDetail.tenantId
-        ? [billDetail.parkId, billDetail.tenantId]
-        : undefined,
+      tenant: billDetail.tenantId || billDetail.tenantName,
     };
     tenantFormApi.setValues(tenantDetail);
 
@@ -971,10 +971,6 @@ defineExpose({
 
 .info-text {
   color: #666;
-}
-
-.bill-summary-form {
-  padding: 20px;
 }
 
 .hidden-form {
