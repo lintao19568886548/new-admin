@@ -15,7 +15,7 @@ export default eventHandler(async (event) => {
     const where: any = {
       isDeleted: false,
       parkName: {
-        notIn: ['宜租网络', '总部'],
+        notIn: ['宜租网络', '总部', '东莞光泰园区'],
       },
     };
 
