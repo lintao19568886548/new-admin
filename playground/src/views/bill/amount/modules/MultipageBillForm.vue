@@ -359,8 +359,10 @@ async function validate() {
 function handleEleSuccess(data: any) {
   if (data) {
     // 计算电费合计
-    billData.eleBills = data || [];
-    const item = data.find((item: any) => item.meterName === '合计');
+    billData.eleBills = data.eleBills || [];
+    const item = billData.eleBills?.find(
+      (item: any) => item.meterName === '合计',
+    );
 
     // 确保 eleFee 是数字类型
     billData.eleFee = Number(item?.amount || 0);
@@ -423,10 +425,12 @@ function handleEleSuccess(data: any) {
 // 水费表单提交回调
 function handleWaterSuccess(data: any) {
   if (data) {
-    billData.waterBills = data || [];
+    billData.waterBills = data.waterBills || [];
 
     // 计算水费合计
-    const item = data.find((item: any) => item.meterName === '合计');
+    const item = billData.waterBills?.find(
+      (item: any) => item.meterName === '合计',
+    );
     waterAmountItem.value = item;
     billData.waterFee = item?.amount + billData.garbageFee;
   }

@@ -3,6 +3,7 @@ model Role {
   name           String?    @db.VarChar(50)
   remark         String?    @db.VarChar(100)
   status         Boolean
+  parentid       Int?
   createTime     DateTime?  @default(now()) @map("create_time")
   updateTime     DateTime?  @updatedAt @map("update_time")
   roleMenus      RoleMenu[] @relation("RoleToRoleMenu")
@@ -10,7 +11,10 @@ model Role {
   roleParks      RolePark[] @relation("RoleToPark")
   reimbursementAuth Int?       @map("reimbursement_auth")
   rates          Int?       @map("rates")
+  children       Role[]     @relation("RoleToRole")
+  parent         Role?      @relation("RoleToRole", fields: [parentid], references: [roleId], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([parentid])
   @@map("role")
 }
 
@@ -51,7 +55,7 @@ model RolePark {
   roleId     Int       @map("role_id")
   parkId     Int       @map("park_id")
   isDeleted  Boolean   @default(false) @map("is_deleted")
-  role       Role      @relation("RoleToPark", fields: [roleId], references: [roleId])
+  role       Role      @relation("RoleToPark", fields: [roleId], references: [roleId], onDelete: Cascade) // 添加 onDelete: Cascade 以允许级联删除
   park       Park      @relation("ParkToRolePark", fields: [parkId], references: [parkId])
   createTime DateTime? @default(now()) @map("create_time")
   updateTime DateTime? @updatedAt @map("update_time")
