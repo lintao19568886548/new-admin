@@ -126,15 +126,6 @@ export function useColumns(
     {
       align: 'center',
       customRender: ({ record }: { record: any }) => {
-        return record.auditorName || '无';
-      },
-      key: 'auditorName',
-      title: '审核人',
-      width: 120,
-    },
-    {
-      align: 'center',
-      customRender: ({ record }: { record: any }) => {
         if (!record.images || record.images.length === 0) {
           return '无';
         }

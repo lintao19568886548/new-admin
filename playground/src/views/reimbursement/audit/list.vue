@@ -222,12 +222,6 @@ onMounted(() => {
             <p class="text-gray-500">申请日期</p>
             <p>{{ currentRecord.date }}</p>
           </div>
-          <div v-if="(currentRecord as any).auditorName">
-            <p class="text-gray-500">审核人</p>
-            <p>
-              {{ (currentRecord as any).auditorName }}
-            </p>
-          </div>
           <div v-if="currentRecord.status > 0">
             <p class="text-gray-500">审核结果</p>
             <p>
