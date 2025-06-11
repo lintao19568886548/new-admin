@@ -2,7 +2,6 @@ import type { VxeTableGridOptions } from '@vben/plugins/vxe-table';
 
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn } from '#/adapter/vxe-table';
-import type { SystemDeptApi } from '#/api/system/dept';
 
 import dayjs from 'dayjs'; // 添加 dayjs 导入
 
@@ -168,8 +167,8 @@ export function useGridFormSchema(): VbenFormSchema[] {
  * @description 使用函数的形式返回列数据而不是直接export一个Array常量，是为了响应语言切换时重新翻译表头
  * @param onActionClick 表格操作按钮点击事件
  */
-export function useColumns<T = SystemDeptApi.SystemDept>(
-  onActionClick: OnActionClickFn<T>,
+export function useColumns(
+  onActionClick: OnActionClickFn,
 ): VxeTableGridOptions['columns'] {
   return [
     {
