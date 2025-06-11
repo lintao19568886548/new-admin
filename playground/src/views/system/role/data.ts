@@ -61,14 +61,23 @@ export function useFormSchema(): VbenFormSchema[] {
         allowClear: true,
         class: 'w-full',
         options: [
-          { label: '1', value: 1 },
-          { label: '2', value: 2 },
-          { label: '3', value: 3 },
-          { label: '4', value: 4 },
+          { label: '允许', value: 1 },
+          { label: '拒绝', value: 0 },
         ],
       },
-      fieldName: 'privilegeLevel',
-      label: '权限等级',
+      fieldName: 'reimbursementAuth',
+      label: '审核权限',
+    },
+    {
+      component: 'InputNumber',
+      componentProps: {
+        allowClear: true,
+        class: 'w-full',
+        min: 0,
+        placeholder: '请输入此角色可审核的最大金额',
+      },
+      fieldName: 'rates',
+      label: '审核金额',
     },
   ];
 }
@@ -109,6 +118,11 @@ export function useColumns<T = SystemRoleApi.SystemRole>(
       field: 'name',
       title: $t('system.role.roleName'),
       width: 200,
+    },
+    {
+      field: 'rates',
+      title: '审核金额(元)',
+      width: 120,
     },
     {
       cellRender: {

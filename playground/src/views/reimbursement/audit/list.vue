@@ -23,12 +23,7 @@ import {
 
 import { $t } from '#/locales';
 
-import {
-  AUDITOR_LEVEL_MAP,
-  STATUS_MAP,
-  useColumns,
-  useFormRules,
-} from './data';
+import { STATUS_MAP, useColumns, useFormRules } from './data';
 import {
   getUserPrivilegeInfo,
   statusOptions,
@@ -50,6 +45,7 @@ const {
   handleSearch,
   handleTableChange,
   hasAuditPermission,
+  isAmountOverLimit,
   isAuditModalVisible,
   loading,
   pagination,
@@ -58,7 +54,6 @@ const {
   searchForm,
   showAuditModal,
   submitting,
-  userPrivilegeLevel,
 } = useReimbursementAudit();
 
 // 表单相关
@@ -69,7 +64,10 @@ const rules = useFormRules();
 
 // 添加用户权限等级信息计算属性
 const userPrivilegeInfo = computed(() => {
-  return getUserPrivilegeInfo(userPrivilegeLevel.value);
+  return getUserPrivilegeInfo(
+    hasAuditPermission.value,
+    userStore.userInfo?.rates,
+  );
 });
 
 // 组件挂载时初始化
@@ -86,9 +84,7 @@ onMounted(() => {
         <div class="flex items-center justify-between gap-4">
           <h2 class="text-lg font-semibold">报销审核</h2>
           <div v-if="hasAuditPermission" class="text-sm text-gray-600">
-            当前审核权限：{{ userPrivilegeInfo.text }}（可审核{{
-              userPrivilegeInfo.maxAmount
-            }}）
+            审核权限：可审核金额 {{ userPrivilegeInfo.maxAmount }}
           </div>
         </div>
 
@@ -206,10 +202,7 @@ onMounted(() => {
               <span
                 v-if="
                   currentRecord.status === 0 &&
-                  ((userPrivilegeLevel === 2 &&
-                    Number(currentRecord.amount) > 10000) ||
-                    (userPrivilegeLevel === 3 &&
-                      Number(currentRecord.amount) > 20000))
+                  isAmountOverLimit(Number(currentRecord.amount))
                 "
                 class="ml-2 text-xs text-red-500"
               >
@@ -229,16 +222,10 @@ onMounted(() => {
             <p class="text-gray-500">申请日期</p>
             <p>{{ currentRecord.date }}</p>
           </div>
-          <div v-if="currentRecord.status > 0">
+          <div v-if="(currentRecord as any).auditorName">
             <p class="text-gray-500">审核人</p>
             <p>
-              {{
-                currentRecord.auditorLevel
-                  ? AUDITOR_LEVEL_MAP[
-                      currentRecord.auditorLevel as keyof typeof AUDITOR_LEVEL_MAP
-                    ] || '未知'
-                  : '无'
-              }}
+              {{ (currentRecord as any).auditorName }}
             </p>
           </div>
           <div v-if="currentRecord.status > 0">
@@ -257,9 +244,9 @@ onMounted(() => {
               </Tag>
             </p>
           </div>
-          <div v-if="(currentRecord as any).reason" class="mb-4">
+          <div v-if="(currentRecord as any).auditOpinion" class="col-span-2">
             <p class="text-gray-500">审核意见</p>
-            <p>{{ (currentRecord as any).reason }}</p>
+            <p>{{ (currentRecord as any).auditOpinion }}</p>
           </div>
           <div
             v-if="currentRecord.images && currentRecord.images.length > 0"

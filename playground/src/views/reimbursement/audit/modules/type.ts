@@ -12,16 +12,12 @@ import { useUserStore } from '@vben/stores';
 
 import { message, Modal } from 'ant-design-vue';
 
-import { getRoleList } from '#/api';
 import { getVisitorParkList } from '#/api/park';
 import {
   deleteReimbursement as apiDeleteReimbursement,
   getReimbursementList as apiGetReimbursementList,
   updateReimbursement as apiUpdateReimbursement,
 } from '#/api/reimbursement';
-
-// 从data.ts导入审核人等级映射
-import { AUDITOR_LEVEL_MAP } from '../data';
 
 /**
  * 报销记录项类型定义
@@ -52,71 +48,39 @@ export interface ReimbursementItem {
  */
 export const STATUS_MAP = {
   0: { color: 'warning', text: '待审核' },
-  1: { color: 'success', text: '董事长审核通过' },
+  1: { color: 'success', text: '已通过' },
   2: { color: 'error', text: '已拒绝' },
-  3: { color: 'processing', text: '园区经理审核通过' },
-  4: { color: 'processing', text: '总经理审核通过' },
 };
 
 // 状态选项
 export const statusOptions = [
   { label: '待审核', value: 0 },
-  { label: '董事长审核通过', value: 1 },
+  { label: '已通过', value: 1 },
   { label: '已拒绝', value: 2 },
-  { label: '园区经理审核通过', value: 3 },
-  { label: '总经理审核通过', value: 4 },
 ];
 
-// 权限等级定义
-export const PRIVILEGE_LEVELS = {
-  CHAIRMAN: 4, // 董事长 - 三级审核
-  DIRECTOR: 3, // 总监 - 二级审核
-  NO_AUDIT: 0, // 无审核权限
-  PARK_MANAGER: 2, // 园区经理 - 一级审核
-};
-
 /**
- * 获取审核等级对应的文本描述
- * @param level 审核权限等级
- * @returns 权限等级的文本描述
+ * 获取用户可读的权限等级信息
+ * @param hasPermission 是否有权限
+ * @param rates 最大审核金额 (来自 userInfo.rates)
  */
-export function getPrivilegeLevelText(level: number): string {
-  switch (level) {
-    case PRIVILEGE_LEVELS.CHAIRMAN: {
-      return '董事长';
-    }
-    case PRIVILEGE_LEVELS.DIRECTOR: {
-      return '总监';
-    }
-    case PRIVILEGE_LEVELS.PARK_MANAGER: {
-      return '园区经理';
-    }
-    default: {
-      return '无审核权限';
-    }
-  }
-}
+export function getUserPrivilegeInfo(
+  hasPermission: boolean,
+  rates?: null | number,
+) {
+  const text = hasPermission ? '审核员' : '无审核权限';
+  let maxAmount = '无';
 
-/**
- * 获取用户可审核的最大金额
- * @param level 审核权限等级
- * @returns 可审核的最大金额，-1表示无限制
- */
-export function getMaxAuditAmount(level: number): number {
-  switch (level) {
-    case PRIVILEGE_LEVELS.CHAIRMAN: {
-      return -1;
-    } // 无限制
-    case PRIVILEGE_LEVELS.DIRECTOR: {
-      return 20_000;
-    }
-    case PRIVILEGE_LEVELS.PARK_MANAGER: {
-      return 10_000;
-    }
-    default: {
-      return 0;
-    }
+  if (hasPermission) {
+    // 有审核权限
+    // rates 为 null, undefined 或 负数时，视为无限制
+    maxAmount =
+      rates === null || rates === undefined || rates < 0
+        ? '无限制'
+        : `${rates.toLocaleString()}元以内`;
   }
+
+  return { maxAmount, text };
 }
 
 /**
@@ -133,22 +97,26 @@ function validateAmount(amount: any): { valid: boolean; value: number } {
 }
 
 /**
- * 获取用户可读的权限等级信息
- * @param level 用户权限等级
- * @returns 包含权限文本和可审核金额的对象
+ * 获取用户可审核的最大金额
+ * @param level 审核权限等级
+ * @returns 可审核的最大金额，-1表示无限制
  */
-export function getUserPrivilegeInfo(level: number): {
-  maxAmount: string;
-  text: string;
-} {
-  const text = getPrivilegeLevelText(level);
-  const amount = getMaxAuditAmount(level);
-
-  return {
-    maxAmount: amount === -1 ? '无限制' : `${amount}元以下`,
-    text,
-  };
-}
+// export function getMaxAuditAmount(level: number): number {
+//   switch (level) {
+//     case PRIVILEGE_LEVELS.CHAIRMAN: {
+//       return -1;
+//     } // 无限制
+//     case PRIVILEGE_LEVELS.DIRECTOR: {
+//       return 20_000;
+//     }
+//     case PRIVILEGE_LEVELS.PARK_MANAGER: {
+//       return 10_000;
+//     }
+//     default: {
+//       return 0;
+//     }
+//   }
+// }
 
 /**
  * 报销审核逻辑钩子
@@ -158,85 +126,36 @@ export function useReimbursementAudit() {
   // 获取用户信息和权限
   const userStore = useUserStore();
 
-  // 存储角色权限等级映射
-  const rolePrivilegeLevels = ref<Record<string, number>>({});
+  const hasAuditPermission = computed(
+    () => (userStore.userInfo?.reimbursementAuth || 0) > 0,
+  );
+  const submitting = ref(false);
 
-  // 获取角色权限等级
-  async function fetchRolePrivilegeLevels() {
-    try {
-      // 添加分页参数，解决 Prisma 错误
-      const roles = await getRoleList({
-        page: 1,
-        pageSize: 100, // 设置一个足够大的值以获取所有角色
-      });
-      const levelMap: Record<string, number> = {};
-
-      // 从返回的数据结构中获取角色列表
-      const roleList = Array.isArray(roles)
-        ? roles
-        : (roles as any)?.items || [];
-
-      if (Array.isArray(roleList)) {
-        roleList.forEach((role) => {
-          // 使用 privilege_level 字段作为权限等级
-          if (
-            role.name &&
-            (role.privilege_level !== undefined || role.level !== undefined)
-          ) {
-            // 优先使用 privilege_level，如果不存在则使用 level
-            levelMap[role.name] =
-              role.privilege_level === undefined
-                ? role.level
-                : role.privilege_level;
-          }
-        });
-      }
-
-      rolePrivilegeLevels.value = levelMap;
-    } catch (error) {
-      console.error('获取角色权限等级失败:', error);
-      message.error('获取角色权限等级失败，将使用默认权限等级');
+  /**
+   * 检查指定金额是否超出当前用户的审核权限
+   * @param amount 要检查的金额
+   * @returns boolean - true表示超出权限
+   */
+  const isAmountOverLimit = (amount: number): boolean => {
+    if (!hasAuditPermission.value) {
+      return true;
     }
-  }
-
-  // 计算当前用户的权限等级
-  const userPrivilegeLevel = computed(() => {
-    // 从用户角色中获取权限等级，默认为0（无审核权限）
-    const userRoles = userStore.userRoles || [];
-
-    // 获取用户所有角色中的最高权限等级
-    let maxLevel = PRIVILEGE_LEVELS.NO_AUDIT;
-
-    for (const role of userRoles) {
-      const level =
-        rolePrivilegeLevels.value[role] || PRIVILEGE_LEVELS.NO_AUDIT;
-      if (level > maxLevel) {
-        maxLevel = level;
-      }
+    const rates = userStore.userInfo?.rates;
+    // 对于有审核权限的角色:
+    // rates 为 null, undefined 或负数时，视为无限制
+    if (rates === null || rates === undefined || rates < 0) {
+      return false;
     }
-
-    return maxLevel;
-  });
-
-  // 判断用户是否有审核权限
-  const hasAuditPermission = computed(() => {
-    return userPrivilegeLevel.value >= PRIVILEGE_LEVELS.PARK_MANAGER;
-  });
+    // 否则，比较金额和rates
+    return amount > rates;
+  };
 
   // 获取可用的审核状态选项
   const availableStatusOptions = computed(() => {
-    // 根据用户权限等级过滤状态选项
-    if (userPrivilegeLevel.value >= PRIVILEGE_LEVELS.CHAIRMAN) {
-      // 董事长可以直接通过或拒绝
+    // 移除等级制度后，所有审核员都能通过或拒绝
+    if (hasAuditPermission.value) {
       return statusOptions.filter((option) => [1, 2].includes(option.value));
-    } else if (userPrivilegeLevel.value === PRIVILEGE_LEVELS.DIRECTOR) {
-      // 总监可以提交到三级审核或拒绝
-      return statusOptions.filter((option) => [2, 4].includes(option.value));
-    } else if (userPrivilegeLevel.value === PRIVILEGE_LEVELS.PARK_MANAGER) {
-      // 园区经理可以提交到二级审核或拒绝
-      return statusOptions.filter((option) => [2, 3].includes(option.value));
     }
-
     return [];
   });
 
@@ -315,7 +234,6 @@ export function useReimbursementAudit() {
   const auditStatus = ref<number>(0);
   const auditRemark = ref('');
   const auditLoading = ref(false);
-  const submitting = ref(false); // list.vue中使用
 
   // 获取报销列表数据 - 为了在list.vue中使用，提供一个别名
   const fetchReimbursements = fetchReimbursementList;
@@ -450,31 +368,20 @@ export function useReimbursementAudit() {
         return;
       }
 
-      // 二次校验用户权限与金额
-      if (
-        userPrivilegeLevel.value === PRIVILEGE_LEVELS.PARK_MANAGER &&
-        value > 10_000
-      ) {
-        message.error(`园区经理只能审核10000元以下的报销申请`);
-        return;
-      }
-
-      if (
-        userPrivilegeLevel.value === PRIVILEGE_LEVELS.DIRECTOR &&
-        value > 20_000
-      ) {
-        message.error(`总监只能审核20000元以下的报销申请`);
+      // 使用新的权限检查函数
+      if (isAmountOverLimit(value)) {
+        message.error('金额超出您的审核权限，无法提交。');
+        submitting.value = false;
         return;
       }
 
       const auditResult = {
         // 其他必要信息
         amount: value,
+        auditOpinion: auditForm.reason, // 将审核意见映射到 auditOpinion 字段
         // 添加审核人信息
         auditor: userStore.userInfo?.username,
-        auditor_level: userPrivilegeLevel.value, // 使用下划线命名匹配数据库字段
         auditorId: userStore.userInfo?.userId,
-        auditorLevel: userPrivilegeLevel.value, // 保留驼峰命名兼容前端展示
         reason: auditForm.reason,
         status: auditForm.status,
       };
@@ -536,8 +443,7 @@ export function useReimbursementAudit() {
     const canAudit = checkAuditPermission(record);
     if (!canAudit) {
       // 如果没有审核权限，显示提示
-      const levelText = getPrivilegeLevelText(userPrivilegeLevel.value);
-      message.error(`你的权限(${levelText})不足以审核此申请`);
+      message.error('你没有审核权限');
       return;
     }
 
@@ -557,31 +463,12 @@ export function useReimbursementAudit() {
     if (record.status !== 0) {
       return false;
     }
-
-    // 根据用户角色和权限等级判断是否有审核权限
-    // 这里简化，实际中可能需要更复杂的业务规则
-
-    // 董事长有最高权限，可以审核所有申请
-    if (userPrivilegeLevel.value >= PRIVILEGE_LEVELS.CHAIRMAN) {
-      return true;
+    // 如果没有审核权限，不能审核
+    if (!hasAuditPermission.value) {
+      return false;
     }
-
-    // 总监可以审核金额低于限额的申请
-    if (userPrivilegeLevel.value === PRIVILEGE_LEVELS.DIRECTOR) {
-      // 总监权限限制在20000元以下
-      return record.amount <= 20_000;
-      // 注释掉原先的逻辑： || record.status === 3
-      // 原因：在此处 record.status 必定为 0，此条件永远为 false，且与函数意图（检查是否能审核 status 0 的记录）相悖。
-    }
-
-    // 园区经理只能审核自己园区的，且金额较小的申请
-    if (userPrivilegeLevel.value === PRIVILEGE_LEVELS.PARK_MANAGER) {
-      // 园区经理权限限制在10000元以下
-      return record.amount <= 10_000;
-    }
-
-    // 其他情况不能审核
-    return false;
+    // 检查金额是否超限
+    return !isAmountOverLimit(record.amount);
   }
 
   // 提交审核
@@ -614,21 +501,9 @@ export function useReimbursementAudit() {
         return;
       }
 
-      // 二次校验用户权限与金额
-      if (
-        userPrivilegeLevel.value === PRIVILEGE_LEVELS.PARK_MANAGER &&
-        value > 10_000
-      ) {
-        message.error(`园区经理只能审核10000元以下的报销申请`);
-        auditLoading.value = false;
-        return;
-      }
-
-      if (
-        userPrivilegeLevel.value === PRIVILEGE_LEVELS.DIRECTOR &&
-        value > 20_000
-      ) {
-        message.error(`总监只能审核20000元以下的报销申请`);
+      // 使用新的权限检查函数
+      if (isAmountOverLimit(value)) {
+        message.error('金额超出您的审核权限，无法提交。');
         auditLoading.value = false;
         return;
       }
@@ -638,9 +513,7 @@ export function useReimbursementAudit() {
         amount: value,
         // 添加审核人信息
         auditor: userStore.userInfo?.username,
-        auditor_level: userPrivilegeLevel.value, // 使用下划线命名匹配数据库字段
         auditorId: userStore.userInfo?.userId,
-        auditorLevel: userPrivilegeLevel.value, // 保留驼峰命名兼容前端展示
         reason: auditRemark.value, // 使用 reason 字段保持一致
         remark: auditRemark.value, // 后端可能使用 remark 字段
         status: auditStatus.value,
@@ -697,8 +570,6 @@ export function useReimbursementAudit() {
 
   // 初始化
   onMounted(() => {
-    // 获取角色权限等级
-    fetchRolePrivilegeLevels();
     // 获取园区列表
     fetchParkList();
     // 获取报销列表
@@ -710,7 +581,6 @@ export function useReimbursementAudit() {
     auditForm,
     auditLoading,
     auditModalVisible,
-    AUDITOR_LEVEL_MAP,
     auditRemark,
     auditStatus,
     availableStatusOptions,
@@ -726,12 +596,12 @@ export function useReimbursementAudit() {
     handleSearch,
     handleTableChange,
     hasAuditPermission,
+    isAmountOverLimit,
     isAuditModalVisible,
     loading,
     openAuditModal,
     pagination,
     parkList,
-    PRIVILEGE_LEVELS,
     reimbursementList, // 直接导出reimbursementList
     resetFilters,
     resetSearch,
@@ -739,6 +609,5 @@ export function useReimbursementAudit() {
     showAuditModal,
     submitAudit,
     submitting,
-    userPrivilegeLevel,
   };
 }

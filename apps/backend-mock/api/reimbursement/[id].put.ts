@@ -30,13 +30,21 @@ export default eventHandler(async (event) => {
       return useResponseError('无效的状态值', 400);
     }
 
+    // 构造审核意见前缀
+    const opinionPrefix = `审核人：${userinfo.realName}\n`;
+    const finalOpinion = body.auditOpinion
+      ? opinionPrefix + body.auditOpinion
+      : opinionPrefix;
+
     // 更新报销记录
     const updatedReimbursement = await prismaClient.reimbursement.update({
       where: { id },
       data: {
-        // 只允许更新状态字段
         status: body.status === undefined ? undefined : Number(body.status),
-        // 更新时间会通过 @updatedAt 自动更新
+        auditOpinion: finalOpinion,
+        // 根据需要，可以添加其他审核相关字段的更新
+        // auditor: body.auditor,
+        // auditorId: body.auditorId,
       },
     });
 

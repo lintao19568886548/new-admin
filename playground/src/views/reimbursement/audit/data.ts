@@ -36,20 +36,8 @@ export interface ReimbursementItem {
  */
 export const STATUS_MAP = {
   0: { color: 'warning', text: '待审核' },
-  1: { color: 'success', text: '董事长审核通过' },
+  1: { color: 'success', text: '已通过' },
   2: { color: 'error', text: '已拒绝' },
-  3: { color: 'processing', text: '园区经理审核通过' },
-  4: { color: 'processing', text: '总经理审核通过' },
-};
-
-/**
- * 审核人等级映射
- */
-export const AUDITOR_LEVEL_MAP = {
-  0: '无',
-  2: '园区经理',
-  3: '总监',
-  4: '董事长',
 };
 
 /**
@@ -138,13 +126,9 @@ export function useColumns(
     {
       align: 'center',
       customRender: ({ record }: { record: any }) => {
-        if (!record.status || record.status === 0) return '无';
-        const level = record.auditorLevel || 0;
-        return (
-          AUDITOR_LEVEL_MAP[level as keyof typeof AUDITOR_LEVEL_MAP] || '未知'
-        );
+        return record.auditorName || '无';
       },
-      key: 'auditorLevel',
+      key: 'auditorName',
       title: '审核人',
       width: 120,
     },
@@ -179,6 +163,14 @@ export function useColumns(
       key: 'remark',
       title: '备注',
       width: 120,
+    },
+    {
+      align: 'center',
+      dataIndex: 'auditOpinion',
+      ellipsis: true,
+      key: 'auditOpinion',
+      title: '审核意见',
+      width: 150,
     },
     {
       align: 'center',

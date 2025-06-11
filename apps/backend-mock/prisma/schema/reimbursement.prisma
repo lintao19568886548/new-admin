@@ -14,6 +14,7 @@ model Reimbursement {
   parkId     Int?                 @map("park_id")
   park       Park?                @relation("ParkToReimbursement", fields: [parkId], references: [parkId])
   images     ReimbursementImage[] @relation("ReimbursementToReimbursementImage")
+  auditOpinion String?              @db.VarChar(200)
 
   @@index([parkId])
   @@map("reimbursement")

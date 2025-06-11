@@ -1,9 +1,10 @@
 <script lang="ts" setup>
 import type { ReimbursementItem } from './modules/type';
 
-import { computed, onMounted, ref, unref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { Search } from '@vben/icons';
+import { useUserStore } from '@vben/stores';
 import { formatDateTime } from '@vben/utils';
 
 import {
@@ -22,11 +23,7 @@ import {
 
 import { $t } from '#/locales';
 
-import {
-  STATUS_MAP as AUDIT_STATUS_MAP,
-  AUDITOR_LEVEL_MAP,
-  useFormRules,
-} from './data'; // Renamed STATUS_MAP to avoid conflict
+import { STATUS_MAP as AUDIT_STATUS_MAP, useFormRules } from './data'; // Renamed STATUS_MAP to avoid conflict
 import {
   statusOptions as auditStatusOptions, // Renamed for clarity
   getUserPrivilegeInfo,
@@ -35,8 +32,7 @@ import {
 } from './modules/type';
 
 // 获取用户信息
-// const userStore = useUserStore(); // Removed unused variable
-// const userInfo = userStore.userInfo; // Removed unused variable
+const userStore = useUserStore();
 
 // 使用组合式函数
 const {
@@ -49,6 +45,7 @@ const {
   handleSearch,
   // handleTableChange, // Will use custom pagination handler
   hasAuditPermission,
+  isAmountOverLimit,
   isAuditModalVisible,
   loading,
   pagination, // pagination.current, pagination.pageSize, pagination.total
@@ -57,7 +54,6 @@ const {
   searchForm,
   showAuditModal, // This function will set currentRecord and show the modal
   submitting,
-  userPrivilegeLevel,
 } = useReimbursementAudit();
 
 // 表单相关 for the audit modal
@@ -68,7 +64,10 @@ const rules = useFormRules();
 
 // 添加用户权限等级信息计算属性
 const userPrivilegeInfo = computed(() => {
-  return getUserPrivilegeInfo(unref(userPrivilegeLevel));
+  return getUserPrivilegeInfo(
+    hasAuditPermission.value,
+    userStore.userInfo?.rates,
+  );
 });
 
 // 组件挂载时初始化
@@ -95,13 +94,7 @@ function getStatusDisplay(status: number) {
 // Check if audit button should be disabled
 function isAuditDisabled(record: ReimbursementItem): boolean {
   if (record.status !== 0) return true; // Already audited
-
-  // Check permission based on amount
-  const amount = Number(record.amount);
-  if (userPrivilegeLevel.value === 2 && amount > 10_000) return true; // Park manager limit
-  if (userPrivilegeLevel.value === 3 && amount > 20_000) return true; // Director limit
-
-  return false;
+  return isAmountOverLimit(Number(record.amount));
 }
 
 // Wrapper for showAuditModal to handle disabled state message
@@ -123,9 +116,7 @@ function triggerShowAuditModal(record: ReimbursementItem) {
     <header class="page-header">
       <h2 class="page-title">{{ $t('移动端报销审核') }}</h2>
       <div v-if="hasAuditPermission" class="audit-permission-info">
-        审核权限: {{ userPrivilegeInfo.text }} ({{
-          userPrivilegeInfo.maxAmount
-        }})
+        审核金额上限: {{ userPrivilegeInfo.maxAmount }}
       </div>
     </header>
 
@@ -209,7 +200,7 @@ function triggerShowAuditModal(record: ReimbursementItem) {
               type="primary"
               size="small"
               @click="triggerShowAuditModal(item)"
-              :disabled="item.status !== 0 || isAuditDisabled(item)"
+              :disabled="isAuditDisabled(item)"
               block
             >
               {{ item.status !== 0 ? $t('查看详情') : $t('审核') }}
@@ -263,16 +254,10 @@ function triggerShowAuditModal(record: ReimbursementItem) {
           <p>
             <strong>申请日期:</strong> {{ formatDateTime(currentRecord.date) }}
           </p>
-          <div v-if="currentRecord.status > 0">
+          <div v-if="(currentRecord as any).auditorName">
             <p>
               <strong>当前审核人:</strong>
-              {{
-                currentRecord.auditorLevel
-                  ? AUDITOR_LEVEL_MAP[
-                      currentRecord.auditorLevel as keyof typeof AUDITOR_LEVEL_MAP
-                    ] || '未知'
-                  : '无'
-              }}
+              {{ (currentRecord as any).auditorName }}
             </p>
           </div>
 
@@ -309,35 +294,10 @@ function triggerShowAuditModal(record: ReimbursementItem) {
 
         <!-- 权限警告提示 -->
         <div
-          v-if="
-            currentRecord.status === 0 &&
-            isAuditDisabled(currentRecord) &&
-            !(
-              (userPrivilegeLevel === 2 &&
-                Number(currentRecord.amount) > 10000) ||
-              (userPrivilegeLevel === 3 && Number(currentRecord.amount) > 20000)
-            )
-          "
+          v-if="currentRecord.status === 0 && isAuditDisabled(currentRecord)"
           class="permission-warning"
         >
           金额超出您的审核权限
-        </div>
-        <div
-          v-else-if="
-            currentRecord.status === 0 &&
-            ((userPrivilegeLevel === 2 &&
-              Number(currentRecord.amount) > 10000) ||
-              (userPrivilegeLevel === 3 &&
-                Number(currentRecord.amount) > 20000))
-          "
-          class="permission-warning"
-        >
-          <span v-if="userPrivilegeLevel === 2">
-            园区经理仅可审核10000元以下的申请。
-          </span>
-          <span v-else-if="userPrivilegeLevel === 3">
-            总监仅可审核20000元以下的申请。
-          </span>
         </div>
 
         <Form

@@ -15,6 +15,8 @@ export interface UserInfoForToken {
   roles: string[];
   homePath?: string;
   parks: Array<{ parkId: number; parkName: string }>;
+  reimbursementAuth?: number;
+  rates?: number;
 }
 
 // Prisma返回的带有完整关联信息的用户类型 (近似表示)
@@ -74,6 +76,23 @@ export async function transformPrismaUserToUserInfo(
     ? prismaUser.roles.map((item) => item.role.name)
     : [];
 
+  let reimbursementAuth = 0;
+  let rates = 0;
+
+  // 遍历用户所有角色，找到最高的审核权限和对应的金额
+  if (Array.isArray(prismaUser.roles)) {
+    for (const userRole of prismaUser.roles) {
+      const role = userRole.role;
+      if (
+        role.reimbursementAuth &&
+        role.reimbursementAuth > reimbursementAuth
+      ) {
+        reimbursementAuth = role.reimbursementAuth;
+        rates = role.rates || 0;
+      }
+    }
+  }
+
   let parks: Array<{ parkId: number; parkName: string }> = [];
 
   if (roles.includes('Super')) {
@@ -108,5 +127,7 @@ export async function transformPrismaUserToUserInfo(
     roles,
     homePath: prismaUser.homePath ? String(prismaUser.homePath) : undefined,
     parks,
+    reimbursementAuth,
+    rates,
   };
 }
