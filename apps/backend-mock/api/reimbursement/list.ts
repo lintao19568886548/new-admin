@@ -22,18 +22,36 @@ export default eventHandler(async (event) => {
       isDeleted: false,
     };
 
-    // 根据用户权限过滤：如果不是 vben 或 admin，则只查询用户所在园区的记录
+    // 根据用户权限过滤：如果不是特定高权限用户，则只查询用户关联园区的记录
     if (
       userinfo.username !== 'vben' &&
       userinfo.username !== '董事长' &&
       userinfo.username !== '总监'
     ) {
-      // 获取用户所属的全部园区ID
-      const parkIds = userinfo.parks?.map((park) => park.parkId);
-      if (parkIds?.length) {
+      // 从数据库查询用户关联的园区 ID
+      const userRoles = await prismaClient.userRole.findMany({
+        where: { userId: userinfo.id },
+        select: { roleId: true },
+      });
+      const roleIds = userRoles.map((ur) => ur.roleId);
+
+      let parkIds: number[] = [];
+      if (roleIds.length > 0) {
+        const roleParks = await prismaClient.rolePark.findMany({
+          where: {
+            roleId: { in: roleIds },
+            isDeleted: false,
+          },
+          select: { parkId: true },
+        });
+        parkIds = roleParks.map((rp) => rp.parkId);
+      }
+
+      // 如果用户有关联的园区，则按园区过滤；否则只查询自己的记录
+      if (parkIds.length > 0) {
         where.parkId = { in: parkIds };
       } else {
-        // 如果用户没有关联园区，则只查询自己的记录
+        // 如果用户没有关联园区，则只查询自己的记录 (保持原有逻辑)
         where.username = userinfo.username;
       }
     }
@@ -105,7 +123,7 @@ export default eventHandler(async (event) => {
     return useResponseSuccess({
       items: reimbursements.map((item) => ({
         ...item,
-        park: item.park?.parkName || '',
+        park: item.park?.parkName || '', // 使用 park 关联对象的 parkName
         images: item.images.map((imageItem) => imageItem.image.imgUrl),
       })),
       total,
