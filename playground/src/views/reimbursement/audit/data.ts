@@ -9,17 +9,18 @@ import { Image, Tag } from 'ant-design-vue';
 
 /**
  * 报销记录项类型定义
- * 注意: 此处定义与type.ts中的相似，但有一些额外字段
+ * 统一的报销项目定义
  */
 export interface ReimbursementItem {
   amount: number;
+  auditOpinion?: string;
   auditorLevel?: number;
   createTime?: string;
   date: string;
-  department: string;
+  department?: string;
   id: number | string;
-  images?: Array<string>;
-  park: string;
+  images?: string[];
+  park?: string;
   parkId?: number | string;
   payee: string;
   purpose: string;
@@ -56,11 +57,10 @@ export function useFormRules(): Record<string, Rule[]> {
 
 /**
  * 获取表格列配置
- * @param _onAuditFn 审核操作的回调函数
  * @returns 表格列配置
  */
 export function useColumns(
-  _onAuditFn: (record: ReimbursementItem) => void,
+  _showAuditModal?: (record: ReimbursementItem) => void,
 ): ColumnsType<any> {
   return [
     {
@@ -143,6 +143,7 @@ export function useColumns(
           ),
         ]);
       },
+      dataIndex: 'images',
       key: 'images',
       title: '相关图片',
       width: 180,
@@ -165,6 +166,7 @@ export function useColumns(
     },
     {
       align: 'center',
+      dataIndex: 'action',
       key: 'action',
       title: '操作',
       width: 120,

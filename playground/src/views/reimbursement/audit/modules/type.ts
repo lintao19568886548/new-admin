@@ -6,58 +6,31 @@ import type {
 } from 'ant-design-vue/es/table/interface';
 import type { Dayjs } from 'dayjs'; // 导入 Dayjs 类型
 
-import { computed, onMounted, reactive, ref } from 'vue';
+import type { ReimbursementItem } from '../data';
+
+import { computed, reactive, ref } from 'vue';
 
 import { useUserStore } from '@vben/stores';
 
 import { message, Modal } from 'ant-design-vue';
 
-import { getVisitorParkList } from '#/api/park';
 import {
   deleteReimbursement as apiDeleteReimbursement,
   getReimbursementList as apiGetReimbursementList,
   updateReimbursement as apiUpdateReimbursement,
 } from '#/api/reimbursement';
 
-/**
- * 报销记录项类型定义
- * 注意: 此处定义与data.ts中的相似，但包含了一些不同的字段
- * 建议将来将这两处定义统一
- */
-export interface ReimbursementItem {
-  amount: number;
-  auditorLevel?: number; // Add missing auditorLevel property
-  createTime?: string;
-  date: string;
-  department: string;
-  id: number | string;
-  images?: string[];
-  park: string;
-  payee: string;
-  purpose: string;
-  remark?: string;
-  status: number;
-  updateTime?: string;
-  username?: string;
-}
+import { STATUS_MAP } from '../data';
 
 /**
- * 状态映射定义
- * 注意: 此处的文本与data.ts中定义的有差异
- * 建议与data.ts中的STATUS_MAP保持一致
+ * 状态选项
  */
-export const STATUS_MAP = {
-  0: { color: 'warning', text: '待审核' },
-  1: { color: 'success', text: '已通过' },
-  2: { color: 'error', text: '已拒绝' },
-};
-
-// 状态选项
-export const statusOptions = [
-  { label: '待审核', value: 0 },
-  { label: '已通过', value: 1 },
-  { label: '已拒绝', value: 2 },
-];
+export const statusOptions = Object.entries(STATUS_MAP).map(
+  ([value, info]) => ({
+    label: info.text,
+    value: Number.parseInt(value),
+  }),
+);
 
 /**
  * 获取用户可读的权限等级信息
@@ -159,43 +132,13 @@ export function useReimbursementAudit() {
     return [];
   });
 
-  // 园区列表
-  const parkList = ref<any>([]);
-
-  // 获取园区列表
-  async function fetchParkList() {
-    try {
-      const result = await getVisitorParkList({ area: 'all' });
-      parkList.value = result || [];
-    } catch (error) {
-      console.error('获取园区列表失败:', error);
-      message.error('获取园区列表失败');
-    }
-  }
-
   // 表格数据
-  const tableData = ref<ReimbursementItem[]>([]);
   const reimbursementList = ref<ReimbursementItem[]>([]);
   const loading = ref(false);
   const pagination = reactive({
     current: 1,
     pageSize: 10,
     total: 0,
-  });
-
-  // 筛选条件
-  const filterForm = reactive<{
-    dateRange: any[];
-    department: string | undefined;
-    parkId: number | undefined;
-    purpose: string;
-    status: number | undefined;
-  }>({
-    dateRange: [],
-    department: undefined,
-    parkId: undefined,
-    purpose: '',
-    status: undefined,
   });
 
   // 搜索表单 - 此处在list.vue中使用
@@ -231,9 +174,6 @@ export function useReimbursementAudit() {
   const auditModalVisible = ref(false);
   const isAuditModalVisible = ref(false); // list.vue中使用
   const currentRecord = ref<null | ReimbursementItem>(null);
-  const auditStatus = ref<number>(0);
-  const auditRemark = ref('');
-  const auditLoading = ref(false);
 
   // 获取报销列表数据 - 为了在list.vue中使用，提供一个别名
   const fetchReimbursements = fetchReimbursementList;
@@ -288,7 +228,6 @@ export function useReimbursementAudit() {
       }));
 
       // 更新表格数据
-      tableData.value = reimbursementItems;
       reimbursementList.value = reimbursementItems;
       pagination.total = total;
     } catch (error) {
@@ -310,18 +249,6 @@ export function useReimbursementAudit() {
   ) {
     pagination.current = pag.current || 1;
     pagination.pageSize = pag.pageSize || 10;
-    fetchReimbursementList();
-  }
-
-  // 重置筛选条件
-  function resetFilters() {
-    filterForm.dateRange = [];
-    filterForm.department = undefined;
-    filterForm.parkId = undefined;
-    filterForm.purpose = '';
-    filterForm.status = undefined;
-
-    pagination.current = 1;
     fetchReimbursementList();
   }
 
@@ -417,128 +344,6 @@ export function useReimbursementAudit() {
     isAuditModalVisible.value = true;
   }
 
-  // 打开审核弹窗 (兼容旧代码)
-  function openAuditModal(record: ReimbursementItem) {
-    if (!record) {
-      message.error('记录不存在');
-      return;
-    }
-
-    // 检查是否有审核权限
-    if (!hasAuditPermission.value) {
-      message.error('你没有审核权限');
-      return;
-    }
-
-    // 检查记录是否已经被审核
-    if (record.status !== 0) {
-      message.info('该记录已经被审核过');
-      // 可以选择展示审核详情
-      currentRecord.value = record;
-      auditModalVisible.value = true;
-      return;
-    }
-
-    // 权限检查，确定该用户是否能审核此申请
-    const canAudit = checkAuditPermission(record);
-    if (!canAudit) {
-      // 如果没有审核权限，显示提示
-      message.error('你没有审核权限');
-      return;
-    }
-
-    // 重置审核表单状态
-    auditStatus.value = 0;
-    auditRemark.value = '';
-
-    // 将记录存储到当前记录
-    currentRecord.value = record;
-    // 显示审核弹窗
-    auditModalVisible.value = true;
-  }
-
-  // 检查用户是否有权限审核该记录
-  function checkAuditPermission(record: ReimbursementItem): boolean {
-    // 如果已经审核过了，不能再次审核
-    if (record.status !== 0) {
-      return false;
-    }
-    // 如果没有审核权限，不能审核
-    if (!hasAuditPermission.value) {
-      return false;
-    }
-    // 检查金额是否超限
-    return !isAmountOverLimit(record.amount);
-  }
-
-  // 提交审核
-  async function submitAudit() {
-    if (!currentRecord.value) {
-      message.error('未找到当前记录');
-      return;
-    }
-
-    if (!auditStatus.value) {
-      message.error('请选择审核结果');
-      return;
-    }
-
-    auditLoading.value = true;
-
-    try {
-      // 金额验证
-      const { valid, value } = validateAmount(currentRecord.value.amount);
-      if (!valid) {
-        message.error('报销金额格式不正确');
-        auditLoading.value = false;
-        return;
-      }
-
-      // 获取记录ID并确保是数字类型
-      const recordId = Number(currentRecord.value.id);
-      if (Number.isNaN(recordId)) {
-        message.error('记录ID无效');
-        return;
-      }
-
-      // 使用新的权限检查函数
-      if (isAmountOverLimit(value)) {
-        message.error('金额超出您的审核权限，无法提交。');
-        auditLoading.value = false;
-        return;
-      }
-
-      // 构建审核结果数据
-      const auditData = {
-        amount: value,
-        // 添加审核人信息
-        auditor: userStore.userInfo?.username,
-        auditorId: userStore.userInfo?.userId,
-        reason: auditRemark.value, // 使用 reason 字段保持一致
-        remark: auditRemark.value, // 后端可能使用 remark 字段
-        status: auditStatus.value,
-      };
-
-      // 调用更新接口，将ID作为第一个参数传递
-      const result = await apiUpdateReimbursement(recordId, auditData);
-
-      if (result) {
-        message.success('审核成功');
-        // 关闭弹窗
-        auditModalVisible.value = false;
-        // 刷新列表
-        await fetchReimbursementList();
-      } else {
-        message.error('审核失败，请重试');
-      }
-    } catch (error) {
-      console.error('审核失败:', error);
-      message.error('审核失败，请重试');
-    } finally {
-      auditLoading.value = false;
-    }
-  }
-
   // 删除报销记录
   async function handleDelete(record: ReimbursementItem) {
     Modal.confirm({
@@ -568,28 +373,13 @@ export function useReimbursementAudit() {
     });
   }
 
-  // 初始化
-  onMounted(() => {
-    // 获取园区列表
-    fetchParkList();
-    // 获取报销列表
-    fetchReimbursementList();
-  });
-
   // 导出组合API
   return {
     auditForm,
-    auditLoading,
     auditModalVisible,
-    auditRemark,
-    auditStatus,
     availableStatusOptions,
-    checkAuditPermission,
     currentRecord,
-    fetchParkList,
-    fetchReimbursementList,
     fetchReimbursements,
-    filterForm,
     getUserPrivilegeInfo,
     handleAuditSubmit,
     handleDelete,
@@ -599,15 +389,11 @@ export function useReimbursementAudit() {
     isAmountOverLimit,
     isAuditModalVisible,
     loading,
-    openAuditModal,
     pagination,
-    parkList,
     reimbursementList, // 直接导出reimbursementList
-    resetFilters,
     resetSearch,
     searchForm,
     showAuditModal,
-    submitAudit,
     submitting,
   };
 }

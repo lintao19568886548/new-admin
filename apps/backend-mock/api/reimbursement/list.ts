@@ -56,6 +56,11 @@ export default eventHandler(async (event) => {
       }
     }
 
+    // 新增：申请人模糊查询
+    if (query.username) {
+      where.username = { contains: String(query.username) };
+    }
+
     // 用途模糊查询
     if (query.purpose) {
       where.purpose = { contains: String(query.purpose) };
