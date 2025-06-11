@@ -70,28 +70,6 @@ function validateAmount(amount: any): { valid: boolean; value: number } {
 }
 
 /**
- * 获取用户可审核的最大金额
- * @param level 审核权限等级
- * @returns 可审核的最大金额，-1表示无限制
- */
-// export function getMaxAuditAmount(level: number): number {
-//   switch (level) {
-//     case PRIVILEGE_LEVELS.CHAIRMAN: {
-//       return -1;
-//     } // 无限制
-//     case PRIVILEGE_LEVELS.DIRECTOR: {
-//       return 20_000;
-//     }
-//     case PRIVILEGE_LEVELS.PARK_MANAGER: {
-//       return 10_000;
-//     }
-//     default: {
-//       return 0;
-//     }
-//   }
-// }
-
-/**
  * 报销审核逻辑钩子
  * 提供报销审核相关的状态和方法
  */
@@ -171,7 +149,6 @@ export function useReimbursementAudit() {
   });
 
   // 审核对话框
-  const auditModalVisible = ref(false);
   const isAuditModalVisible = ref(false); // list.vue中使用
   const currentRecord = ref<null | ReimbursementItem>(null);
 
@@ -347,36 +324,26 @@ export function useReimbursementAudit() {
   // 删除报销记录
   async function handleDelete(record: ReimbursementItem) {
     Modal.confirm({
-      content: `确定要删除此报销记录吗？这个操作不可逆。`,
-      async onOk() {
+      cancelText: '取消',
+      content: `确定要删除"${record.purpose}"这条报销记录吗？此操作不可恢复。`,
+      okText: '确认',
+      onOk: async () => {
         try {
-          if (!record || !record.id) {
-            message.error('记录ID无效');
-            return;
-          }
-
-          const result = await apiDeleteReimbursement(Number(record.id));
-
-          if (result) {
-            message.success('删除成功');
-            // 刷新列表
-            await fetchReimbursementList();
-          } else {
-            message.error('删除失败');
-          }
+          await apiDeleteReimbursement(Number(record.id));
+          message.success('记录删除成功');
+          await fetchReimbursements(); // 重新加载数据
         } catch (error) {
-          console.error('删除失败:', error);
-          message.error('删除失败，请重试');
+          console.error('删除报销记录失败:', error);
+          message.error('删除失败，请稍后重试');
         }
       },
       title: '确认删除',
     });
   }
 
-  // 导出组合API
+  // 返回所有方法和状态
   return {
     auditForm,
-    auditModalVisible,
     availableStatusOptions,
     currentRecord,
     fetchReimbursements,
@@ -390,7 +357,7 @@ export function useReimbursementAudit() {
     isAuditModalVisible,
     loading,
     pagination,
-    reimbursementList, // 直接导出reimbursementList
+    reimbursementList,
     resetSearch,
     searchForm,
     showAuditModal,

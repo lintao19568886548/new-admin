@@ -258,15 +258,6 @@ function resetSearch() {
   fetchReimbursements();
 }
 
-// 处理弹窗关闭
-function handleModalClose() {
-  // 重置搜索条件，确保下次打开时是干净的状态
-  searchForm.dateRange = undefined;
-  searchForm.purpose = '';
-  searchForm.status = undefined;
-  pagination.current = 1;
-}
-
 // 表单相关
 const formRef = ref();
 const submitting = ref(false);
@@ -515,7 +506,7 @@ onMounted(() => {
             </div>
           </Upload>
           <Modal
-            v-model:visible="previewVisible"
+            v-model:open="previewVisible"
             :title="previewTitle"
             :footer="null"
           >
@@ -535,12 +526,10 @@ onMounted(() => {
 
     <!-- 记录列表弹窗 -->
     <Modal
-      v-model:visible="isRecordModalVisible"
-      :title="$t('我的报销申请')"
-      width="85%"
+      v-model:open="isRecordModalVisible"
       :footer="null"
-      :destroy-on-close="true"
-      @cancel="handleModalClose"
+      :title="$t('我的报销记录')"
+      width="80vw"
     >
       <!-- 搜索区域 -->
       <div class="mb-4 flex flex-wrap gap-2">

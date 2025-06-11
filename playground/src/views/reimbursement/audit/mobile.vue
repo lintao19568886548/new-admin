@@ -225,7 +225,7 @@ function triggerShowAuditModal(record: ReimbursementItem) {
 
     <!-- 审核弹窗 -->
     <Modal
-      v-model:visible="isAuditModalVisible"
+      v-model:open="isAuditModalVisible"
       :title="
         currentRecord && currentRecord.status > 0
           ? $t('报销审核详情')
@@ -292,7 +292,6 @@ function triggerShowAuditModal(record: ReimbursementItem) {
           </div>
         </div>
 
-        <!-- 权限警告提示 -->
         <div
           v-if="currentRecord.status === 0 && isAuditDisabled(currentRecord)"
           class="permission-warning"

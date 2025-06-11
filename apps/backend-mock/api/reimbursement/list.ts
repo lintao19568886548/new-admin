@@ -28,36 +28,28 @@ export default eventHandler(async (event) => {
       userinfo.username !== '董事长' &&
       userinfo.username !== '总监'
     ) {
-      // 从数据库查询用户关联的园区 ID
-      const userRoles = await prismaClient.userRole.findMany({
-        where: { userId: userinfo.id },
-        select: { roleId: true },
-      });
-      const roleIds = userRoles.map((ur) => ur.roleId);
+      const parkIds = userinfo.parks?.map((park) => park.parkId) || [];
 
-      let parkIds: number[] = [];
-      if (roleIds.length > 0) {
-        const roleParks = await prismaClient.rolePark.findMany({
-          where: {
-            roleId: { in: roleIds },
-            isDeleted: false,
-          },
-          select: { parkId: true },
-        });
-        parkIds = roleParks.map((rp) => rp.parkId);
-      }
-
-      // 如果用户有关联的园区，则按园区过滤；否则只查询自己的记录
+      // 如果用户有关联的园区，则按园区过滤；否则，作为一个非高级用户，
+      // 他们没有被分配可审计的园区，因此不应该看到任何记录。
       if (parkIds.length > 0) {
         where.parkId = { in: parkIds };
       } else {
-        // 如果用户没有关联园区，则只查询自己的记录 (保持原有逻辑)
-        where.username = userinfo.username;
+        // 直接返回空结果，因为没有可审计的园区
+        return useResponseSuccess({
+          items: [],
+          total: 0,
+        });
       }
     }
 
-    // 新增：申请人模糊查询
-    if (query.username) {
+    // 只有高级用户才能按申请人姓名进行模糊查询
+    if (
+      (userinfo.username === 'vben' ||
+        userinfo.username === '董事长' ||
+        userinfo.username === '总监') &&
+      query.username
+    ) {
       where.username = { contains: String(query.username) };
     }
 

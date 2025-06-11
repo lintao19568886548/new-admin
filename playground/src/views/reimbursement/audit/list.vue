@@ -169,7 +169,7 @@ onMounted(() => {
 
     <!-- 审核弹窗 -->
     <Modal
-      v-model:visible="isAuditModalVisible"
+      v-model:open="isAuditModalVisible"
       :title="
         currentRecord && currentRecord.status > 0
           ? $t('报销审核详情')
