@@ -36,7 +36,6 @@ export function useFormSchema(): VbenFormSchema[] {
       fieldName: 'name',
       formItemClass: 'col-span-3',
       label: '电梯名称',
-      rules: 'required',
     },
     {
       component: 'RadioGroup',
