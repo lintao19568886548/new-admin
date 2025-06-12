@@ -24,7 +24,7 @@ model UserRole {
   userId     Int       @map("user_id")
   roleId     Int       @map("role_id")
   user       User      @relation("UserToUserRole", fields: [userId], references: [id])
-  role       Role      @relation("RoleToUserRole", fields: [roleId], references: [roleId])
+  role       Role      @relation("RoleToUserRole", fields: [roleId], references: [roleId], onDelete: Cascade) // 添加 onDelete: Cascade 以允许级联删除
   createTime DateTime? @default(now()) @map("create_time")
   updateTime DateTime? @updatedAt @map("update_time")
 
@@ -39,7 +39,7 @@ model RoleMenu {
   roleId     Int       @map("role_id")
   menuId     Int       @map("menu_id")
   isDeleted  Boolean   @default(false) @map("is_deleted")
-  role       Role      @relation("RoleToRoleMenu", fields: [roleId], references: [roleId])
+  role       Role      @relation("RoleToRoleMenu", fields: [roleId], references: [roleId], onDelete: Cascade) // 添加 onDelete: Cascade 以允许级联删除
   menu       Menu      @relation("MenuToRoleMenu", fields: [menuId], references: [menuId], onDelete: Cascade)
   createTime DateTime? @default(now()) @map("create_time")
   updateTime DateTime? @updatedAt @map("update_time")
