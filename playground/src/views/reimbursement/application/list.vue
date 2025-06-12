@@ -517,7 +517,7 @@ onMounted(() => {
             @change="handleChange"
             @preview="handlePreview"
           >
-            <div v-if="!formState.images || formState.images.length < 5">
+            <div>
               <div>上传</div>
             </div>
           </Upload>
