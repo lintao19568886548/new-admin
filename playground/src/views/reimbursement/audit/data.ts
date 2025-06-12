@@ -68,7 +68,7 @@ export function useColumns(
       dataIndex: 'username',
       key: 'username',
       title: '申请人',
-      width: 100,
+      width: 70,
     },
     {
       align: 'center',
@@ -107,7 +107,7 @@ export function useColumns(
       dataIndex: 'date',
       key: 'date',
       title: '申请日期',
-      width: 160,
+      width: 90,
     },
     {
       align: 'center',
@@ -121,7 +121,7 @@ export function useColumns(
       dataIndex: 'status',
       key: 'status',
       title: '状态',
-      width: 120,
+      width: 50,
     },
     {
       align: 'center',
@@ -146,7 +146,7 @@ export function useColumns(
       dataIndex: 'images',
       key: 'images',
       title: '相关图片',
-      width: 180,
+      width: 240,
     },
     {
       align: 'center',
