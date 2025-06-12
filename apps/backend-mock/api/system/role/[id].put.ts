@@ -15,7 +15,7 @@ export default eventHandler(async (event) => {
     return useResponseError('id is required', 400);
   }
   const body = await readBody(event);
-  const { permissions, parkIds, ...roleData } = body;
+  const { permissions, parkIds, parentid, ...roleData } = body;
   roleData.status = !!roleData.status;
   try {
     const res = await prismaClient.$transaction(async (prisma) => {
@@ -24,7 +24,10 @@ export default eventHandler(async (event) => {
         where: {
           roleId: Number(id),
         },
-        data: roleData,
+        data: {
+          ...roleData,
+          parentid: parentid ? Number(parentid) : null, // 处理 parentid 更新
+        },
       });
 
       // 2. 如果提供了permissions，则更新角色菜单关联

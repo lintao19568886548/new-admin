@@ -12,14 +12,28 @@ export default eventHandler(async (event) => {
   }
 
   const body = await readBody(event);
-  const { permissions, parkIds, ...roleData } = body;
+  const { permissions, parkIds, parentid, ...roleData } = body;
   roleData.status = !!roleData.status;
+
+  // 如果提供了 parentid，确保它是数字或 null
+  const parentIdValue = parentid ? Number(parentid) : null;
+
+  // 准备要创建的角色数据
+  const dataToCreate: any = {
+    ...roleData,
+    status: roleData.status, // 确保 status 是布尔值
+  };
+
+  // 只有在 parentIdValue 不为 null 时才添加到 dataToCreate 中
+  if (parentIdValue !== null) {
+    dataToCreate.parentid = parentIdValue;
+  }
 
   try {
     const res = await prismaClient.$transaction(async (prisma) => {
       // 1. 创建角色基本信息
       const newRole = await prisma.role.create({
-        data: roleData,
+        data: dataToCreate, // 使用包含 parentid 的数据
       });
 
       // 2. 如果提供了permissions，则创建角色菜单关联

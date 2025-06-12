@@ -1,9 +1,15 @@
+import type { Recordable } from '@vben/types';
+
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
-import { formatDateTime } from '@vben/utils';
+import { h } from 'vue';
+
+import { formatDateTime, getPopupContainer } from '@vben/utils';
 
 import { getParkList } from '#/api/park/park';
+// 导入获取角色列表的API
+import { getRoleList } from '#/api/system/role';
 import { $t } from '#/locales';
 
 export function useFormSchema(): VbenFormSchema[] {
@@ -13,6 +19,43 @@ export function useFormSchema(): VbenFormSchema[] {
       fieldName: 'name',
       label: $t('system.role.roleName'),
       rules: 'required',
+    },
+    // 添加父级角色选择
+    {
+      component: 'ApiTreeSelect',
+      componentProps: {
+        api: getRoleList, // 使用获取角色列表的API
+        class: 'w-full',
+        // 假设 getRoleList 在无参数时返回树状结构
+        filterTreeNode(input: string, node: Recordable<any>) {
+          if (!input || input.length === 0) {
+            return true;
+          }
+          const name: string = node.name ?? '';
+          if (!name) return false;
+          return name.includes(input);
+        },
+        getPopupContainer,
+        labelField: 'name', // 显示角色名称
+        resultField: 'items', // 指定包含树数据的字段
+        showSearch: true,
+        treeDefaultExpandAll: false,
+        valueField: 'roleId', // 值为角色ID
+        childrenField: 'children', // 子节点字段
+      },
+      fieldName: 'parentid', // 字段名为 parentid
+      label: $t('上级角色'), // 标签为“上级角色”
+      renderComponentContent() {
+        return {
+          title({ label }: { label: string }) {
+            if (!label) return '';
+            // 可以在这里添加图标等渲染逻辑
+            return h('div', { class: 'flex items-center gap-1' }, [
+              h('span', { class: '' }, label || ''),
+            ]);
+          },
+        };
+      },
     },
     {
       component: 'RadioGroup',
@@ -43,11 +86,11 @@ export function useFormSchema(): VbenFormSchema[] {
       label: $t('page.common.park'),
     },
     {
-      component: 'Input',
-      fieldName: 'permissions',
+      component: 'Input', // component 类型不重要，因为会被 slot 覆盖
+      fieldName: 'permissions', // 插槽名称必须与 fieldName 一致
       formItemClass: 'items-start',
       label: $t('system.role.setPermissions'),
-      modelPropName: 'modelValue',
+      // 这个字段由 form.vue 中的 VbenTree 插槽处理，slotProps.modelValue 绑定到此字段
     },
     {
       component: 'Textarea',
@@ -117,8 +160,10 @@ export function useColumns(
 ): VxeTableGridOptions['columns'] {
   return [
     {
+      align: 'left', // 左对齐以显示树结构
       field: 'name',
       title: $t('system.role.roleName'),
+      treeNode: true, // 设置为树节点
       width: 200,
     },
     {
@@ -157,11 +202,20 @@ export function useColumns(
           onClick: onActionClick,
         },
         name: 'CellOperation',
+        options: [
+          // 添加操作选项
+          {
+            code: 'append',
+            text: '新增下级',
+          },
+          'edit',
+          'delete',
+        ],
       },
       field: 'operation',
       fixed: 'right',
       title: $t('system.role.operation'),
-      width: 130,
+      width: 200,
     },
   ];
 }
