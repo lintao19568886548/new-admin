@@ -241,6 +241,10 @@ onMounted(() => {
             <p class="text-gray-500">审核意见</p>
             <p>{{ (currentRecord as any).auditOpinion }}</p>
           </div>
+          <div v-if="currentRecord.remark" class="col-span-2">
+            <p class="text-gray-500">申请备注</p>
+            <p>{{ currentRecord.remark }}</p>
+          </div>
           <div
             v-if="currentRecord.images && currentRecord.images.length > 0"
             class="col-span-2"

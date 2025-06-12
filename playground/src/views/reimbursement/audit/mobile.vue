@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-import type { ReimbursementItem } from './modules/type';
+// 从本地类型定义中导入 ReimbursementItem 类型
+import type { ReimbursementItem } from './data';
 
 import { computed, onMounted, ref } from 'vue';
 
@@ -19,6 +20,7 @@ import {
   Select,
   Spin,
   Tag,
+  Card as VbenCard, // 将 Card 组件重命名为 VbenCard
 } from 'ant-design-vue';
 
 import { $t } from '#/locales';
@@ -128,14 +130,15 @@ function triggerShowAuditModal(record: ReimbursementItem) {
             :placeholder="$t('搜索用途')"
             allow-clear
           />
-        </Form.Item>
-        <Form.Item v-if="hasAuditPermission" :label="$t('申请人')">
+          <!-- </Form.Item>
+         <Form.Item v-if="hasAuditPermission" :label="$t('申请人')">
           <Input
             v-model:value="searchForm.username"
             :placeholder="$t('搜索申请人')"
             allow-clear
-          />
+          /> -->
         </Form.Item>
+        -->
         <Form.Item :label="$t('状态')">
           <Select
             v-model:value="searchForm.status"
@@ -261,22 +264,18 @@ function triggerShowAuditModal(record: ReimbursementItem) {
             </p>
           </div>
 
-          <div v-if="currentRecord.remark" class="full-width-detail">
-            <p><strong>备注:</strong> {{ currentRecord.remark }}</p>
-          </div>
+          <VbenCard title="审核意见" v-if="currentRecord.auditOpinion">
+            <p class="text-gray-600">{{ currentRecord.auditOpinion }}</p>
+          </VbenCard>
 
-          <div
-            v-if="currentRecord.remark && currentRecord.status !== 0"
-            class="full-width-detail"
-          >
-            <p><strong>审核意见:</strong> {{ currentRecord.remark }}</p>
-          </div>
+          <VbenCard title="申请备注" v-if="currentRecord.remark">
+            <p class="text-gray-600">{{ currentRecord.remark }}</p>
+          </VbenCard>
 
-          <div
+          <VbenCard
+            title="相关图片"
             v-if="currentRecord.images && currentRecord.images.length > 0"
-            class="full-width-detail"
           >
-            <p><strong>相关图片:</strong></p>
             <div class="image-preview-list">
               <Image.PreviewGroup>
                 <Image
@@ -289,7 +288,7 @@ function triggerShowAuditModal(record: ReimbursementItem) {
                 />
               </Image.PreviewGroup>
             </div>
-          </div>
+          </VbenCard>
         </div>
 
         <div
