@@ -94,8 +94,8 @@ async function fetchReimbursements() {
       pageSize: pagination.pageSize,
     };
 
-    // 所有用户只能查看自己的申请记录
-    params.username = currentUsername.value;
+    // 所有用户只能查看自己的申请记录, 根据 claimant (realName) 进行判断
+    params.claimant = userStore.userInfo?.realName;
 
     // 添加其他搜索条件
     if (searchForm.purpose) {
@@ -164,9 +164,13 @@ function handleModifyReimbursement(record: ReimbursementItem) {
         await deleteReimbursement(Number(record.id));
 
         // 2. 填充表单
-        formState.amount = record.amount;
+        // 确保 record.amount 是 number 类型，如果可能为 null/undefined，需要处理
+        formState.amount = record.amount; // 类型检查现在应该通过
         formState.applicant = record.username || '';
-        formState.parkId = record.parkId;
+        formState.parkId =
+          typeof record.parkId === 'string'
+            ? Number.parseInt(record.parkId, 10)
+            : record.parkId;
         formState.payee = record.payee;
         formState.purpose = record.purpose;
         formState.remark = record.remark || '';
@@ -264,9 +268,20 @@ const submitting = ref(false);
 const parkList = ref([]);
 const headers = ref();
 
+// 定义表单状态类型
+interface FormState {
+  amount: number | undefined; // 允许 undefined 以匹配初始状态
+  applicant: string;
+  images: any[];
+  parkId: number | undefined;
+  payee: string;
+  purpose: string;
+  remark: string;
+}
+
 // 表单数据
-const formState = reactive({
-  amount: undefined,
+const formState = reactive<FormState>({
+  amount: undefined, // 保持初始为 undefined，但在 handleModifyReimbursement 中赋值时类型兼容
   applicant: '',
   images: [], // 添加图片列表字段
   parkId: undefined,
@@ -383,6 +398,7 @@ async function handleSubmit() {
     // 创建模式：构建完整的创建数据
     const createData = {
       amount: formState.amount,
+      claimant: userStore.userInfo?.realName, // 自动填充当前用户的 realName
       date: new Date().toISOString(),
       images: newImages,
       parkId: formState.parkId,

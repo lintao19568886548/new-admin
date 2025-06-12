@@ -14,12 +14,13 @@ export default eventHandler(async (event) => {
   }
   const body = await readBody(event);
   console.log('请求体参数:', body);
-  const { images, ...reimbursementData } = body;
+  const { images, claimant, ...reimbursementData } = body;
   try {
     // 创建报销记录并关联图片
     const reimbursement = await prismaClient.reimbursement.create({
       data: {
         ...reimbursementData,
+        claimant,
         // 关联图片
         images: {
           create:

@@ -102,11 +102,10 @@ onMounted(() => {
             allow-clear
           />
           <Input
-            v-model:value="searchForm.username"
-            placeholder="搜索申请人"
+            v-model:value="searchForm.payee"
+            placeholder="搜索领款人"
             class="w-48"
             allow-clear
-            :disabled="!hasAuditPermission"
             :title="!hasAuditPermission ? '您只能查看自己的报销申请记录' : ''"
           />
           <Select

@@ -48,6 +48,22 @@ export default eventHandler(async (event) => {
       },
     });
 
+    // 如果报销已通过，则同步到财务记录
+    if (updatedReimbursement.status === 1) {
+      await prismaClient.finance.create({
+        data: {
+          billName: updatedReimbursement.purpose,
+          billCategory: '其他费用',
+          amount: updatedReimbursement.amount,
+          transactionType: '支出',
+          transactionTime: updatedReimbursement.createTime || new Date(),
+          remark: `报销 #${updatedReimbursement.id}`,
+          parkId: updatedReimbursement.parkId,
+        },
+      });
+      console.log(`报销 #${updatedReimbursement.id} 已通过，同步到财务记录。`);
+    }
+
     console.log('更新报销状态成功:', updatedReimbursement);
     return useResponseSuccess(updatedReimbursement);
   } catch (error) {

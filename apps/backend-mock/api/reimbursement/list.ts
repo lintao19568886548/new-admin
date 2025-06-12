@@ -43,14 +43,14 @@ export default eventHandler(async (event) => {
       }
     }
 
-    // 只有高级用户才能按申请人姓名进行模糊查询
-    if (
-      (userinfo.username === 'vben' ||
-        userinfo.username === '董事长' ||
-        userinfo.username === '总监') &&
-      query.username
-    ) {
-      where.username = { contains: String(query.username) };
+    // 按申请人姓名进行模糊查询
+    // if (query.username) {
+    //   where.username = { contains: String(query.username) };
+    // }
+
+    // 按报销人姓名进行精确查询
+    if (query.claimant) {
+      where.claimant = String(query.claimant);
     }
 
     // 用途模糊查询

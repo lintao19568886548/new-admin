@@ -122,14 +122,14 @@ export function useReimbursementAudit() {
   // 搜索表单 - 此处在list.vue中使用
   const searchForm = reactive<{
     dateRange: [Dayjs, Dayjs] | undefined; // 修改类型为包含两个Dayjs对象的元组或undefined
+    payee: string;
     purpose: string;
     status: number | undefined;
-    username: string;
   }>({
     dateRange: undefined, // 修改初始值为undefined
+    payee: '',
     purpose: '',
     status: undefined,
-    username: '',
   });
 
   // 重置搜索 - 此处在list.vue中使用
@@ -137,7 +137,7 @@ export function useReimbursementAudit() {
     searchForm.dateRange = undefined; // 修改重置值为undefined
     searchForm.purpose = '';
     searchForm.status = undefined;
-    searchForm.username = '';
+    searchForm.payee = '';
     pagination.current = 1;
     fetchReimbursements();
   }
@@ -180,13 +180,14 @@ export function useReimbursementAudit() {
         params.endDate = searchForm.dateRange[1]?.format('YYYY-MM-DD');
       }
 
-      // 只有具有审核权限的人才能查看全部用户的申请
+      // 任何人都可以按领款人筛选
+      if (searchForm.payee) {
+        params.payee = searchForm.payee;
+      }
+
+      // 非审核人员只能在自己的申请中进行搜索
       if (!hasAuditPermission.value) {
-        // 非审核人员只能查看自己的申请
         params.username = userStore.userInfo?.username;
-      } else if (searchForm.username) {
-        // 审核人员可以按用户名筛选
-        params.username = searchForm.username;
       }
 
       const result = await apiGetReimbursementList(params);
