@@ -359,7 +359,7 @@ async function validate() {
 function handleEleSuccess(data: any) {
   if (data) {
     // 计算电费合计
-    billData.eleBills = data.eleBills || [];
+    billData.eleBills = data || [];
     const item = billData.eleBills?.find(
       (item: any) => item.meterName === '合计',
     );
@@ -425,7 +425,7 @@ function handleEleSuccess(data: any) {
 // 水费表单提交回调
 function handleWaterSuccess(data: any) {
   if (data) {
-    billData.waterBills = data.waterBills || [];
+    billData.waterBills = data || [];
 
     // 计算水费合计
     const item = billData.waterBills?.find(

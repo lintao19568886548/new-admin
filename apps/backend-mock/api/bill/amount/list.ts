@@ -91,7 +91,7 @@ export default eventHandler(async (event) => {
   const result = await prismaClient.amountBill.findMany({
     where,
     orderBy: {
-      receiptTime: 'desc',
+      createTime: 'desc',
     },
     skip: (page - 1) * size,
     take: size,
