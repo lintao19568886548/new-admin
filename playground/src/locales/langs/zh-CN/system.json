@@ -143,7 +143,7 @@
     "parent": "上级角色",
     "setPermissions": "授权",
     "status": "状态",
-    "title": "角色管理"
+    "title": "权限管理"
   },
   "title": "系统管理"
 }
