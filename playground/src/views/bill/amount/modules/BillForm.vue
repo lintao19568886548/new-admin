@@ -688,6 +688,17 @@ function registerEditEvent() {
                 }
               }
             }
+            setTimeout(() => {
+              // 设置 F 列合计公式
+              worksheet
+                .getRange(`F${endRow + 2}`)
+                .setFormula(`=SUM(F2:F${endRow + 1})`);
+
+              // 设置 H 列合计公式
+              worksheet
+                .getRange(`H${endRow + 2}`)
+                .setFormula(`=SUM(H2:H${endRow + 1})`);
+            });
           }
         } catch (error) {
           console.error('Error handling sheet edit event:', error);
