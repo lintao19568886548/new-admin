@@ -228,7 +228,7 @@ function updateTableData() {
               // 设置 F 列合计公式
               worksheet
                 .getRange(`F${totalRowIndex}`)
-                .setFormula(`=SUM(F${firstDataRow}:F${lastDataRow})`);
+                .setFormula(`=SUM(F${firstDataRow}:F${lastDataRow - 1})`);
 
               // 设置 H 列合计公式
               worksheet
@@ -664,7 +664,6 @@ function registerEditEvent() {
                       worksheet
                         .getRange(`D${rowIndex}`)
                         .setFormula(`=C${rowIndex}-B${rowIndex}`);
-
                       // 设置公式 F=D*E
                       worksheet
                         .getRange(`F${rowIndex}`)
@@ -692,7 +691,7 @@ function registerEditEvent() {
               // 设置 F 列合计公式
               worksheet
                 .getRange(`F${endRow + 2}`)
-                .setFormula(`=SUM(F2:F${endRow + 1})`);
+                .setFormula(`=SUM(F2:F${endRow})`);
 
               // 设置 H 列合计公式
               worksheet
