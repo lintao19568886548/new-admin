@@ -58,3 +58,4 @@ playground/src/*.txt
 playground/src/views/finance/manage/*copy.vue
 apps/backend-mock/.env
 node.zip
+playground/src/views/system/role/example

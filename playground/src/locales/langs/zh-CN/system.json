@@ -140,6 +140,7 @@
     "permissions": "权限",
     "remark": "备注",
     "roleName": "角色名称",
+    "parent": "上级角色",
     "setPermissions": "授权",
     "status": "状态",
     "title": "角色管理"

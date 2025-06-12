@@ -34,21 +34,31 @@ const [Grid, gridApi] = useVbenVxeGrid({
     columns: useColumns(onActionClick, onStatusChange),
     height: 'auto',
     keepSource: true,
+    pagerConfig: {
+      enabled: false, // 禁用分页
+    },
     proxyConfig: {
       ajax: {
-        query: async ({ page }, formValues) => {
-          return await getRoleList({
-            page: page.currentPage,
-            pageSize: page.pageSize,
+        // 使用 _pageInfo 代替 {} 并添加类型注解
+        query: async (_pageInfo: any, formValues) => {
+          // 移除 page 参数
+          const result = await getRoleList({
+            // 不传递分页参数，期望API返回所有数据或按需修改API
             ...formValues,
           });
+          // 检查返回结果是否为带 items 的对象格式，如果是则返回 items，否则直接返回结果
+          // VxeTable 需要数组格式的数据
+          return result &&
+            typeof result === 'object' &&
+            Array.isArray((result as any).items)
+            ? (result as any).items
+            : result; // 假设直接返回数组
         },
       },
     },
     rowConfig: {
-      keyField: 'id',
+      keyField: 'roleId', // 使用 roleId 作为 key
     },
-
     toolbarConfig: {
       custom: true,
       export: false,
@@ -56,17 +66,30 @@ const [Grid, gridApi] = useVbenVxeGrid({
       search: true,
       zoom: true,
     },
+    treeConfig: {
+      // 添加 treeConfig
+      parentField: 'parentid', // 假设角色数据有 parentid 字段表示父级ID
+      rowField: 'roleId', // 使用 roleId 作为行ID
+      transform: false, // 后端返回树状结构时设为true，扁平结构设为false
+    },
   } as VxeTableGridOptions<SystemRoleApi.SystemRole>,
 });
 
-function onActionClick(e: OnActionClickParams<SystemRoleApi.SystemRole>) {
+// 修改参数类型为 OnActionClickParams<Recordable<any>> 并添加类型断言
+function onActionClick(e: OnActionClickParams<Recordable<any>>) {
+  const row = e.row as SystemRoleApi.SystemRole;
   switch (e.code) {
+    case 'append': {
+      // 添加 Append 操作
+      onAppend(row);
+      break;
+    }
     case 'delete': {
-      onDelete(e.row);
+      onDelete(row);
       break;
     }
     case 'edit': {
-      onEdit(e.row);
+      onEdit(row);
       break;
     }
   }
@@ -111,7 +134,8 @@ async function onStatusChange(
       `你要将${row.name}的状态切换为 【${status[newStatus.toString()]}】 吗？`,
       `切换状态`,
     );
-    await updateRole(row.roleId, { status: newStatus });
+    // 将 newStatus 转换为 boolean
+    await updateRole(row.roleId, { status: Boolean(newStatus) });
     return true;
   } catch {
     return false;
@@ -120,6 +144,11 @@ async function onStatusChange(
 
 function onEdit(row: SystemRoleApi.SystemRole) {
   formDrawerApi.setData(row).open();
+}
+
+// 添加 onAppend 函数
+function onAppend(row: SystemRoleApi.SystemRole) {
+  formDrawerApi.setData({ parentid: row.roleId }).open(); // 设置父级ID
 }
 
 function onDelete(row: SystemRoleApi.SystemRole) {
