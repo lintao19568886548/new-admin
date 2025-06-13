@@ -134,21 +134,21 @@ const overviewItems = computed<AnalysisOverviewItem[]>(() => [
   {
     icon: SvgDownloadIcon,
     title: '本月收入',
-    totalTitle: '环比增长',
-    totalValue:
-      analyticsData.value.monthData.incomeData[
-        analyticsData.value.monthData.incomeData.length - 1
-      ] || 0,
+    totalTitle: '本月总收入',
+    totalValue: analyticsData.value.monthData.incomeData.reduce(
+      (sum, curr) => sum + Number(curr),
+      0,
+    ),
     value: calculateGrowth(analyticsData.value.monthData.incomeData),
   },
   {
     icon: SvgBellIcon,
     title: '本月支出',
-    totalTitle: '环比增长',
-    totalValue:
-      analyticsData.value.monthData.expenseData[
-        analyticsData.value.monthData.expenseData.length - 1
-      ] || 0,
+    totalTitle: '本月总支出',
+    totalValue: analyticsData.value.monthData.expenseData.reduce(
+      (sum, curr) => sum + Number(curr),
+      0,
+    ),
     value: calculateGrowth(analyticsData.value.monthData.expenseData),
   },
 ]);
