@@ -473,29 +473,31 @@ function handleSave() {
     }
 
     // 将二维数组转换为对象数组
-    const updatedData = values.map((row) => {
-      const rowData: Record<string, any> = {};
-      columns.forEach((col, index) => {
-        const value = row[index];
-        // 根据字段类型进行转换
-        if (col.field === 'meterName') {
-          rowData[col.field] = String(value);
-          return;
-        }
-        rowData[col.field] = [
-          'amount',
-          'currentReading',
-          'monthlyUsage',
-          'multiplier',
-          'previousReading',
-          'totalUsage',
-          'unitPrice',
-        ].includes(col.field)
-          ? Number(value) || 0
-          : value;
-      });
-      return rowData;
-    });
+    const updatedData = values
+      .map((row) => {
+        const rowData: Record<string, any> = {};
+        columns.forEach((col, index) => {
+          const value = row[index];
+          // 根据字段类型进行转换
+          if (col.field === 'meterName') {
+            rowData[col.field] = String(value || '');
+            return;
+          }
+          rowData[col.field] = [
+            'amount',
+            'currentReading',
+            'monthlyUsage',
+            'multiplier',
+            'previousReading',
+            'totalUsage',
+            'unitPrice',
+          ].includes(col.field)
+            ? Number(value) || 0
+            : value;
+        });
+        return rowData;
+      })
+      .filter((item) => item.meterName !== '');
 
     // 触发成功事件并传递从 Univer 读取并转换后的数据
     emit('success', updatedData);
