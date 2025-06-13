@@ -16,6 +16,7 @@ import {
   SvgCardIcon,
   SvgDownloadIcon,
 } from '@vben/icons';
+import { useUserStore } from '@vben/stores';
 
 import { notification } from 'ant-design-vue';
 
@@ -34,6 +35,8 @@ import {
   AnalyticsParkElectricity,
   AnalyticsTrends,
 } from './components';
+
+const userStore = useUserStore();
 
 // 数据初始化
 const analyticsData = ref({
@@ -56,13 +59,16 @@ onMounted(async () => {
     const monthResult = await getAnalyticsData({ type: 'days' });
     analyticsData.value.monthData = monthResult;
 
-    const pendingReimbursement = await getPendingReimbursementCount();
-    if (pendingReimbursement.count > 0) {
-      notification.info({
-        description: `您有 ${pendingReimbursement.count} 条报销申请待处理`,
-        duration: null, // 不自动关闭
-        message: '待办提醒',
-      });
+    // 检查用户是否有报销审核权限
+    if (userStore.userInfo?.reimbursementAuth === 1) {
+      const pendingReimbursement = await getPendingReimbursementCount();
+      if (pendingReimbursement.count > 0) {
+        notification.info({
+          description: `您有 ${pendingReimbursement.count} 条报销申请待处理`,
+          duration: null, // 不自动关闭
+          message: '待办提醒',
+        });
+      }
     }
   } catch (error) {
     console.error('获取数据失败:', error);

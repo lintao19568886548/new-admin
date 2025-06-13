@@ -13,24 +13,13 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    // 检查用户权限
-    const userWithRoles = await prismaClient.user.findUnique({
-      where: { id: userinfo.id },
-      include: {
-        roles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const parkIds = userinfo.parks?.map((park) => park.parkId);
+    console.log('用户园区信息:', userinfo.parks);
+    console.log('提取的园区ID:', parkIds);
 
-    const privilegeLevels =
-      userWithRoles?.roles.map((r) => r.role.privilegeLevel || 0) || [];
-    const maxPrivilegeLevel =
-      privilegeLevels.length > 0 ? Math.max(...privilegeLevels) : 0;
-
-    if (maxPrivilegeLevel <= 2) {
+    // 如果用户没有关联任何园区，直接返回 count: 0
+    if (!parkIds?.length) {
+      console.log('用户没有关联任何园区，返回 count: 0');
       return useResponseSuccess({
         count: 0,
       });
@@ -39,24 +28,14 @@ export default eventHandler(async (event) => {
     const where: any = {
       isDeleted: false,
       status: 0,
+      parkId: { in: parkIds },
     };
-
-    if (
-      userinfo.username !== 'vben' &&
-      userinfo.username !== '董事长' &&
-      userinfo.username !== '总监'
-    ) {
-      const parkIds = userinfo.parks?.map((park) => park.parkId);
-      if (parkIds?.length) {
-        where.parkId = { in: parkIds };
-      } else {
-        where.username = userinfo.username;
-      }
-    }
+    console.log('查询条件:', where);
 
     const count = await prismaClient.reimbursement.count({
       where,
     });
+    console.log('查询结果:', count);
 
     return useResponseSuccess({
       count,
