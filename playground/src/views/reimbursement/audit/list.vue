@@ -34,6 +34,15 @@ import {
 const userStore = useUserStore();
 const userInfo = userStore.userInfo;
 
+// 园区选项
+const parkOptions = computed(() => {
+  const parks = userInfo?.parks || [];
+  return parks.map((park: { parkId: any; parkName: any }) => ({
+    label: park.parkName,
+    value: park.parkId,
+  }));
+});
+
 // 使用组合式函数
 const {
   auditForm,
@@ -107,6 +116,13 @@ onMounted(() => {
             class="w-48"
             allow-clear
             :title="!hasAuditPermission ? '您只能查看自己的报销申请记录' : ''"
+          />
+          <Select
+            v-model:value="(searchForm as any).park"
+            :options="parkOptions"
+            placeholder="请选择园区搜索"
+            class="w-48"
+            allow-clear
           />
           <Select
             v-model:value="searchForm.status"

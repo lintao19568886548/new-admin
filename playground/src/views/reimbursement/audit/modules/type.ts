@@ -121,23 +121,26 @@ export function useReimbursementAudit() {
 
   // 搜索表单 - 此处在list.vue中使用
   const searchForm = reactive<{
-    dateRange: [Dayjs, Dayjs] | undefined; // 修改类型为包含两个Dayjs对象的元组或undefined
+    dateRange: [Dayjs, Dayjs] | undefined;
+    park: string;
     payee: string;
     purpose: string;
     status: number | undefined;
   }>({
-    dateRange: undefined, // 修改初始值为undefined
+    dateRange: undefined,
+    park: '',
     payee: '',
     purpose: '',
     status: undefined,
   });
 
-  // 重置搜索 - 此处在list.vue中使用
+  // 重置搜索
   function resetSearch() {
-    searchForm.dateRange = undefined; // 修改重置值为undefined
+    searchForm.dateRange = undefined;
     searchForm.purpose = '';
     searchForm.status = undefined;
     searchForm.payee = '';
+    searchForm.park = '';
     pagination.current = 1;
     fetchReimbursements();
   }
@@ -175,7 +178,6 @@ export function useReimbursementAudit() {
 
       // 日期范围
       if (searchForm.dateRange && searchForm.dateRange.length === 2) {
-        // 使用可选链确保 dateRange[0] 和 dateRange[1] 存在 format 方法
         params.startDate = searchForm.dateRange[0]?.format('YYYY-MM-DD');
         params.endDate = searchForm.dateRange[1]?.format('YYYY-MM-DD');
       }
@@ -183,6 +185,15 @@ export function useReimbursementAudit() {
       // 任何人都可以按领款人筛选
       if (searchForm.payee) {
         params.payee = searchForm.payee;
+      }
+
+      // 添加园区搜索条件
+      if (searchForm.park) {
+        // 将园区名称转换为园区ID
+        const parkId = Number(searchForm.park);
+        if (!Number.isNaN(parkId)) {
+          params.parkId = parkId;
+        }
       }
 
       // 非审核人员只能在自己的申请中进行搜索
