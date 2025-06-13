@@ -140,7 +140,7 @@ watch(
       Number(billData.waterFee || 0) +
       Number(billData.factoryRent || 0) +
       Number(billData.managementFee || 0) +
-      Number(billData.garbageFee || 0) +
+      // Number(billData.garbageFee || 0) +
       Number(billData.serviceFee || 0) +
       Number(billData.invoiceTax || 0) +
       Number(billData.penaltyFee || 0);

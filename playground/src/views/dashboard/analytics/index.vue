@@ -2,7 +2,8 @@
 import type { AnalysisOverviewItem } from '@vben/common-ui';
 import type { TabOption } from '@vben/types';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, h, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 // UI 组件
 import {
@@ -37,6 +38,7 @@ import {
 } from './components';
 
 const userStore = useUserStore();
+const router = useRouter();
 
 // 数据初始化
 const analyticsData = ref({
@@ -62,10 +64,27 @@ onMounted(async () => {
     // 检查用户是否有报销审核权限
     if (userStore.userInfo?.reimbursementAuth === 1) {
       const pendingReimbursement = await getPendingReimbursementCount();
+
       if (pendingReimbursement.count > 0) {
         notification.info({
+          btn: h(
+            'a',
+            {
+              onClick: () => {
+                router.push('/reimbursement/audit');
+                notification.close('reimbursement-notification');
+              },
+              style: {
+                color: '#1890ff',
+                cursor: 'pointer',
+                marginLeft: '8px',
+              },
+            },
+            '去处理',
+          ),
           description: `您有 ${pendingReimbursement.count} 条报销申请待处理`,
-          duration: null, // 不自动关闭
+          duration: null,
+          key: 'reimbursement-notification',
           message: '待办提醒',
         });
       }

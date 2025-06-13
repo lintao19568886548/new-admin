@@ -9,10 +9,16 @@ import {
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
+    console.error('用户未登录或token无效');
     return unAuthorizedResponse(event);
   }
 
   try {
+    console.log('开始获取待处理报销数量，用户信息:', {
+      username: userinfo.username,
+      parks: userinfo.parks,
+    });
+
     const parkIds = userinfo.parks?.map((park) => park.parkId);
     console.log('用户园区信息:', userinfo.parks);
     console.log('提取的园区ID:', parkIds);
@@ -35,7 +41,7 @@ export default eventHandler(async (event) => {
     const count = await prismaClient.reimbursement.count({
       where,
     });
-    console.log('查询结果:', count);
+    console.log('查询结果 - 待处理报销数量:', count);
 
     return useResponseSuccess({
       count,
