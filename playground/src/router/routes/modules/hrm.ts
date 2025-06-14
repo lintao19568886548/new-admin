@@ -53,6 +53,14 @@ const routes: RouteRecordRaw[] = [
         },
         // children: [],
       },
+      {
+        path: 'leaveapplication', // Ensure relative path
+        name: 'HrmLeaveApplication',
+        component: () => import('#/views/hrm/leaveapplication/list.vue'),
+        meta: {
+          title: $t('请假申请'),
+        },
+      },
     ],
   },
 ];

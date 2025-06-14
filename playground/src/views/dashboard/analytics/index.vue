@@ -52,13 +52,19 @@ const analyticsData = ref({
   },
 });
 
+// 求和辅助函数
+const sumData = (data: number[] = []) =>
+  data.reduce((sum, curr) => sum + Number(curr), 0);
+
 // 获取数据
 onMounted(async () => {
   try {
-    const yearResult = await getAnalyticsData({ type: 'months' });
-    analyticsData.value.yearData = yearResult;
+    const [yearResult, monthResult] = await Promise.all([
+      getAnalyticsData({ type: 'months' }),
+      getAnalyticsData({ type: 'days' }),
+    ]);
 
-    const monthResult = await getAnalyticsData({ type: 'days' });
+    analyticsData.value.yearData = yearResult;
     analyticsData.value.monthData = monthResult;
 
     // 检查用户是否有报销审核权限
@@ -71,7 +77,7 @@ onMounted(async () => {
             'a',
             {
               onClick: () => {
-                router.push('/reimbursement/audit');
+                router.push('/audit');
                 notification.close('reimbursement-notification');
               },
               style: {
@@ -96,7 +102,6 @@ onMounted(async () => {
 
 // 计算环比增长率
 const calculateGrowth = (data: number[] = []) => {
-  if (data.length === 0) return 0;
   const currentMonth = data[data.length - 1] || 0;
   const lastMonth = data[data.length - 2] || 0;
   return lastMonth
@@ -109,46 +114,28 @@ const overviewItems = computed<AnalysisOverviewItem[]>(() => [
     icon: SvgCardIcon,
     title: '收入总额',
     totalTitle: '年度收入',
-    totalValue: analyticsData.value.yearData.incomeDatamonths.reduce(
-      (sum, curr) => sum + Number(curr),
-      0,
-    ),
-    value: analyticsData.value.monthData.incomeData.reduce(
-      (sum, curr) => sum + Number(curr),
-      0,
-    ),
+    totalValue: sumData(analyticsData.value.yearData.incomeDatamonths),
+    value: sumData(analyticsData.value.monthData.incomeData),
   },
   {
     icon: SvgCakeIcon,
     title: '支出总额',
     totalTitle: '年度支出',
-    totalValue: analyticsData.value.yearData.expenseDatamonths.reduce(
-      (sum, curr) => sum + Number(curr),
-      0,
-    ),
-    value: analyticsData.value.monthData.expenseData.reduce(
-      (sum, curr) => sum + Number(curr),
-      0,
-    ),
+    totalValue: sumData(analyticsData.value.yearData.expenseDatamonths),
+    value: sumData(analyticsData.value.monthData.expenseData),
   },
   {
     icon: SvgDownloadIcon,
     title: '本月收入',
     totalTitle: '本月总收入',
-    totalValue: analyticsData.value.monthData.incomeData.reduce(
-      (sum, curr) => sum + Number(curr),
-      0,
-    ),
+    totalValue: sumData(analyticsData.value.monthData.incomeData),
     value: calculateGrowth(analyticsData.value.monthData.incomeData),
   },
   {
     icon: SvgBellIcon,
     title: '本月支出',
     totalTitle: '本月总支出',
-    totalValue: analyticsData.value.monthData.expenseData.reduce(
-      (sum, curr) => sum + Number(curr),
-      0,
-    ),
+    totalValue: sumData(analyticsData.value.monthData.expenseData),
     value: calculateGrowth(analyticsData.value.monthData.expenseData),
   },
 ]);
