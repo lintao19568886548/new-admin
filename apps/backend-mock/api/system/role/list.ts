@@ -109,7 +109,6 @@ export default eventHandler(async (event) => {
       updateTime: role.updateTime ? role.updateTime.toISOString() : null,
       permissions: role.roleMenus.map((rm) => rm.menu.menuId),
       parkIds: role.roleParks.map((rp) => rp.park.parkId),
-      level: role.privilegeLevel,
       parentid: role.parentid,
       // 分页时不返回 children 数组
     }));

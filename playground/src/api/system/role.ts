@@ -13,14 +13,14 @@ export namespace SystemRoleApi {
     children?: SystemRole[];
     /** 创建时间 */
     createTime?: string;
-    /** 角色拥有的菜单ID列表 (根据后端实际情况可能需要调整) */
-    menuIds?: number[];
     /** 角色名称 */
     name?: string;
     /** 父级角色ID */
     parentid?: null | number;
-    /** 角色关联的园区ID列表 (根据后端实际情况可能需要调整) */
+    /** 角色关联的园区ID列表 */
     parkIds?: number[];
+    /** 角色拥有的权限菜单ID列表 */
+    permissions?: number[];
     /** 权限等级 */
     privilegeLevel?: number;
     /** 费率/评分 */
@@ -33,7 +33,6 @@ export namespace SystemRoleApi {
     status: boolean;
     /** 更新时间 */
     updateTime?: string;
-    // [key: string]: any; // 移除宽泛的索引签名，明确列出字段
   }
 }
 
@@ -104,9 +103,20 @@ async function getRolePermissionTree() {
   return getMenuList();
 }
 
+/**
+ * @function getRoleById
+ * @description 根据 ID 获取单个角色信息
+ * @param id 角色 ID
+ * @returns 返回角色详细信息
+ */
+async function getRoleById(id: number | string) {
+  return requestClient.get<SystemRoleApi.SystemRole>(`/system/role/${id}`);
+}
+
 export {
   createRole,
   deleteRole,
+  getRoleById,
   getRoleList,
   getRolePermissionTree,
   updateRole,
