@@ -18,6 +18,7 @@ import { useVbenForm } from '#/adapter/form';
 import { getMenuList, getMenusByParentRole } from '#/api/system/menu';
 import { createRole, updateRole } from '#/api/system/role';
 import { $t } from '#/locales';
+import { useRoleStore } from '#/store/modules/role';
 
 import { useFormSchema } from '../data';
 
@@ -28,6 +29,9 @@ type UpsertRole = Omit<
 >;
 
 const emits = defineEmits(['success']);
+
+// 使用角色store
+const roleStore = useRoleStore();
 
 const formData = ref<SystemRoleApi.SystemRole>();
 
@@ -48,7 +52,27 @@ const [Drawer, drawerApi] = useVbenDrawer({
     const values = (await formApi.getValues()) as UpsertRole;
     drawerApi.lock();
     (id.value ? updateRole(id.value, values) : createRole(values))
-      .then(() => {
+      .then((result) => {
+        // 更新store中的数据
+        if (id.value) {
+          // 编辑模式：更新现有角色
+          const updatedRole = {
+            ...formData.value,
+            ...values,
+            roleId: id.value,
+          };
+          roleStore.updateRole(updatedRole as SystemRoleApi.SystemRole);
+        } else {
+          // 新增模式：添加新角色
+          if (result && typeof result === 'object' && 'roleId' in result) {
+            // 如果API返回了完整的角色对象
+            roleStore.addRole(result as SystemRoleApi.SystemRole);
+          } else {
+            // 如果API只返回ID，则刷新整个列表
+            roleStore.refreshRoles();
+          }
+        }
+
         emits('success');
         drawerApi.close();
       })

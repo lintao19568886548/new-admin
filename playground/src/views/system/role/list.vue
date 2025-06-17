@@ -13,8 +13,9 @@ import { Plus } from '@vben/icons';
 import { Button, message, Modal } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { deleteRole, getRoleList, updateRole } from '#/api';
+import { deleteRole, updateRole } from '#/api';
 import { $t } from '#/locales';
+import { useRoleStore } from '#/store/modules/role';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
@@ -23,6 +24,9 @@ const [FormDrawer, formDrawerApi] = useVbenDrawer({
   connectedComponent: Form,
   destroyOnClose: true,
 });
+
+// 使用角色store
+const roleStore = useRoleStore();
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
@@ -39,20 +43,28 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     proxyConfig: {
       ajax: {
-        // 使用 _pageInfo 代替 {} 并添加类型注解
+        // 使用角色store获取数据
         query: async (_pageInfo: any, formValues) => {
-          // 移除 page 参数
-          const result = await getRoleList({
-            // 不传递分页参数，期望API返回所有数据或按需修改API
-            ...formValues,
-          });
-          // 检查返回结果是否为带 items 的对象格式，如果是则返回 items，否则直接返回结果
-          // VxeTable 需要数组格式的数据
-          return result &&
-            typeof result === 'object' &&
-            Array.isArray((result as any).items)
-            ? (result as any).items
-            : result; // 假设直接返回数组
+          // 使用store获取角色数据，支持缓存
+          const result = await roleStore.fetchRoles();
+
+          // 如果有搜索条件，在前端进行过滤
+          if (formValues && Object.keys(formValues).length > 0) {
+            return result.filter((role: SystemRoleApi.SystemRole) => {
+              // 简单的名称过滤，可根据需要扩展
+              if (formValues.name) {
+                return role.name
+                  ?.toLowerCase()
+                  .includes(formValues.name.toLowerCase());
+              }
+              if (formValues.status !== undefined && formValues.status !== '') {
+                return role.status === formValues.status;
+              }
+              return true;
+            });
+          }
+
+          return result;
         },
       },
     },
@@ -135,7 +147,12 @@ async function onStatusChange(
       `切换状态`,
     );
     // 将 newStatus 转换为 boolean
+    const updatedRole = { ...row, status: Boolean(newStatus) };
     await updateRole(row.roleId, { status: Boolean(newStatus) });
+
+    // 更新store中的数据
+    roleStore.updateRole(updatedRole);
+
     return true;
   } catch {
     return false;
@@ -163,6 +180,10 @@ function onDelete(row: SystemRoleApi.SystemRole) {
         content: $t('ui.actionMessage.deleteSuccess', [row.name]),
         key: 'action_process_msg',
       });
+
+      // 从store中删除数据
+      roleStore.removeRole(row.roleId);
+
       onRefresh();
     })
     .catch(() => {
@@ -171,6 +192,8 @@ function onDelete(row: SystemRoleApi.SystemRole) {
 }
 
 function onRefresh() {
+  // 刷新store中的数据
+  roleStore.refreshRoles();
   gridApi.query();
 }
 

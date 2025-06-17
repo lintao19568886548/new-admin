@@ -8,11 +8,13 @@ import { h } from 'vue';
 import { formatDateTime, getPopupContainer } from '@vben/utils';
 
 import { getParkList } from '#/api/park/park';
-// 导入获取角色列表的API
-import { getRoleList } from '#/api/system/role';
 import { $t } from '#/locales';
+import { useRoleStore } from '#/store/modules/role';
 
 export function useFormSchema(): VbenFormSchema[] {
+  // 获取角色store实例
+  const roleStore = useRoleStore();
+
   return [
     {
       component: 'Input',
@@ -24,7 +26,7 @@ export function useFormSchema(): VbenFormSchema[] {
     {
       component: 'ApiTreeSelect',
       componentProps: {
-        api: getRoleList, // 使用获取角色列表的API
+        api: () => roleStore.fetchRoles(), // 使用角色store获取数据
         class: 'w-full',
         // 假设 getRoleList 在无参数时返回树状结构
         filterTreeNode(input: string, node: Recordable<any>) {
@@ -37,7 +39,7 @@ export function useFormSchema(): VbenFormSchema[] {
         },
         getPopupContainer,
         labelField: 'name', // 显示角色名称
-        resultField: 'items', // 指定包含树数据的字段
+        // resultField: 'items', // 移除resultField，因为store直接返回数组
         showSearch: true,
         treeDefaultExpandAll: false,
         valueField: 'roleId', // 值为角色ID
