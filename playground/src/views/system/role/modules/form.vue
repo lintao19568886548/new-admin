@@ -112,22 +112,13 @@ function getNodeClass(node: Recordable<any>) {
         <Spin :spinning="loadingPermissions">
           <VbenTree
             v-model:value="slotProps.modelValue"
-            绑定到
-            form
-            的
-            menu-ids
-            字段
             :tree-data="menuTreeData"
-            使用
             menu-tree-data
             multiple
             bordered
             checkable
-            允许勾选
             :default-expanded-level="2"
             :get-node-class="getNodeClass"
-            check-strictly
-            父子节点勾选状态不关联
             v-bind="slotProps"
             value-field="menuId"
             label-field="meta.title"
