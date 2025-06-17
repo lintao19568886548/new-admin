@@ -1,9 +1,35 @@
 import type { EChartsOption } from 'echarts';
 
+const COLORS = {
+  amount: '#019680',
+  currentMonth: '#5ab1ef',
+  expense: '#5ab1ef',
+  income: '#91cc75',
+  lastMonth: '#91cc75',
+  pie: ['#5ab1ef', '#b6a2de', '#67e0e3', '#2ec7c9'],
+  usage: '#5ab1ef',
+};
+
+/**
+ * Type definition for park electricity data items.
+ */
+export interface ParkElectricityDataItem {
+  parkName: string;
+  tenants: {
+    amount: number;
+    tenantName: string;
+    usage: number;
+  }[];
+  totalAmount: number;
+  totalUsage: number;
+}
+
 /**
  * 园区电费图表配置生成函数
  */
-export function getParkElectricityChartConfig(data: any[]): EChartsOption {
+export function getParkElectricityChartConfig(
+  data: ParkElectricityDataItem[],
+): EChartsOption {
   // 提取园区名称作为X轴数据
   const parkNames = data.map((item) => item.parkName);
 
@@ -25,7 +51,7 @@ export function getParkElectricityChartConfig(data: any[]): EChartsOption {
       {
         data: usageData,
         itemStyle: {
-          color: '#5ab1ef',
+          color: COLORS.usage,
         },
         name: '电度数',
         type: 'bar',
@@ -33,7 +59,7 @@ export function getParkElectricityChartConfig(data: any[]): EChartsOption {
       {
         data: amountData,
         itemStyle: {
-          color: '#019680',
+          color: COLORS.amount,
         },
         name: '电费金额',
         type: 'bar',
@@ -45,20 +71,24 @@ export function getParkElectricityChartConfig(data: any[]): EChartsOption {
         type: 'shadow',
       },
       formatter(params: any) {
-        const parkData = data[params[0].dataIndex];
-        let html = `<div style="font-weight:bold;margin-bottom:5px">${parkData.parkName}</div>`;
-        html += `<div>总电度数: ${parkData.totalUsage} 度</div>`;
-        html += `<div>总电费: ${parkData.totalAmount} 元</div>`;
+        if (params?.length) {
+          const parkData = data[params[0].dataIndex];
+          if (parkData) {
+            let html = `<div style="font-weight:bold;margin-bottom:5px">${parkData.parkName}</div>`;
+            html += `<div>总电度数: ${parkData.totalUsage} 度</div>`;
+            html += `<div>总电费: ${parkData.totalAmount} 元</div>`;
 
-        // 添加租户详情
-        if (parkData.tenants && parkData.tenants.length > 0) {
-          html += `<div style="margin-top:5px;font-weight:bold">租户详情:</div>`;
-          parkData.tenants.forEach((tenant: any) => {
-            html += `<div>${tenant.tenantName}: ${tenant.usage}度 / ${tenant.amount}元</div>`;
-          });
+            // 添加租户详情
+            if (parkData.tenants && parkData.tenants.length > 0) {
+              html += `<div style="margin-top:5px;font-weight:bold">租户详情:</div>`;
+              parkData.tenants.forEach((tenant) => {
+                html += `<div>${tenant.tenantName}: ${tenant.usage}度 / ${tenant.amount}元</div>`;
+              });
+            }
+            return html;
+          }
         }
-
-        return html;
+        return '';
       },
       trigger: 'axis',
     },
@@ -111,7 +141,7 @@ export function getTrendsChartConfig(data: {
         areaStyle: {},
         data: data.incomeData,
         itemStyle: {
-          color: '#5ab1ef',
+          color: COLORS.income,
         },
         name: '收入',
         smooth: true,
@@ -121,7 +151,7 @@ export function getTrendsChartConfig(data: {
         areaStyle: {},
         data: data.expenseData,
         itemStyle: {
-          color: '#019680',
+          color: COLORS.expense,
         },
         name: '支出',
         smooth: true,
@@ -131,7 +161,7 @@ export function getTrendsChartConfig(data: {
     tooltip: {
       axisPointer: {
         lineStyle: {
-          color: '#019680',
+          color: COLORS.expense,
           width: 1,
         },
       },
@@ -162,7 +192,8 @@ export function getRadarChartConfig(
   type: 'expense' | 'income',
 ): EChartsOption {
   // 计算最大值，向上取整以获得更好的显示效果
-  const maxValue = Math.ceil(Math.max(...data.map((item) => item.value)) * 1.2);
+  const values = data.map((item) => item.value);
+  const maxValue = values.length > 0 ? Math.ceil(Math.max(...values) * 1.2) : 0;
 
   // 构建雷达图指标
   const indicator = data.map((item) => ({
@@ -171,7 +202,7 @@ export function getRadarChartConfig(
   }));
 
   const seriesName = type === 'income' ? '收入趋势' : '支出趋势';
-  const color = '#5ab1ef';
+  const color = type === 'income' ? COLORS.income : COLORS.expense;
 
   return {
     legend: {
@@ -198,7 +229,7 @@ export function getRadarChartConfig(
               color,
             },
             name: seriesName,
-            value: data.map((item) => item.value),
+            value: values,
           },
         ],
         itemStyle: {
@@ -238,7 +269,7 @@ export function getPieChartConfig(
         animationEasing: 'exponentialInOut',
         animationType: 'scale',
         center: ['50%', '45%'],
-        color: ['#5ab1ef', '#b6a2de', '#67e0e3', '#2ec7c9'],
+        color: COLORS.pie,
         data,
         emphasis: {
           label: {
@@ -302,7 +333,7 @@ export function getCompareChartConfig(
         animationEasing: 'exponentialInOut',
         animationType: 'scale',
         avoidLabelOverlap: false,
-        color: ['#5ab1ef', '#91cc75'],
+        color: [COLORS.currentMonth, COLORS.lastMonth],
         data: chartData,
         emphasis: {
           label: {
@@ -350,14 +381,9 @@ export function getMonthlyChartConfig(data: {
     ? data.incomeDatamonths.map(Number)
     : [];
 
-  // Calculate max value for y-axis
-  let maxValue = 0;
-  for (const value of [...expenseData, ...incomeData]) {
-    if (value > maxValue) {
-      maxValue = value;
-    }
-  }
-  maxValue = Math.ceil(maxValue * 1.2);
+  const allData = [...expenseData, ...incomeData];
+  const maxValue =
+    allData.length > 0 ? Math.ceil(Math.max(...allData) * 1.2) : 0;
 
   return {
     grid: {
@@ -376,7 +402,7 @@ export function getMonthlyChartConfig(data: {
       {
         barGap: 0.2,
         barMaxWidth: 80,
-        color: '#5ab1ef',
+        color: COLORS.expense,
         data: expenseData,
         name: '支出',
         type: 'bar',
@@ -384,7 +410,7 @@ export function getMonthlyChartConfig(data: {
       {
         barGap: 0.2,
         barMaxWidth: 80,
-        color: '#91cc75',
+        color: COLORS.income,
         data: incomeData,
         name: '收入',
         type: 'bar',
@@ -420,19 +446,18 @@ export function getMonthlyChartConfig(data: {
       data: Array.from({ length: 12 }).map((_item, index) => `${index + 1}月`),
       type: 'category',
     },
-    yAxis: [
-      {
-        axisLine: {
-          show: false,
-        },
-        name: '金额',
-        splitLine: {
-          lineStyle: {
-            type: 'dashed',
-          },
-        },
-        type: 'value',
+    yAxis: {
+      axisLine: {
+        show: false,
       },
-    ],
+      max: maxValue,
+      name: '金额',
+      splitLine: {
+        lineStyle: {
+          type: 'dashed',
+        },
+      },
+      type: 'value',
+    },
   };
 }
