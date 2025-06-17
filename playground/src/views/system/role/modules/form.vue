@@ -15,7 +15,7 @@ import { Spin } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
 // 引入菜单 API 用于权限树
-import { getMenuList } from '#/api/system/menu';
+import { getMenuList, getMenusByParentRole } from '#/api/system/menu';
 import { createRole, updateRole } from '#/api/system/role';
 import { $t } from '#/locales';
 
@@ -66,12 +66,11 @@ const [Drawer, drawerApi] = useVbenDrawer({
         formApi.setValues(data);
       } else {
         id.value = undefined;
+        formData.value = undefined;
       }
 
-      if (menuTreeData.value.length === 0) {
-        // 使用 menuTreeData
-        loadPermissions();
-      }
+      // 每次打开都重新加载权限树，确保根据当前角色的父角色权限正确显示
+      loadPermissions();
     }
   },
 });
@@ -79,8 +78,11 @@ const [Drawer, drawerApi] = useVbenDrawer({
 async function loadPermissions() {
   loadingPermissions.value = true;
   try {
-    // 使用菜单列表 API 获取权限树
-    const res = await getMenuList(); // 调用 getMenuList
+    // 根据当前角色的父角色ID获取权限树
+    const parentRoleId = formData.value?.parentid;
+    const res = parentRoleId
+      ? await getMenusByParentRole(parentRoleId) // 有父角色时，根据父角色权限限制显示范围
+      : await getMenuList(); // 顶级角色显示所有权限
     menuTreeData.value = res as unknown as DataNode[]; // 更新 menuTreeData
   } finally {
     loadingPermissions.value = false;

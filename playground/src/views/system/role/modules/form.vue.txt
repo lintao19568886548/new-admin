@@ -1,0 +1,356 @@
+<script lang="ts" setup>
+import type { DataNode } from 'ant-design-vue/es/tree';
+
+import type { Recordable } from '@vben/types';
+
+// 导入类型
+import type { SystemRoleApi } from '#/api/system/role';
+
+import { computed, ref } from 'vue';
+
+import { useVbenDrawer, VbenTree } from '@vben/common-ui';
+import { IconifyIcon } from '@vben/icons';
+
+import { Spin } from 'ant-design-vue';
+
+import { useVbenForm } from '#/adapter/form';
+// 引入菜单 API 用于权限树
+import { getMenuList } from '#/api/system/menu';
+// 导入角色相关 API
+import {
+  createRole,
+  getRoleById, // 引入根据 ID 获取角色的 API
+  updateRole,
+} from '#/api/system/role';
+import { $t } from '#/locales';
+
+import { useFormSchema } from '../data';
+
+// 定义 UpsertRole 类型，与 createRole/updateRole 的参数类型一致
+type UpsertRole = Omit<
+  SystemRoleApi.SystemRole,
+  'children' | 'createTime' | 'roleId' | 'updateTime'
+>;
+
+const emits = defineEmits(['success']);
+
+const formData = ref<SystemRoleApi.SystemRole>();
+
+const [Form, formApi] = useVbenForm({
+  schema: useFormSchema(),
+  showDefaultActions: false,
+});
+
+const menuTreeData = ref<DataNode[]>([]); // 重命名为 menuTreeData 更清晰
+const loadingPermissions = ref(false);
+// 添加 ref 用于存储父角色菜单 ID
+const parentMenuIds = ref<null | number[]>(null);
+
+const id = ref();
+const [Drawer, drawerApi] = useVbenDrawer({
+  async onConfirm() {
+    const { valid } = await formApi.validate();
+    if (!valid) return;
+    // 获取表单值并进行类型断言
+    const values = (await formApi.getValues()) as UpsertRole;
+    drawerApi.lock();
+    (id.value ? updateRole(id.value, values) : createRole(values))
+      .then(() => {
+        emits('success');
+        drawerApi.close();
+      })
+      .catch(() => {
+        drawerApi.unlock();
+      });
+  },
+  async onOpenChange(isOpen) {
+    if (isOpen) {
+      const data = drawerApi.getData<SystemRoleApi.SystemRole>();
+      // --- 调试日志开始 ---
+      console.warn('[onOpenChange] Initial data:', JSON.stringify(data));
+      // --- 调试日志结束 ---
+      // 重置父菜单 ID
+      parentMenuIds.value = null;
+      formApi.resetForm();
+      if (data) {
+        formData.value = data;
+        id.value = data.roleId;
+        formApi.setValues(data);
+        // --- 调试日志开始 ---
+        console.warn(
+          '[onOpenChange] After initial setValues, form values:',
+          JSON.stringify(formApi.getValues()),
+        );
+        // --- 调试日志结束 ---
+
+        // 如果存在父级 ID，则加载父级权限
+        if (data.parentid) {
+          loadingPermissions.value = true; // 开始加载时显示 loading
+          try {
+            // 使用正确的 getRoleById API 获取父角色信息
+            const parentRole = await getRoleById(data.parentid);
+            // --- 调试日志开始 ---
+            console.warn(
+              '[onOpenChange] Parent role data:',
+              JSON.stringify(parentRole),
+            );
+            // --- 调试日志结束 ---
+            if (parentRole && parentRole.permissions) {
+              // 直接从返回的父角色对象中获取 permissions (即 menuIds)
+              parentMenuIds.value = parentRole.permissions;
+            } else {
+              console.warn(
+                `无法获取父角色 ${data.parentid} 的权限信息或权限为空。`,
+              );
+              // 如果父角色没有权限，子角色理论上不应有可选权限，设置为空数组
+              parentMenuIds.value = [];
+            }
+            // --- 调试日志开始 ---
+            console.warn(
+              '[onOpenChange] Parent menu IDs set to:',
+              JSON.stringify(parentMenuIds.value),
+            );
+            // --- 调试日志结束 ---
+          } catch (error) {
+            console.error('加载父角色权限失败:', error);
+            // 加载失败，可以根据业务策略处理，例如不允许创建/编辑子角色，或允许选择所有权限
+            // 这里暂时设置为 null，将在 loadPermissions 中处理（如果为 null，则不过滤）
+            // 或者更严格地设置为空数组 []，表示无可选权限
+            parentMenuIds.value = []; // 设为空数组更符合权限限制逻辑
+          } finally {
+            // 确保在加载权限之前完成父权限获取
+            await loadPermissions();
+            // --- 调试日志开始 ---
+            console.warn(
+              '[onOpenChange] Before setting final permissions, current form values:',
+              JSON.stringify(formApi.getValues()),
+            );
+            console.warn(
+              '[onOpenChange] Setting permissions from initial data:',
+              JSON.stringify(data?.permissions),
+            );
+            // --- 调试日志结束 ---
+            // --- 新增开始 ---
+            // 加载权限树后，设置当前角色已有的权限用于回显
+            if (data?.permissions) {
+              formApi.setValues({ permissions: data.permissions });
+            }
+            // --- 新增结束 ---
+            // --- 调试日志开始 ---
+            console.warn(
+              '[onOpenChange] After setting final permissions, form values:',
+              JSON.stringify(formApi.getValues()),
+            );
+            // --- 调试日志结束 ---
+            loadingPermissions.value = false; // 结束加载时隐藏 loading
+          }
+        } else {
+          // 没有父级 ID，直接加载所有权限
+          await loadPermissions();
+          // --- 调试日志开始 ---
+          console.warn(
+            '[onOpenChange] (No parent) Before setting final permissions, current form values:',
+            JSON.stringify(formApi.getValues()),
+          );
+          console.warn(
+            '[onOpenChange] (No parent) Setting permissions from initial data:',
+            JSON.stringify(data?.permissions),
+          );
+          // --- 调试日志结束 ---
+          // --- 新增开始 ---
+          // 设置当前角色已有的权限用于回显（虽然data不存在，但以防万一）
+          if (data?.permissions) {
+            formApi.setValues({ permissions: data.permissions });
+          }
+          // --- 新增结束 ---
+          // --- 调试日志开始 ---
+          console.warn(
+            '[onOpenChange] (No parent) After setting final permissions, form values:',
+            JSON.stringify(formApi.getValues()),
+          );
+          // --- 调试日志结束 ---
+        }
+      } else {
+        id.value = undefined;
+        // 新建角色，加载所有权限
+        await loadPermissions();
+        // --- 调试日志开始 ---
+        console.warn(
+          '[onOpenChange] New role, form values after loadPermissions:',
+          JSON.stringify(formApi.getValues()),
+        );
+        // --- 调试日志结束 ---
+      }
+    } else {
+      // 关闭抽屉时清空数据
+      menuTreeData.value = [];
+      parentMenuIds.value = null;
+    }
+  },
+});
+
+/**
+ * 递归过滤菜单树
+ * @param treeData 原始菜单树
+ * @param allowedIds 允许的菜单 ID 列表
+ * @returns 过滤后的菜单树
+ */
+function filterTreeByAllowedIds(
+  treeData: DataNode[],
+  allowedIds: string[],
+): DataNode[] {
+  if (!allowedIds || allowedIds.length === 0) {
+    // 如果父角色没有权限，则子角色理论上也不应有任何权限
+    // 或者根据业务需求返回空数组或原始树
+    return []; // 返回空数组表示无可选权限
+  }
+  const allowedSet = new Set(allowedIds);
+
+  function filterNode(node: DataNode): DataNode | null {
+    // 检查当前节点 ID 是否在允许列表中
+    const isAllowed = allowedSet.has(node.key as string);
+
+    if (!isAllowed) {
+      return null; // 如果当前节点不允许，则直接过滤掉
+    }
+
+    // 如果当前节点允许，检查其子节点
+    let children: DataNode[] | undefined;
+    if (node.children && node.children.length > 0) {
+      children = node.children
+        // 修复 lint 错误：不直接传递函数引用
+        .map((childNode) => filterNode(childNode))
+        .filter((child) => child !== null) as DataNode[];
+    }
+
+    // 返回包含过滤后子节点的当前节点副本
+    return {
+      ...node,
+      children,
+    };
+  }
+
+  // 修复 lint 错误：不直接传递函数引用
+  return treeData
+    .map((node) => filterNode(node))
+    .filter((node) => node !== null) as DataNode[];
+}
+
+/**
+ * 加载权限菜单树，如果存在父角色权限，则进行过滤
+ */
+async function loadPermissions() {
+  loadingPermissions.value = true;
+  try {
+    const res = await getMenuList();
+    // --- 调试日志开始 ---
+    console.warn(
+      '[loadPermissions] Raw menu list from API:',
+      JSON.stringify(res),
+    );
+    // --- 调试日志结束 ---
+    let finalTreeData = res as unknown as DataNode[];
+
+    // 如果存在父角色权限 ID，则过滤菜单树
+    if (parentMenuIds.value === null) {
+      // --- 调试日志开始 ---
+      console.warn(
+        '[loadPermissions] Not filtering tree (no parent or parent check failed).',
+      );
+      // --- 调试日志结束 ---
+    } else {
+      // --- 调试日志开始 ---
+      console.warn(
+        '[loadPermissions] Filtering tree with parentMenuIds:',
+        JSON.stringify(parentMenuIds.value),
+      );
+      // --- 调试日志结束 ---
+      finalTreeData = filterTreeByAllowedIds(
+        finalTreeData,
+        parentMenuIds.value.map(String),
+      );
+      // --- 调试日志开始 ---
+      console.warn(
+        '[loadPermissions] Filtered tree data:',
+        JSON.stringify(finalTreeData),
+      );
+      // --- 调试日志结束 ---
+    }
+
+    menuTreeData.value = finalTreeData;
+    // --- 调试日志开始 ---
+    console.warn(
+      '[loadPermissions] Final menuTreeData value:',
+      JSON.stringify(menuTreeData.value),
+    );
+    // --- 调试日志结束 ---
+  } finally {
+    loadingPermissions.value = false;
+  }
+}
+
+const getDrawerTitle = computed(() => {
+  return formData.value?.roleId
+    ? $t('common.edit', $t('system.role.name'))
+    : $t('common.create', $t('system.role.name'));
+});
+
+function getNodeClass(node: Recordable<any>) {
+  const classes: string[] = [];
+  if (node.value?.type === 'button') {
+    classes.push('inline-flex');
+    if (node.index % 3 >= 1) {
+      classes.push('!pl-0');
+    }
+  }
+
+  return classes.join(' ');
+}
+</script>
+<template>
+  <Drawer :title="getDrawerTitle">
+    <Form>
+      <template #permissions="slotProps">
+        <Spin :spinning="loadingPermissions">
+          <!-- // check-strictly // 移除此属性以启用父子节点勾选联动 -->
+          <VbenTree
+            v-model:value="slotProps.modelValue"
+            :tree-data="menuTreeData"
+            menu-tree-data
+            multiple
+            bordered
+            checkable
+            :default-expanded-level="2"
+            :get-node-class="getNodeClass"
+            v-bind="slotProps"
+            value-field="menuId"
+            label-field="meta.title"
+            icon-field="meta.icon"
+          >
+            <template #node="{ value }">
+              <IconifyIcon v-if="value.meta.icon" :icon="value.meta.icon" />
+              {{ $t(value.meta.title) }}
+            </template>
+          </VbenTree>
+        </Spin>
+      </template>
+    </Form>
+  </Drawer>
+</template>
+<style lang="css" scoped>
+:deep(.ant-tree-title) {
+  .tree-actions {
+    display: none;
+    margin-left: 20px;
+  }
+}
+
+:deep(.ant-tree-title:hover) {
+  .tree-actions {
+    display: flex;
+    flex: auto;
+    justify-content: flex-end;
+    margin-left: 20px;
+  }
+}
+</style>
