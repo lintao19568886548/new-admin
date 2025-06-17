@@ -41,10 +41,10 @@ const formState = reactive({
 
 const aFormRef = ref();
 const rules: Record<string, Rule[]> = {
-  endDate: [{ message: '请选择结束日期', required: true, trigger: 'change' }],
+  endDate: [{ message: '请选择结束时间', required: true, trigger: 'change' }],
   parkId: [{ message: '请选择所在园区', required: true, trigger: 'change' }],
   reason: [{ message: '请输入请假原因', required: true, trigger: 'blur' }],
-  startDate: [{ message: '请选择开始日期', required: true, trigger: 'change' }],
+  startDate: [{ message: '请选择开始时间', required: true, trigger: 'change' }],
   user: [
     { message: '请输入申请人姓名', required: true, trigger: 'blur' },
     { max: 20, message: '姓名长度在 2-20 个字符之间', min: 2, trigger: 'blur' },
@@ -163,21 +163,23 @@ onMounted(() => {
         />
       </AForm.Item>
 
-      <AForm.Item name="startDate" label="开始日期" required>
+      <AForm.Item name="startDate" label="开始时间" required>
         <DatePicker
           v-model:value="formState.startDate"
+          show-time
           class="w-full"
-          placeholder="请选择开始日期"
-          value-format="YYYY-MM-DD"
+          placeholder="请选择开始时间"
+          value-format="YYYY-MM-DD HH:mm:ss"
         />
       </AForm.Item>
 
-      <AForm.Item name="endDate" label="结束日期" required>
+      <AForm.Item name="endDate" label="结束时间" required>
         <DatePicker
           v-model:value="formState.endDate"
+          show-time
           class="w-full"
-          placeholder="请选择结束日期"
-          value-format="YYYY-MM-DD"
+          placeholder="请选择结束时间"
+          value-format="YYYY-MM-DD HH:mm:ss"
         />
       </AForm.Item>
 

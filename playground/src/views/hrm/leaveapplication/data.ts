@@ -19,15 +19,17 @@ export function useColumns(): VxeTableGridOptions<LeaveApplication>['columns'] {
     },
     {
       field: 'startDate',
-      formatter: ({ cellValue }) => (cellValue ? cellValue.split('T')[0] : ''),
-      title: '开始日期',
-      width: 150,
+      formatter: ({ cellValue }) =>
+        cellValue ? cellValue.replace('T', ' ').split('.')[0] : '',
+      title: '开始时间',
+      width: 180,
     },
     {
       field: 'endDate',
-      formatter: ({ cellValue }) => (cellValue ? cellValue.split('T')[0] : ''),
-      title: '结束日期',
-      width: 150,
+      formatter: ({ cellValue }) =>
+        cellValue ? cellValue.replace('T', ' ').split('.')[0] : '',
+      title: '结束时间',
+      width: 180,
     },
     {
       field: 'reason',

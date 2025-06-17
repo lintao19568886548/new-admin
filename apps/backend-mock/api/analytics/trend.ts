@@ -10,11 +10,11 @@ export default eventHandler(async (event) => {
   // 获取当前日期信息
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1; // JavaScript月份从0开始
+  const currentMonth = now.getMonth(); // JavaScript月份从0开始
 
   // 计算当月的开始和结束日期
-  const startDate = new Date(currentYear, currentMonth - 1, 1);
-  const endDate = new Date(currentYear, currentMonth, 0); // 当月最后一天
+  const startDate = new Date(currentYear, currentMonth, 1, 0, 0, 0);
+  const endDate = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59); // 当月最后一天
 
   // 使用Prisma查询当月数据并按billCategory分组
   const trend = await prismaClient.finance.groupBy({
