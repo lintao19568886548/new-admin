@@ -16,7 +16,7 @@ import { Spin } from 'ant-design-vue';
 import { useVbenForm } from '#/adapter/form';
 // 引入菜单 API 用于权限树
 import { getMenuList, getMenusByParentRole } from '#/api/system/menu';
-import { createRole, updateRole } from '#/api/system/role';
+import { createRole, getRoleById, updateRole } from '#/api/system/role';
 import { $t } from '#/locales';
 import { useRoleStore } from '#/store/modules/role';
 
@@ -52,16 +52,21 @@ const [Drawer, drawerApi] = useVbenDrawer({
     const values = (await formApi.getValues()) as UpsertRole;
     drawerApi.lock();
     (id.value ? updateRole(id.value, values) : createRole(values))
-      .then((result) => {
+      .then(async (result) => {
         // 更新store中的数据
         if (id.value) {
-          // 编辑模式：更新现有角色
-          const updatedRole = {
-            ...formData.value,
-            ...values,
-            roleId: id.value,
-          };
-          roleStore.updateRole(updatedRole as SystemRoleApi.SystemRole);
+          // 编辑模式：重新获取该角色的最新数据并更新store
+          try {
+            const latestRoleData = await getRoleById(id.value);
+            if (latestRoleData) {
+              roleStore.updateRole(latestRoleData);
+            }
+          } catch (error) {
+            console.error('获取最新角色数据失败，刷新整个列表:', error);
+            // 如果获取单个角色失败，则强制清空缓存并重新加载
+            roleStore.clearRoles();
+            roleStore.fetchRoles();
+          }
         } else {
           // 新增模式：添加新角色
           if (result && typeof result === 'object' && 'roleId' in result) {

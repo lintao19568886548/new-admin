@@ -38,6 +38,38 @@ export default eventHandler(async (event) => {
 
       // 2. 如果提供了permissions，则创建角色菜单关联
       if (permissions && Array.isArray(permissions)) {
+        // 2.0 安全验证：检查子角色权限是否超出父角色范围
+        if (parentIdValue) {
+          // 获取父角色的权限信息
+          const parentRole = await prisma.role.findUnique({
+            where: { roleId: parentIdValue },
+            include: {
+              roleMenus: {
+                where: { isDeleted: false },
+                select: { menuId: true },
+              },
+            },
+          });
+
+          if (parentRole) {
+            const parentMenuIds = new Set(
+              parentRole.roleMenus.map((rm) => rm.menuId),
+            );
+            const requestedMenuIds = permissions.map(Number);
+
+            // 检查是否有超出父角色权限范围的菜单ID
+            const invalidMenuIds = requestedMenuIds.filter(
+              (menuId) => !parentMenuIds.has(menuId),
+            );
+
+            if (invalidMenuIds.length > 0) {
+              throw new Error(
+                `子角色权限不能超出父角色范围。无效的菜单ID: ${invalidMenuIds.join(', ')}`,
+              );
+            }
+          }
+        }
+
         const menuIds = permissions.map(Number);
 
         if (menuIds.length > 0) {

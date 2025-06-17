@@ -24,14 +24,7 @@ export const useRoleStore = defineStore('role', () => {
    * 获取角色列表数据
    * 如果数据已存在则直接返回，否则调用API获取
    */
-  const fetchRoles = async (
-    forceRefresh = false,
-  ): Promise<SystemRoleApi.SystemRole[]> => {
-    // 如果数据已存在且不强制刷新，直接返回缓存数据
-    if (isLoaded.value && roleList.value.length > 0 && !forceRefresh) {
-      return roleList.value;
-    }
-
+  const fetchRoles = async (): Promise<SystemRoleApi.SystemRole[]> => {
     loading.value = true;
     try {
       const result = await getRoleList();
@@ -61,7 +54,7 @@ export const useRoleStore = defineStore('role', () => {
    * 刷新角色列表数据
    */
   const refreshRoles = async (): Promise<SystemRoleApi.SystemRole[]> => {
-    return fetchRoles(true);
+    return fetchRoles();
   };
 
   /**

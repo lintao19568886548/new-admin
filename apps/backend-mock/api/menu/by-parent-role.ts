@@ -43,7 +43,7 @@ export default eventHandler(async (event) => {
     // 处理菜单数据
     const processedMenus = processMenuData(allMenus, {
       removeEmptyFields: true,
-      fieldsToRemove: ['menuId', 'metaId', 'type', 'status', 'pid'],
+      fieldsToRemove: [],
       removeEmptyChildren: true,
     });
 
@@ -110,7 +110,7 @@ export default eventHandler(async (event) => {
   // 一次性处理所有数据转换
   const processedMenus = processMenuData(menus, {
     removeEmptyFields: true,
-    fieldsToRemove: ['menuId', 'metaId', 'type', 'status', 'pid'],
+    fieldsToRemove: [],
     removeEmptyChildren: true,
   });
 
