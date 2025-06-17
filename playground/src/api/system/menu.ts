@@ -148,10 +148,22 @@ async function deleteMenu(id: string) {
   return requestClient.delete(`/system/menu/${id}`);
 }
 
+/**
+ * 根据父角色权限获取菜单列表
+ * 用于限制子角色的权限树显示范围
+ * @param parentRoleId 父角色ID，如果为空则返回所有菜单
+ */
+async function getMenusByParentRole(parentRoleId?: number) {
+  return requestClient.get<SystemMenuApi.SystemMenu[]>('/menu/by-parent-role', {
+    params: { parentRoleId },
+  });
+}
+
 export {
   createMenu,
   deleteMenu,
   getMenuList,
+  getMenusByParentRole,
   isMenuNameExists,
   isMenuPathExists,
   updateMenu,
