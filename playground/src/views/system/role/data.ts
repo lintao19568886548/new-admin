@@ -41,7 +41,7 @@ export function useFormSchema(): VbenFormSchema[] {
         labelField: 'name', // 显示角色名称
         // resultField: 'items', // 移除resultField，因为store直接返回数组
         showSearch: true,
-        treeDefaultExpandAll: false,
+        treeDefaultExpandAll: true,
         valueField: 'roleId', // 值为角色ID
         childrenField: 'children', // 子节点字段
       },

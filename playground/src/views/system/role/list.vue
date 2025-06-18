@@ -79,6 +79,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       zoom: true,
     },
     treeConfig: {
+      expandAll: true, // 默认展开所有树节点
       // 添加 treeConfig
       parentField: 'parentid', // 假设角色数据有 parentid 字段表示父级ID
       rowField: 'roleId', // 使用 roleId 作为行ID
