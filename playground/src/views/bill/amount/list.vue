@@ -80,7 +80,7 @@ function onEdit(row: AmountBill) {
 }
 
 function onNext(row: AmountBill) {
-  billFormRef.value?.open(row, 'next');
+  billFormRef.value?.open(row, { isNextMonth: true });
 }
 
 /**

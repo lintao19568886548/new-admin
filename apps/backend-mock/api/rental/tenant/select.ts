@@ -122,8 +122,8 @@ export default eventHandler(async (event) => {
       .flatMap((park) =>
         park.rentalTenants.map((tenant) => {
           return {
-            value: tenant.rentalTenantId,
-            label: `${tenant.tenantName}`,
+            tenantId: tenant.rentalTenantId,
+            tenantName: `${tenant.tenantName}`,
           };
         }),
       );

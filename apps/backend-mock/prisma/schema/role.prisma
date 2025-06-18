@@ -1,18 +1,18 @@
 model Role {
-  roleId         Int        @id @default(autoincrement()) @map("role_id")
-  name           String?    @db.VarChar(50)
-  remark         String?    @db.VarChar(100)
-  status         Boolean
-  parentid       Int?
-  createTime     DateTime?  @default(now()) @map("create_time")
-  updateTime     DateTime?  @updatedAt @map("update_time")
-  roleMenus      RoleMenu[] @relation("RoleToRoleMenu")
-  userRoles      UserRole[] @relation("RoleToUserRole")
-  roleParks      RolePark[] @relation("RoleToPark")
+  roleId            Int        @id @default(autoincrement()) @map("role_id")
+  name              String?    @db.VarChar(50)
+  remark            String?    @db.VarChar(100)
+  status            Boolean
+  parentid          Int?
+  createTime        DateTime?  @default(now()) @map("create_time")
+  updateTime        DateTime?  @updatedAt @map("update_time")
+  roleMenus         RoleMenu[] @relation("RoleToRoleMenu")
+  userRoles         UserRole[] @relation("RoleToUserRole")
+  roleParks         RolePark[] @relation("RoleToPark")
   reimbursementAuth Int?       @map("reimbursement_auth")
-  rates          Int?       @map("rates")
-  children       Role[]     @relation("RoleToRole")
-  parent         Role?      @relation("RoleToRole", fields: [parentid], references: [roleId], onDelete: NoAction, onUpdate: NoAction)
+  rates             Int?       @map("rates")
+  children          Role[]     @relation("RoleToRole")
+  parent            Role?      @relation("RoleToRole", fields: [parentid], references: [roleId], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([parentid])
   @@map("role")

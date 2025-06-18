@@ -11,6 +11,34 @@ const billData = ref();
 const route = useRoute();
 const query = ref(route.query);
 
+// 计算费用合计项目
+const feeItems = computed(() => {
+  if (billData.value?.extraProjectItem) {
+    try {
+      const parsed = JSON.parse(billData.value.extraProjectItem);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (error) {
+      console.error('解析 extraProjectItem 失败', error);
+    }
+  }
+  // 回退逻辑
+  const items = [
+    { itemName: '电费', value: billData.value?.eleFee },
+    { itemName: '水费', value: billData.value?.waterFee },
+    { itemName: '厂房租金', value: billData.value?.factoryRent },
+    { itemName: '基本管理费', value: billData.value?.managementFee },
+    { itemName: '服务费', value: billData.value?.serviceFee },
+    { itemName: '开票税金', value: billData.value?.invoiceTax },
+    { itemName: '滞纳金', value: billData.value?.penaltyFee },
+    { itemName: '本月收费金额', value: billData.value?.totalFee },
+  ];
+  return items.filter(
+    (item) => Number(item.value) !== 0 || item.itemName === '本月收费金额',
+  );
+});
+
 // 格式化停水停电日期
 const formattedCutoffDate = computed(() => {
   if (!query.value.cutoffDate) return '';
@@ -112,7 +140,9 @@ onMounted(async () => {
   <div class="bill-print-container">
     <div class="bill-header">
       <div class="bill-title">收款通知单</div>
-      <div class="bill-recipient">TO：{{ billData?.tenant.tenantName }}</div>
+      <div class="bill-recipient">
+        TO：{{ billData?.tenant?.tenantName || billData?.tenantName }}
+      </div>
     </div>
     <div class="bill-content">
       <div class="project-table">
@@ -232,53 +262,9 @@ onMounted(async () => {
       <div class="bill-section-title">项目合计</div>
 
       <div class="summary-table">
-        <div class="summary-row">
-          <div class="summary-cell summary-label">电费</div>
-          <div class="summary-cell summary-value">{{ billData?.eleFee }}</div>
-        </div>
-        <div class="summary-row">
-          <div class="summary-cell summary-label">水费</div>
-          <div class="summary-cell summary-value">{{ billData?.waterFee }}</div>
-        </div>
-        <div class="summary-row">
-          <div class="summary-cell summary-label">厂房租金</div>
-          <div class="summary-cell summary-value">
-            {{ billData?.factoryRent }}
-          </div>
-        </div>
-        <div class="summary-row">
-          <div class="summary-cell summary-label">基本管理费</div>
-          <div class="summary-cell summary-value">
-            {{ billData?.managementFee }}
-          </div>
-        </div>
-        <div class="summary-row" v-if="Number(billData?.serviceFee) !== 0">
-          <div class="summary-cell summary-label">服务费</div>
-          <div class="summary-cell summary-value">
-            {{ billData?.serviceFee }}
-          </div>
-        </div>
-        <div class="summary-row" v-if="Number(billData?.garbageFee) !== 0">
-          <div class="summary-cell summary-label">垃圾处理费</div>
-          <div class="summary-cell summary-value">
-            {{ billData?.garbageFee }}
-          </div>
-        </div>
-        <div class="summary-row" v-if="Number(billData?.invoiceTax) !== 0">
-          <div class="summary-cell summary-label">开票税金</div>
-          <div class="summary-cell summary-value">
-            {{ billData?.invoiceTax }}
-          </div>
-        </div>
-        <div class="summary-row" v-if="Number(billData?.penaltyFee) !== 0">
-          <div class="summary-cell summary-label">滞纳金</div>
-          <div class="summary-cell summary-value">
-            {{ billData?.penaltyFee }}
-          </div>
-        </div>
-        <div class="summary-row">
-          <div class="summary-cell summary-label">本月收费金额</div>
-          <div class="summary-cell summary-value">{{ billData?.totalFee }}</div>
+        <div class="summary-row" :key="item.itemName" v-for="item in feeItems">
+          <div class="summary-cell summary-label">{{ item.itemName }}</div>
+          <div class="summary-cell summary-value">{{ item.value }}</div>
         </div>
       </div>
 

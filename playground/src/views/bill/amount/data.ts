@@ -14,10 +14,12 @@ export interface AmountBill {
   createTime?: Date | string; // 创建时间
   eleBills?: any[]; // 电费账单项（详情用）
   eleFee: number; // 电费合计
+  eleItem?: string; // 电费原始数据
   eleTax?: number; // 电费税金
   eleTaxRate?: number; // 电费税金
   extraEleItem?: string[]; // 额外服务费项;
   extraEleRate?: number; // 额外服务费比率;
+  extraProjectItem?: string; // 额外项目(费用合计)
   factoryRent: number; // 厂房租金
   garbageFee: number; // 垃圾管理费
   garbageRate?: number; // 垃圾管理费比率;
@@ -43,6 +45,7 @@ export interface AmountBill {
   totalFee: number; // 总费用
   waterBills?: any[]; // 水费账单项（详情用）
   waterFee: number; // 水费合计
+  waterItem?: string; // 水费原始数据
   waterTax?: number; // 水费税金
   waterTaxRate?: number; // 水费税金
 }

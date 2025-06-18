@@ -20,6 +20,9 @@ model AmountBill {
   penaltyItem        String?       @map("penalty_item") @db.VarChar(200) ///滞纳金明细
   extraEleRate       Decimal?      @map("extra_ele_rate") @db.Decimal(5, 2) ///额外电费比率
   extraEleItem       String?       @map("extra_ele_item") @db.VarChar(200) ///额外电费明细
+  eleItem            String?       @map("ele_item") @db.LongText /// 电费信息
+  waterItem          String?       @map("water_item") @db.LongText /// 水费信息
+  extraProjectItem   String?       @map("project_amount_item") @db.LongText ///额外项目明细
   taxRate            String?       @map("tax_rate") @db.LongText /// 开票税金, 以json格式存储
   tenantId           Int?          @map("tenant_id")
   remark             String?       @db.VarChar(100)
