@@ -1,5 +1,19 @@
 import { requestClient } from '#/api/request';
 
+export interface FactoryMaint {
+  createTime?: string;
+  endTime?: string;
+  factory: string;
+  factoryMaintenanceId: number;
+  maintenanceItem: string;
+  maintenanceStatus: string;
+  parkId?: number;
+  personInCharge: string;
+  remark?: string;
+  startTime: string;
+  updateTime?: string;
+}
+
 export async function getFactoryMaintList(params: any) {
   return requestClient.get('/maintenance/factoryMaint/list', { params });
 }

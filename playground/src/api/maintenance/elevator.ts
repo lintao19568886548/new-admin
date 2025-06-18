@@ -1,5 +1,23 @@
 import { requestClient } from '#/api/request';
 
+export interface Elevator {
+  checker: string;
+  checkTime: string;
+  createTime?: string;
+  elevatorId: number;
+  factory: string;
+  loadCapacity: number;
+  name: string;
+  parkId?: number;
+  productionDate?: string;
+  remark?: string;
+  sizeHeight: number;
+  sizeLength: number;
+  sizeWidth: number;
+  status: string;
+  updateTime?: string;
+}
+
 export async function getElevatorList(params: any) {
   return requestClient.get('/maintenance/elevator/list', { params });
 }

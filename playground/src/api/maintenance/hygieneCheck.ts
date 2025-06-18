@@ -1,5 +1,18 @@
 import { requestClient } from '#/api/request';
 
+export interface HygieneCheck {
+  checkDate: string;
+  checker: string;
+  checkItems: string;
+  checkResult: string;
+  createTime?: string;
+  factory: string;
+  hygieneCheckId: number;
+  parkId?: number;
+  remark?: string;
+  updateTime?: string;
+}
+
 export async function getHygieneCheckList(params: any) {
   return requestClient.get('/maintenance/hygieneCheck/list', { params });
 }

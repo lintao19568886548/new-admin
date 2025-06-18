@@ -1,5 +1,19 @@
 import { requestClient } from '#/api/request';
 
+export interface Firefighting {
+  checker: string;
+  checkTime: string;
+  createTime?: string;
+  extinguisher: string;
+  factory: string;
+  fireExit: string;
+  firefightingId: number;
+  hydrant: string;
+  parkId?: number;
+  remark?: string;
+  updateTime?: string;
+}
+
 export async function getFirefightingList(params: any) {
   return requestClient.get('/maintenance/firefighting/list', { params });
 }

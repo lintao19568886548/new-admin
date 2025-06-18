@@ -1,7 +1,6 @@
-import type { TransformerItem } from './types';
-
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
+import type { TransformerItem } from '#/api/maintenance';
 
 import { formatDateTime } from '@vben/utils';
 
