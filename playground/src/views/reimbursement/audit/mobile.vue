@@ -181,6 +181,9 @@ function triggerShowAuditModal(record: ReimbursementItem) {
             <p><strong>领款人:</strong> {{ item.payee }}</p>
             <p><strong>园区:</strong> {{ item.park }}</p>
             <p><strong>申请日期:</strong> {{ formatDateTime(item.date) }}</p>
+            <p v-if="(item as any).auditOpinion">
+              <strong>审核意见:</strong> {{ (item as any).auditOpinion }}
+            </p>
             <div
               v-if="item.images && item.images.length > 0"
               class="card-images"
