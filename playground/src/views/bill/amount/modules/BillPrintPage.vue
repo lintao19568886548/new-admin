@@ -262,10 +262,15 @@ onMounted(async () => {
       <div class="bill-section-title">项目合计</div>
 
       <div class="summary-table">
-        <div class="summary-row" :key="item.itemName" v-for="item in feeItems">
-          <div class="summary-cell summary-label">{{ item.itemName }}</div>
-          <div class="summary-cell summary-value">{{ item.value }}</div>
-        </div>
+        <template :key="item.itemName" v-for="item in feeItems">
+          <div
+            class="summary-row"
+            v-if="item.value !== null && item.value !== 0"
+          >
+            <div class="summary-cell summary-label">{{ item.itemName }}</div>
+            <div class="summary-cell summary-value">{{ item.value }}</div>
+          </div>
+        </template>
       </div>
 
       <!-- 底部区域 -->
