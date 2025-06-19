@@ -5,7 +5,6 @@ import { onMounted, reactive, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 import { Plus, Search } from '@vben/icons';
-import { useUserStore } from '@vben/stores';
 import { formatDateTime } from '@vben/utils';
 
 import {
@@ -38,7 +37,7 @@ const STATUS_MAP: Record<string, { color: string; text: string }> = {
 const activeKey = ref([]);
 
 // Store and reactive data
-const userStore = useUserStore();
+// const userStore = useUserStore();
 const loading = ref(false);
 const list = ref<FactoryMaint[]>([]);
 const currentPark = ref<null | { parkId: string; parkName: string }>(null);
@@ -90,11 +89,11 @@ async function fetchData() {
       ...queryParams,
       currentPage: pagination.current,
       currentPark: currentPark.value?.parkId ?? -1,
-      pageSize: pagination.pageSize,
+      limit: pagination.pageSize,
     };
     const result = await getFactoryMaintList(params);
     list.value = result.items || [];
-    pagination.total = result.page?.total || 0;
+    pagination.total = result.total || 0;
   } catch (error) {
     console.error('Failed to fetch maintenance list:', error);
     message.error('获取列表失败');
@@ -157,9 +156,9 @@ function onDelete(record: FactoryMaint) {
 
 // Lifecycle
 onMounted(() => {
-  if (userStore.userInfo?.parks?.[0]) {
-    currentPark.value = userStore.userInfo.parks[0];
-  }
+  // if (userStore.userInfo?.parks?.[0]) {
+  //   currentPark.value = userStore.userInfo.parks[0];
+  // }
   fetchData();
 });
 </script>

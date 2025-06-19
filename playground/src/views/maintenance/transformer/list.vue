@@ -128,12 +128,17 @@ const [Grid, gridApi] = useVbenVxeGrid({
             formData.factoryId = formData.factoryId[1];
           }
 
+          // 为了让逻辑更清晰，我们在这里处理园区ID
+          const parkIdToSend = currentPark.value
+            ? currentPark.value.parkId
+            : -1;
+
           // 构建查询参数，包含分页信息
           const params = {
             ...formData,
             currentPage: page.page?.currentPage || 1,
-            currentPark: currentPark.value ? currentPark.value.parkId : -1,
-            pageSize: page.page?.pageSize || 20,
+            currentPark: parkIdToSend,
+            limit: page.page?.pageSize || 20,
           };
           try {
             // 调用API获取数据
