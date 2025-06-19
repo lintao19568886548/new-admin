@@ -1,11 +1,11 @@
 import type { EventHandlerRequest, H3Event } from 'h3';
 
-export function useResponseSuccess<T = any>(data: T) {
+export function useResponseSuccess<T = any>(data: T, message: string = 'ok') {
   return {
     code: 0,
     data,
     error: null,
-    message: 'ok',
+    message,
   };
 }
 
