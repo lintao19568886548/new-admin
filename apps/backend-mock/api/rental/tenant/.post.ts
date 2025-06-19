@@ -19,6 +19,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(tenant);
   } catch (error) {
     console.error('创建租户失败:', error);
-    return serverErrorResponse(`创建租户失败\n${error}`, event);
+    return serverErrorResponse(`创建租户失败`, event);
   }
 });

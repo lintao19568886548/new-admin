@@ -20,6 +20,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(res);
   } catch (error) {
     console.error('插入数据失败:', error);
-    return serverErrorResponse(`插入数据失败\n${error}`, event);
+    return serverErrorResponse(`插入数据失败`, event);
   }
 });

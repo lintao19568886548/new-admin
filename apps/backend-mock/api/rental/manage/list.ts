@@ -157,6 +157,6 @@ export default eventHandler(async (event) => {
     });
   } catch (error) {
     console.error('获取厂房列表失败:', error);
-    return serverErrorResponse(`获取厂房列表失败\n${error}`, event);
+    return serverErrorResponse(`获取厂房列表失败`, event);
   }
 });

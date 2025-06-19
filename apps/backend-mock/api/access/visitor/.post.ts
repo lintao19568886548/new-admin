@@ -19,6 +19,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(accessVisitor);
   } catch (error) {
     console.error('创建访客信息失败:', error);
-    return serverErrorResponse(`创建访客信息失败\n${error}`, event);
+    return serverErrorResponse(`创建访客信息失败`, event);
   }
 });

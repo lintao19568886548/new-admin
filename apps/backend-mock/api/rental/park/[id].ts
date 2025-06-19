@@ -196,6 +196,6 @@ export default eventHandler(async (event) => {
     });
   } catch (error) {
     console.error('后端获取园区详情失败:', error);
-    return serverErrorResponse(`获取园区详情失败\n${error}`, event);
+    return serverErrorResponse(`获取园区详情失败`, event);
   }
 });

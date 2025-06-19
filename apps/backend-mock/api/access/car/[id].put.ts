@@ -28,6 +28,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(accessCar);
   } catch (error) {
     console.error('更新车辆信息失败:', error);
-    return serverErrorResponse(`更新车辆信息失败\n${error}`, event);
+    return serverErrorResponse(`更新车辆信息失败`, event);
   }
 });

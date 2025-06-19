@@ -25,6 +25,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(tenant);
   } catch (error) {
     console.error('更新租户失败:', error);
-    return serverErrorResponse(`更新租户失败\n${error}`, event);
+    return serverErrorResponse(`更新租户失败`, event);
   }
 });

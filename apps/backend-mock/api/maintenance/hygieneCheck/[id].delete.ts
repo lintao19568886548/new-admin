@@ -26,6 +26,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(result);
   } catch (error) {
     console.error('删除账单失败:', error);
-    return serverErrorResponse(`删除账单失败\n${error}`, event);
+    return serverErrorResponse(`删除账单失败`, event);
   }
 });

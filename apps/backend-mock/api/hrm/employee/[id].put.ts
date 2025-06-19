@@ -48,6 +48,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(employee);
   } catch (error) {
     console.error('更新员工信息失败:', error);
-    return serverErrorResponse(`更新员工信息失败\n${error}`, event);
+    return serverErrorResponse(`更新员工信息失败`, event);
   }
 });

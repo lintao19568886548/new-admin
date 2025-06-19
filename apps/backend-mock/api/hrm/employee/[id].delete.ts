@@ -36,6 +36,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(employee, '删除员工成功');
   } catch (error) {
     console.error('删除员工信息失败:', error);
-    return serverErrorResponse(`删除员工信息失败\n${error}`, event);
+    return serverErrorResponse(`删除员工信息失败`, event);
   }
 });

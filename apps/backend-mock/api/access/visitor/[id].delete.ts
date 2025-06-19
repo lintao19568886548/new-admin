@@ -20,6 +20,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(null);
   } catch (error) {
     console.error('删除访客信息失败:', error);
-    return serverErrorResponse(`删除访客信息失败\n${error}`, event);
+    return serverErrorResponse(`删除访客信息失败`, event);
   }
 });

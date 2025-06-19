@@ -18,6 +18,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(accessCar);
   } catch (error) {
     console.error('创建车辆信息失败:', error);
-    return serverErrorResponse(`创建车辆信息失败\n${error}`, event);
+    return serverErrorResponse(`创建车辆信息失败`, event);
   }
 });

@@ -26,6 +26,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(updatedFinance);
   } catch (error) {
     console.error('更新财务数据失败:', error);
-    return serverErrorResponse(`更新财务数据失败\n${error}`, event);
+    return serverErrorResponse(`更新财务数据失败`, event);
   }
 });

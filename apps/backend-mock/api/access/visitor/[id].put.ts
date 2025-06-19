@@ -24,6 +24,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(accessVisitor);
   } catch (error) {
     console.error('更新访客信息失败:', error);
-    return serverErrorResponse(`更新访客信息失败\n${error}`, event);
+    return serverErrorResponse(`更新访客信息失败`, event);
   }
 });
