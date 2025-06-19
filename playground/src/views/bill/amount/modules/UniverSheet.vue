@@ -504,7 +504,18 @@ async function init() {
 
       if (eleDataEndRow >= eleDataStartRow) {
         for (let i = eleDataStartRow; i <= eleDataEndRow; i++) {
-          worksheet.getRange(`D${i}`).setFormula(`=C${i}-B${i}`);
+          const item = eleData[i - eleDataStartRow];
+          const currentReading = Number(item.currentReading) || 0;
+          const previousReading = Number(item.previousReading) || 0;
+          const monthlyUsage = Number(item.monthlyUsage) || 0;
+          if (
+            item &&
+            Math.abs(currentReading - previousReading - monthlyUsage) > 0.001 // 允许小的精度误差
+          ) {
+            worksheet.getRange(`D${i}`).setValue(item.monthlyUsage);
+          } else {
+            worksheet.getRange(`D${i}`).setFormula(`=C${i}-B${i}`);
+          }
           worksheet.getRange(`F${i}`).setFormula(`=D${i}*E${i}`);
           worksheet.getRange(`H${i}`).setFormula(`=F${i}*G${i}`);
         }
@@ -512,7 +523,18 @@ async function init() {
 
       if (waterDataEndRow >= waterDataStartRow) {
         for (let i = waterDataStartRow; i <= waterDataEndRow; i++) {
-          worksheet.getRange(`D${i}`).setFormula(`=C${i}-B${i}`);
+          const item = waterData[i - waterDataStartRow];
+          const currentReading = Number(item.currentReading) || 0;
+          const previousReading = Number(item.previousReading) || 0;
+          const monthlyUsage = Number(item.monthlyUsage) || 0;
+          if (
+            item &&
+            Math.abs(currentReading - previousReading - monthlyUsage) > 0.001 // 允许小的精度误差
+          ) {
+            worksheet.getRange(`D${i}`).setValue(item.monthlyUsage);
+          } else {
+            worksheet.getRange(`D${i}`).setFormula(`=C${i}-B${i}`);
+          }
           worksheet.getRange(`F${i}`).setFormula(`=D${i}*E${i}`);
           worksheet.getRange(`H${i}`).setFormula(`=F${i}*G${i}`);
         }
@@ -704,7 +726,7 @@ function getData() {
     }
 
     if (isEleSection) {
-      if (row[0] === '名称' || !row[0]) continue;
+      if (row[0] === '名称') continue;
 
       const eleItem: Record<string, { originalText: string; value: any }> = {};
 
@@ -738,7 +760,7 @@ function getData() {
       eleBills.push(rowData);
       if (row[0] === '合计') isEleSection = false;
     } else if (isWaterSection) {
-      if (row[0] === '名称' || !row[0]) continue;
+      if (row[0] === '名称') continue;
 
       const waterItem: Record<string, { originalText: string; value: any }> =
         {};
