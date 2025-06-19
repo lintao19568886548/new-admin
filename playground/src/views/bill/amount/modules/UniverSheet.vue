@@ -70,6 +70,12 @@ async function init() {
     const worksheet = workbook.getActiveSheet();
 
     let rowIndex = 1;
+    let parsedEleItems: Record<string, { originalText: string; value: any }>[] =
+      [];
+    let parsedWaterItems: Record<
+      string,
+      { originalText: string; value: any }
+    >[] = [];
 
     worksheet.getRange(`A${rowIndex}`).setValue('收款通知单').setFontSize(16);
     rowIndex++;
@@ -181,16 +187,11 @@ async function init() {
 
     const eleDataStartRow = rowIndex;
     if (eleData.length > 0) {
-      let parsedEleItems: Record<
-        string,
-        { originalText: string; value: any }
-      >[] = [];
       if (props.billData.eleItem) {
         try {
           parsedEleItems = JSON.parse(props.billData.eleItem);
         } catch (error) {
           console.error('解析电费原始数据失败:', error);
-          parsedEleItems = [];
         }
       }
 
@@ -264,16 +265,11 @@ async function init() {
 
     const waterDataStartRow = rowIndex;
     if (waterData.length > 0) {
-      let parsedWaterItems: Record<
-        string,
-        { originalText: string; value: any }
-      >[] = [];
       if (props.billData.waterItem) {
         try {
           parsedWaterItems = JSON.parse(props.billData.waterItem);
         } catch (error) {
           console.error('解析水费原始数据失败:', error);
-          parsedWaterItems = [];
         }
       }
 
@@ -504,39 +500,93 @@ async function init() {
 
       if (eleDataEndRow >= eleDataStartRow) {
         for (let i = eleDataStartRow; i <= eleDataEndRow; i++) {
-          const item = eleData[i - eleDataStartRow];
-          const currentReading = Number(item?.currentReading) || 0;
-          const previousReading = Number(item?.previousReading) || 0;
-          const monthlyUsage = Number(item?.monthlyUsage) || 0;
+          const parsedItem = parsedEleItems[i - eleDataStartRow];
+          // Sanitize all relevant numeric inputs, defaulting to 0 if invalid
+
+          // Validate and set Monthly Usage (Column D)
           if (
-            item &&
-            Math.abs(currentReading - previousReading - monthlyUsage) > 0.001 // 允许小的精度误差
+            parsedItem &&
+            parsedItem.monthlyUsage &&
+            parsedItem.monthlyUsage.originalText !== null
           ) {
-            worksheet.getRange(`D${i}`).setValue(item.monthlyUsage);
+            worksheet
+              .getRange(`D${i}`)
+              .setValue(parsedItem.monthlyUsage.originalText);
           } else {
             worksheet.getRange(`D${i}`).setFormula(`=C${i}-B${i}`);
           }
-          worksheet.getRange(`F${i}`).setFormula(`=D${i}*E${i}`);
-          worksheet.getRange(`H${i}`).setFormula(`=F${i}*G${i}`);
+
+          // Validate and set Total Usage (Column F)
+          if (
+            parsedItem &&
+            parsedItem.totalUsage &&
+            parsedItem.totalUsage.originalText !== null
+          ) {
+            worksheet
+              .getRange(`F${i}`)
+              .setValue(parsedItem.totalUsage.originalText);
+          } else {
+            worksheet.getRange(`F${i}`).setFormula(`=D${i}*E${i}`);
+          }
+
+          // Validate and set Amount (Column H)
+          if (
+            parsedItem &&
+            parsedItem.amount &&
+            parsedItem.amount.originalText !== null
+          ) {
+            worksheet
+              .getRange(`H${i}`)
+              .setValue(parsedItem.amount.originalText);
+          } else {
+            worksheet.getRange(`H${i}`).setFormula(`=F${i}*G${i}`);
+          }
         }
       }
 
       if (waterDataEndRow >= waterDataStartRow) {
         for (let i = waterDataStartRow; i <= waterDataEndRow; i++) {
-          const item = waterData[i - waterDataStartRow];
-          const currentReading = Number(item?.currentReading) || 0;
-          const previousReading = Number(item?.previousReading) || 0;
-          const monthlyUsage = Number(item?.monthlyUsage) || 0;
+          const parsedItem = parsedWaterItems[i - waterDataStartRow];
+          // Sanitize all relevant numeric inputs, defaulting to 0 if invalid
+
+          // Validate and set Monthly Usage (Column D)
           if (
-            item &&
-            Math.abs(currentReading - previousReading - monthlyUsage) > 0.001 // 允许小的精度误差
+            parsedItem &&
+            parsedItem.monthlyUsage &&
+            parsedItem.monthlyUsage.originalText !== null
           ) {
-            worksheet.getRange(`D${i}`).setValue(item.monthlyUsage);
+            worksheet
+              .getRange(`D${i}`)
+              .setValue(parsedItem.monthlyUsage.originalText);
           } else {
             worksheet.getRange(`D${i}`).setFormula(`=C${i}-B${i}`);
           }
-          worksheet.getRange(`F${i}`).setFormula(`=D${i}*E${i}`);
-          worksheet.getRange(`H${i}`).setFormula(`=F${i}*G${i}`);
+
+          // Validate and set Total Usage (Column F)
+          if (
+            parsedItem &&
+            parsedItem.totalUsage &&
+            parsedItem.totalUsage.originalText !== null
+          ) {
+            worksheet
+              .getRange(`F${i}`)
+              .setValue(parsedItem.totalUsage.originalText);
+          } else {
+            worksheet.getRange(`F${i}`).setFormula(`=D${i}*E${i}`);
+          }
+
+          // Validate and set Amount (Column H)
+          if (
+            parsedItem &&
+            parsedItem.amount &&
+            parsedItem.amount.originalText !== null
+          ) {
+            worksheet
+              .getRange(`H${i}`)
+              .setValue(parsedItem.amount.originalText);
+          } else {
+            worksheet.getRange(`H${i}`).setFormula(`=F${i}*G${i}`);
+          }
         }
       }
 

@@ -73,29 +73,34 @@ function transformItemsForNextMonth(itemsJson: string | undefined): string {
       { originalText: string; value: any }
     >[];
 
+    if (!items || items.length === 0) {
+      return '[]';
+    }
     const newItems = items.map((item) => {
-      const newItem = { ...item };
+      // 只保留生成新账单所需的基础数据，并重置计算值
+      const newItem: Record<string, any> = {
+        meterName: item.meterName,
+        multiplier: item.multiplier,
+        unitPrice: item.unitPrice,
+      };
 
-      const prevReading = newItem.previousReading;
-      const currentReading = newItem.currentReading;
+      const prevReading = item.previousReading;
+      const currentReading = item.currentReading;
 
-      if (currentReading) {
-        // 将本月读数赋值给上月读数
-        newItem.previousReading = {
-          ...prevReading,
-          originalText: String(currentReading.value || 0),
-          value: currentReading.value || 0,
-        };
-        // 本月读数清零
-        newItem.currentReading = {
-          ...currentReading,
-          originalText: '0',
-          value: 0,
-        };
-      }
+      // 将本月读数赋值给上月读数
+      newItem.previousReading = {
+        ...prevReading,
+        originalText: String(currentReading?.value || 0),
+        value: currentReading?.value || 0,
+      };
+      // 本月读数清零
+      newItem.currentReading = {
+        ...currentReading,
+        originalText: '0',
+        value: 0,
+      };
       return newItem;
     });
-
     return JSON.stringify(newItems);
   } catch (error) {
     console.error('Failed to parse or transform items for next month:', error);
