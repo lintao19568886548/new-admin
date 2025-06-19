@@ -505,9 +505,9 @@ async function init() {
       if (eleDataEndRow >= eleDataStartRow) {
         for (let i = eleDataStartRow; i <= eleDataEndRow; i++) {
           const item = eleData[i - eleDataStartRow];
-          const currentReading = Number(item.currentReading) || 0;
-          const previousReading = Number(item.previousReading) || 0;
-          const monthlyUsage = Number(item.monthlyUsage) || 0;
+          const currentReading = Number(item?.currentReading) || 0;
+          const previousReading = Number(item?.previousReading) || 0;
+          const monthlyUsage = Number(item?.monthlyUsage) || 0;
           if (
             item &&
             Math.abs(currentReading - previousReading - monthlyUsage) > 0.001 // 允许小的精度误差
@@ -524,9 +524,9 @@ async function init() {
       if (waterDataEndRow >= waterDataStartRow) {
         for (let i = waterDataStartRow; i <= waterDataEndRow; i++) {
           const item = waterData[i - waterDataStartRow];
-          const currentReading = Number(item.currentReading) || 0;
-          const previousReading = Number(item.previousReading) || 0;
-          const monthlyUsage = Number(item.monthlyUsage) || 0;
+          const currentReading = Number(item?.currentReading) || 0;
+          const previousReading = Number(item?.previousReading) || 0;
+          const monthlyUsage = Number(item?.monthlyUsage) || 0;
           if (
             item &&
             Math.abs(currentReading - previousReading - monthlyUsage) > 0.001 // 允许小的精度误差
