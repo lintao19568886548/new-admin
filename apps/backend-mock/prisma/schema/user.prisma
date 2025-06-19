@@ -7,6 +7,7 @@ model User {
   homePath   String?    @map("home_path") @db.VarChar(100)
   userCodes  UserCode[] @relation("UserToUserCode")
   roles      UserRole[] @relation("UserToUserRole")
+  localizations Localization[] @relation("UserToLocalization")
   createTime DateTime?  @default(now()) @map("create_time")
   updateTime DateTime?  @updatedAt @map("update_time")
 
