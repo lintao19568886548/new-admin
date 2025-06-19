@@ -621,6 +621,22 @@ async function init() {
   }
 }
 
+/**
+ * 安全地将值转换为数字。
+ * 如果值是可解析的数字字符串，则转换为数字。
+ * 如果值是数字，则直接返回。
+ * 如果是空字符串、null或undefined，则返回null。
+ * @param value - 要转换的值
+ * @returns number | null
+ */
+function safeConvertToNumber(value: any): null | number {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const num = Number(value);
+  return Number.isNaN(num) ? null : num;
+}
+
 function dispose() {
   if (univerInstance) {
     univerInstance.dispose();
@@ -694,13 +710,27 @@ function getData() {
 
       eleHeaders.forEach((header, index) => {
         const value = row[index];
-        rowData[header] =
-          header === 'meterName' ? String(value || '') : row[index];
+        if (
+          [
+            'amount',
+            'currentReading',
+            'monthlyUsage',
+            'previousReading',
+            'totalUsage',
+            'unitPrice',
+          ].includes(header)
+        ) {
+          rowData[header] = safeConvertToNumber(value);
+        } else {
+          rowData[header] =
+            header === 'meterName' ? String(value || '') : value;
+        }
+
         const formula = formulaRow[index] || '';
         const originalText =
           formula ||
           (value !== null && value !== undefined ? String(value) : '');
-        eleItem[header] = { originalText, value };
+        eleItem[header] = { originalText, value: rowData[header] };
       });
 
       eleItemData.push(eleItem);
@@ -714,13 +744,26 @@ function getData() {
 
       waterHeaders.forEach((header, index) => {
         const value = row[index];
-        rowData[header] =
-          header === 'meterName' ? String(value || '') : row[index];
+        if (
+          [
+            'amount',
+            'currentReading',
+            'monthlyUsage',
+            'previousReading',
+            'totalUsage',
+            'unitPrice',
+          ].includes(header)
+        ) {
+          rowData[header] = safeConvertToNumber(value);
+        } else {
+          rowData[header] =
+            header === 'meterName' ? String(value || '') : value;
+        }
         const formula = formulaRow[index] || '';
         const originalText =
           formula ||
           (value !== null && value !== undefined ? String(value) : '');
-        waterItem[header] = { originalText, value };
+        waterItem[header] = { originalText, value: rowData[header] };
       });
 
       waterItemData.push(waterItem);
@@ -743,9 +786,7 @@ function getData() {
   billData.tenantName = tenantName;
 
   const tenant = tenantOptions.value.find((t) => t.tenantName === tenantName);
-  if (tenant) {
-    billData.tenantId = tenant.tenantId;
-  }
+  billData.tenantId = tenant?.tenantId || null;
 
   const park = parkOptions.value.find((p) => p.parkName === parkName);
   if (park) {
