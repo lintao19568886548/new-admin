@@ -903,23 +903,33 @@ function getData() {
 
       if (feeSectionStarted) {
         const itemName = row[0];
-        const amount = row[1];
+        const value = row[1];
         const formula = fullFormulas[index]?.[1] || '';
         const originalText =
           formula ||
-          (amount !== null && amount !== undefined ? String(amount) : '');
+          (value !== null && value !== undefined ? String(value) : '');
 
         if (itemName && itemName !== '费用项') {
           feeJson.push({
             itemName: String(itemName),
             originalText,
-            value: Number(amount) || 0,
+            value: Number(value) || 0,
           });
           if (itemName.toString().includes('厂房租金')) {
-            billData.factoryRent = Number(amount) || 0;
-          }
-          if (itemName === '本月收费金额') {
-            billData.totalFee = Number(amount) || 0;
+            billData.factoryRent = Number(value) || 0;
+            // eslint-disable-next-line unicorn/prefer-switch
+          } else if (itemName === '垃圾处理费') {
+            billData.garbageFee = Number(value) || 0;
+          } else if (itemName === '基本管理费') {
+            billData.managementFee = Number(value) || 0;
+          } else if (itemName === '服务费') {
+            billData.serviceFee = Number(value) || 0;
+          } else if (itemName === '开票税金') {
+            billData.invoiceTax = Number(value) || 0;
+          } else if (itemName === '滞纳金') {
+            billData.penaltyFee = Number(value) || 0;
+          } else if (itemName === '本月收费金额') {
+            billData.totalFee = Number(value) || 0;
             break;
           }
         }

@@ -112,6 +112,8 @@ export default eventHandler(async (event) => {
   const items = result.map((item) => {
     return {
       ...item,
+      waterFee: Number(item.waterFee) + Number(item.garbageFee),
+      eleFee: Number(item.eleFee) + Number(item.serviceFee),
       // 使用可选链安全地访问 tenantName
       tenantName: item.tenant?.tenantName || item.tenantName,
       // 对 parkName 也同样处理

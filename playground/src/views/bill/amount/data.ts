@@ -147,12 +147,12 @@ export function useColumns<T = AmountBill>(
     },
     {
       field: 'projectName',
-      minWidth: 150,
+      minWidth: 200,
       title: '项目',
     },
     {
       field: 'tenantName',
-      minWidth: 150,
+      minWidth: 200,
       title: '租户名称',
     },
     {
@@ -179,42 +179,53 @@ export function useColumns<T = AmountBill>(
       minWidth: 120,
       title: '厂房租金',
     },
-    // {
-    //   field: 'managementFee',
-    //   formatter: ({ cellValue }) => {
-    //     return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
-    //   },
-    //   minWidth: 120,
-    //   title: '基本管理费',
-    // },
-    // {
-    //   field: 'serviceFee',
-    //   formatter: ({ cellValue }) => {
-    //     return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
-    //   },
-    //   minWidth: 120,
-    //   title: '服务费',
-    // },
-    // {
-    //   field: 'invoiceTax',
-    //   formatter: ({ cellValue }) => {
-    //     return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
-    //   },
-    //   minWidth: 120,
-    //   title: '开票税金',
-    // },
+    {
+      field: 'managementFee',
+      formatter: ({ cellValue }) => {
+        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
+      },
+      minWidth: 120,
+      title: '基本管理费',
+    },
+    {
+      field: 'penaltyFee',
+      formatter: ({ cellValue }) => {
+        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
+      },
+      minWidth: 120,
+      title: '滞纳金',
+    },
+    {
+      field: 'invoiceTax',
+      formatter: ({ cellValue }) => {
+        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
+      },
+      minWidth: 120,
+      title: '开票税金',
+    },
     {
       field: 'totalFee',
       formatter: ({ cellValue }) => {
         return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
       },
-      minWidth: 140,
+      minWidth: 130,
       title: '本月收费金额',
+    },
+    {
+      field: 'createTime',
+      formatter: ({ cellValue }) => {
+        return formatDateTime(cellValue);
+      },
+      minWidth: 150,
+      title: '创建时间',
     },
     {
       field: 'receiptTime',
       formatter: ({ cellValue }) => {
-        return formatDateTime(cellValue);
+        if (cellValue) {
+          return formatDateTime(cellValue);
+        }
+        return '';
       },
       minWidth: 150,
       title: '收款时间',
