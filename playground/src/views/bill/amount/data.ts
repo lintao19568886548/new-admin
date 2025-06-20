@@ -142,7 +142,7 @@ export function useColumns<T = AmountBill>(
   return [
     {
       field: 'parkName',
-      minWidth: 150,
+      minWidth: 140,
       title: '园区',
     },
     {
@@ -249,7 +249,15 @@ export function useColumns<T = AmountBill>(
             code: 'print',
             text: '打印',
           },
-          'delete',
+          {
+            code: 'delete-modal',
+            danger: true,
+            text: '删除',
+          },
+          // {
+          //   code: 'more',
+          //   text: '更多',
+          // },
         ],
       },
       field: 'operation',

@@ -109,30 +109,36 @@ function onCreate() {
  * @param row
  */
 async function onDelete(row: AmountBill) {
-  message.loading({
-    content: $t('ui.actionMessage.deleting', [row.tenantName]),
-    duration: 0,
-    key: 'action_process_msg',
-  });
+  Modal.confirm({
+    centered: true,
+    content: $t('ui.actionMessage.deleteConfirm', [row.tenantName]),
+    async onOk() {
+      message.loading({
+        content: $t('ui.actionMessage.deleting', [row.tenantName]),
+        duration: 0,
+        key: 'action_process_msg',
+      });
 
-  const { billId } = row;
-  if (billId) {
-    try {
-      // 使用 try-catch 替代 then-catch 链
-      await deleteAmountBill(billId);
-      message.success({
-        content: $t('ui.actionMessage.deleteSuccess', [row.tenantName]),
-        key: 'action_process_msg',
-      });
-      refreshGrid();
-    } catch (error) {
-      console.error('删除账单失败:', error);
-      message.error({
-        content: $t('ui.actionMessage.operationFailed', [error]),
-        key: 'action_process_msg',
-      });
-    }
-  }
+      const { billId } = row;
+      if (billId) {
+        try {
+          await deleteAmountBill(billId);
+          message.success({
+            content: $t('ui.actionMessage.deleteSuccess', [row.tenantName]),
+            key: 'action_process_msg',
+          });
+          refreshGrid();
+        } catch (error) {
+          console.error('删除账单失败:', error);
+          message.error({
+            content: $t('ui.actionMessage.operationFailed', [error]),
+            key: 'action_process_msg',
+          });
+        }
+      }
+    },
+    title: '删除账单',
+  });
 }
 
 /**
@@ -183,7 +189,7 @@ function onPrint(row: AmountBill) {
  */
 function onActionClick({ code, row }: OnActionClickParams<AmountBill>) {
   switch (code) {
-    case 'delete': {
+    case 'delete-modal': {
       onDelete(row);
       break;
     }

@@ -51,6 +51,7 @@ const modalProps = ref({
     config.value.modalClass ||
     'multipage-bill-form-modal max-w-[90%] w-[1000px]',
   closeOnClickModal: false,
+  closeOnPressEscape: false,
   footer: true,
   onClosed: _handleClose,
   showCancelButton: true,
@@ -158,7 +159,7 @@ async function handleSave() {
     privateBankAccount: billData.privateBankAccount,
     projectName: billData.projectName,
     publicBankAccount: billData.publicBankAccount,
-    receiptTime: billData.receiptTime,
+    // receiptTime: billData.receiptTime,
     remark: billData.remark,
     serviceFee: Number(billData.serviceFee) || 0,
     tenantId: billData.tenantId,
