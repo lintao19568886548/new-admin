@@ -208,6 +208,7 @@ export function useColumns(
     {
       field: 'remark',
       title: '备注',
+      width: 200,
     },
     {
       align: 'right',

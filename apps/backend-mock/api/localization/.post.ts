@@ -4,16 +4,26 @@ import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
   try {
-    const { punchTime, username, address, status, userId } =
+    const { punchTime, username, status, userId, longitude, latitude } =
       await readBody(event);
 
-    if (!punchTime || !username || !address || !status || !userId) {
-      return useResponseError('缺少必要的参数', { statusCode: 400 });
+    if (
+      !punchTime ||
+      !username ||
+      !status ||
+      !userId ||
+      longitude === undefined ||
+      latitude === undefined
+    ) {
+      return useResponseError('缺少必要的参数，包括经纬度', {
+        statusCode: 400,
+      });
     }
 
     const localization = await prismaClient.localization.create({
       data: {
-        address,
+        latitude,
+        longitude,
         punchTime: new Date(punchTime),
         status,
         user: {

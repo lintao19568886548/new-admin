@@ -9,17 +9,19 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const { punchTime, address, status } = await readBody(event);
+    const { punchTime, status, longitude, latitude } = await readBody(event);
 
     const dataToUpdate: {
-      address?: string;
+      latitude?: number;
+      longitude?: number;
       punchTime?: Date;
       status?: string;
     } = {};
 
     if (punchTime) dataToUpdate.punchTime = new Date(punchTime);
-    if (address) dataToUpdate.address = address;
     if (status) dataToUpdate.status = status;
+    if (longitude !== undefined) dataToUpdate.longitude = longitude;
+    if (latitude !== undefined) dataToUpdate.latitude = latitude;
 
     if (Object.keys(dataToUpdate).length === 0) {
       return useResponseError('没有提供需要更新的数据');

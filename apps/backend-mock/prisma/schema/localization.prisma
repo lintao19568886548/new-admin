@@ -2,12 +2,14 @@ model Localization {
   localizationId Int      @id @default(autoincrement()) @map("localization_id")
   punchTime      DateTime @map("punch_time")
   username       String   @map("user_name")
-  address        String
   status         String
+  longitude      Decimal  @db.Decimal(18, 15) //经度
+  latitude       Decimal  @db.Decimal(18, 15) //纬度
   userId         Int      @map("user_id")
   createTime     DateTime @default(now()) @map("create_time")
   updateTime     DateTime @updatedAt @map("update_time")
   user           User     @relation("UserToLocalization", fields: [userId], references: [id])
+  
 
   @@index([userId])
   @@map("localization")
