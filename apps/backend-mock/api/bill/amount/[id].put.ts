@@ -16,7 +16,6 @@ export default eventHandler(async (event) => {
   delete billData.tenant;
   delete billData.createTime;
   delete billData.updateTime;
-
   // 使用事务来确保所有操作都成功或都失败
   const updateBill = await prismaClient.$transaction(async (tx) => {
     // 获取当前数据库中的电费和水费账单记录
@@ -46,7 +45,9 @@ export default eventHandler(async (event) => {
           ? {
               connect: { rentalTenantId: tenantId },
             }
-          : undefined,
+          : {
+              disconnect: true,
+            },
       },
     });
 
@@ -81,7 +82,6 @@ export default eventHandler(async (event) => {
           const recordTime = new Date(eleBaseTime);
           recordTime.setSeconds(recordTime.getSeconds() + index);
 
-          console.log(eleBill);
           return eleId
             ? tx.eleBill.update({
                 where: { eleId, billId },

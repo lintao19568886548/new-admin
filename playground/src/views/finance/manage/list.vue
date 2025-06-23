@@ -11,7 +11,7 @@ import { onMounted, ref } from 'vue';
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
-import { Button, message, Modal } from 'ant-design-vue';
+import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteFinance, getFinanceList } from '#/api/finance';
@@ -155,37 +155,29 @@ function onEdit(row: FinanceItem) {
   formModalApi.setData({ ...row }).open();
 }
 
-function onDelete(row: FinanceItem) {
-  Modal.confirm({
-    cancelText: $t('common.cancel'),
-    content: $t('ui.actionMessage.deleteConfirm', [row.billName]),
-    okText: $t('common.confirm'),
-    okType: 'danger',
-    async onOk() {
-      try {
-        message.loading({
-          content: $t('ui.actionMessage.deleting', [row.billName]),
-          duration: 0,
-          key: 'action_process_msg',
-        });
-
-        await deleteFinance(row.financeId);
-
-        message.success({
-          content: $t('ui.actionMessage.deleteSuccess', [row.billName]),
-          key: 'action_process_msg',
-        });
-        onRefresh();
-      } catch (error) {
-        console.error('删除失败:', error);
-        message.error({
-          content: $t('ui.actionMessage.deleteFailed', [row.billName]),
-          key: 'action_process_msg',
-        });
-      }
-    },
-    title: $t('common.confirmDelete'),
+async function onDelete(row: FinanceItem) {
+  message.loading({
+    content: $t('ui.actionMessage.deleting', [row.billName || '']), // 使用 agentName 或其他合适字段
+    duration: 0,
+    key: 'action_process_msg',
   });
+
+  if (row.financeId) {
+    try {
+      await deleteFinance(row.financeId);
+      message.success({
+        content: $t('ui.actionMessage.deleteSuccess', [row.billName]), // 使用 tenantName
+        key: 'action_process_msg',
+      });
+      onRefresh();
+    } catch (error) {
+      console.error('删除投资项目失败:', error); // 修正错误消息
+      message.error({
+        content: $t('ui.actionMessage.operationFailed', [error]),
+        key: 'action_process_msg',
+      });
+    }
+  }
 }
 
 function onRefresh() {
