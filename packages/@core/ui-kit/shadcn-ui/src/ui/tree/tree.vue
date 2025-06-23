@@ -108,9 +108,17 @@ function updateTreeValue() {
 }
 
 function updateModelValue(val: Arrayable<Recordable<any>>) {
-  modelValue.value = Array.isArray(val)
-    ? val.map((v) => get(v, props.valueField))
-    : get(val, props.valueField);
+  if (Array.isArray(val)) {
+    modelValue.value = val
+      .filter((v) => v !== undefined && v !== null)
+      .map((v) => get(v, props.valueField));
+  } else if (val !== undefined && val !== null) {
+    modelValue.value = get(val, props.valueField);
+  } else {
+    modelValue.value = undefined;
+  }
+  // 同步更新treeValue
+  updateTreeValue();
 }
 
 function expandToLevel(level: number) {
@@ -171,7 +179,7 @@ function onSelect(item: FlattenedItem<Recordable<any>>, isSelected: boolean) {
         }
       });
   }
-  updateTreeValue();
+  // 移除 updateTreeValue() 调用，因为 TreeRoot 会通过 @update:model-value 自动更新
   emits('select', item);
 }
 
@@ -237,7 +245,9 @@ defineExpose({
             if (event.detail.originalEvent.type === 'click') {
               event.preventDefault();
             }
-            !disabled && onSelect(item, event.detail.isSelected);
+            !disabled &&
+              !item.value.disabled &&
+              onSelect(item, event.detail.isSelected);
           }
         "
         @toggle="
@@ -267,23 +277,27 @@ defineExpose({
         <Checkbox
           v-if="multiple"
           :checked="isSelected"
-          :disabled="disabled"
+          :disabled="disabled || item.value.disabled"
           :indeterminate="isIndeterminate"
-          @click="
+          @click.stop="
             () => {
-              !disabled && handleSelect();
-              // onSelect(item, !isSelected);
+              if (!disabled && !item.value.disabled) {
+                // 直接调用 handleSelect，它会触发 @select 事件
+                handleSelect();
+              }
             }
           "
         />
         <div
           class="flex items-center gap-1 pl-2"
           @click="
-            (_event) => {
-              // $event.stopPropagation();
-              // $event.preventDefault();
-              !disabled && handleSelect();
-              // onSelect(item, !isSelected);
+            (event) => {
+              event.stopPropagation();
+              event.preventDefault();
+              if (!disabled && !item.value.disabled && multiple) {
+                // 如果是多选模式，直接调用 handleSelect
+                handleSelect();
+              }
             }
           "
         >

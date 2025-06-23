@@ -135,6 +135,13 @@ function getNodeClass(node: Recordable<any>) {
 
   return classes.join(' ');
 }
+
+// 导出drawer API供父组件使用
+defineExpose({
+  close: drawerApi.close,
+  open: drawerApi.open,
+  setData: drawerApi.setData,
+});
 </script>
 <template>
   <Drawer :title="getDrawerTitle">

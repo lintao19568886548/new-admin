@@ -25,6 +25,8 @@ export namespace SystemRoleApi {
     privilegeLevel?: number;
     /** 费率/评分 */
     rates?: number;
+    /** 审核权限 (1: 允许, 0: 拒绝) */
+    reimbursementAuth?: number;
     /** 备注 */
     remark?: string;
     /** 角色ID */
