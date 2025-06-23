@@ -15,11 +15,11 @@ export default eventHandler(async (event) => {
       latitude?: number;
       longitude?: number;
       punchTime?: Date;
-      status?: string;
+      status?: number;
     } = {};
 
     if (punchTime) dataToUpdate.punchTime = new Date(punchTime);
-    if (status) dataToUpdate.status = status;
+    if (status !== undefined) dataToUpdate.status = Number(status);
     if (longitude !== undefined) dataToUpdate.longitude = longitude;
     if (latitude !== undefined) dataToUpdate.latitude = latitude;
 

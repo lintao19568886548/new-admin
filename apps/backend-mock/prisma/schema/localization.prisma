@@ -2,7 +2,7 @@ model Localization {
   localizationId Int      @id @default(autoincrement()) @map("localization_id")
   punchTime      DateTime @map("punch_time")
   username       String   @map("user_name")
-  status         String
+  status         Int
   longitude      Decimal  @db.Decimal(18, 15) //经度
   latitude       Decimal  @db.Decimal(18, 15) //纬度
   userId         Int      @map("user_id")

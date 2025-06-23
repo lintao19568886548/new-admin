@@ -10,7 +10,7 @@ export default eventHandler(async (event) => {
     if (
       !punchTime ||
       !username ||
-      !status ||
+      status === undefined ||
       !userId ||
       longitude === undefined ||
       latitude === undefined
@@ -25,7 +25,7 @@ export default eventHandler(async (event) => {
         latitude,
         longitude,
         punchTime: new Date(punchTime),
-        status,
+        status: Number(status),
         user: {
           connect: {
             id: userId,
