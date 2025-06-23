@@ -109,7 +109,9 @@ export default eventHandler(async (event) => {
       updateTime: role.updateTime ? role.updateTime.toISOString() : null,
       permissions: role.roleMenus.map((rm) => rm.menu.menuId),
       parkIds: role.roleParks.map((rp) => rp.park.parkId),
-      parentid: role.parentid,
+      parentId: role.parentId,
+      reimbursementAuth: role.reimbursementAuth,
+      rates: role.rates,
       // 分页时不返回 children 数组
     }));
 
@@ -118,7 +120,7 @@ export default eventHandler(async (event) => {
     // 2. 如果没有查询条件，则查询顶层角色并递归加载子角色
     const roles = await prismaClient.role.findMany({
       where: {
-        parentid: null, // 只查询顶级角色
+        parentId: null, // 只查询顶级角色
         ...where, // 应用基础过滤条件（虽然这里是else分支，理论上where是空的）
       },
       include: includeRecursive, // 使用递归包含查询
@@ -138,7 +140,9 @@ export default eventHandler(async (event) => {
       permissions: role.roleMenus.map((rm) => rm.menu.menuId),
       parkIds: role.roleParks.map((rp) => rp.park.parkId),
       level: role.privilegeLevel,
-      parentid: role.parentid,
+      parentId: role.parentId,
+      reimbursementAuth: role.reimbursementAuth,
+      rates: role.rates,
       children: role.children
         ? role.children.map((child) => formatRole(child))
         : [], // 显式调用 formatRole

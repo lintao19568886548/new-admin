@@ -82,7 +82,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
     treeConfig: {
       expandAll: true, // 默认展开所有树节点
       // 添加 treeConfig
-      parentField: 'parentid', // 假设角色数据有 parentid 字段表示父级ID
+      parentField: 'parentId', // 假设角色数据有 parentId 字段表示父级ID
       rowField: 'roleId', // 使用 roleId 作为行ID
       transform: false, // 后端返回树状结构时设为true，扁平结构设为false
     },
@@ -168,7 +168,7 @@ function onEdit(row: SystemRoleApi.SystemRole) {
 
 // 添加 onAppend 函数
 function onAppend(row: SystemRoleApi.SystemRole) {
-  formDrawerRef.value?.setData({ parentid: row.roleId }); // 设置父级ID
+  formDrawerRef.value?.setData({ parentId: row.roleId }); // 设置父级ID
   formDrawerRef.value?.open();
 }
 

@@ -59,7 +59,7 @@ export default eventHandler(async (event) => {
       updateTime: role.updateTime?.toISOString(),
       permissions: role.roleMenus.map((rm) => rm.menuId),
       parkIds: role.roleParks.map((rp) => rp.park.parkId), // 从嵌套的 park 对象中获取 parkId
-      parentid: role.parentid,
+      parentId: role.parentId,
       // 根据需要可以添加 parent 角色的信息
     };
 

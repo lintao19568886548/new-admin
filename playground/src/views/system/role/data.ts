@@ -45,7 +45,7 @@ export function useFormSchema(): VbenFormSchema[] {
         valueField: 'roleId', // 值为角色ID
         childrenField: 'children', // 子节点字段
       },
-      fieldName: 'parentid', // 字段名为 parentid
+      fieldName: 'parentId', // 字段名为 parentId
       label: $t('上级角色'), // 标签为“上级角色”
       renderComponentContent() {
         return {

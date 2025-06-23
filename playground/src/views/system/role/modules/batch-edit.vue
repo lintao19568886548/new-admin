@@ -36,7 +36,7 @@ const roleStore = useRoleStore();
 
 // 字段启用状态
 const fieldEnabled = ref({
-  parentid: false,
+  parentId: false,
   parkIds: false,
   permissions: false,
   rates: false,
@@ -45,11 +45,11 @@ const fieldEnabled = ref({
   status: false,
 });
 
-// 调试：监听fieldEnabled变化
+// 监听字段启用状态变化（用于调试）
 // watch(
 //   fieldEnabled,
 //   (newVal) => {
-//     console.warn('fieldEnabled变化:', newVal);
+//     console.log('字段启用状态变化:', newVal);
 //   },
 //   { deep: true, immediate: true },
 // );
@@ -137,28 +137,28 @@ const batchEditSchema = computed(() => [
     slot: 'roleSelection',
   },
   {
-    component: 'Input',
-    fieldName: 'parentid',
+    component: 'TreeSelect',
+    fieldName: 'parentId',
     formItemClass: 'items-start',
     label: '上级角色',
-    slot: 'parentid',
+    slot: 'parentId',
   },
   {
-    component: 'Input',
+    component: 'RadioGroup',
     defaultValue: 1, // 默认启用状态
     fieldName: 'status',
     label: $t('system.role.status'),
     slot: 'status',
   },
   {
-    component: 'Input',
+    component: 'Select',
     fieldName: 'parkIds',
     formItemClass: 'items-start',
     label: $t('page.common.park'),
     slot: 'parkIds',
   },
   {
-    component: 'Input',
+    component: 'VbenTree',
     fieldName: 'permissions',
     formItemClass: 'items-start',
     label: $t('system.role.setPermissions'),
@@ -175,13 +175,13 @@ const batchEditSchema = computed(() => [
     slot: 'remark',
   },
   {
-    component: 'Input',
+    component: 'Select',
     fieldName: 'reimbursementAuth',
     label: '审核权限',
     slot: 'reimbursementAuth',
   },
   {
-    component: 'Input',
+    component: 'InputNumber',
     fieldName: 'rates',
     label: '审核金额',
     slot: 'rates',
@@ -195,22 +195,34 @@ const [Form, formApi] = useVbenForm({
 
 // 调试：监听表单值变化
 // watch(
-//   () => formApi.getValues(),
-//   (values) => {
-//     console.warn('表单值变化:', values);
+//   () => formApi,
+//   async () => {
+//     try {
+//       const values = await formApi.getValues();
+//       console.log('表单值变化:', values);
+//       if (values.permissions !== undefined) {
+//         console.log('权限字段变化详情:', {
+//           isArray: Array.isArray(values.permissions),
+//           length: values.permissions?.length,
+//           permissions: values.permissions,
+//           type: typeof values.permissions,
+//         });
+//       }
+//     } catch (error) {
+//       console.error('获取表单值出错:', error);
+//     }
 //   },
 //   { deep: true },
 // );
 
-// 调试：表单API初始化后的状态
-// console.warn('表单API初始化完成:', formApi);
+// 表单API初始化完成
 
 const [Drawer, drawerApi] = useVbenDrawer({
   async onConfirm() {
-    // if (selectedRoles.value.length === 0) {
-    //   console.warn('请选择要修改的角色');
-    //   return;
-    // }
+    if (selectedRoles.value.length === 0) {
+      console.warn('请选择要修改的角色');
+      return;
+    }
 
     const { valid } = await formApi.validate();
     if (!valid) return;
@@ -220,36 +232,63 @@ const [Drawer, drawerApi] = useVbenDrawer({
     // 构建更新数据，只包含启用的字段
     const updateData: Partial<SystemRoleApi.SystemRole> = {};
 
-    if (fieldEnabled.value.parentid && values.parentid) {
-      updateData.parentid = values.parentid;
+    // 上级角色字段
+    if (fieldEnabled.value.parentId && values.parentId) {
+      updateData.parentId = values.parentId;
     }
-    if (fieldEnabled.value.parkIds && values.parkIds) {
-      updateData.parkIds = values.parkIds;
+
+    // 园区字段 - 数组类型，需要检查长度
+    if (fieldEnabled.value.parkIds) {
+      if (Array.isArray(values.parkIds) && values.parkIds.length > 0) {
+        updateData.parkIds = values.parkIds;
+      } else {
+        console.warn('园区字段已启用但未选择任何园区');
+      }
     }
+
+    // 状态字段
     if (fieldEnabled.value.status && values.status !== undefined) {
       updateData.status = Boolean(values.status); // 将值转换为布尔类型
     }
-    if (fieldEnabled.value.permissions && values.permissions) {
-      updateData.permissions = values.permissions;
+
+    // 权限字段 - 数组类型，需要检查长度
+    if (fieldEnabled.value.permissions) {
+      // console.log('权限字段调试信息:', {
+      //   isArray: Array.isArray(values.permissions),
+      //   length: values.permissions?.length,
+      //   permissions: values.permissions,
+      //   type: typeof values.permissions,
+      // });
+      if (Array.isArray(values.permissions) && values.permissions.length > 0) {
+        updateData.permissions = values.permissions;
+      } else {
+        console.warn('权限字段已启用但未选择任何权限');
+      }
     }
+
+    // 报销权限字段
     if (
       fieldEnabled.value.reimbursementAuth &&
       values.reimbursementAuth !== undefined
     ) {
       updateData.reimbursementAuth = values.reimbursementAuth;
     }
+
+    // 费率字段
     if (fieldEnabled.value.rates && values.rates !== undefined) {
       updateData.rates = values.rates;
     }
+
+    // 备注字段
     if (fieldEnabled.value.remark && values.remark) {
       updateData.remark = values.remark;
     }
 
     // 检查是否有要更新的字段
-    // if (Object.keys(updateData).length === 0) {
-    //   console.warn('请至少启用一个字段进行修改');
-    //   return;
-    // }
+    if (Object.keys(updateData).length === 0) {
+      console.warn('请至少启用一个字段进行修改');
+      return;
+    }
 
     drawerApi.lock();
 
@@ -356,7 +395,7 @@ function getSelectableRoles(selectedRoleIds: string[]): string[] {
     // 如果没有选中任何角色，只能选择顶级角色
     const topLevelRoles = allRoles.filter(
       (r) =>
-        r.parentid === null || r.parentid === undefined || r.parentid === 0,
+        r.parentId === null || r.parentId === undefined || r.parentId === 0,
     );
     topLevelRoles.forEach((role) => selectableIds.add(String(role.roleId)));
     return [...selectableIds];
@@ -371,17 +410,17 @@ function getSelectableRoles(selectedRoleIds: string[]): string[] {
         const siblings = allRoles.filter((r) => {
           // 处理顶级角色的情况
           if (
-            (role.parentid === null ||
-              role.parentid === undefined ||
-              role.parentid === 0) &&
-            (r.parentid === null ||
-              r.parentid === undefined ||
-              r.parentid === 0)
+            (role.parentId === null ||
+              role.parentId === undefined ||
+              role.parentId === 0) &&
+            (r.parentId === null ||
+              r.parentId === undefined ||
+              r.parentId === 0)
           ) {
             return true;
           }
           // 处理非顶级角色的情况
-          return r.parentid === role.parentid;
+          return r.parentId === role.parentId;
         });
         siblings.forEach((sibling) => {
           const siblingId = String(sibling.roleId);
@@ -392,7 +431,7 @@ function getSelectableRoles(selectedRoleIds: string[]): string[] {
 
         // 只添加直接子角色（不递归添加所有后代）
         const directChildren = allRoles.filter(
-          (r) => r.parentid === role.roleId,
+          (r) => r.parentId === role.roleId,
         );
         directChildren.forEach((child) => {
           const childId = String(child.roleId);
@@ -472,7 +511,7 @@ watch(
 
         // 递归获取被取消选中角色的所有子孙角色
         function getAllDescendants(parentRoleId: number): string[] {
-          const children = allRoles.filter((r) => r.parentid === parentRoleId);
+          const children = allRoles.filter((r) => r.parentId === parentRoleId);
 
           // 使用 flatMap 一次性收集所有后代，避免多次调用 push()
           return children.flatMap((child) => [
@@ -507,24 +546,47 @@ watch(
 // 监听字段启用状态变化，重置对应字段值
 watch(
   fieldEnabled,
-  (newVal, oldVal) => {
-    Object.keys(newVal).forEach((key) => {
-      if (
-        oldVal[key as keyof typeof oldVal] &&
-        !newVal[key as keyof typeof newVal]
-      ) {
+  async (newVal, oldVal) => {
+    Object.keys(newVal).forEach(async (key) => {
+      const oldValue = oldVal?.[key as keyof typeof oldVal] ?? false;
+      const newValue = newVal[key as keyof typeof newVal];
+
+      if (oldValue && !newValue) {
         // 字段被禁用时，清空对应值
         formApi.setFieldValue(key, undefined);
-      } else if (
-        !oldVal[key as keyof typeof oldVal] &&
-        newVal[key as keyof typeof newVal] && // 字段被启用时，设置默认值
-        key === 'status'
-      ) {
-        formApi.setFieldValue(key, 1); // 默认启用状态
+      } else if (!oldValue && newValue) {
+        // 字段被启用时，只在值为undefined时设置默认值，避免覆盖用户已选择的值
+        const allValues = await formApi.getValues();
+        const currentValue = allValues[key];
+        if (currentValue === undefined) {
+          switch (key) {
+            case 'parkIds': {
+              formApi.setFieldValue(key, []); // 默认空园区数组
+              break;
+            }
+            case 'permissions': {
+              formApi.setFieldValue(key, []); // 默认空权限数组
+              break;
+            }
+            case 'rates': {
+              formApi.setFieldValue(key, 0); // 默认费率为0
+              break;
+            }
+            case 'reimbursementAuth': {
+              formApi.setFieldValue(key, false); // 默认不启用报销权限
+              break;
+            }
+            case 'status': {
+              formApi.setFieldValue(key, 1); // 默认启用状态
+              break;
+            }
+            // No default for parentId and remark
+          }
+        }
       }
     });
   },
-  { deep: true },
+  { deep: true, immediate: true },
 );
 
 defineExpose({
@@ -547,6 +609,7 @@ defineExpose({
             multiple
             checkable
             check-strictly
+            bordered
             :default-expanded-level="2"
             value-field="value"
             label-field="title"
@@ -566,9 +629,9 @@ defineExpose({
       </template>
 
       <!-- 上级角色插槽 -->
-      <template #parentid="slotProps">
+      <template #parentId="slotProps">
         <div class="flex items-center gap-2">
-          <Checkbox v-model:checked="fieldEnabled.parentid" />
+          <Checkbox v-model:checked="fieldEnabled.parentId" />
           <div class="flex-1">
             <ApiComponent
               v-model:value="slotProps.modelValue"
@@ -582,7 +645,7 @@ defineExpose({
               "
               :component="TreeSelect"
               class="w-full"
-              :disabled="!fieldEnabled.parentid"
+              :disabled="!fieldEnabled.parentId"
               :field-names="{
                 label: 'name',
                 value: 'roleId',
@@ -627,6 +690,19 @@ defineExpose({
               show-search
               style="width: 100%; min-width: 200px"
               visible-event="onVisibleChange"
+              @update:value="
+                (value: string[]) => {
+                  console.log('园区值变化:', {
+                    newValue: value,
+                    type: typeof value,
+                    isArray: Array.isArray(value),
+                    length: Array.isArray(value) ? value.length : 'N/A',
+                  });
+                  // 手动同步到表单字段
+                  formApi.setFieldValue('parkIds', value);
+                  console.log('已同步园区值到表单字段');
+                }
+              "
             />
           </div>
         </div>
@@ -669,6 +745,19 @@ defineExpose({
                 value-field="menuId"
                 label-field="meta.title"
                 icon-field="meta.icon"
+                @update:model-value="
+                  (value) => {
+                    console.log('VbenTree权限值变化:', {
+                      newValue: value,
+                      type: typeof value,
+                      isArray: Array.isArray(value),
+                      length: Array.isArray(value) ? value.length : 'N/A',
+                    });
+                    // 手动同步到表单字段
+                    formApi.setFieldValue('permissions', value);
+                    console.log('已同步权限值到表单字段');
+                  }
+                "
               >
                 <template #node="{ value }">
                   <IconifyIcon v-if="value.meta.icon" :icon="value.meta.icon" />
@@ -695,6 +784,16 @@ defineExpose({
                 { label: '拒绝', value: 0 },
               ]"
               style="width: 100%; min-width: 200px"
+              @update:value="
+                (value) => {
+                  console.log('审核权限值变化:', {
+                    newValue: value,
+                    type: typeof value,
+                  });
+                  formApi.setFieldValue('reimbursementAuth', value);
+                  console.log('已同步审核权限值到表单字段');
+                }
+              "
             />
           </div>
         </div>
@@ -712,6 +811,16 @@ defineExpose({
               :disabled="!fieldEnabled.rates"
               :min="0"
               placeholder="请输入此角色可审核的最大金额"
+              @update:value="
+                (value) => {
+                  console.log('审核金额值变化:', {
+                    newValue: value,
+                    type: typeof value,
+                  });
+                  formApi.setFieldValue('rates', value);
+                  console.log('已同步审核金额值到表单字段');
+                }
+              "
             />
           </div>
         </div>
@@ -729,6 +838,20 @@ defineExpose({
               class="ant-input"
               :class="{ 'ant-input-disabled': !fieldEnabled.remark }"
               rows="3"
+              @input="
+                (event: Event) => {
+                  const target = event.target as HTMLTextAreaElement;
+                  const value = target?.value || '';
+                  console.log('备注值变化:', {
+                    newValue: value,
+                    type: typeof value,
+                    length: value ? value.length : 0,
+                  });
+                  // 手动同步到表单字段
+                  formApi.setFieldValue('remark', value);
+                  console.log('已同步备注值到表单字段');
+                }
+              "
             ></textarea>
           </div>
         </div>

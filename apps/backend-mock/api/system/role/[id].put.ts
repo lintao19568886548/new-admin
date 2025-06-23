@@ -15,8 +15,11 @@ export default eventHandler(async (event) => {
     return useResponseError('id is required', 400);
   }
   const body = await readBody(event);
-  const { permissions, parkIds, parentid, ...roleData } = body;
-  roleData.status = !!roleData.status;
+  const { permissions, parkIds, parentId, ...roleData } = body;
+  // roleData.status = !!roleData.status;
+  if (roleData.status) {
+    roleData.status = Boolean(roleData.status);
+  }
   try {
     const res = await prismaClient.$transaction(async (prisma) => {
       // 1. 更新角色基本信息
@@ -26,17 +29,21 @@ export default eventHandler(async (event) => {
         },
         data: {
           ...roleData,
-          parentid: parentid ? Number(parentid) : null, // 处理 parentid 更新
+          parent: parentId // 处理 parentId 更新
+            ? {
+                connect: { roleId: Number(parentId) },
+              }
+            : undefined,
         },
       });
 
       // 2. 如果提供了permissions，则更新角色菜单关联
       if (permissions && Array.isArray(permissions)) {
         // 2.0 安全验证：检查子角色权限是否超出父角色范围
-        if (parentid) {
+        if (parentId) {
           // 获取父角色的权限信息
           const parentRole = await prisma.role.findUnique({
-            where: { roleId: Number(parentid) },
+            where: { roleId: Number(parentId) },
             include: {
               roleMenus: {
                 where: { isDeleted: false },

@@ -3,7 +3,7 @@ model Role {
   name              String?    @db.VarChar(50)
   remark            String?    @db.VarChar(100)
   status            Boolean
-  parentid          Int?
+  parentId          Int?       @map("parent_id")
   createTime        DateTime?  @default(now()) @map("create_time")
   updateTime        DateTime?  @updatedAt @map("update_time")
   roleMenus         RoleMenu[] @relation("RoleToRoleMenu")
@@ -12,9 +12,9 @@ model Role {
   reimbursementAuth Int?       @map("reimbursement_auth")
   rates             Int?       @map("rates")
   children          Role[]     @relation("RoleToRole")
-  parent            Role?      @relation("RoleToRole", fields: [parentid], references: [roleId], onDelete: NoAction, onUpdate: NoAction)
+  parent            Role?      @relation("RoleToRole", fields: [parentId], references: [roleId], onDelete: NoAction, onUpdate: NoAction)
 
-  @@index([parentid])
+  @@index([parentId])
   @@map("role")
 }
 
