@@ -162,6 +162,9 @@
     "upload": "上传图片",
     "usedArea": "使用面积"
   },
+  "home": {
+    "title": "首页"
+  },
   "maintenance": {
     "checkTime": "检查时间",
     "create": "新增维修",

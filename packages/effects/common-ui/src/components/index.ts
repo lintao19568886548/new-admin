@@ -18,6 +18,7 @@ export {
   VbenButtonGroup,
   VbenCheckButtonGroup,
   VbenCountToAnimator,
+  VbenIcon,
   VbenInputPassword,
   VbenLoading,
   VbenPinInput,

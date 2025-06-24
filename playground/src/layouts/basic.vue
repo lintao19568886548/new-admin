@@ -1,12 +1,13 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
-import { AuthenticationLoginExpiredModal } from '@vben/common-ui';
+import { AuthenticationLoginExpiredModal, VbenIcon } from '@vben/common-ui';
 import { useWatermark } from '@vben/hooks';
-import { LockKeyhole } from '@vben/icons';
+import { ArrowLeft, IconDefault, LockKeyhole, UserRoundPen } from '@vben/icons';
 import { BasicLayout, LockScreen, UserDropdown } from '@vben/layouts';
 import { $t } from '@vben/locales';
-import { preferences } from '@vben/preferences';
+import { preferences, updatePreferences } from '@vben/preferences';
 import { useAccessStore, useUserStore } from '@vben/stores';
 
 import { message } from 'ant-design-vue';
@@ -14,6 +15,24 @@ import { message } from 'ant-design-vue';
 import { useAuthStore } from '#/store';
 import EditPassword from '#/views/_core/authentication/edit-password.vue';
 import LoginForm from '#/views/_core/authentication/login.vue';
+
+const router = useRouter();
+
+const showBackButton = computed(
+  () => router.currentRoute.value.path !== '/home',
+);
+
+// By setting these preferences, we can disable the original layout components
+// and use BasicLayout as a content container.
+updatePreferences({
+  app: {
+    enablePreferences: false,
+  },
+  footer: { enable: false }, // Disable original footer
+  header: { enable: false }, // Disable original header
+  sidebar: { enable: false }, // Disable sidebar for an app-like view
+  tabbar: { enable: false }, // Disable web-style tabs
+});
 
 // const notifications = ref<NotificationItem[]>([
 //   {
@@ -132,20 +151,55 @@ watch(
     immediate: true,
   },
 );
+
+const activeTab = computed(() => router.currentRoute.value.path);
+
+const tabs = [
+  { icon: IconDefault, path: '/home', title: '首页' },
+  // { icon: SwatchBook, path: '/analytics', title: '列表' },
+  { icon: UserRoundPen, path: '/profile', title: '我的' },
+];
+
+function goTo(path: string) {
+  router.push(path);
+}
+
+function goBack() {
+  router.back();
+}
 </script>
 
 <template>
-  <BasicLayout @clear-preferences-and-logout="handleLogout">
-    <template #user-dropdown>
-      <UserDropdown
-        :avatar
-        :menus
-        :text="userStore.userInfo?.realName"
-        trigger="both"
-        @logout="handleLogout"
-      />
-    </template>
-    <!-- <template #notification>
+  <div class="app-layout">
+    <!-- App Top Navigation Bar -->
+    <header class="app-header">
+      <div class="w-10">
+        <VbenIcon
+          v-if="showBackButton"
+          :icon="ArrowLeft"
+          class="cursor-pointer"
+          @click="goBack"
+        />
+      </div>
+      <div class="font-bold">
+        {{ $t(router.currentRoute.value.meta.title || '标题') }}
+      </div>
+      <div class="w-10"><!-- Right Icon --></div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="app-main">
+      <BasicLayout @clear-preferences-and-logout="handleLogout">
+        <template #user-dropdown>
+          <UserDropdown
+            :avatar
+            :menus
+            :text="userStore.userInfo?.realName"
+            trigger="both"
+            @logout="handleLogout"
+          />
+        </template>
+        <!-- <template #notification>
       <Notification
         :dot="showDot"
         :notifications="notifications"
@@ -153,22 +207,110 @@ watch(
         @make-all="handleMakeAll"
       />
     </template> -->
-    <template #extra>
-      <AuthenticationLoginExpiredModal
-        v-model:open="accessStore.loginExpired"
-        :avatar
-      >
-        <LoginForm />
-      </AuthenticationLoginExpiredModal>
+        <template #extra>
+          <AuthenticationLoginExpiredModal
+            v-model:open="accessStore.loginExpired"
+            :avatar
+          >
+            <LoginForm />
+          </AuthenticationLoginExpiredModal>
 
-      <!-- 添加修改密码模态框 -->
-      <EditPassword
-        v-model:open="showPasswordModal"
-        @success="handlePasswordChanged"
-      />
-    </template>
-    <template #lock-screen>
-      <LockScreen :avatar @to-login="handleLogout" />
-    </template>
-  </BasicLayout>
+          <!-- 添加修改密码模态框 -->
+          <EditPassword
+            v-model:open="showPasswordModal"
+            @success="handlePasswordChanged"
+          />
+        </template>
+        <template #lock-screen>
+          <LockScreen :avatar @to-login="handleLogout" />
+        </template>
+      </BasicLayout>
+    </main>
+
+    <!-- App Bottom Tab Bar -->
+    <footer class="app-footer">
+      <div
+        v-for="tab in tabs"
+        :key="tab.path"
+        :class="{ 'app-tab-item--active': activeTab === tab.path }"
+        class="app-tab-item"
+        @click="goTo(tab.path)"
+      >
+        <VbenIcon :icon="tab.icon" class="mb-1" />
+        {{ tab.title }}
+      </div>
+    </footer>
+  </div>
 </template>
+
+<style lang="css" scoped>
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 12px;
+  background-color: #fff;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.app-main {
+  flex-grow: 1;
+  overflow: hidden auto;
+}
+
+.app-footer {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-around;
+  height: 52px;
+  background-color: #fff;
+  border-top: 1px solid #f0f0f0;
+}
+
+.app-tab-item {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.app-tab-item:hover {
+  color: #1e293b;
+  transform: translateY(-2px);
+}
+
+.app-tab-item--active {
+  font-weight: 600;
+  color: var(--primary-color);
+  animation: pulse-animation 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pulse-animation {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+</style>
