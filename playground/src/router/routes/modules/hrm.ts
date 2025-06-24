@@ -36,23 +36,25 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'attendance', // Corrected to relative path
         name: 'HrmAttendance',
-        // component: undefined, // Or a placeholder if needed, but usually not for parent if children exist
+        component: () => import('#/views/hrm/attendance/list.vue'),
         meta: {
           icon: 'mdi:calendar-clock',
           title: '考勤管理',
         },
-        // children: [], // If no children, can be omitted or set to undefined if it's a direct component route
       },
-      {
-        path: 'payroll', // Corrected to relative path
-        name: 'HrmPayroll',
-        // component: undefined,
-        meta: {
-          icon: 'mdi:cash-multiple',
-          title: '薪资管理',
-        },
-        // children: [],
-      },
+      // {
+      //   path: 'payroll', // Corrected to relative path
+      //   name: 'HrmPayroll',
+      //   component: () => import(),
+      //   children: [], // 添加空的children数组以满足RouteRecordSingleViewWithChildren类型要求
+      //   redirect: '/hrm/payroll/list',
+      //   // component: undefined,
+      //   meta: {
+      //     icon: 'mdi:cash-multiple',
+      //     title: '薪资管理',
+      //   },
+      //   // children: [],
+      // },
       {
         path: 'leaveapplication', // Ensure relative path
         name: 'HrmLeaveApplication',

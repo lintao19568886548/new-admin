@@ -20,6 +20,7 @@
     "axios": "^1.8.4",
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^11.9.1",
+    "dayjs": "^1.11.13",
     "db0": "^0.3.1",
     "jsonwebtoken": "catalog:",
     "mysql2": "^3.14.0",
