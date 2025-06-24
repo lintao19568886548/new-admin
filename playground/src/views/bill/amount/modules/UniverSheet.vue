@@ -418,7 +418,9 @@ async function init() {
 
     worksheet
       .getRange(`A${rowIndex}:I${rowIndex}`)
-      .setValues([['银行账户', '户名', '', '账号', '', '', '开户行', '', '']]);
+      .setValues([
+        ['银行账户', '户名', '', '账号', '', '', '开户行', '', '', '', ''],
+      ]);
     rowIndex++;
     worksheet
       .getRange(`A${rowIndex}:I${rowIndex}`)
@@ -431,6 +433,8 @@ async function init() {
           '',
           '',
           publicAccountData.bank,
+          '',
+          '',
           '',
           '',
         ],
@@ -449,19 +453,46 @@ async function init() {
           privateAccountData.bank,
           '',
           '',
+          '',
+          '',
         ],
       ]);
     const bankTableEndRow = rowIndex;
     rowIndex++;
     // --- End of Bank Account Table ---
 
-    const colWidths = [150, 100, 100, 100, 70, 120, 120, 120, 100];
+    worksheet
+      .getRange('J2')
+      .setValue('收款时间')
+      .setHorizontalAlignment('center');
+    if (props.billData.receiptTime) {
+      try {
+        const date = new Date(props.billData.receiptTime);
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        worksheet.getRange('K2').setValue(`${year}-${month}-${day}`);
+      } catch {
+        worksheet.getRange('K2').setValue(props.billData.receiptTime);
+      }
+    }
+
+    worksheet
+      .getRange('J3')
+      .setValue('收款金额')
+      .setHorizontalAlignment('center');
+    worksheet.getRange('K3').setValue(props.billData.receiptAmount || 0);
+    worksheet.getRange('K2:K3').setHorizontalAlignment('center');
+
+    rowIndex += 1;
+
+    const colWidths = [150, 100, 100, 100, 70, 120, 120, 120, 100, 100, 120];
     colWidths.forEach((width, index) => {
       worksheet.setColumnWidth(index, width);
     });
 
     [1, 4, waterHeaderRow - 1, feeTitleRow].forEach((r) => {
-      const range = worksheet.getRange(`A${r}:I${r}`);
+      const range = worksheet.getRange(r === 1 ? `A${r}:K${r}` : `A${r}:I${r}`);
       if (r === 1) range.setFontSize(14);
       range
         .setHorizontalAlignment('center')
@@ -480,7 +511,7 @@ async function init() {
     fullRange.setVerticalAlignment('middle');
 
     worksheet
-      .getRange(`A3:I3`)
+      .getRange(`A2:K3`)
       .setBorder(BorderType.ALL, BorderStyleTypes.THIN);
     worksheet
       .getRange(`A${eleHeaderRow}:I${eleTotalRow}`)
@@ -656,10 +687,12 @@ async function init() {
         `B${feeDataStartRow}:B${feeTotalRow}`,
         '###0.00',
       );
-      worksheet.getRange(`A1:I1`).merge();
+      setNumberFormat(worksheet, `K3`, '###0.00');
+
+      worksheet.getRange(`A1:K1`).merge();
       worksheet.getRange(`B2:E2`).merge();
       worksheet.getRange(`G2:I2`).merge();
-      worksheet.getRange(`B3:I3`).merge();
+      worksheet.getRange(`B3:H3`).merge();
 
       // Merges for bank table
       const bankHeaderRow = bankTableStartRow;
@@ -680,7 +713,7 @@ async function init() {
       worksheet.getRange(`D${privateDataRow}:F${privateDataRow}`).merge();
       worksheet.getRange(`G${privateDataRow}:I${privateDataRow}`).merge();
 
-      // Set border after merging
+      // Set border for the bank table after merging
       worksheet
         .getRange(`A${bankTableStartRow}:I${bankTableEndRow}`)
         .setBorder(BorderType.ALL, BorderStyleTypes.THIN);
@@ -727,8 +760,8 @@ function getData() {
     return null;
   }
   const lastRow = worksheet.getLastRow();
-  const fullData = worksheet.getRange(`A1:I${lastRow + 1}`).getValues();
-  const fullFormulas = worksheet.getRange(`A1:I${lastRow + 1}`).getFormulas();
+  const fullData = worksheet.getRange(`A1:K${lastRow + 1}`).getValues();
+  const fullFormulas = worksheet.getRange(`A1:K${lastRow + 1}`).getFormulas();
 
   const eleBills: any[] = [];
   const waterBills: any[] = [];
@@ -946,6 +979,18 @@ function getData() {
 
   billData.extraProjectItem = extraProjectItem;
 
+  // --- 提取收款时间和金额 ---
+  const receiptTimeValue = worksheet.getRange('K2')?.getValue() as string;
+  const date = receiptTimeValue ? new Date(receiptTimeValue) : null;
+  billData.receiptTime =
+    date && !Number.isNaN(date.getTime())
+      ? date.toISOString()
+      : receiptTimeValue || undefined;
+
+  const receiptAmountValue = worksheet.getRange('K3')?.getValue();
+  billData.receiptAmount = Number(receiptAmountValue) || 0;
+  // --- 提取结束 ---
+
   // --- Extract Public/Private Account Info ---
   const publicAccount: {
     bank?: string;
@@ -999,6 +1044,51 @@ function registerEvents() {
     return;
   }
   univerAPI.addEvent(univerAPI.Event.SheetSkeletonChanged, (params: any) => {
+    // 修改收款时间
+    if (
+      params?.payload?.id === 'sheet.mutation.set-worksheet-row-auto-height' &&
+      params?.payload?.params?.rowsAutoHeightInfo?.[0]?.row === 1
+    ) {
+      const range = params.worksheet.getRange('K2');
+      const currentValue = range.getRawValue();
+      if (typeof currentValue === 'number') {
+        const dateStr = String(currentValue);
+        let formattedDate = '';
+
+        switch (dateStr.length) {
+          case 4: {
+            // YYYY -> YYYY-01-01
+            formattedDate = `${dateStr}-01-01`;
+            break;
+          }
+          case 5: {
+            // YYYYM -> YYYY-0M-01
+            formattedDate = `${dateStr.slice(0, 4)}-${dateStr
+              .slice(4, 5)
+              .padStart(2, '0')}-01`;
+            break;
+          }
+          case 6: {
+            // YYYYMM -> YYYY-MM-01
+            formattedDate = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-01`;
+            break;
+          }
+          case 8: {
+            // YYYYMMDD -> YYYY-MM-DD
+            formattedDate = `${dateStr.slice(0, 4)}-${dateStr.slice(
+              4,
+              6,
+            )}-${dateStr.slice(6, 8)}`;
+            break;
+          }
+        }
+
+        if (formattedDate) {
+          range.setValue(formattedDate);
+        }
+      }
+    }
+    // 插入行事件
     if (params?.payload?.id === 'sheet.mutation.insert-row') {
       try {
         const worksheet = univerAPI?.getActiveWorkbook()?.getActiveSheet();
