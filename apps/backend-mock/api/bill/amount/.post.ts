@@ -1,6 +1,8 @@
 import { prismaClient } from '~/utils/db';
 import { serverErrorResponse, useResponseSuccess } from '~/utils/response';
 
+import { upsertFinanceRecord } from './utils';
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -11,11 +13,21 @@ export default eventHandler(async (event) => {
   try {
     // 使用事务处理创建操作
     const bill = await prismaClient.$transaction(async (prisma) => {
-      // 创建账单及关联数据
+      // 1. 创建或更新财务记录
+      const financeId = await upsertFinanceRecord(prisma, {
+        ...billData,
+        parkId,
+      });
+
+      // 2. 创建账单及关联数据
       return await prisma.amountBill.create({
         data: {
           ...billData,
-          // 使用 connect 连接已存在的 Park 记录
+          finance: financeId // 使用关联写入
+            ? {
+                connect: { financeId },
+              }
+            : undefined,
           park: parkId
             ? {
                 connect: { parkId },

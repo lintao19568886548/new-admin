@@ -9,8 +9,7 @@ model Localization {
   createTime     DateTime @default(now()) @map("create_time")
   updateTime     DateTime @updatedAt @map("update_time")
   user           User     @relation("UserToLocalization", fields: [userId], references: [id])
-  
 
   @@index([userId])
   @@map("localization")
-} 
+}

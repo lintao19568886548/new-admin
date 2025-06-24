@@ -153,7 +153,6 @@ async function handleSave() {
     garbageFee: Number(billData.garbageFee) || 0,
     invoiceTax: Number(billData.invoiceTax) || 0,
     managementFee: Number(billData.managementFee) || 0,
-    // 以下字段可根据需要保留或删除
     parkId: billData.parkId,
     penaltyFee: Number(billData.penaltyFee) || 0,
     privateBankAccount: billData.privateBankAccount,

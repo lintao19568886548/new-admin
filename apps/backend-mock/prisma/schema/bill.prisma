@@ -25,11 +25,13 @@ model AmountBill {
   waterItem          String?       @map("water_item") @db.LongText /// 水费信息
   extraProjectItem   String?       @map("project_amount_item") @db.LongText ///额外项目明细
   taxRate            String?       @map("tax_rate") @db.LongText /// 开票税金, 以json格式存储
-  tenantId           Int?          @map("tenant_id")
   remark             String?       @db.VarChar(100)
   receiptTime        DateTime?     @map("receipt_time")
   createTime         DateTime?     @default(now()) @map("create_time")
   updateTime         DateTime?     @updatedAt @map("update_time")
+  financeId          Int?          @unique @map("finance_id") // 关联的财务记录ID，设置为unique确保一一对应
+  finance            Finance?      @relation("AmountBillToFinance", fields: [financeId], references: [financeId])
+  tenantId           Int?          @map("tenant_id")
   tenant             RentalTenant? @relation("AmountBillToTenant", map: "tenant_no_fk", fields: [tenantId], references: [rentalTenantId])
   eleBills           EleBill[]     @relation("EleBillToAmountBill")
   waterBills         WaterBill[]   @relation("WaterBillToAmountBill")
