@@ -225,7 +225,10 @@ function onBatchEdit() {
             {{ $t('ui.actionTitle.create', [$t('system.role.name')]) }}
           </Button>
           <Button type="default" @click="onBatchEdit">
-            <IconifyIcon icon="mdi:pencil-multiple" class="size-5" />
+            <IconifyIcon
+              icon="mdi:pencil-box-multiple-outline"
+              class="size-5"
+            />
             批量修改
           </Button>
         </div>

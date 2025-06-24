@@ -133,6 +133,7 @@ const batchEditSchema = computed(() => [
     component: 'Input',
     fieldName: 'roleSelection',
     formItemClass: 'items-start',
+    help: '由于子角色权限范围受限于父角色，故有以下规则：只能选择顶级角色及其同级角色、已选角色的子角色',
     label: '角色选择',
     slot: 'roleSelection',
   },
@@ -599,10 +600,7 @@ defineExpose({
     <Form>
       <!-- 角色选择插槽 -->
       <template #roleSelection>
-        <div class="space-y-2">
-          <div class="mb-2 text-sm text-gray-600">
-            选择规则：只能选择顶级角色及其同级角色、已选角色的子角色
-          </div>
+        <div class="space-y-2" style="min-width: 330px">
           <VbenTree
             v-model="selectedRoles"
             :tree-data="processedRoleTreeData"
@@ -630,7 +628,7 @@ defineExpose({
 
       <!-- 上级角色插槽 -->
       <template #parentId="slotProps">
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2" style="min-width: 330px">
           <Checkbox v-model:checked="fieldEnabled.parentId" />
           <div class="flex-1">
             <ApiComponent
@@ -666,6 +664,7 @@ defineExpose({
               tree-default-expand-all
               tree-node-filter-prop="name"
               visible-event="onVisibleChange"
+              allow-clear
             />
           </div>
         </div>
@@ -675,7 +674,7 @@ defineExpose({
       <template #parkIds="slotProps">
         <div class="flex items-center gap-2">
           <Checkbox v-model:checked="fieldEnabled.parkIds" />
-          <div class="flex-1" style="min-width: 200px">
+          <div class="flex-1" style="min-width: 300px">
             <ApiComponent
               v-model:value="slotProps.modelValue"
               :api="getCachedParkList"
@@ -688,7 +687,7 @@ defineExpose({
               model-prop-name="value"
               placeholder="请选择所属园区"
               show-search
-              style="width: 100%; min-width: 200px"
+              style="width: 100%; min-width: 300px"
               visible-event="onVisibleChange"
               @update:value="
                 (value: string[]) => {
@@ -730,7 +729,7 @@ defineExpose({
       <template #permissions="slotProps">
         <div class="flex items-start gap-2">
           <Checkbox v-model:checked="fieldEnabled.permissions" class="mt-1" />
-          <div class="flex-1">
+          <div class="flex-1" style="min-width: 300px">
             <Spin :spinning="loadingPermissions">
               <VbenTree
                 v-model:value="slotProps.modelValue"
@@ -773,7 +772,7 @@ defineExpose({
       <template #reimbursementAuth="slotProps">
         <div class="flex items-center gap-2">
           <Checkbox v-model:checked="fieldEnabled.reimbursementAuth" />
-          <div class="flex-1" style="min-width: 200px">
+          <div class="flex-1">
             <Select
               v-model:value="slotProps.modelValue"
               allow-clear
@@ -783,7 +782,7 @@ defineExpose({
                 { label: '允许', value: 1 },
                 { label: '拒绝', value: 0 },
               ]"
-              style="width: 100%; min-width: 200px"
+              style="width: 100%; min-width: 100px"
               @update:value="
                 (value) => {
                   console.log('审核权限值变化:', {
@@ -803,7 +802,7 @@ defineExpose({
       <template #rates="slotProps">
         <div class="flex items-center gap-2">
           <Checkbox v-model:checked="fieldEnabled.rates" />
-          <div class="flex-1">
+          <div class="flex-1" style="min-width: 300px">
             <InputNumber
               v-model:value="slotProps.modelValue"
               allow-clear
@@ -832,6 +831,7 @@ defineExpose({
           <Checkbox v-model:checked="fieldEnabled.remark" class="mt-1" />
           <div class="flex-1">
             <textarea
+              style="min-width: 300px"
               v-model="slotProps.modelValue"
               :disabled="!fieldEnabled.remark"
               :placeholder="fieldEnabled.remark ? '请输入备注' : '未启用此字段'"
