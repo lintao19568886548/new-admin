@@ -16,7 +16,7 @@ export namespace SystemRoleApi {
     /** 角色名称 */
     name?: string;
     /** 父级角色ID */
-    parentid?: null | number;
+    parentId?: null | number;
     /** 角色关联的园区ID列表 */
     parkIds?: number[];
     /** 角色拥有的权限菜单ID列表 */
@@ -25,6 +25,8 @@ export namespace SystemRoleApi {
     privilegeLevel?: number;
     /** 费率/评分 */
     rates?: number;
+    /** 审核权限 (1: 允许, 0: 拒绝) */
+    reimbursementAuth?: number;
     /** 备注 */
     remark?: string;
     /** 角色ID */
@@ -53,7 +55,7 @@ async function getRoleList(params?: Recordable<any>) {
 /**
  * @function createRole
  * @description 创建角色
- * @param data 角色数据，需包含 parentid, privilegeLevel, rates 等字段
+ * @param data 角色数据，需包含 parentId, privilegeLevel, rates 等字段
  * @returns 返回创建结果
  */
 async function createRole(
@@ -69,7 +71,7 @@ async function createRole(
  * @function updateRole
  * @description 更新角色
  * @param id 角色 ID
- * @param data 角色数据，需包含 parentid, privilegeLevel, rates 等字段
+ * @param data 角色数据，需包含 parentId, privilegeLevel, rates 等字段
  * @returns 返回更新结果
  */
 async function updateRole(

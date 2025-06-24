@@ -1,14 +1,14 @@
 model Attendance {
-  attendanceId Int      @id @default(autoincrement())
-  punchIn      DateTime @default(now())
+  attendanceId Int       @id @default(autoincrement())
+  punchIn      DateTime  @default(now())
   punchOut     DateTime?
   status       Int? // e.g., 0: Normal, 1: Late, 2: Early Leave, 3: Late and Early Leave
-  longitude      Decimal  @db.Decimal(18, 15) //经度
-  latitude       Decimal  @db.Decimal(18, 15) //纬度
+  longitude    Decimal   @db.Decimal(18, 15) //经度
+  latitude     Decimal   @db.Decimal(18, 15) //纬度
 
   user   User @relation(fields: [userId], references: [id])
   userId Int
 
-  @@map("attendances")
   @@index([userId])
-} 
+  @@map("attendances")
+}

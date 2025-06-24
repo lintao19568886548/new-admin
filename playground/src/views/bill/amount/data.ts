@@ -4,7 +4,7 @@ import type { BillFormConfig } from './modules/BillForm.vue';
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
-import { formatDateTime } from '@vben/utils';
+import { formatDate, formatDateTime } from '@vben/utils';
 
 /**
  * 总账单接口
@@ -32,6 +32,7 @@ export interface AmountBill {
   privateBankAccount?: string; // 对私银行账户
   projectName?: string; // 项目名称
   publicBankAccount?: string; // 对公银行账户
+  receiptAmount?: number; // 收款金额
   receiptTime?: string; // 收款时间
   remark?: string; // 备注
   rentTax?: number; // 租金税金
@@ -223,7 +224,7 @@ export function useColumns<T = AmountBill>(
       field: 'receiptTime',
       formatter: ({ cellValue }) => {
         if (cellValue) {
-          return formatDateTime(cellValue);
+          return formatDate(cellValue);
         }
         return '';
       },

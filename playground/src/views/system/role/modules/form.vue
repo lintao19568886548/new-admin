@@ -108,7 +108,7 @@ async function loadPermissions() {
   loadingPermissions.value = true;
   try {
     // 根据当前角色的父角色ID获取权限树
-    const parentRoleId = formData.value?.parentid;
+    const parentRoleId = formData.value?.parentId;
     const res = parentRoleId
       ? await getMenusByParentRole(parentRoleId) // 有父角色时，根据父角色权限限制显示范围
       : await getMenuList(); // 顶级角色显示所有权限
@@ -135,6 +135,13 @@ function getNodeClass(node: Recordable<any>) {
 
   return classes.join(' ');
 }
+
+// 导出drawer API供父组件使用
+defineExpose({
+  close: drawerApi.close,
+  open: drawerApi.open,
+  setData: drawerApi.setData,
+});
 </script>
 <template>
   <Drawer :title="getDrawerTitle">

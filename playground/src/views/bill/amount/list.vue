@@ -34,13 +34,11 @@ import { executeBill } from '#/utils/excel';
 
 import {
   electricityFormConfig,
-  summaryDetailConfig,
   summaryFormConfig,
   useColumns,
   useGridFormSchema,
   waterFormConfig,
 } from './data';
-import MultipageBillDetail from './modules/MultipageBillDetail.vue';
 import MultipageBillForm from './modules/MultipageBillForm.vue';
 
 onMounted(async () => {
@@ -59,11 +57,6 @@ const billFormRef = ref();
 
 // 账单详情组件引用
 const billDetailRef = ref();
-
-// 配置对象，用于传递给组件
-const detailConfig = {
-  ...summaryDetailConfig,
-};
 
 const formConfig = {
   ...summaryFormConfig,
@@ -255,6 +248,24 @@ const [Grid, gridApi] = useVbenVxeGrid({
             }, 0);
             return `${sum.toFixed(2)}元`;
           }
+          if (column.field === 'managementFee') {
+            const sum = data.reduce((sum, row) => {
+              return sum + (Number(row.managementFee) || 0);
+            }, 0);
+            return `${sum.toFixed(2)}元`;
+          }
+          if (column.field === 'penaltyFee') {
+            const sum = data.reduce((sum, row) => {
+              return sum + (Number(row.penaltyFee) || 0);
+            }, 0);
+            return `${sum.toFixed(2)}元`;
+          }
+          if (column.field === 'invoiceTax') {
+            const sum = data.reduce((sum, row) => {
+              return sum + (Number(row.invoiceTax) || 0);
+            }, 0);
+            return `${sum.toFixed(2)}元`;
+          }
           if (column.field === 'totalFee') {
             const sum = data.reduce((sum, row) => {
               return sum + (Number(row.totalFee) || 0);
@@ -407,7 +418,6 @@ function handlePrintCancel() {
       :config="formConfig"
       @success="handleFormSuccess"
     />
-    <MultipageBillDetail ref="billDetailRef" :config="detailConfig" />
 
     <!-- --- 新增代码开始 --- -->
     <!-- 打印设置模态框 -->

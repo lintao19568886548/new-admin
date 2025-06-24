@@ -7,8 +7,10 @@ import type {
 } from '#/adapter/vxe-table';
 import type { SystemRoleApi } from '#/api';
 
-import { Page, useVbenDrawer } from '@vben/common-ui';
-import { Plus } from '@vben/icons';
+import { ref } from 'vue';
+
+import { Page } from '@vben/common-ui';
+import { IconifyIcon, Plus } from '@vben/icons';
 
 import { Button, message, Modal } from 'ant-design-vue';
 
@@ -18,12 +20,11 @@ import { $t } from '#/locales';
 import { useRoleStore } from '#/store/modules/role';
 
 import { useColumns, useGridFormSchema } from './data';
-import Form from './modules/form.vue';
+import { BatchEdit, FormDrawer } from './modules';
 
-const [FormDrawer, formDrawerApi] = useVbenDrawer({
-  connectedComponent: Form,
-  destroyOnClose: true,
-});
+// 组件引用
+const formDrawerRef = ref();
+const batchEditRef = ref();
 
 // 使用角色store
 const roleStore = useRoleStore();
@@ -81,7 +82,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
     treeConfig: {
       expandAll: true, // 默认展开所有树节点
       // 添加 treeConfig
-      parentField: 'parentid', // 假设角色数据有 parentid 字段表示父级ID
+      parentField: 'parentId', // 假设角色数据有 parentId 字段表示父级ID
       rowField: 'roleId', // 使用 roleId 作为行ID
       transform: false, // 后端返回树状结构时设为true，扁平结构设为false
     },
@@ -161,12 +162,14 @@ async function onStatusChange(
 }
 
 function onEdit(row: SystemRoleApi.SystemRole) {
-  formDrawerApi.setData(row).open();
+  formDrawerRef.value?.setData(row);
+  formDrawerRef.value?.open();
 }
 
 // 添加 onAppend 函数
 function onAppend(row: SystemRoleApi.SystemRole) {
-  formDrawerApi.setData({ parentid: row.roleId }).open(); // 设置父级ID
+  formDrawerRef.value?.setData({ parentId: row.roleId }); // 设置父级ID
+  formDrawerRef.value?.open();
 }
 
 function onDelete(row: SystemRoleApi.SystemRole) {
@@ -199,18 +202,36 @@ function onRefresh() {
 }
 
 function onCreate() {
-  formDrawerApi.setData({}).open();
+  formDrawerRef.value?.setData({});
+  formDrawerRef.value?.open();
+}
+
+/**
+ * 打开批量修改对话框
+ */
+function onBatchEdit() {
+  batchEditRef.value?.open();
 }
 </script>
 <template>
   <Page auto-content-height>
-    <FormDrawer @success="onRefresh" />
+    <FormDrawer ref="formDrawerRef" @success="onRefresh" />
+    <BatchEdit ref="batchEditRef" @success="onRefresh" />
     <Grid :table-title="$t('system.role.list')">
       <template #toolbar-tools>
-        <Button type="primary" @click="onCreate">
-          <Plus class="size-5" />
-          {{ $t('ui.actionTitle.create', [$t('system.role.name')]) }}
-        </Button>
+        <div class="flex gap-4">
+          <Button type="primary" @click="onCreate">
+            <Plus class="size-5" />
+            {{ $t('ui.actionTitle.create', [$t('system.role.name')]) }}
+          </Button>
+          <Button type="default" @click="onBatchEdit">
+            <IconifyIcon
+              icon="mdi:pencil-box-multiple-outline"
+              class="size-5"
+            />
+            批量修改
+          </Button>
+        </div>
       </template>
     </Grid>
   </Page>

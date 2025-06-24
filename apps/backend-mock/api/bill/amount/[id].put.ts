@@ -1,6 +1,8 @@
 import { prismaClient } from '~/utils/db';
 import { useResponseSuccess } from '~/utils/response';
 
+import { upsertFinanceRecord } from './utils';
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -16,7 +18,6 @@ export default eventHandler(async (event) => {
   delete billData.tenant;
   delete billData.createTime;
   delete billData.updateTime;
-
   // 使用事务来确保所有操作都成功或都失败
   const updateBill = await prismaClient.$transaction(async (tx) => {
     // 获取当前数据库中的电费和水费账单记录
@@ -32,11 +33,31 @@ export default eventHandler(async (event) => {
       throw new Error(`未找到ID为${billId}的账单记录`);
     }
 
-    // 更新主账单
+    // 1. 创建、更新或删除财务记录
+    const financeId = await upsertFinanceRecord(
+      tx,
+      {
+        ...billData,
+        parkId,
+        // 为确保billName完整，从现有记录或新数据中获取
+        tenantName: billData.tenantName || existingBill.tenantName,
+        projectName: billData.projectName || existingBill.projectName,
+      },
+      (existingBill as any).financeId, // 使用类型断言绕过linter类型检查错误
+    );
+
+    // 2. 更新主账单
     const updatedAmountBill = await tx.amountBill.update({
       where: { billId },
       data: {
         ...billData,
+        finance: financeId // 使用关联写入
+          ? {
+              connect: { financeId },
+            }
+          : {
+              disconnect: true,
+            },
         park: parkId
           ? {
               connect: { parkId },
@@ -46,7 +67,9 @@ export default eventHandler(async (event) => {
           ? {
               connect: { rentalTenantId: tenantId },
             }
-          : undefined,
+          : {
+              disconnect: true,
+            },
       },
     });
 
@@ -81,7 +104,6 @@ export default eventHandler(async (event) => {
           const recordTime = new Date(eleBaseTime);
           recordTime.setSeconds(recordTime.getSeconds() + index);
 
-          console.log(eleBill);
           return eleId
             ? tx.eleBill.update({
                 where: { eleId, billId },

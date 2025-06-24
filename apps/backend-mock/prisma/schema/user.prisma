@@ -1,16 +1,16 @@
 model User {
-  id         Int        @id @default(autoincrement())
-  realName   String     @map("real_name") @db.VarChar(30)
-  username   String     @unique @db.VarChar(50)
-  password   String     @db.VarChar(100)
-  phone      String?    @db.VarChar(20)
-  homePath   String?    @map("home_path") @db.VarChar(100)
-  userCodes  UserCode[] @relation("UserToUserCode")
-  roles      UserRole[] @relation("UserToUserRole")
+  id            Int            @id @default(autoincrement())
+  realName      String         @map("real_name") @db.VarChar(30)
+  username      String         @unique @db.VarChar(50)
+  password      String         @db.VarChar(100)
+  phone         String?        @db.VarChar(20)
+  homePath      String?        @map("home_path") @db.VarChar(100)
+  userCodes     UserCode[]     @relation("UserToUserCode")
+  roles         UserRole[]     @relation("UserToUserRole")
   localizations Localization[] @relation("UserToLocalization")
-  attendances     Attendance[]
-  createTime DateTime?  @default(now()) @map("create_time")
-  updateTime DateTime?  @updatedAt @map("update_time")
+  attendances   Attendance[]
+  createTime    DateTime?      @default(now()) @map("create_time")
+  updateTime    DateTime?      @updatedAt @map("update_time")
 
   @@map("user")
 }
