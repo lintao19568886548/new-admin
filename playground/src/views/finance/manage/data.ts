@@ -171,13 +171,13 @@ export function useColumns<T = FinanceItem>(
   return [
     {
       field: 'billName',
+      minWidth: 200,
       title: $t('page.finance.billName'),
-      width: 200,
     },
     {
       field: 'billCategory',
+      minWidth: 120,
       title: $t('page.finance.billCategory'),
-      width: 200,
     },
     {
       cellRender: {
@@ -185,15 +185,15 @@ export function useColumns<T = FinanceItem>(
         options: getTagTypeOptions(),
       },
       field: 'transactionType',
+      minWidth: 120,
       title: $t('page.finance.transactionType'),
-      width: 100,
     },
     {
       field: 'amount',
       formatter: ({ cellValue }) => {
         return cellValue ? `¥${Number(cellValue).toFixed(2)}` : '0';
       },
-      minWidth: 100,
+      minWidth: 120,
       title: $t('page.finance.amount'),
     },
     // 添加备注列
@@ -211,8 +211,8 @@ export function useColumns<T = FinanceItem>(
       formatter: ({ cellValue }) => {
         return formatDateTime(cellValue);
       },
+      minWidth: 180,
       title: $t('page.finance.transactionTime'),
-      width: 200,
     },
     {
       align: 'center',
@@ -227,8 +227,8 @@ export function useColumns<T = FinanceItem>(
       },
       field: 'operation',
       fixed: 'right',
+      minWidth: 130,
       title: $t('system.role.operation'),
-      width: 130,
     },
   ];
 }
