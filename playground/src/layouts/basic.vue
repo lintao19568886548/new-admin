@@ -264,7 +264,13 @@ function goBack() {
 
 .app-main {
   flex-grow: 1;
-  overflow: hidden auto;
+  overflow-y: auto; /* Allow scrolling */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.app-main::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, and Opera */
 }
 
 .app-footer {

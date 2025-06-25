@@ -2,39 +2,34 @@
 // 从本地类型定义中导入 ReimbursementItem 类型
 import type { ReimbursementItem } from './data';
 
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 
 import { Search } from '@vben/icons';
-import { useUserStore } from '@vben/stores';
 import { formatDateTime } from '@vben/utils';
 
 import {
   Button,
+  Card,
+  Carousel,
+  Col,
   Empty,
   Form,
   Image,
   Input,
   message,
   Modal,
-  Pagination, // Added for manual pagination control
+  Pagination,
+  Radio,
+  Row,
   Select,
   Spin,
   Tag,
-  Card as VbenCard, // 将 Card 组件重命名为 VbenCard
 } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
-import { STATUS_MAP as AUDIT_STATUS_MAP, useFormRules } from './data'; // Renamed STATUS_MAP to avoid conflict
-import {
-  statusOptions as auditStatusOptions, // Renamed for clarity
-  getUserPrivilegeInfo,
-  // Import type for clarity
-  useReimbursementAudit,
-} from './modules/type';
-
-// 获取用户信息
-const userStore = useUserStore();
+import { STATUS_MAP, useFormRules } from './data';
+import { statusOptions, useReimbursementAudit } from './modules/type';
 
 // 使用组合式函数
 const {
@@ -43,34 +38,23 @@ const {
   currentRecord,
   fetchReimbursements,
   handleAuditSubmit,
-  // handleDelete, // Not implementing delete on mobile view for now to keep it simple
   handleSearch,
-  // handleTableChange, // Will use custom pagination handler
-  hasAuditPermission,
   isAmountOverLimit,
   isAuditModalVisible,
   loading,
-  pagination, // pagination.current, pagination.pageSize, pagination.total
+  pagination,
   reimbursementList,
   resetSearch,
   searchForm,
-  showAuditModal, // This function will set currentRecord and show the modal
+  showAuditModal,
   submitting,
 } = useReimbursementAudit();
 
 // 表单相关 for the audit modal
-const auditModalFormRef = ref(); // Changed name to avoid conflict if a page form ref was needed
+const auditModalFormRef = ref();
 
 // 表单验证规则
 const rules = useFormRules();
-
-// 添加用户权限等级信息计算属性
-const userPrivilegeInfo = computed(() => {
-  return getUserPrivilegeInfo(
-    hasAuditPermission.value,
-    userStore.userInfo?.rates,
-  );
-});
 
 // 组件挂载时初始化
 onMounted(() => {
@@ -86,7 +70,7 @@ function handlePageChange(page: number, pageSize: number) {
 // Function to get status text and color
 function getStatusDisplay(status: number) {
   return (
-    AUDIT_STATUS_MAP[status as keyof typeof AUDIT_STATUS_MAP] || {
+    STATUS_MAP[status as keyof typeof STATUS_MAP] || {
       color: 'default',
       text: '未知',
     }
@@ -115,44 +99,42 @@ function triggerShowAuditModal(record: ReimbursementItem) {
 
 <template>
   <div class="mobile-audit-container">
-    <header class="page-header">
+    <!-- <header class="page-header">
       <h2 class="page-title">{{ $t('移动端报销审核') }}</h2>
       <div v-if="hasAuditPermission" class="audit-permission-info">
         审核金额上限: {{ userPrivilegeInfo.maxAmount }}
       </div>
-    </header>
+    </header> -->
 
     <div class="search-filters">
       <Form layout="vertical">
-        <Form.Item :label="$t('用途')">
-          <Input
-            v-model:value="searchForm.purpose"
-            :placeholder="$t('搜索用途')"
-            allow-clear
-          />
-          <!-- </Form.Item>
-         <Form.Item v-if="hasAuditPermission" :label="$t('申请人')">
-          <Input
-            v-model:value="searchForm.username"
-            :placeholder="$t('搜索申请人')"
-            allow-clear
-          /> -->
-        </Form.Item>
-        -->
-        <Form.Item :label="$t('状态')">
-          <Select
-            v-model:value="searchForm.status"
-            :options="auditStatusOptions"
-            :placeholder="$t('选择状态')"
-            allow-clear
-          />
-        </Form.Item>
+        <Row :gutter="16">
+          <Col :span="12">
+            <Form.Item :label="$t('用途')">
+              <Input
+                v-model:value="searchForm.purpose"
+                :placeholder="$t('搜索用途')"
+                allow-clear
+              />
+            </Form.Item>
+          </Col>
+          <Col :span="12">
+            <Form.Item :label="$t('状态')">
+              <Select
+                v-model:value="searchForm.status"
+                :options="statusOptions"
+                :placeholder="$t('选择状态')"
+                allow-clear
+              />
+            </Form.Item>
+          </Col>
+        </Row>
         <div class="search-actions">
-          <Button type="primary" @click="handleSearch" block>
+          <Button type="primary" @click="handleSearch" class="flex-1">
             <Search class="mr-1 h-4 w-4" />
             {{ $t('搜索') }}
           </Button>
-          <Button @click="resetSearch" block style="margin-top: 8px">
+          <Button @click="resetSearch" class="flex-1">
             {{ $t('重置') }}
           </Button>
         </div>
@@ -161,50 +143,80 @@ function triggerShowAuditModal(record: ReimbursementItem) {
 
     <Spin :spinning="loading" :tip="$t('加载中...')">
       <div v-if="reimbursementList.length > 0" class="audit-list">
-        <div
+        <Card
           v-for="item in reimbursementList"
           :key="item.id"
           class="audit-card"
+          :body-style="{ padding: '0' }"
         >
           <div class="card-header">
-            <span class="applicant">申请人: {{ item.username }}</span>
+            <span class="purpose-title">{{ item.purpose }}</span>
             <Tag :color="getStatusDisplay(item.status).color">
               {{ getStatusDisplay(item.status).text }}
             </Tag>
           </div>
-          <div class="card-body">
-            <p><strong>用途:</strong> {{ item.purpose }}</p>
-            <p>
-              <strong>金额:</strong>
+          <div class="card-content">
+            <div class="amount-display">
+              <span class="amount-label">报销金额</span>
               <span class="amount">￥{{ Number(item.amount).toFixed(2) }}</span>
-            </p>
-            <p><strong>领款人:</strong> {{ item.payee }}</p>
-            <p><strong>园区:</strong> {{ item.park }}</p>
-            <p><strong>申请日期:</strong> {{ formatDateTime(item.date) }}</p>
-            <p v-if="(item as any).auditOpinion">
-              <strong>审核意见:</strong> {{ (item as any).auditOpinion }}
-            </p>
+            </div>
+
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">申请人</span>
+                <span class="info-value">{{ item.username }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">领款人</span>
+                <span class="info-value">{{ item.payee }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">申请日期</span>
+                <span class="info-value">{{ formatDateTime(item.date) }}</span>
+              </div>
+              <div v-if="item.park" class="info-item">
+                <span class="info-label">园区</span>
+                <span class="info-value">{{ item.park }}</span>
+              </div>
+            </div>
+
+            <div
+              v-if="(item as any).remark || item.auditOpinion"
+              class="opinions-section"
+            >
+              <p v-if="(item as any).remark" class="opinion-info">
+                <span class="opinion-label">申请备注:</span>
+                <span class="opinion-text">{{ (item as any).remark }}</span>
+              </p>
+              <p v-if="item.auditOpinion" class="opinion-info">
+                <!-- <span class="opinion-label"></span> -->
+                <span class="opinion-label">{{ item.auditOpinion }}</span>
+              </p>
+            </div>
+
             <div
               v-if="item.images && item.images.length > 0"
               class="card-images"
             >
-              <span class="images-label">凭证:</span>
               <Image.PreviewGroup>
-                <Image
-                  v-for="(img, index) in item.images"
-                  :key="index"
-                  :width="40"
-                  :height="40"
-                  :src="img"
-                  class="thumbnail-image"
-                />
+                <Carousel
+                  class="image-carousel"
+                  :dots="item.images.length > 1"
+                  :infinite="false"
+                >
+                  <Image
+                    v-for="(img, index) in item.images"
+                    :key="index"
+                    :src="img"
+                    class="carousel-main-image"
+                  />
+                </Carousel>
               </Image.PreviewGroup>
             </div>
           </div>
-          <div class="card-footer">
+          <div class="card-actions">
             <Button
               type="primary"
-              size="small"
               @click="triggerShowAuditModal(item)"
               :disabled="isAuditDisabled(item)"
               block
@@ -212,7 +224,7 @@ function triggerShowAuditModal(record: ReimbursementItem) {
               {{ item.status !== 0 ? $t('查看详情') : $t('审核') }}
             </Button>
           </div>
-        </div>
+        </Card>
         <Pagination
           v-if="pagination.total > 0"
           :current="pagination.current"
@@ -244,56 +256,82 @@ function triggerShowAuditModal(record: ReimbursementItem) {
         currentRecord && currentRecord.status > 0 ? $t('关闭') : $t('确定')
       "
       wrap-class-name="mobile-audit-modal"
+      :centered="true"
     >
       <div v-if="currentRecord" class="modal-content">
-        <div class="detail-grid">
-          <p><strong>申请人:</strong> {{ currentRecord.username }}</p>
-          <p><strong>用途:</strong> {{ currentRecord.purpose }}</p>
-          <p>
-            <strong>金额:</strong>
-            <span class="amount">
-              ￥{{ Number(currentRecord.amount).toFixed(2) }}
-            </span>
-          </p>
-          <p><strong>领款人:</strong> {{ currentRecord.payee }}</p>
-          <p><strong>所属园区:</strong> {{ currentRecord.park }}</p>
-          <p>
-            <strong>申请日期:</strong> {{ formatDateTime(currentRecord.date) }}
-          </p>
-          <div v-if="(currentRecord as any).auditorName">
-            <p>
-              <strong>当前审核人:</strong>
-              {{ (currentRecord as any).auditorName }}
-            </p>
-          </div>
-
-          <VbenCard title="审核意见" v-if="currentRecord.auditOpinion">
-            <p class="text-gray-600">{{ currentRecord.auditOpinion }}</p>
-          </VbenCard>
-
-          <VbenCard title="申请备注" v-if="currentRecord.remark">
-            <p class="text-gray-600">{{ currentRecord.remark }}</p>
-          </VbenCard>
-
-          <VbenCard
-            title="相关图片"
-            v-if="currentRecord.images && currentRecord.images.length > 0"
-          >
-            <div class="image-preview-list">
-              <Image.PreviewGroup>
-                <Image
-                  v-for="(img, index) in currentRecord.images"
-                  :key="index"
-                  :width="60"
-                  :height="60"
-                  :src="img"
-                  class="detail-image-item"
-                />
-              </Image.PreviewGroup>
-            </div>
-          </VbenCard>
+        <!-- Details Section -->
+        <div class="modal-amount-display">
+          <span class="modal-amount">
+            ￥{{ Number(currentRecord.amount).toFixed(2) }}
+          </span>
+          <span class="modal-amount-label">报销金额</span>
         </div>
 
+        <div class="modal-detail-grid">
+          <div class="modal-info-item">
+            <span class="modal-info-label">申请人</span>
+            <span class="modal-info-value">{{ currentRecord.username }}</span>
+          </div>
+          <div class="modal-info-item">
+            <span class="modal-info-label">领款人</span>
+            <span class="modal-info-value">{{ currentRecord.payee }}</span>
+          </div>
+          <div class="modal-info-item">
+            <span class="modal-info-label">所属园区</span>
+            <span class="modal-info-value">{{ currentRecord.park }}</span>
+          </div>
+          <div class="modal-info-item">
+            <span class="modal-info-label">申请日期</span>
+            <span class="modal-info-value">
+              {{ formatDateTime(currentRecord.date) }}
+            </span>
+          </div>
+        </div>
+
+        <div
+          v-if="(currentRecord as any).auditorName"
+          class="modal-detail-section"
+        >
+          <h4 class="modal-section-title">当前审核人</h4>
+          <p class="modal-section-content">
+            {{ (currentRecord as any).auditorName }}
+          </p>
+        </div>
+
+        <div v-if="currentRecord.auditOpinion" class="modal-detail-section">
+          <h4 class="modal-section-title">审核意见</h4>
+          <p class="modal-section-content">{{ currentRecord.auditOpinion }}</p>
+        </div>
+
+        <div v-if="(currentRecord as any).remark" class="modal-detail-section">
+          <h4 class="modal-section-title">申请备注</h4>
+          <p class="modal-section-content">
+            {{ (currentRecord as any).remark }}
+          </p>
+        </div>
+
+        <div
+          v-if="currentRecord.images && currentRecord.images.length > 0"
+          class="modal-detail-section"
+        >
+          <h4 class="modal-section-title">相关图片</h4>
+          <Image.PreviewGroup>
+            <Carousel
+              class="image-carousel-modal"
+              :dots="currentRecord.images.length > 1"
+              :infinite="false"
+            >
+              <Image
+                v-for="(img, index) in currentRecord.images"
+                :key="index"
+                :src="img"
+                class="carousel-detail-image"
+              />
+            </Carousel>
+          </Image.PreviewGroup>
+        </div>
+
+        <!-- Warning -->
         <div
           v-if="currentRecord.status === 0 && isAuditDisabled(currentRecord)"
           class="permission-warning"
@@ -301,6 +339,7 @@ function triggerShowAuditModal(record: ReimbursementItem) {
           金额超出您的审核权限
         </div>
 
+        <!-- Form -->
         <Form
           v-if="currentRecord.status === 0 && !isAuditDisabled(currentRecord)"
           ref="auditModalFormRef"
@@ -309,22 +348,33 @@ function triggerShowAuditModal(record: ReimbursementItem) {
           layout="vertical"
           class="audit-form-in-modal"
         >
-          <Form.Item name="status" :label="$t('审核结果')" required>
-            <Select
-              v-model:value="auditForm.status"
-              :placeholder="$t('请选择审核结果')"
-              :options="availableStatusOptions"
-            />
-          </Form.Item>
-          <Form.Item name="reason" :label="$t('审核意见')">
-            <Input.TextArea
-              v-model:value="auditForm.reason"
-              :placeholder="$t('请输入审核意见 (选填，拒绝时建议填写)')"
-              :maxlength="200"
-              :auto-size="{ minRows: 2, maxRows: 4 }"
-              show-count
-            />
-          </Form.Item>
+          <div class="audit-form-section">
+            <h4 class="modal-section-title">审核操作</h4>
+            <Form.Item name="status" required>
+              <Radio.Group
+                v-model:value="auditForm.status"
+                button-style="solid"
+                class="audit-status-radio"
+              >
+                <Radio.Button
+                  v-for="option in availableStatusOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </Radio.Button>
+              </Radio.Group>
+            </Form.Item>
+            <Form.Item name="reason">
+              <Input.TextArea
+                v-model:value="auditForm.reason"
+                :placeholder="$t('请输入审核意见 (选填，拒绝时建议填写)')"
+                :maxlength="200"
+                :auto-size="{ minRows: 3, maxRows: 5 }"
+                show-count
+              />
+            </Form.Item>
+          </div>
         </Form>
       </div>
     </Modal>
@@ -334,37 +384,12 @@ function triggerShowAuditModal(record: ReimbursementItem) {
 <style scoped>
 .mobile-audit-container {
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  height: 100vh; /* Full viewport height */
   padding: 8px; /* Reduced padding for mobile */
-  overflow-y: auto; /* Allow scrolling for the whole page */
   background-color: #f0f2f5;
 }
 
-.page-header {
-  padding: 10px 8px;
-  margin-bottom: 8px;
-  background-color: #fff;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
-}
-
-.page-title {
-  margin: 0 0 4px;
-  font-size: 1.2em; /* Adjusted for mobile */
-  font-weight: bold;
-  text-align: center;
-}
-
-.audit-permission-info {
-  font-size: 0.8em;
-  color: #666;
-  text-align: center;
-}
-
 .search-filters {
-  padding: 12px 8px; /* Adjusted padding */
+  padding: 12px 8px;
   margin-bottom: 8px;
   background-color: #fff;
   border-radius: 4px;
@@ -372,69 +397,126 @@ function triggerShowAuditModal(record: ReimbursementItem) {
 }
 
 .search-filters .ant-form-item {
-  margin-bottom: 8px; /* Reduced margin */
+  margin-bottom: 8px;
 }
 
 .search-actions {
+  display: flex;
+  gap: 8px;
   margin-top: 8px;
 }
 
 .audit-list {
-  flex-grow: 1; /* Takes remaining space */
-  overflow-y: auto; /* Scroll for list if content overflows */
+  padding-bottom: 10px;
 }
 
 .audit-card {
-  padding: 10px;
-  margin-bottom: 8px;
-  font-size: 0.9em;
+  margin-bottom: 12px;
+  overflow: hidden;
+  font-size: 14px;
   background-color: #fff;
-  border-radius: 4px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 5%);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+}
+
+:deep(.audit-card .ant-card-body) {
+  padding: 0;
 }
 
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 6px;
-  margin-bottom: 8px;
+  padding: 12px 16px;
   border-bottom: 1px solid #f0f0f0;
 }
 
-.applicant {
-  font-weight: bold;
+.purpose-title {
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  color: #323233;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-content {
+  padding: 16px;
+}
+
+.amount-display {
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.amount-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: #969799;
 }
 
 .amount {
-  font-weight: bold;
+  font-size: 24px;
+  font-weight: 600;
   color: #fa541c;
 }
 
-.card-body p {
-  margin-bottom: 4px;
-  line-height: 1.4;
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.info-label {
+  margin-bottom: 2px;
+  font-size: 13px;
+  color: #969799;
+}
+
+.info-value {
+  font-size: 14px;
+  color: #323233;
+}
+
+.opinions-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.opinion-info {
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #646566;
+  background-color: #f7f8fa;
+  border-radius: 6px;
+}
+
+.opinion-label {
+  margin-right: 4px;
+  font-weight: 600;
+}
+
+.opinion-text {
+  word-break: break-all;
+  white-space: pre-wrap;
 }
 
 .card-images {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  margin-top: 4px;
+  margin-top: 16px;
 }
 
-.images-label {
-  margin-right: 4px;
-  font-weight: bold;
-}
-
-.thumbnail-image {
-  object-fit: cover;
-  border-radius: 3px;
-}
-
-.card-footer {
-  margin-top: 10px;
+.card-actions {
+  padding: 0 16px 16px;
 }
 
 .list-pagination {
@@ -443,38 +525,105 @@ function triggerShowAuditModal(record: ReimbursementItem) {
   text-align: center;
 }
 
+:deep(.mobile-audit-modal) {
+  /* For .ant-modal-wrap */
+  align-items: flex-start;
+}
+
+:deep(.mobile-audit-modal .ant-modal) {
+  width: 100% !important;
+  max-width: 100vw;
+  padding: 0;
+  margin: 0;
+}
+
+:deep(.mobile-audit-modal .ant-modal-content) {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  border-radius: 0;
+}
+
+:deep(.mobile-audit-modal .ant-modal-header) {
+  flex-shrink: 0;
+}
+
 :deep(.mobile-audit-modal .ant-modal-body) {
-  max-height: 70vh;
-  padding: 12px; /* Reduced padding for modal body */
+  flex: 1;
+  max-height: none;
+  padding: 16px 12px;
   overflow-y: auto;
 }
 
-.modal-content .detail-grid {
-  display: grid;
-  grid-template-columns: 1fr; /* Single column for mobile */
-  gap: 8px; /* Gap between items */
-  margin-bottom: 12px;
-  font-size: 0.9em;
+:deep(.mobile-audit-modal .ant-modal-footer) {
+  flex-shrink: 0;
 }
 
-.modal-content .detail-grid p {
-  margin-bottom: 2px;
+.modal-content {
+  font-size: 14px;
 }
 
-.full-width-detail {
-  grid-column: 1 / -1; /* Span full width if needed */
-}
-
-.image-preview-list {
+.modal-amount-display {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 4px;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 5px;
+  margin-bottom: 5px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
-.detail-image-item {
-  object-fit: cover;
-  border-radius: 4px;
+.modal-amount {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.modal-amount-label {
+  margin-top: 2px;
+  font-size: 13px;
+  color: #86909c;
+}
+
+.modal-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.modal-info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-info-label {
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: #86909c;
+}
+
+.modal-info-value {
+  font-size: 14px;
+  color: #1d2129;
+}
+
+.modal-detail-section {
+  margin-bottom: 16px;
+}
+
+.modal-section-title {
+  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.modal-section-content {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #4e5969;
+  word-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 .permission-warning {
@@ -488,12 +637,88 @@ function triggerShowAuditModal(record: ReimbursementItem) {
   border-radius: 4px;
 }
 
-.audit-form-in-modal .ant-form-item {
-  margin-bottom: 10px;
+.audit-form-in-modal {
+  margin-top: 16px;
 }
 
-/* Ensure Empty component description is visible */
+.audit-form-section {
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.audit-form-in-modal .ant-form-item {
+  margin-bottom: 12px;
+}
+
+.audit-status-radio {
+  display: flex;
+}
+
+.audit-status-radio .ant-radio-button-wrapper {
+  flex: 1;
+  text-align: center;
+}
+
 :deep(.ant-empty-description) {
   color: #888;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.text-gray-600 {
+  color: #4b5563;
+}
+
+.image-carousel {
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.carousel-main-image {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+}
+
+:deep(.image-carousel .slick-dots-bottom) {
+  bottom: 5px;
+}
+
+:deep(.image-carousel .slick-dots li button) {
+  background: #fff;
+  opacity: 0.5;
+}
+
+:deep(.image-carousel .slick-dots li.slick-active button) {
+  background: #fff;
+  opacity: 1;
+}
+
+.image-carousel-modal {
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.carousel-detail-image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+}
+
+:deep(.image-carousel-modal .slick-dots-bottom) {
+  bottom: 5px;
+}
+
+:deep(.image-carousel-modal .slick-dots li button) {
+  background: #fff;
+  opacity: 0.5;
+}
+
+:deep(.image-carousel-modal .slick-dots li.slick-active button) {
+  background: #fff;
+  opacity: 1;
 }
 </style>
