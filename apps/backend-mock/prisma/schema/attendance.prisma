@@ -5,10 +5,8 @@ model Attendance {
   status       Int? // e.g., 0: Normal, 1: Late, 2: Early Leave, 3: Late and Early Leave
   longitude    Decimal   @db.Decimal(18, 15) //经度
   latitude     Decimal   @db.Decimal(18, 15) //纬度
+  username     String // 直接存储操作用户的用户名
 
-  user   User @relation(fields: [userId], references: [id])
-  userId Int
-
-  @@index([userId])
+  @@index([username])
   @@map("attendances")
 }

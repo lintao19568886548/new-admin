@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue';
+
+import { useUserStore } from '@vben/stores';
 
 // 需要先安装 @iconify/vue 依赖
 // npm install @iconify/vue
@@ -26,8 +36,51 @@ import {
   punchIn,
   punchOut,
 } from '#/api/hrm/attendance';
+import { officeLocation } from '#/config';
 
-// 响应式数据
+// ================================= 类型定义 =================================
+interface TodayRecord {
+  attendanceId: null | number;
+  punchIn: string;
+  punchOut: string;
+  status: null | number;
+  workHours: number;
+}
+
+interface MonthStats {
+  attendanceDays: number;
+  earlyLeaveDays: number;
+  lateDays: number;
+  overtimeHours: number;
+}
+
+interface AttendanceRecord {
+  date: string;
+  id: number;
+  punchIn: string;
+  punchOut: string;
+  status: number;
+  workHours: number;
+}
+
+// ================================= 考勤状态 =================================
+const AttendanceStatus = {
+  Absent: 4,
+  EarlyLeave: 2,
+  Late: 1,
+  LateAndEarlyLeave: 3,
+  Normal: 0,
+} as const;
+
+const attendanceStatusMeta = {
+  [AttendanceStatus.Absent]: { color: 'red', text: '缺勤' },
+  [AttendanceStatus.EarlyLeave]: { color: 'orange', text: '早退' },
+  [AttendanceStatus.Late]: { color: 'red', text: '迟到' },
+  [AttendanceStatus.LateAndEarlyLeave]: { color: 'red', text: '迟到+早退' },
+  [AttendanceStatus.Normal]: { color: 'green', text: '正常' },
+};
+
+// ================================= 响应式数据 =================================
 const currentLocation = ref('');
 const latitude = ref(0);
 const longitude = ref(0);
@@ -40,11 +93,15 @@ const dateRange = ref<[dayjs.Dayjs, dayjs.Dayjs]>([
   dayjs().endOf('month'),
 ]);
 
+// Pinia Store
+const userStore = useUserStore();
+const userInfo = userStore.userInfo;
+
 // 今日打卡记录
-const todayRecord = ref<any>({});
+const todayRecord = ref<null | TodayRecord>(null);
 
 // 月度统计
-const monthStats = reactive({
+const monthStats = reactive<MonthStats>({
   attendanceDays: 0,
   earlyLeaveDays: 0,
   lateDays: 0,
@@ -52,7 +109,7 @@ const monthStats = reactive({
 });
 
 // 考勤记录
-const attendanceRecords = ref([]);
+const attendanceRecords = ref<AttendanceRecord[]>([]);
 
 // 分页配置
 const pagination = reactive({
@@ -122,20 +179,14 @@ let map: any = null;
 const currentMarker = ref<any>(null);
 const officeCircle = ref<any>(null);
 
-// 办公室位置配置
-const officeLocation = {
-  lat: 23.095_473,
-  lng: 113.756_093,
-  radius: 9_999_999, // 打卡范围半径（米）
-};
-
 // 生命周期
 onMounted(async () => {
   await initMap();
   getCurrentLocation();
-  loadTodayRecord();
-  loadAttendanceRecords();
-  loadMonthStats();
+  // 不再在这里直接加载数据，而是通过 watch(username) 触发
+  // loadTodayRecord();
+  // loadAttendanceRecords();
+  // loadMonthStats();
 });
 
 onUnmounted(() => {
@@ -257,6 +308,7 @@ const handlePunchIn = async () => {
       latitude: latitude.value,
       longitude: longitude.value,
       punchTime: dayjs().toISOString(),
+      username: userInfo?.username || '',
     });
     await loadTodayRecord();
     message.success('上班打卡成功');
@@ -293,6 +345,7 @@ const handlePunchOut = async () => {
       latitude: latitude.value,
       longitude: longitude.value,
       punchTime: dayjs().toISOString(),
+      username: userInfo?.username || '',
     });
     await loadTodayRecord();
     message.success('下班打卡成功');
@@ -304,61 +357,39 @@ const handlePunchOut = async () => {
   }
 };
 
-const getStatusText = (status: null | number) => {
-  switch (status) {
-    case 0: {
-      return '正常';
-    }
-    case 1: {
-      return '迟到';
-    }
-    case 2: {
-      return '早退';
-    }
-    case 3: {
-      return '迟到+早退';
-    }
-    default: {
-      return '缺勤';
-    }
+const getStatusInfo = (status: null | number) => {
+  if (
+    status === null ||
+    !Object.prototype.hasOwnProperty.call(attendanceStatusMeta, status)
+  ) {
+    return attendanceStatusMeta[AttendanceStatus.Absent];
   }
-};
-
-// 获取状态颜色
-const getStatusColor = (status: string) => {
-  const colorMap: Record<string, string> = {
-    早退: 'orange',
-    正常: 'green',
-    缺勤: 'red',
-    迟到: 'red',
-    '迟到+早退': 'red',
-  };
-  return colorMap[status] || 'default';
+  return attendanceStatusMeta[status as keyof typeof attendanceStatusMeta];
 };
 
 // 加载今日记录
 const loadTodayRecord = async () => {
+  if (!userInfo?.username) return; // 如果没有 username，则不执行
   try {
-    const data = await getTodayRecord();
+    const data = await getTodayRecord({ username: userInfo.username });
     if (data) {
       todayRecord.value = {
         ...data,
         punchIn: data.punchIn ? dayjs(data.punchIn).format('HH:mm:ss') : '',
         punchOut: data.punchOut ? dayjs(data.punchOut).format('HH:mm:ss') : '',
+        workHours: 0, // 初始化
       };
 
       if (data.punchIn && data.punchOut) {
         const punchInTime = dayjs(data.punchIn);
         const punchOutTime = dayjs(data.punchOut);
         const workHours = punchOutTime.diff(punchInTime, 'hour', true);
-        todayRecord.value.workHours = Math.round(workHours * 100) / 100;
+        if (todayRecord.value) {
+          todayRecord.value.workHours = Math.round(workHours * 100) / 100;
+        }
       }
     } else {
-      todayRecord.value = {
-        punchIn: '',
-        punchOut: '',
-        workHours: 0,
-      };
+      todayRecord.value = null;
     }
   } catch (error: any) {
     console.error('加载今日记录失败:', error);
@@ -368,6 +399,7 @@ const loadTodayRecord = async () => {
 
 // 加载考勤记录
 const loadAttendanceRecords = async () => {
+  if (!userInfo?.username) return; // 如果没有 username，则不执行
   tableLoading.value = true;
 
   try {
@@ -380,6 +412,7 @@ const loadAttendanceRecords = async () => {
       startDate:
         dateRange.value[0]?.format('YYYY-MM-DD') ||
         dayjs().startOf('month').format('YYYY-MM-DD'),
+      username: userInfo.username,
     };
     const { total, items } = await getAttendanceList(params);
 
@@ -407,14 +440,28 @@ const viewDetail = (record: any) => {
 
 // 加载月度统计
 const loadMonthStats = async () => {
+  if (!userInfo?.username) return; // 如果没有 username，则不执行
   try {
-    const stats = await getMonthStats();
+    const stats = await getMonthStats({ username: userInfo.username });
     Object.assign(monthStats, stats);
   } catch (error: any) {
     console.error('加载月度统计失败:', error);
     message.error(`加载月度统计失败: ${error.message || '未知错误'}`);
   }
 };
+
+// 监听 username 的变化，一旦获取到有效的 username，就加载所有相关数据
+watch(
+  () => userInfo?.username,
+  (newUsername) => {
+    if (newUsername) {
+      loadTodayRecord();
+      loadAttendanceRecords();
+      loadMonthStats();
+    }
+  },
+  { immediate: true }, // 立即执行一次，以处理 username 已存在的情况
+);
 </script>
 
 <template>
@@ -469,7 +516,9 @@ const loadMonthStats = async () => {
           size="large"
           class="punch-btn punch-out"
           :disabled="
-            !isInRange || !todayRecord?.attendanceId || todayRecord?.punchOut
+            Boolean(
+              !isInRange || !todayRecord?.attendanceId || todayRecord?.punchOut,
+            )
           "
           :loading="punchLoading"
           @click="handlePunchOut"
@@ -484,8 +533,8 @@ const loadMonthStats = async () => {
         <div class="record-item" v-if="todayRecord.punchIn">
           <span class="record-label">上班时间:</span>
           <span class="record-time">{{ todayRecord.punchIn }}</span>
-          <Tag :color="getStatusColor(getStatusText(todayRecord.status))">
-            {{ getStatusText(todayRecord.status) }}
+          <Tag :color="getStatusInfo(todayRecord.status).color">
+            {{ getStatusInfo(todayRecord.status).text }}
           </Tag>
         </div>
         <div class="record-item" v-if="todayRecord.punchOut">
@@ -507,14 +556,14 @@ const loadMonthStats = async () => {
       </div>
       <div id="map-container" class="map-container"></div>
       <div class="map-legend">
-        <div class="legend-item">
+        <!-- <div class="legend-item">
           <div class="legend-color office"></div>
           <span>办公区域</span>
-        </div>
-        <div class="legend-item">
+        </div> -->
+        <!-- <div class="legend-item">
           <div class="legend-color current"></div>
           <span>当前位置</span>
-        </div>
+        </div> -->
       </div>
     </div>
 
@@ -580,8 +629,8 @@ const loadMonthStats = async () => {
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'status'">
-            <Tag :color="getStatusColor(getStatusText(record.status))">
-              {{ getStatusText(record.status) }}
+            <Tag :color="getStatusInfo(record.status).color">
+              {{ getStatusInfo(record.status).text }}
             </Tag>
           </template>
           <template v-if="column.key === 'action'">

@@ -5,30 +5,40 @@ import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
   try {
-    const { punchTime, longitude, latitude } = await readBody(event);
+    const { punchTime, longitude, latitude, username } = await readBody(event);
     console.log('punchTime', punchTime);
     console.log('longitude', longitude);
     console.log('latitude', latitude);
 
-    if (!punchTime || longitude === undefined || latitude === undefined) {
+    if (
+      !punchTime ||
+      longitude === undefined ||
+      latitude === undefined ||
+      !username
+    ) {
       return useResponseError('缺少必要的参数');
+    }
+
+    // 检查当天是否已经有打卡记录
+    const startOfToday = dayjs(punchTime).startOf('day').toDate();
+    const endOfToday = dayjs(punchTime).endOf('day').toDate();
+    const existingRecord = await prismaClient.attendance.findFirst({
+      where: {
+        username,
+        punchIn: {
+          gte: startOfToday,
+          lte: endOfToday,
+        },
+      },
+    });
+
+    if (existingRecord) {
+      return useResponseError('今天已经打过上班卡了');
     }
 
     // 假设标准上班时间是 09:00:00
     const standardPunchInTime = dayjs(punchTime).startOf('day').hour(9);
     const isLate = dayjs(punchTime).isAfter(standardPunchInTime);
-
-    // 使用 upsert 确保测试用户存在，避免因重复创建或ID问题导致的错误
-    const testUsername = 'testuser_1';
-    const user = await prismaClient.user.upsert({
-      where: { username: testUsername },
-      update: {},
-      create: {
-        realName: '测试用户',
-        username: testUsername,
-        password: 'password', // 在Mock环境中密码无所谓
-      },
-    });
 
     const newAttendance = await prismaClient.attendance.create({
       data: {
@@ -36,7 +46,7 @@ export default eventHandler(async (event) => {
         longitude,
         latitude,
         status: isLate ? 1 : 0, // 0: 正常, 1: 迟到
-        userId: user.id,
+        username,
       },
     });
     console.log('newAttendance', newAttendance);
