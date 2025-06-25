@@ -48,7 +48,7 @@ export const STATUS_MAP = {
 export function useFormRules(): Record<string, Rule[]> {
   return {
     reason: [
-      { message: '请输入审核意见', required: true, trigger: 'blur' },
+      // { message: '请输入审核意见', required: true, trigger: 'blur' },
       { max: 200, message: '审核意见不能超过200个字符', trigger: 'blur' },
     ],
     status: [{ message: '请选择审核结果', required: true, trigger: 'change' }],
