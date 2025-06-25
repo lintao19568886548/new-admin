@@ -340,7 +340,8 @@ onMounted(() => {
 
   .map-wrapper {
     flex-grow: 0;
-    min-height: 300px; /* 在移动端给地图一个最小高度 */
+
+    /* min-height: 300px; /* 在移动端给地图一个最小高度 */
   }
 
   .list-wrapper {
@@ -359,7 +360,7 @@ onMounted(() => {
 .header {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 14px;
   align-items: center;
   justify-content: space-between;
 }
@@ -367,12 +368,12 @@ onMounted(() => {
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 14px;
 }
 
 .header-title {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .main-content {
@@ -406,7 +407,7 @@ onMounted(() => {
 }
 
 .record-card {
-  border-radius: 8px;
+  border-radius: 6px;
   transition:
     box-shadow 0.3s,
     transform 0.3s;
@@ -421,26 +422,26 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   align-items: center;
-  font-weight: 500;
+  font-weight: 100;
 }
 
 .card-content {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-size: 14px;
+  gap: 6px;
+  font-size: 12px;
   color: #666;
 }
 
 .card-content > div {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
 :deep(.ant-card-actions) {
   display: flex;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 12px;
 }
 </style>
