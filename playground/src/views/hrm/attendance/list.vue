@@ -36,7 +36,7 @@ import {
   punchIn,
   punchOut,
 } from '#/api/hrm/attendance';
-import { officeLocation } from '#/config';
+import { officeLocations } from '#/config';
 
 // ================================= 类型定义 =================================
 interface TodayRecord {
@@ -177,7 +177,7 @@ const currentWeekDay = computed(() => {
 // 地图相关
 let map: any = null;
 const currentMarker = ref<any>(null);
-const officeCircle = ref<any>(null);
+const officeCircles = ref<any[]>([]);
 
 // 生命周期
 onMounted(async () => {
@@ -202,16 +202,22 @@ const initMap = async () => {
 
   const BMap = (window as any).BMap;
   map = new BMap.Map('map-container');
-  const officePoint = new BMap.Point(officeLocation.lng, officeLocation.lat);
-  map.centerAndZoom(officePoint, 15);
 
-  officeCircle.value = new BMap.Circle(officePoint, officeLocation.radius, {
-    fillColor: '#1890ff',
-    fillOpacity: 0.2,
-    strokeColor: '#1890ff',
-    strokeWeight: 1,
+  const points = officeLocations.map((loc) => new BMap.Point(loc.lng, loc.lat));
+
+  officeLocations.forEach((loc, index) => {
+    const circle = new BMap.Circle(points[index], loc.radius, {
+      fillColor: '#1890ff',
+      fillOpacity: 0.2,
+      strokeColor: '#1890ff',
+      strokeWeight: 1,
+    });
+    map.addOverlay(circle);
+    officeCircles.value.push(circle);
   });
-  map.addOverlay(officeCircle.value);
+
+  // 自动调整地图视野以包含所有打卡点
+  map.setViewport(points);
 };
 
 // 获取当前位置
@@ -236,17 +242,22 @@ const getCurrentLocation = () => {
 
           console.warn('百度地图定位成功:', result);
 
-          const distance = map.getDistance(
-            new BMap.Point(officeLocation.lng, officeLocation.lat),
-            result.point,
-          );
+          const currentPoint = result.point;
+          let inRange = false;
+          for (const loc of officeLocations) {
+            const officePoint = new BMap.Point(loc.lng, loc.lat);
+            const distance = map.getDistance(officePoint, currentPoint);
+            console.warn(`与 ${loc.name} 的距离: ${distance.toFixed(2)} 米`);
+            if (distance <= loc.radius) {
+              inRange = true;
+              break; // 只要在一个范围内就停止检查
+            }
+          }
 
-          console.warn(`与办公室的距离: ${distance.toFixed(2)} 米`);
-
-          isInRange.value = distance <= officeLocation.radius;
+          isInRange.value = inRange;
           console.warn(`是否在打卡范围内 (isInRange): ${isInRange.value}`);
 
-          updateMapMarkers(result.point);
+          updateMapMarkers(currentPoint);
         } else {
           console.error('百度地图定位失败:', result);
           message.error('获取位置失败，请检查浏览器权限或网络');
@@ -556,14 +567,14 @@ watch(
       </div>
       <div id="map-container" class="map-container"></div>
       <div class="map-legend">
-        <!-- <div class="legend-item">
+        <div class="legend-item" v-for="loc in officeLocations" :key="loc.name">
           <div class="legend-color office"></div>
-          <span>办公区域</span>
-        </div> -->
-        <!-- <div class="legend-item">
+          <span>{{ loc.name }} ({{ loc.radius }}米范围)</span>
+        </div>
+        <div class="legend-item">
           <div class="legend-color current"></div>
-          <span>当前位置</span>
-        </div> -->
+          <span>我的位置</span>
+        </div>
       </div>
     </div>
 
@@ -810,6 +821,7 @@ watch(
 
 .map-legend {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
