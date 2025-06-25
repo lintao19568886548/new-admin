@@ -36,7 +36,8 @@ import {
   punchIn,
   punchOut,
 } from '#/api/hrm/attendance';
-import { officeLocations } from '#/config';
+import { BAIDU_MAP_AK, officeLocations } from '#/config';
+import { loadBaiduMapScript } from '#/utils/map';
 
 // ================================= 类型定义 =================================
 interface TodayRecord {
@@ -200,6 +201,14 @@ const initMap = async () => {
   await nextTick();
   if (!document.querySelector('#map-container')) return;
 
+  try {
+    await loadBaiduMapScript(BAIDU_MAP_AK);
+  } catch (error) {
+    console.error('Baidu Map script failed to load:', error);
+    message.error('地图脚本加载失败，请刷新页面重试');
+    return;
+  }
+
   const BMap = (window as any).BMap;
   map = new BMap.Map('map-container');
 
@@ -284,7 +293,7 @@ const updateMapMarkers = (point: any) => {
     currentMarker.value = new BMap.Marker(point);
     map.addOverlay(currentMarker.value);
   }
-  map.setCenter(point);
+  map.centerAndZoom(point, 18);
 };
 
 // 刷新位置
@@ -813,6 +822,7 @@ watch(
 }
 
 .map-container {
+  height: 300px;
   margin-bottom: 12px;
   overflow: hidden;
   border: 1px solid #d9d9d9;
