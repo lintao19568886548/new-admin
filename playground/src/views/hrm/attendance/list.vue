@@ -246,7 +246,21 @@ const getCurrentLocation = () => {
           const geoc = new BMap.Geocoder();
           geoc.getLocation(result.point, (rs: any) => {
             const addComp = rs.addressComponents;
-            currentLocation.value = `${addComp.province}, ${addComp.city}, ${addComp.district}, ${addComp.street}, ${addComp.streetNumber}`;
+            const addressParts = [
+              addComp.province,
+              addComp.city,
+              addComp.district,
+              addComp.street,
+              addComp.streetNumber,
+            ];
+
+            const uniqueParts: string[] = [];
+            for (const part of addressParts) {
+              if (part && uniqueParts.at(-1) !== part) {
+                uniqueParts.push(part);
+              }
+            }
+            currentLocation.value = uniqueParts.join(',');
           });
 
           console.warn('百度地图定位成功:', result);

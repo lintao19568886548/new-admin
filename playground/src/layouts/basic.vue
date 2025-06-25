@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { AuthenticationLoginExpiredModal, VbenIcon } from '@vben/common-ui';
@@ -16,6 +16,21 @@ import { useAuthStore } from '#/store';
 import EditPassword from '#/views/_core/authentication/edit-password.vue';
 import LoginForm from '#/views/_core/authentication/login.vue';
 
+const isMobile = ref(false);
+
+const handleResize = () => {
+  isMobile.value = window.innerWidth < 768;
+};
+
+onMounted(() => {
+  handleResize();
+  window.addEventListener('resize', handleResize);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+});
+
 const router = useRouter();
 
 const showBackButton = computed(
@@ -24,15 +39,34 @@ const showBackButton = computed(
 
 // By setting these preferences, we can disable the original layout components
 // and use BasicLayout as a content container.
-updatePreferences({
-  app: {
-    enablePreferences: false,
+watch(
+  isMobile,
+  (mobile) => {
+    if (mobile) {
+      updatePreferences({
+        app: {
+          enablePreferences: false,
+        },
+        footer: { enable: false }, // Disable original footer
+        header: { enable: false }, // Disable original header
+        sidebar: { enable: false }, // Disable sidebar for an app-like view
+        tabbar: { enable: false }, // Disable web-style tabs
+      });
+    } else {
+      // Restore desktop preferences
+      updatePreferences({
+        app: {
+          enablePreferences: true,
+        },
+        footer: { enable: false },
+        header: { enable: true },
+        sidebar: { enable: true },
+        tabbar: { enable: true },
+      });
+    }
   },
-  footer: { enable: false }, // Disable original footer
-  header: { enable: false }, // Disable original header
-  sidebar: { enable: false }, // Disable sidebar for an app-like view
-  tabbar: { enable: false }, // Disable web-style tabs
-});
+  { immediate: true },
+);
 
 // const notifications = ref<NotificationItem[]>([
 //   {
@@ -170,7 +204,8 @@ function goBack() {
 </script>
 
 <template>
-  <div class="app-layout">
+  <!-- Mobile Layout -->
+  <div v-if="isMobile" class="app-layout">
     <!-- App Top Navigation Bar -->
     <header class="app-header">
       <div class="w-10">
@@ -241,6 +276,43 @@ function goBack() {
       </div>
     </footer>
   </div>
+  <!-- Desktop Layout -->
+  <BasicLayout v-else @clear-preferences-and-logout="handleLogout">
+    <template #user-dropdown>
+      <UserDropdown
+        :avatar
+        :menus
+        :text="userStore.userInfo?.realName"
+        trigger="both"
+        @logout="handleLogout"
+      />
+    </template>
+    <!-- <template #notification>
+      <Notification
+        :dot="showDot"
+        :notifications="notifications"
+        @clear="handleNoticeClear"
+        @make-all="handleMakeAll"
+      />
+    </template> -->
+    <template #extra>
+      <AuthenticationLoginExpiredModal
+        v-model:open="accessStore.loginExpired"
+        :avatar
+      >
+        <LoginForm />
+      </AuthenticationLoginExpiredModal>
+
+      <!-- 添加修改密码模态框 -->
+      <EditPassword
+        v-model:open="showPasswordModal"
+        @success="handlePasswordChanged"
+      />
+    </template>
+    <template #lock-screen>
+      <LockScreen :avatar @to-login="handleLogout" />
+    </template>
+  </BasicLayout>
 </template>
 
 <style lang="css" scoped>

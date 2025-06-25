@@ -15,6 +15,8 @@ import {
 import dayjs from 'dayjs';
 
 import { exportTrajectoryData, getTrajectoryList } from '#/api/hrm/trajectory';
+import { BAIDU_MAP_AK } from '#/config';
+import { loadBaiduMapScript } from '#/utils/map';
 
 // ================================= 类型定义 =================================
 interface TrajectoryRecord {
@@ -98,7 +100,14 @@ const fetchData = async () => {
   }
 };
 
-const initMap = () => {
+const initMap = async () => {
+  try {
+    await loadBaiduMapScript(BAIDU_MAP_AK);
+  } catch (error) {
+    console.error('Baidu Map script failed to load:', error);
+    message.error('地图脚本加载失败，请刷新页面重试');
+    return;
+  }
   if (!mapContainer.value) return;
   const BMap = (window as any).BMap;
   map = new BMap.Map(mapContainer.value);
@@ -244,8 +253,8 @@ const highlightMarker = (record: TrajectoryRecord, highlight: boolean) => {
   }
 };
 
-onMounted(() => {
-  initMap();
+onMounted(async () => {
+  await initMap();
   fetchData();
 });
 </script>
