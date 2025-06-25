@@ -319,7 +319,7 @@ const handlePunchIn = async () => {
       latitude: latitude.value,
       longitude: longitude.value,
       punchTime: dayjs().toISOString(),
-      username: userInfo?.username || '',
+      username: userInfo?.realName || '',
     });
     await loadTodayRecord();
     message.success('上班打卡成功');
@@ -356,7 +356,7 @@ const handlePunchOut = async () => {
       latitude: latitude.value,
       longitude: longitude.value,
       punchTime: dayjs().toISOString(),
-      username: userInfo?.username || '',
+      username: userInfo?.realName || '',
     });
     await loadTodayRecord();
     message.success('下班打卡成功');
@@ -380,9 +380,9 @@ const getStatusInfo = (status: null | number) => {
 
 // 加载今日记录
 const loadTodayRecord = async () => {
-  if (!userInfo?.username) return; // 如果没有 username，则不执行
+  if (!userInfo?.realName) return; // 如果没有 username，则不执行
   try {
-    const data = await getTodayRecord({ username: userInfo.username });
+    const data = await getTodayRecord({ username: userInfo.realName });
     if (data) {
       todayRecord.value = {
         ...data,
@@ -410,7 +410,7 @@ const loadTodayRecord = async () => {
 
 // 加载考勤记录
 const loadAttendanceRecords = async () => {
-  if (!userInfo?.username) return; // 如果没有 username，则不执行
+  if (!userInfo?.realName) return; // 如果没有 username，则不执行
   tableLoading.value = true;
 
   try {
@@ -423,7 +423,7 @@ const loadAttendanceRecords = async () => {
       startDate:
         dateRange.value[0]?.format('YYYY-MM-DD') ||
         dayjs().startOf('month').format('YYYY-MM-DD'),
-      username: userInfo.username,
+      username: userInfo.realName,
     };
     const { total, items } = await getAttendanceList(params);
 
@@ -451,9 +451,9 @@ const viewDetail = (record: any) => {
 
 // 加载月度统计
 const loadMonthStats = async () => {
-  if (!userInfo?.username) return; // 如果没有 username，则不执行
+  if (!userInfo?.realName) return; // 如果没有 username，则不执行
   try {
-    const stats = await getMonthStats({ username: userInfo.username });
+    const stats = await getMonthStats({ username: userInfo.realName });
     Object.assign(monthStats, stats);
   } catch (error: any) {
     console.error('加载月度统计失败:', error);
@@ -463,7 +463,7 @@ const loadMonthStats = async () => {
 
 // 监听 username 的变化，一旦获取到有效的 username，就加载所有相关数据
 watch(
-  () => userInfo?.username,
+  () => userInfo?.realName,
   (newUsername) => {
     if (newUsername) {
       loadTodayRecord();
