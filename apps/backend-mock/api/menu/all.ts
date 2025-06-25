@@ -19,13 +19,26 @@ export default eventHandler(async (event) => {
     const allMenus = await prismaClient.menu.findMany({
       where: {
         pid: null, // 只查询顶级菜单
+        type: {
+          not: 'button',
+        },
       },
       include: {
         meta: true,
         children: {
+          where: {
+            type: {
+              not: 'button',
+            },
+          },
           include: {
             meta: true,
             children: {
+              where: {
+                type: {
+                  not: 'button',
+                },
+              },
               include: {
                 meta: true,
               },
@@ -38,7 +51,7 @@ export default eventHandler(async (event) => {
     // 处理菜单数据
     const processedMenus = processMenuData(allMenus, {
       removeEmptyFields: true,
-      fieldsToRemove: ['menuId', 'metaId', 'type', 'status', 'pid'],
+      fieldsToRemove: ['menuId', 'metaId', 'status', 'pid'],
       removeEmptyChildren: true,
     });
 
@@ -83,11 +96,17 @@ export default eventHandler(async (event) => {
       menuId: {
         in: menuIds, // 只查询用户有权限的菜单
       },
+      type: {
+        not: 'button',
+      },
     },
     include: {
       meta: true,
       children: {
         where: {
+          type: {
+            not: 'button',
+          },
           menuId: {
             in: menuIds, // 只包含用户有权限的子菜单
           },
@@ -96,6 +115,9 @@ export default eventHandler(async (event) => {
           meta: true,
           children: {
             where: {
+              type: {
+                not: 'button',
+              },
               menuId: {
                 in: menuIds, // 只包含用户有权限的孙菜单
               },
@@ -112,7 +134,7 @@ export default eventHandler(async (event) => {
   // 一次性处理所有数据转换
   const processedMenus = processMenuData(menus, {
     removeEmptyFields: true,
-    fieldsToRemove: ['menuId', 'metaId', 'type', 'status', 'pid'],
+    fieldsToRemove: ['menuId', 'metaId', 'status', 'pid'],
     removeEmptyChildren: true,
   });
 
