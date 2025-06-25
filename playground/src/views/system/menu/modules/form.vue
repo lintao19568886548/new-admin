@@ -445,6 +445,21 @@ const schema: VbenFormSchema[] = [
       };
     },
   },
+  {
+    component: 'Checkbox',
+    dependencies: {
+      show: (values) => {
+        return !['button'].includes(values.type);
+      },
+      triggerFields: ['type'],
+    },
+    fieldName: 'meta.isApp',
+    renderComponentContent() {
+      return {
+        default: () => $t('system.menu.isApp'),
+      };
+    },
+  },
 ];
 
 const breakpoints = useBreakpoints(breakpointsTailwind);
