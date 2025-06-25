@@ -8,7 +8,6 @@ model User {
   userCodes     UserCode[]     @relation("UserToUserCode")
   roles         UserRole[]     @relation("UserToUserRole")
   localizations Localization[] @relation("UserToLocalization")
-  attendances   Attendance[]
   createTime    DateTime?      @default(now()) @map("create_time")
   updateTime    DateTime?      @updatedAt @map("update_time")
 

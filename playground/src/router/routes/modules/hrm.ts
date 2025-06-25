@@ -42,6 +42,15 @@ const routes: RouteRecordRaw[] = [
           title: '考勤管理',
         },
       },
+      {
+        path: 'trajectory',
+        name: 'HrmTrajectory',
+        component: () => import('#/views/hrm/trajectory/list.vue'),
+        meta: {
+          icon: 'mdi:map-marker-path',
+          title: '考勤轨迹',
+        },
+      },
       // {
       //   path: 'payroll', // Corrected to relative path
       //   name: 'HrmPayroll',

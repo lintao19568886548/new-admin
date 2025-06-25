@@ -12,6 +12,7 @@ export function punchIn(data: {
   latitude: number;
   longitude: number;
   punchTime: string;
+  username: string;
 }) {
   return requestClient.post(`${API.ATTENDANCE}/`, data);
 }
@@ -22,15 +23,16 @@ export function punchOut(
     latitude: number;
     longitude: number;
     punchTime: string;
+    username: string;
   },
 ) {
   return requestClient.put(`${API.ATTENDANCE}/${id}`, data);
 }
 
-export function getTodayRecord() {
-  return requestClient.get(`${API.ATTENDANCE}/today`);
+export function getTodayRecord(params: { username: string }) {
+  return requestClient.get(`${API.ATTENDANCE}/today`, { params });
 }
 
-export function getMonthStats() {
-  return requestClient.get(`${API.ATTENDANCE}/stats`);
+export function getMonthStats(params: { username: string }) {
+  return requestClient.get(`${API.ATTENDANCE}/stats`, { params });
 }

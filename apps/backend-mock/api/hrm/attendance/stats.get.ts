@@ -1,17 +1,24 @@
 import dayjs from 'dayjs';
+import { getQuery } from 'h3';
 import { prismaClient } from '~/utils/db';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 const STANDARD_WORK_HOURS = 8;
 
-export default eventHandler(async (_event) => {
+export default eventHandler(async (event) => {
   try {
+    const query = getQuery(event);
+    const username = query.username as string;
+    if (!username) {
+      return useResponseError('缺少用户名');
+    }
+
     const startOfMonth = dayjs().startOf('month').toDate();
     const endOfMonth = dayjs().endOf('month').toDate();
 
     const records = await prismaClient.attendance.findMany({
       where: {
-        userId: 1, // 硬编码用户ID
+        username,
         punchIn: {
           gte: startOfMonth,
           lte: endOfMonth,

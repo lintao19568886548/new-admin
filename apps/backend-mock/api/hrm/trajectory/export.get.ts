@@ -6,41 +6,28 @@ import { useResponseError, useResponseSuccess } from '~/utils/response';
 export default eventHandler(async (event) => {
   try {
     const query = getQuery(event);
-    const page = Number.parseInt(query.page as string) || 1;
-    const pageSize = Number.parseInt(query.pageSize as string) || 10;
-    const username = query.username as string;
-
-    if (!username) {
-      return useResponseError('缺少用户名');
-    }
 
     const startDate = query.startDate
       ? dayjs(query.startDate as string)
           .startOf('day')
           .toDate()
-      : undefined;
+      : dayjs().subtract(7, 'day').startOf('day').toDate();
     const endDate = query.endDate
       ? dayjs(query.endDate as string)
           .endOf('day')
           .toDate()
-      : undefined;
+      : dayjs().endOf('day').toDate();
 
     const where: any = {
-      username,
-    };
-
-    if (startDate && endDate) {
-      where.punchIn = {
+      punchIn: {
         gte: startDate,
         lte: endDate,
-      };
-    }
+      },
+    };
 
-    const total = await prismaClient.attendance.count({ where });
+    // 获取所有符合条件的记录，不进行分页
     const records = await prismaClient.attendance.findMany({
       where,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
       orderBy: {
         punchIn: 'desc',
       },
@@ -59,6 +46,7 @@ export default eventHandler(async (event) => {
 
       return {
         key: record.attendanceId,
+        username: record.username,
         date: dayjs(record.punchIn).format('YYYY-MM-DD'),
         punchIn: dayjs(record.punchIn).format('HH:mm:ss'),
         punchOut: record.punchOut
@@ -66,15 +54,14 @@ export default eventHandler(async (event) => {
           : '-',
         status: record.status,
         workHours,
+        latitude: record.latitude,
+        longitude: record.longitude,
       };
     });
 
-    return useResponseSuccess({
-      items: formattedItems,
-      total,
-    });
+    return useResponseSuccess(formattedItems);
   } catch (error: any) {
-    console.error('获取考勤列表失败:', error);
-    return useResponseError(error.message || '获取失败');
+    console.error('导出考勤轨迹失败:', error);
+    return useResponseError(error.message || '导出失败');
   }
 });
