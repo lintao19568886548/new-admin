@@ -203,6 +203,7 @@ function triggerShowAuditModal(record: ReimbursementItem) {
                   class="image-carousel"
                   :dots="item.images.length > 1"
                   :infinite="false"
+                  :adaptive-height="true"
                 >
                   <Image
                     v-for="(img, index) in item.images"
@@ -320,6 +321,7 @@ function triggerShowAuditModal(record: ReimbursementItem) {
               class="image-carousel-modal"
               :dots="currentRecord.images.length > 1"
               :infinite="false"
+              :adaptive-height="true"
             >
               <Image
                 v-for="(img, index) in currentRecord.images"
@@ -678,8 +680,9 @@ function triggerShowAuditModal(record: ReimbursementItem) {
 
 .carousel-main-image {
   width: 100%;
-  height: 200px;
-  object-fit: cover;
+  height: auto;
+  max-height: 40vh; /* 限制最大高度为视口的40% */
+  object-fit: contain; /* 保证图片完整显示 */
 }
 
 :deep(.image-carousel .slick-dots-bottom) {
@@ -704,8 +707,9 @@ function triggerShowAuditModal(record: ReimbursementItem) {
 
 .carousel-detail-image {
   width: 100%;
-  height: 180px;
-  object-fit: cover;
+  height: auto;
+  max-height: 50vh; /* 弹窗中可以稍高一些 */
+  object-fit: contain;
 }
 
 :deep(.image-carousel-modal .slick-dots-bottom) {

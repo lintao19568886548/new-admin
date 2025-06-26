@@ -3,9 +3,11 @@ import { computed, onMounted, reactive, ref } from 'vue';
 
 import { useAccessStore, useUserStore } from '@vben/stores';
 
+import { CloseOutlined, LoadingOutlined } from '@ant-design/icons-vue';
 import {
   Button,
   Form,
+  Image,
   Input,
   InputNumber,
   message,
@@ -48,8 +50,8 @@ const rules = useFormRules();
 
 // 图片上传相关
 const previewVisible = ref(false);
-const previewImage = ref('');
-const previewTitle = ref('');
+const previewSources = ref<string[]>([]);
+const previewInitial = ref(0);
 
 // 获取园区列表
 async function fetchParkList() {
@@ -85,7 +87,7 @@ const beforeUpload = (file: File) => {
 };
 
 // To store file name during getBase64 conversion
-const tempFileNameForPreview = '';
+// const tempFileNameForPreview = '';
 
 const handleChange = (info: any) => {
   if (info.file.status === 'uploading') {
@@ -120,24 +122,30 @@ function getBase64(file: File): Promise<string> {
   });
 }
 
-const handlePreview = async (file: any) => {
-  let previewUrl = file.url; // URL from server after upload
-  if (!previewUrl && file.originFileObj) {
-    // If no server URL, try to generate from local file
-    previewUrl = await getBase64(file.originFileObj);
-  } else if (!previewUrl && file.thumbUrl) {
-    // Fallback to thumbUrl if available
-    previewUrl = file.thumbUrl;
-  }
+const setPreviewVisible = (value: boolean) => {
+  previewVisible.value = value;
+};
 
-  previewImage.value = previewUrl || ''; // Ensure previewImage is not undefined
-  previewVisible.value = true;
-  previewTitle.value =
-    file.name ||
-    tempFileNameForPreview ||
-    (previewUrl
-      ? previewUrl.slice(Math.max(0, previewUrl.lastIndexOf('/') + 1))
-      : '图片预览');
+const handlePreview = async (file: any) => {
+  const index = formState.images.indexOf(file);
+  previewInitial.value = index === -1 ? 0 : index;
+
+  const urls = await Promise.all(
+    formState.images.map(async (f: any) => {
+      if (f.url) {
+        return f.url;
+      }
+      if (f.originFileObj) {
+        return await getBase64(f.originFileObj);
+      }
+      return f.thumbUrl;
+    }),
+  );
+  previewSources.value = urls.filter((url): url is string => !!url);
+
+  if (previewSources.value.length > 0) {
+    previewVisible.value = true;
+  }
 };
 
 // 重置表单
@@ -304,15 +312,45 @@ onMounted(() => {
             <div v-if="!formState.images || formState.images.length < 5">
               <div>{{ $t('上传') }}</div>
             </div>
+            <template #itemRender="{ file, actions }">
+              <div class="custom-upload-item">
+                <!-- Image Preview -->
+                <img
+                  v-if="file.url || file.thumbUrl"
+                  :src="file.url || file.thumbUrl"
+                  alt="preview"
+                  @click="handlePreview(file)"
+                />
+                <!-- Loading Spinner -->
+                <div
+                  v-if="file.status === 'uploading'"
+                  class="uploading-spinner"
+                >
+                  <LoadingOutlined />
+                </div>
+                <!-- Delete Button -->
+                <button
+                  v-if="file.status !== 'uploading'"
+                  class="delete-button"
+                  type="button"
+                  @click.stop="actions.remove"
+                >
+                  <CloseOutlined />
+                </button>
+              </div>
+            </template>
           </Upload>
-          <Modal
-            :visible="previewVisible"
-            :title="previewTitle"
-            :footer="null"
-            @cancel="previewVisible = false"
-          >
-            <img alt="预览图片" style="width: 100%" :src="previewImage" />
-          </Modal>
+          <div :style="{ display: 'none' }">
+            <Image.PreviewGroup
+              :preview="{
+                visible: previewVisible,
+                onVisibleChange: setPreviewVisible,
+                current: previewInitial,
+              }"
+            >
+              <Image v-for="src in previewSources" :key="src" :src="src" />
+            </Image.PreviewGroup>
+          </div>
         </Form.Item>
 
         <div class="form-actions">
@@ -381,21 +419,82 @@ onMounted(() => {
   width: 100%; /* Make buttons full width */
 }
 
-/* Ensure picture-card items are responsive */
-:deep(.ant-upload-list-picture-card .ant-upload-list-item) {
-  width: calc(33.33% - 8px); /* Adjust for 3 items per row with gap */
-  height: calc(33.33% - 8px);
-  margin: 0 8px 8px 0;
+/* Custom styles for mobile-friendly upload */
+:deep(.ant-upload-list-picture-card-container) {
+  display: flex;
+  flex-wrap: wrap;
 }
 
-:deep(.ant-upload-list-picture-card .ant-upload-select-picture-card) {
-  width: calc(33.33% - 8px);
-  height: calc(33.33% - 8px);
-  margin: 0 8px 8px 0;
+:deep(.ant-upload-list-item-container) {
+  width: calc(33.333% - 8px);
+  aspect-ratio: 1/1;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+:deep(.ant-upload-select) {
+  width: calc(33.333% - 8px);
+  aspect-ratio: 1/1;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.custom-upload-item {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #f0f2f5;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+}
+
+.custom-upload-item img {
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  object-fit: cover;
+}
+
+.uploading-spinner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 20px;
+  color: #fff;
+  background-color: rgb(0 0 0 / 50%);
+}
+
+.delete-button {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+  color: #fff;
+  cursor: pointer;
+  background-color: rgb(0 0 0 / 60%);
+  border: none;
+  border-bottom-left-radius: 8px;
+  transition: all 0.2s;
+}
+
+.delete-button:hover {
+  background-color: rgb(0 0 0 / 80%);
 }
 
 /* Adjust preview modal for better mobile experience if needed */
 :deep(.ant-modal) {
-  max-width: 90vw;
+  max-width: 95vw; /* Almost full-width, but with some margin */
 }
 </style>

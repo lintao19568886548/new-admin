@@ -9,7 +9,10 @@ import { verifyAccessToken } from '~/utils/jwt-utils'; // 确保引入了 verify
 import {
   unAuthorizedResponse, // 确保引入了 useResponseError
   useResponseSuccess,
-} from '~/utils/response'; // 确保引入了 useResponseSuccess 和 unAuthorizedResponse
+} from '~/utils/response';
+// 确保引入了 useResponseSuccess 和 unAuthorizedResponse
+const IMG_BASE_URL =
+  process.env.NODE_ENV === 'production' ? 'https://yizuw.cn' : '';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -115,7 +118,7 @@ export default eventHandler(async (event) => {
     await writeFile(filePath, file.data);
 
     // 7. 将图片信息存入数据库
-    const imgUrl = `https://yizuw.cn${fileUrl}`;
+    const imgUrl = `${IMG_BASE_URL}${fileUrl}`;
     const newImage = await prismaClient.image.create({
       data: {
         imgUrl,
