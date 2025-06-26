@@ -1,8 +1,7 @@
 import { prismaClient } from '~/utils/db';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
-const IMG_BASE_URL =
-  process.env.NODE_ENV === 'production' ? 'https://yizuw.cn' : '';
+const IMG_BASE_URL = '';
 
 export default eventHandler(async (event) => {
   try {
