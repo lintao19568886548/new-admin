@@ -23,13 +23,22 @@ import {
 import { useVbenForm } from '#/adapter/form';
 import { getParkList } from '#/api/park/park';
 import { getMenuList } from '#/api/system/menu';
-import { updateRole } from '#/api/system/role';
+import {
+  addPermissionsToRole,
+  removePermissionsFromRole,
+  updateRole,
+} from '#/api/system/role';
 import { $t } from '#/locales';
 import { useRoleStore } from '#/store/modules/role';
 
 const emits = defineEmits(['success']);
 
 // const RadioButton = Radio.Button;
+
+// 权限更新模式
+const permissionUpdateMode = ref<'append' | 'overwrite' | 'remove'>(
+  'overwrite',
+);
 
 // 使用角色store
 const roleStore = useRoleStore();
@@ -226,95 +235,100 @@ const [Drawer, drawerApi] = useVbenDrawer({
     }
 
     const { valid } = await formApi.validate();
-    if (!valid) return;
+    if (valid) {
+      const values = await formApi.getValues();
+      const otherUpdateData: Partial<SystemRoleApi.SystemRole> = {};
 
-    const values = await formApi.getValues();
-
-    // 构建更新数据，只包含启用的字段
-    const updateData: Partial<SystemRoleApi.SystemRole> = {};
-
-    // 上级角色字段
-    if (fieldEnabled.value.parentId && values.parentId) {
-      updateData.parentId = values.parentId;
-    }
-
-    // 园区字段 - 数组类型，需要检查长度
-    if (fieldEnabled.value.parkIds) {
-      if (Array.isArray(values.parkIds) && values.parkIds.length > 0) {
-        updateData.parkIds = values.parkIds;
-      } else {
-        console.warn('园区字段已启用但未选择任何园区');
+      if (fieldEnabled.value.parentId && values.parentId) {
+        otherUpdateData.parentId = values.parentId;
       }
-    }
-
-    // 状态字段
-    if (fieldEnabled.value.status && values.status !== undefined) {
-      updateData.status = Boolean(values.status); // 将值转换为布尔类型
-    }
-
-    // 权限字段 - 数组类型，需要检查长度
-    if (fieldEnabled.value.permissions) {
-      // console.log('权限字段调试信息:', {
-      //   isArray: Array.isArray(values.permissions),
-      //   length: values.permissions?.length,
-      //   permissions: values.permissions,
-      //   type: typeof values.permissions,
-      // });
-      if (Array.isArray(values.permissions) && values.permissions.length > 0) {
-        updateData.permissions = values.permissions;
-      } else {
-        console.warn('权限字段已启用但未选择任何权限');
+      if (fieldEnabled.value.parkIds && Array.isArray(values.parkIds)) {
+        otherUpdateData.parkIds = values.parkIds;
       }
-    }
+      if (fieldEnabled.value.status && values.status !== undefined) {
+        otherUpdateData.status = Boolean(values.status);
+      }
+      if (
+        fieldEnabled.value.reimbursementAuth &&
+        values.reimbursementAuth !== undefined
+      ) {
+        otherUpdateData.reimbursementAuth = values.reimbursementAuth;
+      }
+      if (fieldEnabled.value.rates && values.rates !== undefined) {
+        otherUpdateData.rates = values.rates;
+      }
+      if (fieldEnabled.value.remark && values.remark) {
+        otherUpdateData.remark = values.remark;
+      }
 
-    // 报销权限字段
-    if (
-      fieldEnabled.value.reimbursementAuth &&
-      values.reimbursementAuth !== undefined
-    ) {
-      updateData.reimbursementAuth = values.reimbursementAuth;
-    }
+      const hasOtherUpdates = Object.keys(otherUpdateData).length > 0;
+      const hasPermissionUpdate =
+        fieldEnabled.value.permissions &&
+        Array.isArray(values.permissions) &&
+        values.permissions.length > 0;
 
-    // 费率字段
-    if (fieldEnabled.value.rates && values.rates !== undefined) {
-      updateData.rates = values.rates;
-    }
+      if (!hasOtherUpdates && !hasPermissionUpdate) {
+        console.warn('请至少启用一个字段并提供值以进行修改');
+        return;
+      }
 
-    // 备注字段
-    if (fieldEnabled.value.remark && values.remark) {
-      updateData.remark = values.remark;
-    }
+      drawerApi.lock();
 
-    // 检查是否有要更新的字段
-    if (Object.keys(updateData).length === 0) {
-      console.warn('请至少启用一个字段进行修改');
-      return;
-    }
+      try {
+        const promises = [];
 
-    drawerApi.lock();
+        // 处理权限追加
+        if (hasPermissionUpdate && permissionUpdateMode.value === 'append') {
+          for (const roleId of selectedRoles.value) {
+            promises.push(
+              addPermissionsToRole(roleId, {
+                batchRoleIds: selectedRoles.value,
+                permissions: values.permissions,
+              }),
+            );
+          }
+        }
 
-    try {
-      // 批量更新选中的角色
-      const updatePromises = selectedRoles.value.map((roleId) =>
-        updateRole(
-          roleId,
-          updateData as Omit<
-            SystemRoleApi.SystemRole,
-            'children' | 'createTime' | 'roleId' | 'updateTime'
-          >,
-        ),
-      );
+        // 处理权限移除
+        if (hasPermissionUpdate && permissionUpdateMode.value === 'remove') {
+          for (const roleId of selectedRoles.value) {
+            promises.push(
+              removePermissionsFromRole(roleId, {
+                permissions: values.permissions,
+              }),
+            );
+          }
+        }
 
-      await Promise.all(updatePromises);
+        // 处理其他字段更新以及权限覆盖
+        const updatePayload = { ...otherUpdateData };
+        if (hasPermissionUpdate && permissionUpdateMode.value === 'overwrite') {
+          updatePayload.permissions = values.permissions;
+        }
 
-      // 更新store中的数据
-      roleStore.refreshRoles();
+        if (Object.keys(updatePayload).length > 0) {
+          for (const roleId of selectedRoles.value) {
+            promises.push(
+              updateRole(
+                roleId,
+                updatePayload as Omit<
+                  SystemRoleApi.SystemRole,
+                  'children' | 'createTime' | 'roleId' | 'updateTime'
+                >,
+              ),
+            );
+          }
+        }
 
-      emits('success');
-      drawerApi.close();
-    } catch (error) {
-      console.error('批量更新失败:', error);
-      drawerApi.unlock();
+        await Promise.all(promises);
+        roleStore.refreshRoles();
+        emits('success');
+        drawerApi.close();
+      } catch (error) {
+        console.error('批量更新失败:', error);
+      } finally {
+        drawerApi.unlock();
+      }
     }
   },
   onOpenChange(isOpen) {
@@ -730,6 +744,15 @@ defineExpose({
         <div class="flex items-start gap-2">
           <Checkbox v-model:checked="fieldEnabled.permissions" class="mt-1" />
           <div class="flex-1" style="min-width: 300px">
+            <RadioGroup
+              v-model:value="permissionUpdateMode"
+              :disabled="!fieldEnabled.permissions"
+              class="mb-2"
+            >
+              <Radio value="overwrite">覆盖权限</Radio>
+              <Radio value="append">追加权限</Radio>
+              <Radio value="remove">移除权限</Radio>
+            </RadioGroup>
             <Spin :spinning="loadingPermissions">
               <VbenTree
                 v-model:value="slotProps.modelValue"

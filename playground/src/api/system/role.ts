@@ -141,7 +141,39 @@ async function deleteRoleCodeAssociation(roleId: number, codeId: number) {
   });
 }
 
+/**
+ * @function addPermissionsToRole
+ * @description 向角色追加权限
+ * @params id 角色 ID
+ * @params data 包含权限ID列表
+ * @returns 返回操作结果
+ */
+async function addPermissionsToRole(
+  id: number | string,
+  data: {
+    batchRoleIds?: (number | string)[];
+    permissions: (number | string)[];
+  },
+) {
+  return requestClient.post(`/system/role/${id}/add-permissions`, data);
+}
+
+/**
+ * @function removePermissionsFromRole
+ * @description 从角色移除权限
+ * @params id 角色 ID
+ * @params data 包含权限ID列表
+ * @returns 返回操作结果
+ */
+async function removePermissionsFromRole(
+  id: number | string,
+  data: { permissions: (number | string)[] },
+) {
+  return requestClient.post(`/system/role/${id}/remove-permissions`, data);
+}
+
 export {
+  addPermissionsToRole,
   createRole,
   createRoleCodeAssociation,
   deleteRole,
@@ -149,5 +181,6 @@ export {
   getRoleById,
   getRoleList,
   getRolePermissionTree,
+  removePermissionsFromRole,
   updateRole,
 };
