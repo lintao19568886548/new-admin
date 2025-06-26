@@ -34,7 +34,12 @@ const coreRoutes: RouteRecordRaw[] = [
     },
     name: 'Root',
     path: '/',
-    redirect: DEFAULT_HOME_PATH,
+    redirect: () => {
+      const isMobile = window.innerWidth < 768;
+      // 在vben-admin中，DEFAULT_HOME_PATH默认是'/analytics'
+      // 移动端默认跳转到/home, pc端默认跳转到/analytics
+      return isMobile ? '/home' : DEFAULT_HOME_PATH;
+    },
     children: [],
   },
   {
