@@ -57,16 +57,23 @@ export default eventHandler(async (event) => {
         park: true,
       },
     },
+    roleCodes: {
+      include: {
+        code: true,
+      },
+    },
     children: {
       include: {
         // 这里可以根据需要继续嵌套，定义需要递归查询的层级
         roleMenus: { where: { isDeleted: false }, include: { menu: true } },
         roleParks: { where: { isDeleted: false }, include: { park: true } },
+        roleCodes: { include: { code: true } },
         children: {
           include: {
             // 再嵌套一层示例
             roleMenus: { where: { isDeleted: false }, include: { menu: true } },
             roleParks: { where: { isDeleted: false }, include: { park: true } },
+            roleCodes: { include: { code: true } },
             // 如果需要更多层级，可以在这里继续添加 children
           },
           orderBy: {
@@ -88,6 +95,7 @@ export default eventHandler(async (event) => {
       include: {
         roleMenus: { where: { isDeleted: false }, include: { menu: true } },
         roleParks: { where: { isDeleted: false }, include: { park: true } },
+        roleCodes: { include: { code: true } },
         // 分页查询时不递归加载 children，避免数据量过大和逻辑复杂
         // 如果需要在过滤结果中展示父级，可以在前端处理或单独查询
         parent: true, // 可以包含父级信息供参考
@@ -109,6 +117,7 @@ export default eventHandler(async (event) => {
       updateTime: role.updateTime ? role.updateTime.toISOString() : null,
       permissions: role.roleMenus.map((rm) => rm.menu.menuId),
       parkIds: role.roleParks.map((rp) => rp.park.parkId),
+      codes: role.roleCodes.map((rc) => rc.code.code),
       parentId: role.parentId,
       reimbursementAuth: role.reimbursementAuth,
       rates: role.rates,
@@ -139,6 +148,7 @@ export default eventHandler(async (event) => {
       updateTime: role.updateTime ? role.updateTime.toISOString() : null,
       permissions: role.roleMenus.map((rm) => rm.menu.menuId),
       parkIds: role.roleParks.map((rp) => rp.park.parkId),
+      codes: role.roleCodes.map((rc) => rc.code.code),
       level: role.privilegeLevel,
       parentId: role.parentId,
       reimbursementAuth: role.reimbursementAuth,

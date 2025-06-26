@@ -33,6 +33,7 @@ import Form from './modules/form.vue';
 const tableLoading = shallowRef(false);
 const parkOptions = ref<Park[]>([]);
 const userStore = useUserStore();
+const codes = userStore.userInfo?.codes || [];
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -236,7 +237,11 @@ function refreshGrid() {
     <Grid table-title="请假申请列表" :loading="tableLoading">
       <template #operation_cell="{ row }">
         <div class="flex items-center justify-center">
-          <Button type="link" @click="onActionClick({ code: 'audit', row })">
+          <Button
+            v-if="codes.includes('LEAVE_AUDIT')"
+            type="link"
+            @click="onActionClick({ code: 'audit', row })"
+          >
             审批
           </Button>
           <Button

@@ -8,7 +8,8 @@ model Role {
   updateTime        DateTime?  @updatedAt @map("update_time")
   roleMenus         RoleMenu[] @relation("RoleToRoleMenu")
   userRoles         UserRole[] @relation("RoleToUserRole")
-  roleParks         RolePark[] @relation("RoleToPark")
+  roleParks         RolePark[] @relation("RoleToRolePark")
+  roleCodes         RoleCode[] @relation("RoleToRoleCode")
   reimbursementAuth Int?       @map("reimbursement_auth")
   rates             Int?       @map("rates")
   children          Role[]     @relation("RoleToRole")
@@ -16,6 +17,23 @@ model Role {
 
   @@index([parentId])
   @@map("role")
+}
+
+// 权限编码表
+model Code {
+  codeId     Int        @id @default(autoincrement()) @map("code_id")
+  code       String     @db.VarChar(50)
+  name       String     @db.VarChar(50)
+  content    String?    @db.VarChar(100)
+  menuId     Int?       @unique @map("menu_id") // 与菜单的一对一关联
+  menu       Menu?      @relation("MenuToCode", fields: [menuId], references: [menuId], onDelete: Cascade)
+  roleCodes  RoleCode[] @relation("CodeToRoleCode")
+  createTime DateTime?  @default(now()) @map("create_time")
+  updateTime DateTime?  @updatedAt @map("update_time")
+
+  @@index([codeId])
+  @@index([menuId])
+  @@map("code")
 }
 
 // 用户角色关联表
@@ -55,7 +73,7 @@ model RolePark {
   roleId     Int       @map("role_id")
   parkId     Int       @map("park_id")
   isDeleted  Boolean   @default(false) @map("is_deleted")
-  role       Role      @relation("RoleToPark", fields: [roleId], references: [roleId], onDelete: Cascade) // 添加 onDelete: Cascade 以允许级联删除
+  role       Role      @relation("RoleToRolePark", fields: [roleId], references: [roleId], onDelete: Cascade) // 添加 onDelete: Cascade 以允许级联删除
   park       Park      @relation("ParkToRolePark", fields: [parkId], references: [parkId])
   createTime DateTime? @default(now()) @map("create_time")
   updateTime DateTime? @updatedAt @map("update_time")
@@ -63,4 +81,19 @@ model RolePark {
   @@index([roleId])
   @@index([parkId])
   @@map("role_park")
+}
+
+// 角色、权限编码关联表
+model RoleCode {
+  id         Int       @id @default(autoincrement())
+  roleId     Int       @map("role_id")
+  codeId     Int       @map("code_id")
+  role       Role      @relation("RoleToRoleCode", fields: [roleId], references: [roleId], onDelete: NoAction)
+  code       Code      @relation("CodeToRoleCode", fields: [codeId], references: [codeId], onDelete: NoAction)
+  createTime DateTime? @default(now()) @map("create_time")
+  updateTime DateTime? @updatedAt @map("update_time")
+
+  @@index([roleId])
+  @@index([codeId])
+  @@map("role_code")
 }

@@ -14,6 +14,23 @@ export default eventHandler(async (event) => {
   try {
     // 使用事务处理删除操作
     const result = await prismaClient.$transaction(async (prisma) => {
+      // 先获取菜单信息，检查是否为button类型
+      const menu = await prisma.menu.findUnique({
+        where: { menuId },
+        select: { type: true, authCode: true },
+      });
+
+      // 如果菜单类型为button，先删除对应的权限码记录
+      if (menu?.type === 'button' && menu.authCode) {
+        await prisma.code.deleteMany({
+          where: {
+            code: menu.authCode,
+            menuId,
+          },
+        });
+      }
+
+      // 删除菜单（由于设置了级联删除，相关的code记录也会被删除）
       await prisma.menu.delete({
         where: {
           menuId,
