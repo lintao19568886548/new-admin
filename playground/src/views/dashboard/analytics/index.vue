@@ -77,7 +77,7 @@ onMounted(async () => {
             'a',
             {
               onClick: () => {
-                router.push('/audit');
+                router.push('/reimbursement/audit');
                 notification.close('reimbursement-notification');
               },
               style: {

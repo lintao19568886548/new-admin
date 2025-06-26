@@ -115,9 +115,10 @@ export default eventHandler(async (event) => {
     await writeFile(filePath, file.data);
 
     // 7. 将图片信息存入数据库
+    const imgUrl = `https://yizuw.cn${fileUrl}`;
     const newImage = await prismaClient.image.create({
       data: {
-        imgUrl: fileUrl,
+        imgUrl,
         hash,
         // originalName: originalFilename, // 不再存储原始文件名
       },
@@ -132,7 +133,7 @@ export default eventHandler(async (event) => {
       size: file.data.length,
       type: file.type,
       hash,
-      url: fileUrl,
+      url: imgUrl,
     });
 
     // 8. 返回成功信息，包含 URL 和原始文件名 (保持不变)
@@ -140,7 +141,7 @@ export default eventHandler(async (event) => {
       imgId: newImage.imgId,
       url: fileUrl,
       name: originalFilename, // 返回原始文件名给前端显示
-      thumbUrl: fileUrl,
+      thumbUrl: imgUrl,
     });
   } catch (error: any) {
     // 显式声明 error 类型为 any 或 unknown
