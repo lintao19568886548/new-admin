@@ -458,7 +458,7 @@ const updateMapMarkers = (point: any) => {
     currentMarker.value = new BMap.Marker(point);
     map.addOverlay(currentMarker.value);
   }
-  map.centerAndZoom(point, 18);
+  map.centerAndZoom(point, 17);
 };
 
 // 刷新位置
