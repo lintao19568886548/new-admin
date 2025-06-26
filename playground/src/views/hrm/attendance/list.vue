@@ -278,6 +278,7 @@ const checkLocationPermission = async () => {
 const getCurrentLocation = async () => {
   locationLoading.value = true;
   currentLocation.value = '获取位置中...';
+  const BMap = (window as any).BMap;
 
   try {
     // 检查位置权限
@@ -296,11 +297,44 @@ const getCurrentLocation = async () => {
           enableHighAccuracy: true,
           timeout: 10_000,
         });
-        coordinates = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-        console.warn('Capacitor定位成功:', coordinates);
+
+        // Capacitor 获取的是 WGS84 坐标，需要转换为 BD09
+        const wgs84Point = new BMap.Point(
+          position.coords.longitude,
+          position.coords.latitude,
+        );
+        const convertor = new BMap.Convertor();
+
+        coordinates = await new Promise((resolve) => {
+          convertor.translate(
+            [wgs84Point],
+            1,
+            5,
+            (result: { points: any[] | string; status: number }) => {
+              if (result.status === 0 && result.points.length > 0) {
+                console.warn(
+                  'WGS84 to BD09 conversion successful:',
+                  result.points[0],
+                );
+                resolve({
+                  lat: result.points[0].lat,
+                  lng: result.points[0].lng,
+                });
+              } else {
+                // 转换失败，使用原始坐标作为备用
+                console.error(
+                  'WGS84 to BD09 conversion failed, using original coordinates.',
+                );
+                resolve({
+                  lat: position.coords.latitude,
+                  lng: position.coords.longitude,
+                });
+              }
+            },
+          );
+        });
+
+        console.warn('Capacitor定位成功 (after conversion):', coordinates);
       } catch (error) {
         console.error('Capacitor定位失败:', error);
         message.error('获取位置失败，请检查设备定位权限');
@@ -310,7 +344,6 @@ const getCurrentLocation = async () => {
       }
     } else {
       // 在Web平台使用百度地图API
-      const BMap = (window as any).BMap;
       if (!BMap) {
         message.error('地图API未加载，请刷新页面重试');
         locationLoading.value = false;
@@ -343,7 +376,6 @@ const getCurrentLocation = async () => {
     longitude.value = (coordinates as { lat: number; lng: number }).lng;
 
     // 使用百度地图进行地址解析（无论在哪个平台）
-    const BMap = (window as any).BMap;
     if (BMap) {
       const point = new BMap.Point(
         (coordinates as { lat: number; lng: number }).lng,
@@ -657,7 +689,7 @@ watch(
           type="primary"
           size="large"
           class="punch-btn punch-in"
-          :disabled="!isInRange"
+          :disabled="!isInRange || Boolean(todayRecord?.punchIn)"
           :loading="punchLoading"
           @click="handlePunchIn"
         >
