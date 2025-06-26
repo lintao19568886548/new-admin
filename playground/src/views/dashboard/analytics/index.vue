@@ -2,7 +2,7 @@
 import type { AnalysisOverviewItem } from '@vben/common-ui';
 import type { TabOption } from '@vben/types';
 
-import { computed, h, onMounted, ref } from 'vue';
+import { computed, h, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 // UI 组件
@@ -40,6 +40,12 @@ import {
 const userStore = useUserStore();
 const router = useRouter();
 
+const isMobile = ref(false);
+
+const handleResize = () => {
+  isMobile.value = window.innerWidth < 768;
+};
+
 // 数据初始化
 const analyticsData = ref({
   monthData: {
@@ -58,6 +64,8 @@ const sumData = (data: number[] = []) =>
 
 // 获取数据
 onMounted(async () => {
+  handleResize();
+  window.addEventListener('resize', handleResize);
   try {
     const [yearResult, monthResult] = await Promise.all([
       getAnalyticsData({ type: 'months' }),
@@ -77,7 +85,10 @@ onMounted(async () => {
             'a',
             {
               onClick: () => {
-                router.push('/reimbursement/audit');
+                const path = isMobile.value
+                  ? '/reimbursement/mobile-audit'
+                  : '/reimbursement/audit';
+                router.push(path);
                 notification.close('reimbursement-notification');
               },
               style: {
@@ -98,6 +109,10 @@ onMounted(async () => {
   } catch (error) {
     console.error('获取数据失败:', error);
   }
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
 });
 
 // 计算环比增长率

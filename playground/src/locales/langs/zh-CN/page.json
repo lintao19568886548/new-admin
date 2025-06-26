@@ -36,6 +36,11 @@
     "title": "中介管理",
     "view": "查看中介"
   },
+  "app": {
+    "download": "下载",
+    "menu": "APP菜单",
+    "profile": "个人中心"
+  },
   "auth": {
     "changePassword": "修改密码",
     "codeLogin": "验证码登录",

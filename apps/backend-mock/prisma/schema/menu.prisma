@@ -39,7 +39,7 @@ model MenuMeta {
   iframeSrc          String?  @map("iframe_src") @db.VarChar(100)
   keepAlive          Boolean? @map("keep_alive")
   link               String?  @db.VarChar(200)
-  isApp              Boolean? @map("is_android") /// 是否是APP页面
+  isApp              Boolean? @map("is_app") /// 是否是APP页面
   maxNumOfOpenTab    Int?     @map("max_num_of_open_tab")
   noBasicLayout      Boolean? @map("no_basic_layout")
   openInNewWindow    Boolean? @map("open_in_new_window")
