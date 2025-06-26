@@ -7,6 +7,10 @@ interface BasicUserInfo {
    */
   avatar: string;
   /**
+   * 权限编码
+   */
+  codes?: string[];
+  /**
    * 用户昵称
    */
   realName: string;

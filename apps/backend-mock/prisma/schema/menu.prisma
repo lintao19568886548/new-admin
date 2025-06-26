@@ -10,6 +10,7 @@ model Menu {
   pid        Int?
   authCode   String?    @map("auth_code") @db.VarChar(100)
   roleMenus  RoleMenu[] @relation("MenuToRoleMenu")
+  code       Code?      @relation("MenuToCode") // 与权限码的一对一关联
   children   Menu[]     @relation("MenuToMenu")
   parent     Menu?      @relation("MenuToMenu", fields: [pid], references: [menuId], onDelete: NoAction, onUpdate: NoAction)
   meta       MenuMeta?  @relation("MenuToMenuMeta")

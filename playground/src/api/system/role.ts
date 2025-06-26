@@ -11,6 +11,8 @@ export namespace SystemRoleApi {
   export interface SystemRole {
     /** 子角色列表 */
     children?: SystemRole[];
+    /** 权限码列表 */
+    codes?: string[];
     /** 创建时间 */
     createTime?: string;
     /** 角色名称 */
@@ -115,9 +117,35 @@ async function getRoleById(id: number | string) {
   return requestClient.get<SystemRoleApi.SystemRole>(`/system/role/${id}`);
 }
 
+/**
+ * @function createRoleCodeAssociation
+ * @description 创建角色权限码关联
+ * @param roleId 角色ID
+ * @param codeId 权限码ID
+ * @returns 返回创建结果
+ */
+async function createRoleCodeAssociation(roleId: number, codeId: number) {
+  return requestClient.post('/system/role/code', { codeId, roleId });
+}
+
+/**
+ * @function deleteRoleCodeAssociation
+ * @description 删除角色权限码关联
+ * @param roleId 角色ID
+ * @param codeId 权限码ID
+ * @returns 返回删除结果
+ */
+async function deleteRoleCodeAssociation(roleId: number, codeId: number) {
+  return requestClient.delete('/system/role/code', {
+    data: { codeId, roleId },
+  });
+}
+
 export {
   createRole,
+  createRoleCodeAssociation,
   deleteRole,
+  deleteRoleCodeAssociation,
   getRoleById,
   getRoleList,
   getRolePermissionTree,

@@ -15,12 +15,15 @@ export default eventHandler(async (event) => {
     },
     include: {
       meta: true, // 包含菜单元数据
+      code: true, // 包含权限码数据
       children: {
         include: {
           meta: true, // 包含子菜单的元数据
+          code: true, // 包含权限码数据
           children: {
             include: {
               meta: true, // 如果需要更深层次的子菜单，可以继续嵌套
+              code: true, // 包含权限码数据
             },
           },
         },

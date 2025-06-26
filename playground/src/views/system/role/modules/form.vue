@@ -16,7 +16,13 @@ import { Spin } from 'ant-design-vue';
 import { useVbenForm } from '#/adapter/form';
 // 引入菜单 API 用于权限树
 import { getMenuList, getMenusByParentRole } from '#/api/system/menu';
-import { createRole, getRoleById, updateRole } from '#/api/system/role';
+import {
+  createRole,
+  createRoleCodeAssociation,
+  deleteRoleCodeAssociation,
+  getRoleById,
+  updateRole,
+} from '#/api/system/role';
 import { $t } from '#/locales';
 import { useRoleStore } from '#/store/modules/role';
 
@@ -43,6 +49,10 @@ const [Form, formApi] = useVbenForm({
 const menuTreeData = ref<DataNode[]>([]); // 重命名为 menuTreeData 更清晰
 const loadingPermissions = ref(false);
 
+// 权限码选中状态跟踪
+const originalCodeSelections = ref<Set<number>>(new Set()); // 原始权限码选中状态
+const currentCodeSelections = ref<Set<number>>(new Set()); // 当前权限码选中状态
+
 const id = ref();
 const [Drawer, drawerApi] = useVbenDrawer({
   async onConfirm() {
@@ -51,39 +61,56 @@ const [Drawer, drawerApi] = useVbenDrawer({
     // 获取表单值并进行类型断言
     const values = (await formApi.getValues()) as UpsertRole;
     drawerApi.lock();
-    (id.value ? updateRole(id.value, values) : createRole(values))
-      .then(async (result) => {
-        // 更新store中的数据
-        if (id.value) {
-          // 编辑模式：重新获取该角色的最新数据并更新store
-          try {
-            const latestRoleData = await getRoleById(id.value);
-            if (latestRoleData) {
-              roleStore.updateRole(latestRoleData);
-            }
-          } catch (error) {
-            console.error('获取最新角色数据失败，刷新整个列表:', error);
-            // 如果获取单个角色失败，则强制清空缓存并重新加载
-            roleStore.clearRoles();
-            roleStore.fetchRoles();
-          }
-        } else {
-          // 新增模式：添加新角色
-          if (result && typeof result === 'object' && 'roleId' in result) {
-            // 如果API返回了完整的角色对象
-            roleStore.addRole(result as SystemRoleApi.SystemRole);
-          } else {
-            // 如果API只返回ID，则刷新整个列表
-            roleStore.refreshRoles();
-          }
-        }
 
-        emits('success');
-        drawerApi.close();
-      })
-      .catch(() => {
-        drawerApi.unlock();
-      });
+    try {
+      // 先保存角色基本信息
+      const result = await (id.value
+        ? updateRole(id.value, values)
+        : createRole(values));
+
+      // 获取当前角色ID（新建时从返回结果获取，编辑时使用现有ID）
+      const currentRoleId =
+        id.value ||
+        (result && typeof result === 'object' && 'roleId' in result
+          ? result.roleId
+          : null);
+
+      if (currentRoleId) {
+        // 处理权限码选中状态变化
+        await handleCodeSelectionChanges(currentRoleId);
+      }
+
+      // 更新store中的数据
+      if (id.value) {
+        // 编辑模式：重新获取该角色的最新数据并更新store
+        try {
+          const latestRoleData = await getRoleById(id.value);
+          if (latestRoleData) {
+            roleStore.updateRole(latestRoleData);
+          }
+        } catch (error) {
+          console.error('获取最新角色数据失败，刷新整个列表:', error);
+          // 如果获取单个角色失败，则强制清空缓存并重新加载
+          roleStore.clearRoles();
+          roleStore.fetchRoles();
+        }
+      } else {
+        // 新增模式：添加新角色
+        if (result && typeof result === 'object' && 'roleId' in result) {
+          // 如果API返回了完整的角色对象
+          roleStore.addRole(result as SystemRoleApi.SystemRole);
+        } else {
+          // 如果API只返回ID，则刷新整个列表
+          roleStore.refreshRoles();
+        }
+      }
+
+      emits('success');
+      drawerApi.close();
+    } catch (error) {
+      console.error('保存角色失败:', error);
+      drawerApi.unlock();
+    }
   },
   onOpenChange(isOpen) {
     if (isOpen) {
@@ -93,9 +120,14 @@ const [Drawer, drawerApi] = useVbenDrawer({
         formData.value = data;
         id.value = data.roleId;
         formApi.setValues(data);
+        // 初始化权限码选中状态
+        initializeCodeSelections(data);
       } else {
         id.value = undefined;
         formData.value = undefined;
+        // 清空权限码选中状态
+        originalCodeSelections.value.clear();
+        currentCodeSelections.value.clear();
       }
 
       // 每次打开都重新加载权限树，确保根据当前角色的父角色权限正确显示
@@ -134,6 +166,110 @@ function getNodeClass(node: Recordable<any>) {
   }
 
   return classes.join(' ');
+}
+
+/**
+ * 初始化权限码选中状态
+ * @param roleData 角色数据
+ */
+function initializeCodeSelections(roleData: SystemRoleApi.SystemRole) {
+  // 从角色数据中获取已选中的权限码列表
+  const selectedCodes = roleData.codes || [];
+
+  // 将权限码转换为ID集合
+  const codeIds = new Set<number>();
+
+  // 遍历菜单树，找到type为button的项目，并检查其权限码是否被选中
+  const extractCodeIds = (menus: any[]) => {
+    menus.forEach((menu) => {
+      if (
+        menu.type === 'button' &&
+        menu.code &&
+        selectedCodes.includes(menu.authCode)
+      ) {
+        codeIds.add(menu.code.codeId);
+      }
+      if (menu.children) {
+        extractCodeIds(menu.children);
+      }
+    });
+  };
+
+  if (menuTreeData.value.length > 0) {
+    extractCodeIds(menuTreeData.value as any[]);
+  }
+
+  originalCodeSelections.value = new Set(codeIds);
+  currentCodeSelections.value = new Set(codeIds);
+}
+
+/**
+ * 处理权限码选中状态变化
+ * @param roleId 角色ID
+ */
+async function handleCodeSelectionChanges(roleId: number) {
+  // 获取当前表单中选中的权限项
+  const formValues = await formApi.getValues();
+  const selectedPermissions = formValues.permissions || [];
+
+  // 从选中的权限中提取权限码ID
+  const newCodeSelections = new Set<number>();
+
+  const extractSelectedCodes = (menus: any[], selectedIds: number[]) => {
+    menus.forEach((menu) => {
+      if (
+        menu.type === 'button' &&
+        menu.code &&
+        selectedIds.includes(menu.menuId)
+      ) {
+        newCodeSelections.add(menu.code.codeId);
+      }
+      if (menu.children) {
+        extractSelectedCodes(menu.children, selectedIds);
+      }
+    });
+  };
+
+  if (menuTreeData.value.length > 0) {
+    extractSelectedCodes(menuTreeData.value as any[], selectedPermissions);
+  }
+
+  // 找出新增的权限码
+  const addedCodes = [...newCodeSelections].filter(
+    (codeId) => !originalCodeSelections.value.has(codeId),
+  );
+
+  // 找出删除的权限码
+  const removedCodes = [...originalCodeSelections.value].filter(
+    (codeId) => !newCodeSelections.has(codeId),
+  );
+
+  // 处理新增的权限码关联
+  for (const codeId of addedCodes) {
+    try {
+      await createRoleCodeAssociation(roleId, codeId);
+    } catch (error) {
+      console.error(
+        `创建角色权限码关联失败 (roleId: ${roleId}, codeId: ${codeId}):`,
+        error,
+      );
+    }
+  }
+
+  // 处理删除的权限码关联
+  for (const codeId of removedCodes) {
+    try {
+      await deleteRoleCodeAssociation(roleId, codeId);
+    } catch (error) {
+      console.error(
+        `删除角色权限码关联失败 (roleId: ${roleId}, codeId: ${codeId}):`,
+        error,
+      );
+    }
+  }
+
+  // 更新原始选中状态
+  originalCodeSelections.value = newCodeSelections;
 }
 
 // 导出drawer API供父组件使用

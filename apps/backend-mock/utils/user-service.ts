@@ -17,11 +17,13 @@ export interface UserInfoForToken {
   parks: Array<{ parkId: number; parkName: string }>;
   reimbursementAuth?: number;
   rates?: number;
+  codes: string[];
 }
 
 // Prisma返回的带有完整关联信息的用户类型 (近似表示)
 // 您可能需要根据实际的Prisma查询结果调整此类型，或使用Prisma生成的类型
 type PrismaRoleWithParks = Role & {
+  roleCodes: Array<{ code: { code: string } }>;
   roleParks: (UserRole & {
     role: Role & {
       roleParks: { park: Park }[];
@@ -54,6 +56,11 @@ export async function fetchUserWithDetails(
                 where: { isDeleted: false },
                 include: {
                   park: true,
+                },
+              },
+              roleCodes: {
+                include: {
+                  code: true,
                 },
               },
             },
@@ -120,6 +127,13 @@ export async function transformPrismaUserToUserInfo(
     parks = [...uniqueParksMap.values()];
   }
 
+  // 获取用户的所有权限码
+  const userCodes = prismaUser.roles.flatMap((userRole) =>
+    userRole.role.roleCodes.map((rc) => rc.code.code),
+  );
+  // 去重权限码
+  const codes = [...new Set(userCodes)];
+
   return {
     id: Number(prismaUser.id),
     username: String(prismaUser.username),
@@ -129,5 +143,6 @@ export async function transformPrismaUserToUserInfo(
     parks,
     reimbursementAuth,
     rates,
+    codes,
   };
 }

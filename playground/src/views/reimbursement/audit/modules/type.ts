@@ -140,7 +140,7 @@ export function useReimbursementAudit() {
     searchForm.purpose = '';
     searchForm.status = undefined;
     searchForm.payee = '';
-    searchForm.park = undefined;
+    searchForm.park = '';
     pagination.current = 1;
     fetchReimbursements();
   }

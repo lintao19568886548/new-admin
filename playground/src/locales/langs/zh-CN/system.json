@@ -133,6 +133,7 @@
     "updateTime": "更新时间"
   },
   "role": {
+    "codes": "权限码",
     "createTime": "创建时间",
     "id": "角色ID",
     "list": "角色列表",
