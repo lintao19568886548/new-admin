@@ -6,16 +6,93 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
+  const username = userinfo.username;
+  const roleNames = userinfo.roles;
+  const isAdvancedPermission = ['Super', '董事长', '总经理'].some((role) =>
+    roleNames.includes(role),
+  );
+
   // 获取查询参数
   const query = getQuery(event);
   const { startTime, endTime, currentPage, pageSize } = query;
 
   // 构建查询条件
-  const where: any = {
-    username: {
-      notIn: ['vben', ''], // 排除用户名为 vben 的记录
-    },
-  };
+  const where: any = {};
+
+  if (isAdvancedPermission) {
+    // 高级权限用户可以查看所有记录（排除vben用户）
+    where.username = {
+      notIn: ['vben', ''],
+    };
+  } else {
+    // 普通用户查看自己所属角色及其嵌套子角色的记录
+
+    // 获取当前用户的角色ID列表
+    const userRoles = await prismaClient.userRole.findMany({
+      where: {
+        user: {
+          username,
+        },
+      },
+      select: {
+        roleId: true,
+      },
+    });
+
+    const userRoleIds = userRoles.map((ur) => ur.roleId);
+
+    // 递归获取所有子角色ID的函数
+    const getAllChildRoleIds = async (roleIds: number[]): Promise<number[]> => {
+      if (roleIds.length === 0) return [];
+
+      const childRoles = await prismaClient.role.findMany({
+        where: {
+          parentId: {
+            in: roleIds,
+          },
+        },
+        select: {
+          roleId: true,
+        },
+      });
+
+      const childRoleIds = childRoles.map((r) => r.roleId);
+
+      if (childRoleIds.length === 0) {
+        return roleIds;
+      }
+
+      // 递归获取子角色的子角色
+      const grandChildRoleIds = await getAllChildRoleIds(childRoleIds);
+      return [...roleIds, ...grandChildRoleIds];
+    };
+
+    // 获取用户角色及其所有子角色的ID
+    const allRoleIds = await getAllChildRoleIds(userRoleIds);
+
+    // 查询这些角色对应的用户名
+    const usersInRoles = await prismaClient.user.findMany({
+      where: {
+        roles: {
+          some: {
+            roleId: {
+              in: allRoleIds,
+            },
+          },
+        },
+      },
+      select: {
+        username: true,
+      },
+    });
+
+    const allowedUsernames = usersInRoles.map((u) => u.username);
+
+    // 设置查询条件：只能查看这些用户的记录
+    where.username = {
+      in: allowedUsernames,
+    };
+  }
 
   // 请求时间范围查询
   if (startTime && endTime) {
