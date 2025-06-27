@@ -4,13 +4,7 @@ import { useRouter } from 'vue-router';
 
 import { AuthenticationLoginExpiredModal, VbenIcon } from '@vben/common-ui';
 import { useWatermark } from '@vben/hooks';
-import {
-  ArrowLeft,
-  BookOpenText,
-  IconDefault,
-  LockKeyhole,
-  UserRoundPen,
-} from '@vben/icons';
+import { ArrowLeft, IconDefault, LockKeyhole, UserRoundPen } from '@vben/icons';
 import { BasicLayout, LockScreen, UserDropdown } from '@vben/layouts';
 import { $t } from '@vben/locales';
 import { preferences, updatePreferences } from '@vben/preferences';
@@ -229,7 +223,8 @@ function goBack() {
         <!-- Right Icon -->
         <VbenIcon
           v-if="router.currentRoute.value.path === '/hrm/attendance/check-in'"
-          :icon="BookOpenText"
+          icon="mdi:history"
+          class="size-6"
           @click="
             router.push({
               path: '/hrm/attendance/record',

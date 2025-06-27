@@ -47,6 +47,7 @@ const routes: RouteRecordRaw[] = [
             name: 'HrmAttendancePunch',
             component: () => import('#/views/hrm/attendance/check-in.vue'),
             meta: {
+              icon: 'mdi:card-account-details-outline',
               title: '考勤打卡',
             },
           },
@@ -55,7 +56,8 @@ const routes: RouteRecordRaw[] = [
             name: 'HrmAttendanceStats',
             component: () => import('#/views/hrm/attendance/record.vue'),
             meta: {
-              title: '考勤统计',
+              icon: 'mdi:history',
+              title: '考勤记录',
             },
           },
         ],
