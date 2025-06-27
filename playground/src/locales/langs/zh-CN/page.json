@@ -4,9 +4,9 @@
     "detail": "项目详情",
     "edit": "修改项目",
     "list": "项目列表",
+    "mobileListTitle": "招商管理-mobile",
     "title": "招商管理",
-    "view": "查看项目",
-    "mobileListTitle": "招商管理-mobile"
+    "view": "查看项目"
   },
   "access": {
     "car": "车辆管理",
@@ -37,13 +37,13 @@
     "view": "查看中介"
   },
   "app": {
-    "download": "下载",
-    "menu": "APP菜单",
-    "profile": "个人中心",
     "attendance": {
       "checkIn": "打卡",
       "record": "考勤记录"
-    }
+    },
+    "download": "下载",
+    "menu": "APP菜单",
+    "profile": "个人中心"
   },
   "auth": {
     "changePassword": "修改密码",
@@ -88,7 +88,7 @@
   },
   "dashboard": {
     "analytics": "分析页",
-    "title": "概览",
+    "title": "总台",
     "workspace": "工作台"
   },
   "dormitory": {
@@ -124,6 +124,7 @@
     "description": "厂房描述",
     "detail": "厂房详情",
     "edit": "修改厂房",
+    "firefightingRecord": "消防检查记录",
     "floors": "楼层信息",
     "images": "图片",
     "item": "厂房",
@@ -131,10 +132,9 @@
     "name": "厂房名称",
     "status": "厂房状态",
     "title": "厂房管理",
+    "transformerRecord": "变压器检查记录",
     "upload-image": "选择上传图片",
-    "view": "查看厂房",
-    "firefightingRecord": "消防检查记录",
-    "transformerRecord": "变压器检查记录"
+    "view": "查看厂房"
   },
   "finance": {
     "amount": "账单金额",
@@ -179,19 +179,19 @@
     "create": "新增维修",
     "detail": "维修详情",
     "edit": "修改维修",
+    "elevator": "电梯管理",
+    "elevatorList": "电梯列表",
+    "factoryMaintenance": "厂房维护",
+    "factoryMaintenanceList": "厂房维护列表",
     "firefighting": "消防管理",
     "firefightingList": "消防列表",
+    "hygieneCheck": "卫生检查",
+    "hygieneCheckList": "卫生检查列表",
     "list": "维护列表",
     "title": "维护管理",
     "transformer": "变压器管理",
     "transformerList": "变压器列表",
-    "view": "查看维修",
-    "factoryMaintenance": "厂房维护",
-    "factoryMaintenanceList": "厂房维护列表",
-    "hygieneCheck": "卫生检查",
-    "hygieneCheckList": "卫生检查列表",
-    "elevator": "电梯管理",
-    "elevatorList": "电梯列表"
+    "view": "查看维修"
   },
   "park": {
     "address": "园区地址",
