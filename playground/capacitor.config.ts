@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'cn.yizuw.magic',
-  appName: '魔镜',
+  appName: '瞰维智管',
   server: {
     // 需要取消注释此部分以设置 androidScheme
     /**
