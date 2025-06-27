@@ -10,7 +10,7 @@ import { Geolocation } from '@capacitor/geolocation';
 // 或
 // yarn add @iconify/vue
 import { Icon } from '@iconify/vue';
-import { Button, message, Tag } from 'ant-design-vue';
+import { Button, message, Modal, Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { getTodayRecord, punchIn, punchOut } from '#/api/hrm/attendance';
@@ -44,6 +44,9 @@ const attendanceStatusMeta = {
   [AttendanceStatus.Leave]: { color: 'blue', text: '请假' },
   [AttendanceStatus.Normal]: { color: 'green', text: '正常' },
 };
+
+// 默认下班时间
+const standardWorkEndTime = '18:00:00';
 
 // ================================= 响应式数据 =================================
 const currentLocation = ref('');
@@ -440,22 +443,45 @@ const handlePunchOut = async () => {
     return;
   }
 
-  punchLoading.value = true;
+  // 封装打卡操作
+  const performPunchOut = async () => {
+    if (!todayRecord.value?.attendanceId) {
+      message.error('无法找到今日打卡记录，无法下班打卡');
+      return;
+    }
+    punchLoading.value = true;
+    try {
+      await punchOut(todayRecord.value.attendanceId, {
+        latitude: latitude.value,
+        longitude: longitude.value,
+        punchTime: dayjs().toISOString(),
+        username: userInfo?.realName || '',
+      });
+      await loadTodayRecord();
+      message.success('下班打卡成功');
+    } catch (error: any) {
+      console.error('[打卡调试] 下班打卡失败:', error);
+      message.error(`打卡失败: ${error.message || '请重试'}`);
+    } finally {
+      punchLoading.value = false;
+    }
+  };
 
-  try {
-    await punchOut(todayRecord.value.attendanceId, {
-      latitude: latitude.value,
-      longitude: longitude.value,
-      punchTime: dayjs().toISOString(),
-      username: userInfo?.realName || '',
+  // 检查是否早退
+  const now = dayjs();
+  const endTime = dayjs(standardWorkEndTime, 'HH:mm:ss');
+  const isEarlyLeave = now.isBefore(endTime);
+
+  if (isEarlyLeave) {
+    Modal.confirm({
+      centered: true,
+      content: '当前时间早于规定下班时间，确定要打卡吗？',
+      okText: '确认打卡',
+      onOk: performPunchOut,
+      title: '早退确认',
     });
-    await loadTodayRecord();
-    message.success('下班打卡成功');
-  } catch (error: any) {
-    console.error('[打卡调试] 下班打卡失败:', error);
-    message.error(`打卡失败: ${error.message || '请重试'}`);
-  } finally {
-    punchLoading.value = false;
+  } else {
+    await performPunchOut();
   }
 };
 

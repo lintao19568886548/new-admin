@@ -434,12 +434,12 @@ function triggerShowAuditModal(record: ReimbursementItem) {
 }
 
 .purpose-title {
-  overflow: hidden;
+  margin-right: 8px; /* Add space between title and tag */
   font-size: 16px;
   font-weight: 600;
   color: #323233;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word; /* Break long words if necessary */
+  white-space: normal; /* Allow text to wrap */
 }
 
 .card-content {
