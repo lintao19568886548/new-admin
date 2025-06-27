@@ -11,7 +11,12 @@ export const useMenuStore = defineStore('menu-store', () => {
     menus.value = newMenus;
   }
 
+  function $reset() {
+    menus.value = [];
+  }
+
   return {
+    $reset,
     menus,
     setMenus,
   };
