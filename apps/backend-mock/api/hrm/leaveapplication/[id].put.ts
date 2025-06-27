@@ -28,6 +28,7 @@ export default eventHandler(async (event) => {
       status,
       reply,
       auditUser,
+      username,
     } = body;
 
     const updateData: any = {};
@@ -46,6 +47,7 @@ export default eventHandler(async (event) => {
     if (status !== undefined) updateData.status = Number(status);
     if (reply !== undefined) updateData.reply = reply;
     if (auditUser !== undefined) updateData.auditUser = auditUser;
+    if (username !== undefined) updateData.username = username;
 
     if (Object.keys(updateData).length === 0) {
       return serverErrorResponse('没有提供要更新的字段', event);

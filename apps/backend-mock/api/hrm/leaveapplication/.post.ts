@@ -14,7 +14,7 @@ export default eventHandler(async (event) => {
 
   try {
     const body = await readBody(event);
-    const { user, parkId, startDate, endDate, reason } = body;
+    const { user, parkId, startDate, endDate, reason, username } = body;
 
     if (!user || !parkId || !startDate || !endDate || !reason) {
       return serverErrorResponse('缺少必要的表单字段', event);
@@ -33,6 +33,7 @@ export default eventHandler(async (event) => {
         startDate: new Date(startDate),
         endDate: new Date(endDate),
         reason,
+        username,
         status: 0, // 默认状态, 0-待审核
       },
     });

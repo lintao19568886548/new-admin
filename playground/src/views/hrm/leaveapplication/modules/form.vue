@@ -6,6 +6,7 @@ import type { LeaveApplication, Park } from '#/api/hrm/leaveapplication';
 import { computed, onMounted, reactive, ref, watchEffect } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
+import { useUserStore } from '@vben/stores';
 
 import {
   Form as AForm,
@@ -22,6 +23,7 @@ import {
 } from '#/api/hrm/leaveapplication';
 
 const emit = defineEmits(['success']);
+const userStore = useUserStore();
 const formData = ref<LeaveApplication>();
 const getTitle = computed(() => {
   return formData.value?.id
@@ -101,7 +103,7 @@ const [Modal, modalApi] = useVbenModal({
       const submitData = {
         ...formState,
         park: selectedPark?.parkName || '',
-        username: formState.user, // 将user字段复制到username
+        username: userStore.userInfo?.realName || '',
       };
 
       if (formData.value?.id) {
