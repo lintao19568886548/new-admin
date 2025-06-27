@@ -10,6 +10,8 @@ import { $t } from '@vben/locales';
 import { preferences, updatePreferences } from '@vben/preferences';
 import { useAccessStore, useUserStore } from '@vben/stores';
 
+import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { message } from 'ant-design-vue';
 
 import { useAuthStore } from '#/store';
@@ -25,10 +27,27 @@ const handleResize = () => {
 onMounted(() => {
   handleResize();
   window.addEventListener('resize', handleResize);
+
+  // 处理硬件返回按钮
+  if (Capacitor.isNativePlatform()) {
+    App.addListener('backButton', ({ canGoBack }) => {
+      if (canGoBack) {
+        router.back();
+      } else {
+        // 在首页时，最小化应用而不是退出
+        App.minimizeApp();
+      }
+    });
+  }
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
+
+  // 清理 Capacitor 监听器
+  if (Capacitor.isNativePlatform()) {
+    App.removeAllListeners();
+  }
 });
 
 const router = useRouter();
@@ -199,7 +218,13 @@ function goTo(path: string) {
 }
 
 function goBack() {
-  router.back();
+  // 检查是否有历史记录
+  if (window.history.length > 1) {
+    router.back();
+  } else {
+    // 没有历史记录时，导航到首页而不是退出应用
+    router.push('/home');
+  }
 }
 </script>
 

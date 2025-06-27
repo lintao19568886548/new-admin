@@ -1573,6 +1573,9 @@ importers:
       '@capacitor/android':
         specifier: ^7.2.0
         version: 7.2.0(@capacitor/core@7.2.0)
+      '@capacitor/app':
+        specifier: ^7.0.1
+        version: 7.0.1(@capacitor/core@7.2.0)
       '@capacitor/geolocation':
         specifier: ^7.1.2
         version: 7.1.2(@capacitor/core@7.2.0)
@@ -2452,6 +2455,11 @@ packages:
     resolution: {integrity: sha512-qN8LDlREMhrYhOvVXahoJVNkP8LP55/YPRJrzTAFrMqlNJC18L3CzgWYIblFPnuwfbH/RxbfoZT/ydkwgVpMrw==}
     engines: {node: '>=16.0.0'}
     hasBin: true
+
+  '@capacitor/app@7.0.1':
+    resolution: {integrity: sha512-ArlVZAAla4MwQoKh26x2AaTDOBh5Vhp1VhMKR3RwqZSsZnazKTFGNrPbr9Ez5r1knnEDfApyjwp1uZnXK1WTYQ==}
+    peerDependencies:
+      '@capacitor/core': '>=7.0.0'
 
   '@capacitor/cli@7.2.0':
     resolution: {integrity: sha512-RNW9vtYYYSDmOdguYBSW0VpRnG/d6lGydlc9DLrJ7qbSPxFrotTz9IjkM48O+SruUma61DyuSqJttdbay2xSxg==}
@@ -13354,6 +13362,10 @@ snapshots:
       xml2js: 0.5.0
     transitivePeerDependencies:
       - supports-color
+
+  '@capacitor/app@7.0.1(@capacitor/core@7.2.0)':
+    dependencies:
+      '@capacitor/core': 7.2.0
 
   '@capacitor/cli@7.2.0':
     dependencies:
