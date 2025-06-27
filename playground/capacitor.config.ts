@@ -3,6 +3,13 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'cn.yizuw.magic',
   appName: '瞰维智管',
+  // bundledWebRuntime: false, // 默认为 false，Capacitor 核心功能通过原生代码提供
+  plugins: {
+    CapacitorAssets: {
+      iconPath: 'resources/icon.png',
+      // splashPath: 'resources/splash.png', // 可选：启动画面
+    },
+  },
   server: {
     // 需要取消注释此部分以设置 androidScheme
     /**
@@ -22,7 +29,6 @@ const config: CapacitorConfig = {
     url: 'http://10.0.2.2:5556', // 前端服务路径，如果不使用实时重载，可以保持注释。安卓打包前记得注释。
   },
   webDir: 'dist',
-  // bundledWebRuntime: false, // 默认为 false，Capacitor 核心功能通过原生代码提供
 };
 
 export default config;
