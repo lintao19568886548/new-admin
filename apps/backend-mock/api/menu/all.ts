@@ -19,6 +19,7 @@ export default eventHandler(async (event) => {
     const allMenus = await prismaClient.menu.findMany({
       where: {
         pid: null, // 只查询顶级菜单
+        status: 1,
         type: {
           not: 'button',
         },
@@ -27,6 +28,7 @@ export default eventHandler(async (event) => {
         meta: true,
         children: {
           where: {
+            status: 1,
             type: {
               not: 'button',
             },
@@ -35,6 +37,7 @@ export default eventHandler(async (event) => {
             meta: true,
             children: {
               where: {
+                status: 1,
                 type: {
                   not: 'button',
                 },
@@ -93,6 +96,7 @@ export default eventHandler(async (event) => {
   const menus = await prismaClient.menu.findMany({
     where: {
       pid: null, // 只查询顶级菜单
+      status: 1,
       menuId: {
         in: menuIds, // 只查询用户有权限的菜单
       },
@@ -104,6 +108,7 @@ export default eventHandler(async (event) => {
       meta: true,
       children: {
         where: {
+          status: 1,
           type: {
             not: 'button',
           },
@@ -115,6 +120,7 @@ export default eventHandler(async (event) => {
           meta: true,
           children: {
             where: {
+              status: 1,
               type: {
                 not: 'button',
               },
