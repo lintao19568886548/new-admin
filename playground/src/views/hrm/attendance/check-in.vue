@@ -1,13 +1,5 @@
 <script setup lang="ts">
-import {
-  computed,
-  nextTick,
-  onMounted,
-  onUnmounted,
-  reactive,
-  ref,
-  watch,
-} from 'vue';
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useUserStore } from '@vben/stores';
 
@@ -18,26 +10,10 @@ import { Geolocation } from '@capacitor/geolocation';
 // 或
 // yarn add @iconify/vue
 import { Icon } from '@iconify/vue';
-import {
-  Button,
-  Card,
-  Col,
-  message,
-  RangePicker,
-  Row,
-  Statistic,
-  Table,
-  Tag,
-} from 'ant-design-vue';
+import { Button, message, Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
-import {
-  getAttendanceList,
-  getMonthStats,
-  getTodayRecord,
-  punchIn,
-  punchOut,
-} from '#/api/hrm/attendance';
+import { getTodayRecord, punchIn, punchOut } from '#/api/hrm/attendance';
 import { BAIDU_MAP_AK, officeLocations } from '#/config';
 import { loadBaiduMapScript } from '#/utils/map';
 
@@ -50,28 +26,13 @@ interface TodayRecord {
   workHours: number;
 }
 
-interface MonthStats {
-  attendanceDays: number;
-  earlyLeaveDays: number;
-  lateDays: number;
-  overtimeHours: number;
-}
-
-interface AttendanceRecord {
-  date: string;
-  id: number;
-  punchIn: string;
-  punchOut: string;
-  status: number;
-  workHours: number;
-}
-
 // ================================= 考勤状态 =================================
 const AttendanceStatus = {
   Absent: 4,
   EarlyLeave: 2,
   Late: 1,
   LateAndEarlyLeave: 3,
+  Leave: 5,
   Normal: 0,
 } as const;
 
@@ -80,6 +41,7 @@ const attendanceStatusMeta = {
   [AttendanceStatus.EarlyLeave]: { color: 'orange', text: '早退' },
   [AttendanceStatus.Late]: { color: 'red', text: '迟到' },
   [AttendanceStatus.LateAndEarlyLeave]: { color: 'red', text: '迟到+早退' },
+  [AttendanceStatus.Leave]: { color: 'blue', text: '请假' },
   [AttendanceStatus.Normal]: { color: 'green', text: '正常' },
 };
 
@@ -90,11 +52,7 @@ const longitude = ref(0);
 const isInRange = ref(false);
 const locationLoading = ref(false);
 const punchLoading = ref(false);
-const tableLoading = ref(false);
-const dateRange = ref<[dayjs.Dayjs, dayjs.Dayjs]>([
-  dayjs().startOf('month'),
-  dayjs().endOf('month'),
-]);
+const mapInitialized = ref(false);
 
 // Pinia Store
 const userStore = useUserStore();
@@ -102,80 +60,6 @@ const userInfo = userStore.userInfo;
 
 // 今日打卡记录
 const todayRecord = ref<null | TodayRecord>(null);
-
-// 月度统计
-const monthStats = reactive<MonthStats>({
-  attendanceDays: 0,
-  earlyLeaveDays: 0,
-  lateDays: 0,
-  overtimeHours: 0,
-});
-
-// 考勤记录
-const attendanceRecords = ref<AttendanceRecord[]>([]);
-
-// 分页配置
-const pagination = reactive({
-  current: 1,
-  pageSize: 10,
-  showQuickJumper: true,
-  showSizeChanger: true,
-  total: 0,
-});
-
-// 表格列配置
-const columns = [
-  {
-    dataIndex: 'date',
-    key: 'date',
-    title: '日期',
-    width: 120,
-  },
-  {
-    dataIndex: 'punchIn',
-    key: 'punchIn',
-    title: '上班时间',
-    width: 120,
-  },
-  {
-    dataIndex: 'punchOut',
-    key: 'punchOut',
-    title: '下班时间',
-    width: 120,
-  },
-  {
-    dataIndex: 'workHours',
-    key: 'workHours',
-    title: '工作时长',
-    width: 100,
-  },
-  {
-    dataIndex: 'status',
-    key: 'status',
-    title: '状态',
-    width: 100,
-  },
-  {
-    key: 'action',
-    title: '操作',
-    width: 80,
-  },
-];
-
-// 计算属性
-const currentDate = computed(() => dayjs().format('YYYY年MM月DD日'));
-const currentWeekDay = computed(() => {
-  const weekDays = [
-    '星期日',
-    '星期一',
-    '星期二',
-    '星期三',
-    '星期四',
-    '星期五',
-    '星期六',
-  ];
-  return weekDays[dayjs().day()];
-});
 
 // 地图相关
 let map: any = null;
@@ -186,20 +70,18 @@ const officeCircles = ref<any[]>([]);
 onMounted(async () => {
   await initMap();
   await getCurrentLocation();
-  // 不再在这里直接加载数据，而是通过 watch(username) 触发
-  // loadTodayRecord();
-  // loadAttendanceRecords();
-  // loadMonthStats();
 });
 
 onUnmounted(() => {
   if (map) {
     map = null;
+    mapInitialized.value = false;
   }
 });
 
 // 初始化地图
 const initMap = async () => {
+  mapInitialized.value = false;
   await nextTick();
   if (!document.querySelector('#map-container')) return;
 
@@ -229,6 +111,86 @@ const initMap = async () => {
 
   // 自动调整地图视野以包含所有打卡点
   map.setViewport(points);
+  mapInitialized.value = true;
+
+  // 添加定位控件
+  // 创建一个1x1的透明图标
+  const transparentIcon = new BMap.Icon(
+    'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
+    new BMap.Size(1, 1),
+  );
+  const locationCtrl = new BMap.GeolocationControl({
+    anchor: (window as any).BMAP_ANCHOR_BOTTOM_RIGHT,
+    locationIcon: transparentIcon, // 使用透明图标，隐藏默认的蓝色圆点
+    showAddressBar: false, // 不显示地址信息窗口
+  });
+
+  // 监听定位成功事件
+  locationCtrl.addEventListener('locationSuccess', (e: any) => {
+    // 使用新的通用函数更新所有位置相关的状态
+    updateLocationDetails(e.point);
+    // 定位成功后，手动设置缩放级别
+    map.setZoom(17);
+  });
+
+  // 监听定位失败事件
+  locationCtrl.addEventListener('locationError', (e: any) => {
+    console.error('定位失败:', e);
+    // 可以在这里添加用户提示，例如：
+    message.error('定位失败，请检查浏览器定位权限或网络连接');
+  });
+
+  map.addControl(locationCtrl);
+};
+
+// 更新位置相关的所有状态
+const updateLocationDetails = (point: any) => {
+  const BMap = (window as any).BMap;
+  if (!BMap) {
+    console.error('BMap not available in updateLocationDetails');
+    return;
+  }
+  // 更新坐标
+  latitude.value = point.lat;
+  longitude.value = point.lng;
+
+  // 使用百度地图进行地址解析
+  const geoc = new BMap.Geocoder();
+  geoc.getLocation(point, (rs: any) => {
+    const addComp = rs.addressComponents;
+    const addressParts = [
+      addComp.province,
+      addComp.city,
+      addComp.district,
+      addComp.street,
+      addComp.streetNumber,
+    ];
+
+    const uniqueParts: string[] = [];
+    for (const part of addressParts) {
+      if (part && uniqueParts.at(-1) !== part) {
+        uniqueParts.push(part);
+      }
+    }
+    currentLocation.value = uniqueParts.join(',');
+  });
+
+  // 检查是否在打卡范围内
+  let inRange = false;
+  for (const loc of officeLocations) {
+    const officePoint = new BMap.Point(loc.lng, loc.lat);
+    const distance = map.getDistance(officePoint, point);
+    console.warn(`与 ${loc.name} 的距离: ${distance.toFixed(2)} 米`);
+    if (distance <= loc.radius) {
+      inRange = true;
+      break;
+    }
+  }
+
+  isInRange.value = inRange;
+  console.warn(`是否在打卡范围内 (isInRange): ${isInRange.value}`);
+
+  updateMapMarkers(point);
 };
 
 // 计算两点间距离（米）
@@ -371,53 +333,13 @@ const getCurrentLocation = async () => {
       console.warn('百度地图定位成功:', coordinates);
     }
 
-    // 更新坐标
-    latitude.value = (coordinates as { lat: number; lng: number }).lat;
-    longitude.value = (coordinates as { lat: number; lng: number }).lng;
-
     // 使用百度地图进行地址解析（无论在哪个平台）
     if (BMap) {
       const point = new BMap.Point(
         (coordinates as { lat: number; lng: number }).lng,
         (coordinates as { lat: number; lng: number }).lat,
       );
-      const geoc = new BMap.Geocoder();
-      geoc.getLocation(point, (rs: any) => {
-        const addComp = rs.addressComponents;
-        const addressParts = [
-          addComp.province,
-          addComp.city,
-          addComp.district,
-          addComp.street,
-          addComp.streetNumber,
-        ];
-
-        const uniqueParts: string[] = [];
-        for (const part of addressParts) {
-          if (part && uniqueParts.at(-1) !== part) {
-            uniqueParts.push(part);
-          }
-        }
-        currentLocation.value = uniqueParts.join(',');
-      });
-
-      // 检查是否在打卡范围内
-      const currentPoint = point;
-      let inRange = false;
-      for (const loc of officeLocations) {
-        const officePoint = new BMap.Point(loc.lng, loc.lat);
-        const distance = map.getDistance(officePoint, currentPoint);
-        console.warn(`与 ${loc.name} 的距离: ${distance.toFixed(2)} 米`);
-        if (distance <= loc.radius) {
-          inRange = true;
-          break;
-        }
-      }
-
-      isInRange.value = inRange;
-      console.warn(`是否在打卡范围内 (isInRange): ${isInRange.value}`);
-
-      updateMapMarkers(currentPoint);
+      updateLocationDetails(point);
     } else {
       // 如果百度地图API不可用，使用简单的距离计算
       currentLocation.value = `${(coordinates as { lat: number; lng: number }).lat.toFixed(6)}, ${(coordinates as { lat: number; lng: number }).lng.toFixed(6)}`;
@@ -463,11 +385,6 @@ const updateMapMarkers = (point: any) => {
 
 // 刷新位置
 const refreshLocation = async () => {
-  await getCurrentLocation();
-};
-
-// 居中地图
-const centerMap = async () => {
   await getCurrentLocation();
 };
 
@@ -582,67 +499,12 @@ const loadTodayRecord = async () => {
   }
 };
 
-// 加载考勤记录
-const loadAttendanceRecords = async () => {
-  if (!userInfo?.realName) return; // 如果没有 username，则不执行
-  tableLoading.value = true;
-
-  try {
-    const params = {
-      endDate:
-        dateRange.value[1]?.format('YYYY-MM-DD') ||
-        dayjs().endOf('month').format('YYYY-MM-DD'),
-      page: pagination.current,
-      pageSize: pagination.pageSize,
-      startDate:
-        dateRange.value[0]?.format('YYYY-MM-DD') ||
-        dayjs().startOf('month').format('YYYY-MM-DD'),
-      username: userInfo.realName,
-    };
-    const { total, items } = await getAttendanceList(params);
-
-    attendanceRecords.value = items;
-    pagination.total = total;
-  } catch (error: any) {
-    console.error('加载考勤记录失败:', error);
-    message.error(`加载考勤记录失败: ${error.message || '未知错误'}`);
-  } finally {
-    tableLoading.value = false;
-  }
-};
-
-// 处理表格变化
-const handleTableChange = (pag: any) => {
-  pagination.current = pag.current;
-  pagination.pageSize = pag.pageSize;
-  loadAttendanceRecords();
-};
-
-// 查看详情
-const viewDetail = (record: any) => {
-  message.info(`查看 ${record.date} 的考勤详情`);
-};
-
-// 加载月度统计
-const loadMonthStats = async () => {
-  if (!userInfo?.realName) return; // 如果没有 username，则不执行
-  try {
-    const stats = await getMonthStats({ username: userInfo.realName });
-    Object.assign(monthStats, stats);
-  } catch (error: any) {
-    console.error('加载月度统计失败:', error);
-    message.error(`加载月度统计失败: ${error.message || '未知错误'}`);
-  }
-};
-
 // 监听 username 的变化，一旦获取到有效的 username，就加载所有相关数据
 watch(
   () => userInfo?.realName,
   (newUsername) => {
     if (newUsername) {
       loadTodayRecord();
-      loadAttendanceRecords();
-      loadMonthStats();
     }
   },
   { immediate: true }, // 立即执行一次，以处理 username 已存在的情况
@@ -651,15 +513,6 @@ watch(
 
 <template>
   <div class="attendance-page">
-    <!-- 页面标题 -->
-    <div class="page-header">
-      <h2>考勤打卡</h2>
-      <div class="date-info">
-        <span>{{ currentDate }}</span>
-        <span class="week-day">{{ currentWeekDay }}</span>
-      </div>
-    </div>
-
     <!-- 打卡区域 -->
     <div class="punch-card-section">
       <div class="location-info">
@@ -683,6 +536,8 @@ watch(
           </Button>
         </div>
       </div>
+
+      <div id="map-container" class="map-container"></div>
 
       <div class="punch-buttons">
         <Button
@@ -732,144 +587,19 @@ watch(
         </div>
       </div>
     </div>
-
-    <!-- 地图显示 -->
-    <div class="map-section">
-      <div class="map-header">
-        <h3>打卡位置</h3>
-        <Button size="small" @click="centerMap">定位到我</Button>
-      </div>
-      <div id="map-container" class="map-container"></div>
-      <div class="map-legend">
-        <div class="legend-item" v-for="loc in officeLocations" :key="loc.name">
-          <div class="legend-color office"></div>
-          <span>{{ loc.name }} ({{ loc.radius }}米范围)</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-color current"></div>
-          <span>我的位置</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 考勤统计 -->
-    <div class="statistics-section">
-      <h3>本月考勤统计</h3>
-      <Row :gutter="16">
-        <Col :span="6">
-          <Card class="stat-card">
-            <Statistic
-              title="出勤天数"
-              :value="monthStats.attendanceDays"
-              suffix="天"
-            />
-          </Card>
-        </Col>
-        <Col :span="6">
-          <Card class="stat-card">
-            <Statistic
-              title="迟到次数"
-              :value="monthStats.lateDays"
-              suffix="次"
-            />
-          </Card>
-        </Col>
-        <Col :span="6">
-          <Card class="stat-card">
-            <Statistic
-              title="早退次数"
-              :value="monthStats.earlyLeaveDays"
-              suffix="次"
-            />
-          </Card>
-        </Col>
-        <Col :span="6">
-          <Card class="stat-card">
-            <Statistic
-              title="加班时长"
-              :value="monthStats.overtimeHours"
-              suffix="小时"
-            />
-          </Card>
-        </Col>
-      </Row>
-    </div>
-
-    <!-- 考勤记录列表 -->
-    <div class="records-section">
-      <div class="section-header">
-        <h3>考勤记录</h3>
-        <RangePicker
-          v-model:value="dateRange"
-          @change="loadAttendanceRecords"
-        />
-      </div>
-
-      <Table
-        :columns="columns"
-        :data-source="attendanceRecords"
-        :loading="tableLoading"
-        :pagination="pagination"
-        @change="handleTableChange"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'status'">
-            <Tag :color="getStatusInfo(record.status).color">
-              {{ getStatusInfo(record.status).text }}
-            </Tag>
-          </template>
-          <template v-if="column.key === 'action'">
-            <Button type="link" size="small" @click="viewDetail(record)">
-              详情
-            </Button>
-          </template>
-        </template>
-      </Table>
-    </div>
   </div>
 </template>
 
 <style scoped>
 .attendance-page {
-  min-height: 100vh;
+  box-sizing: border-box;
+  height: 100%;
   padding: 24px;
   background: #f5f5f5;
 }
 
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px;
-  margin-bottom: 24px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
-}
-
-.page-header h2 {
-  margin: 0;
-  color: #1890ff;
-}
-
-.date-info {
-  text-align: right;
-}
-
-.date-info span {
-  display: block;
-  font-size: 16px;
-  color: #333;
-}
-
-.week-day {
-  font-size: 14px !important;
-  color: #666 !important;
-}
-
 .punch-card-section {
   padding: 24px;
-  margin-bottom: 24px;
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
@@ -966,35 +696,20 @@ watch(
   color: #1890ff;
 }
 
-.map-section {
-  padding: 24px;
-  margin-bottom: 24px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
-}
-
-.map-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.map-header h3 {
-  margin: 0;
-  color: #333;
-}
-
 .map-container {
   height: 300px;
-  margin-bottom: 12px;
+  margin-bottom: 24px;
   overflow: hidden;
   border: 1px solid #d9d9d9;
   border-radius: 6px;
 }
 
 .map-legend {
+  display: block;
+  margin-bottom: 24px;
+}
+
+.office-locations-legend {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
@@ -1019,70 +734,6 @@ watch(
 }
 
 .legend-color.current {
-  background: #52c41a;
-}
-
-.statistics-section {
-  padding: 24px;
-  margin-bottom: 24px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
-}
-
-.statistics-section h3 {
-  margin: 0 0 16px;
-  color: #333;
-}
-
-.stat-card {
-  text-align: center;
-}
-
-.records-section {
-  padding: 24px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.section-header h3 {
-  margin: 0;
-  color: #333;
-}
-
-@media (max-width: 768px) {
-  .attendance-page {
-    padding: 16px;
-  }
-
-  .page-header {
-    flex-direction: column;
-    gap: 12px;
-    text-align: center;
-  }
-
-  .punch-buttons {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .punch-btn {
-    width: 100%;
-    max-width: 200px;
-  }
-
-  .section-header {
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-  }
+  background: #ff4d4f;
 }
 </style>

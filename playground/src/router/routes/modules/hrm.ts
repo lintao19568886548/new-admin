@@ -34,13 +34,31 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        path: 'attendance', // Corrected to relative path
+        path: 'attendance',
         name: 'HrmAttendance',
-        component: () => import('#/views/hrm/attendance/list.vue'),
+        redirect: '/hrm/attendance/punch',
         meta: {
           icon: 'mdi:calendar-clock',
           title: '考勤管理',
         },
+        children: [
+          {
+            path: 'punch',
+            name: 'HrmAttendancePunch',
+            component: () => import('#/views/hrm/attendance/check-in.vue'),
+            meta: {
+              title: '考勤打卡',
+            },
+          },
+          {
+            path: 'stats',
+            name: 'HrmAttendanceStats',
+            component: () => import('#/views/hrm/attendance/record.vue'),
+            meta: {
+              title: '考勤统计',
+            },
+          },
+        ],
       },
       {
         path: 'trajectory',

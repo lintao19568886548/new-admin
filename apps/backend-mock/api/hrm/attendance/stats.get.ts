@@ -31,16 +31,21 @@ export default eventHandler(async (event) => {
       lateDays: 0,
       earlyLeaveDays: 0,
       overtimeHours: 0,
+      leaveDays: 0,
     };
 
     records.forEach((record) => {
-      // 状态为1代表迟到
-      if (record.status === 1) {
+      // 状态为1 (迟到) 或 3 (迟到+早退)
+      if (record.status === 1 || record.status === 3) {
         stats.lateDays++;
       }
-      // 状态为2代表早退
-      if (record.status === 2) {
+      // 状态为2 (早退) 或 3 (迟到+早退)
+      if (record.status === 2 || record.status === 3) {
         stats.earlyLeaveDays++;
+      }
+      // 状态为5代表请假
+      if (record.status === 5) {
+        stats.leaveDays++;
       }
 
       if (record.punchIn && record.punchOut) {

@@ -39,7 +39,11 @@
   "app": {
     "download": "下载",
     "menu": "APP菜单",
-    "profile": "个人中心"
+    "profile": "个人中心",
+    "attendance": {
+      "checkIn": "打卡",
+      "record": "考勤记录"
+    }
   },
   "auth": {
     "changePassword": "修改密码",
