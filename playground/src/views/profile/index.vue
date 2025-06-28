@@ -2,17 +2,63 @@
 import { computed } from 'vue';
 
 import { VbenIcon } from '@vben/common-ui';
-import { ChevronRight, LogOut, UserRoundPen } from '@vben/icons';
+import { ChevronRight, LogOut, RotateCw, UserRoundPen } from '@vben/icons';
 import { useUserStore } from '@vben/stores';
 
+import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 import { Avatar, Card, List, ListItem, message, Modal } from 'ant-design-vue';
 
+import { getLatestVersionApi } from '#/api/system';
 import { useAuthStore } from '#/store';
 
 const userStore = useUserStore();
 const authStore = useAuthStore();
 
 const userInfo = computed(() => userStore.userInfo);
+
+async function handleCheckUpdate() {
+  // Show loading message, which will be destroyed upon completion or error
+  message.loading('正在检查更新...', 0);
+  try {
+    const { version: currentVersion } = await App.getInfo();
+
+    // Fetch latest version info from the server.
+    const {
+      notes,
+      url: updateUrl,
+      version: latestVersion,
+    } = await getLatestVersionApi();
+
+    // Hide loading message
+    message.destroy();
+
+    // A simple version comparison. For more robust comparison, consider using a library like semver.
+    if (currentVersion < latestVersion) {
+      Modal.confirm({
+        cancelText: '稍后',
+        centered: true,
+        content: notes || '建议您立即更新以获得更好的体验。',
+        okText: '立即更新',
+        onOk: async () => {
+          if (updateUrl) {
+            await Browser.open({ url: updateUrl });
+          } else {
+            message.error('更新链接无效');
+          }
+        },
+        title: `发现新版本 v${latestVersion}`,
+      });
+    } else {
+      message.success(`当前已是最新版本 (v${currentVersion})`);
+    }
+  } catch (error) {
+    message.destroy();
+    const errorMessage =
+      error instanceof Error ? error.message : '检查更新时发生错误';
+    message.error(errorMessage);
+  }
+}
 
 function handleLogout() {
   Modal.confirm({
@@ -37,6 +83,11 @@ const actions = [
     handler: handleEditProfile,
     icon: UserRoundPen,
     title: '修改个人信息',
+  },
+  {
+    handler: handleCheckUpdate,
+    icon: RotateCw,
+    title: '检查更新',
   },
   {
     handler: handleLogout,
