@@ -58,7 +58,9 @@
     "version": "pnpm exec changeset version && pnpm install --no-frozen-lockfile"
   },
   "dependencies": {
-    "@ant-design/icons-vue": "^7.0.1"
+    "@ant-design/icons-vue": "^7.0.1",
+    "@types/semver": "^7.7.0",
+    "semver": "^7.7.2"
   },
   "devDependencies": {
     "@changesets/changelog-github": "catalog:",

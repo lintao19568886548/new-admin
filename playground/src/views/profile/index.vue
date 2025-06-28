@@ -7,7 +7,9 @@ import { useUserStore } from '@vben/stores';
 
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 import { Avatar, Card, List, ListItem, message, Modal } from 'ant-design-vue';
+import semver from 'semver';
 
 import { getLatestVersionApi } from '#/api/system';
 import { useAuthStore } from '#/store';
@@ -34,7 +36,7 @@ async function handleCheckUpdate() {
     message.destroy();
 
     // A simple version comparison. For more robust comparison, consider using a library like semver.
-    if (currentVersion < latestVersion) {
+    if (semver.lt(currentVersion, latestVersion)) {
       Modal.confirm({
         cancelText: '稍后',
         centered: true,
@@ -78,23 +80,32 @@ function handleEditProfile() {
   message.info('该功能正在开发中...');
 }
 
-const actions = [
-  {
-    handler: handleEditProfile,
-    icon: UserRoundPen,
-    title: '修改个人信息',
-  },
-  {
-    handler: handleCheckUpdate,
-    icon: RotateCw,
-    title: '检查更新',
-  },
-  {
-    handler: handleLogout,
-    icon: LogOut,
-    title: '退出登录',
-  },
-];
+const isNative = Capacitor.isNativePlatform();
+
+const actions = computed(() => {
+  const baseActions = [
+    {
+      handler: handleEditProfile,
+      icon: UserRoundPen,
+      title: '修改个人信息',
+    },
+    {
+      handler: handleLogout,
+      icon: LogOut,
+      title: '退出登录',
+    },
+  ];
+
+  if (isNative) {
+    baseActions.splice(1, 0, {
+      handler: handleCheckUpdate,
+      icon: RotateCw,
+      title: '检查更新',
+    });
+  }
+
+  return baseActions;
+});
 </script>
 
 <template>
