@@ -92,6 +92,15 @@ const routes: RouteRecordRaw[] = [
           title: $t('请假申请'),
         },
       },
+      {
+        path: 'leavemobile', // Ensure relative path
+        name: 'HrmLeaveApplicationMobile',
+        component: () => import('#/views/hrm/leaveapplication/mobile-list.vue'),
+        meta: {
+          hideMenu: true,
+          title: $t('移动端请假申请'),
+        },
+      },
     ],
   },
 ];

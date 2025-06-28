@@ -13,6 +13,11 @@ export function useColumns(): VxeTableGridOptions<LeaveApplication>['columns'] {
       width: 120,
     },
     {
+      field: 'username',
+      title: '最后操作人',
+      width: 120,
+    },
+    {
       field: 'park',
       title: '所在园区',
       width: 150,

@@ -68,28 +68,30 @@ const messageHandler = {
   },
 };
 
+const handleAudit = async (row: LeaveApplication, status: 1 | 2) => {
+  const actionText = status === 1 ? '批准' : '驳回';
+  Modal.confirm({
+    content: `确定要${actionText} ${row.user} 的请假申请吗？`,
+    onOk: async () => {
+      const hideLoading = messageHandler.loading(`正在${actionText}申请`);
+      try {
+        await updateLeaveApplication(row.id, {
+          auditUser: userStore.userInfo?.realName,
+          status,
+        });
+        messageHandler.success(`成功${actionText}申请`);
+        refreshGrid();
+      } catch (error) {
+        messageHandler.error(error, `${actionText}申请失败`);
+      } finally {
+        hideLoading();
+      }
+    },
+    title: `确认${actionText}`,
+  });
+};
+
 const actions = {
-  approve: (row: LeaveApplication) => {
-    Modal.confirm({
-      content: `确定要批准 ${row.username} 的请假申请吗？`,
-      onOk: async () => {
-        const hideLoading = messageHandler.loading(`正在批准申请`);
-        try {
-          await updateLeaveApplication(row.id, {
-            auditUser: userStore.userInfo?.realname,
-            status: 1,
-          });
-          messageHandler.success(`成功批准申请`);
-          refreshGrid();
-        } catch (error) {
-          messageHandler.error(error, '批准申请失败');
-        } finally {
-          hideLoading();
-        }
-      },
-      title: '确认审批',
-    });
-  },
   create: () => {
     formModalApi.setData(null).open();
   },
@@ -110,33 +112,12 @@ const actions = {
   edit: (row: LeaveApplication) => {
     formModalApi.setData(row).open();
   },
-  reject: (row: LeaveApplication) => {
-    Modal.confirm({
-      content: `确定要驳回 ${row.username} 的请假申请吗？`,
-      onOk: async () => {
-        const hideLoading = messageHandler.loading(`正在驳回申请`);
-        try {
-          await updateLeaveApplication(row.id, {
-            auditUser: userStore.userInfo?.realname,
-            status: 2,
-          });
-          messageHandler.success(`成功驳回申请`);
-          refreshGrid();
-        } catch (error) {
-          messageHandler.error(error, '驳回申请失败');
-        } finally {
-          hideLoading();
-        }
-      },
-      title: '确认驳回',
-    });
-  },
 };
 
 function onActionClick({ code, row }: OnActionClickParams<LeaveApplication>) {
   switch (code) {
     case 'approve': {
-      actions.approve(row);
+      handleAudit(row, 1);
       break;
     }
     case 'audit': {
@@ -144,7 +125,11 @@ function onActionClick({ code, row }: OnActionClickParams<LeaveApplication>) {
       break;
     }
     case 'delete': {
-      actions.delete(row);
+      Modal.confirm({
+        content: `确定要删除 ${row.user} 的请假申请吗？`,
+        onOk: () => actions.delete(row),
+        title: '确认删除',
+      });
       break;
     }
     case 'edit': {
@@ -152,7 +137,7 @@ function onActionClick({ code, row }: OnActionClickParams<LeaveApplication>) {
       break;
     }
     case 'reject': {
-      actions.reject(row);
+      handleAudit(row, 2);
       break;
     }
   }
