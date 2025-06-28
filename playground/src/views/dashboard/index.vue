@@ -60,7 +60,7 @@ function buildNavGroups(menus: RouteRecordStringComponent[]): NavGroup[] {
   let colorCounter = 0;
 
   for (const menu of menus) {
-    if (!menu.meta?.hideInMenu && menu.children?.length) {
+    if (menu.children?.length) {
       const items = collectNavItems(menu.children);
       if (items.length > 0) {
         groups.push({

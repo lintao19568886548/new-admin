@@ -30,7 +30,7 @@ onMounted(() => {
 
   // 处理硬件返回按钮
   if (Capacitor.isNativePlatform()) {
-    App.addListener('backButton', ({ canGoBack }) => {
+    App.addListener('backButton', ({ canGoBack }: any) => {
       if (canGoBack) {
         router.back();
       } else {
@@ -70,6 +70,9 @@ watch(
         header: { enable: false }, // Disable original header
         sidebar: { enable: false }, // Disable sidebar for an app-like view
         tabbar: { enable: false }, // Disable web-style tabs
+        theme: {
+          mode: 'light',
+        },
       });
     } else {
       // Restore desktop preferences
@@ -81,6 +84,9 @@ watch(
         header: { enable: true },
         sidebar: { enable: true },
         tabbar: { enable: true },
+        theme: {
+          mode: 'light',
+        },
       });
     }
   },

@@ -3,12 +3,6 @@ import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useUserStore } from '@vben/stores';
 
-import { Capacitor } from '@capacitor/core';
-import { Geolocation } from '@capacitor/geolocation';
-// 需要先安装 @iconify/vue 依赖
-// npm install @iconify/vue
-// 或
-// yarn add @iconify/vue
 import { Icon } from '@iconify/vue';
 import { Button, message, Modal, Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
@@ -72,7 +66,6 @@ const officeCircles = ref<any[]>([]);
 // 生命周期
 onMounted(async () => {
   await initMap();
-  await refreshLocation();
 });
 
 onUnmounted(() => {
@@ -93,6 +86,7 @@ const initMap = async () => {
   } catch (error) {
     console.error('Baidu Map script failed to load:', error);
     message.error('地图脚本加载失败，请刷新页面重试');
+    locationLoading.value = false;
     return;
   }
 
@@ -114,6 +108,54 @@ const initMap = async () => {
 
   map.setViewport(points);
   mapInitialized.value = true;
+
+  // 添加定位控件
+  // 创建一个1x1的透明图标
+  const transparentIcon = new BMap.Icon(
+    'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
+    new BMap.Size(1, 1),
+  );
+
+  // 这是给用户点击的UI控件
+  const locationCtrl = new BMap.GeolocationControl({
+    anchor: (window as any).BMAP_ANCHOR_BOTTOM_RIGHT,
+    locationIcon: transparentIcon, // 使用透明图标，隐藏默认的蓝色圆点
+    showAddressBar: false,
+  });
+
+  // 控件的事件监听，用于用户手动点击时更新状态
+  locationCtrl.addEventListener('locationprocess', () => {
+    locationLoading.value = true;
+  });
+  locationCtrl.addEventListener('locationSuccess', (e: any) => {
+    updateLocationDetails(e.point);
+    map.setZoom(17);
+    locationLoading.value = false;
+  });
+  locationCtrl.addEventListener('locationError', () => {
+    message.error('定位失败，请检查设备权限或网络连接');
+    currentLocation.value = '定位失败';
+    locationLoading.value = false;
+  });
+  map.addControl(locationCtrl);
+
+  // 这是用于程序化调用的核心定位服务
+  const geolocation = new BMap.Geolocation();
+  geolocation.getCurrentPosition(
+    (result: any) => {
+      if (geolocation.getStatus() === (window as any).BMAP_STATUS_SUCCESS) {
+        // 定位成功，更新位置信息
+        updateLocationDetails(result.point);
+        locationLoading.value = false;
+      } else {
+        // 定位失败
+        message.error('初始定位失败，请尝试手动点击右下角按钮');
+        currentLocation.value = '定位失败';
+        locationLoading.value = false;
+      }
+    },
+    { enableHighAccuracy: true },
+  );
 };
 
 // 更新位置相关的所有状态
@@ -123,11 +165,9 @@ const updateLocationDetails = (point: any) => {
     console.error('BMap not available in updateLocationDetails');
     return;
   }
-  // 更新坐标
   latitude.value = point.lat;
   longitude.value = point.lng;
 
-  // 使用百度地图进行地址解析
   const geoc = new BMap.Geocoder();
   geoc.getLocation(point, (rs: any) => {
     const addComp = rs.addressComponents;
@@ -148,12 +188,10 @@ const updateLocationDetails = (point: any) => {
     currentLocation.value = uniqueParts.join(',');
   });
 
-  // 检查是否在打卡范围内
   let inRange = false;
   for (const loc of officeLocations) {
     const officePoint = new BMap.Point(loc.lng, loc.lat);
     const distance = map.getDistance(officePoint, point);
-    console.warn(`与 ${loc.name} 的距离: ${distance.toFixed(2)} 米`);
     if (distance <= loc.radius) {
       inRange = true;
       break;
@@ -161,8 +199,6 @@ const updateLocationDetails = (point: any) => {
   }
 
   isInRange.value = inRange;
-  console.warn(`是否在打卡范围内 (isInRange): ${isInRange.value}`);
-
   updateMapMarkers(point);
 };
 
@@ -176,94 +212,6 @@ const updateMapMarkers = (point: any) => {
     map.addOverlay(currentMarker.value);
   }
   map.centerAndZoom(point, 17);
-};
-
-// 刷新位置
-const refreshLocation = async () => {
-  locationLoading.value = true;
-  currentLocation.value = '获取位置中...';
-  const BMap = (window as any).BMap;
-
-  try {
-    let coordinates;
-
-    if (Capacitor.isNativePlatform()) {
-      const permissions = await Geolocation.checkPermissions();
-      if (permissions.location !== 'granted') {
-        const requestResult = await Geolocation.requestPermissions();
-        if (requestResult.location !== 'granted') {
-          message.error('位置权限被拒绝');
-          locationLoading.value = false;
-          return;
-        }
-      }
-
-      const position = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        timeout: 10_000,
-      });
-
-      const wgs84Point = new BMap.Point(
-        position.coords.longitude,
-        position.coords.latitude,
-      );
-      const convertor = new BMap.Convertor();
-
-      coordinates = await new Promise((resolve) => {
-        convertor.translate(
-          [wgs84Point],
-          1,
-          5,
-          (result: { points: any[] | string; status: number }) => {
-            if (result.status === 0 && result.points.length > 0) {
-              resolve({
-                lat: result.points[0].lat,
-                lng: result.points[0].lng,
-              });
-            } else {
-              resolve({
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-              });
-            }
-          },
-        );
-      });
-    } else {
-      if (!BMap) {
-        message.error('地图API未加载，请刷新页面重试');
-        locationLoading.value = false;
-        return;
-      }
-      coordinates = await new Promise((resolve, reject) => {
-        const geolocation = new BMap.Geolocation();
-        geolocation.getCurrentPosition(
-          (result: any) => {
-            if (
-              geolocation.getStatus() === (window as any).BMAP_STATUS_SUCCESS
-            ) {
-              resolve({ lat: result.point.lat, lng: result.point.lng });
-            } else {
-              reject(new Error('百度地图定位失败'));
-            }
-          },
-          { enableHighAccuracy: true },
-        );
-      });
-    }
-
-    const point = new BMap.Point(
-      (coordinates as { lat: number; lng: number }).lng,
-      (coordinates as { lat: number; lng: number }).lat,
-    );
-    updateLocationDetails(point);
-  } catch (error: any) {
-    console.error('获取位置时出错:', error);
-    message.error(`获取位置失败: ${error.message || '未知错误'}`);
-    currentLocation.value = '获取位置失败';
-  } finally {
-    locationLoading.value = false;
-  }
 };
 
 // 上班打卡
@@ -421,20 +369,16 @@ watch(
           <Icon icon="mdi:map-marker" class="location-icon" />
           <div class="location-text">
             <div class="location-name">
-              {{ currentLocation }}
+              <span v-if="locationLoading">正在定位中...</span>
+              <span v-else>{{ currentLocation }}</span>
             </div>
             <div class="location-status-text">
-              {{ isInRange ? '在打卡范围内' : '不在打卡范围内' }}
+              <span v-if="locationLoading">请稍候...</span>
+              <span v-else>{{
+                isInRange ? '在打卡范围内' : '不在打卡范围内'
+              }}</span>
             </div>
           </div>
-          <Button
-            type="link"
-            size="small"
-            @click="refreshLocation"
-            :loading="locationLoading"
-          >
-            刷新位置
-          </Button>
         </div>
       </div>
 
