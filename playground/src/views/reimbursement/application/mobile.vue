@@ -1,26 +1,45 @@
 <script lang="ts" setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import type { Dayjs } from 'dayjs';
 
+// 从本地类型定义中导入 ReimbursementItem 类型
+import type { ReimbursementItem } from './data';
+
+import { computed, onMounted, reactive, ref, shallowRef, watch } from 'vue';
+
+import { Search } from '@vben/icons';
 import { useAccessStore, useUserStore } from '@vben/stores';
+import { formatDateTime } from '@vben/utils';
 
-import { CloseOutlined, LoadingOutlined } from '@ant-design/icons-vue';
+import { LoadingOutlined } from '@ant-design/icons-vue';
 import {
   Button,
+  Card,
+  Col,
+  DatePicker,
+  Empty,
   Form,
   Image,
   Input,
   InputNumber,
   message,
   Modal,
+  Pagination,
+  Row,
   Select,
+  Spin,
+  Tag,
   Upload,
 } from 'ant-design-vue';
 
 import { getVisitorParkList } from '#/api/park';
-import { createReimbursement } from '#/api/reimbursement';
+import {
+  createReimbursement,
+  deleteReimbursement,
+  getReimbursementList,
+} from '#/api/reimbursement';
 import { $t } from '#/locales';
 
-import { useFormRules } from './data'; // Assuming data.ts has the rules
+import { STATUS_MAP, useFormRules } from './data'; // Assuming data.ts has the rules
 
 // 获取用户存储
 const userStore = useUserStore();
@@ -52,6 +71,32 @@ const rules = useFormRules();
 const previewVisible = ref(false);
 const previewSources = ref<string[]>([]);
 const previewInitial = ref(0);
+
+// ================================= 申请记录相关 =================================
+const isRecordModalVisible = ref(false);
+const recordsLoading = ref(false);
+const reimbursementList = shallowRef<ReimbursementItem[]>([]);
+
+const recordSearchForm = reactive<{
+  dateRange: [Dayjs, Dayjs] | undefined;
+  purpose: string;
+  status: number | undefined;
+}>({
+  dateRange: undefined,
+  purpose: '',
+  status: undefined,
+});
+
+const recordPagination = reactive({
+  current: 1,
+  pageSize: 5, // Smaller page size for mobile
+  total: 0,
+});
+
+const statusOptions = Object.entries(STATUS_MAP).map(([value, item]) => ({
+  label: item.text,
+  value: Number(value),
+}));
 
 // 获取园区列表
 async function fetchParkList() {
@@ -94,15 +139,16 @@ const handleChange = (info: any) => {
     return;
   }
   if (info.file.status === 'done') {
-    // 当上传成功后，从服务器响应中提取 imgId 并附加到文件对象上
+    // 当上传成功后，从服务器响应中提取 imgId 和 url
     const responseData = info.file.response?.data;
-    if (responseData && responseData.imgId) {
+    if (responseData && responseData.imgId && responseData.url) {
       info.file.imgId = responseData.imgId;
+      info.file.url = responseData.url; // 关键：为文件对象设置URL以供预览
     } else {
-      // 如果响应格式不正确或缺少imgId，将状态标记为错误并提示
+      // 如果响应格式不正确，将状态标记为错误并提示
       info.file.status = 'error';
       message.error(
-        `文件 ${info.file.name} 上传成功，但无法获取图片ID，请检查服务器响应。`,
+        `文件 ${info.file.name} 上传成功，但服务器响应格式不正确，无法预览。`,
       );
     }
   }
@@ -168,6 +214,7 @@ async function handleSubmit() {
 
     const submitData = {
       ...dataToSubmit,
+      claimant: userStore.userInfo?.realName,
       date: new Date().toISOString(), // Keep full ISO string like in list.vue
       images: formState.images
         .filter((file: any) => file.status === 'done' && file.imgId)
@@ -192,6 +239,130 @@ async function handleSubmit() {
     submitting.value = false;
   }
 }
+
+// ======================= 记录弹窗逻辑 (Adapted from list.vue) =======================
+async function fetchReimbursements() {
+  recordsLoading.value = true;
+  if (!userStore.userInfo?.realName) {
+    message.error('无法获取当前用户信息，请检查登录状态。');
+    recordsLoading.value = false;
+    return;
+  }
+  try {
+    const params: any = {
+      claimant: userStore.userInfo.realName,
+      pageNo: recordPagination.current,
+      pageSize: recordPagination.pageSize,
+      purpose: recordSearchForm.purpose || undefined,
+      status: recordSearchForm.status,
+    };
+    if (recordSearchForm.dateRange?.length === 2) {
+      params.startDate = recordSearchForm.dateRange[0]
+        .startOf('day')
+        .toISOString();
+      params.endDate = recordSearchForm.dateRange[1].endOf('day').toISOString();
+    }
+    const res = await getReimbursementList(params);
+    reimbursementList.value = res.items || [];
+    recordPagination.total = res.total || 0;
+  } catch (error) {
+    console.error('获取报销列表失败:', error);
+    message.error('获取报销列表失败');
+  } finally {
+    recordsLoading.value = false;
+  }
+}
+
+function handleSearch() {
+  recordPagination.current = 1;
+  fetchReimbursements();
+}
+
+function handleSearchReset() {
+  recordSearchForm.dateRange = undefined;
+  recordSearchForm.purpose = '';
+  recordSearchForm.status = undefined;
+  recordPagination.current = 1;
+  fetchReimbursements();
+}
+
+function handlePageChange(page: number) {
+  recordPagination.current = page;
+  fetchReimbursements();
+}
+
+function getStatusDisplay(status: number) {
+  return (
+    STATUS_MAP[status as keyof typeof STATUS_MAP] || {
+      color: 'default',
+      text: '未知',
+    }
+  );
+}
+
+// 撤销报销申请
+async function handleCancelReimbursement(record: ReimbursementItem) {
+  Modal.confirm({
+    cancelText: '取消',
+    centered: true,
+    content: `确定要撤销"${record.purpose}"的报销申请吗？`,
+    okText: '确认',
+    onOk: async () => {
+      try {
+        await deleteReimbursement(Number(record.id));
+        message.success('申请撤销成功');
+        await fetchReimbursements();
+      } catch (error) {
+        console.error('撤销申请失败:', error);
+        message.error('撤销申请失败，请重试');
+      }
+    },
+    title: '确认撤销',
+  });
+}
+
+// 修改报销申请
+function handleModifyReimbursement(record: ReimbursementItem) {
+  Modal.confirm({
+    cancelText: '取消',
+    centered: true,
+    content: '此操作将删除原记录并重新提交。确定要继续吗？',
+    okText: '确认修改',
+    onOk: async () => {
+      try {
+        await deleteReimbursement(Number(record.id));
+
+        formState.amount = Number(record.amount);
+        formState.applicant = record.username || '';
+        formState.parkId =
+          typeof record.parkId === 'string'
+            ? Number.parseInt(record.parkId, 10)
+            : record.parkId;
+        formState.payee = record.payee;
+        formState.purpose = record.purpose;
+        formState.remark = record.remark || '';
+        formState.images = [];
+
+        isRecordModalVisible.value = false;
+        message.success('请在表单中修改后重新提交。');
+      } catch (error) {
+        console.error('修改申请失败:', error);
+        message.error('删除原申请失败，请重试');
+      }
+    },
+    title: '确认修改并删除原记录',
+  });
+}
+
+function showRecordModal() {
+  isRecordModalVisible.value = true;
+}
+
+watch(isRecordModalVisible, (visible) => {
+  if (visible) {
+    handleSearchReset();
+  }
+});
 
 // 组件挂载时初始化
 onMounted(() => {
@@ -223,6 +394,7 @@ onMounted(() => {
         layout="vertical"
         name="reimbursementMobileForm"
         class="reimbursement-form"
+        @finish="handleSubmit"
       >
         <Form.Item name="applicant" :label="$t('申请人')">
           <Input
@@ -248,7 +420,17 @@ onMounted(() => {
             :placeholder="$t('请输入报销金额')"
             :precision="2"
             :min="0"
-            style="width: 100%"
+            class="w-full"
+          />
+        </Form.Item>
+
+        <Form.Item name="parkId" :label="$t('所属园区')">
+          <Select
+            v-model:value="formState.parkId"
+            :options="parkList"
+            :field-names="{ label: 'parkName', value: 'parkId' }"
+            :placeholder="$t('请选择所属园区')"
+            allow-clear
           />
         </Form.Item>
 
@@ -261,240 +443,354 @@ onMounted(() => {
           />
         </Form.Item>
 
-        <Form.Item name="parkId" :label="$t('所属园区')">
-          <Select
-            v-model:value="formState.parkId"
-            :placeholder="$t('请选择所属园区')"
-            style="width: 100%"
-            allow-clear
-            :options="
-              parkList.map((park) => ({
-                label: park.parkName,
-                value: park.parkId,
-              }))
-            "
-          />
-        </Form.Item>
-
-        <!-- Department field - uncomment if needed and ensure departmentOptions is populated -->
-        <!--
-        <Form.Item name="department" :label="$t('部门')">
-          <Select
-            v-model:value="formState.department"
-            placeholder="请选择部门"
-            style="width: 100%"
-            allow-clear
-            :options="departmentOptions" // Make sure departmentOptions is defined if used
-          />
-        </Form.Item>
-        -->
-
         <Form.Item name="remark" :label="$t('备注')">
           <Input.TextArea
             v-model:value="formState.remark"
-            :placeholder="$t('请输入备注信息（选填）')"
+            :placeholder="$t('请输入备注信息')"
+            :auto-size="{ minRows: 3, maxRows: 5 }"
             :maxlength="200"
-            :auto-size="{ minRows: 2, maxRows: 4 }"
             show-count
           />
         </Form.Item>
 
-        <Form.Item name="images" :label="$t('相关图片 (最多5张)')">
+        <Form.Item name="images" :label="$t('相关图片(最多9张)')">
           <Upload
             v-model:file-list="formState.images"
             action="/api/image/upload"
+            :before-upload="beforeUpload"
             :headers="headers"
             list-type="picture-card"
-            :before-upload="beforeUpload"
             @change="handleChange"
             @preview="handlePreview"
           >
-            <div v-if="!formState.images || formState.images.length < 5">
-              <div>{{ $t('上传') }}</div>
-            </div>
-            <template #itemRender="{ file, actions }">
-              <div class="custom-upload-item">
-                <!-- Image Preview -->
-                <img
-                  v-if="file.url || file.thumbUrl"
-                  :src="file.url || file.thumbUrl"
-                  alt="preview"
-                  @click="handlePreview(file)"
-                />
-                <!-- Loading Spinner -->
-                <div
-                  v-if="file.status === 'uploading'"
-                  class="uploading-spinner"
-                >
-                  <LoadingOutlined />
-                </div>
-                <!-- Delete Button -->
-                <button
-                  v-if="file.status !== 'uploading'"
-                  class="delete-button"
-                  type="button"
-                  @click.stop="actions.remove"
-                >
-                  <CloseOutlined />
-                </button>
+            <div v-if="formState.images.length < 9">
+              <LoadingOutlined v-if="submitting" />
+              <div v-else>
+                <div class="text-lg">+</div>
+                <div>{{ $t('上传') }}</div>
               </div>
-            </template>
+            </div>
           </Upload>
-          <div :style="{ display: 'none' }">
-            <Image.PreviewGroup
-              :preview="{
-                visible: previewVisible,
-                onVisibleChange: setPreviewVisible,
-                current: previewInitial,
-              }"
-            >
-              <Image v-for="src in previewSources" :key="src" :src="src" />
-            </Image.PreviewGroup>
-          </div>
         </Form.Item>
 
         <div class="form-actions">
-          <Button @click="resetForm" block class="reset-button">
-            {{ $t('重置') }}
-          </Button>
           <Button
-            type="primary"
-            @click="handleSubmit"
             :loading="submitting"
+            type="primary"
+            html-type="submit"
+            size="large"
             block
-            class="submit-button"
           >
             {{ $t('提交申请') }}
+          </Button>
+          <Button
+            @click="showRecordModal"
+            size="large"
+            block
+            class="mt-4"
+            type="default"
+          >
+            {{ $t('查看申请记录') }}
           </Button>
         </div>
       </Form>
     </div>
+
+    <!-- 
+      Image Preview Mechanism:
+      We use a hidden PreviewGroup which is controlled programmatically.
+      The `handlePreview` function populates `previewSources` and toggles `previewVisible`.
+      Ant Design's component handles the modal display internally.
+    -->
+    <div :style="{ display: 'none' }">
+      <Image.PreviewGroup
+        :preview="{
+          visible: previewVisible,
+          onVisibleChange: setPreviewVisible,
+          current: previewInitial,
+        }"
+      >
+        <Image v-for="src in previewSources" :key="src" :src="src" />
+      </Image.PreviewGroup>
+    </div>
+
+    <!-- Application Records Modal -->
+    <Modal
+      v-model:open="isRecordModalVisible"
+      title="申请记录"
+      :footer="null"
+      wrap-class-name="full-screen-modal"
+      :destroy-on-close="true"
+    >
+      <div class="record-modal-content">
+        <!-- Search Filters -->
+        <div class="search-filters">
+          <Form layout="vertical">
+            <Form.Item>
+              <Input
+                v-model:value="recordSearchForm.purpose"
+                placeholder="搜索用途"
+                allow-clear
+                @press-enter="handleSearch"
+              >
+                <template #prefix>
+                  <Search class="mr-1 h-4 w-4 text-gray-400" />
+                </template>
+              </Input>
+            </Form.Item>
+            <Row :gutter="16">
+              <Col :span="12">
+                <Form.Item>
+                  <Select
+                    v-model:value="recordSearchForm.status"
+                    :options="statusOptions"
+                    placeholder="选择状态"
+                    allow-clear
+                  />
+                </Form.Item>
+              </Col>
+              <Col :span="12">
+                <Form.Item>
+                  <DatePicker.RangePicker
+                    v-model:value="recordSearchForm.dateRange"
+                    style="width: 100%"
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+            <div class="search-actions">
+              <Button type="primary" @click="handleSearch" class="flex-1">
+                搜索
+              </Button>
+              <Button @click="handleSearchReset" class="flex-1">重置</Button>
+            </div>
+          </Form>
+        </div>
+
+        <!-- Records List -->
+        <Spin :spinning="recordsLoading" tip="加载中...">
+          <div v-if="reimbursementList.length > 0" class="record-list">
+            <Card
+              v-for="item in reimbursementList"
+              :key="item.id"
+              class="record-card"
+            >
+              <div class="card-header">
+                <span class="purpose-title">{{ item.purpose }}</span>
+                <Tag :color="getStatusDisplay(item.status).color">
+                  {{ getStatusDisplay(item.status).text }}
+                </Tag>
+              </div>
+              <div class="card-content">
+                <div class="amount-display">
+                  <span class="amount">
+                    ￥{{ Number(item.amount).toFixed(2) }}
+                  </span>
+                </div>
+                <div class="info-item">
+                  <span>申请日期: {{ formatDateTime(item.date) }}</span>
+                </div>
+                <div v-if="item.auditOpinion" class="info-item">
+                  <span>
+                    审核意见:
+                    <span class="text-red-500">{{ item.auditOpinion }}</span>
+                  </span>
+                </div>
+              </div>
+              <template #actions>
+                <Button
+                  v-if="item.status === 0"
+                  type="link"
+                  size="small"
+                  danger
+                  @click="handleCancelReimbursement(item)"
+                >
+                  撤销
+                </Button>
+                <Button
+                  v-if="item.status === 0 || item.status === 2"
+                  type="link"
+                  size="small"
+                  @click="handleModifyReimbursement(item)"
+                >
+                  修改
+                </Button>
+              </template>
+            </Card>
+            <Pagination
+              v-if="recordPagination.total > recordPagination.pageSize"
+              v-model:current="recordPagination.current"
+              :page-size="recordPagination.pageSize"
+              :total="recordPagination.total"
+              size="small"
+              class="list-pagination"
+              @change="handlePageChange"
+            />
+          </div>
+          <Empty
+            v-else
+            :description="recordsLoading ? '加载中...' : '暂无申请记录'"
+          />
+        </Spin>
+      </div>
+    </Modal>
   </div>
 </template>
 
 <style scoped>
 .mobile-reimbursement-form-container {
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-height: 100vh; /* Ensure it takes at least full viewport height */
   padding: 16px;
-  background-color: #f0f2f5;
+  background-color: #f5f5f5;
 }
 
 .form-wrapper {
-  width: 100%;
-  max-width: 400px; /* Target width */
-  padding: 20px;
+  padding: 16px;
   background-color: #fff;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
 }
 
 .form-title {
-  margin-bottom: 20px;
-  font-size: 1.5em;
-  color: #333;
+  margin-bottom: 16px;
+  font-size: 18px;
+  font-weight: 600;
   text-align: center;
 }
 
 .reimbursement-form .ant-form-item {
-  margin-bottom: 16px; /* Adjusted spacing for mobile */
+  margin-bottom: 16px;
 }
 
-.reimbursement-form .ant-input-number,
-.reimbursement-form .ant-select {
+.w-full {
   width: 100%;
+}
+
+.mt-4 {
+  margin-top: 16px;
 }
 
 .form-actions {
-  display: flex;
-  flex-direction: column; /* Stack buttons vertically */
-  gap: 10px; /* Space between buttons */
   margin-top: 24px;
 }
 
-.form-actions .ant-btn {
-  width: 100%; /* Make buttons full width */
+:deep(.ant-upload-list-picture-card .ant-upload-list-item) {
+  width: 80px;
+  height: 80px;
 }
 
-/* Custom styles for mobile-friendly upload */
-:deep(.ant-upload-list-picture-card-container) {
+:deep(.ant-upload-select-picture-card) {
+  width: 80px;
+  height: 80px;
+}
+
+/* Full Screen Modal */
+:deep(.full-screen-modal .ant-modal) {
+  top: 0;
+  width: 100% !important;
+  max-width: 100vw;
+  height: 100vh;
+  padding: 0;
+  margin: 0;
+}
+
+:deep(.full-screen-modal .ant-modal-content) {
   display: flex;
-  flex-wrap: wrap;
-}
-
-:deep(.ant-upload-list-item-container) {
-  width: calc(33.333% - 8px);
-  aspect-ratio: 1/1;
-  margin-right: 8px;
-  margin-bottom: 8px;
-}
-
-:deep(.ant-upload-select) {
-  width: calc(33.333% - 8px);
-  aspect-ratio: 1/1;
-  margin-right: 8px;
-  margin-bottom: 8px;
-}
-
-.custom-upload-item {
-  position: relative;
-  width: 100%;
+  flex-direction: column;
   height: 100%;
-  overflow: hidden;
+  border-radius: 0;
+}
+
+:deep(.full-screen-modal .ant-modal-header) {
+  flex-shrink: 0;
+}
+
+:deep(.full-screen-modal .ant-modal-body) {
+  flex-grow: 1;
+  padding: 12px;
+  overflow-y: auto;
   background-color: #f0f2f5;
-  border: 1px solid #d9d9d9;
+}
+
+.record-modal-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.search-filters {
+  flex-shrink: 0;
+  padding: 12px;
+  margin-bottom: 12px;
+  background-color: #fff;
   border-radius: 8px;
 }
 
-.custom-upload-item img {
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-  object-fit: cover;
+.search-filters .ant-form-item {
+  margin-bottom: 12px;
 }
 
-.uploading-spinner {
-  position: absolute;
-  top: 0;
-  left: 0;
+.search-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.record-list {
+  flex-grow: 1;
+}
+
+.record-card {
+  margin-bottom: 12px;
+}
+
+:deep(.record-card .ant-card-body) {
+  padding: 12px 16px;
+}
+
+.record-card .card-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  font-size: 20px;
-  color: #fff;
-  background-color: rgb(0 0 0 / 50%);
+  justify-content: space-between;
+  margin-bottom: 12px;
 }
 
-.delete-button {
-  position: absolute;
-  top: -1px;
-  right: -1px;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  font-size: 12px;
-  color: #fff;
-  cursor: pointer;
-  background-color: rgb(0 0 0 / 60%);
-  border: none;
-  border-bottom-left-radius: 8px;
-  transition: all 0.2s;
+.record-card .purpose-title {
+  font-size: 16px;
+  font-weight: 500;
 }
 
-.delete-button:hover {
-  background-color: rgb(0 0 0 / 80%);
+.record-card .card-content .amount-display {
+  margin-bottom: 8px;
 }
 
-/* Adjust preview modal for better mobile experience if needed */
-:deep(.ant-modal) {
-  max-width: 95vw; /* Almost full-width, but with some margin */
+.record-card .card-content .amount {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fa541c;
+}
+
+.record-card .card-content .info-item {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #888;
+}
+
+:deep(.record-card .ant-card-actions) {
+  padding: 0;
+  border-top: 1px solid #f0f0f0;
+}
+
+:deep(.record-card .ant-card-actions > li) {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.list-pagination {
+  padding-bottom: 16px;
+  margin-top: 16px;
+  text-align: center;
 }
 </style>

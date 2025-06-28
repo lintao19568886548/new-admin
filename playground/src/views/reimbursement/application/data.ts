@@ -10,6 +10,7 @@ import { Button, Tag } from 'ant-design-vue';
 // 定义类型
 export interface ReimbursementItem {
   amount: number;
+  auditOpinion?: string;
   auditorLevel?: number;
   createTime?: string;
   date: string;

@@ -53,7 +53,7 @@ const currentLocation = ref('');
 const latitude = ref(0);
 const longitude = ref(0);
 const isInRange = ref(false);
-const locationLoading = ref(false);
+const locationLoading = ref(true);
 const punchLoading = ref(false);
 const mapInitialized = ref(false);
 
@@ -72,7 +72,7 @@ const officeCircles = ref<any[]>([]);
 // 生命周期
 onMounted(async () => {
   await initMap();
-  await getCurrentLocation();
+  await refreshLocation();
 });
 
 onUnmounted(() => {
@@ -112,38 +112,8 @@ const initMap = async () => {
     officeCircles.value.push(circle);
   });
 
-  // 自动调整地图视野以包含所有打卡点
   map.setViewport(points);
   mapInitialized.value = true;
-
-  // 添加定位控件
-  // 创建一个1x1的透明图标
-  const transparentIcon = new BMap.Icon(
-    'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
-    new BMap.Size(1, 1),
-  );
-  const locationCtrl = new BMap.GeolocationControl({
-    anchor: (window as any).BMAP_ANCHOR_BOTTOM_RIGHT,
-    locationIcon: transparentIcon, // 使用透明图标，隐藏默认的蓝色圆点
-    showAddressBar: false, // 不显示地址信息窗口
-  });
-
-  // 监听定位成功事件
-  locationCtrl.addEventListener('locationSuccess', (e: any) => {
-    // 使用新的通用函数更新所有位置相关的状态
-    updateLocationDetails(e.point);
-    // 定位成功后，手动设置缩放级别
-    map.setZoom(17);
-  });
-
-  // 监听定位失败事件
-  locationCtrl.addEventListener('locationError', (e: any) => {
-    console.error('定位失败:', e);
-    // 可以在这里添加用户提示，例如：
-    message.error('定位失败，请检查浏览器定位权限或网络连接');
-  });
-
-  map.addControl(locationCtrl);
 };
 
 // 更新位置相关的所有状态
@@ -196,184 +166,6 @@ const updateLocationDetails = (point: any) => {
   updateMapMarkers(point);
 };
 
-// 计算两点间距离（米）
-const getDistanceFromLatLonInMeters = (
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-) => {
-  const R = 6371; // 地球半径（公里）
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distance = R * c * 1000; // 转换为米
-  return distance;
-};
-
-// 检查位置权限
-const checkLocationPermission = async () => {
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const permissions = await Geolocation.checkPermissions();
-      if (permissions.location !== 'granted') {
-        const requestResult = await Geolocation.requestPermissions();
-        if (requestResult.location !== 'granted') {
-          message.error('位置权限被拒绝，无法获取位置信息');
-          return false;
-        }
-      }
-      return true;
-    } catch (error) {
-      console.error('检查位置权限失败:', error);
-      message.error('检查位置权限失败');
-      return false;
-    }
-  }
-  return true; // 在Web平台上直接返回true
-};
-
-// 获取当前位置
-const getCurrentLocation = async () => {
-  locationLoading.value = true;
-  currentLocation.value = '获取位置中...';
-  const BMap = (window as any).BMap;
-
-  try {
-    // 检查位置权限
-    const hasPermission = await checkLocationPermission();
-    if (!hasPermission) {
-      locationLoading.value = false;
-      return;
-    }
-
-    let coordinates;
-
-    if (Capacitor.isNativePlatform()) {
-      // 在原生平台使用Capacitor Geolocation API
-      try {
-        const position = await Geolocation.getCurrentPosition({
-          enableHighAccuracy: true,
-          timeout: 10_000,
-        });
-
-        // Capacitor 获取的是 WGS84 坐标，需要转换为 BD09
-        const wgs84Point = new BMap.Point(
-          position.coords.longitude,
-          position.coords.latitude,
-        );
-        const convertor = new BMap.Convertor();
-
-        coordinates = await new Promise((resolve) => {
-          convertor.translate(
-            [wgs84Point],
-            1,
-            5,
-            (result: { points: any[] | string; status: number }) => {
-              if (result.status === 0 && result.points.length > 0) {
-                console.warn(
-                  'WGS84 to BD09 conversion successful:',
-                  result.points[0],
-                );
-                resolve({
-                  lat: result.points[0].lat,
-                  lng: result.points[0].lng,
-                });
-              } else {
-                // 转换失败，使用原始坐标作为备用
-                console.error(
-                  'WGS84 to BD09 conversion failed, using original coordinates.',
-                );
-                resolve({
-                  lat: position.coords.latitude,
-                  lng: position.coords.longitude,
-                });
-              }
-            },
-          );
-        });
-
-        console.warn('Capacitor定位成功 (after conversion):', coordinates);
-      } catch (error) {
-        console.error('Capacitor定位失败:', error);
-        message.error('获取位置失败，请检查设备定位权限');
-        currentLocation.value = '获取位置失败，请检查设备定位权限';
-        locationLoading.value = false;
-        return;
-      }
-    } else {
-      // 在Web平台使用百度地图API
-      if (!BMap) {
-        message.error('地图API未加载，请刷新页面重试');
-        locationLoading.value = false;
-        return;
-      }
-
-      coordinates = await new Promise((resolve, reject) => {
-        const geolocation = new BMap.Geolocation();
-        geolocation.getCurrentPosition(
-          (result: any) => {
-            if (
-              geolocation.getStatus() === (window as any).BMAP_STATUS_SUCCESS
-            ) {
-              resolve({
-                lat: result.point.lat,
-                lng: result.point.lng,
-              });
-            } else {
-              reject(new Error('百度地图定位失败'));
-            }
-          },
-          { enableHighAccuracy: true },
-        );
-      });
-      console.warn('百度地图定位成功:', coordinates);
-    }
-
-    // 使用百度地图进行地址解析（无论在哪个平台）
-    if (BMap) {
-      const point = new BMap.Point(
-        (coordinates as { lat: number; lng: number }).lng,
-        (coordinates as { lat: number; lng: number }).lat,
-      );
-      updateLocationDetails(point);
-    } else {
-      // 如果百度地图API不可用，使用简单的距离计算
-      currentLocation.value = `${(coordinates as { lat: number; lng: number }).lat.toFixed(6)}, ${(coordinates as { lat: number; lng: number }).lng.toFixed(6)}`;
-
-      let inRange = false;
-      for (const loc of officeLocations) {
-        const distance = getDistanceFromLatLonInMeters(
-          (coordinates as { lat: number; lng: number }).lat,
-          (coordinates as { lat: number; lng: number }).lng,
-          loc.lat,
-          loc.lng,
-        );
-        console.warn(`与 ${loc.name} 的距离: ${distance.toFixed(2)} 米`);
-        if (distance <= loc.radius) {
-          inRange = true;
-          break;
-        }
-      }
-
-      isInRange.value = inRange;
-      console.warn(`是否在打卡范围内 (isInRange): ${isInRange.value}`);
-    }
-  } catch (error: any) {
-    console.error('获取位置时出错:', error);
-    message.error(`获取位置失败: ${error.message}`);
-    currentLocation.value = '获取位置失败';
-  } finally {
-    locationLoading.value = false;
-  }
-};
-
 // 更新地图标记
 const updateMapMarkers = (point: any) => {
   if (currentMarker.value) {
@@ -388,7 +180,90 @@ const updateMapMarkers = (point: any) => {
 
 // 刷新位置
 const refreshLocation = async () => {
-  await getCurrentLocation();
+  locationLoading.value = true;
+  currentLocation.value = '获取位置中...';
+  const BMap = (window as any).BMap;
+
+  try {
+    let coordinates;
+
+    if (Capacitor.isNativePlatform()) {
+      const permissions = await Geolocation.checkPermissions();
+      if (permissions.location !== 'granted') {
+        const requestResult = await Geolocation.requestPermissions();
+        if (requestResult.location !== 'granted') {
+          message.error('位置权限被拒绝');
+          locationLoading.value = false;
+          return;
+        }
+      }
+
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 10_000,
+      });
+
+      const wgs84Point = new BMap.Point(
+        position.coords.longitude,
+        position.coords.latitude,
+      );
+      const convertor = new BMap.Convertor();
+
+      coordinates = await new Promise((resolve) => {
+        convertor.translate(
+          [wgs84Point],
+          1,
+          5,
+          (result: { points: any[] | string; status: number }) => {
+            if (result.status === 0 && result.points.length > 0) {
+              resolve({
+                lat: result.points[0].lat,
+                lng: result.points[0].lng,
+              });
+            } else {
+              resolve({
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+              });
+            }
+          },
+        );
+      });
+    } else {
+      if (!BMap) {
+        message.error('地图API未加载，请刷新页面重试');
+        locationLoading.value = false;
+        return;
+      }
+      coordinates = await new Promise((resolve, reject) => {
+        const geolocation = new BMap.Geolocation();
+        geolocation.getCurrentPosition(
+          (result: any) => {
+            if (
+              geolocation.getStatus() === (window as any).BMAP_STATUS_SUCCESS
+            ) {
+              resolve({ lat: result.point.lat, lng: result.point.lng });
+            } else {
+              reject(new Error('百度地图定位失败'));
+            }
+          },
+          { enableHighAccuracy: true },
+        );
+      });
+    }
+
+    const point = new BMap.Point(
+      (coordinates as { lat: number; lng: number }).lng,
+      (coordinates as { lat: number; lng: number }).lat,
+    );
+    updateLocationDetails(point);
+  } catch (error: any) {
+    console.error('获取位置时出错:', error);
+    message.error(`获取位置失败: ${error.message || '未知错误'}`);
+    currentLocation.value = '获取位置失败';
+  } finally {
+    locationLoading.value = false;
+  }
 };
 
 // 上班打卡
