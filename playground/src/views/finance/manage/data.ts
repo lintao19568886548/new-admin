@@ -28,7 +28,7 @@ export function getTagTypeOptions() {
 
 export function getBillCategoryOptions() {
   return [
-    { label: '房租', value: '房租' },
+    { label: '账单收入', value: '账单收入' },
     { label: '水费', value: '水费' },
     { label: '电费', value: '电费' },
     { label: '燃气费', value: '燃气费' },

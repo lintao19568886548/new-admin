@@ -64,12 +64,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
           try {
             const params = form || {};
 
-            // 处理日期范围
-            if (params.startTime && params.endTime) {
-              params.startTime = `${params.startTime} 00:00:00`;
-              params.endTime = `${params.endTime} 23:59:59`;
-            }
-
             // 处理金额查询
             if (params.amount) {
               const amountStr = String(params.amount);
@@ -171,7 +165,7 @@ async function onDelete(row: FinanceItem) {
       });
       onRefresh();
     } catch (error) {
-      console.error('删除投资项目失败:', error); // 修正错误消息
+      console.error('删除财务记录失败:', error); // 修正错误消息
       message.error({
         content: $t('ui.actionMessage.operationFailed', [error]),
         key: 'action_process_msg',
