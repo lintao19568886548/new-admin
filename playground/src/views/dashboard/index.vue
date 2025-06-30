@@ -35,9 +35,6 @@ function collectNavItems(
   result: NavItem[] = [],
 ) {
   for (const menu of menus) {
-    if (menu.meta?.hideInMenu) {
-      continue;
-    }
     // A menu with children is a sub-group, recurse into it.
     if (menu.children?.length) {
       collectNavItems(menu.children, result);
