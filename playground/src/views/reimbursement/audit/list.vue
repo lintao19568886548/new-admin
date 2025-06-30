@@ -152,6 +152,27 @@ onMounted(() => {
             <Empty :description="loading ? '加载中...' : '暂无数据'" />
           </template>
           <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'images'">
+              <div
+                v-if="record.images && record.images.length > 0"
+                class="flex flex-wrap items-center gap-1"
+              >
+                <Image.PreviewGroup>
+                  <Image
+                    v-for="(img, index) in record.images.slice(0, 12)"
+                    :key="index"
+                    :src="img"
+                    :width="40"
+                    :height="40"
+                    class="rounded object-cover"
+                  />
+                </Image.PreviewGroup>
+                <div v-if="record.images.length > 12" class="ml-1">
+                  <Tag color="blue">+{{ record.images.length - 12 }}</Tag>
+                </div>
+              </div>
+              <span v-else>无</span>
+            </template>
             <template v-if="column.key === 'action'">
               <div class="flex justify-center gap-2">
                 <Button
@@ -278,7 +299,16 @@ onMounted(() => {
                   :width="80"
                   :height="80"
                   class="rounded object-cover"
-                />
+                  lazy
+                >
+                  <template #placeholder>
+                    <div
+                      class="flex h-full w-full items-center justify-center rounded bg-gray-100"
+                    >
+                      <Spin />
+                    </div>
+                  </template>
+                </Image>
               </div>
             </div>
           </div>
