@@ -7,7 +7,15 @@ import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus, Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils'; // For date formatting
 
-import { Button, Empty, message, Pagination, Spin, Tag } from 'ant-design-vue';
+import {
+  Button,
+  Empty,
+  message,
+  Modal,
+  Pagination,
+  Spin,
+  Tag,
+} from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form'; // For search form adapter
 import { deleteEmployee, getEmployeeList } from '#/api/hrm/employee';
@@ -32,7 +40,7 @@ const paginationState = ref({
 });
 
 // Search form data (can be simplified for mobile)
-const searchParams = ref<Partial<EmployeeApi.EmployeeSearchQueries>>({}); // Adjust type as per your API
+const searchParams = ref<Record<string, any>>({}); // 使用通用对象类型作为搜索参数
 
 // Modal for New/Edit Employee
 const [FormModal, formModalApi] = useVbenModal({
@@ -60,17 +68,18 @@ async function fetchEmployees(params: QueryParams = {}) {
     // Filter out empty/null search params before sending to API
     const activeQueryParams: Record<string, any> = {};
     for (const key in query) {
+      const value = (query as Record<string, any>)[key];
       if (
-        query[key] !== null &&
-        query[key] !== undefined &&
-        query[key] !== ''
+        (key === 'currentPage' || key === 'pageSize' || value !== null) &&
+        value !== undefined &&
+        (typeof value !== 'string' || value !== '')
       ) {
-        activeQueryParams[key] = query[key];
+        activeQueryParams[key] = value;
       }
     }
 
     const result = await getEmployeeList(
-      activeQueryParams as EmployeeApi.EmployeeSearchQueries,
+      activeQueryParams as EmployeeApi.EmployeeQuery,
     );
     employeeList.value = result.items || [];
     paginationState.value.total = result.total || 0;
@@ -81,6 +90,14 @@ async function fetchEmployees(params: QueryParams = {}) {
   } finally {
     tableLoading.value = false;
   }
+}
+
+function formatTime(timeStr?: string) {
+  if (!timeStr) {
+    return '';
+  }
+  const timePart = timeStr.split('T')[1];
+  return timePart ? timePart.split('.')[0] : timeStr;
 }
 
 function handleSearch() {
@@ -140,7 +157,7 @@ onMounted(() => {
 const simplifiedSearchSchema = useSearchSchema().filter((s) =>
   ['isDeleted', 'name', 'phone'].includes(s.fieldName),
 );
-const [SearchForm] = useVbenForm({
+const [SearchForm, searchFormApi] = useVbenForm({
   layout: 'vertical', // Vertical layout for mobile
   schema: simplifiedSearchSchema,
   showDefaultActions: false, // We'll use custom buttons
@@ -166,7 +183,7 @@ const [SearchForm] = useVbenForm({
       <div class="search-form-container">
         <SearchForm
           @submit="
-            (data) => {
+            (data: Record<string, any>) => {
               searchParams = data;
               handleSearch();
             }
@@ -176,10 +193,9 @@ const [SearchForm] = useVbenForm({
           <Button
             type="primary"
             @click="
-              () => {
-                const sf = SearchForm.getApi();
-                if (sf) {
-                  searchParams = sf.getFieldsValue();
+              async () => {
+                if (searchFormApi) {
+                  searchParams = await searchFormApi.getValues();
                   handleSearch();
                 }
               }
@@ -190,10 +206,9 @@ const [SearchForm] = useVbenForm({
           </Button>
           <Button
             @click="
-              () => {
-                const sf = SearchForm.getApi();
-                if (sf) {
-                  sf.resetFields();
+              async () => {
+                if (searchFormApi) {
+                  await searchFormApi.resetForm();
                   searchParams = {};
                   handleResetSearch();
                 }
@@ -228,6 +243,12 @@ const [SearchForm] = useVbenForm({
             <p v-if="employee.hireDate">
               <strong>{{ $t('入职日期') }}:</strong>
               {{ formatDateTime(employee.hireDate) }}
+            </p>
+            <p v-if="employee.checkIn">
+              <strong>上班时间:</strong> {{ formatTime(employee.checkIn) }}
+            </p>
+            <p v-if="employee.checkOut">
+              <strong>下班时间:</strong> {{ formatTime(employee.checkOut) }}
             </p>
             <p v-if="employee.isDeleted && employee.leaveDate">
               <strong>{{ $t('离职日期') }}:</strong>

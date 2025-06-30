@@ -37,6 +37,12 @@ export default eventHandler(async (event) => {
       },
       data: {
         ...body,
+        checkIn: body.checkIn
+          ? new Date(`1970-01-01T${body.checkIn}Z`)
+          : undefined,
+        checkOut: body.checkOut
+          ? new Date(`1970-01-01T${body.checkOut}Z`)
+          : undefined,
         // 如果提供了入职日期，转换为Date类型
         hireDate: body.hireDate ? new Date(body.hireDate) : undefined,
         // 如果提供了离职日期，转换为Date类型

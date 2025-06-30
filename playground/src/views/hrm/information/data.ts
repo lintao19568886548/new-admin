@@ -120,6 +120,28 @@ export function useSchema(): VbenFormSchema[] {
       label: '备注',
       rules: z.string().max(200, '备注长度不能超过 200 个字符').optional(),
     },
+    {
+      component: 'TimePicker',
+      componentProps: {
+        format: 'HH:mm:ss',
+        placeholder: '请选择上班时间',
+        style: { width: '100%' },
+        valueFormat: 'HH:mm:ss',
+      },
+      fieldName: 'checkIn',
+      label: '上班时间',
+    },
+    {
+      component: 'TimePicker',
+      componentProps: {
+        format: 'HH:mm:ss',
+        placeholder: '请选择下班时间',
+        style: { width: '100%' },
+        valueFormat: 'HH:mm:ss',
+      },
+      fieldName: 'checkOut',
+      label: '下班时间',
+    },
   ];
 }
 
@@ -190,6 +212,26 @@ export function useColumns(
       field: 'isDeleted',
       title: '是否离职',
       width: 100,
+    },
+    {
+      field: 'checkIn',
+      formatter: ({ cellValue }) => {
+        if (!cellValue) return '';
+        const timePart = cellValue.split('T')[1];
+        return timePart ? timePart.split('.')[0] : ''; // 移除毫秒部分
+      },
+      minWidth: 120,
+      title: '上班时间',
+    },
+    {
+      field: 'checkOut',
+      formatter: ({ cellValue }) => {
+        if (!cellValue) return '';
+        const timePart = cellValue.split('T')[1];
+        return timePart ? timePart.split('.')[0] : ''; // 移除毫秒部分
+      },
+      minWidth: 120,
+      title: '下班时间',
     },
     {
       field: 'createTime',

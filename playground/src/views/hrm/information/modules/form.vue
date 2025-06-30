@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { Rule } from 'ant-design-vue/es/form';
+
 import type { EmployeeApi } from '#/api/hrm/employee';
 
 import { computed, onMounted, reactive, ref, watchEffect } from 'vue';
@@ -13,6 +15,7 @@ import {
   message,
   Radio,
   Select,
+  TimePicker,
 } from 'ant-design-vue';
 
 import { createEmployee, updateEmployee } from '#/api/hrm/employee';
@@ -27,7 +30,9 @@ const getTitle = computed(() => {
 
 const formState = reactive({
   address: '',
-  age: null as null | number,
+  age: undefined as number | undefined,
+  checkIn: '',
+  checkOut: '',
   department: '',
   education: '',
   gender: '男',
@@ -41,18 +46,7 @@ const formState = reactive({
 });
 
 const aFormRef = ref();
-const rules: Record<
-  string,
-  Array<{
-    max?: number;
-    message: string;
-    min?: number;
-    pattern?: RegExp;
-    required?: boolean;
-    trigger: string | string[];
-    validator?: (rule: any, value: any) => Promise<void>;
-  }>
-> = {
+const rules: Record<string, Rule[]> = {
   gender: [{ message: '请选择性别', required: true, trigger: 'change' }],
   idNumber: [
     {
@@ -89,7 +83,9 @@ function resetForm() {
   // 重置 reactive 表单状态
   Object.assign(formState, {
     address: '',
-    age: null,
+    age: undefined,
+    checkIn: '',
+    checkOut: '',
     department: '',
     education: '',
     gender: '男',
@@ -111,7 +107,9 @@ watchEffect(() => {
   if (formData.value) {
     Object.assign(formState, {
       address: formData.value.address || '',
-      age: formData.value.age || null,
+      age: formData.value.age || undefined,
+      checkIn: formData.value.checkIn || '',
+      checkOut: formData.value.checkOut || '',
       department: formData.value.department || '',
       education: formData.value.education || '',
       gender: formData.value.gender || '男',
@@ -132,6 +130,8 @@ function cleanFormData() {
   const cleanData = {
     address: formState.address || undefined,
     age: formState.age || undefined,
+    checkIn: formState.checkIn || undefined,
+    checkOut: formState.checkOut || undefined,
     department: formState.department || undefined,
     education: formState.education || undefined,
     gender: formState.gender,
@@ -252,11 +252,29 @@ onMounted(() => {
 
       <AForm.Item name="age" label="年龄">
         <InputNumber
-          v-model:value="formState.age as number | undefined"
-          :min="18"
+          v-model:value="formState.age"
           :max="100"
+          :min="18"
           placeholder="请输入年龄"
-          style="width: 100%"
+          class="w-full"
+        />
+      </AForm.Item>
+
+      <AForm.Item name="checkIn" label="上班时间">
+        <TimePicker
+          v-model:value="formState.checkIn"
+          value-format="HH:mm:ss"
+          placeholder="请选择上班时间"
+          class="w-full"
+        />
+      </AForm.Item>
+
+      <AForm.Item name="checkOut" label="下班时间">
+        <TimePicker
+          v-model:value="formState.checkOut"
+          value-format="HH:mm:ss"
+          placeholder="请选择下班时间"
+          class="w-full"
         />
       </AForm.Item>
 

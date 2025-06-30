@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/valid-v-model -->
 <script lang="ts" setup>
 import type { FormInstance } from 'ant-design-vue'; // Import FormInstance
 
@@ -16,6 +17,7 @@ import {
   message,
   Radio,
   Select,
+  TimePicker,
 } from 'ant-design-vue';
 
 import { createEmployee, updateEmployee } from '#/api/hrm/employee';
@@ -36,7 +38,9 @@ const getTitle = computed(() => {
 // Reactive state for form fields
 const formState = reactive({
   address: '',
-  age: null as null | number,
+  age: undefined as number | undefined,
+  checkIn: '',
+  checkOut: '',
   department: '',
   education: '',
   gender: '男',
@@ -94,7 +98,9 @@ const educationOptions = [
 function resetForm() {
   const defaultState = {
     address: '',
-    age: null,
+    age: undefined,
+    checkIn: '',
+    checkOut: '',
     department: '',
     education: '',
     gender: '男',
@@ -115,7 +121,9 @@ watchEffect(() => {
   if (formData.value) {
     Object.assign(formState, {
       address: formData.value.address || '',
-      age: formData.value.age || null,
+      age: formData.value.age || undefined,
+      checkIn: formData.value.checkIn || '',
+      checkOut: formData.value.checkOut || '',
       department: formData.value.department || '',
       education: formData.value.education || '',
       gender: formData.value.gender || '男',
@@ -143,13 +151,15 @@ function cleanFormDataForSubmission() {
   };
   // Add other fields only if they have values, to avoid sending empty strings for optional fields
   if (formState.address) cleanData.address = formState.address;
-  if (formState.age !== null) cleanData.age = formState.age;
+  if (formState.age !== undefined) cleanData.age = formState.age;
   if (formState.department) cleanData.department = formState.department;
   if (formState.education) cleanData.education = formState.education;
   if (formState.hireDate) cleanData.hireDate = formState.hireDate;
   if (formState.idNumber) cleanData.idNumber = formState.idNumber;
   if (formState.leaveDate) cleanData.leaveDate = formState.leaveDate;
   if (formState.remark) cleanData.remark = formState.remark;
+  if (formState.checkIn) cleanData.checkIn = formState.checkIn;
+  if (formState.checkOut) cleanData.checkOut = formState.checkOut;
 
   return cleanData;
 }
@@ -251,11 +261,29 @@ onMounted(() => {
 
       <AForm.Item name="age" :label="$t('年龄')">
         <InputNumber
-          v-model:value="formState.age as number | undefined"
-          :min="18"
+          v-model:value="formState.age"
           :max="100"
+          :min="18"
           :placeholder="$t('请输入年龄')"
           style="width: 100%"
+        />
+      </AForm.Item>
+
+      <AForm.Item name="checkIn" label="上班时间">
+        <TimePicker
+          v-model:value="formState.checkIn"
+          value-format="HH:mm:ss"
+          placeholder="请选择上班时间"
+          class="w-full"
+        />
+      </AForm.Item>
+
+      <AForm.Item name="checkOut" label="下班时间">
+        <TimePicker
+          v-model:value="formState.checkOut"
+          value-format="HH:mm:ss"
+          placeholder="请选择下班时间"
+          class="w-full"
         />
       </AForm.Item>
 

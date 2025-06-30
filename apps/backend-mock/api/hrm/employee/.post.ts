@@ -76,6 +76,17 @@ export default eventHandler(async (event: H3Event) => {
       }
     }
 
+    // 处理上下班时间
+    let checkInTime: Date | undefined;
+    if (body.checkIn) {
+      checkInTime = new Date(`1970-01-01T${body.checkIn}Z`);
+    }
+
+    let checkOutTime: Date | undefined;
+    if (body.checkOut) {
+      checkOutTime = new Date(`1970-01-01T${body.checkOut}Z`);
+    }
+
     // Check for idNumber uniqueness if provided
     if (body.idNumber) {
       const existingEmployeeByIdNumber = await prismaClient.employee.findUnique(
@@ -105,6 +116,8 @@ export default eventHandler(async (event: H3Event) => {
       address: body.address ? String(body.address) : undefined,
       remark: body.remark ? String(body.remark) : undefined,
       isDeleted: typeof body.isDeleted === 'boolean' ? body.isDeleted : false, // Default to false
+      checkIn: checkInTime,
+      checkOut: checkOutTime,
     };
 
     console.log(
