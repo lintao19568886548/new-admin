@@ -15,11 +15,8 @@ import {
   Tag,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc';
 
 import { getAttendanceList, getMonthStats } from '#/api/hrm/attendance';
-
-dayjs.extend(utc);
 
 // ================================= 类型定义 =================================
 interface MonthStats {
@@ -96,14 +93,6 @@ const allDataLoaded = computed(() => {
   );
 });
 
-const formatToLocalTime = (date: string, time: null | string) => {
-  if (!date || !time) {
-    return '--:--:--';
-  }
-  // Combine date and time, parse as UTC, and format to local time
-  return dayjs.utc(`${date} ${time}`).local().format('HH:mm:ss');
-};
-
 const getStatusInfo = (status: null | number) => {
   if (
     status === null ||
@@ -112,6 +101,17 @@ const getStatusInfo = (status: null | number) => {
     return attendanceStatusMeta[AttendanceStatus.Absent];
   }
   return attendanceStatusMeta[status as keyof typeof attendanceStatusMeta];
+};
+
+const formatToLocalTime = (dateStr: string, timeStr: string) => {
+  if (!timeStr || timeStr.includes('--')) {
+    return '--:--:--';
+  }
+  // Assume the server provides a date (e.g., '2023-11-20') and a time (e.g., '11:00:00')
+  // in the user's local timezone. We combine them to ensure correct parsing.
+  const localDateTime = dayjs(`${dateStr} ${timeStr}`);
+  // Return original time string if parsing fails
+  return localDateTime.isValid() ? localDateTime.format('HH:mm:ss') : timeStr;
 };
 
 const isLate = (status: number) => {
