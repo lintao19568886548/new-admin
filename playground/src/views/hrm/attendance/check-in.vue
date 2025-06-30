@@ -6,10 +6,13 @@ import { useUserStore } from '@vben/stores';
 import { Icon } from '@iconify/vue';
 import { Button, message, Modal, Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 
 import { getTodayRecord, punchIn, punchOut } from '#/api/hrm/attendance';
 import { BAIDU_MAP_AK, officeLocations } from '#/config';
 import { loadBaiduMapScript } from '#/utils/map';
+
+dayjs.extend(utc);
 
 // ================================= 类型定义 =================================
 interface TodayRecord {

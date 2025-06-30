@@ -15,8 +15,11 @@ import {
   Tag,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 
 import { getAttendanceList, getMonthStats } from '#/api/hrm/attendance';
+
+dayjs.extend(utc);
 
 // ================================= 类型定义 =================================
 interface MonthStats {
@@ -92,6 +95,14 @@ const allDataLoaded = computed(() => {
     attendanceRecords.value.length >= pagination.total && pagination.total > 0
   );
 });
+
+const formatToLocalTime = (date: string, time: null | string) => {
+  if (!date || !time) {
+    return '--:--:--';
+  }
+  // Combine date and time, parse as UTC, and format to local time
+  return dayjs.utc(`${date} ${time}`).local().format('HH:mm:ss');
+};
 
 const getStatusInfo = (status: null | number) => {
   if (
@@ -320,7 +331,7 @@ watch(dateRange, (newRange) => {
             <div class="punch-item">
               <span class="punch-label">上班</span>
               <span class="punch-time">
-                {{ record.punchIn || '--:--:--' }}
+                {{ formatToLocalTime(record.date, record.punchIn) }}
               </span>
               <Tag v-if="isLate(record.status)" color="red" :bordered="false">
                 迟到
@@ -329,7 +340,7 @@ watch(dateRange, (newRange) => {
             <div class="punch-item">
               <span class="punch-label">下班</span>
               <span class="punch-time">
-                {{ record.punchOut || '--:--:--' }}
+                {{ formatToLocalTime(record.date, record.punchOut) }}
               </span>
               <Tag
                 v-if="isEarlyLeave(record.status)"

@@ -7,5 +7,5 @@ interface VersionInfo {
 }
 
 export function getLatestVersionApi() {
-  return requestClient.get<VersionInfo>('/system/latest-version');
+  return requestClient.get<VersionInfo>('/system/version');
 }
