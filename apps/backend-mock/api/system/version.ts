@@ -20,5 +20,5 @@ export default defineEventHandler(async () => {
   }
 
   // The frontend API client is configured to expect the data object directly.
-  return latestVersion;
+  return useResponseSuccess(latestVersion);
 });
