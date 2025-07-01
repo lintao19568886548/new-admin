@@ -7,8 +7,13 @@ import { Icon } from '@iconify/vue';
 import { Button, message, Modal, Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
-import { getTodayRecord, punchIn, punchOut } from '#/api/hrm/attendance';
-import { BAIDU_MAP_AK, officeLocations } from '#/config';
+import {
+  getOfficeLocations,
+  getTodayRecord,
+  punchIn,
+  punchOut,
+} from '#/api/hrm/attendance';
+import { BAIDU_MAP_AK } from '#/config';
 import { loadBaiduMapScript } from '#/utils/map';
 
 // ================================= 类型定义 =================================
@@ -18,6 +23,13 @@ interface TodayRecord {
   punchOut: string;
   status: null | number;
   workHours: number;
+}
+
+interface OfficeLocation {
+  lat: number;
+  lng: number;
+  name: string;
+  radius: number;
 }
 
 // ================================= 考勤状态 =================================
@@ -55,8 +67,12 @@ const mapInitialized = ref(false);
 const userStore = useUserStore();
 const userInfo = userStore.userInfo;
 
+// 打卡点
+const officeLocations = ref<OfficeLocation[]>([]);
+
 // 今日打卡记录
 const todayRecord = ref<null | TodayRecord>(null);
+const isTodayRecordLoaded = ref(false);
 
 // 地图相关
 let map: any = null;
@@ -82,6 +98,14 @@ const initMap = async () => {
   if (!document.querySelector('#map-container')) return;
 
   try {
+    officeLocations.value = await getOfficeLocations();
+  } catch (error) {
+    console.error('Failed to fetch office locations:', error);
+    message.error('获取办公室位置失败，请刷新重试');
+    return;
+  }
+
+  try {
     await loadBaiduMapScript(BAIDU_MAP_AK);
   } catch (error) {
     console.error('Baidu Map script failed to load:', error);
@@ -93,9 +117,11 @@ const initMap = async () => {
   const BMap = (window as any).BMap;
   map = new BMap.Map('map-container');
 
-  const points = officeLocations.map((loc) => new BMap.Point(loc.lng, loc.lat));
+  const points = officeLocations.value.map(
+    (loc) => new BMap.Point(loc.lng, loc.lat),
+  );
 
-  officeLocations.forEach((loc, index) => {
+  officeLocations.value.forEach((loc, index) => {
     const circle = new BMap.Circle(points[index], loc.radius, {
       fillColor: '#1890ff',
       fillOpacity: 0.2,
@@ -189,7 +215,7 @@ const updateLocationDetails = (point: any) => {
   });
 
   let inRange = false;
-  for (const loc of officeLocations) {
+  for (const loc of officeLocations.value) {
     const officePoint = new BMap.Point(loc.lng, loc.lat);
     const distance = map.getDistance(officePoint, point);
     if (distance <= loc.radius) {
@@ -321,6 +347,8 @@ const getStatusInfo = (status: null | number) => {
 // 加载今日记录
 const loadTodayRecord = async () => {
   if (!userInfo?.realName) return; // 如果没有 username，则不执行
+  if (isTodayRecordLoaded.value) return; // 防止重复加载
+
   try {
     const data = await getTodayRecord({ username: userInfo.realName });
     if (data) {
@@ -345,6 +373,8 @@ const loadTodayRecord = async () => {
   } catch (error: any) {
     console.error('加载今日记录失败:', error);
     message.error(`加载今日记录失败: ${error.message || '未知错误'}`);
+  } finally {
+    isTodayRecordLoaded.value = true; // 标记已加载
   }
 };
 
@@ -352,7 +382,7 @@ const loadTodayRecord = async () => {
 watch(
   () => userInfo?.realName,
   (newUsername) => {
-    if (newUsername) {
+    if (newUsername && !isTodayRecordLoaded.value) {
       loadTodayRecord();
     }
   },

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, reactive, ref } from 'vue';
+import { nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 import { Icon } from '@iconify/vue';
 import {
@@ -8,6 +8,7 @@ import {
   List,
   message,
   RangePicker,
+  Segmented,
   Spin,
   Tag,
   Tooltip,
@@ -77,6 +78,12 @@ const pagination = reactive({
 const mapContainer = ref<HTMLDivElement | null>(null);
 let map: any = null;
 const markers: any[] = [];
+const activeView = ref('地图');
+const isMobile = ref(false);
+
+const checkIsMobile = () => {
+  isMobile.value = window.innerWidth <= 768;
+};
 
 // ================================= 方法 =================================
 const fetchData = async () => {
@@ -253,37 +260,67 @@ const highlightMarker = (record: TrajectoryRecord, highlight: boolean) => {
   }
 };
 
+watch([activeView, isMobile], ([newView, mobile]) => {
+  if (mobile && newView === '地图') {
+    // 切换到地图视图时，确保地图正确渲染
+    nextTick(() => {
+      if (map) {
+        // 重新获取中心点和缩放级别并设置，可以触发地图刷新
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        map.centerAndZoom(center, zoom);
+      }
+    });
+  }
+});
+
 onMounted(async () => {
   await initMap();
   fetchData();
+  checkIsMobile();
+  window.addEventListener('resize', checkIsMobile);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkIsMobile);
 });
 </script>
 
 <template>
   <div class="trajectory-page">
-    <Card>
+    <Card :bordered="false">
       <div class="header">
-        <h2 class="header-title">全员考勤轨迹</h2>
+        <div class="header-left">
+          <h2 class="header-title">全员考勤轨迹</h2>
+          <Button type="primary" :loading="exportLoading" @click="handleExport">
+            <template #icon><Icon icon="mdi:export" /></template>
+            导出打卡记录
+          </Button>
+        </div>
         <div class="actions">
           <RangePicker
             v-model:value="dateRange"
             :allow-clear="false"
             @change="handleDateChange"
           />
-          <Button type="primary" :loading="exportLoading" @click="handleExport">
-            <template #icon><Icon icon="mdi:export" /></template>
-            导出打卡记录
-          </Button>
         </div>
       </div>
     </Card>
 
+    <Segmented
+      v-if="isMobile"
+      v-model:value="activeView"
+      :options="['地图', '列表']"
+      block
+      class="view-switcher"
+    />
+
     <div class="main-content">
-      <div class="map-wrapper">
+      <div v-show="!isMobile || activeView === '地图'" class="map-wrapper">
         <div ref="mapContainer" class="map-container"></div>
       </div>
 
-      <div class="list-wrapper">
+      <div v-show="!isMobile || activeView === '列表'" class="list-wrapper">
         <Spin :spinning="loading">
           <List
             class="record-list"
@@ -343,41 +380,62 @@ onMounted(async () => {
 <style scoped>
 /* 移动端适配 */
 @media (max-width: 768px) {
+  .header {
+    justify-content: center;
+  }
+
   .main-content {
     flex-direction: column;
+    overflow: hidden;
   }
 
   .map-wrapper {
-    flex-grow: 0;
-
-    /* min-height: 300px; /* 在移动端给地图一个最小高度 */
+    flex-shrink: 0;
+    height: 45vh;
   }
 
   .list-wrapper {
     flex-grow: 1;
+    height: 100%;
   }
 }
 
 .trajectory-page {
+  position: relative;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  height: calc(100vh - 80px); /* 减去大致的头部和边距 */
-  padding: 16px;
+  gap: 8px;
+  width: 100vw;
+  height: 85vh;
+  padding: 8px;
+  overflow: hidden; /* 禁止最外层滚动 */
+}
+
+.view-switcher {
+  align-items: center;
+  margin: 0 4px;
 }
 
 .header {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
+}
+
+.header-left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 8px;
 }
 
 .header-title {
@@ -388,7 +446,7 @@ onMounted(async () => {
 .main-content {
   display: flex;
   flex: 1;
-  gap: 16px;
+  gap: 8px;
   min-height: 0; /*  flexbox 布局中的重要技巧 */
 }
 
@@ -408,7 +466,7 @@ onMounted(async () => {
 .list-wrapper {
   flex: 1;
   min-width: 300px;
-  overflow-y: auto; /* 让列表内部滚动 */
+  overflow: hidden auto; /* 禁止水平滚动 */ /* 让列表内部滚动 */
 }
 
 .record-list .ant-spin-container {

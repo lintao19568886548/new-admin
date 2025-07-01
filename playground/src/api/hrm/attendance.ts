@@ -36,3 +36,9 @@ export function getTodayRecord(params: { username: string }) {
 export function getMonthStats(params: { username: string }) {
   return requestClient.get(`${API.ATTENDANCE}/stats`, { params });
 }
+
+export function getOfficeLocations() {
+  return requestClient.get<
+    { lat: number; lng: number; name: string; radius: number }[]
+  >(`${API.ATTENDANCE}/locations`);
+}
