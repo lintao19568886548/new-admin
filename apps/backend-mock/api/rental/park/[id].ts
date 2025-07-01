@@ -121,6 +121,8 @@ export default eventHandler(async (event) => {
           imageUrls: floorImages.length > 0 ? floorImages : [],
           createTime: floor.createTime ? floor.createTime.toISOString() : null,
           updateTime: floor.updateTime ? floor.updateTime.toISOString() : null,
+          totalArea: Number(floor.totalArea),
+          usedArea: Number(floor.usedArea),
         };
       });
 

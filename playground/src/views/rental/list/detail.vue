@@ -185,6 +185,50 @@ const parkFeatures = computed(() => {
   return featureList;
 });
 
+/**
+ * 计算厂房楼层面积统计
+ * @param factory 厂房详情
+ * @returns 楼层面积统计对象
+ */
+const getFactoryFloorStats = (factory: any) => {
+  if (!factory.floors || factory.floors.length === 0) {
+    return { availableArea: 0, totalArea: 0, usedArea: 0 };
+  }
+
+  const totalArea = factory.floors.reduce(
+    (sum: number, floor: any) => sum + (floor.totalArea || 0),
+    0,
+  );
+  const usedArea = factory.floors.reduce(
+    (sum: number, floor: any) => sum + (floor.usedArea || 0),
+    0,
+  );
+  const availableArea = totalArea - usedArea;
+
+  return { availableArea, totalArea, usedArea };
+};
+
+/**
+ * 计算园区整体面积统计
+ * @returns 园区面积统计对象
+ */
+const parkAreaStats = computed(() => {
+  if (!detail.value.factories || detail.value.factories.length === 0) {
+    return { totalAvailableArea: 0, totalUsedArea: 0 };
+  }
+
+  let totalUsedArea = 0;
+  let totalAvailableArea = 0;
+
+  detail.value.factories.forEach((factory: any) => {
+    const stats = getFactoryFloorStats(factory);
+    totalUsedArea += stats.usedArea;
+    totalAvailableArea += stats.availableArea;
+  });
+
+  return { totalAvailableArea, totalUsedArea };
+});
+
 // NEW: Function to open image preview
 function openImagePreview(
   imgList: (null | string | undefined)[],
@@ -330,6 +374,12 @@ onMounted(() => {
               <Descriptions.Item label="总面积">
                 {{ detail.area }} m²
               </Descriptions.Item>
+              <Descriptions.Item label="已用面积">
+                {{ parkAreaStats.totalUsedArea }} m²
+              </Descriptions.Item>
+              <Descriptions.Item label="可租面积">
+                {{ parkAreaStats.totalAvailableArea }} m²
+              </Descriptions.Item>
               <Descriptions.Item label="地址">
                 {{ detail.address }}
               </Descriptions.Item>
@@ -390,6 +440,15 @@ onMounted(() => {
                     </Descriptions.Item>
                     <Descriptions.Item label="联系方式">
                       {{ factory.contact }}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="楼层总面积">
+                      {{ getFactoryFloorStats(factory).totalArea }} m²
+                    </Descriptions.Item>
+                    <Descriptions.Item label="楼层已用面积">
+                      {{ getFactoryFloorStats(factory).usedArea }} m²
+                    </Descriptions.Item>
+                    <Descriptions.Item label="楼层可租面积">
+                      {{ getFactoryFloorStats(factory).availableArea }} m²
                     </Descriptions.Item>
                     <Descriptions.Item label="建造时间">
                       {{
@@ -477,6 +536,9 @@ onMounted(() => {
                               </Descriptions.Item>
                               <Descriptions.Item label="已用面积">
                                 {{ floor.usedArea }} m²
+                              </Descriptions.Item>
+                              <Descriptions.Item label="可租面积">
+                                {{ floor.totalArea - floor.usedArea }} m²
                               </Descriptions.Item>
                               <Descriptions.Item label="状态">
                                 {{ floor.status }}
