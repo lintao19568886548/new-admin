@@ -37,7 +37,7 @@ model Factory {
   factoryName         String               @map("factory_name") @db.VarChar(100)
   parkId              Int                  @map("park_id")
   park                Park                 @relation("ParkToFactory", fields: [parkId], references: [parkId])
-  buildTime           DateTime             @map("build_time") @db.Date // 建造年份
+  buildTime           DateTime?            @map("build_time") @db.Date // 建造年份
   address             String               @db.VarChar(200) // 详细地址
   contact             String               @db.VarChar(100) // 联系人
   description         String?              @db.Text // 描述
