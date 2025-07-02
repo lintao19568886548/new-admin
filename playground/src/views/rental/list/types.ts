@@ -153,7 +153,6 @@ export interface FactoryDetail {
   floors: FactoryFloorDetail[];
   imageUrls: string[];
   imgUrl: string;
-  status: string;
   transformers: TransformerDetail[];
   updateTime: string;
 }

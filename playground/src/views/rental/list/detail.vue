@@ -457,9 +457,6 @@ onMounted(() => {
                           : '未知'
                       }}
                     </Descriptions.Item>
-                    <Descriptions.Item label="状态">
-                      {{ factory.status || '正常' }}
-                    </Descriptions.Item>
                   </Descriptions>
 
                   <Divider orientation="left">厂房描述</Divider>

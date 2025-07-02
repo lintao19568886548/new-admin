@@ -41,6 +41,7 @@ model Factory {
   address             String               @db.VarChar(200) // 详细地址
   contact             String               @db.VarChar(100) // 联系人
   description         String?              @db.Text // 描述
+  isOwn               Boolean              @default(true) @map("is_own") // 是否为自有厂房
   floors              FactoryFloor[]       @relation("FactoryToFactoryFloor")
   firefighting        Firefighting[]       @relation("FactoryToFirefighting")
   transformers        Transformer[]        @relation("FactoryToTransformer")

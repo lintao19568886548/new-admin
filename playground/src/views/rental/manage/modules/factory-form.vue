@@ -7,7 +7,7 @@ import { useVbenForm, useVbenModal } from '@vben/common-ui';
 
 import { Button, Card, Divider, Popconfirm } from 'ant-design-vue';
 
-import { createFactory, deleteFactory, updateFactory } from '#/api/factory';
+import { createOwnFactory, deleteFactory, updateFactory } from '#/api/factory';
 import { $t } from '#/locales';
 import { useParkStore } from '#/store';
 
@@ -111,10 +111,10 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
             return; // 阻止继续执行
           }
           // 添加新工厂数据，并传入 parkId
-          const factory = await createFactory({
+          const factory = await createOwnFactory({
             parkId: store.parkId, // <--- 添加 parkId
             ...values,
-          });
+          }); // 使用自有厂房API
           factoryData.value.push(factory);
         } else {
           // 更新现有工厂数据 - 保留原始数据中的其他字段
