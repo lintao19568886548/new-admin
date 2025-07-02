@@ -56,7 +56,32 @@ async function zipFolder(folderPath, outputPath) {
     archive.pipe(output);
 
     // 将文件夹内容添加到压缩包，false 表示不包含文件夹本身作为根目录
-    archive.directory(folderPath, false);
+    // 添加过滤器以排除可能导致解压问题的文件和目录
+    archive.directory(folderPath, false, (entry) => {
+      // 排除 node_modules 目录以避免 Windows/Linux 兼容性问题
+      if (entry.name.includes('node_modules')) {
+        console.log(`跳过 node_modules 相关文件: ${entry.name}`);
+        return false;
+      }
+
+      // 排除符号链接以避免解压时的权限问题
+      if (entry.stats && entry.stats.isSymbolicLink()) {
+        console.log(`跳过符号链接: ${entry.name}`);
+        return false;
+      }
+
+      // 排除可能导致权限问题的隐藏文件和临时文件
+      const fileName = path.basename(entry.name);
+      if (
+        fileName.startsWith('.') &&
+        (fileName.includes('lock') || fileName.includes('cache'))
+      ) {
+        console.log(`跳过缓存/锁文件: ${entry.name}`);
+        return false;
+      }
+
+      return entry;
+    });
 
     archive.finalize();
   });
@@ -74,6 +99,9 @@ async function main() {
 
   console.log(`Starting zipping process for: ${folderToZip}`);
   console.log(`Outputting ZIP to: ${zipOutputPath}`);
+  console.log(
+    '注意: 为了避免 Windows/Linux 兼容性问题，将自动排除 node_modules 和符号链接',
+  );
 
   try {
     await zipFolder(folderToZip, zipOutputPath);
