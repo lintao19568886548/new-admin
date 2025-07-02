@@ -3,7 +3,7 @@ import { getQuery } from 'h3';
 import { prismaClient } from '~/utils/db';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
-const STANDARD_WORK_HOURS = 8;
+// const STANDARD_WORK_HOURS = 8;
 
 export default eventHandler(async (event) => {
   try {
@@ -50,19 +50,19 @@ export default eventHandler(async (event) => {
 
       if (record.punchIn && record.punchOut) {
         stats.attendanceDays++;
-        const workHours = dayjs(record.punchOut).diff(
+        /* const workHours = dayjs(record.punchOut).diff(
           dayjs(record.punchIn),
           'hour',
           true,
         );
         if (workHours > STANDARD_WORK_HOURS) {
           stats.overtimeHours += workHours - STANDARD_WORK_HOURS;
-        }
+        } */
       }
     });
 
     // 四舍五入加班时长到两位小数
-    stats.overtimeHours = Math.round(stats.overtimeHours * 100) / 100;
+    // stats.overtimeHours = Math.round(stats.overtimeHours * 100) / 100;
 
     return useResponseSuccess(stats);
   } catch (error: any) {
