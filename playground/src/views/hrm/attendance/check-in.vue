@@ -529,9 +529,10 @@ watch(
 
 .punch-btn {
   display: flex;
+  flex: 1;
   gap: 8px;
   align-items: center;
-  min-width: 140px;
+  justify-content: center;
   height: 60px;
   font-size: 16px;
   border-radius: 8px;
