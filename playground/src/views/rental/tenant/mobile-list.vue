@@ -14,13 +14,19 @@ import {
   Flex,
   List,
   message,
+  Modal,
   Popover,
   Tag,
   TypographyText,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
-import { deleteTenant, getTenantList } from '#/api/rental';
+import {
+  deleteTenant,
+  getTenantList,
+  getTenantSmsInfo,
+  sendSms,
+} from '#/api/rental';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -100,6 +106,57 @@ function onView(row: RentalManagementItem) {
   // For mobile, viewing is often the same as editing but read-only.
   // The Form component itself should handle the readonly state if passed.
   formModalApi.setData({ ...row, readonly: true }).open();
+}
+
+/**
+ * 发送短信
+ */
+async function onSendSms(row: RentalManagementItem) {
+  try {
+    // 添加确认对话框
+    Modal.confirm({
+      content: `您确定要向租户 [${row.tenantName}] 发送短信吗？`,
+      onCancel() {
+        message.info('已取消发送短信');
+      },
+      onOk: async () => {
+        message.loading({
+          content: '正在获取租户信息...',
+          duration: 0,
+          key: 'sms_process_msg',
+        });
+
+        // 获取租户短信信息
+        const smsInfo = await getTenantSmsInfo(row.rentalTenantId);
+
+        message.loading({
+          content: '正在发送短信...',
+          duration: 0,
+          key: 'sms_process_msg',
+        });
+
+        // 发送短信
+        await sendSms({
+          contractEndDate: smsInfo.contractEndDate,
+          increaseDate: smsInfo.increaseDate,
+          phoneNumber: smsInfo.phoneNumber,
+          tenantName: smsInfo.tenantName,
+        });
+
+        message.success({
+          content: `短信已成功发送给 ${row.tenantName}`,
+          key: 'sms_process_msg',
+        });
+      },
+      title: '发送短信确认',
+    });
+  } catch (error) {
+    console.error('发送短信失败:', error);
+    message.error({
+      content: `发送短信失败: ${(error as Error).message || '未知错误'}`,
+      key: 'sms_process_msg',
+    });
+  }
 }
 
 async function fetchList(newParams = {}) {
@@ -207,6 +264,9 @@ const pageStyle = computed(() => ({
                       </Button>
                       <Button type="link" size="small" @click="onEdit(item)">
                         {{ $t('ui.action.edit') }}
+                      </Button>
+                      <Button type="link" size="small" @click="onSendSms(item)">
+                        发短信
                       </Button>
                       <Button
                         type="link"

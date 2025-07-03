@@ -713,6 +713,10 @@ export function useColumns<T = any>(
             text: '查看',
           },
           'edit', // 默认的编辑按钮
+          {
+            code: 'sms',
+            text: '发短信',
+          },
           'delete', // 默认的删除按钮
         ],
       },
