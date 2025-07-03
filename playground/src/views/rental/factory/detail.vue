@@ -87,9 +87,8 @@ const detail = ref<FactoryDetail>({
 async function fetchFactoryDetail() {
   loading.value = true;
   try {
-    console.warn('获取厂房详情，ID:', id.value);
     const res = await getFactoryDetail(Number(id.value));
-    console.warn('获取到的厂房详情数据:', res);
+
     if (res) {
       // 辅助函数：检查日期字符串是否有效
       const isValidDate = (dateString: null | string | undefined): boolean => {

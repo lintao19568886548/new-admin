@@ -86,9 +86,8 @@ const detail = ref<ParkDetail>({
 async function fetchParkDetail() {
   loading.value = true;
   try {
-    console.warn('获取园区详情，ID:', id.value);
     const res = await getParkDetail(Number(id.value));
-    console.warn('获取到的园区详情数据:', res);
+
     if (res) {
       // 辅助函数：检查日期字符串是否有效
       const isValidDate = (dateString: null | string | undefined): boolean => {
@@ -239,7 +238,6 @@ function openImagePreview(
     .filter((url) => !!url) as string[]; // Filter out any remaining invalid URLs
 
   if (validImgList.length === 0) {
-    message.warn('没有可预览的图片');
     return;
   }
 

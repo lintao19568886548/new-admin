@@ -9,7 +9,7 @@ import { formatDateTime } from '@vben/utils';
 
 import { Button, message, Spin, Tag } from 'ant-design-vue';
 
-import { getFactoryList } from '#/api/factory';
+import { getAvailableFactoryList } from '#/api/factory';
 import { useParkStore } from '#/store';
 
 const store = useParkStore();
@@ -29,7 +29,7 @@ const searchParams = ref({
   title: '',
 });
 
-// 获取厂房列表数据
+// 获取有空闲面积的厂房列表数据
 async function fetchFactoryList(isLoadMore = false) {
   if (loading.value) return;
 
@@ -53,8 +53,7 @@ async function fetchFactoryList(isLoadMore = false) {
       params.tag = undefined;
     }
 
-    const res = await getFactoryList(params);
-    console.warn('获取到的厂房列表数据:', res);
+    const res = await getAvailableFactoryList(params);
 
     // 转换后端数据为前端需要的格式
     const items = res.items.map((item: any) => {
@@ -85,8 +84,8 @@ async function fetchFactoryList(isLoadMore = false) {
     // 判断是否还有更多数据
     hasMore.value = projectItems.value.length < total.value;
   } catch (error) {
-    console.error('获取厂房列表失败:', error);
-    message.error('获取厂房列表失败');
+    console.error('获取有空闲面积厂房列表失败:', error);
+    message.error('获取有空闲面积厂房列表失败');
   } finally {
     loading.value = false;
   }
@@ -136,7 +135,6 @@ const router = useRouter();
 
 // 导航到详情页
 function navTo(nav: any) {
-  console.warn('导航到厂房详情页，ID:', nav.id);
   router.push(`/rental/factory/detail/${nav.id}`);
 }
 
@@ -187,7 +185,7 @@ onUnmounted(() => {
         <Spin :spinning="loading">
           <RentalProject
             :items="filteredItems"
-            title="厂房列表"
+            title="待租厂房列表"
             @click="navTo"
             @search="handleSearch"
           >

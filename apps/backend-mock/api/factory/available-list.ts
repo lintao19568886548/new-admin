@@ -1,11 +1,16 @@
 import { prismaClient } from '~/utils/db';
-import { useResponseSuccess } from '~/utils/response';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  unAuthorizedResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
 
 const IMG_BASE_URL = '';
 
 /**
- * 获取厂房列表接口
- * 支持分页查询和条件筛选
+ * 获取有空闲面积的厂房列表接口
+ * 支持分页查询和条件筛选，只返回空闲面积大于0的厂房
  */
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -49,14 +54,9 @@ export default eventHandler(async (event) => {
       where.isOwn = query.isOwn === 'true' || query.isOwn === true;
     }
 
-    // 获取总数
-    const total = await prismaClient.factory.count({ where });
-
-    // 获取分页数据
-    const factories = await prismaClient.factory.findMany({
+    // 获取所有符合条件的厂房数据（不分页，用于过滤空闲面积）
+    const allFactories = await prismaClient.factory.findMany({
       where,
-      skip,
-      take: pageSize,
       orderBy: {
         createTime: 'desc',
       },
@@ -89,8 +89,31 @@ export default eventHandler(async (event) => {
       },
     });
 
+    // 过滤出有空闲面积的厂房
+    const availableFactories = allFactories.filter((factory) => {
+      // 计算厂房总的空闲面积
+      const totalArea = factory.floors.reduce(
+        (sum, floor) => sum + Number(floor.totalArea),
+        0,
+      );
+      const usedArea = factory.floors.reduce(
+        (sum, floor) => sum + Number(floor.usedArea),
+        0,
+      );
+      const availableArea = totalArea - usedArea;
+
+      // 只返回空闲面积大于0的厂房
+      return availableArea > 0;
+    });
+
+    // 计算过滤后的总数
+    const total = availableFactories.length;
+
+    // 对过滤后的结果进行分页
+    const paginatedFactories = availableFactories.slice(skip, skip + pageSize);
+
     // 处理返回数据
-    const items = factories.map((factory) => {
+    const items = paginatedFactories.map((factory) => {
       // 处理楼层数据并获取图片
       const floors = factory.floors.map((floor) => {
         const floorImages = floor.images
@@ -155,7 +178,7 @@ export default eventHandler(async (event) => {
       pageSize,
     });
   } catch (error) {
-    console.error('获取厂房列表失败:', error);
-    return serverErrorResponse(`获取厂房列表失败`, event);
+    console.error('查询财务数据失败:', error);
+    return useResponseError('查询财务数据失败', 500);
   }
 });

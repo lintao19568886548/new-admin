@@ -54,7 +54,6 @@ async function fetchParkList(isLoadMore = false) {
     }
 
     const res = await getParkList(params);
-    console.warn('获取到的园区列表数据:', res);
 
     // 转换后端数据为前端需要的格式
     const items = res.items.map((item: any) => {
@@ -132,7 +131,6 @@ const router = useRouter();
 
 // 导航到详情页
 function navTo(nav: any) {
-  console.warn('导航到详情页，ID:', nav.id);
   router.push(`/rental/detail/${nav.id}`);
 }
 
