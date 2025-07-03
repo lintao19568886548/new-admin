@@ -2,15 +2,13 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
-import archiver from 'archiver';
-
 /**
- * @description 压缩文件夹
+ * @description 使用原生 tar 命令创建 tar.gz 压缩包
  * @param {string} folderPath - 需要压缩的文件夹路径
- * @param {string} outputPath - 输出的 zip 文件路径
+ * @param {string} outputPath - 输出的 tar.gz 文件路径
  * @returns {Promise<void>}
  */
-async function zipFolder(folderPath, outputPath) {
+async function createTarGz(folderPath, outputPath) {
   // 确保目标文件夹存在
   const outputDir = path.dirname(outputPath);
   try {
@@ -19,71 +17,59 @@ async function zipFolder(folderPath, outputPath) {
     // 忽略目录已存在的错误
   }
 
+  // 确保源文件夹存在
+  if (!fs.existsSync(folderPath)) {
+    throw new Error(`Source folder not found: ${folderPath}`);
+  }
+
+  console.log('Creating tar.gz archive using native tar command...');
+
+  const { spawn } = await import('node:child_process');
+
   return new Promise((resolve, reject) => {
-    // 确保源文件夹存在
-    if (!fs.existsSync(folderPath)) {
-      return reject(new Error(`Source folder not found: ${folderPath}`));
+    // 删除已存在的文件
+    if (fs.existsSync(outputPath)) {
+      fs.unlinkSync(outputPath);
     }
 
-    const output = fs.createWriteStream(outputPath);
-    const archive = archiver('zip', {
-      zlib: { level: 9 }, // 设置压缩级别
+    // 使用 tar 命令创建 gzip 压缩的 tar 文件
+    const tarProcess = spawn(
+      'tar',
+      [
+        '-czf', // c=create, z=gzip, f=file
+        outputPath,
+        '-C', // 改变到指定目录
+        path.dirname(folderPath),
+        path.basename(folderPath),
+      ],
+      {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    );
+
+    const _stdout = '';
+    let stderr = '';
+
+    tarProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
     });
 
-    output.on('close', () => {
-      console.log(
-        `ZIP file created: ${outputPath} (${archive.pointer()} total bytes)`,
-      );
-      resolve();
+    tarProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
     });
 
-    output.on('error', (err) => {
-      reject(err);
-    });
-
-    archive.on('warning', (err) => {
-      if (err.code === 'ENOENT') {
-        console.warn('Archiver warning:', err);
+    tarProcess.on('close', (code) => {
+      if (code === 0) {
+        console.log(`Archive created successfully: ${outputPath}`);
+        resolve();
       } else {
-        reject(err);
+        reject(new Error(`tar command failed with code ${code}: ${stderr}`));
       }
     });
 
-    archive.on('error', (err) => {
-      reject(err);
+    tarProcess.on('error', (err) => {
+      reject(new Error(`Failed to start tar command: ${err.message}`));
     });
-
-    archive.pipe(output);
-
-    // 将文件夹内容添加到压缩包，false 表示不包含文件夹本身作为根目录
-    // 添加过滤器以排除可能导致解压问题的文件和目录
-    archive.directory(folderPath, false, (entry) => {
-      // 排除 node_modules 目录以避免 Windows/Linux 兼容性问题
-      if (entry.name.includes('node_modules')) {
-        console.log(`跳过 node_modules 相关文件: ${entry.name}`);
-        return false;
-      }
-
-      // 排除符号链接以避免解压时的权限问题
-      if (entry.stats && entry.stats.isSymbolicLink()) {
-        console.log(`跳过符号链接: ${entry.name}`);
-        return false;
-      }
-
-      // 排除可能导致权限问题的隐藏文件和临时文件
-      const fileName = path.basename(entry.name);
-      if (
-        fileName.startsWith('.') &&
-        (fileName.includes('lock') || fileName.includes('cache'))
-      ) {
-        console.log(`跳过缓存/锁文件: ${entry.name}`);
-        return false;
-      }
-
-      return entry;
-    });
-
-    archive.finalize();
   });
 }
 
@@ -94,20 +80,17 @@ async function main() {
   const folderToZip = path.join(backendMockDir, '.output'); // Nitro build 输出目录
   const projectRoot = path.resolve(backendMockDir, '..', '..'); // 项目根目录
   const zipOutputDir = projectRoot; // 将 zip 文件放在项目根目录下
-  const zipFileName = 'node.zip'; // 定义 zip 文件名
-  const zipOutputPath = path.join(zipOutputDir, zipFileName);
+  const tarFileName = 'node.tar.gz'; // 定义 tar.gz 文件名
+  const tarOutputPath = path.join(zipOutputDir, tarFileName);
 
-  console.log(`Starting zipping process for: ${folderToZip}`);
-  console.log(`Outputting ZIP to: ${zipOutputPath}`);
-  console.log(
-    '注意: 为了避免 Windows/Linux 兼容性问题，将自动排除 node_modules 和符号链接',
-  );
+  console.log(`Starting compression process for: ${folderToZip}`);
+  console.log(`Outputting tar.gz to: ${tarOutputPath}`);
 
   try {
-    await zipFolder(folderToZip, zipOutputPath);
-    console.log('Backend output successfully zipped.');
+    await createTarGz(folderToZip, tarOutputPath);
+    console.log('Backend output successfully compressed.');
   } catch (error) {
-    console.error('Error zipping backend output:', error);
+    console.error('Error compressing backend output:', error);
     throw error; // 抛出错误而不是直接退出进程
   }
 }
