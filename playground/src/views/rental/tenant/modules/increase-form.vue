@@ -48,7 +48,7 @@ const [Form, formApi] = useVbenForm({
   layout: 'vertical',
   schema: useIncreaseFormSchema(),
   showDefaultActions: false,
-  wrapperClass: 'grid-cols-3 gap-4',
+  wrapperClass: 'grid-cols-1 md:grid-cols-2 gap-4',
 });
 
 // 处理表单数据，转换成需要的格式

@@ -6,17 +6,16 @@ import { computed, h, onMounted, ref } from 'vue';
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
-// May not be used directly if using custom formatters from data.ts
-import { MoreOutlined } from '@ant-design/icons-vue';
+import { DeleteOutlined, EditOutlined } from '@ant-design/icons-vue';
 import {
   Button,
   Card,
+  Empty,
   Flex,
   List,
   message,
-  Popover,
+  Popconfirm,
   Tag,
-  TypographyText,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
@@ -24,7 +23,14 @@ import { deleteTenant, getTenantList } from '#/api/rental';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
-import { getTagTypeOptions } from './data'; // For status tags
+import {
+  calculateIncreaseDateDisplay,
+  calculateIncreaseRateDisplay,
+  formatAreaDisplay,
+  formatContractDateDisplay,
+  formatRentDisplay,
+  getTagTypeOptions,
+} from './data';
 import Form from './modules/form.vue';
 
 const currentPark = ref();
@@ -32,9 +38,13 @@ const loading = ref(false);
 const tenantList = ref<RentalManagementItem[]>([]);
 const pagination = ref({
   currentPage: 1,
-  pageSize: 10, // Mobile-friendly page size
+  pageSize: 10,
   total: 0,
 });
+
+const isLastPage = computed(
+  () => tenantList.value.length >= pagination.value.total,
+);
 
 const tagTypeOptions = getTagTypeOptions();
 
@@ -45,19 +55,6 @@ const getStatusTag = (row: RentalManagementItem) => {
   const statusText = isExpired ? '过期' : '生效中';
   const option = tagTypeOptions.find((opt) => opt.value === statusText);
   return h(Tag, { color: option?.color || 'default' }, () => statusText);
-};
-
-const formatContractDate = (row: RentalManagementItem) => {
-  const start = row.contractStart
-    ? dayjs(row.contractStart).format('YYYY.MM.DD')
-    : '';
-  const end = row.contractEnd
-    ? dayjs(row.contractEnd).format('YYYY.MM.DD')
-    : '';
-  if (!start && !end) return '';
-  if (start && !end) return start;
-  if (!start && end) return end;
-  return `${start} - ${end}`;
 };
 
 const [FormModal, formModalApi] = useVbenModal({
@@ -86,6 +83,7 @@ async function onDelete(row: RentalManagementItem) {
       content: $t('ui.actionMessage.deleteSuccess', [row.tenantName || '']),
       key: 'action_process_msg',
     });
+    // Refresh the list after deletion
     fetchList();
   } catch (error) {
     console.error('删除租户失败:', error);
@@ -96,70 +94,55 @@ async function onDelete(row: RentalManagementItem) {
   }
 }
 
-function onView(row: RentalManagementItem) {
-  // For mobile, viewing is often the same as editing but read-only.
-  // The Form component itself should handle the readonly state if passed.
-  formModalApi.setData({ ...row, readonly: true }).open();
-}
-
-async function fetchList(newParams = {}) {
+async function fetchList(isLoadMore = false) {
   loading.value = true;
+  if (!isLoadMore) {
+    pagination.value.currentPage = 1;
+  }
   const params = {
     currentPage: pagination.value.currentPage,
     currentPark: currentPark.value ? currentPark.value.parkId : -1,
     pageSize: pagination.value.pageSize,
-    ...newParams, // Allow for additional filter params if needed in future
   };
   try {
     const result = await getTenantList(params);
-    tenantList.value = result.items || [];
+    const newItems = result.items || [];
+    if (isLoadMore) {
+      tenantList.value.push(...newItems);
+    } else {
+      tenantList.value = newItems;
+    }
     pagination.value.total = result.total || 0;
-    pagination.value.currentPage = result.currentPage || 1;
-    pagination.value.pageSize = result.pageSize || 10;
   } catch (error) {
     console.error('获取租户列表失败:', error);
     message.error('获取租户列表失败');
-    tenantList.value = [];
-    pagination.value.total = 0;
   } finally {
     loading.value = false;
   }
 }
 
-function handleTableChange(page: number, pageSize: number) {
-  pagination.value.currentPage = page;
-  pagination.value.pageSize = pageSize;
-  fetchList();
+function handleLoadMore() {
+  if (isLastPage.value) return;
+  pagination.value.currentPage++;
+  fetchList(true);
 }
 
 function refreshList() {
-  pagination.value.currentPage = 1;
+  tenantList.value = [];
   fetchList();
 }
 
 onMounted(() => {
   fetchList();
 });
-
-const pageStyle = computed(() => ({
-  // maxWidth: '400px',
-  // margin: '0 auto',
-  // border: '1px solid #eee',
-  // overflowY: 'auto',
-  // height: '641px' // If strict height simulation is needed
-}));
 </script>
 
 <template>
-  <Page :style="pageStyle" class="mobile-tenant-list-page">
+  <Page class="mobile-tenant-list-page">
     <FormModal @success="refreshList" />
 
     <template #header-content>
-      <Flex
-        justify="space-between"
-        align="center"
-        class="mb-2 rounded-md bg-white px-3 py-2 shadow-sm"
-      >
+      <Flex justify="space-between" align="center" class="mobile-header">
         <AreaSelector
           :default-park="currentPark"
           :refresh-callback="refreshList"
@@ -173,125 +156,228 @@ const pageStyle = computed(() => ({
         />
         <Button type="primary" size="small" @click="onCreate">
           <Plus class="size-4" />
-          {{ $t('ui.actionTitle.createSimple') }}
-          <!-- Assuming this key exists -->
+          新增合同管理
         </Button>
       </Flex>
     </template>
 
-    <div class="p-2">
+    <div class="mobile-content">
+      <Empty
+        v-if="!loading && tenantList.length === 0"
+        description="暂无租户数据"
+        class="py-10"
+      />
       <List
+        v-else
         :data-source="tenantList"
-        :loading="loading"
-        :pagination="{
-          current: pagination.currentPage,
-          pageSize: pagination.pageSize,
-          total: pagination.total,
-          onChange: handleTableChange,
-          size: 'small',
-          showSizeChanger: true,
-          pageSizeOptions: ['10', '20', '30', '50'],
-        }"
+        :loading="loading && pagination.currentPage === 1"
+        :split="false"
         item-layout="vertical"
         row-key="rentalTenantId"
       >
         <template #renderItem="{ item }">
           <List.Item>
-            <Card :title="item.tenantName" size="small" class="mb-2 shadow-md">
-              <template #extra>
-                <Popover title="操作" trigger="click" placement="leftTop">
-                  <template #content>
-                    <Flex vertical gap="small">
-                      <Button type="link" size="small" @click="onView(item)">
-                        {{ $t('ui.action.view') }}
-                      </Button>
-                      <Button type="link" size="small" @click="onEdit(item)">
-                        {{ $t('ui.action.edit') }}
-                      </Button>
-                      <Button
-                        type="link"
-                        size="small"
-                        danger
-                        @click="onDelete(item)"
-                      >
-                        {{ $t('ui.action.delete') }}
-                      </Button>
-                    </Flex>
-                  </template>
-                  <Button type="text" size="small">
-                    <MoreOutlined />
-                  </Button>
-                </Popover>
-              </template>
-
-              <Flex vertical gap="small">
-                <div>
-                  <TypographyText type="secondary">
-                    {{ $t('system.rental.tenant.phone') }}:
-                  </TypographyText>
-                  <TypographyText>{{ item.phoneNumber }}</TypographyText>
-                </div>
-                <div>
-                  <TypographyText type="secondary">
-                    {{ $t('system.rental.tenant.status.label') }}:
-                  </TypographyText>
+            <Card :bordered="false" class="tenant-card">
+              <template #title>
+                <div class="card-header">
+                  <span class="tenant-name">{{ item.tenantName }}</span>
                   <component :is="getStatusTag(item)" />
                 </div>
-                <div>
-                  <TypographyText type="secondary">
-                    {{ $t('system.rental.tenant.contractDate') }}:
-                  </TypographyText>
-                  <TypographyText>
-                    {{ formatContractDate(item) }}
-                  </TypographyText>
+              </template>
+
+              <div class="info-grid">
+                <div class="info-item">
+                  <span class="info-label">电话:</span>
+                  <span>{{ item.phoneNumber || '暂无' }}</span>
                 </div>
-                <div v-if="item.area">
-                  <TypographyText type="secondary">
-                    {{ $t('page.rental.area') }}:
-                  </TypographyText>
-                  <TypographyText>{{ item.area }}㎡</TypographyText>
+                <div class="info-item">
+                  <span class="info-label">租金:</span>
+                  <span>{{ formatRentDisplay(item.rent) || '暂无' }}</span>
                 </div>
-                <div v-if="item.rent">
-                  <TypographyText type="secondary">
-                    {{ $t('page.common.rent') }}:
-                  </TypographyText>
-                  <TypographyText>{{ item.rent }}元/月</TypographyText>
+                <div class="info-item">
+                  <span class="info-label">面积:</span>
+                  <span>{{ formatAreaDisplay(item.area) || '暂无' }}</span>
                 </div>
-                <div v-if="item.address">
-                  <TypographyText type="secondary">
-                    {{ $t('system.rental.tenant.address') }}:
-                  </TypographyText>
-                  <TypographyText>{{ item.address }}</TypographyText>
+                <div class="info-item full-width">
+                  <span class="info-label">地址:</span>
+                  <span>{{ item.address || '暂无地址' }}</span>
                 </div>
-                <!-- Add other relevant fields from RentalManagementItem as needed -->
-                <div v-if="item.remark">
-                  <TypographyText type="secondary">
-                    {{ $t('page.common.remark') }}:
-                  </TypographyText>
-                  <TypographyText>{{ item.remark }}</TypographyText>
+
+                <div class="info-item full-width">
+                  <span class="info-label">合同日期:</span>
+                  <span>{{
+                    formatContractDateDisplay(item) || '暂无合同日期'
+                  }}</span>
                 </div>
-              </Flex>
+                <div class="info-item full-width">
+                  <span class="info-label">下次递增:</span>
+                  <span>{{
+                    `${calculateIncreaseRateDisplay(item) || '无'} (${
+                      calculateIncreaseDateDisplay(item) || '无'
+                    })`
+                  }}</span>
+                </div>
+              </div>
+
+              <template #actions>
+                <Button type="text" @click="onEdit(item)">
+                  <template #icon><EditOutlined /></template>
+                  {{ $t('ui.action.edit') }}
+                </Button>
+                <Popconfirm
+                  :title="
+                    $t('ui.actionMessage.deleteConfirm', [item.tenantName])
+                  "
+                  @confirm="onDelete(item)"
+                  placement="top"
+                  :overlay-style="{ maxWidth: '250px' }"
+                >
+                  <Button
+                    type="text"
+                    status="danger"
+                    :aria-label="$t('ui.action.delete')"
+                  >
+                    <template #icon><DeleteOutlined /></template>
+                    {{ $t('ui.action.delete') }}
+                  </Button>
+                </Popconfirm>
+              </template>
             </Card>
           </List.Item>
+        </template>
+        <template #loadMore>
+          <div v-if="!isLastPage" class="load-more-container">
+            <Button @click="handleLoadMore" :loading="loading" block>
+              加载更多
+            </Button>
+          </div>
+          <div
+            v-else-if="tenantList.length > 0"
+            class="load-more-container no-more"
+          >
+            没有更多了
+          </div>
         </template>
       </List>
     </div>
   </Page>
 </template>
 
-<style lang="less" scoped>
+<style scoped>
 .mobile-tenant-list-page {
-  // background-color: #f0f2f5;
+  background-color: #f5f5f5;
+}
 
-  // :deep(.ant-card-head) {
-  //   padding: 0 12px;
-  //   min-height: 38px;
-  // }
-  // :deep(.ant-card-body) {
-  //   padding: 12px;
-  // }
-  // :deep(.ant-list-item) {
-  //   padding: 8px 0;
-  // }
+.mobile-header {
+  padding: 12px 16px;
+  background-color: #fff;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.mobile-content {
+  padding: 8px;
+}
+
+:deep(.ant-list-item) {
+  padding: 8px 0 !important;
+  border: none !important;
+}
+
+.tenant-card {
+  width: 100%;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 9%);
+}
+
+:deep(.ant-card-head) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: auto;
+  padding: 10px 16px;
+  font-size: 16px;
+}
+
+:deep(.ant-card-head-title) {
+  flex: 1 1 auto;
+  padding: 0;
+}
+
+:deep(.ant-card-extra) {
+  flex: 0 0 auto;
+  padding: 0;
+  margin-left: 8px;
+}
+
+:deep(.ant-card-body) {
+  padding: 12px 16px;
+}
+
+:deep(.ant-card-actions) {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 10px 16px;
+  font-size: 15px;
+  background-color: #fff;
+}
+
+:deep(.ant-card-actions > li) {
+  flex: 0 1 auto;
+  justify-content: space-between;
+  margin: 0 !important;
+  text-align: center;
+  border-right: none !important;
+}
+
+.card-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tenant-name {
+  font-size: 17px;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-size: 15px;
+  color: #555;
+}
+
+.info-item {
+  display: flex;
+  align-items: start;
+  width: max-content;
+  overflow: hidden;
+}
+
+.info-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.info-label {
+  flex-shrink: 0;
+  padding-right: 8px;
+  color: #888;
+  text-align: left;
+}
+
+.load-more-container {
+  padding: 16px 0;
+}
+
+.load-more-container.no-more {
+  font-size: 14px;
+  color: #999;
+  text-align: center;
 }
 </style>
