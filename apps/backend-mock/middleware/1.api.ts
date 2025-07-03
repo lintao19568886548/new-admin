@@ -92,7 +92,7 @@ export default defineEventHandler(async (event) => {
 
       // 记录日志
       console.log(`
-        \n请求日志：\n${JSON.stringify(
+        \n1.api请求日志：\n${JSON.stringify(
           {
             timestamp: new Date(endTime).toISOString(),
             method,

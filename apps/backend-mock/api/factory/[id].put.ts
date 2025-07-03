@@ -46,9 +46,17 @@ export default eventHandler(async (event) => {
         });
       }
 
-      // 4. 创建新的楼层及其关联图片
+      // 4. 验证楼层数据并创建新的楼层及其关联图片
       for (const floor of floors) {
         const { images, ...floorData } = floor;
+
+        // 验证已用面积不能大于总面积
+        if (floorData.usedArea > floorData.totalArea) {
+          throw new Error(
+            `楼层 ${floorData.floorName} 的已用面积(${floorData.usedArea}m²)不能大于总面积(${floorData.totalArea}m²)`,
+          );
+        }
+
         // 移除 floorId，因为是新建
         delete floorData.floorId;
 

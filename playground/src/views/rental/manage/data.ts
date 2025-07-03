@@ -331,7 +331,13 @@ export function useFloorFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'floorHeight',
       label: $t('page.floor.height'),
-      rules: 'required',
+      rules: z.coerce
+        .number({
+          required_error: $t('ui.formRules.required', [
+            $t('page.floor.height'),
+          ]),
+        })
+        .min(0, '层高不能为负数'),
     },
     {
       component: 'InputNumber',
@@ -343,7 +349,13 @@ export function useFloorFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'loadBearing',
       label: $t('page.floor.loadBearing'),
-      rules: 'required',
+      rules: z.coerce
+        .number({
+          required_error: $t('ui.formRules.required', [
+            $t('page.floor.loadBearing'),
+          ]),
+        })
+        .min(0, '承重不能为负数'),
     },
     {
       component: 'InputNumber',
@@ -355,7 +367,13 @@ export function useFloorFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'rentPrice',
       label: $t('page.floor.rentPrice'),
-      rules: 'required',
+      rules: z.coerce
+        .number({
+          required_error: $t('ui.formRules.required', [
+            $t('page.floor.rentPrice'),
+          ]),
+        })
+        .min(0, '租金不能为负数'),
     },
     {
       component: 'InputNumber',
@@ -367,7 +385,13 @@ export function useFloorFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'totalArea',
       label: $t('page.floor.totalArea'),
-      rules: 'required',
+      rules: z.coerce
+        .number({
+          required_error: $t('ui.formRules.required', [
+            $t('page.floor.totalArea'),
+          ]),
+        })
+        .min(0, '总面积不能为负数'),
     },
     {
       component: 'InputNumber',
@@ -377,9 +401,39 @@ export function useFloorFormSchema(): VbenFormSchema[] {
           width: '90%',
         },
       },
+      dependencies: {
+        rules: (values) => {
+          const totalArea = Number(values.totalArea) || 0;
+
+          return z.coerce
+            .number({
+              required_error: $t('ui.formRules.required', [
+                $t('page.floor.usedArea'),
+              ]),
+            })
+            .min(0, '已用面积不能为负数')
+            .refine(
+              (val) => {
+                // 如果总面积为0或未填写，则不进行比较验证
+                if (!totalArea) return true;
+                return val <= totalArea;
+              },
+              {
+                message: '已用面积不能大于总面积',
+              },
+            );
+        },
+        triggerFields: ['totalArea', 'usedArea'],
+      },
       fieldName: 'usedArea',
       label: $t('page.floor.usedArea'),
-      rules: 'required',
+      rules: z.coerce
+        .number({
+          required_error: $t('ui.formRules.required', [
+            $t('page.floor.usedArea'),
+          ]),
+        })
+        .min(0, '已用面积不能为负数'),
     },
     {
       component: 'Input',

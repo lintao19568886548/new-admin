@@ -20,6 +20,9 @@
     "create": "Create Rental",
     "detail": "Rental Detail",
     "edit": "Edit Rental",
+    "factory": "Available Factories",
+    "factoryDetail": "Factory Detail",
+    "factoryList": "Available Factory List",
     "list": "Rental List",
     "title": "Rental Management",
     "view": "View Rental"

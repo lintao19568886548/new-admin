@@ -1,16 +1,30 @@
 import { prismaClient } from '~/utils/db';
-import { useResponseSuccess } from '~/utils/response';
+import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
-  const body = await readBody(event);
+  // 优先使用中间件处理后的请求体，如果没有则读取原始请求体
+  const body = event.context.factoryBody || (await readBody(event));
 
-  // 从 body 中分离出 floors 数据和 factory 的基本数据
+  // 从 body 中分离出 floors 数据、isOwn 参数和 factory 的基本数据
   const { floors, ...factoryData } = body;
   console.log('floors', floors);
+
+  // 验证楼层数据
+  if (floors && Array.isArray(floors)) {
+    for (const floor of floors) {
+      if (floor.usedArea > floor.totalArea) {
+        return useResponseError(
+          `楼层 ${floor.floorName} 的已用面积(${floor.usedArea}m²)不能大于总面积(${floor.totalArea}m²)`,
+          400,
+        );
+      }
+    }
+  }
+
   try {
     // 使用 Prisma 嵌套写入创建 Factory 及其关联的 Floors 和 Images
     const res = await prismaClient.factory.create({

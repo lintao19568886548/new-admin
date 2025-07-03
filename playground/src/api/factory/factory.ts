@@ -4,6 +4,10 @@ export async function getFactoryList(params?: any) {
   return requestClient.get('/factory/list', { params });
 }
 
+export async function getAvailableFactoryList(params?: any) {
+  return requestClient.get('/factory/available-list', { params });
+}
+
 export async function getFactoryDetail(id: number) {
   return requestClient.get(`/factory/${id}`);
 }

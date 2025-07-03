@@ -746,6 +746,15 @@ export function useColumns<T = any>(
       title: $t('system.rental.tenant.address'),
     },
     {
+      field: 'sendMessage',
+      formatter: ({ cellValue }) => {
+        if (!cellValue) return '未发送';
+        return dayjs(cellValue).format('YYYY-MM-DD HH:mm');
+      },
+      title: '上次发送短信',
+      width: 140,
+    },
+    {
       align: 'center',
       cellRender: {
         attrs: {
@@ -760,6 +769,10 @@ export function useColumns<T = any>(
             text: '查看',
           },
           'edit', // 默认的编辑按钮
+          {
+            code: 'sms',
+            text: '发短信',
+          },
           'delete', // 默认的删除按钮
         ],
       },

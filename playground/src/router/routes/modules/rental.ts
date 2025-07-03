@@ -69,6 +69,25 @@ const routes: RouteRecordRaw[] = [
         name: 'RentalDetail',
         path: 'list/detail/:id',
       },
+      {
+        component: () => import('#/views/rental/factory/index.vue'),
+        meta: {
+          icon: 'mdi:factory', // 厂房图标
+          title: $t('page.rental.factory'),
+        },
+        name: 'FactoryList',
+        path: 'factory',
+      },
+      {
+        component: () => import('#/views/rental/factory/detail.vue'),
+        meta: {
+          hideInMenu: true,
+          icon: 'mdi:factory', // 厂房详情图标
+          title: $t('page.rental.factoryDetail'),
+        },
+        name: 'FactoryDetail',
+        path: 'factory/detail/:id',
+      },
     ],
   },
 ];

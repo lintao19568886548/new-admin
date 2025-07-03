@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import type { ParkListItem } from './types';
+import type { FactoryListItem } from './types';
 
-import { computed, onActivated, onMounted, onUnmounted, ref } from 'vue'; // 导入 onActivated
+import { computed, onActivated, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { RentalProject } from '@vben/common-ui';
@@ -9,13 +9,13 @@ import { formatDateTime } from '@vben/utils';
 
 import { Button, message, Spin, Tag } from 'ant-design-vue';
 
-import { getParkList } from '#/api/rental'; // 需要创建新的API
+import { getAvailableFactoryList } from '#/api/factory';
 import { useParkStore } from '#/store';
 
 const store = useParkStore();
 
-// 园区列表数据
-const projectItems = ref<ParkListItem[]>([]);
+// 厂房列表数据
+const projectItems = ref<FactoryListItem[]>([]);
 const loading = ref(false);
 const currentPage = ref(1);
 const pageSize = ref(9); // 每次加载3行，每行3个，共9个
@@ -29,8 +29,8 @@ const searchParams = ref({
   title: '',
 });
 
-// 获取园区列表数据
-async function fetchParkList(isLoadMore = false) {
+// 获取有空闲面积的厂房列表数据
+async function fetchFactoryList(isLoadMore = false) {
   if (loading.value) return;
 
   loading.value = true;
@@ -41,9 +41,9 @@ async function fetchParkList(isLoadMore = false) {
       pageSize: pageSize.value,
     };
 
-    // 如果搜索title，映射到parkName字段
+    // 如果搜索title，映射到factoryName字段
     if (params.title) {
-      params.parkName = params.title;
+      params.factoryName = params.title;
       params.title = undefined;
     }
 
@@ -53,23 +53,27 @@ async function fetchParkList(isLoadMore = false) {
       params.tag = undefined;
     }
 
-    const res = await getParkList(params);
+    const res = await getAvailableFactoryList(params);
 
     // 转换后端数据为前端需要的格式
     const items = res.items.map((item: any) => {
       // 直接使用后端返回的imgUrl，如果没有则使用默认图片
-      const imgUrl = item.imgUrl || store.defaultImgUrl; // 使用常量
+      const imgUrl = item.imgUrl || store.defaultImgUrl;
 
       return {
         address: item.address,
-        area: item.area,
+        area: item.area || 0,
+        availableArea: item.availableArea || 0,
+        buildingNumber: item.buildingNumber || item.factoryName,
         content: item.description || '暂无描述',
-        date: item.createTime ? formatDateTime(item.createTime) : 'N/A', // 添加日期检查
-        group: item.parkName, // 使用园区名称作为分组
-        id: item.parkId,
+        date: item.createTime ? formatDateTime(item.createTime) : 'N/A',
+        floorCount: item.floorCount || (item.floors ? item.floors.length : 0),
+        group: item.factoryName, // 使用厂房名称作为分组
+        id: item.factoryId,
         imgUrl,
+        rentPrice: item.rentPrice || 0,
         tag: item.status || '正常', // 直接使用status值，如果为空则显示"正常"
-        title: item.parkName,
+        title: item.factoryName,
       };
     });
 
@@ -80,8 +84,8 @@ async function fetchParkList(isLoadMore = false) {
     // 判断是否还有更多数据
     hasMore.value = projectItems.value.length < total.value;
   } catch (error) {
-    console.error('获取园区列表失败:', error);
-    message.error('获取园区列表失败');
+    console.error('获取有空闲面积厂房列表失败:', error);
+    message.error('获取有空闲面积厂房列表失败');
   } finally {
     loading.value = false;
   }
@@ -92,7 +96,7 @@ async function loadMore() {
   if (!hasMore.value || loading.value) return;
 
   currentPage.value += 1;
-  await fetchParkList(true);
+  await fetchFactoryList(true);
 }
 
 // 根据搜索条件过滤项目
@@ -121,7 +125,7 @@ function handleSearch(params: any) {
     }
     searchParams.value = { ...params };
     currentPage.value = 1; // 重置页码
-    fetchParkList(); // 重新加载数据
+    fetchFactoryList(); // 重新加载数据
   } catch (error) {
     console.error('搜索处理出错:', error);
   }
@@ -131,7 +135,7 @@ const router = useRouter();
 
 // 导航到详情页
 function navTo(nav: any) {
-  router.push(`/rental/detail/${nav.id}`);
+  router.push(`/rental/factory/detail/${nav.id}`);
 }
 
 // 监听滚动事件，实现懒加载
@@ -153,15 +157,15 @@ async function handleScroll() {
   }
 }
 
-// 新增：刷新列表数据的函数
+// 刷新列表数据的函数
 const refreshListData = () => {
   currentPage.value = 1; // 重置到第一页
   projectItems.value = []; // 清空现有项目，以便显示加载状态或避免旧数据闪烁
-  fetchParkList(); // 获取第一页数据
+  fetchFactoryList(); // 获取第一页数据
 };
 
 onMounted(() => {
-  refreshListData(); // 修改为调用新的刷新函数
+  refreshListData();
   window.addEventListener('scroll', handleScroll);
 });
 
@@ -181,7 +185,7 @@ onUnmounted(() => {
         <Spin :spinning="loading">
           <RentalProject
             :items="filteredItems"
-            title="园区列表"
+            title="待租厂房列表"
             @click="navTo"
             @search="handleSearch"
           >
