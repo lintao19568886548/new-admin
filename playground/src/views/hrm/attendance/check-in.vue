@@ -135,53 +135,69 @@ const initMap = async () => {
   map.setViewport(points);
   mapInitialized.value = true;
 
-  // 添加定位控件
-  // 创建一个1x1的透明图标
-  const transparentIcon = new BMap.Icon(
-    'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
-    new BMap.Size(1, 1),
-  );
-
-  // 这是给用户点击的UI控件
-  const locationCtrl = new BMap.GeolocationControl({
-    anchor: (window as any).BMAP_ANCHOR_BOTTOM_RIGHT,
-    locationIcon: transparentIcon, // 使用透明图标，隐藏默认的蓝色圆点
-    showAddressBar: false,
-  });
-
-  // 控件的事件监听，用于用户手动点击时更新状态
-  locationCtrl.addEventListener('locationprocess', () => {
-    locationLoading.value = true;
-  });
-  locationCtrl.addEventListener('locationSuccess', (e: any) => {
-    updateLocationDetails(e.point);
-    map.setZoom(17);
-    locationLoading.value = false;
-  });
-  locationCtrl.addEventListener('locationError', () => {
-    message.error('定位失败，请检查设备权限或网络连接');
-    currentLocation.value = '定位失败';
-    locationLoading.value = false;
-  });
-  map.addControl(locationCtrl);
-
   // 这是用于程序化调用的核心定位服务
   const geolocation = new BMap.Geolocation();
-  geolocation.getCurrentPosition(
-    (result: any) => {
-      if (geolocation.getStatus() === (window as any).BMAP_STATUS_SUCCESS) {
-        // 定位成功，更新位置信息
-        updateLocationDetails(result.point);
-        locationLoading.value = false;
-      } else {
-        // 定位失败
-        message.error('初始定位失败，请尝试手动点击右下角按钮');
-        currentLocation.value = '定位失败';
-        locationLoading.value = false;
-      }
-    },
-    { enableHighAccuracy: true },
-  );
+
+  // 统一定位逻辑
+  const locate = () => {
+    locationLoading.value = true;
+    geolocation.getCurrentPosition(
+      (result: any) => {
+        if (geolocation.getStatus() === (window as any).BMAP_STATUS_SUCCESS) {
+          updateLocationDetails(result.point);
+          locationLoading.value = false;
+        } else {
+          message.error('定位失败，请检查设备权限或网络连接');
+          currentLocation.value = '定位失败';
+          locationLoading.value = false;
+        }
+      },
+      // 优化定位参数
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0, // 不使用缓存
+        timeout: 10_000, // 10秒超时
+      },
+    );
+  };
+
+  // 创建自定义定位控件
+  function CustomLocationControl(this: any) {
+    this.defaultAnchor = (window as any).BMAP_ANCHOR_BOTTOM_RIGHT;
+    this.defaultOffset = new BMap.Size(20, 20);
+  }
+  CustomLocationControl.prototype = new (window as any).BMap.Control();
+  CustomLocationControl.prototype.initialize = function (mapInstance: any) {
+    const controlDiv = document.createElement('div');
+    controlDiv.style.width = '38px';
+    controlDiv.style.height = '38px';
+    controlDiv.style.background = 'white';
+    controlDiv.style.borderRadius = '2px';
+    controlDiv.style.boxShadow = '0 2px 6px rgba(0,0,0,.15)';
+    controlDiv.style.cursor = 'pointer';
+    controlDiv.style.display = 'flex';
+    controlDiv.style.alignItems = 'center';
+    controlDiv.style.justifyContent = 'center';
+
+    // 使用了一个开源的 crosshair 图标
+    controlDiv.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="22" y1="12" x2="18" y2="12"></line><line x1="6" y1="12" x2="2" y2="12"></line><line x1="12" y1="6" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="18"></line></svg>';
+
+    controlDiv.addEventListener('click', (e: Event) => {
+      e.stopPropagation();
+      locate();
+    });
+
+    mapInstance.getContainer().append(controlDiv);
+    return controlDiv;
+  };
+
+  // 添加自定义控件到地图
+  const customLocationCtrl = new (CustomLocationControl as any)();
+  map.addControl(customLocationCtrl);
+
+  // 页面加载时执行初次定位
+  locate();
 };
 
 // 更新位置相关的所有状态
@@ -347,7 +363,6 @@ const getStatusInfo = (status: null | number) => {
 // 加载今日记录
 const loadTodayRecord = async () => {
   if (!userInfo?.realName) return; // 如果没有 username，则不执行
-  if (isTodayRecordLoaded.value) return; // 防止重复加载
 
   try {
     const data = await getTodayRecord({ username: userInfo.realName });
@@ -370,11 +385,10 @@ const loadTodayRecord = async () => {
     } else {
       todayRecord.value = null;
     }
+    isTodayRecordLoaded.value = true; // 标记已加载
   } catch (error: any) {
     console.error('加载今日记录失败:', error);
     message.error(`加载今日记录失败: ${error.message || '未知错误'}`);
-  } finally {
-    isTodayRecordLoaded.value = true; // 标记已加载
   }
 };
 
