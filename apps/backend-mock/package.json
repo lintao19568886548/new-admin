@@ -30,7 +30,6 @@
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
     "@types/jsonwebtoken": "catalog:",
-    "archiver": "^7.0.1",
     "h3": "catalog:",
     "nitropack": "^2.11.8",
     "prisma": "^6.7.0"
