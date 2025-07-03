@@ -6,9 +6,10 @@ export default eventHandler(async (event) => {
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
-  const body = await readBody(event);
+  // 优先使用中间件处理后的请求体，如果没有则读取原始请求体
+  const body = event.context.factoryBody || (await readBody(event));
 
-  // 从 body 中分离出 floors 数据和 factory 的基本数据
+  // 从 body 中分离出 floors 数据、isOwn 参数和 factory 的基本数据
   const { floors, ...factoryData } = body;
   console.log('floors', floors);
   try {

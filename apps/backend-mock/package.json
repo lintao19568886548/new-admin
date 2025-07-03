@@ -6,7 +6,7 @@
   "license": "MIT",
   "author": "",
   "scripts": {
-    "build": "npx prisma generate && nitro build && node ./scripts/zip-nitro-output.mjs",
+    "build": "npx prisma generate && nitro build && node ./scripts/tar-nitro-output.mjs",
     "start": "npx prisma generate && nitro dev",
     "generate": "npx prisma generate",
     "push": "npx prisma db push"
