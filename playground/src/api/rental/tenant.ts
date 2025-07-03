@@ -83,6 +83,7 @@ export async function sendSms(data: {
   contractEndDate: string;
   increaseDate: string;
   phoneNumber: string;
+  rentalTenantId: number;
   tenantName: string;
 }) {
   return requestClient.post('/sms/send', data);

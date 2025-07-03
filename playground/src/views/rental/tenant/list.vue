@@ -265,6 +265,7 @@ async function onSendSms(row: RentalManagementItem) {
           contractEndDate: smsInfo.contractEndDate,
           increaseDate: smsInfo.increaseDate,
           phoneNumber: smsInfo.phoneNumber,
+          rentalTenantId: row.rentalTenantId, // 将rentalTenantId改为id以匹配API接口定义
           tenantName: smsInfo.tenantName,
         });
 
@@ -272,6 +273,9 @@ async function onSendSms(row: RentalManagementItem) {
           content: `短信已成功发送给 ${row.tenantName}`,
           key: 'sms_process_msg',
         });
+
+        // 刷新表格数据以显示最新的发送时间
+        refreshGrid();
       },
       title: '发送短信确认',
     });

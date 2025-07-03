@@ -20,6 +20,7 @@ model RentalTenant {
   parkId         Int?         @map("park_id")
   park           Park?        @relation("ParkToRentalTenant", fields: [parkId], references: [parkId])
   isDeleted      Boolean      @default(false) @map("is_deleted")
+  sendMessage    DateTime?    @map("send_message")
 
   @@index([parkId])
   @@map("rental_tenant")

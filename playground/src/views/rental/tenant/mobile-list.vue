@@ -140,6 +140,7 @@ async function onSendSms(row: RentalManagementItem) {
           contractEndDate: smsInfo.contractEndDate,
           increaseDate: smsInfo.increaseDate,
           phoneNumber: smsInfo.phoneNumber,
+          rentalTenantId: row.rentalTenantId,
           tenantName: smsInfo.tenantName,
         });
 
@@ -147,6 +148,9 @@ async function onSendSms(row: RentalManagementItem) {
           content: `短信已成功发送给 ${row.tenantName}`,
           key: 'sms_process_msg',
         });
+
+        // 刷新列表数据以显示最新的发送时间
+        refreshList();
       },
       title: '发送短信确认',
     });
@@ -322,6 +326,18 @@ const pageStyle = computed(() => ({
                     {{ $t('system.rental.tenant.address') }}:
                   </TypographyText>
                   <TypographyText>{{ item.address }}</TypographyText>
+                </div>
+                <div>
+                  <TypographyText type="secondary">
+                    上次发送短信:
+                  </TypographyText>
+                  <TypographyText>
+                    {{
+                      item.sendMessage
+                        ? dayjs(item.sendMessage).format('YYYY-MM-DD HH:mm')
+                        : '未发送'
+                    }}
+                  </TypographyText>
                 </div>
                 <!-- Add other relevant fields from RentalManagementItem as needed -->
                 <div v-if="item.remark">

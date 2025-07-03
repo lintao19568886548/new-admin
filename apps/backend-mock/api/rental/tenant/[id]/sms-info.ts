@@ -39,7 +39,7 @@ export default eventHandler(async (event) => {
     return useResponseSuccess({
       tenantName: tenant.tenantName,
       phoneNumber: tenant.phoneNumber,
-      increaseDate: formatDate(tenant.increaseDate),
+      increaseDate: tenant.increaseDate ? formatDate(tenant.increaseDate) : '',
       contractEndDate: formatDate(tenant.contractEnd),
     });
   } catch (error) {

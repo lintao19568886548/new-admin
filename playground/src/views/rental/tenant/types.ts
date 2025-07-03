@@ -16,7 +16,7 @@ export interface RentalManagementItem {
   remark?: string;
   rent?: number | string;
   rentalTenantId: number;
-
+  sendMessage?: string;
   status: string;
   tenantName: string;
 
