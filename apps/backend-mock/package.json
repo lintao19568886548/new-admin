@@ -20,6 +20,7 @@
     "axios": "^1.8.4",
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^11.9.1",
+    "crypto-js": "^4.2.0",
     "dayjs": "^1.11.13",
     "db0": "^0.3.1",
     "jsonwebtoken": "catalog:",
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
+    "@types/crypto-js": "^4.2.2",
     "@types/jsonwebtoken": "catalog:",
     "h3": "catalog:",
     "nitropack": "^2.11.8",

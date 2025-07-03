@@ -72,3 +72,19 @@ export async function updateTenant(id: number, data: any) {
 export async function deleteTenant(id: number) {
   return requestClient.delete(`/rental/tenant/${id}`);
 }
+
+// 获取租户短信信息
+export async function getTenantSmsInfo(id: number) {
+  return requestClient.get(`/rental/tenant/${id}/sms-info`);
+}
+
+// 发送短信
+export async function sendSms(data: {
+  contractEndDate: string;
+  increaseDate: string;
+  phoneNumber: string;
+  rentalTenantId: number;
+  tenantName: string;
+}) {
+  return requestClient.post('/sms/send', data);
+}
