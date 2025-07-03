@@ -33,8 +33,10 @@ export default defineEventHandler(async (event) => {
       const method = event.method;
       const path = event.path;
       const referer = event.headers.get('referer') || '';
-      // 提取referer中端口号后面的路径部分
-      const refererPath = referer ? new URL(referer).pathname : '';
+      // 优先从自定义头X-Current-Path获取前端路由，如果获取不到再降级到 referer
+      const pagePath = event.headers.get('x-current-path');
+      const refererPath =
+        pagePath || (referer ? new URL(referer).pathname : '');
       const userAgent = event.headers.get('user-agent') || '';
       const ip =
         event.headers.get('x-forwarded-for') ||
@@ -90,7 +92,7 @@ export default defineEventHandler(async (event) => {
 
       // 记录日志
       console.log(`
-        \n请求日志：\n${JSON.stringify(
+        \n1.api请求日志：\n${JSON.stringify(
           {
             timestamp: new Date(endTime).toISOString(),
             method,

@@ -169,7 +169,7 @@
     "title": "楼层管理",
     "totalArea": "总面积",
     "upload": "上传图片",
-    "usedArea": "使用面积"
+    "usedArea": "已用面积"
   },
   "home": {
     "title": "首页"
@@ -214,8 +214,11 @@
     "create": "新增租赁",
     "createTenant": "新增租户",
     "description": "合同备注",
-    "detail": "厂房详情",
+    "detail": "园区详情",
     "edit": "修改租赁",
+    "factory": "待租厂房",
+    "factoryDetail": "厂房详情",
+    "factoryList": "厂房列表",
     "increaseData": "递增数据",
     "list": "园区列表",
     "management": "园区管理",

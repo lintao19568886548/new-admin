@@ -57,6 +57,7 @@ playground/public/uploads/
 playground/src/*.txt
 playground/src/views/finance/manage/*copy.vue
 apps/backend-mock/.env
-node.zip
+*.zip
 playground/src/views/system/role/example
 playground/src/views/system/role/docs
+*.tar.gz
