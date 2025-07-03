@@ -18,15 +18,9 @@ export default eventHandler(async (event) => {
     } = body;
 
     // 验证必要参数
-    if (
-      !tenantName ||
-      !increaseDate ||
-      !contractEndDate ||
-      !phoneNumber ||
-      !rentalTenantId
-    ) {
+    if (!tenantName || !contractEndDate || !phoneNumber || !rentalTenantId) {
       return useResponseError(
-        '缺少必要参数：租户名称、合同递增时间、合同到期时间、手机号码、租户ID',
+        '缺少必要参数：租户名称、合同到期时间、手机号码、租户ID',
       );
     }
 
