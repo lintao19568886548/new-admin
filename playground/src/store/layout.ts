@@ -59,6 +59,11 @@ interface HeaderAction {
 export const useLayoutStore = defineStore('app-layout', () => {
   const headerActions = ref<HeaderAction[]>([]);
 
+  // 记录初始状态
+  const initialState = {
+    headerActions: [],
+  };
+
   /**
    * 设置头部动作按钮。这将替换任何现有的动作。
    * @param actions - 要在头部显示的动作数组。
@@ -74,7 +79,13 @@ export const useLayoutStore = defineStore('app-layout', () => {
     headerActions.value = [];
   }
 
+  // 重置 Store
+  function $reset() {
+    headerActions.value = initialState.headerActions;
+  }
+
   return {
+    $reset,
     clearHeaderActions,
     headerActions,
     setHeaderActions,

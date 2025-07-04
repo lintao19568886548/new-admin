@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 // 从本地类型定义中导入 ReimbursementItem 类型
-import type { ReimbursementItem } from './data';
 
 import { onMounted, ref } from 'vue';
 
@@ -16,7 +15,6 @@ import {
   Form,
   Image,
   Input,
-  message,
   Modal,
   Pagination,
   Radio,
@@ -77,24 +75,23 @@ function getStatusDisplay(status: number) {
   );
 }
 
-// Check if audit button should be disabled
-function isAuditDisabled(record: ReimbursementItem): boolean {
-  if (record.status !== 0) return true; // Already audited
-  return isAmountOverLimit(Number(record.amount));
-}
-
-// Wrapper for showAuditModal to handle disabled state message
-function triggerShowAuditModal(record: ReimbursementItem) {
-  if (isAuditDisabled(record)) {
-    if (record.status === 0) {
-      message.warning('金额超出您的审核权限。');
-    } else {
-      message.info('该申请已审核。');
-    }
+// Wrapper for showAuditModal to handle all cases
+/* function triggerShowAuditModal(record: ReimbursementItem) {
+  // If the record has been audited, it's a "View Details" action. Always show the modal.
+  if (record.status !== 0) {
+    showAuditModal(record);
     return;
   }
+
+  // If the record is pending audit, check for permissions before showing the modal.
+  if (isAmountOverLimit(Number(record.amount))) {
+    message.warning('金额超出您的审核权限。');
+    return;
+  }
+
+  // If permissions are sufficient, show the audit modal.
   showAuditModal(record);
-}
+} */
 </script>
 
 <template>
@@ -218,9 +215,11 @@ function triggerShowAuditModal(record: ReimbursementItem) {
           <div class="card-actions">
             <Button
               type="primary"
-              @click="triggerShowAuditModal(item)"
-              :disabled="isAuditDisabled(item)"
+              :disabled="
+                item.status === 0 && isAmountOverLimit(Number(item.amount))
+              "
               block
+              @click="showAuditModal(item)"
             >
               {{ item.status !== 0 ? $t('查看详情') : $t('审核') }}
             </Button>
@@ -335,7 +334,10 @@ function triggerShowAuditModal(record: ReimbursementItem) {
 
         <!-- Warning -->
         <div
-          v-if="currentRecord.status === 0 && isAuditDisabled(currentRecord)"
+          v-if="
+            currentRecord.status === 0 &&
+            isAmountOverLimit(Number(currentRecord.amount))
+          "
           class="permission-warning"
         >
           金额超出您的审核权限
@@ -343,7 +345,10 @@ function triggerShowAuditModal(record: ReimbursementItem) {
 
         <!-- Form -->
         <Form
-          v-if="currentRecord.status === 0 && !isAuditDisabled(currentRecord)"
+          v-if="
+            currentRecord.status === 0 &&
+            !isAmountOverLimit(Number(currentRecord.amount))
+          "
           ref="auditModalFormRef"
           :model="auditForm"
           :rules="rules"
