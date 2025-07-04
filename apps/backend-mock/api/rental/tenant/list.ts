@@ -65,7 +65,16 @@ export default eventHandler(async (event) => {
       where.phoneNumber = { contains: query.phoneNumber };
     }
     if (query.status) {
-      where.status = query.status;
+      const now = new Date();
+      if (query.status === 'active') {
+        // "生效中": contractEnd is in the future OR is null
+        where.OR = [{ contractEnd: { gte: now } }, { contractEnd: null }];
+      } else if (query.status === 'expired') {
+        // "过期": contractEnd is in the past AND not null
+        where.contractEnd = {
+          lt: now,
+        };
+      }
     }
     if (query.contractDate) {
       const [start, end] = (query.contractDate as string).split(',');

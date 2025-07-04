@@ -1,12 +1,20 @@
 <!-- eslint-disable jsdoc/check-param-names -->
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
-import { SearchOutlined } from '@ant-design/icons-vue';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  EnvironmentOutlined,
+  EyeOutlined,
+  PhoneOutlined,
+  SearchOutlined,
+  UserOutlined,
+} from '@ant-design/icons-vue';
 import {
   Form as AntForm,
   Button,
@@ -16,7 +24,6 @@ import {
   Input,
   List,
   message,
-  Pagination,
   Popconfirm,
   Space,
 } from 'ant-design-vue';
@@ -46,6 +53,10 @@ const formData = ref({
   area: ['equal', undefined, undefined],
   parkName: '',
 });
+
+const isLastPage = computed(
+  () => parkList.value.length >= pagination.value.total,
+);
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -115,7 +126,7 @@ function onView(row: { parkId: any }) {
 /**
  * 获取园区列表数据
  */
-async function fetchParkList() {
+async function fetchParkList(isLoadMore = false) {
   loading.value = true;
   try {
     // 准备查询参数
@@ -146,25 +157,38 @@ async function fetchParkList() {
 
     // 调用API获取数据
     const result = await getSystemParkList(apiParams); // Pass the correctly typed object
-    parkList.value = result.items || [];
-    pagination.value.total = result.page?.total || 0;
+    const newItems = (result.items ?? []) as typeof parkList.value;
+    if (isLoadMore) {
+      // 由于 parkList.value 的类型推断为 never[]，需要断言类型
+      (parkList.value as any[]).push(...newItems);
+    } else {
+      parkList.value = newItems;
+    }
+    // 兼容后端返回结构，优先 result.total，其次 result.page?.total
+    pagination.value.total = result.total ?? result.page?.total ?? 0;
   } catch (error) {
     console.error('获取租赁列表失败:', error);
-    message.error($t('ui.error.fetchListFailed'));
-    parkList.value = [];
-    pagination.value.total = 0;
+    if (isLoadMore) {
+      message.error('加载更多失败');
+    } else {
+      message.error($t('ui.error.fetchListFailed'));
+      parkList.value = [];
+      pagination.value.total = 0;
+    }
   } finally {
     loading.value = false;
   }
 }
 
 /**
- * 处理分页变化
+ * 加载更多数据
  */
-function handlePaginationChange(page: number, pageSize: number) {
-  pagination.value.current = page;
-  pagination.value.pageSize = pageSize;
-  fetchParkList();
+function handleLoadMore() {
+  if (isLastPage.value) {
+    return;
+  }
+  pagination.value.current++;
+  fetchParkList(true);
 }
 
 /**
@@ -245,11 +269,21 @@ onMounted(() => {
                 <div class="card-header">
                   <span class="park-name">{{ item.parkName }}</span>
                   <Space>
-                    <Button type="link" size="small" @click="onView(item)">
-                      {{ $t('ui.action.view') }}
+                    <Button
+                      type="text"
+                      shape="circle"
+                      @click="onView(item)"
+                      :aria-label="$t('ui.action.view')"
+                    >
+                      <template #icon><EyeOutlined /></template>
                     </Button>
-                    <Button type="link" size="small" @click="onEdit(item)">
-                      {{ $t('ui.action.edit') }}
+                    <Button
+                      type="text"
+                      shape="circle"
+                      @click="onEdit(item)"
+                      :aria-label="$t('ui.action.edit')"
+                    >
+                      <template #icon><EditOutlined /></template>
                     </Button>
                     <Popconfirm
                       :title="
@@ -257,8 +291,13 @@ onMounted(() => {
                       "
                       @confirm="onDelete(item)"
                     >
-                      <Button type="link" status="danger" size="small">
-                        {{ $t('ui.action.delete') }}
+                      <Button
+                        type="text"
+                        shape="circle"
+                        status="danger"
+                        :aria-label="$t('ui.action.delete')"
+                      >
+                        <template #icon><DeleteOutlined /></template>
                       </Button>
                     </Popconfirm>
                   </Space>
@@ -266,39 +305,37 @@ onMounted(() => {
               </template>
 
               <div class="park-info">
-                <p>
-                  <span class="info-label">{{ $t('page.park.address') }}:</span>
-                  {{ item.address }}
-                </p>
-                <p>
-                  <span class="info-label">{{ $t('page.park.area') }}:</span>
-                  {{ item.area }}m²
-                </p>
-                <p>
-                  <span class="info-label">{{ $t('page.park.manager') }}:</span>
-                  {{ item.manager }}
-                </p>
-                <p>
-                  <span class="info-label">{{ $t('page.park.contact') }}:</span>
-                  {{ item.contact }}
-                </p>
+                <div class="info-item">
+                  <EnvironmentOutlined class="info-icon" />
+                  <span>{{ item.address || '暂无地址' }}</span>
+                </div>
+                <div class="info-item">
+                  <UserOutlined class="info-icon" />
+                  <span>{{ item.manager || '暂无负责人' }}</span>
+                </div>
+                <div class="info-item">
+                  <PhoneOutlined class="info-icon" />
+                  <span>{{ item.contact || '暂无联系方式' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-icon-text">面积</span>
+                  <span>{{ item.area || 'N/A' }} m²</span>
+                </div>
               </div>
             </Card>
           </List.Item>
         </template>
       </List>
 
-      <div class="pagination-container">
-        <Pagination
-          v-model:current="pagination.current"
-          v-model:page-size="pagination.pageSize"
-          :total="pagination.total"
-          :page-size-options="['5', '10', '20', '30']"
-          size="small"
-          show-size-changer
-          :show-total="(total) => $t('ui.pagination.total', [total])"
-          @change="handlePaginationChange"
-        />
+      <div class="load-more-container" v-if="parkList.length > 0">
+        <Button
+          @click="handleLoadMore"
+          :loading="loading"
+          :disabled="isLastPage"
+          block
+        >
+          {{ isLastPage ? '没有更多了' : '加载更多' }}
+        </Button>
       </div>
     </div>
 
@@ -342,62 +379,106 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
+  background-color: #fff;
   border-bottom: 1px solid #f0f0f0;
 }
 
 .mobile-title {
   font-size: 18px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .mobile-content {
-  padding: 12px;
+  padding: 8px;
 }
 
 .park-list {
-  margin-bottom: 16px;
+  /* margin-bottom: 16px; */
+}
+
+:deep(.ant-list-item) {
+  padding: 8px 0 !important;
+  border: none !important;
 }
 
 .park-card {
   width: 100%;
-  margin-bottom: 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 9%);
+}
+
+:deep(.ant-card-head) {
+  min-height: auto;
+  padding: 10px 16px;
+  font-size: 16px;
+}
+
+:deep(.ant-card-body) {
+  padding: 12px 16px;
 }
 
 .card-header {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
 }
 
 .park-name {
+  overflow: hidden;
   font-size: 16px;
   font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .park-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
   font-size: 14px;
-  color: rgb(0 0 0 / 65%);
+  color: #555;
 }
 
-.info-label {
-  margin-right: 4px;
-  font-weight: 500;
-}
-
-.pagination-container {
+.info-item {
   display: flex;
-  justify-content: center;
-  margin-top: 16px;
+  gap: 8px;
+  align-items: center;
+  overflow: hidden;
+}
+
+.info-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.info-icon {
+  font-size: 16px;
+  color: #888;
+}
+
+.info-icon-text {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  font-size: 12px;
+  line-height: 16px;
+  color: #888;
+  text-align: center;
+}
+
+.load-more-container {
+  padding: 16px 0;
 }
 
 .drawer-footer {
   position: absolute;
+  right: 0;
   bottom: 0;
-  display: flex;
-  justify-content: flex-end;
-  width: calc(100% - 32px);
-  padding: 16px;
+  width: 100%;
+  padding: 10px 16px;
+  text-align: right;
   background: #fff;
   border-top: 1px solid #f0f0f0;
 }

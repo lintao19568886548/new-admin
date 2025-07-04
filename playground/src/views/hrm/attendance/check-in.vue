@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { useUserStore } from '@vben/stores';
 
@@ -14,6 +15,7 @@ import {
   punchOut,
 } from '#/api/hrm/attendance';
 import { BAIDU_MAP_AK } from '#/config';
+import { useLayoutStore } from '#/store/layout';
 import { loadBaiduMapScript } from '#/utils/map';
 
 // ================================= 类型定义 =================================
@@ -67,6 +69,9 @@ const mapInitialized = ref(false);
 const userStore = useUserStore();
 const userInfo = userStore.userInfo;
 
+const router = useRouter();
+const layoutStore = useLayoutStore();
+
 // 打卡点
 const officeLocations = ref<OfficeLocation[]>([]);
 
@@ -81,10 +86,22 @@ const officeCircles = ref<any[]>([]);
 
 // 生命周期
 onMounted(async () => {
+  layoutStore.setHeaderActions([
+    {
+      icon: 'mdi:history',
+      key: 'history',
+      onClick: () => {
+        router.push({
+          path: '/hrm/attendance/record',
+        });
+      },
+    },
+  ]);
   await initMap();
 });
 
 onUnmounted(() => {
+  layoutStore.clearHeaderActions();
   if (map) {
     map = null;
     mapInitialized.value = false;

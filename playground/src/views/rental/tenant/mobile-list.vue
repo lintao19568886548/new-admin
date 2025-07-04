@@ -1,10 +1,10 @@
 <script lang="ts" setup>
 import type { RentalManagementItem } from './types';
 
-import { computed, h, onMounted, ref } from 'vue';
+import { computed, h, onMounted, onUnmounted, ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
-import { Plus } from '@vben/icons';
+import { Search } from '@vben/icons';
 
 import {
   DeleteOutlined,
@@ -14,12 +14,17 @@ import {
 import {
   Button,
   Card,
+  Col,
   Empty,
   Flex,
+  Form,
+  Input,
   List,
   message,
   Modal,
   Popconfirm,
+  Row,
+  Select,
   Tag,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
@@ -32,6 +37,7 @@ import {
 } from '#/api/rental';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
+import { useLayoutStore } from '#/store/layout';
 
 import {
   calculateIncreaseDateDisplay,
@@ -41,16 +47,23 @@ import {
   formatRentDisplay,
   getTagTypeOptions,
 } from './data';
-import Form from './modules/form.vue';
+import TenantForm from './modules/form.vue';
 
 const currentPark = ref();
 const loading = ref(false);
+const searchForm = ref({
+  phoneNumber: '',
+  status: undefined,
+  tenantName: '',
+});
 const tenantList = ref<RentalManagementItem[]>([]);
 const pagination = ref({
   currentPage: 1,
   pageSize: 10,
   total: 0,
 });
+
+const layoutStore = useLayoutStore();
 
 const isLastPage = computed(
   () => tenantList.value.length >= pagination.value.total,
@@ -63,12 +76,12 @@ const getStatusTag = (row: RentalManagementItem) => {
     ? dayjs().isAfter(dayjs(row.contractEnd))
     : false;
   const statusText = isExpired ? '过期' : '生效中';
-  const option = tagTypeOptions.find((opt) => opt.value === statusText);
+  const option = tagTypeOptions.find((opt) => opt.label === statusText);
   return h(Tag, { color: option?.color || 'default' }, () => statusText);
 };
 
 const [FormModal, formModalApi] = useVbenModal({
-  connectedComponent: Form,
+  connectedComponent: TenantForm,
   destroyOnClose: true,
 });
 
@@ -165,6 +178,7 @@ async function fetchList(isLoadMore = false) {
     pagination.value.currentPage = 1;
   }
   const params = {
+    ...searchForm.value,
     currentPage: pagination.value.currentPage,
     currentPark: currentPark.value ? currentPark.value.parkId : -1,
     pageSize: pagination.value.pageSize,
@@ -186,6 +200,19 @@ async function fetchList(isLoadMore = false) {
   }
 }
 
+function handleSearch() {
+  fetchList();
+}
+
+function resetSearch() {
+  searchForm.value = {
+    phoneNumber: '',
+    status: undefined,
+    tenantName: '',
+  };
+  fetchList();
+}
+
 function handleLoadMore() {
   if (isLastPage.value) return;
   pagination.value.currentPage++;
@@ -198,6 +225,17 @@ function refreshList() {
 
 onMounted(() => {
   fetchList();
+  layoutStore.setHeaderActions([
+    {
+      key: 'create-tenant',
+      onClick: onCreate,
+      text: '新增',
+    },
+  ]);
+});
+
+onUnmounted(() => {
+  layoutStore.clearHeaderActions();
 });
 </script>
 
@@ -206,7 +244,7 @@ onMounted(() => {
     <FormModal @success="refreshList" />
 
     <template #header-content>
-      <Flex justify="space-between" align="center" class="mobile-header">
+      <Flex align="center" class="mobile-header">
         <AreaSelector
           :default-park="currentPark"
           :refresh-callback="refreshList"
@@ -218,12 +256,50 @@ onMounted(() => {
           "
           size="small"
         />
-        <Button type="primary" size="small" @click="onCreate">
-          <Plus class="size-4" />
-          新增合同管理
-        </Button>
       </Flex>
     </template>
+
+    <div class="search-filters">
+      <Form :model="searchForm" layout="vertical">
+        <Row :gutter="16">
+          <Col :span="12">
+            <Form.Item label="租户名称">
+              <Input
+                v-model:value="searchForm.tenantName"
+                allow-clear
+                placeholder="请输入"
+              />
+            </Form.Item>
+          </Col>
+          <Col :span="12">
+            <Form.Item label="联系电话">
+              <Input
+                v-model:value="searchForm.phoneNumber"
+                allow-clear
+                placeholder="请输入"
+              />
+            </Form.Item>
+          </Col>
+        </Row>
+        <Form.Item label="合同状态">
+          <Select
+            v-model:value="searchForm.status"
+            :options="tagTypeOptions"
+            allow-clear
+            placeholder="请选择"
+          />
+        </Form.Item>
+        <div class="search-actions">
+          <Button @click="resetSearch" type="default" class="flex-1">
+            重置
+          </Button>
+          <Button @click="handleSearch" type="primary" class="flex-1">
+            <template #icon><Search /></template>
+            查询
+          </Button>
+        </div>
+      </Form>
+    </div>
 
     <div class="mobile-content">
       <Empty
@@ -445,6 +521,28 @@ onMounted(() => {
   padding-right: 8px;
   color: #888;
   text-align: left;
+}
+
+.search-filters {
+  padding: 16px;
+  margin: 8px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+}
+
+.search-filters .ant-form-item {
+  margin-bottom: 12px;
+}
+
+.search-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.flex-1 {
+  flex: 1;
 }
 
 .load-more-container {

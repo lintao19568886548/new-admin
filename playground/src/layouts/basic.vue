@@ -12,9 +12,10 @@ import { useAccessStore, useUserStore } from '@vben/stores';
 
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { message } from 'ant-design-vue';
+import { Button, message } from 'ant-design-vue';
 
 import { useAuthStore } from '#/store';
+import { useLayoutStore } from '#/store/layout';
 import EditPassword from '#/views/_core/authentication/edit-password.vue';
 import LoginForm from '#/views/_core/authentication/login.vue';
 
@@ -51,6 +52,7 @@ onUnmounted(() => {
 });
 
 const router = useRouter();
+const layoutStore = useLayoutStore();
 
 const showBackButton = computed(
   () => router.currentRoute.value.path !== '/home',
@@ -250,18 +252,29 @@ function goBack() {
       <div class="font-bold">
         {{ $t(router.currentRoute.value.meta.title || '标题') }}
       </div>
-      <div class="w-10 text-right">
-        <!-- Right Icon -->
-        <VbenIcon
-          v-if="router.currentRoute.value.path === '/hrm/attendance/check-in'"
-          icon="mdi:history"
-          class="size-6"
-          @click="
-            router.push({
-              path: '/hrm/attendance/record',
-            })
-          "
-        />
+      <div class="flex min-w-10 items-center justify-end space-x-2 text-right">
+        <!-- Right Actions from store -->
+        <template v-for="action in layoutStore.headerActions" :key="action.key">
+          <!-- Render as a Button if text is provided -->
+          <Button
+            v-if="action.text"
+            type="primary"
+            size="small"
+            @click="action.onClick"
+          >
+            <template #icon v-if="action.icon">
+              <VbenIcon :icon="action.icon" class="size-4" />
+            </template>
+            {{ action.text }}
+          </Button>
+          <!-- Render as an Icon if only icon is provided -->
+          <VbenIcon
+            v-else-if="action.icon"
+            :icon="action.icon"
+            class="size-6 cursor-pointer"
+            @click="action.onClick"
+          />
+        </template>
       </div>
     </header>
 

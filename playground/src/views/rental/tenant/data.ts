@@ -20,12 +20,12 @@ export function getTagTypeOptions() {
     {
       color: 'green',
       label: $t('system.rental.tenant.status.current'),
-      value: '生效中',
+      value: 'active',
     },
     {
       color: 'red',
       label: $t('system.rental.tenant.status.expired'),
-      value: '过期',
+      value: 'expired',
     },
   ];
 }
