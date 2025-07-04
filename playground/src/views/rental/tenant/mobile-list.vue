@@ -16,7 +16,6 @@ import {
   Card,
   Col,
   Empty,
-  Flex,
   Form,
   Input,
   List,
@@ -35,9 +34,9 @@ import {
   getTenantSmsInfo,
   sendSms,
 } from '#/api/rental';
-import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 import { useLayoutStore } from '#/store/layout';
+import { useParkStore } from '#/store/park';
 
 import {
   calculateIncreaseDateDisplay,
@@ -64,6 +63,7 @@ const pagination = ref({
 });
 
 const layoutStore = useLayoutStore();
+const parkStore = useParkStore();
 
 const isLastPage = computed(
   () => tenantList.value.length >= pagination.value.total,
@@ -180,7 +180,7 @@ async function fetchList(isLoadMore = false) {
   const params = {
     ...searchForm.value,
     currentPage: pagination.value.currentPage,
-    currentPark: currentPark.value ? currentPark.value.parkId : -1,
+    currentPark: currentPark.value ?? -1,
     pageSize: pagination.value.pageSize,
   };
   try {
@@ -210,6 +210,7 @@ function resetSearch() {
     status: undefined,
     tenantName: '',
   };
+  currentPark.value = undefined;
   fetchList();
 }
 
@@ -224,6 +225,7 @@ function refreshList() {
 }
 
 onMounted(() => {
+  parkStore.fetchParkList();
   fetchList();
   layoutStore.setHeaderActions([
     {
@@ -243,63 +245,63 @@ onUnmounted(() => {
   <Page class="mobile-tenant-list-page">
     <FormModal @success="refreshList" />
 
-    <template #header-content>
-      <Flex align="center" class="mobile-header">
-        <AreaSelector
-          :default-park="currentPark"
-          :refresh-callback="refreshList"
-          @change="
-            (park) => {
-              currentPark = park;
-              refreshList();
-            }
-          "
-          size="small"
-        />
-      </Flex>
-    </template>
-
-    <div class="search-filters">
-      <Form :model="searchForm" layout="vertical">
-        <Row :gutter="16">
-          <Col :span="12">
-            <Form.Item label="租户名称">
-              <Input
-                v-model:value="searchForm.tenantName"
-                allow-clear
-                placeholder="请输入"
-              />
-            </Form.Item>
-          </Col>
-          <Col :span="12">
-            <Form.Item label="联系电话">
-              <Input
-                v-model:value="searchForm.phoneNumber"
-                allow-clear
-                placeholder="请输入"
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-        <Form.Item label="合同状态">
-          <Select
-            v-model:value="searchForm.status"
-            :options="tagTypeOptions"
-            allow-clear
-            placeholder="请选择"
-          />
-        </Form.Item>
-        <div class="search-actions">
-          <Button @click="resetSearch" type="default" class="flex-1">
-            重置
-          </Button>
-          <Button @click="handleSearch" type="primary" class="flex-1">
-            <template #icon><Search /></template>
-            查询
-          </Button>
-        </div>
-      </Form>
-    </div>
+    <details class="search-details">
+      <summary class="search-summary">
+        筛选条件 <Search class="inline-icon" />
+      </summary>
+      <div class="search-form-container">
+        <Form :model="searchForm" layout="vertical">
+          <Row :gutter="16">
+            <Col :span="12">
+              <Form.Item label="租户名称">
+                <Input
+                  v-model:value="searchForm.tenantName"
+                  allow-clear
+                  placeholder="请输入"
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="12">
+              <Form.Item label="联系电话">
+                <Input
+                  v-model:value="searchForm.phoneNumber"
+                  allow-clear
+                  placeholder="请输入"
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="24">
+              <Form.Item label="园区">
+                <Select
+                  v-model:value="currentPark"
+                  :options="parkStore.parkList"
+                  :field-names="{ label: 'parkName', value: 'parkId' }"
+                  allow-clear
+                  placeholder="请选择园区"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item label="合同状态">
+            <Select
+              v-model:value="searchForm.status"
+              :options="tagTypeOptions"
+              allow-clear
+              placeholder="请选择"
+            />
+          </Form.Item>
+          <div class="search-actions">
+            <Button @click="resetSearch" type="default" class="flex-1">
+              重置
+            </Button>
+            <Button @click="handleSearch" type="primary" class="flex-1">
+              <template #icon><Search /></template>
+              查询
+            </Button>
+          </div>
+        </Form>
+      </div>
+    </details>
 
     <div class="mobile-content">
       <Empty
@@ -417,6 +419,7 @@ onUnmounted(() => {
 
 <style scoped>
 .mobile-tenant-list-page {
+  padding: 8px;
   background-color: #f5f5f5;
 }
 
@@ -427,7 +430,7 @@ onUnmounted(() => {
 }
 
 .mobile-content {
-  padding: 8px;
+  padding: 0;
 }
 
 :deep(.ant-list-item) {
@@ -508,7 +511,6 @@ onUnmounted(() => {
 .info-item {
   display: flex;
   align-items: start;
-  width: max-content;
   overflow: hidden;
 }
 
@@ -523,22 +525,45 @@ onUnmounted(() => {
   text-align: left;
 }
 
-.search-filters {
-  padding: 16px;
-  margin: 8px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+.info-item > span:last-of-type {
+  word-break: break-word;
 }
 
-.search-filters .ant-form-item {
+.search-details {
+  padding: 0;
+  margin-bottom: 12px;
+  background-color: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+}
+
+.search-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.search-summary .inline-icon {
+  width: 1em;
+  height: 1em;
+}
+
+.search-form-container {
+  padding: 12px;
+  border-top: 1px solid #e8e8e8;
+}
+
+.search-form-container .ant-form-item {
   margin-bottom: 12px;
 }
 
 .search-actions {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 12px;
 }
 
 .flex-1 {
