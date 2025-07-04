@@ -10,19 +10,20 @@ export default eventHandler(async (event) => {
   // 获取当前日期信息
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth(); // JavaScript月份从0开始
+  const currentMonth = now.getMonth(); // 0-11
 
   // 计算当月的开始和结束日期
-  const startDate = new Date(currentYear, currentMonth, 1, 0, 0, 0);
-  const endDate = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59); // 当月最后一天
+  const startDate = new Date(currentYear, currentMonth, 1);
+  const endDate = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
 
-  // 使用Prisma查询当月数据并按billCategory分组
-  const trend = await prismaClient.finance.groupBy({
-    by: ['billCategory', 'transactionType'], // 添加transactionType作为分组条件
+  // 1. 获取支出数据 (来自 Finance)
+  const expenseTrend = await prismaClient.finance.groupBy({
+    by: ['billCategory'],
     _sum: {
       amount: true,
     },
     where: {
+      transactionType: '支出',
       transactionTime: {
         gte: startDate,
         lte: endDate,
@@ -30,21 +31,46 @@ export default eventHandler(async (event) => {
     },
   });
 
-  // 按照transactionType分类数据
-  const incomeData = trend.filter((item) => item.transactionType === '收入');
-  const expenseData = trend.filter((item) => item.transactionType === '支出');
+  const expenseData = expenseTrend.map((item) => ({
+    name: item.billCategory,
+    value: item._sum.amount || 0,
+  }));
 
-  // 构建结果对象
-  const result = {
-    income: incomeData.map((item) => ({
-      name: item.billCategory,
-      value: item._sum.amount || 0,
-    })),
-    expense: expenseData.map((item) => ({
-      name: item.billCategory,
-      value: item._sum.amount || 0,
-    })),
-  };
+  // 2. 获取收入数据 (来自 AmountBill)
+  const incomeAggregation = await prismaClient.amountBill.aggregate({
+    _sum: {
+      eleFee: true,
+      waterFee: true,
+      factoryRent: true,
+      managementFee: true,
+      serviceFee: true,
+      garbageFee: true,
+      penaltyFee: true,
+      receiveFee: true,
+    },
+    where: {
+      createTime: {
+        gte: startDate,
+        lte: endDate,
+      },
+    },
+  });
 
-  return useResponseSuccess(result);
+  const incomeSums = incomeAggregation._sum;
+
+  const incomeData = [
+    { name: '电费', value: Number(incomeSums.eleFee) || 0 },
+    { name: '水费', value: Number(incomeSums.waterFee) || 0 },
+    { name: '厂房租金', value: Number(incomeSums.factoryRent) || 0 },
+    { name: '管理费', value: Number(incomeSums.managementFee) || 0 },
+    { name: '服务费', value: Number(incomeSums.serviceFee) || 0 },
+    { name: '垃圾费', value: Number(incomeSums.garbageFee) || 0 },
+    { name: '滞纳金', value: Number(incomeSums.penaltyFee) || 0 },
+    { name: '其他收入', value: Number(incomeSums.receiveFee) || 0 },
+  ].filter((item) => item.value > 0);
+
+  return useResponseSuccess({
+    income: incomeData,
+    expense: expenseData,
+  });
 });

@@ -1,15 +1,15 @@
 <script lang="ts" setup>
 import type { EchartsUIType } from '@vben/plugins/echarts';
 
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 interface Props {
   // 图表配置函数，接收数据并返回ECharts配置
   chartConfigFn: (data: any) => any;
-  // 数据获取函数
-  fetchDataFn: () => Promise<any>;
+  // 传递图表数据
+  chartData?: any;
   // 数据处理函数
   processDataFn?: (data: any) => any;
   // 是否显示加载状态
@@ -17,6 +17,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  chartData: null,
   processDataFn: (data: any) => data,
   showLoading: true,
 });
@@ -27,20 +28,12 @@ const error = ref('');
 const isDataEmpty = ref(false);
 const { renderEcharts } = useEcharts(chartRef);
 
-// 暴露出图表实例和相关方法，以便父组件可以直接操作图表
-defineExpose({
-  chartRef,
-  renderEcharts,
-});
-
-onMounted(async () => {
+// 封装渲染逻辑
+const renderChart = async (data: any) => {
   try {
     loading.value = props.showLoading;
     error.value = '';
     isDataEmpty.value = false;
-
-    // 获取数据
-    const data = await props.fetchDataFn();
 
     // 数据加工处理
     const processedData = props.processDataFn(data);
@@ -49,9 +42,12 @@ onMounted(async () => {
     if (
       processedData === null ||
       processedData === undefined ||
-      (Array.isArray(processedData) && processedData.length === 0)
+      (Array.isArray(processedData) && processedData.length === 0) ||
+      (typeof processedData === 'object' &&
+        Object.keys(processedData).length === 0)
     ) {
       isDataEmpty.value = true;
+      loading.value = false;
       return;
     }
 
@@ -64,7 +60,29 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+};
+
+// 暴露出图表实例和相关方法，以便父组件可以直接操作图表
+defineExpose({
+  chartRef,
+  renderEcharts,
 });
+
+onMounted(() => {
+  if (props.chartData) {
+    renderChart(props.chartData);
+  }
+});
+
+watch(
+  () => props.chartData,
+  (newData) => {
+    if (newData) {
+      renderChart(newData);
+    }
+  },
+  { deep: true },
+);
 </script>
 
 <template>

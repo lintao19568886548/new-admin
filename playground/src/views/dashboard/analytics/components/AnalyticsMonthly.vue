@@ -1,13 +1,12 @@
 <script lang="ts" setup>
-import { getAnalyticsData } from '#/api/analytics';
-
 import BaseChart from './BaseChart.vue';
 import { getMonthlyChartConfig } from './chartConfigs';
 
-// 定义数据获取函数
-const fetchData = async () => {
-  return await getAnalyticsData({ type: 'months' });
-};
+interface Props {
+  data: any;
+}
+
+const props = defineProps<Props>();
 
 // 生成图表配置函数
 const generateChartConfig = (data: any) => {
@@ -16,8 +15,5 @@ const generateChartConfig = (data: any) => {
 </script>
 
 <template>
-  <BaseChart
-    :chart-config-fn="generateChartConfig"
-    :fetch-data-fn="fetchData"
-  />
+  <BaseChart :chart-config-fn="generateChartConfig" :chart-data="props.data" />
 </template>

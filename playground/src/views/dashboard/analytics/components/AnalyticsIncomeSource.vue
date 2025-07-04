@@ -1,8 +1,11 @@
 <script lang="ts" setup>
-import { getAnalyticsMonth } from '#/api/analytics';
-
 import BaseChart from './BaseChart.vue';
 import { getCompareChartConfig } from './chartConfigs';
+
+interface Props {
+  data: any;
+}
+defineProps<Props>();
 </script>
 
 <template>
@@ -15,7 +18,7 @@ import { getCompareChartConfig } from './chartConfigs';
           'income',
         )
     "
-    :fetch-data-fn="getAnalyticsMonth"
+    :chart-data="data"
     :process-data-fn="(data) => data"
   />
 </template>

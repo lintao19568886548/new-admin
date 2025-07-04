@@ -10,52 +10,64 @@ export default eventHandler(async (event) => {
   // 获取当前日期信息
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1; // JavaScript月份从0开始
+  const currentMonth = now.getMonth(); // 0-11
 
-  // 计算当月的开始和结束日期
-  const startDate = new Date(currentYear, currentMonth - 1, 1);
-  const endDate = new Date(currentYear, currentMonth, 0); // 当月最后一天
+  // === 当月数据 ===
+  const currentMonthStartDate = new Date(currentYear, currentMonth, 1);
+  const currentMonthEndDate = new Date(currentYear, currentMonth + 1, 0);
 
-  // 使用Prisma查询当月数据并按billCategory分组
-  const currentMonthData = await prismaClient.finance.groupBy({
-    by: ['transactionType'], // 添加transactionType作为分组条件
-    _sum: {
-      amount: true,
-    },
+  // 1. 获取当月支出 (来自 Finance)
+  const currentMonthExpense = await prismaClient.finance.aggregate({
+    _sum: { amount: true },
     where: {
+      transactionType: '支出',
       transactionTime: {
-        gte: startDate,
-        lte: endDate,
-      },
-    },
-  });
-  // 计算上个月的开始和结束日期
-  const lastMonth = currentMonth - 1;
-  const lastStartDate = new Date(currentYear, lastMonth - 1, 1);
-  const lastEndDate = new Date(currentYear, lastMonth, 0); // 上个月最后一天
-  // 使用Prisma查询上个月数据并按billCategory分组
-  const lastMonthData = await prismaClient.finance.groupBy({
-    by: ['transactionType'], // 添加transactionType作为分组条件
-    _sum: {
-      amount: true,
-    },
-    where: {
-      transactionTime: {
-        gte: lastStartDate,
-        lte: lastEndDate,
+        gte: currentMonthStartDate,
+        lte: currentMonthEndDate,
       },
     },
   });
 
-  const currentMonthMap = {};
-  const lastMonthMap = {};
-
-  currentMonthData.forEach((item) => {
-    currentMonthMap[item.transactionType] = item._sum.amount || 0;
+  // 2. 获取当月收入 (来自 AmountBill)
+  const currentMonthIncome = await prismaClient.amountBill.aggregate({
+    _sum: { totalFee: true },
+    where: {
+      createTime: {
+        gte: currentMonthStartDate,
+        lte: currentMonthEndDate,
+      },
+    },
   });
 
-  lastMonthData.forEach((item) => {
-    lastMonthMap[item.transactionType] = item._sum.amount || 0;
+  // === 上月数据 ===
+  const lastMonthDate = new Date(now.setMonth(now.getMonth() - 1));
+  const lastMonthYear = lastMonthDate.getFullYear();
+  const lastMonth = lastMonthDate.getMonth(); // 0-11
+
+  const lastMonthStartDate = new Date(lastMonthYear, lastMonth, 1);
+  const lastMonthEndDate = new Date(lastMonthYear, lastMonth + 1, 0);
+
+  // 3. 获取上月支出 (来自 Finance)
+  const lastMonthExpense = await prismaClient.finance.aggregate({
+    _sum: { amount: true },
+    where: {
+      transactionType: '支出',
+      transactionTime: {
+        gte: lastMonthStartDate,
+        lte: lastMonthEndDate,
+      },
+    },
+  });
+
+  // 4. 获取上月收入 (来自 AmountBill)
+  const lastMonthIncome = await prismaClient.amountBill.aggregate({
+    _sum: { totalFee: true },
+    where: {
+      createTime: {
+        gte: lastMonthStartDate,
+        lte: lastMonthEndDate,
+      },
+    },
   });
 
   // 构建结果对象
@@ -63,22 +75,21 @@ export default eventHandler(async (event) => {
     currentMonth: {
       income: {
         name: '本月收入',
-        value: currentMonthMap['收入'] || 0,
+        value: currentMonthIncome._sum.totalFee || 0,
       },
       expense: {
         name: '本月支出',
-        value: currentMonthMap['支出'] || 0,
+        value: currentMonthExpense._sum.amount || 0,
       },
     },
     lastMonth: {
       income: {
         name: '上月收入',
-        value: lastMonthMap['收入'] || 0,
+        value: lastMonthIncome._sum.totalFee || 0,
       },
-
       expense: {
         name: '上月支出',
-        value: lastMonthMap['支出'] || 0,
+        value: lastMonthExpense._sum.amount || 0,
       },
     },
   };

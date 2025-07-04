@@ -21,7 +21,13 @@ import { useUserStore } from '@vben/stores';
 
 import { notification } from 'ant-design-vue';
 
-import { getAnalyticsData } from '#/api/analytics';
+import {
+  getAnalyticsData,
+  getAnalyticsMonth,
+  getAnalyticsParkElectricity,
+  getAnalyticsTotal,
+  getAnalyticsTrend,
+} from '#/api/analytics';
 import { getPendingReimbursementCount } from '#/api/reimbursement';
 
 // 导入重构后的业务组件
@@ -57,6 +63,10 @@ const analyticsData = ref({
     incomeDatamonths: [],
   },
 });
+const trendData = ref({});
+const monthCompareData = ref({});
+const totalData = ref({});
+const parkElectricityData = ref([]);
 
 // 求和辅助函数
 const sumData = (data: number[] = []) =>
@@ -67,13 +77,28 @@ onMounted(async () => {
   handleResize();
   window.addEventListener('resize', handleResize);
   try {
-    const [yearResult, monthResult] = await Promise.all([
+    const [
+      yearResult,
+      monthResult,
+      trendResult,
+      monthCompareResult,
+      totalResult,
+      parkElectricityResult,
+    ] = await Promise.all([
       getAnalyticsData({ type: 'months' }),
       getAnalyticsData({ type: 'days' }),
+      getAnalyticsTrend(),
+      getAnalyticsMonth(),
+      getAnalyticsTotal(),
+      getAnalyticsParkElectricity(),
     ]);
 
     analyticsData.value.yearData = yearResult;
     analyticsData.value.monthData = monthResult;
+    trendData.value = trendResult;
+    monthCompareData.value = monthCompareResult;
+    totalData.value = totalResult;
+    parkElectricityData.value = parkElectricityResult;
 
     // 检查用户是否有报销审核权限
     if (userStore.userInfo?.reimbursementAuth === 1) {
@@ -141,17 +166,17 @@ const overviewItems = computed<AnalysisOverviewItem[]>(() => [
   },
   {
     icon: SvgDownloadIcon,
-    title: '本月收入',
+    title: '收入月环比',
     totalTitle: '本月总收入',
     totalValue: sumData(analyticsData.value.monthData.incomeData),
-    value: calculateGrowth(analyticsData.value.monthData.incomeData),
+    value: calculateGrowth(analyticsData.value.yearData.incomeDatamonths),
   },
   {
     icon: SvgBellIcon,
-    title: '本月支出',
+    title: '支出月环比',
     totalTitle: '本月总支出',
     totalValue: sumData(analyticsData.value.monthData.expenseData),
-    value: calculateGrowth(analyticsData.value.monthData.expenseData),
+    value: calculateGrowth(analyticsData.value.yearData.expenseDatamonths),
   },
 ]);
 
@@ -172,11 +197,11 @@ const chartTabs: TabOption[] = [
     <AnalysisOverview :items="overviewItems" />
     <AnalysisChartsTabs :tabs="chartTabs" class="mt-5">
       <template #trends>
-        <AnalyticsTrends />
+        <AnalyticsTrends :data="analyticsData.monthData" />
       </template>
       <template #monthly>
         <!-- 更新插槽名 -->
-        <AnalyticsMonthly />
+        <AnalyticsMonthly :data="analyticsData.yearData" />
       </template>
     </AnalysisChartsTabs>
 
@@ -185,37 +210,37 @@ const chartTabs: TabOption[] = [
         class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
         title="支出趋势"
       >
-        <AnalyticsExpenseData />
+        <AnalyticsExpenseData :data="trendData" />
       </AnalysisChartCard>
       <AnalysisChartCard class="mt-5 md:mr-4 md:w-[32%]" title="支出环比">
-        <AnalyticsExpenseSource />
+        <AnalyticsExpenseSource :data="monthCompareData" />
       </AnalysisChartCard>
       <AnalysisChartCard class="mt-5 md:w-[32%]" title="支出占比">
-        <AnalyticsExpenseSales />
+        <AnalyticsExpenseSales :data="totalData" />
       </AnalysisChartCard>
 
       <AnalysisChartCard
         class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
         title="收入趋势"
       >
-        <AnalyticsIncomeData />
+        <AnalyticsIncomeData :data="trendData" />
       </AnalysisChartCard>
       <AnalysisChartCard
         class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
         title="收入环比"
       >
-        <AnalyticsIncomeSource />
+        <AnalyticsIncomeSource :data="monthCompareData" />
       </AnalysisChartCard>
       <AnalysisChartCard
         class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
         title="收入占比"
       >
-        <AnalyticsIncomeSales />
+        <AnalyticsIncomeSales :data="totalData" />
       </AnalysisChartCard>
     </div>
 
     <AnalysisChartCard class="mt-5 w-full" title="各园区实收电度数和电费金额">
-      <AnalyticsParkElectricity />
+      <AnalyticsParkElectricity :data="parkElectricityData" />
     </AnalysisChartCard>
   </div>
 </template>

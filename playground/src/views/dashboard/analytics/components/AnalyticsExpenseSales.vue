@@ -1,14 +1,17 @@
 <script lang="ts" setup>
-import { getAnalyticsTotal } from '#/api/analytics';
-
 import BaseChart from './BaseChart.vue';
 import { getPieChartConfig } from './chartConfigs';
+
+interface Props {
+  data: any;
+}
+defineProps<Props>();
 </script>
 
 <template>
   <BaseChart
     :chart-config-fn="(data) => getPieChartConfig(data, 'expense')"
-    :fetch-data-fn="getAnalyticsTotal"
+    :chart-data="data"
     :process-data-fn="
       (data) =>
         data?.expense?.length

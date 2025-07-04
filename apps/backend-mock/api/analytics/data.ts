@@ -12,102 +12,117 @@ export default eventHandler(async (event) => {
   // 获取当前日期
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1; // JavaScript月份从0开始，所以要加1
-
-  // 构建查询条件
-  const where: any = {};
+  const currentMonth = now.getMonth(); // 0-11
 
   if (type === 'days') {
     // 按天统计 - 查询当月数据
-    // 计算当月的起始日期和结束日期
-    const startDate = new Date(currentYear, currentMonth - 1, 1); // 月份从0开始，所以要减1
-    const endDate = new Date(currentYear, currentMonth, 0); // 下个月的第0天就是当前月的最后一天
-    const daysInMonth = endDate.getDate(); // 获取当月天数
+    const startDate = new Date(currentYear, currentMonth, 1);
+    const endDate = new Date(currentYear, currentMonth + 1, 0);
+    const daysInMonth = endDate.getDate();
 
-    where.transactionTime = {
-      gte: startDate,
-      lte: endDate,
-    };
-
-    // 查询当月所有财务数据
-    const items = await prismaClient.finance.findMany({
-      where,
+    // 1. 获取支出数据 (来自 Finance)
+    const expenseItems = await prismaClient.finance.findMany({
+      where: {
+        transactionTime: {
+          gte: startDate,
+          lte: endDate,
+        },
+        transactionType: '支出',
+      },
       select: {
         transactionTime: true,
         amount: true,
-        transactionType: true,
       },
     });
 
-    // 初始化收入和支出数组，长度为当月天数
-    const incomeData = Array.from({ length: daysInMonth }).fill(0) as number[];
-    const expenseData = Array.from({ length: daysInMonth }).fill(0) as number[];
+    const expenseData = Array.from({ length: daysInMonth }, () => 0);
+    for (const item of expenseItems) {
+      const day = new Date(item.transactionTime).getDate() - 1;
+      expenseData[day] += Number(item.amount);
+    }
 
-    // 遍历所有财务数据，按日期累加收入和支出
-    for (const item of items) {
-      const day = new Date(item.transactionTime).getDate() - 1; // 获取日期（1-31），转为数组索引（0-30）
-      const amount = Number(item.amount);
+    // 2. 获取收入数据 (来自 AmountBill)
+    const incomeItems = await prismaClient.amountBill.findMany({
+      where: {
+        createTime: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        createTime: true,
+        totalFee: true,
+      },
+    });
 
-      // 根据类型累加到对应数组
-      if (item.transactionType === '收入') {
-        incomeData[day] += amount;
-      } else if (item.transactionType === '支出') {
-        expenseData[day] += amount;
+    const incomeData = Array.from({ length: daysInMonth }, () => 0);
+    for (const item of incomeItems) {
+      if (item.createTime) {
+        const day = new Date(item.createTime).getDate() - 1;
+        incomeData[day] += Number(item.totalFee);
       }
     }
 
     return useResponseSuccess({
-      incomeData, // 收入数组
-      expenseData, // 支出数组
-      daysInMonth, // 当月天数
+      incomeData,
+      expenseData,
+      daysInMonth,
       year: currentYear,
-      month: currentMonth,
+      month: currentMonth + 1,
       type: 'days',
     });
   } else if (type === 'months') {
     // 按月统计 - 查询当年数据
-    // 计算当年的起始日期和结束日期
-    const startDate = new Date(currentYear, 0, 1); // 当年1月1日
-    const endDate = new Date(currentYear, 11, 31, 23, 59, 59); // 当年12月31日
+    const startDate = new Date(currentYear, 0, 1);
+    const endDate = new Date(currentYear, 11, 31, 23, 59, 59);
 
-    where.transactionTime = {
-      gte: startDate,
-      lte: endDate,
-    };
-
-    // 查询当年所有财务数据
-    const items = await prismaClient.finance.findMany({
-      where,
+    // 1. 获取支出数据 (来自 Finance)
+    const expenseItems = await prismaClient.finance.findMany({
+      where: {
+        transactionTime: {
+          gte: startDate,
+          lte: endDate,
+        },
+        transactionType: '支出',
+      },
       select: {
         transactionTime: true,
         amount: true,
-        transactionType: true,
       },
     });
 
-    // 初始化收入和支出数组，长度为12个月
-    const incomeDatamonths = Array.from({ length: 12 }).fill(0) as number[];
-    const expenseDatamonths = Array.from({ length: 12 }).fill(0) as number[];
+    const expenseDatamonths = Array.from({ length: 12 }, () => 0);
+    for (const item of expenseItems) {
+      const month = new Date(item.transactionTime).getMonth();
+      expenseDatamonths[month] += Number(item.amount);
+    }
 
-    // 遍历所有财务数据，按月份累加收入和支出
-    // 修改月份数据处理部分
-    for (const item of items) {
-      const month = new Date(item.transactionTime).getMonth(); // 获取月份（0-11）
-      const amount = Number(item.amount);
+    // 2. 获取收入数据 (来自 AmountBill)
+    const incomeItems = await prismaClient.amountBill.findMany({
+      where: {
+        createTime: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        createTime: true,
+        totalFee: true,
+      },
+    });
 
-      // 根据类型累加到对应数组，直接使用月份索引
-      if (item.transactionType === '收入') {
-        incomeDatamonths[month] += amount;
-      } else if (item.transactionType === '支出') {
-        expenseDatamonths[month] += amount;
+    const incomeDatamonths = Array.from({ length: 12 }, () => 0);
+    for (const item of incomeItems) {
+      if (item.createTime) {
+        const month = new Date(item.createTime).getMonth();
+        incomeDatamonths[month] += Number(item.totalFee);
       }
     }
 
-    // 返回时添加月份标签数组
     return useResponseSuccess({
       incomeDatamonths,
       expenseDatamonths,
-      monthLabels: Array.from({ length: 12 }).map((_, i) => `${i + 1}月`),
+      monthLabels: Array.from({ length: 12 }, (_, i) => `${i + 1}月`),
       monthsInYear: 12,
       year: currentYear,
       type: 'months',

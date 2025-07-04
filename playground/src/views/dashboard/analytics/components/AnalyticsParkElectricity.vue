@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import { getAnalyticsParkElectricity } from '#/api/analytics';
-
 import BaseChart from './BaseChart.vue';
 import { getParkElectricityChartConfig } from './chartConfigs';
 
@@ -17,10 +15,10 @@ interface ParkElectricityData {
   totalUsage: number;
 }
 
-// 定义数据获取函数
-const fetchData = async () => {
-  return await getAnalyticsParkElectricity();
-};
+interface Props {
+  data: ParkElectricityData[];
+}
+defineProps<Props>();
 
 // 数据处理函数
 const processData = (data: ParkElectricityData[]) => {
@@ -36,7 +34,7 @@ const generateChartConfig = (data: ParkElectricityData[]) => {
 <template>
   <BaseChart
     :chart-config-fn="generateChartConfig"
-    :fetch-data-fn="fetchData"
+    :chart-data="data"
     :process-data-fn="processData"
   />
 </template>

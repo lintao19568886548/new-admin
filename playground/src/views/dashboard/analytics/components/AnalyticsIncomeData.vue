@@ -1,14 +1,17 @@
 <script lang="ts" setup>
-import { getAnalyticsTrend } from '#/api/analytics';
-
 import BaseChart from './BaseChart.vue';
 import { getRadarChartConfig } from './chartConfigs';
+
+interface Props {
+  data: any;
+}
+defineProps<Props>();
 </script>
 
 <template>
   <BaseChart
     :chart-config-fn="(data) => getRadarChartConfig(data, 'income')"
-    :fetch-data-fn="getAnalyticsTrend"
+    :chart-data="data"
     :process-data-fn="(data) => data.income"
   />
 </template>
