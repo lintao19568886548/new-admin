@@ -20,6 +20,22 @@ export const useRoleStore = defineStore('role', () => {
   // 数据是否已加载
   const isLoaded = ref(false);
 
+  // 初始状态
+  const initialState = {
+    isLoaded: false,
+    loading: false,
+    roleList: [],
+  };
+
+  /**
+   * 重置状态
+   */
+  const $reset = () => {
+    roleList.value = initialState.roleList;
+    loading.value = initialState.loading;
+    isLoaded.value = initialState.isLoaded;
+  };
+
   /**
    * 获取角色列表数据
    * 如果数据已存在则直接返回，否则调用API获取
@@ -95,6 +111,7 @@ export const useRoleStore = defineStore('role', () => {
   };
 
   return {
+    $reset,
     addRole,
     clearRoles,
     fetchRoles,
