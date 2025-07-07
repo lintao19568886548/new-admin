@@ -15,7 +15,6 @@ export default eventHandler(async (event) => {
     const factory = await prismaClient.factory.findUnique({
       where: {
         factoryId: id,
-        isOwn: false, // 只查询入驻厂房
       },
       include: {
         // 包含厂房楼层

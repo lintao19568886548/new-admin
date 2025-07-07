@@ -45,6 +45,8 @@
     "dev:docs": "pnpm -F @vben/docs run dev",
     "dev:play": "pnpm -F @vben/playground run dev",
     "format": "vsh lint --format",
+    "generate:android:assemble:release": "cd playground/android && .\\gradlew assembleRelease",
+    "generate:android:open:release": "explorer playground\\android\\app\\build\\outputs\\apk\\release",
     "lint": "vsh lint",
     "postinstall": "pnpm -r run stub --if-present",
     "preinstall": "npx only-allow pnpm",
