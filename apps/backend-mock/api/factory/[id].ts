@@ -11,17 +11,13 @@ export default eventHandler(async (event) => {
       return useResponseError('无效的厂房ID', 400);
     }
 
-    // 查询厂房信息，并包含关联的楼层、设施信息
+    // 查询厂房信息，包含楼层数据
     const factory = await prismaClient.factory.findUnique({
-      where: { factoryId: id },
+      where: {
+        factoryId: id,
+        isOwn: false, // 只查询入驻厂房
+      },
       include: {
-        // 包含园区基本信息
-        park: {
-          select: {
-            parkId: true,
-            parkName: true,
-          },
-        },
         // 包含厂房楼层
         floors: {
           where: {
@@ -35,27 +31,6 @@ export default eventHandler(async (event) => {
               },
             },
           },
-        },
-        // 包含消防设施
-        firefighting: {
-          orderBy: {
-            checkTime: 'desc',
-          },
-          take: 1,
-        },
-        // 包含变压器
-        transformers: {
-          orderBy: {
-            checkTime: 'desc',
-          },
-          take: 1,
-        },
-        // 包含升降机
-        elevator: {
-          orderBy: {
-            checkTime: 'desc',
-          },
-          take: 1,
         },
       },
     });
@@ -97,21 +72,7 @@ export default eventHandler(async (event) => {
     const availableArea = totalArea - usedArea;
     const floorCount = floors.length;
 
-    // 处理设施数据
-    const firefightingDetails = factory.firefighting.map((item) => ({
-      ...item,
-      checkTime: item.checkTime ? item.checkTime.toISOString() : null,
-    }));
-
-    const transformerDetails = factory.transformers.map((item) => ({
-      ...item,
-      checkTime: item.checkTime ? item.checkTime.toISOString() : null,
-    }));
-
-    const elevatorDetails = factory.elevator.map((item) => ({
-      ...item,
-      checkTime: item.checkTime ? item.checkTime.toISOString() : null,
-    }));
+    // 移除设施数据处理，专注于厂房和楼层信息
 
     // 返回处理后的厂房详情数据
     const result = {
@@ -124,8 +85,8 @@ export default eventHandler(async (event) => {
       createTime: factory.createTime ? factory.createTime.toISOString() : null,
       updateTime: factory.updateTime ? factory.updateTime.toISOString() : null,
       isOwn: factory.isOwn,
-      parkId: factory.parkId,
-      parkName: factory.park.parkName,
+      parkId: null, // 入驻厂房没有园区ID
+      parkName: '入驻厂房',
 
       // 厂房图片信息
       imgUrl: firstFloorMainImage,
@@ -139,11 +100,6 @@ export default eventHandler(async (event) => {
 
       // 楼层信息
       floors,
-
-      // 设施信息
-      firefighting: firefightingDetails,
-      transformers: transformerDetails,
-      elevators: elevatorDetails,
     };
 
     return useResponseSuccess(result);

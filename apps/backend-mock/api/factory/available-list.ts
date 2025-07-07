@@ -18,8 +18,6 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
-  const authorizedParkIds = userinfo.parks.map((park) => park.parkId);
-
   try {
     const query = getQuery(event);
     const currentPage = Number(query.currentPage) || 1;
@@ -29,9 +27,6 @@ export default eventHandler(async (event) => {
     // 构建查询条件
     const where: any = {
       isDeleted: false,
-      parkId: {
-        in: authorizedParkIds, // 确保只查询用户有权限的园区下的厂房
-      },
     };
 
     // 厂房名称查询
@@ -155,9 +150,9 @@ export default eventHandler(async (event) => {
         floorCount,
         rentPrice: floors.length > 0 ? Number(floors[0].rentPrice) : 0,
         tag: factory.isOwn ? '自有' : '入驻',
-        group: factory.park.parkName,
-        parkId: factory.parkId,
-        parkName: factory.park.parkName,
+        group: factory.park?.parkName || null,
+        parkId: factory.parkId ?? null,
+        parkName: factory.park?.parkName || null,
         imgUrl: firstFloorMainImage,
         imageUrls: firstFloorImages,
         content: factory.description || '',
@@ -178,7 +173,7 @@ export default eventHandler(async (event) => {
       pageSize,
     });
   } catch (error) {
-    console.error('查询财务数据失败:', error);
-    return useResponseError('查询财务数据失败', 500);
+    console.error('查询空闲厂房数据失败:', error);
+    return useResponseError('查询空闲厂房数据失败', 500);
   }
 });

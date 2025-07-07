@@ -24,10 +24,32 @@ export default eventHandler(async (event) => {
     // 构建查询条件
     const where: any = {
       isDeleted: false,
-      parkId: {
-        in: authorizedParkIds, // 确保只查询用户有权限的园区下的厂房
-      },
     };
+
+    // 根据 isOwn 参数决定查询条件
+    if (query.isOwn === undefined) {
+      // 如果没有指定 isOwn，则查询所有有权限的厂房（自有 + 入驻）
+      where.OR = [
+        {
+          // 自有厂房：在用户有权限的园区内
+          isOwn: true,
+          parkId: {
+            in: authorizedParkIds,
+          },
+        },
+        {
+          // 入驻厂房：parkId 为 null
+          isOwn: false,
+          parkId: null,
+        },
+      ];
+    } else {
+      const isOwn = query.isOwn === 'true' || query.isOwn === true;
+      where.isOwn = isOwn;
+
+      // 根据厂房类型设置园区查询条件：自有厂房查询用户有权限的园区，入驻厂房查询 parkId 为 null
+      where.parkId = isOwn ? { in: authorizedParkIds } : null;
+    }
 
     // 厂房名称查询
     if (query.factoryName) {
@@ -39,14 +61,16 @@ export default eventHandler(async (event) => {
       where.address = { contains: query.address };
     }
 
-    // 园区ID查询
-    if (query.parkId) {
-      where.parkId = Number(query.parkId);
-    }
-
-    // 是否自有厂房查询
-    if (query.isOwn !== undefined) {
-      where.isOwn = query.isOwn === 'true' || query.isOwn === true;
+    // 园区ID查询（仅对自有厂房有效）
+    if (query.parkId && query.isOwn !== 'false') {
+      // 如果指定了园区ID，且不是明确查询入驻厂房，则添加园区ID条件
+      if (where.OR) {
+        // 如果使用了OR条件，需要修改自有厂房的查询条件
+        where.OR[0].parkId = Number(query.parkId);
+      } else if (where.isOwn === true) {
+        // 如果明确查询自有厂房，直接设置parkId
+        where.parkId = Number(query.parkId);
+      }
     }
 
     // 获取总数
@@ -61,7 +85,7 @@ export default eventHandler(async (event) => {
         createTime: 'desc',
       },
       include: {
-        // 包含园区信息
+        // 包含园区信息（入驻厂房可能没有园区）
         park: {
           select: {
             parkId: true,
@@ -132,9 +156,9 @@ export default eventHandler(async (event) => {
         floorCount,
         rentPrice: floors.length > 0 ? Number(floors[0].rentPrice) : 0,
         tag: factory.isOwn ? '自有' : '入驻',
-        group: factory.park.parkName,
+        group: factory.park?.parkName || '入驻厂房',
         parkId: factory.parkId,
-        parkName: factory.park.parkName,
+        parkName: factory.park?.parkName || '入驻厂房',
         imgUrl: firstFloorMainImage,
         imageUrls: firstFloorImages,
         content: factory.description || '',

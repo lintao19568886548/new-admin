@@ -88,6 +88,15 @@ const routes: RouteRecordRaw[] = [
         name: 'FactoryDetail',
         path: 'factory/detail/:id',
       },
+      {
+        component: () => import('#/views/rental/settled/list.vue'),
+        meta: {
+          icon: 'mdi:home-import-outline', // 入驻厂房图标
+          title: $t('page.rental.settled'),
+        },
+        name: 'SettledFactory',
+        path: 'settled',
+      },
     ],
   },
 ];
