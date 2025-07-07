@@ -1,8 +1,27 @@
 apply plugin: 'com.android.application'
 
+// 加载签名配置
+def keystorePropertiesFile = rootProject.file("app/keystore/team-keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace "cn.yizuw.magic"
     compileSdk rootProject.ext.compileSdkVersion
+    
+    // 签名配置
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
     defaultConfig {
         applicationId "cn.yizuw.magic"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -20,6 +39,16 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // 使用统一的签名配置
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+        debug {
+            // Debug版本也可以使用统一签名（可选）
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
