@@ -24,6 +24,11 @@ export default eventHandler(async (event) => {
           not: 'button',
         },
       },
+      orderBy: {
+        meta: {
+          order: 'asc',
+        },
+      },
       include: {
         meta: true,
         children: {
@@ -102,6 +107,11 @@ export default eventHandler(async (event) => {
       },
       type: {
         not: 'button',
+      },
+    },
+    orderBy: {
+      meta: {
+        order: 'asc',
       },
     },
     include: {
