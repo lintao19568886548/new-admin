@@ -39,6 +39,15 @@ const routes: RouteRecordRaw[] = [
           title: '访客登记',
         },
       },
+      {
+        name: 'VisitorMobileList',
+        path: '/access/visitor/mobile',
+        component: () => import('#/views/access/visitor/mobile-list.vue'),
+        meta: {
+          icon: 'carbon:mobile',
+          title: '访客管理(移动端)',
+        },
+      },
     ],
   },
 ];

@@ -6,7 +6,7 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -23,6 +23,39 @@ import Form from './modules/form.vue';
 
 // 当前选中的区域
 const currentPark = ref();
+
+/**
+ * 清理和处理表单参数
+ * @param formValues
+ */
+function processFormParams(formValues: Record<string, any>) {
+  const params: Record<string, any> = {};
+  Object.keys(formValues).forEach((key) => {
+    if (
+      formValues[key] !== undefined &&
+      formValues[key] !== null &&
+      formValues[key] !== ''
+    ) {
+      // 处理状态值，将字符串转换为数字
+      if (key === 'status') {
+        if (formValues[key] === '进入') {
+          params[key] = 0;
+        } else if (formValues[key] === '离开') {
+          params[key] = 1;
+        } else {
+          params[key] = formValues[key];
+        }
+      }
+      // 处理日期范围，将数组转换为逗号分隔的字符串
+      else if (key === 'registerTime' && Array.isArray(formValues[key])) {
+        params[key] = formValues[key].join(',');
+      } else {
+        params[key] = formValues[key];
+      }
+    }
+  });
+  return params;
+}
 
 const parkSelectorRef = ref();
 
@@ -86,18 +119,19 @@ function onView(row: VisitorItem) {
 /**
  * 表格操作按钮的回调函数
  */
-function onActionClick({ code, row }: OnActionClickParams<VisitorItem>) {
+function onActionClick({ code, row }: OnActionClickParams) {
+  const record = row as VisitorItem;
   switch (code) {
     case 'delete': {
-      onDelete(row);
+      onDelete(record);
       break;
     }
     case 'edit': {
-      onEdit(row);
+      onEdit(record);
       break;
     }
     case 'view': {
-      onView(row);
+      onView(record);
       break;
     }
   }
@@ -127,35 +161,8 @@ const [Grid, gridApi] = useVbenVxeGrid({
             // 直接从formApi获取表单数据
             const formValues = (await gridApi.formApi?.getValues?.()) || {};
 
-            // 清理表单数据，移除空值
-            const params: Record<string, any> = {};
-            Object.keys(formValues).forEach((key) => {
-              if (
-                formValues[key] !== undefined &&
-                formValues[key] !== null &&
-                formValues[key] !== ''
-              ) {
-                // 处理状态值，将字符串转换为数字
-                if (key === 'status') {
-                  if (formValues[key] === '进入') {
-                    params[key] = 0;
-                  } else if (formValues[key] === '离开') {
-                    params[key] = 1;
-                  } else {
-                    params[key] = formValues[key];
-                  }
-                }
-                // 处理日期范围，将数组转换为逗号分隔的字符串
-                else if (
-                  key === 'registerTime' &&
-                  Array.isArray(formValues[key])
-                ) {
-                  params[key] = formValues[key].join(',');
-                } else {
-                  params[key] = formValues[key];
-                }
-              }
-            });
+            // 使用辅助函数处理参数
+            const params = processFormParams(formValues);
 
             params.currentPark = currentPark.value
               ? currentPark.value.parkId
@@ -211,55 +218,19 @@ function onFormSuccess() {
   refreshGrid();
 }
 
-// 添加搜索函数
-function onSearch(params: any) {
-  console.warn('触发搜索，原始参数:', params);
-
-  // 获取表单数据
-  gridApi.formApi?.getValues?.().then((formValues) => {
-    if (!formValues) return;
-
-    // 清理表单数据，移除空值
-    const searchParams: Record<string, any> = {};
-    Object.keys(formValues).forEach((key) => {
-      if (
-        formValues[key] !== undefined &&
-        formValues[key] !== null &&
-        formValues[key] !== ''
-      ) {
-        // 处理状态值，将字符串转换为数字
-        if (key === 'status') {
-          if (formValues[key] === '进入') {
-            searchParams[key] = 0;
-          } else if (formValues[key] === '离开') {
-            searchParams[key] = 1;
-          } else {
-            searchParams[key] = formValues[key];
-          }
-        }
-        // 处理日期范围，将数组转换为逗号分隔的字符串
-        else if (key === 'registerTime' && Array.isArray(formValues[key])) {
-          searchParams[key] = formValues[key].join(',');
-        } else {
-          searchParams[key] = formValues[key];
-        }
-      }
-    });
-
-    console.warn('处理后的搜索参数:', searchParams);
-
-    // 执行查询
-    gridApi.query({
-      form: searchParams,
-    });
-  });
-}
+// 监听园区选择变化，自动刷新表格
+watch(
+  () => currentPark.value,
+  () => {
+    refreshGrid();
+  },
+);
 </script>
 
 <template>
   <Page auto-content-height>
     <FormModal @success="onFormSuccess" />
-    <Grid table-title="来访信息列表" @search="onSearch" @form-submit="onSearch">
+    <Grid table-title="来访信息列表">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector

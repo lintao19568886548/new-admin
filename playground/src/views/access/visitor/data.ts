@@ -9,6 +9,35 @@ import { z } from '#/adapter/form';
 import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
+export const VISITOR_STATUS = {
+  IN: 0,
+  LEFT: 1,
+} as const;
+
+export const VISITOR_STATUS_OPTIONS = [
+  {
+    label: $t('system.access.visitor.status.in'),
+    value: VISITOR_STATUS.IN,
+  },
+  {
+    label: $t('system.access.visitor.status.left'),
+    value: VISITOR_STATUS.LEFT,
+  },
+];
+
+export const VISITOR_STATUS_TAGS = [
+  {
+    color: 'green',
+    label: $t('system.access.visitor.status.in'),
+    value: VISITOR_STATUS.IN,
+  },
+  {
+    color: 'processing',
+    label: $t('system.access.visitor.status.left'),
+    value: VISITOR_STATUS.LEFT,
+  },
+];
+
 /**
  * 获取标签颜色
  */
@@ -75,10 +104,11 @@ export function useFormSchema(): VbenFormSchema[] {
       component: 'RadioGroup',
       componentProps: {
         buttonStyle: 'solid',
-        options: [
-          { label: '进入', value: '进入' },
-          { label: '离开', value: '离开' },
-        ],
+        options: VISITOR_STATUS_OPTIONS.map((item) => ({
+          ...item,
+          // RadioGroup 的 value 不支持数字，转换为字符串
+          value: item.label,
+        })),
         optionType: 'button',
       },
       defaultValue: '进入',
@@ -141,10 +171,10 @@ export function useGridFormSchema(): VbenFormSchema[] {
       component: 'Select',
       componentProps: {
         allowClear: true,
-        options: [
-          { label: '进入', value: '进入' },
-          { label: '离开', value: '离开' },
-        ],
+        options: VISITOR_STATUS_OPTIONS.map((item) => ({
+          ...item,
+          value: item.label,
+        })),
       },
       fieldName: 'status',
       label: '访问状态',
@@ -190,13 +220,13 @@ export function useColumns(
     {
       cellRender: {
         name: 'CellTag',
-        options: getTagTypeOptions(),
+        options: VISITOR_STATUS_TAGS,
       },
       field: 'status',
       formatter: ({ cellValue }) => {
         // 添加格式化函数，将数字转换为文字
-        if (cellValue === 0) return '进入';
-        if (cellValue === 1) return '离开';
+        if (cellValue === VISITOR_STATUS.IN) return '进入';
+        if (cellValue === VISITOR_STATUS.LEFT) return '离开';
         return cellValue;
       },
       title: '访问状态',

@@ -12,7 +12,7 @@ import { useVbenForm } from '#/adapter/form';
 import { createVisitor, updateVisitor } from '#/api/access/visitor';
 import { $t } from '#/locales';
 
-import { useFormSchema } from '../data';
+import { useFormSchema, VISITOR_STATUS, VISITOR_STATUS_OPTIONS } from '../data';
 
 const emit = defineEmits(['success']);
 const formData = ref<VisitorItem>();
@@ -43,10 +43,11 @@ const [Modal, modalApi] = useVbenModal({
 
       // 处理状态值，将字符串转换为数字
       const submitData = { ...values };
-      if (submitData.status === '进入') {
-        submitData.status = 0;
-      } else if (submitData.status === '离开') {
-        submitData.status = 1;
+      const statusOption = VISITOR_STATUS_OPTIONS.find(
+        (opt) => opt.label === submitData.status,
+      );
+      if (statusOption) {
+        submitData.status = statusOption.value;
       }
 
       try {
@@ -92,10 +93,11 @@ const [Modal, modalApi] = useVbenModal({
         }
 
         // 处理状态值，将数字转换为字符串
-        if (formattedData.status === 0) {
-          formattedData.status = '进入';
-        } else if (formattedData.status === 1) {
-          formattedData.status = '离开';
+        const statusOption = VISITOR_STATUS_OPTIONS.find(
+          (opt) => opt.value === formattedData.status,
+        );
+        if (statusOption) {
+          formattedData.status = statusOption.label;
         }
 
         formData.value = formattedData;
@@ -107,7 +109,9 @@ const [Modal, modalApi] = useVbenModal({
         // 设置默认值
         formApi.setValues({
           registerTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-          status: '进入',
+          status: VISITOR_STATUS_OPTIONS.find(
+            (opt) => opt.value === VISITOR_STATUS.IN,
+          )?.label,
         });
       }
     }
