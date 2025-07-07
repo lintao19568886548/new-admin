@@ -46,6 +46,13 @@ export default eventHandler(async (event) => {
         // auditor: body.auditor,
         // auditorId: body.auditorId,
       },
+      include: {
+        images: {
+          include: {
+            image: true, // 包含关联的图片详情
+          },
+        },
+      },
     });
 
     // 如果报销已通过，则同步到财务记录
@@ -59,6 +66,14 @@ export default eventHandler(async (event) => {
           transactionTime: updatedReimbursement.createTime || new Date(),
           remark: `报销 #${updatedReimbursement.id}`,
           parkId: updatedReimbursement.parkId,
+          // 添加图片信息
+          images: {
+            create: updatedReimbursement.images
+              .map((reimbursementImage) => ({
+                url: reimbursementImage.image?.imgUrl || '',
+              }))
+              .filter((img) => img.url), // 过滤掉无效的图片
+          },
         },
       });
       console.log(`报销 #${updatedReimbursement.id} 已通过，同步到财务记录。`);
