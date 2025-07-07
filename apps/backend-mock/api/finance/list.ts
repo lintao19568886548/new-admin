@@ -22,7 +22,9 @@ export default eventHandler(async (event) => {
     console.log('后端收到的查询参数:', query);
 
     // 构建查询条件
-    const where: any = {};
+    const where: any = {
+      isDeleted: false,
+    };
 
     // 账单名称模糊查询，支持中文数字和阿拉伯数字互相匹配
     if (query.billName) {
@@ -69,6 +71,11 @@ export default eventHandler(async (event) => {
     // 交易类型精确匹配
     if (query.transactionType) {
       where.transactionType = String(query.transactionType);
+    }
+
+    // 状态精确匹配
+    if (query.status) {
+      where.status = Number(query.status);
     }
 
     // 金额范围查询，支持模糊查询
@@ -181,6 +188,9 @@ export default eventHandler(async (event) => {
     // 执行分页查询
     const financeList = await prismaClient.finance.findMany({
       where,
+      include: {
+        images: true, // 包含关联的图片
+      },
       orderBy: {
         transactionTime: 'desc',
       },

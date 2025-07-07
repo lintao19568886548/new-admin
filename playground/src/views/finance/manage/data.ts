@@ -1,12 +1,19 @@
+import type { UploadFile, UploadProps } from 'ant-design-vue';
+
 import type { FinanceItem } from './types';
 
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
+import { useAccessStore } from '@vben/stores';
 import { formatDateTime } from '@vben/utils';
+
+import { message } from 'ant-design-vue';
 
 import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
+
+const ONE_MB = 1024 * 1024;
 
 /**
  * 获取标签颜色
@@ -26,6 +33,43 @@ export function getTagTypeOptions() {
   ];
 }
 
+/**
+ * 预览图片
+ */
+const imageOnPreview: UploadProps['onPreview'] = async (file) => {
+  let src = file.url as string;
+  if (!src) {
+    src = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file.originFileObj as any);
+      reader.addEventListener('load', () => resolve(reader.result as string));
+    });
+  }
+  const image = new Image();
+  image.src = src;
+  const imgWindow = window.open(src);
+  imgWindow?.document.write(image.outerHTML);
+};
+
+/**
+ * 上传前校验
+ * @param file
+ */
+function beforeUpload(file: UploadFile) {
+  const isJpgOrPng =
+    file.type === 'image/jpeg' ||
+    file.type === 'image/png' ||
+    file.type === 'image/jpg';
+  if (!isJpgOrPng) {
+    message.error('只允许上传 JPG/PNG 格式的图片!');
+  }
+  const isLt2M = (file.size || 0) / ONE_MB < 2;
+  if (!isLt2M) {
+    message.error('图片大小不能超过 2MB!');
+  }
+  return isJpgOrPng && isLt2M;
+}
+
 export function getBillCategoryOptions() {
   return [
     { label: '账单收入', value: '账单收入' },
@@ -37,6 +81,8 @@ export function getBillCategoryOptions() {
 }
 
 export function useFormSchema(): VbenFormSchema[] {
+  const accessStore = useAccessStore();
+
   return [
     {
       component: 'Input',
@@ -110,6 +156,25 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       fieldName: 'transactionTime',
       label: $t('page.finance.transactionTime'),
+    },
+    {
+      component: 'Upload',
+      componentProps: {
+        action: '/api/image/upload',
+        beforeUpload,
+        headers: {
+          Authorization: `Bearer ${accessStore.accessToken}`,
+        },
+        onPreview: imageOnPreview,
+        listType: 'picture-card',
+      },
+      fieldName: 'images',
+      label: $t('page.finance.images'),
+      renderComponentContent: () => {
+        return {
+          default: () => $t('page.finance.uploadImage'),
+        };
+      },
     },
   ];
 }

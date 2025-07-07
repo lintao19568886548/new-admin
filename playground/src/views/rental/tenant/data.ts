@@ -205,8 +205,11 @@ export function useGridFormSchema(): VbenFormSchema[] {
       componentProps: {
         allowClear: true,
         options: [
-          { label: $t('system.rental.tenant.status.current'), value: '生效中' },
-          { label: $t('system.rental.tenant.status.expired'), value: '过期' },
+          { label: $t('system.rental.tenant.status.current'), value: 'active' },
+          {
+            label: $t('system.rental.tenant.status.expired'),
+            value: 'expired',
+          },
         ],
       },
       fieldName: 'status',
@@ -692,7 +695,7 @@ export function useColumns<T = any>(
             : false;
           const status = isExpired ? '过期' : '生效中';
           const option = getTagTypeOptions().find(
-            (opt) => opt.value === status,
+            (opt) => opt.label === status,
           );
           return h(Tag, { color: option?.color }, () => status);
         },

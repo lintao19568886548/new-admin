@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { UploadFile } from 'ant-design-vue';
+
 import type { FinanceItem } from '../types';
 
 import { computed, ref } from 'vue';
@@ -35,12 +37,27 @@ const [Modal, modalApi] = useVbenModal({
     if (!valid) return;
 
     // Use getValues to ensure we get the latest form data
-    const latestValues = (await formApi.getValues()) as FinanceItem;
+    const latestValues = (await formApi.getValues()) as FinanceItem & {
+      images?: UploadFile[];
+    };
+
+    const images = latestValues.images
+      ?.map((item: UploadFile) => {
+        // 新上传的文件在 response.data.url
+        // 已有的文件在 url
+        return {
+          url:
+            item.url || (item.response as { data: { url: string } })?.data.url,
+        };
+      })
+      // 过滤掉没有 url 的
+      .filter((item) => !!item.url);
 
     const submissionData = {
       ...values,
       ...latestValues,
       amount: Number(latestValues.amount) || 0,
+      images,
       transactionTime: latestValues.transactionTime
         ? new Date(latestValues.transactionTime as string).toISOString()
         : new Date().toISOString(),
@@ -78,7 +95,17 @@ const [Modal, modalApi] = useVbenModal({
       formApi.resetForm();
       if (data && data.financeId) {
         recordId.value = data.financeId;
-        formApi.setValues(data);
+        // The data.images from the backend is an array of objects with url
+        // The Upload component expects an array of objects with uid, name, status, and url
+        const images = data.images?.map(
+          (image: { url: string }, index: number) => ({
+            ...image,
+            name: `image-${index}.png`,
+            status: 'done',
+            uid: `${data.financeId}-${index}`,
+          }),
+        );
+        formApi.setValues({ ...data, images });
       } else {
         recordId.value = undefined;
         formApi.setValues({

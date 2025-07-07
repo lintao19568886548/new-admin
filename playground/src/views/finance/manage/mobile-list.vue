@@ -1,52 +1,75 @@
 <!-- eslint-disable vue/html-closing-bracket-newline -->
 <script lang="ts" setup>
-import type { FinanceItem } from './types';
+import type { FinanceItem as BaseFinanceItem } from './types';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
+import { Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
-import { MoreOutlined, PlusOutlined } from '@ant-design/icons-vue';
 import {
-  Avatar,
   Button,
-  Dropdown,
+  Card,
+  Carousel,
+  Col,
   Empty,
-  List,
-  Menu,
-  MenuItem,
+  Form,
+  Image,
+  Input,
   message,
   Modal,
+  Pagination,
+  Row,
+  Select,
   Spin,
   Tag,
 } from 'ant-design-vue';
 
 import { deleteFinance, getFinanceList } from '#/api/finance';
-import AreaSelector from '#/components/AreaSelector.vue';
+import { getParkList as fetchParks } from '#/api/park';
 import { $t } from '#/locales';
+import { useLayoutStore } from '#/store/layout';
 
 import { getTagTypeOptions } from './data';
-import Form from './modules/form.vue';
+import FormModal from './modules/form.vue';
 
-const [FormModal, formModalApi] = useVbenModal({
-  connectedComponent: Form,
+type ParkList = Awaited<ReturnType<typeof fetchParks>>;
+type ParkItem = ParkList[number];
+
+interface FinanceItem extends BaseFinanceItem {
+  formattedAmount?: string;
+  images?: { url: string }[];
+}
+
+const [VbenFormModal, formModalApi] = useVbenModal({
+  connectedComponent: FormModal,
   destroyOnClose: true,
 });
 
 const bills = ref<FinanceItem[]>([]);
-const currentPage = ref(1);
-const pageSize = ref(15);
-const totalBills = ref(0);
+const pagination = reactive({
+  current: 1,
+  pageSize: 10,
+  total: 0,
+});
+
 const loading = ref(false);
-const allLoaded = ref(false);
 
-const currentPark = ref();
-const parkSelectorRef = ref();
+const layoutStore = useLayoutStore();
 
-const tagOptions = getTagTypeOptions();
+const parkOptions = ref<{ label: string; value: number }[]>([]);
+
+// 搜索表单
+const searchForm = reactive({
+  billName: '',
+  parkId: undefined,
+  transactionType: undefined,
+});
+const transactionTypeOptions = getTagTypeOptions();
+
 const getTagDisplay = (value: string) => {
-  const option = tagOptions.find((opt) => opt.value === value);
+  const option = getTagTypeOptions().find((opt) => opt.value === value);
   const color = option?.color || 'default';
   return {
     bgColor: color === 'green' ? 'bg-green-500' : 'bg-red-500',
@@ -55,40 +78,20 @@ const getTagDisplay = (value: string) => {
   };
 };
 
-const formatFee = (value?: number | string) => {
-  const numValue = Number(value);
-  return Number.isNaN(numValue) ? '¥ 0.00' : `¥ ${numValue.toFixed(2)}`;
-};
-
-async function fetchBillList(isRefresh = false) {
-  if (loading.value || (!isRefresh && allLoaded.value)) return;
+async function fetchBillList() {
+  if (loading.value) return;
   loading.value = true;
-  if (isRefresh) {
-    currentPage.value = 1;
-    bills.value = [];
-    allLoaded.value = false;
-  }
 
   try {
     const params: Record<string, any> = {
-      currentPage: currentPage.value,
-      pageSize: pageSize.value,
-      parkId: currentPark.value ? currentPark.value.parkId : -1,
+      currentPage: pagination.current,
+      pageSize: pagination.pageSize,
+      ...searchForm,
     };
 
     const result = await getFinanceList(params);
 
-    if (result && result.items && typeof result.total === 'number') {
-      bills.value = [...bills.value, ...result.items];
-      totalBills.value = result.total;
-      if (bills.value.length >= totalBills.value) {
-        allLoaded.value = true;
-      }
-    } else {
-      message.warn('获取账单列表失败，数据结构异常。');
-      bills.value = [];
-      totalBills.value = 0;
-    }
+    processBills(result);
   } catch (error: any) {
     message.error(error?.message || '获取账单列表失败');
   } finally {
@@ -96,19 +99,77 @@ async function fetchBillList(isRefresh = false) {
   }
 }
 
-onMounted(() => {
-  fetchBillList(true);
-});
-
-function handleLoadMore() {
-  if (!allLoaded.value) {
-    currentPage.value++;
-    fetchBillList();
+function processBills(result: { items: BaseFinanceItem[]; total: number }) {
+  if (result && result.items && typeof result.total === 'number') {
+    bills.value = result.items.map((item) => {
+      return {
+        ...item,
+        formattedAmount: `¥ ${Number(item.amount).toFixed(2)}`,
+        images: item.images || [],
+        transactionTime: formatDateTime(item.transactionTime),
+      } as FinanceItem;
+    });
+    pagination.total = result.total;
   }
 }
 
+function getParkName(parkId?: number): string {
+  if (parkId === undefined || parkId === null) {
+    return '';
+  }
+  const park = parkOptions.value.find((p) => p.value === parkId);
+  return park?.label || '';
+}
+
+async function fetchParkOptions() {
+  try {
+    const parks = await fetchParks();
+    parkOptions.value = parks.map((park: ParkItem) => ({
+      label: park.parkName,
+      value: park.parkId,
+    }));
+  } catch (error) {
+    console.error('获取园区列表失败', error);
+  }
+}
+
+onMounted(() => {
+  fetchBillList();
+  fetchParkOptions();
+  layoutStore.setHeaderActions([
+    {
+      // icon: PlusOutlined,
+      key: 'add-bill',
+      onClick: () => handleCreate(),
+      text: '新增',
+    },
+  ]);
+});
+
+onUnmounted(() => {
+  layoutStore.clearHeaderActions();
+});
+
+function handlePageChange(page: number, pageSize: number) {
+  pagination.current = page;
+  pagination.pageSize = pageSize;
+  fetchBillList();
+}
+
+function handleSearch() {
+  pagination.current = 1;
+  fetchBillList();
+}
+
+function resetSearch() {
+  searchForm.billName = '';
+  searchForm.parkId = undefined;
+  searchForm.transactionType = undefined;
+  handleSearch();
+}
+
 function refreshList() {
-  fetchBillList(true);
+  fetchBillList();
 }
 
 function handleCreate() {
@@ -155,123 +216,153 @@ function handleFormSuccess() {
   refreshList();
 }
 
-function onParkChange(park: any) {
-  currentPark.value = park;
-  refreshList();
+const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
+
+function getTransactionTypeClass(type: string) {
+  return type === '收入' ? 'text-green-500' : 'text-red-500';
 }
 
-const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
+function goToDetail(id: number) {
+  // Navigation logic will be implemented here
+  return id;
+}
 </script>
 
 <template>
-  <Page
-    :title="$t('page.finance.mobileTitle', '财务明细')"
-    class="finance-mobile-page"
-  >
-    <FormModal @success="handleFormSuccess" />
-    <div
-      class="relative z-10 flex items-center justify-between bg-white p-2 shadow-sm dark:bg-black"
-    >
-      <AreaSelector
-        :default-area="currentPark"
-        :refresh-callback="refreshList"
-        @change="onParkChange"
-        ref="parkSelectorRef"
-        size="small"
-      />
-      <Button type="primary" @click="handleCreate" size="small">
-        <PlusOutlined /> {{ $t('page.finance.createBill', '新增账单') }}
-      </Button>
+  <Page class="finance-mobile-page">
+    <VbenFormModal @success="handleFormSuccess" />
+
+    <div class="search-filters">
+      <Form layout="vertical" :model="searchForm">
+        <Row :gutter="16">
+          <Col :span="24">
+            <Form.Item :label="$t('page.common.park')">
+              <Select
+                v-model:value="searchForm.parkId"
+                :options="parkOptions"
+                allow-clear
+                :placeholder="$t('page.common.selectPark')"
+              />
+            </Form.Item>
+          </Col>
+          <Col :span="12">
+            <Form.Item :label="$t('账单名称')">
+              <Input
+                v-model:value="searchForm.billName"
+                :placeholder="$t('搜索账单名称')"
+                allow-clear
+              />
+            </Form.Item>
+          </Col>
+          <Col :span="12">
+            <Form.Item :label="$t('交易类型')">
+              <Select
+                v-model:value="searchForm.transactionType"
+                :options="transactionTypeOptions"
+                :placeholder="$t('选择类型')"
+                allow-clear
+              />
+            </Form.Item>
+          </Col>
+        </Row>
+        <div class="search-actions">
+          <Button type="primary" @click="handleSearch" class="flex-1">
+            <Search class="mr-1 h-4 w-4" />
+            {{ $t('搜索') }}
+          </Button>
+          <Button @click="resetSearch" class="flex-1">
+            {{ $t('重置') }}
+          </Button>
+        </div>
+      </Form>
     </div>
 
-    <div class="p-2">
-      <Spin :spinning="loading && currentPage === 1">
-        <List
-          item-layout="horizontal"
-          :data-source="bills"
-          :loading="loading && currentPage > 1"
-          :split="false"
+    <Spin :spinning="loading" :tip="$t('加载中...')">
+      <div v-if="bills.length > 0" class="p-2">
+        <Card
+          v-for="item in bills"
+          :key="item.financeId"
+          class="bill-card"
+          :body-style="{ padding: '0' }"
         >
-          <template #renderItem="{ item }: { item: FinanceItem }">
-            <List.Item
-              class="mb-2 rounded-md bg-white p-3 shadow-sm dark:bg-zinc-800"
-            >
-              <template #actions>
-                <Dropdown placement="bottomRight" :trigger="['click']">
-                  <Button type="text" size="small" class="px-1" @click.stop>
-                    <MoreOutlined class="text-lg text-gray-500" />
-                  </Button>
-                  <template #overlay>
-                    <Menu>
-                      <MenuItem @click="handleEdit(item)">
-                        {{ $t('common.edit') }}
-                      </MenuItem>
-                      <MenuItem @click="handleDelete(item)" danger>
-                        {{ $t('common.delete') }}
-                      </MenuItem>
-                    </Menu>
-                  </template>
-                </Dropdown>
-              </template>
-              <List.Item.Meta>
-                <template #title>
-                  <div class="flex items-center">
-                    <span class="font-semibold">{{ item.billName }}</span>
-                    <Tag
-                      v-if="item.billCategory"
-                      color="cyan"
-                      class="ml-2 text-xs"
-                    >
-                      {{ item.billCategory }}
-                    </Tag>
-                  </div>
-                </template>
-                <template #description>
-                  <div class="mt-1 text-sm">
-                    <span
-                      :class="
-                        item.transactionType === '收入'
-                          ? 'text-green-500'
-                          : 'text-red-500'
-                      "
-                      class="font-medium"
-                      >{{ formatFee(item.amount) }}
-                    </span>
-                    <p
-                      v-if="item.transactionTime"
-                      class="mt-1 text-xs text-gray-400"
-                    >
-                      {{ formatDateTime(item.transactionTime) }}
-                    </p>
-                  </div>
-                </template>
-                <template #avatar>
-                  <Avatar
-                    shape="circle"
-                    :class="getTagDisplay(item.transactionType).bgColor"
-                    class="flex-shrink-0 text-white"
-                  >
-                    {{ getTagDisplay(item.transactionType).text.charAt(0) }}
-                  </Avatar>
-                </template>
-              </List.Item.Meta>
-            </List.Item>
-          </template>
-
-          <template #loadMore v-if="!allLoaded && !loading">
-            <div class="my-4 text-center">
-              <Button @click="handleLoadMore">加载更多</Button>
+          <div class="card-header">
+            <span class="bill-title">{{ item.billName }}</span>
+            <div class="header-tags">
+              <Tag :color="getTagDisplay(item.transactionType).color">
+                {{ getTagDisplay(item.transactionType).text }}
+              </Tag>
+              <Tag v-if="item.billCategory" color="cyan">
+                {{ item.billCategory }}
+              </Tag>
             </div>
-          </template>
-          <template #header v-if="listIsEmpty">
-            <Empty
-              class="py-10"
-              :description="$t('page.finance.noData', '暂无财务数据')"
-            />
-          </template>
-        </List>
-      </Spin>
-    </div>
+          </div>
+          <div class="card-content">
+            <div
+              class="flex items-center justify-between"
+              @click="goToDetail(item.financeId)"
+            >
+              <p class="text-lg font-semibold">{{ item.billName }}</p>
+              <p :class="getTransactionTypeClass(item.transactionType)">
+                {{ item.formattedAmount }}
+              </p>
+            </div>
+            <div class="mb-3 flex flex-col gap-3">
+              <div v-if="getParkName(item.parkId)" class="info-item">
+                <span class="info-label">所属园区</span>
+                <span class="info-value">{{ getParkName(item.parkId) }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">交易时间</span>
+                <span class="info-value">{{ item.transactionTime }}</span>
+              </div>
+            </div>
+            <div
+              v-if="item.images && item.images.length > 0"
+              class="card-images"
+            >
+              <Image.PreviewGroup>
+                <Carousel
+                  class="image-carousel"
+                  :adaptive-height="true"
+                  :dots="item.images.length > 1"
+                  :infinite="false"
+                >
+                  <Image
+                    v-for="image in item.images"
+                    :key="image.url"
+                    :src="image.url"
+                    class="carousel-main-image"
+                  />
+                </Carousel>
+              </Image.PreviewGroup>
+            </div>
+          </div>
+          <div class="card-actions">
+            <Button type="primary" ghost @click="handleEdit(item)">
+              {{ $t('common.edit') }}
+            </Button>
+            <Button type="primary" danger ghost @click="handleDelete(item)">
+              {{ $t('common.delete') }}
+            </Button>
+          </div>
+        </Card>
+
+        <Pagination
+          v-if="pagination.total > pagination.pageSize"
+          v-model:current="pagination.current"
+          :page-size="pagination.pageSize"
+          :total="pagination.total"
+          @change="handlePageChange"
+          size="small"
+          class="list-pagination"
+        />
+      </div>
+      <Empty
+        v-if="listIsEmpty"
+        class="py-10"
+        :description="$t('page.finance.noData', '暂无财务数据')"
+      />
+    </Spin>
   </Page>
 </template>
 
@@ -282,5 +373,204 @@ const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
 
 .dark .finance-mobile-page {
   background-color: #1a1a1a;
+}
+
+.search-filters {
+  padding: 12px 8px;
+  margin: 8px;
+  background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+}
+
+.dark .search-filters {
+  background-color: #2d2d2d;
+}
+
+.search-filters .ant-form-item {
+  margin-bottom: 8px;
+}
+
+.search-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.bill-card {
+  margin-bottom: 12px;
+  overflow: hidden;
+  font-size: 14px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+}
+
+.dark .bill-card {
+  background-color: #2d2d2d;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dark .card-header {
+  border-bottom-color: #424242;
+}
+
+.bill-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #323233;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.dark .bill-title {
+  color: #f1f1f1;
+}
+
+.header-tags {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.card-content {
+  padding: 16px;
+}
+
+.amount-display {
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.amount-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: #969799;
+}
+
+.dark .amount-label {
+  color: #a0a0a0;
+}
+
+.amount {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.text-green-500 {
+  color: #4caf50;
+}
+
+.text-red-500 {
+  color: #f44336;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.info-label {
+  margin-bottom: 2px;
+  font-size: 13px;
+  color: #969799;
+}
+
+.dark .info-label {
+  color: #a0a0a0;
+}
+
+.info-value {
+  font-size: 14px;
+  color: #323233;
+}
+
+.dark .info-value {
+  color: #e0e0e0;
+}
+
+.remark-info {
+  padding: 10px 12px;
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #646566;
+  background-color: #f7f8fa;
+  border-radius: 6px;
+}
+
+.dark .remark-info {
+  color: #c0c0c0;
+  background-color: #3a3a3a;
+}
+
+.remark-label {
+  margin-right: 4px;
+  font-weight: 600;
+}
+
+.remark-text {
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.card-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  padding: 12px 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.dark .card-actions {
+  border-top-color: #424242;
+}
+
+.list-pagination {
+  padding-bottom: 10px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.card-images {
+  margin-top: 16px;
+}
+
+.image-carousel {
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.carousel-main-image {
+  width: 100%;
+  height: auto;
+  max-height: 40vh; /* 限制最大高度为视口的40% */
+  object-fit: contain; /* 保证图片完整显示 */
+}
+
+:deep(.image-carousel .slick-dots-bottom) {
+  bottom: 5px;
+}
+
+:deep(.image-carousel .slick-dots li button) {
+  background: #fff;
+  opacity: 0.5;
+}
+
+:deep(.image-carousel .slick-dots li.slick-active button) {
+  background: #fff;
+  opacity: 1;
 }
 </style>

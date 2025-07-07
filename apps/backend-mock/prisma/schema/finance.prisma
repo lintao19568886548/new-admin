@@ -5,13 +5,26 @@ model Finance {
   amount          Decimal     @db.Decimal(10, 2)
   transactionType String      @map("transaction_type") @db.VarChar(20)
   transactionTime DateTime    @map("transaction_time")
-  remark          String?     @db.VarChar(100)
+  remark          String?     @db.VarChar(200)
   createTime      DateTime?   @default(now()) @map("create_time")
   updateTime      DateTime?   @updatedAt @map("update_time")
   parkId          Int?        @map("park_id")
   park            Park?       @relation("ParkToFinance", fields: [parkId], references: [parkId])
   amountBill      AmountBill? @relation("AmountBillToFinance")
+  status          Int         @default(0)
+  isDeleted       Boolean     @default(false) @map("is_deleted")
+  images          FinanceImage[] @relation("FinanceToFinanceImage")
 
   @@index([parkId])
   @@map("finance")
+}
+
+model FinanceImage {
+  id        Int     @id @default(autoincrement())
+  url       String  @db.VarChar(255)
+  financeId Int     @map("finance_id")
+  finance   Finance @relation("FinanceToFinanceImage", fields: [financeId], references: [financeId])
+
+  @@index([financeId])
+  @@map("finance_image")
 }

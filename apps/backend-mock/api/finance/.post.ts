@@ -22,6 +22,7 @@ export default eventHandler(async (event) => {
     parkId,
     remark,
     transactionTime,
+    images,
   } = body;
 
   // 确保 billName 存在
@@ -38,6 +39,15 @@ export default eventHandler(async (event) => {
       remark,
       transactionTime: transactionTime ? new Date(transactionTime) : new Date(),
       transactionType,
+      ...(images && images.length > 0
+        ? {
+            images: {
+              create: images.map((img: string | { url: string }) => ({
+                url: typeof img === 'string' ? img : img.url,
+              })),
+            },
+          }
+        : {}),
     };
 
     // 创建财务记录

@@ -145,6 +145,7 @@
     "edit": "修改收支",
     "expense": "支出管理",
     "expenseType": "支出类型",
+    "images": "凭证图片",
     "income": "收入管理",
     "incomeType": "收入类型",
     "list": "收支列表",
@@ -154,7 +155,9 @@
     "title": "财务管理",
     "transactionTime": "交易时间",
     "transactionType": "收支类型",
-    "view": "查看收支"
+    "uploadImage": "上传凭证",
+    "view": "查看收支",
+    "noImage": "暂无凭证"
   },
   "floor": {
     "create": "新增楼层",
