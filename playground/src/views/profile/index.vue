@@ -5,7 +5,9 @@ import { VbenIcon } from '@vben/common-ui';
 import { ChevronRight, LogOut, RotateCw, UserRoundPen } from '@vben/icons';
 import { useUserStore } from '@vben/stores';
 
+import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 import { Avatar, Card, List, ListItem, message, Modal } from 'ant-design-vue';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
@@ -35,8 +37,8 @@ async function handleCheckUpdate() {
   // Show loading message, which will be destroyed upon completion or error
   message.loading('正在检查更新...', 0);
   try {
-    // const { version: currentVersion } = await App.getInfo();
-    const currentVersion = '1.0.0';
+    const { version: currentVersion } = await App.getInfo();
+    // const currentVersion = '1.0.0';
 
     // Fetch latest version info from the server.
     const {
@@ -98,8 +100,8 @@ function handleEditProfile() {
   message.info('该功能正在开发中...');
 }
 
-// const isNative = Capacitor.isNativePlatform();
-const isNative = true;
+const isNative = Capacitor.isNativePlatform();
+// const isNative = true;
 
 const actions = computed(() => {
   const baseActions = [
