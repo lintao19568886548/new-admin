@@ -80,11 +80,15 @@
     "water": "水费"
   },
   "common": {
+    "add": "新增",
     "area": "面积",
     "date": "日期",
     "park": "所属园区",
     "remark": "备注",
-    "rent": "租金"
+    "rent": "租金",
+    "selectPark": "请选择园区",
+    "view": "查看",
+    "confirmDelete": "删除确认"
   },
   "dashboard": {
     "analytics": "分析页",
@@ -138,26 +142,33 @@
   },
   "finance": {
     "amount": "账单金额",
+    "amountShort": "金额",
     "billCategory": "账单分类",
     "billName": "账单名称",
     "create": "新增收支",
+    "deleteFailedLog": "删除失败",
     "detail": "收支详情",
     "edit": "修改收支",
     "expense": "支出管理",
     "expenseType": "支出类型",
+    "fetchParksFailed": "获取园区列表失败",
     "images": "凭证图片",
     "income": "收入管理",
     "incomeType": "收入类型",
     "list": "收支列表",
     "list-title": "财务信息列表",
     "name": "账单",
+    "noData": "暂无财务数据",
+    "noImage": "暂无凭证",
     "remark": "备注",
+    "searchBillName": "搜索账单名称",
+    "selectType": "选择类型",
+    "thisRecord": "该记录",
     "title": "财务管理",
     "transactionTime": "交易时间",
     "transactionType": "收支类型",
     "uploadImage": "上传凭证",
-    "view": "查看收支",
-    "noImage": "暂无凭证"
+    "view": "查看收支"
   },
   "floor": {
     "create": "新增楼层",
