@@ -14,6 +14,7 @@ import { useUserStore } from '@vben/stores';
 
 import { message, Modal } from 'ant-design-vue';
 
+import { getParkList as fetchParks } from '#/api/park';
 import {
   deleteReimbursement as apiDeleteReimbursement,
   getReimbursementList as apiGetReimbursementList,
@@ -21,6 +22,9 @@ import {
 } from '#/api/reimbursement';
 
 import { STATUS_MAP } from '../data';
+
+type ParkList = Awaited<ReturnType<typeof fetchParks>>;
+type ParkItem = ParkList[number];
 
 /**
  * 状态选项
@@ -82,6 +86,8 @@ export function useReimbursementAudit() {
   );
   const submitting = ref(false);
 
+  const parkOptions = ref<{ label: string; value: number }[]>([]);
+
   /**
    * 检查指定金额是否超出当前用户的审核权限
    * @param amount 要检查的金额
@@ -122,13 +128,13 @@ export function useReimbursementAudit() {
   // 搜索表单 - 此处在list.vue中使用
   const searchForm = reactive<{
     dateRange: [Dayjs, Dayjs] | undefined;
-    park: string;
+    park: string | undefined;
     payee: string;
     purpose: string;
     status: number | undefined;
   }>({
     dateRange: undefined,
-    park: '',
+    park: undefined,
     payee: '',
     purpose: '',
     status: undefined,
@@ -140,7 +146,7 @@ export function useReimbursementAudit() {
     searchForm.purpose = '';
     searchForm.status = undefined;
     searchForm.payee = '';
-    searchForm.park = '';
+    searchForm.park = undefined;
     pagination.current = 1;
     fetchReimbursements();
   }
@@ -353,11 +359,24 @@ export function useReimbursementAudit() {
     });
   }
 
+  async function fetchParkOptions() {
+    try {
+      const parks = await fetchParks();
+      parkOptions.value = parks.map((park: ParkItem) => ({
+        label: park.parkName,
+        value: park.parkId,
+      }));
+    } catch (error) {
+      console.error('获取园区列表失败', error);
+    }
+  }
+
   // 返回所有方法和状态
   return {
     auditForm,
     availableStatusOptions,
     currentRecord,
+    fetchParkOptions,
     fetchReimbursements,
     getUserPrivilegeInfo,
     handleAuditSubmit,
@@ -369,6 +388,7 @@ export function useReimbursementAudit() {
     isAuditModalVisible,
     loading,
     pagination,
+    parkOptions,
     reimbursementList,
     resetSearch,
     searchForm,

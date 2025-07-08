@@ -4,7 +4,7 @@ import type { FinanceItem as BaseFinanceItem } from './types';
 
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 
-import { Page, useVbenModal } from '@vben/common-ui';
+import { useVbenModal } from '@vben/common-ui';
 import { Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
@@ -129,7 +129,7 @@ async function fetchParkOptions() {
       value: park.parkId,
     }));
   } catch (error) {
-    console.error('获取园区列表失败', error);
+    console.error($t('page.finance.fetchParksFailed'), error);
   }
 }
 
@@ -141,7 +141,7 @@ onMounted(() => {
       // icon: PlusOutlined,
       key: 'add-bill',
       onClick: () => handleCreate(),
-      text: '新增',
+      text: $t('page.common.add'),
     },
   ]);
 });
@@ -183,7 +183,10 @@ async function handleEdit(item: FinanceItem) {
 async function handleDelete(item: FinanceItem) {
   Modal.confirm({
     cancelText: $t('common.cancel'),
-    content: $t('ui.actionMessage.deleteConfirm', [item.billName || '该记录']),
+    centered: true,
+    content: $t('ui.actionMessage.deleteConfirm', [
+      item.billName || $t('page.finance.thisRecord'),
+    ]),
     okText: $t('common.confirm'),
     okType: 'danger',
     async onOk() {
@@ -201,14 +204,14 @@ async function handleDelete(item: FinanceItem) {
         });
         refreshList();
       } catch (error) {
-        console.error('删除失败:', error);
+        console.error($t('page.finance.deleteFailedLog'), error);
         message.error({
           content: $t('ui.actionMessage.deleteFailed', [item.billName]),
           key: 'action_process_msg',
         });
       }
     },
-    title: $t('common.confirmDelete'),
+    title: $t('page.common.confirmDelete'),
   });
 }
 
@@ -221,22 +224,17 @@ const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
 function getTransactionTypeClass(type: string) {
   return type === '收入' ? 'text-green-500' : 'text-red-500';
 }
-
-function goToDetail(id: number) {
-  // Navigation logic will be implemented here
-  return id;
-}
 </script>
 
 <template>
-  <Page class="finance-mobile-page">
+  <div class="finance-mobile-page">
     <VbenFormModal @success="handleFormSuccess" />
 
     <div class="search-filters">
       <Form layout="vertical" :model="searchForm">
         <Row :gutter="16">
           <Col :span="24">
-            <Form.Item :label="$t('page.common.park')">
+            <Form.Item :label="$t('page.park.item')">
               <Select
                 v-model:value="searchForm.parkId"
                 :options="parkOptions"
@@ -246,20 +244,20 @@ function goToDetail(id: number) {
             </Form.Item>
           </Col>
           <Col :span="12">
-            <Form.Item :label="$t('账单名称')">
+            <Form.Item :label="$t('page.finance.billName')">
               <Input
                 v-model:value="searchForm.billName"
-                :placeholder="$t('搜索账单名称')"
+                :placeholder="$t('page.finance.searchBillName')"
                 allow-clear
               />
             </Form.Item>
           </Col>
           <Col :span="12">
-            <Form.Item :label="$t('交易类型')">
+            <Form.Item :label="$t('page.finance.transactionType')">
               <Select
                 v-model:value="searchForm.transactionType"
                 :options="transactionTypeOptions"
-                :placeholder="$t('选择类型')"
+                :placeholder="$t('page.finance.selectType')"
                 allow-clear
               />
             </Form.Item>
@@ -268,17 +266,17 @@ function goToDetail(id: number) {
         <div class="search-actions">
           <Button type="primary" @click="handleSearch" class="flex-1">
             <Search class="mr-1 h-4 w-4" />
-            {{ $t('搜索') }}
+            {{ $t('common.search') }}
           </Button>
           <Button @click="resetSearch" class="flex-1">
-            {{ $t('重置') }}
+            {{ $t('common.reset') }}
           </Button>
         </div>
       </Form>
     </div>
 
-    <Spin :spinning="loading" :tip="$t('加载中...')">
-      <div v-if="bills.length > 0" class="p-2">
+    <Spin :spinning="loading" :tip="$t('ui.loading')">
+      <div v-if="bills.length > 0">
         <Card
           v-for="item in bills"
           :key="item.financeId"
@@ -297,25 +295,41 @@ function goToDetail(id: number) {
             </div>
           </div>
           <div class="card-content">
-            <div
-              class="flex items-center justify-between"
-              @click="goToDetail(item.financeId)"
-            >
-              <p class="text-lg font-semibold">{{ item.billName }}</p>
-              <p :class="getTransactionTypeClass(item.transactionType)">
+            <!-- Amount -->
+            <div class="mb-4 text-center">
+              <span class="info-label">{{
+                $t('page.finance.amountShort')
+              }}</span>
+              <p
+                :class="getTransactionTypeClass(item.transactionType)"
+                class="amount"
+              >
                 {{ item.formattedAmount }}
               </p>
             </div>
-            <div class="mb-3 flex flex-col gap-3">
-              <div v-if="getParkName(item.parkId)" class="info-item">
-                <span class="info-label">所属园区</span>
+
+            <!-- Park & Time -->
+            <div class="mb-3 grid grid-cols-2 gap-4">
+              <div v-if="getParkName(item.parkId)" class="info-item text-left">
+                <span class="info-label">{{ $t('page.park.item') }}</span>
                 <span class="info-value">{{ getParkName(item.parkId) }}</span>
               </div>
-              <div class="info-item">
-                <span class="info-label">交易时间</span>
+              <div
+                class="info-item text-left"
+                :class="{
+                  'col-span-2': !getParkName(item.parkId),
+                }"
+              >
+                <span class="info-label">{{
+                  $t('page.finance.transactionTime')
+                }}</span>
                 <span class="info-value">{{ item.transactionTime }}</span>
               </div>
             </div>
+            <p v-if="item.remark" class="remark-info">
+              <span class="remark-label">{{ $t('page.finance.remark') }}:</span>
+              <span class="remark-text">{{ item.remark }}</span>
+            </p>
             <div
               v-if="item.images && item.images.length > 0"
               class="card-images"
@@ -360,14 +374,16 @@ function goToDetail(id: number) {
       <Empty
         v-if="listIsEmpty"
         class="py-10"
-        :description="$t('page.finance.noData', '暂无财务数据')"
+        :description="$t('page.finance.noData')"
       />
     </Spin>
-  </Page>
+  </div>
 </template>
 
 <style scoped>
 .finance-mobile-page {
+  box-sizing: border-box;
+  padding: 8px;
   background-color: #f0f2f5;
 }
 
@@ -377,7 +393,7 @@ function goToDetail(id: number) {
 
 .search-filters {
   padding: 12px 8px;
-  margin: 8px;
+  margin-bottom: 8px;
   background-color: #fff;
   border-radius: 4px;
   box-shadow: 0 1px 3px rgb(0 0 0 / 10%);

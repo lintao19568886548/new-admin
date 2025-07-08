@@ -34,6 +34,7 @@ const {
   auditForm,
   availableStatusOptions,
   currentRecord,
+  fetchParkOptions,
   fetchReimbursements,
   handleAuditSubmit,
   handleSearch,
@@ -41,6 +42,7 @@ const {
   isAuditModalVisible,
   loading,
   pagination,
+  parkOptions,
   reimbursementList,
   resetSearch,
   searchForm,
@@ -57,6 +59,7 @@ const rules = useFormRules();
 // 组件挂载时初始化
 onMounted(() => {
   fetchReimbursements();
+  fetchParkOptions();
 });
 
 function handlePageChange(page: number, pageSize: number) {
@@ -106,6 +109,16 @@ function getStatusDisplay(status: number) {
     <div class="search-filters">
       <Form layout="vertical">
         <Row :gutter="16">
+          <Col :span="24">
+            <Form.Item :label="$t('page.park.item')">
+              <Select
+                v-model:value="searchForm.park"
+                :options="parkOptions"
+                :placeholder="$t('选择园区')"
+                allow-clear
+              />
+            </Form.Item>
+          </Col>
           <Col :span="12">
             <Form.Item :label="$t('用途')">
               <Input
@@ -453,7 +466,7 @@ function getStatusDisplay(status: number) {
 
 .amount-display {
   margin-bottom: 16px;
-  text-align: left;
+  text-align: center;
 }
 
 .amount-label {
@@ -576,6 +589,7 @@ function getStatusDisplay(status: number) {
   align-items: center;
   padding: 0 0 5px;
   margin-bottom: 5px;
+  text-align: center;
   border-bottom: 1px solid #f0f0f0;
 }
 
