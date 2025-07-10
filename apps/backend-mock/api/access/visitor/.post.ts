@@ -8,7 +8,7 @@ export default eventHandler(async (event) => {
     if (body.parkId === undefined || body.parkId === null) {
       return useResponseError('园区ID错误');
     }
-    body.carNum = body.carNum.toUpperCase();
+    body.carNum = body.carNum?.toUpperCase();
 
     const accessVisitor = await prismaClient.accessVisitor.create({
       data: {

@@ -6,8 +6,8 @@ const officeLocations = [
     radius: 100,
   },
   {
-    lat: 23.113_378_978_428_83,
-    lng: 113.573_345_088_972_27,
+    lat: 23.107_344,
+    lng: 113.573_356,
     name: '广州新塘园区夏埔二',
     radius: 100,
   },
@@ -69,7 +69,7 @@ const officeLocations = [
     lat: 23.183_788,
     lng: 113.696_806,
     name: '广州荔新',
-    radius: 100,
+    radius: 110,
   },
 ];
 
