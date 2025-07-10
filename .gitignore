@@ -61,3 +61,4 @@ apps/backend-mock/.env
 playground/src/views/system/role/example
 playground/src/views/system/role/docs
 *.tar.gz
+commit_log.txt
