@@ -10,6 +10,7 @@ import '@vben/styles/antd';
 
 import { VueQueryPlugin } from '@tanstack/vue-query';
 import { useTitle } from '@vueuse/core';
+import { createHead } from '@vueuse/head';
 
 import { $t, setupI18n } from '#/locales';
 import { router } from '#/router';
@@ -49,6 +50,10 @@ async function bootstrap(namespace: string) {
 
   // 初始化 tippy
   initTippy(app);
+
+  // 配置@vueuse/head
+  const head = createHead();
+  app.use(head);
 
   // 配置路由及路由守卫
   app.use(router);

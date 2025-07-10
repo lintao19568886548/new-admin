@@ -37,6 +37,8 @@
     <!-- 添加地理位置权限 -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- 添加安装 APK 权限 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-feature android:name="android.hardware.location" android:required="true" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 </manifest>
