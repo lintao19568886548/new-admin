@@ -3,7 +3,7 @@ model AppVersion {
   id        Int      @id @default(autoincrement())
   version   String   @unique
   url       String
-  notes     String?
+  notes     String?  @db.LongText
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

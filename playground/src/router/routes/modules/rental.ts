@@ -97,6 +97,16 @@ const routes: RouteRecordRaw[] = [
         name: 'SettledFactory',
         path: 'settled',
       },
+      {
+        component: () => import('#/views/rental/settled/mobile-list.vue'),
+        meta: {
+          hideMenu: true,
+          icon: 'mdi:cellphone-home', // 手机和房屋图标结合
+          title: $t('page.rental.settled'),
+        },
+        name: 'SettledFactoryMobile',
+        path: 'settled/mobile',
+      },
     ],
   },
 ];
