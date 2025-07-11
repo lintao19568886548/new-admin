@@ -1,12 +1,9 @@
 <script lang="ts" setup>
-import { computed, onMounted } from 'vue'; // onMounted 可能不再需要，除非有其他用途
+import { computed, onMounted } from 'vue';
 
 import { useAntdDesignTokens } from '@vben/hooks';
 import { preferences, usePreferences } from '@vben/preferences';
 
-// 导入 Capacitor 相关模块
-// import { Capacitor } from '@capacitor/core'; // 如果 configureStatusBar 是唯一使用它的地方，可以移除
-// import { StatusBar } from '@capacitor/status-bar'; // 如果 configureStatusBar 是唯一使用它的地方，可以移除
 import { App, ConfigProvider, theme } from 'ant-design-vue';
 
 import { antdLocale } from '#/locales';
@@ -56,8 +53,7 @@ const tokenTheme = computed(() => {
 
 // 组件挂载后执行
 onMounted(() => {
-  // configureStatusBar(); // <-- 移除此调用
-  // 如果 onMounted 没有其他逻辑，可以整个移除 onMounted 及其导入
+  // 这里可以添加其他应用级别的初始化逻辑
 });
 </script>
 

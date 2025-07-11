@@ -14,6 +14,7 @@ import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { Button, message } from 'ant-design-vue';
 
+import AutoUpdateChecker from '#/components/auto-update-checker.vue';
 import { useAuthStore } from '#/store';
 import { useLayoutStore } from '#/store/layout';
 import EditPassword from '#/views/_core/authentication/edit-password.vue';
@@ -369,6 +370,9 @@ function goBack() {
       <LockScreen :avatar @to-login="handleLogout" />
     </template>
   </BasicLayout>
+
+  <!-- 自动更新检查组件（无UI，仅功能） -->
+  <AutoUpdateChecker />
 </template>
 
 <style lang="css" scoped>
