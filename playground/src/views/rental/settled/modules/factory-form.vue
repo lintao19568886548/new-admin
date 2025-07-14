@@ -123,10 +123,20 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
         } else {
           // 更新现有工厂数据 - 保留原始数据中的其他字段
           const currentFactory = factoryData.value[currentEditIndex.value];
+
+          // 清除多余字段
+          const requestData = {
+            ...values,
+            floors: values.floors.map((floor: any) => ({
+              ...floor,
+              imageUrls: undefined,
+              imgUrl: undefined,
+            })),
+          };
           if (currentFactory?.factoryId) {
             const factory = await updateFactory(
               currentFactory.factoryId,
-              values,
+              requestData,
             );
             factoryData.value[currentEditIndex.value] = factory;
           }
