@@ -56,10 +56,8 @@ export async function getLeaveApplicationList(params?: LeaveApplicationQuery) {
  * 创建新的请假申请
  * @param data
  */
-export async function createLeaveApplication(
-  data: Omit<LeaveApplication, 'createdAt' | 'id' | 'status' | 'updatedAt'>,
-) {
-  return requestClient.post<LeaveApplication>('/hrm/leaveapplication', data);
+export async function createLeaveApplication(data: any) {
+  return requestClient.post('/hrm/leaveapplication', data);
 }
 
 /**
@@ -67,10 +65,7 @@ export async function createLeaveApplication(
  * @param id
  * @param data
  */
-export async function updateLeaveApplication(
-  id: number,
-  data: Partial<Omit<LeaveApplication, 'createdAt' | 'id' | 'updatedAt'>>,
-) {
+export async function updateLeaveApplication(id: number, data: any) {
   return requestClient.put<LeaveApplication>(
     `/hrm/leaveapplication/${id}`,
     data,

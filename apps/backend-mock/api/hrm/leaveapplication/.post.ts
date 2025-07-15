@@ -14,27 +14,22 @@ export default eventHandler(async (event) => {
 
   try {
     const body = await readBody(event);
-    const { user, parkId, startDate, endDate, reason, username } = body;
+    const { user, parkId, startDate, endDate, reason } = body;
 
     if (!user || !parkId || !startDate || !endDate || !reason) {
       return serverErrorResponse('缺少必要的表单字段', event);
     }
 
-    // 根据parkId获取园区名称
-    const park = await prismaClient.park.findUnique({
-      where: { parkId: Number(parkId) },
-      select: { parkName: true },
+    const applicant = await prismaClient.user.findFirst({
+      where: {
+        realName: user,
+      },
     });
 
     const newApplication = await prismaClient.leaveApplication.create({
       data: {
-        user,
-        park: park?.parkName || `园区${parkId}`,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        reason,
-        username,
-        status: 0, // 默认状态, 0-待审核
+        ...body,
+        userId: applicant?.id,
       },
     });
 

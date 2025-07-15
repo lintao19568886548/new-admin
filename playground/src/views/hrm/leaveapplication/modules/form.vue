@@ -1,116 +1,58 @@
 <script lang="ts" setup>
-import type { Rule } from 'ant-design-vue/es/form';
+import type { LeaveApplication } from '#/api/hrm/leaveapplication';
 
-import type { LeaveApplication, Park } from '#/api/hrm/leaveapplication';
+import { computed, ref } from 'vue';
 
-import { computed, onMounted, reactive, ref, watchEffect } from 'vue';
-
-import { useVbenModal } from '@vben/common-ui';
+import { useVbenForm, useVbenModal } from '@vben/common-ui';
 import { useUserStore } from '@vben/stores';
+import { formatDateTime } from '@vben/utils';
 
-import {
-  Form as AForm,
-  DatePicker,
-  Input,
-  message,
-  Select,
-} from 'ant-design-vue';
+import { message } from 'ant-design-vue';
 
 import {
   createLeaveApplication,
-  getParkList,
   updateLeaveApplication,
 } from '#/api/hrm/leaveapplication';
 
+import { useFormSchema } from '../data';
+
 const emit = defineEmits(['success']);
-const userStore = useUserStore();
-const formData = ref<LeaveApplication>();
+
+const recordId = ref();
 const getTitle = computed(() => {
-  return formData.value?.id
-    ? `编辑请假申请: ${formData.value.user}`
-    : '新增请假申请';
+  return recordId.value ? `编辑请假申请` : '新增请假申请';
 });
 
-const formState = reactive({
-  endDate: '',
-  park: '',
-  parkId: undefined as number | undefined,
-  reason: '',
-  startDate: '',
-  user: '',
-  username: '',
-});
-
-const aFormRef = ref();
-const rules: Record<string, Rule[]> = {
-  endDate: [{ message: '请选择结束时间', required: true, trigger: 'change' }],
-  parkId: [{ message: '请选择所在园区', required: true, trigger: 'change' }],
-  reason: [{ message: '请输入请假原因', required: true, trigger: 'blur' }],
-  startDate: [{ message: '请选择开始时间', required: true, trigger: 'change' }],
-  user: [
-    { message: '请输入申请人姓名', required: true, trigger: 'blur' },
-    { max: 20, message: '姓名长度在 2-20 个字符之间', min: 2, trigger: 'blur' },
-  ],
-};
-
-const parkOptions = ref<Park[]>([]);
-
-async function fetchParks() {
-  try {
-    parkOptions.value = await getParkList();
-  } catch {
-    message.error('获取园区列表失败');
-  }
-}
-
-function resetForm() {
-  Object.assign(formState, {
-    endDate: '',
-    park: '',
-    parkId: undefined,
-    reason: '',
-    startDate: '',
-    user: '',
-    username: '',
-  });
-  aFormRef.value?.resetFields();
-}
-
-watchEffect(() => {
-  if (formData.value) {
-    Object.assign(formState, {
-      endDate: formData.value.endDate || '',
-      park: formData.value.park || '',
-      parkId: formData.value.parkId,
-      reason: formData.value.reason || '',
-      startDate: formData.value.startDate || '',
-      user: formData.value.user || '',
-      username: formData.value.username || '',
-    });
-  }
+const [Form, formApi] = useVbenForm({
+  layout: 'vertical',
+  schema: useFormSchema(),
+  showDefaultActions: false,
 });
 
 const [Modal, modalApi] = useVbenModal({
   async onConfirm() {
     try {
-      await aFormRef.value.validateFields();
+      // 验证表单数据
+      const { valid } = await formApi.validate();
+      if (!valid) return;
+      const values = await formApi.getValues();
       modalApi.lock();
+      if (values.startDate) {
+        values.startDate = new Date(values.startDate).toISOString();
+      }
+      if (values.endDate) {
+        values.endDate = new Date(values.endDate).toISOString();
+      }
 
-      // 根据parkId获取park名称
-      const selectedPark = parkOptions.value.find(
-        (p) => p.parkId === formState.parkId,
-      );
-      const submitData = {
-        ...formState,
-        park: selectedPark?.parkName || '',
-        username: userStore.userInfo?.realName || '',
-      };
-
-      if (formData.value?.id) {
-        await updateLeaveApplication(formData.value.id, submitData);
+      const { realName } = useUserStore().userInfo || {};
+      if (recordId.value) {
+        await updateLeaveApplication(recordId.value, {
+          ...values,
+          username: realName,
+        });
         message.success('请假申请更新成功');
       } else {
-        await createLeaveApplication(submitData);
+        await createLeaveApplication({ ...values, username: realName });
         message.success('请假申请创建成功');
       }
 
@@ -125,73 +67,27 @@ const [Modal, modalApi] = useVbenModal({
   },
   onOpenChange(isOpen) {
     if (isOpen) {
-      fetchParks();
       const data = modalApi.getData<LeaveApplication>();
       if (data) {
-        formData.value = data;
+        recordId.value = data.id;
+        if (data.startDate) {
+          data.startDate = formatDateTime(data.startDate) as string;
+        }
+        if (data.endDate) {
+          data.endDate = formatDateTime(data.endDate) as string;
+        }
+        formApi.setValues(data);
       } else {
-        formData.value = undefined;
-        resetForm();
+        recordId.value = undefined;
+        formApi.resetForm();
       }
     }
   },
-});
-
-onMounted(() => {
-  console.warn('请假申请表单组件已挂载');
 });
 </script>
 
 <template>
   <Modal :title="getTitle">
-    <AForm
-      ref="aFormRef"
-      :model="formState"
-      :rules="rules"
-      layout="vertical"
-      class="mx-4"
-    >
-      <AForm.Item name="user" label="申请人" required>
-        <Input v-model:value="formState.user" placeholder="请输入申请人姓名" />
-      </AForm.Item>
-
-      <AForm.Item name="parkId" label="所在园区" required>
-        <Select
-          v-model:value="formState.parkId"
-          :options="
-            parkOptions.map((p) => ({ label: p.parkName, value: p.parkId }))
-          "
-          placeholder="请选择所在园区"
-        />
-      </AForm.Item>
-
-      <AForm.Item name="startDate" label="开始时间" required>
-        <DatePicker
-          v-model:value="formState.startDate"
-          show-time
-          class="w-full"
-          placeholder="请选择开始时间"
-          value-format="YYYY-MM-DD HH:mm:ss"
-        />
-      </AForm.Item>
-
-      <AForm.Item name="endDate" label="结束时间" required>
-        <DatePicker
-          v-model:value="formState.endDate"
-          show-time
-          class="w-full"
-          placeholder="请选择结束时间"
-          value-format="YYYY-MM-DD HH:mm:ss"
-        />
-      </AForm.Item>
-
-      <AForm.Item name="reason" label="请假原因" required>
-        <Input.TextArea
-          v-model:value="formState.reason"
-          :rows="4"
-          placeholder="请输入请假原因"
-        />
-      </AForm.Item>
-    </AForm>
+    <Form />
   </Modal>
 </template>

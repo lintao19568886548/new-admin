@@ -1,9 +1,11 @@
-import type { Ref } from 'vue';
-
 import type { VxeTableGridOptions } from '@vben/plugins/vxe-table';
 
 import type { VbenFormSchema } from '#/adapter/form';
-import type { LeaveApplication, Park } from '#/api/hrm/leaveapplication';
+import type { LeaveApplication } from '#/api/hrm/leaveapplication';
+
+import { formatDateTime } from '@vben/utils';
+
+import { getParkList } from '#/api/park';
 
 export function useColumns(): VxeTableGridOptions<LeaveApplication>['columns'] {
   return [
@@ -25,14 +27,14 @@ export function useColumns(): VxeTableGridOptions<LeaveApplication>['columns'] {
     {
       field: 'startDate',
       formatter: ({ cellValue }) =>
-        cellValue ? cellValue.replace('T', ' ').split('.')[0] : '',
+        cellValue ? formatDateTime(cellValue) : '',
       title: '开始时间',
       width: 180,
     },
     {
       field: 'endDate',
       formatter: ({ cellValue }) =>
-        cellValue ? cellValue.replace('T', ' ').split('.')[0] : '',
+        cellValue ? formatDateTime(cellValue) : '',
       title: '结束时间',
       width: 180,
     },
@@ -72,7 +74,68 @@ export function useColumns(): VxeTableGridOptions<LeaveApplication>['columns'] {
   ];
 }
 
-export function useSearchSchema(parkOptions: Ref<Park[]>): VbenFormSchema[] {
+export function useFormSchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      componentProps: {
+        placeholder: '请输入申请人姓名',
+      },
+      fieldName: 'user',
+      label: '申请人',
+      rules: 'required',
+    },
+    {
+      component: 'ApiSelect',
+      componentProps: {
+        api: getParkList,
+        labelField: 'parkName',
+        placeholder: '请选择所在园区',
+        style: { width: '100%' },
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: '所在园区',
+      rules: 'required',
+    },
+    {
+      component: 'DatePicker',
+      componentProps: {
+        placeholder: '请选择开始日期',
+        showTime: true,
+        style: { width: '100%' },
+        valueFormat: 'YYYY-MM-DD HH:mm:ss',
+      },
+      fieldName: 'startDate',
+      label: '开始日期',
+      rules: 'required',
+    },
+    {
+      component: 'DatePicker',
+      componentProps: {
+        placeholder: '请选择结束日期',
+        showTime: true,
+        style: { width: '100%' },
+        valueFormat: 'YYYY-MM-DD HH:mm:ss',
+      },
+      fieldName: 'endDate',
+      label: '结束日期',
+      rules: 'required',
+    },
+    {
+      component: 'Textarea',
+      componentProps: {
+        placeholder: '请输入请假原因',
+        rows: 4,
+      },
+      fieldName: 'reason',
+      label: '请假原因',
+      rules: 'required',
+    },
+  ];
+}
+
+export function useSearchSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
@@ -83,16 +146,14 @@ export function useSearchSchema(parkOptions: Ref<Park[]>): VbenFormSchema[] {
       label: '申请人',
     },
     {
-      component: 'Select',
+      component: 'ApiSelect',
       componentProps: {
-        fieldNames: {
-          label: 'parkName',
-          value: 'parkName',
-        },
-        options: parkOptions,
+        api: getParkList,
+        labelField: 'parkName',
         placeholder: '请选择所在园区',
+        valueField: 'parkId',
       },
-      fieldName: 'park',
+      fieldName: 'parkId',
       label: '所在园区',
     },
   ];

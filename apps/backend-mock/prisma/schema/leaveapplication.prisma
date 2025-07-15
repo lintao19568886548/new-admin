@@ -1,14 +1,38 @@
+/// 请假申请表
 model LeaveApplication {
-  id        Int      @id @default(autoincrement())
-  startDate DateTime
-  endDate   DateTime
-  reason    String   @default("")
-  user      String   @default("")
-  park      String   @default("")
-  username  String?  @default("")
-  auditUser String?  @default("")
-  status    Int      @default(0)
-  reply     String?  @default("")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  /// 唯一标识
+  id Int @id @default(autoincrement())
+
+  // 核心业务字段
+  startDate DateTime @map("start_date") /// 开始日期
+  endDate   DateTime @map("end_date") /// 结束日期
+  reason    String   @default("") /// 请假事由
+  status    Int      @default(0) /// 状态 0-待审批 1-已批准 2-已驳回
+  reply     String?  @default("") /// 审批回复
+
+  // 保留的旧字段
+  username  String? /// 申请人
+  park      String? /// 所属园区
+  user      String? /// 申请人
+  auditUser String? /// 审批人
+
+  // 外键
+  userId      Int? @map("user_id") /// 申请人ID
+  parkId      Int? @map("park_id") /// 所属园区ID
+  auditUserId Int? @map("audit_user_id") /// 审批人ID
+
+  // 时间戳
+  createdTime DateTime  @default(now()) @map("created_time") /// 创建时间
+  updatedTime DateTime? @updatedAt @map("updated_time") /// 更新时间
+
+  // 关系
+  applicant User? @relation("ApplicantLeaveApplications", fields: [userId], references: [id])
+  parkInfo  Park? @relation("ParkLeaveApplications", fields: [parkId], references: [parkId])
+  auditor   User? @relation("AuditorLeaveApplications", fields: [auditUserId], references: [id])
+
+  // 索引和表映射
+  @@index([userId])
+  @@index([parkId])
+  @@index([auditUserId])
+  @@map("leave_application")
 }

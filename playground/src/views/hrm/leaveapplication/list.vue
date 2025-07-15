@@ -145,7 +145,7 @@ function onActionClick({ code, row }: OnActionClickParams<LeaveApplication>) {
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
-    schema: useSearchSchema(parkOptions),
+    schema: useSearchSchema(),
   },
   gridOptions: {
     border: true,
