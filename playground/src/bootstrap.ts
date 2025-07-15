@@ -8,6 +8,8 @@ import { initStores } from '@vben/stores';
 import '@vben/styles';
 import '@vben/styles/antd';
 
+// Ionic Vue 配置
+import { IonicVue } from '@ionic/vue';
 import { VueQueryPlugin } from '@tanstack/vue-query';
 import { useTitle } from '@vueuse/core';
 import { createHead } from '@vueuse/head';
@@ -17,6 +19,17 @@ import { router } from '#/router';
 
 import { initComponentAdapter } from './adapter/component';
 import App from './app.vue';
+
+// import '@ionic/vue/css/core.css';
+// import '@ionic/vue/css/normalize.css';
+// import '@ionic/vue/css/structure.css';
+// import '@ionic/vue/css/typography.css';
+// import '@ionic/vue/css/padding.css';
+// import '@ionic/vue/css/float-elements.css';
+// import '@ionic/vue/css/text-alignment.css';
+// import '@ionic/vue/css/text-transformation.css';
+// import '@ionic/vue/css/flex-utils.css';
+// import '@ionic/vue/css/display.css';
 
 async function bootstrap(namespace: string) {
   // 初始化组件适配器
@@ -57,6 +70,11 @@ async function bootstrap(namespace: string) {
 
   // 配置路由及路由守卫
   app.use(router);
+
+  // 配置 Ionic Vue
+  app.use(IonicVue, {
+    mode: 'md', // 使用 Material Design 样式
+  });
 
   // 配置@tanstack/vue-query
   app.use(VueQueryPlugin);

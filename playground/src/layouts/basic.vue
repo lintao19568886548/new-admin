@@ -15,6 +15,8 @@ import { Capacitor } from '@capacitor/core';
 import { Button, message } from 'ant-design-vue';
 
 import AutoUpdateChecker from '#/components/auto-update-checker.vue';
+import IonicPullToRefresh from '#/components/IonicPullToRefresh.vue';
+import { usePullToRefresh } from '#/hooks/usePullToRefresh';
 import { useAuthStore } from '#/store';
 import { useLayoutStore } from '#/store/layout';
 import EditPassword from '#/views/_core/authentication/edit-password.vue';
@@ -137,6 +139,23 @@ const { destroyWatermark, updateWatermark } = useWatermark();
 
 // 添加修改密码模态框的状态
 const showPasswordModal = ref(false);
+
+// 下拉刷新功能
+const { handleRefresh } = usePullToRefresh({
+  enabled: true,
+  onRefresh: async () => {
+    // 自定义刷新逻辑
+    // 这里可以根据当前路由执行不同的刷新操作
+    const currentRoute = router.currentRoute.value;
+
+    // 可以在这里添加具体的数据刷新逻辑
+    // 比如重新获取用户信息、刷新页面数据等
+    console.warn('刷新页面:', currentRoute.path);
+    window.location.reload();
+  },
+  showSuccessMessage: true,
+  successMessage: '页面已刷新',
+});
 
 const menus = computed(() => [
   {
@@ -281,42 +300,44 @@ function goBack() {
 
     <!-- Main Content Area -->
     <main class="app-main">
-      <BasicLayout @clear-preferences-and-logout="handleLogout">
-        <template #user-dropdown>
-          <UserDropdown
-            :avatar
-            :menus
-            :text="userStore.userInfo?.realName"
-            trigger="both"
-            @logout="handleLogout"
-          />
-        </template>
-        <!-- <template #notification>
-      <Notification
-        :dot="showDot"
-        :notifications="notifications"
-        @clear="handleNoticeClear"
-        @make-all="handleMakeAll"
-      />
-    </template> -->
-        <template #extra>
-          <AuthenticationLoginExpiredModal
-            v-model:open="accessStore.loginExpired"
-            :avatar
-          >
-            <LoginForm />
-          </AuthenticationLoginExpiredModal>
+      <IonicPullToRefresh @refresh="handleRefresh">
+        <BasicLayout @clear-preferences-and-logout="handleLogout">
+          <template #user-dropdown>
+            <UserDropdown
+              :avatar
+              :menus
+              :text="userStore.userInfo?.realName"
+              trigger="both"
+              @logout="handleLogout"
+            />
+          </template>
+          <!-- <template #notification>
+        <Notification
+          :dot="showDot"
+          :notifications="notifications"
+          @clear="handleNoticeClear"
+          @make-all="handleMakeAll"
+        />
+      </template> -->
+          <template #extra>
+            <AuthenticationLoginExpiredModal
+              v-model:open="accessStore.loginExpired"
+              :avatar
+            >
+              <LoginForm />
+            </AuthenticationLoginExpiredModal>
 
-          <!-- 添加修改密码模态框 -->
-          <EditPassword
-            v-model:open="showPasswordModal"
-            @success="handlePasswordChanged"
-          />
-        </template>
-        <template #lock-screen>
-          <LockScreen :avatar @to-login="handleLogout" />
-        </template>
-      </BasicLayout>
+            <!-- 添加修改密码模态框 -->
+            <EditPassword
+              v-model:open="showPasswordModal"
+              @success="handlePasswordChanged"
+            />
+          </template>
+          <template #lock-screen>
+            <LockScreen :avatar @to-login="handleLogout" />
+          </template>
+        </BasicLayout>
+      </IonicPullToRefresh>
     </main>
 
     <!-- App Bottom Tab Bar -->
@@ -376,6 +397,20 @@ function goBack() {
 </template>
 
 <style lang="css" scoped>
+@keyframes pulse-animation {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
 .app-layout {
   display: flex;
   flex-direction: column;
@@ -395,13 +430,18 @@ function goBack() {
 }
 
 .app-main {
+  position: relative;
   flex-grow: 1;
-  overflow-y: auto; /* Allow scrolling */
+  overflow: hidden; /* 让PullToRefresh组件管理滚动 */
+}
+
+/* 下拉刷新组件内部的滚动样式 */
+.app-main :deep(.pull-content) {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE and Edge */
 }
 
-.app-main::-webkit-scrollbar {
+.app-main :deep(.pull-content::-webkit-scrollbar) {
   display: none; /* Chrome, Safari, and Opera */
 }
 
@@ -436,19 +476,5 @@ function goBack() {
   font-weight: 600;
   color: var(--primary-color);
   animation: pulse-animation 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-@keyframes pulse-animation {
-  0% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.1);
-  }
-
-  100% {
-    transform: scale(1);
-  }
 }
 </style>
