@@ -14,7 +14,7 @@ model LeaveApplication {
   username  String? /// 申请人
   park      String? /// 所属园区
   user      String? /// 申请人
-  auditUser String? /// 审批人
+  auditUser String? @map("audit_user") /// 审批人
 
   // 外键
   userId      Int? @map("user_id") /// 申请人ID
