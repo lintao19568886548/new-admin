@@ -5,6 +5,7 @@ import type { FinanceItem } from './types';
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
+import { useAppConfig } from '@vben/hooks';
 import { useAccessStore } from '@vben/stores';
 import { formatDateTime } from '@vben/utils';
 
@@ -12,6 +13,8 @@ import { message } from 'ant-design-vue';
 
 import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
+
+const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
 
 const ONE_MB = 1024 * 1024;
 
@@ -160,7 +163,7 @@ export function useFormSchema(): VbenFormSchema[] {
     {
       component: 'Upload',
       componentProps: {
-        action: '/api/image/upload',
+        action: `${apiURL}/image/upload`,
         beforeUpload,
         headers: {
           Authorization: `Bearer ${accessStore.accessToken}`,

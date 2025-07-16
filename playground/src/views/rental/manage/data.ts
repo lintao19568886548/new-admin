@@ -5,6 +5,7 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
 import { markRaw } from 'vue';
 
+import { useAppConfig } from '@vben/hooks';
 import { useAccessStore } from '@vben/stores';
 
 import { message } from 'ant-design-vue';
@@ -18,6 +19,7 @@ import DormitoryForm from './modules/dormitory-form.vue';
 import FactoryForm from './modules/factory-form.vue';
 import FloorForm from './modules/floor-form.vue';
 
+const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
 const accessStore = useAccessStore();
 // 定义楼层数据的接口
 export interface FloorItem {
@@ -186,7 +188,7 @@ export function useParkFormSchema(): VbenFormSchema[] {
         accept: '.png,.jpg,.jpeg',
         // 自动携带认证信息
         // customRequest: uploadParkImage,
-        action: '/api/image/upload',
+        action: `${apiURL}/image/upload`,
         beforeUpload,
         headers: {
           Authorization: `Bearer ${accessStore.accessToken}`,
@@ -475,7 +477,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
         accept: '.png,.jpg,.jpeg',
         // 自动携带认证信息
         // customRequest: uploadParkImage,
-        action: '/api/image/upload',
+        action: `${apiURL}/image/upload`,
         beforeUpload,
         headers: {
           Authorization: `Bearer ${accessStore.accessToken}`,
@@ -665,7 +667,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
         accept: '.png,.jpg,.jpeg',
         // 自动携带认证信息
         // customRequest: uploadParkImage,
-        action: '/api/image/upload',
+        action: `${apiURL}/image/upload`,
         beforeUpload,
         headers: {
           Authorization: `Bearer ${accessStore.accessToken}`,

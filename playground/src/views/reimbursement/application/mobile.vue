@@ -6,6 +6,7 @@ import type { ReimbursementItem } from './data';
 
 import { computed, onMounted, reactive, ref, shallowRef, watch } from 'vue';
 
+import { useAppConfig } from '@vben/hooks';
 import { Search } from '@vben/icons';
 import { useAccessStore, useUserStore } from '@vben/stores';
 import { formatDateTime } from '@vben/utils';
@@ -41,6 +42,7 @@ import { $t } from '#/locales';
 
 import { STATUS_MAP, useFormRules } from './data'; // Assuming data.ts has the rules
 
+const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
 // 获取用户存储
 const userStore = useUserStore();
 const accessStore = useAccessStore();
@@ -456,7 +458,7 @@ onMounted(() => {
         <Form.Item name="images" :label="$t('相关图片(最多9张)')">
           <Upload
             v-model:file-list="formState.images"
-            action="/api/image/upload"
+            :action="`${apiURL}/image/upload`"
             :before-upload="beforeUpload"
             :headers="headers"
             list-type="picture-card"

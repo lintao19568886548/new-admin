@@ -6,6 +6,7 @@ import type { ReimbursementItem } from './data';
 import { computed, onMounted, reactive, ref, shallowRef, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
+import { useAppConfig } from '@vben/hooks';
 import { Search } from '@vben/icons';
 import { useAccessStore, useUserStore } from '@vben/stores';
 
@@ -35,6 +36,7 @@ import { $t } from '#/locales';
 
 import { STATUS_MAP, useColumns, useFormRules } from './data';
 
+const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
 // 控制记录弹窗的显示状态
 const isRecordModalVisible = ref(false);
 
@@ -510,7 +512,7 @@ onMounted(() => {
         <Form.Item name="images" label="相关图片">
           <Upload
             v-model:file-list="formState.images"
-            action="/api/image/upload"
+            :action="`${apiURL}/image/upload`"
             :headers="headers"
             list-type="picture-card"
             :before-upload="beforeUpload"
