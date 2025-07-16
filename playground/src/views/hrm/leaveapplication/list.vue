@@ -11,7 +11,7 @@ import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 import { useUserStore } from '@vben/stores';
 
-import { Tag as ATag, Button, message, Modal } from 'ant-design-vue';
+import { Button, message, Modal, Tag } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
@@ -247,9 +247,9 @@ function refreshGrid() {
         </div>
       </template>
       <template #status_cell="{ row }">
-        <ATag :color="getStatusInfo(row.status).color">
+        <Tag :color="getStatusInfo(row.status).color">
           {{ getStatusInfo(row.status).text }}
-        </ATag>
+        </Tag>
       </template>
       <template #toolbar-tools>
         <Button type="primary" @click="actions.create">

@@ -257,7 +257,7 @@ onMounted(() => {
               <Descriptions.Item v-if="item.reply" label="审批意见">
                 {{ item.reply }}
               </Descriptions.Item>
-              <Descriptions.Item label="最后操作人">
+              <Descriptions.Item label="最后操作">
                 {{ item.username }}
               </Descriptions.Item>
             </Descriptions>

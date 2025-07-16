@@ -3,12 +3,13 @@ import type { LeaveApplication } from '#/api/hrm/leaveapplication';
 
 import { computed, ref } from 'vue';
 
-import { useVbenForm, useVbenModal } from '@vben/common-ui';
+import { useVbenModal } from '@vben/common-ui';
 import { useUserStore } from '@vben/stores';
 import { formatDateTime } from '@vben/utils';
 
 import { message } from 'ant-design-vue';
 
+import { useVbenForm } from '#/adapter/form';
 import {
   createLeaveApplication,
   updateLeaveApplication,
