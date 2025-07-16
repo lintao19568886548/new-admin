@@ -28,6 +28,7 @@ import dayjs from 'dayjs';
 
 import { deleteFactory, getFactoryList } from '#/api/factory/factory';
 import { $t } from '#/locales';
+import { router } from '#/router';
 import { useLayoutStore } from '#/store/layout';
 
 import FactoryForm from './modules/form.vue';
@@ -111,7 +112,7 @@ async function onDelete(row: RentalManagementItem) {
  */
 function onView(row: RentalManagementItem) {
   // 可以跳转到详情页面或打开详情弹窗
-  message.info(`查看厂房详情: ${row.factoryName}`);
+  router.push(`/rental/factory/detail/${row.factoryId}`);
 }
 
 /**
@@ -316,31 +317,41 @@ onUnmounted(() => {
               </div>
 
               <template #actions>
-                <Button type="text" @click="onView(item)">
-                  <template #icon><EyeOutlined /></template>
-                  查看
-                </Button>
-                <Button type="text" @click="onEdit(item)">
-                  <template #icon><EditOutlined /></template>
-                  {{ $t('ui.action.edit') }}
-                </Button>
-                <Popconfirm
-                  :title="
-                    $t('ui.actionMessage.deleteConfirm', [item.factoryName])
-                  "
-                  @confirm="onDelete(item)"
-                  placement="top"
-                  :overlay-style="{ maxWidth: '250px' }"
-                >
+                <div class="mobile-actions">
                   <Button
                     type="text"
-                    status="danger"
-                    :aria-label="$t('ui.action.delete')"
+                    @click="onView(item)"
+                    class="action-btn view-btn"
                   >
-                    <template #icon><DeleteOutlined /></template>
-                    {{ $t('ui.action.delete') }}
+                    <EyeOutlined />
+                    <span>查看</span>
                   </Button>
-                </Popconfirm>
+                  <Button
+                    type="text"
+                    @click="onEdit(item)"
+                    class="action-btn edit-btn"
+                  >
+                    <EditOutlined />
+                    <span>{{ $t('ui.action.edit') }}</span>
+                  </Button>
+                  <Popconfirm
+                    :title="
+                      $t('ui.actionMessage.deleteConfirm', [item.factoryName])
+                    "
+                    @confirm="onDelete(item)"
+                    placement="top"
+                    :overlay-style="{ maxWidth: '250px' }"
+                  >
+                    <Button
+                      type="text"
+                      class="action-btn delete-btn"
+                      :aria-label="$t('ui.action.delete')"
+                    >
+                      <DeleteOutlined />
+                      <span>{{ $t('ui.action.delete') }}</span>
+                    </Button>
+                  </Popconfirm>
+                </div>
               </template>
             </Card>
           </List.Item>
@@ -365,8 +376,9 @@ onUnmounted(() => {
 
 <style scoped>
 .mobile-factory-list-page {
-  padding: 8px;
-  background-color: #f5f5f5;
+  min-height: 100vh;
+  padding: 12px;
+  background-color: #f8f9fa;
 }
 
 .mobile-content {
@@ -374,14 +386,21 @@ onUnmounted(() => {
 }
 
 :deep(.ant-list-item) {
-  padding: 8px 0 !important;
+  padding: 6px 0 !important;
   border: none !important;
 }
 
 .factory-card {
   width: 100%;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 9%);
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 8%);
+  transition: all 0.3s ease;
+}
+
+.factory-card:hover {
+  box-shadow: 0 4px 20px rgb(0 0 0 / 12%);
+  transform: translateY(-1px);
 }
 
 :deep(.ant-card-head) {
@@ -409,21 +428,74 @@ onUnmounted(() => {
 }
 
 :deep(.ant-card-actions) {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 10px 16px;
-  font-size: 15px;
+  padding: 8px 16px 12px;
   background-color: #fff;
+  border-top: 1px solid #f0f0f0;
 }
 
 :deep(.ant-card-actions > li) {
-  flex: 0 1 auto;
-  justify-content: space-between;
   margin: 0 !important;
-  text-align: center;
   border-right: none !important;
+}
+
+.mobile-actions {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+
+.action-btn {
+  display: flex !important;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 8px 4px !important;
+  font-size: 12px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+  background-color: #f5f5f5;
+}
+
+.action-btn .anticon {
+  margin-bottom: 2px;
+  font-size: 16px;
+}
+
+.action-btn span {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.view-btn {
+  color: #1890ff;
+}
+
+.view-btn:hover {
+  color: #1890ff !important;
+  background-color: #e6f7ff !important;
+}
+
+.edit-btn {
+  color: #52c41a;
+}
+
+.edit-btn:hover {
+  color: #52c41a !important;
+  background-color: #f6ffed !important;
+}
+
+.delete-btn {
+  color: #ff4d4f;
+}
+
+.delete-btn:hover {
+  color: #ff4d4f !important;
+  background-color: #fff2f0 !important;
 }
 
 .card-header {
@@ -474,36 +546,55 @@ onUnmounted(() => {
   margin-bottom: 12px;
   background-color: #fff;
   border: 1px solid #e8e8e8;
-  border-radius: 4px;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 5%);
 }
 
 .search-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
-  font-size: 17px;
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 500;
   cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.search-summary:hover {
+  background-color: #fafafa;
 }
 
 .search-summary .inline-icon {
   width: 1em;
   height: 1em;
+  color: #1890ff;
 }
 
 .search-form-container {
-  padding: 12px;
-  border-top: 1px solid #e8e8e8;
+  padding: 16px;
+  border-top: 1px solid #f0f0f0;
 }
 
 .search-form-container .ant-form-item {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.search-form-container .ant-form-item:last-child {
+  margin-bottom: 0;
 }
 
 .search-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.search-actions .ant-btn {
+  height: 44px;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 6px;
 }
 
 .flex-1 {
@@ -511,12 +602,31 @@ onUnmounted(() => {
 }
 
 .load-more-container {
-  padding: 16px 0;
+  padding: 20px 16px;
+}
+
+.load-more-container .ant-btn {
+  height: 48px;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
+  transition: all 0.3s ease;
+}
+
+.load-more-container .ant-btn:hover {
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+  transform: translateY(-1px);
 }
 
 .load-more-container.no-more {
+  padding: 24px 0;
   font-size: 14px;
   color: #999;
   text-align: center;
+  background: linear-gradient(to right, transparent, #e8e8e8 50%, transparent);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 1px;
 }
 </style>

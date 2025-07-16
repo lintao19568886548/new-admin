@@ -7,12 +7,16 @@ import { Card, message } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
 import { getFactoryDetail } from '#/api/factory/factory';
+import { usePlatform } from '#/hooks/usePlatform';
 import { $t } from '#/locales';
 
 import { useFactoryFormSchema } from '../data';
 
 // 添加emit定义，用于更新表单值
 const emit = defineEmits(['success', 'refresh']);
+
+// 使用 usePlatform Hook 获取平台信息
+const { isNativePlatform } = usePlatform();
 
 const formData = ref();
 const getTitle = computed(() => {
@@ -30,8 +34,8 @@ const [FactoryForm, factoryFormApi] = useVbenForm({
 const id = ref<number>();
 
 const [Modal, modalApi] = useVbenModal({
-  // 或者使用class设置样式
-  class: 'max-w-[90%] w-[1200px]',
+  // 移动端优化：使用响应式宽度设置
+  class: 'mobile-factory-modal',
   closeOnClickModal: false,
   async onConfirm() {
     modalApi.close();
@@ -145,11 +149,158 @@ const [Modal, modalApi] = useVbenModal({
 <template>
   <div>
     <Modal :title="getTitle">
-      <div class="p-5">
+      <div v-if="!isNativePlatform" class="p-5">
         <Card style="background-color: #fcfcfc">
           <FactoryForm style="margin: 2vh 2vw 0 0" />
+        </Card>
+      </div>
+      <div v-else class="modal-content">
+        <Card class="form-card">
+          <FactoryForm class="factory-form" />
         </Card>
       </div>
     </Modal>
   </div>
 </template>
+
+<style scoped>
+/* 移动端适配 */
+@media (max-width: 768px) {
+  :deep(.mobile-factory-modal) {
+    top: 20px !important;
+    width: 98% !important;
+    max-width: none !important;
+    margin: 8px !important;
+  }
+
+  :deep(.mobile-factory-modal .ant-modal-content) {
+    overflow: hidden !important;
+    border-radius: 12px !important;
+  }
+
+  :deep(.mobile-factory-modal .ant-modal-header) {
+    padding: 16px 20px !important;
+    border-bottom: 1px solid #f0f0f0 !important;
+  }
+
+  :deep(.mobile-factory-modal .ant-modal-title) {
+    font-size: 18px !important;
+    font-weight: 600 !important;
+  }
+
+  :deep(.mobile-factory-modal .ant-modal-body) {
+    max-height: calc(100vh - 120px) !important;
+    padding: 0 !important;
+    overflow-y: auto !important;
+  }
+
+  :deep(.mobile-factory-modal .ant-modal-footer) {
+    padding: 12px 20px !important;
+    text-align: center !important;
+    border-top: 1px solid #f0f0f0 !important;
+  }
+
+  :deep(.mobile-factory-modal .ant-modal-footer .ant-btn) {
+    min-width: 80px !important;
+    height: 40px !important;
+    font-size: 15px !important;
+    border-radius: 6px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .modal-content {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .form-card {
+    background-color: #fff;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .factory-form {
+    margin: 0;
+  }
+
+  /* 优化表单项在移动端的显示 */
+  :deep(.factory-form .ant-form-item) {
+    margin-bottom: 16px;
+  }
+
+  :deep(.factory-form .ant-form-item-label) {
+    padding-bottom: 4px;
+  }
+
+  :deep(.factory-form .ant-form-item-label > label) {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  :deep(.factory-form .ant-input) {
+    height: 44px;
+    font-size: 16px;
+    border-radius: 6px;
+  }
+
+  :deep(.factory-form .ant-select) {
+    font-size: 16px;
+  }
+
+  :deep(.factory-form .ant-select-selector) {
+    height: 44px !important;
+    border-radius: 6px !important;
+  }
+
+  :deep(.factory-form .ant-select-selection-item) {
+    font-size: 16px;
+    line-height: 42px !important;
+  }
+
+  :deep(.factory-form .ant-picker) {
+    height: 44px;
+    font-size: 16px;
+    border-radius: 6px;
+  }
+
+  :deep(.factory-form .ant-input-number) {
+    width: 100%;
+    height: 44px;
+    font-size: 16px;
+    border-radius: 6px;
+  }
+
+  :deep(.factory-form .ant-input-number-input) {
+    height: 42px;
+    font-size: 16px;
+  }
+}
+
+:deep(.mobile-factory-modal) {
+  width: 95% !important;
+  max-width: 1200px !important;
+  margin: 0 auto !important;
+}
+
+.modal-content {
+  padding: 20px;
+}
+
+.form-card {
+  background-color: #fcfcfc;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.factory-form {
+  margin: 2vh 2vw 0 0;
+}
+
+/* 移动端模态框样式优化 */
+</style>
