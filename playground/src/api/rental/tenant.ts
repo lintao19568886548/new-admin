@@ -88,3 +88,8 @@ export async function sendSms(data: {
 }) {
   return requestClient.post('/sms/send', data);
 }
+
+// 批量发送催缴短信
+export async function sendBulkSms() {
+  return requestClient.post('/sms/send-bulk');
+}

@@ -32,6 +32,7 @@ import {
   deleteTenant,
   getTenantList,
   getTenantSmsInfo,
+  sendBulkSms,
   sendSms,
 } from '#/api/rental';
 import { $t } from '#/locales';
@@ -224,10 +225,97 @@ function refreshList() {
   fetchList();
 }
 
+/**
+ * 批量发送短信
+ */
+async function onBulkSendSms() {
+  try {
+    // 添加确认对话框
+    Modal.confirm({
+      content: `
+        系统将自动筛选符合以下条件的租户发送催缴短信：
+        • 合同状态为生效中
+        • 合同截止日期少于90天
+        • 或下次递增时间少于30天
+        
+        您确定要继续吗？
+      `,
+      onCancel() {
+        message.info('已取消发送');
+      },
+      onOk: async () => {
+        message.loading({
+          content: '正在筛选符合条件的租户并发送短信...',
+          duration: 0,
+          key: 'bulk_sms_process_msg',
+        });
+
+        try {
+          // 调用批量发送短信的API
+          const result = await sendBulkSms();
+
+          // 显示详细的发送结果
+          if (result.data) {
+            const { failed, success, total } = result.data;
+
+            if (total === 0) {
+              message.info({
+                content: '没有符合条件的租户需要发送短信',
+                key: 'bulk_sms_process_msg',
+              });
+            } else {
+              message.success({
+                content: `批量发送完成！共筛选 ${total} 个租户，成功发送 ${success} 条，失败 ${failed} 条`,
+                duration: 6,
+                key: 'bulk_sms_process_msg',
+              });
+
+              // 如果有失败的，显示详细信息
+              if (failed > 0 && result.data.errors) {
+                console.warn('发送失败的租户:', result.data.errors);
+                Modal.warning({
+                  content: `有 ${failed} 条短信发送失败，请查看控制台了解详情`,
+                  title: '部分短信发送失败',
+                });
+              }
+            }
+          } else {
+            message.success({
+              content: '催缴短信已批量发送成功',
+              key: 'bulk_sms_process_msg',
+            });
+          }
+
+          // 刷新列表数据以显示可能更新的状态
+          refreshList();
+        } catch (apiError) {
+          console.error('批量发送短信API调用失败:', apiError);
+          message.error({
+            content: `批量发送短信失败: ${(apiError as Error).message || '未知错误'}`,
+            key: 'bulk_sms_process_msg',
+          });
+        }
+      },
+      title: '批量发送催缴短信确认',
+    });
+  } catch (error) {
+    console.error('批量发送短信失败:', error);
+    message.error({
+      content: `批量发送短信失败: ${(error as Error).message || '未知错误'}`,
+      key: 'bulk_sms_process_msg',
+    });
+  }
+}
+
 onMounted(() => {
   parkStore.fetchParkList();
   fetchList();
   layoutStore.setHeaderActions([
+    {
+      key: 'bulk-sms',
+      onClick: onBulkSendSms,
+      text: '批量短信',
+    },
     {
       key: 'create-tenant',
       onClick: onCreate,

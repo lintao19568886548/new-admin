@@ -48,26 +48,24 @@ export default eventHandler(async (event) => {
 
     const appKey = process.env.SMS_SECRET_KEY;
 
-    const sortedParams = Object.keys(smsData)
-      .sort()
-      // eslint-disable-next-line unicorn/no-array-reduce
-      .reduce((result, key) => {
-        if (
-          ![
-            'ContextParamSet',
-            'PhoneList',
-            'PhoneNumberSet',
-            'phoneSet',
-            'SessionContext',
-            'SessionContextSet',
-            'Signature',
-            'TemplateParamSet',
-          ].includes(key)
-        ) {
-          result[key] = smsData[key];
-        }
-        return result;
-      }, {});
+    const sortedParams = {};
+    const sortedKeys = Object.keys(smsData).sort();
+    for (const key of sortedKeys) {
+      if (
+        ![
+          'ContextParamSet',
+          'PhoneList',
+          'PhoneNumberSet',
+          'phoneSet',
+          'SessionContext',
+          'SessionContextSet',
+          'Signature',
+          'TemplateParamSet',
+        ].includes(key)
+      ) {
+        sortedParams[key] = smsData[key];
+      }
+    }
     // const stringToSign = `AppId=${smsData.AppId}&MchId=${smsData.MchId}&SignName=${smsData.SignName}&SignType=${smsData.SignType}&TimeStamp=${smsData.TimeStamp}&Type=${smsData.Type}&Version=${smsData.Version}&key=${secretKey}`;
     const stringToSign = `${Object.entries(sortedParams)
       .map(([key, value]) => `${key}=${value}`)
