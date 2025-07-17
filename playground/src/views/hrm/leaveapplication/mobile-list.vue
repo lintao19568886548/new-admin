@@ -6,6 +6,7 @@ import { onMounted, reactive, ref } from 'vue';
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 import { useUserStore } from '@vben/stores';
+import { formatDateTime } from '@vben/utils';
 
 import {
   Button,
@@ -190,13 +191,6 @@ function getStatusInfo(status: number) {
     2: { color: 'error', text: '未通过' },
   };
   return statusMap[status] || { color: 'default', text: `未知状态(${status})` };
-}
-
-/**
- * 格式化日期时间
- */
-function formatDateTime(value: string) {
-  return value ? value.replace('T', ' ').split('.')[0] : 'N/A';
 }
 
 // ================================= 生命周期 =================================
