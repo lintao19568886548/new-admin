@@ -120,8 +120,6 @@ const [Drawer, drawerApi] = useVbenDrawer({
         formData.value = data;
         id.value = data.roleId;
         formApi.setValues(data);
-        // 初始化权限码选中状态
-        initializeCodeSelections(data);
       } else {
         id.value = undefined;
         formData.value = undefined;
@@ -131,6 +129,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
       }
 
       // 每次打开都重新加载权限树，确保根据当前角色的父角色权限正确显示
+      // 加载完成后再初始化权限码选中状态
       loadPermissions();
     }
   },
@@ -145,6 +144,11 @@ async function loadPermissions() {
       ? await getMenusByParentRole(parentRoleId) // 有父角色时，根据父角色权限限制显示范围
       : await getMenuList(); // 顶级角色显示所有权限
     menuTreeData.value = res as unknown as DataNode[]; // 更新 menuTreeData
+
+    // 菜单树数据加载完成后，如果是编辑模式，初始化权限码选中状态
+    if (formData.value?.roleId) {
+      initializeCodeSelections(formData.value);
+    }
   } finally {
     loadingPermissions.value = false;
   }
@@ -195,8 +199,13 @@ function initializeCodeSelections(roleData: SystemRoleApi.SystemRole) {
     });
   };
 
+  // 确保菜单树数据已加载
   if (menuTreeData.value.length > 0) {
     extractCodeIds(menuTreeData.value as any[]);
+  } else {
+    console.warn(
+      `[initializeCodeSelections] 菜单树数据为空，无法初始化权限码选中状态`,
+    );
   }
 
   originalCodeSelections.value = new Set(codeIds);
@@ -219,7 +228,7 @@ async function handleCodeSelectionChanges(roleId: number) {
     menus.forEach((menu) => {
       if (
         menu.type === 'button' &&
-        menu.code &&
+        menu.authCode &&
         selectedIds.includes(menu.menuId)
       ) {
         newCodeSelections.add(menu.code.codeId);

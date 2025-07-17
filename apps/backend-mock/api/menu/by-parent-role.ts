@@ -22,12 +22,15 @@ export default eventHandler(async (event) => {
       },
       include: {
         meta: true,
+        code: true,
         children: {
           include: {
             meta: true,
+            code: true,
             children: {
               include: {
                 meta: true,
+                code: true,
               },
             },
           },
@@ -79,6 +82,7 @@ export default eventHandler(async (event) => {
     },
     include: {
       meta: true,
+      code: true,
       children: {
         where: {
           menuId: {
@@ -87,6 +91,7 @@ export default eventHandler(async (event) => {
         },
         include: {
           meta: true,
+          code: true,
           children: {
             where: {
               menuId: {
@@ -95,6 +100,7 @@ export default eventHandler(async (event) => {
             },
             include: {
               meta: true,
+              code: true,
             },
           },
         },
