@@ -30,6 +30,7 @@ export default eventHandler(async (event) => {
       data: {
         ...body,
         userId: applicant?.id,
+        auditUser: body.auditUser || null, // 提供默认空字符串
       },
     });
 
