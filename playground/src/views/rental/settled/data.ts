@@ -441,7 +441,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
         },
       },
       fieldName: 'description',
-      formItemClass: 'col-span-4',
+      // formItemClass: 'col-span-4',
       label: $t('page.factory.description'),
       rules: z
         .string()
@@ -472,7 +472,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
         // 上传列表的内建样式，支持四种基本样式 text, picture, picture-card 和 picture-circle
       },
       fieldName: 'images',
-      formItemClass: 'col-span-4', // 根据你的布局调整
+      // formItemClass: 'col-span-4', // 根据你的布局调整
       label: $t('page.factory.images'),
       renderComponentContent: () => {
         return {

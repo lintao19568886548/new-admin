@@ -31,7 +31,7 @@ import { $t } from '#/locales';
 import { router } from '#/router';
 import { useLayoutStore } from '#/store/layout';
 
-import FactoryForm from './modules/form.vue';
+import MobileFactoryForm from './modules/mobile-form.vue';
 
 const loading = ref(false);
 const searchForm = ref({
@@ -62,7 +62,7 @@ const getFactoryTypeTag = (row: RentalManagementItem) => {
 };
 
 const [FormModal, formModalApi] = useVbenModal({
-  connectedComponent: FactoryForm,
+  connectedComponent: MobileFactoryForm,
   destroyOnClose: true,
 });
 
