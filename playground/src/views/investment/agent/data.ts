@@ -23,8 +23,8 @@ export interface InvestmentAgent {
   investmentId?: number; // 项目ID
   meetingTime: string; // 会谈时间 (ISO 格式字符串)
   operator?: string; // 操作人
-  parkId: number; // 园区ID
-  parkName?: string; // 园区名称 (可能由parkId解析)
+  parkId: number; // 工厂ID
+  parkName?: string; // 工厂名称 (可能由parkId解析)
   phoneNumber: string; // 电话号码
   progress: string; // 进展阶段 (e.g., '初步接洽', '深入沟通')
   remark?: string; // 备注
@@ -154,12 +154,12 @@ export function useFormSchema(closeModal: () => void): VbenFormSchema[] {
       },
       fieldName: 'parkId',
       formItemClass: 'col-span-2',
-      help: '新增园区请在 租赁管理-园区管理 中操作',
+      help: '新增工厂请在 租赁管理-工厂管理 中操作',
       // 使用 label 属性渲染自定义组件
       label: () =>
         h(ParkLabel, {
           beforeNavigate: closeModal, // 传递关闭模态框的回调
-          buttonText: '新增园区', // 自定义按钮文本
+          buttonText: '新增工厂', // 自定义按钮文本
           label: $t('page.common.park'),
           path: '/rental/manage/', // 传递跳转路径
         }),
