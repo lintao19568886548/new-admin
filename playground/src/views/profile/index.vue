@@ -1,8 +1,14 @@
 <script lang="ts" setup>
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { VbenIcon } from '@vben/common-ui';
-import { ChevronRight, LogOut, RotateCw, UserRoundPen } from '@vben/icons';
+import {
+  ChevronRight,
+  LockKeyhole,
+  LogOut,
+  RotateCw,
+  UserRoundPen,
+} from '@vben/icons';
 import { useUserStore } from '@vben/stores';
 
 import { Capacitor } from '@capacitor/core';
@@ -11,11 +17,13 @@ import { Avatar, Card, List, ListItem, message, Modal } from 'ant-design-vue';
 
 import { useAuthStore } from '#/store';
 import { checkAppUpdate } from '#/utils/update-service';
+import EditPassword from '#/views/_core/authentication/edit-password.vue';
 
 const userStore = useUserStore();
 const authStore = useAuthStore();
 
 const userInfo = computed(() => userStore.userInfo);
+const showPasswordModal = ref(false);
 
 /**
  * 初始化通知功能（包括本地通知和推送通知）
@@ -103,6 +111,18 @@ function handleEditProfile() {
   message.info('该功能正在开发中...');
 }
 
+function handleChangePassword() {
+  showPasswordModal.value = true;
+}
+
+async function handlePasswordChanged() {
+  message.success('密码修改成功，请重新登录');
+  // 延迟一下让用户看到成功提示
+  setTimeout(async () => {
+    await authStore.logout(false);
+  });
+}
+
 const isNative = Capacitor.isNativePlatform();
 // const isNative = true;
 
@@ -114,6 +134,11 @@ const actions = computed(() => {
       title: '修改个人信息',
     },
     {
+      handler: handleChangePassword,
+      icon: LockKeyhole,
+      title: '修改密码',
+    },
+    {
       handler: handleLogout,
       icon: LogOut,
       title: '退出登录',
@@ -121,7 +146,7 @@ const actions = computed(() => {
   ];
 
   if (isNative) {
-    baseActions.splice(1, 0, {
+    baseActions.splice(-1, 0, {
       handler: handleCheckUpdate,
       icon: RotateCw,
       title: '检查更新',
@@ -158,6 +183,12 @@ const actions = computed(() => {
         </template>
       </List>
     </Card>
+
+    <!-- 添加修改密码模态框 -->
+    <EditPassword
+      v-model:open="showPasswordModal"
+      @success="handlePasswordChanged"
+    />
   </div>
 </template>
 

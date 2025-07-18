@@ -135,6 +135,7 @@ async function handleSubmit() {
   <Modal
     :open="props.open"
     :title="$t('page.auth.changePassword')"
+    :centered="true"
     @update:open="(val) => emit('update:open', val)"
     :after-close="handleCancel"
   >
