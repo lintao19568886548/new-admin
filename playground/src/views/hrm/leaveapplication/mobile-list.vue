@@ -352,7 +352,7 @@ onMounted(() => {
 .fab-container {
   position: fixed;
   right: 1.5rem;
-  bottom: 2rem;
+  bottom: 4rem;
   z-index: 99;
 }
 

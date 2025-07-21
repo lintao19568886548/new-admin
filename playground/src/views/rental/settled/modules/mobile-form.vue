@@ -23,7 +23,11 @@ import {
 } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { createSettledFactory, updateFactory } from '#/api/factory/factory';
+import {
+  createSettledFactory,
+  getFactoryDetail,
+  updateFactory,
+} from '#/api/factory/factory';
 import { $t } from '#/locales';
 
 // 导入表单配置
@@ -93,8 +97,16 @@ async function saveFactoryData() {
     factoryValues.isOwn = false;
 
     if (formData.value?.factoryId) {
+      const requestData = {
+        ...factoryValues,
+        floors: factoryValues.floors.map((floor: any) => ({
+          ...floor,
+          imageUrls: undefined,
+          imgUrl: undefined,
+        })),
+      };
       // 更新厂房
-      await updateFactory(formData.value.factoryId, factoryValues);
+      await updateFactory(formData.value.factoryId, requestData);
       message.success('更新入驻厂房成功');
     } else {
       // 创建厂房
@@ -140,18 +152,58 @@ const [Modal, modalApi] = useVbenModal({
 
         // 设置厂房数据，包含楼层信息
         if (data.factoryId) {
-          // 确保楼层数据正确设置
-          factoryData.value = [
-            {
-              ...data,
-              floors: data.floors || [],
-            },
-          ];
+          try {
+            // 获取厂房详情数据
+            const response = await getFactoryDetail(data.factoryId);
 
-          // 设置厂房表单数据（不包含楼层字段）
-          const factoryFormData = { ...data };
-          delete factoryFormData.floors; // 移除楼层字段，因为楼层由单独组件管理
-          await factoryFormApi.setValues(factoryFormData);
+            // 判断API返回格式：可能是 response.data 或直接是 response
+            let factoryDetail;
+            if (response && response.data) {
+              // 标准格式：{data: factoryObject}
+              factoryDetail = response.data;
+            } else if (response && response.factoryId) {
+              // 直接返回厂房对象
+              factoryDetail = response;
+            } else {
+              throw new Error('API返回数据格式不正确');
+            }
+
+            // 验证厂房数据是否有效
+            if (
+              !factoryDetail ||
+              typeof factoryDetail !== 'object' ||
+              !factoryDetail.factoryId
+            ) {
+              throw new Error('厂房数据格式错误或缺少必要字段');
+            }
+
+            // 设置厂房数据，包含楼层信息
+            factoryData.value = [
+              {
+                ...factoryDetail,
+                floors: factoryDetail.floors || [],
+              },
+            ];
+
+            // 设置厂房表单数据（不包含楼层字段）
+            const factoryFormData = { ...factoryDetail };
+            delete factoryFormData.floors; // 移除楼层字段，因为楼层由单独组件管理
+            await factoryFormApi.setValues(factoryFormData);
+          } catch (error) {
+            console.error('获取厂房详情失败:', error);
+            message.error('获取厂房详情失败');
+            // 如果获取失败，使用传入的基本数据
+            factoryData.value = [
+              {
+                ...data,
+                floors: data.floors || [],
+              },
+            ];
+
+            const factoryFormData = { ...data };
+            delete factoryFormData.floors;
+            await factoryFormApi.setValues(factoryFormData);
+          }
         }
       } else {
         formData.value = undefined;
