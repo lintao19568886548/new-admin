@@ -8,9 +8,9 @@
 
 # --- Settings ---
 # Replace 'your-commit-hash-here' with your starting commit hash
-$StartCommitHash = '59162e790e315e5199a96e1f8e436aad20d0572d'
+$StartCommitHash = '93442c2caa0d2053425d9ec0484dfa6afdf87579'
 # Set the output file name
-$OutputFile = "commit_log.txt"
+$OutputFile = "./scripts/commit_log.txt"
 # --- End of settings ---
 
 # Set the console's output encoding to UTF-8 to correctly handle characters from git

@@ -47,6 +47,7 @@
     "format": "vsh lint --format",
     "generate:android:assemble:release": "cd playground/android && .\\gradlew assembleRelease",
     "generate:android:open:release": "explorer playground\\android\\app\\build\\outputs\\apk\\release",
+    "get:commits": "pwsh -ExecutionPolicy Bypass -File scripts/get-commits.ps1",
     "lint": "vsh lint",
     "postinstall": "pnpm -r run stub --if-present",
     "preinstall": "npx only-allow pnpm",
