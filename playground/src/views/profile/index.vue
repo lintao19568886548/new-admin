@@ -2,13 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 
 import { VbenIcon } from '@vben/common-ui';
-import {
-  ChevronRight,
-  LockKeyhole,
-  LogOut,
-  RotateCw,
-  UserRoundPen,
-} from '@vben/icons';
+import { ChevronRight, LockKeyhole, LogOut, RotateCw } from '@vben/icons';
 import { useUserStore } from '@vben/stores';
 
 import { Capacitor } from '@capacitor/core';
@@ -107,9 +101,9 @@ function handleLogout() {
   });
 }
 
-function handleEditProfile() {
-  message.info('该功能正在开发中...');
-}
+// function handleEditProfile() {
+//   message.info('该功能正在开发中...');
+// }
 
 function handleChangePassword() {
   showPasswordModal.value = true;
@@ -128,11 +122,11 @@ const isNative = Capacitor.isNativePlatform();
 
 const actions = computed(() => {
   const baseActions = [
-    {
-      handler: handleEditProfile,
-      icon: UserRoundPen,
-      title: '修改个人信息',
-    },
+    // {
+    //   handler: handleEditProfile,
+    //   icon: UserRoundPen,
+    //   title: '修改个人信息',
+    // },
     {
       handler: handleChangePassword,
       icon: LockKeyhole,
