@@ -1,306 +1,276 @@
 <script lang="ts" setup>
+import type { Factory, FloorItem } from '../types';
+
 import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
-import { Card, message } from 'ant-design-vue';
+import { Button, message } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { getFactoryDetail } from '#/api/factory/factory';
-import { usePlatform } from '#/hooks/usePlatform';
+import {
+  createSettledFactory,
+  getFactoryDetail,
+  updateFactory,
+} from '#/api/factory/factory';
 import { $t } from '#/locales';
 
-import { useFactoryFormSchema } from '../data';
+// 导入表单配置和楼层组件
+import { useFactoryItemFormSchema } from '../data';
+import FloorFormComponent from './floor-form.vue';
 
-// 添加emit定义，用于更新表单值
-const emit = defineEmits(['success', 'refresh']);
+const emit = defineEmits<{
+  success: [];
+}>();
 
-// 使用 usePlatform Hook 获取平台信息
-const { isNativePlatform } = usePlatform();
+// 表单数据
+const formData = ref<any>();
+const factoryData = ref<Factory[]>([{ floors: [] }]);
 
-const formData = ref();
+// 标题计算属性
 const getTitle = computed(() => {
   return formData.value?.factoryId
     ? $t('ui.actionTitle.edit', ['入驻厂房'])
     : $t('ui.actionTitle.create', ['入驻厂房']);
 });
 
+// 厂房表单配置
 const [FactoryForm, factoryFormApi] = useVbenForm({
-  layout: 'horizontal',
-  schema: useFactoryFormSchema(),
+  commonConfig: {
+    formItemClass: 'mobile-form-item',
+  },
+  layout: 'vertical',
+  schema: useFactoryItemFormSchema().filter(
+    (item) => item.fieldName !== 'floors',
+  ),
   showDefaultActions: false,
+  wrapperClass: 'gap-4',
 });
 
-const id = ref<number>();
+// 原始的厂房保存函数
+async function saveFactoryData() {
+  const { valid } = await factoryFormApi.validate();
+  if (!valid) return;
 
+  modalApi.lock();
+  try {
+    const factoryValues = await factoryFormApi.getValues();
+
+    // 添加楼层数据
+    factoryValues.floors = factoryData.value[0]?.floors || [];
+
+    // 处理日期格式
+    if (factoryValues.buildTime) {
+      factoryValues.buildTime = new Date(factoryValues.buildTime).toISOString();
+    }
+
+    // 设置为入驻厂房
+    factoryValues.isOwn = false;
+
+    if (formData.value?.factoryId) {
+      const requestData = {
+        ...factoryValues,
+        floors: factoryValues.floors.map((floor: any) => ({
+          ...floor,
+          imageUrls: undefined,
+          imgUrl: undefined,
+        })),
+      };
+      // 更新厂房
+      await updateFactory(formData.value.factoryId, requestData);
+      message.success('更新入驻厂房成功');
+    } else {
+      // 创建厂房
+      await createSettledFactory(factoryValues);
+      message.success('创建入驻厂房成功');
+    }
+
+    modalApi.close();
+    emit('success');
+  } catch (error) {
+    console.error('操作失败:', error);
+    message.error(
+      formData.value?.factoryId ? '更新入驻厂房失败' : '创建入驻厂房失败',
+    );
+  } finally {
+    modalApi.unlock();
+  }
+}
+
+// 模态框配置
 const [Modal, modalApi] = useVbenModal({
-  // 移动端优化：使用响应式宽度设置
   class: 'mobile-factory-modal',
   closeOnClickModal: false,
-  async onConfirm() {
+  async onCancel() {
+    // 检查是否有楼层表单正在编辑
+    if (floorFormRef.value?.isFormVisible?.()) {
+      // 如果楼层表单可见，执行楼层取消操作
+      floorFormRef.value.cancelEdit();
+      return; // 阻止模态框关闭
+    }
+    // 楼层表单不可见或未初始化时，允许模态框关闭
     modalApi.close();
-    emit('refresh');
-    // const { valid } = await factoryFormApi.validate();
-    // if (valid) {
-    //   modalApi.lock();
-    //   const factoryValues = await factoryFormApi.getValues();
-    //   // 处理厂房数据中的建造时间
-    //   if (factoryValues.factories?.length > 0) {
-    //     factoryValues.factories.forEach((factory: any) => {
-    //       factory.buildTime = factory.buildTime
-    //         ? new Date(factory.buildTime).toISOString()
-    //         : undefined;
-    //       // 设置为非自有厂房（入驻厂房）
-    //       factory.isOwn = false;
-    //     });
-    //   }
-    //   try {
-    //     if (id.value) {
-    //       // 更新入驻厂房
-    //       if (factoryValues.factories?.length > 0) {
-    //         const factory = factoryValues.factories[0];
-    //         await updateFactory(id.value, factory);
-    //       }
-    //       message.success({
-    //         content: '更新入驻厂房成功',
-    //       });
-    //     } else {
-    //       // 创建入驻厂房
-    //       if (factoryValues.factories?.length > 0) {
-    //         for (const factory of factoryValues.factories) {
-    //           await createSettledFactory(factory);
-    //         }
-    //       }
-    //       message.success({
-    //         content: '创建入驻厂房成功',
-    //       });
-    //     }
-    //     modalApi.close();
-    //     emit('success');
-    //   } catch (error) {
-    //     console.error('操作失败:', error);
-    //     message.error({
-    //       content: id.value ? '更新入驻厂房失败' : '创建入驻厂房失败',
-    //     });
-    //   } finally {
-    //     modalApi.lock(false);
-    //   }
-    // }
+  },
+  async onConfirm() {
+    // 检查是否有楼层表单正在编辑
+    // 根据楼层表单是否可见决定执行相应的保存操作
+    await (floorFormRef.value?.isFormVisible?.()
+      ? floorFormRef.value.saveFloorData()
+      : saveFactoryData());
   },
   async onOpenChange(isOpen) {
     if (isOpen) {
-      const data = modalApi.getData();
-      factoryFormApi.resetForm();
+      const data = modalApi.getData<any>();
+      resetAllForms();
+
       if (data && Object.keys(data).length > 0) {
         formData.value = data;
-        id.value = data.factoryId;
 
-        try {
-          // 获取厂房详情数据
-          const response = await getFactoryDetail(data.factoryId);
+        // 设置厂房数据，包含楼层信息
+        if (data.factoryId) {
+          try {
+            // 获取厂房详情数据
+            const response = await getFactoryDetail(data.factoryId);
 
-          // 判断API返回格式：可能是 response.data 或直接是 response
-          let factoryDetail;
-          if (response && response.data) {
-            // 标准格式：{data: factoryObject}
-            factoryDetail = response.data;
-          } else if (response && response.factoryId) {
-            // 直接返回厂房对象
-            factoryDetail = response;
-          } else {
-            throw new Error('API返回数据格式不正确');
+            // 判断API返回格式：可能是 response.data 或直接是 response
+            let factoryDetail;
+            if (response && response.data) {
+              // 标准格式：{data: factoryObject}
+              factoryDetail = response.data;
+            } else if (response && response.factoryId) {
+              // 直接返回厂房对象
+              factoryDetail = response;
+            } else {
+              throw new Error('API返回数据格式不正确');
+            }
+
+            // 验证厂房数据是否有效
+            if (
+              !factoryDetail ||
+              typeof factoryDetail !== 'object' ||
+              !factoryDetail.factoryId
+            ) {
+              throw new Error('厂房数据格式错误或缺少必要字段');
+            }
+
+            // 设置厂房数据，包含楼层信息
+            factoryData.value = [
+              {
+                ...factoryDetail,
+                floors: factoryDetail.floors || [],
+              },
+            ];
+
+            // 设置厂房表单数据（不包含楼层字段）
+            const factoryFormData = { ...factoryDetail };
+            delete factoryFormData.floors; // 移除楼层字段，因为楼层由单独组件管理
+            await factoryFormApi.setValues(factoryFormData);
+          } catch (error) {
+            console.error('获取厂房详情失败:', error);
+            message.error('获取厂房详情失败');
+            // 如果获取失败，使用传入的基本数据
+            factoryData.value = [
+              {
+                ...data,
+                floors: data.floors || [],
+              },
+            ];
+
+            const factoryFormData = { ...data };
+            delete factoryFormData.floors;
+            await factoryFormApi.setValues(factoryFormData);
           }
-
-          // 验证厂房数据是否有效
-          if (
-            !factoryDetail ||
-            typeof factoryDetail !== 'object' ||
-            !factoryDetail.factoryId
-          ) {
-            throw new Error('厂房数据格式错误或缺少必要字段');
-          }
-
-          // 设置表单数据，包装成factories数组格式
-          const formValues = {
-            factories: [factoryDetail],
-          };
-
-          factoryFormApi.setValues(formValues);
-        } catch (error) {
-          console.error('获取厂房详情失败:', error);
-          message.error('获取厂房详情失败');
-          // 如果获取失败，使用传入的基本数据
-          factoryFormApi.setValues(data);
         }
       } else {
-        id.value = undefined;
         formData.value = undefined;
-        // 重置表单
-        factoryFormApi.setValues({});
+        factoryData.value = [{ floors: [] }];
       }
     }
   },
-  // 添加以下两行来隐藏默认按钮
-  showCancelButton: false,
-  // showConfirmButton: false,
+  showCancelButton: true,
+  showConfirmButton: true,
 });
+
+// 重置所有表单
+function resetAllForms() {
+  factoryFormApi.resetForm();
+}
+
+// 楼层表单组件引用
+const floorFormRef = ref();
+
+// 楼层数据的计算属性，用于 v-model
+const floorsModel = computed({
+  get() {
+    return factoryData.value[0]?.floors || [];
+  },
+  set(value: FloorItem[]) {
+    if (!factoryData.value[0]) {
+      factoryData.value[0] = { floors: [] };
+    }
+    factoryData.value[0].floors = value;
+  },
+});
+
+// 处理楼层数据更新
+function handleFloorsUpdate(floors: FloorItem[]) {
+  if (!factoryData.value[0]) {
+    factoryData.value[0] = { floors: [] };
+  }
+  factoryData.value[0].floors = floors;
+}
+
+// 重置表单
+async function resetForm() {
+  factoryFormApi.resetForm();
+  if (formData.value) {
+    await factoryFormApi.setValues(formData.value);
+  }
+}
 </script>
 
 <template>
-  <div>
-    <Modal :title="getTitle">
-      <div v-if="!isNativePlatform" class="p-5">
-        <Card style="background-color: #fcfcfc">
-          <FactoryForm style="margin: 2vh 2vw 0 0" />
-        </Card>
+  <Modal :title="getTitle">
+    <div class="mobile-form-container">
+      <!-- 厂房表单 -->
+      <div class="factory-form-section">
+        <FactoryForm />
       </div>
-      <div v-else class="modal-content">
-        <Card class="form-card">
-          <FactoryForm class="factory-form" />
-        </Card>
+
+      <!-- 楼层管理组件 -->
+      <FloorFormComponent
+        ref="floorFormRef"
+        v-model="floorsModel"
+        @update:model-value="handleFloorsUpdate"
+      />
+    </div>
+
+    <template #prepend-footer>
+      <div class="mobile-form-footer">
+        <Button type="default" @click="resetForm" class="reset-btn">
+          {{ $t('common.reset') }}
+        </Button>
       </div>
-    </Modal>
-  </div>
+    </template>
+  </Modal>
 </template>
 
 <style scoped>
-/* 移动端适配 */
-@media (max-width: 768px) {
-  :deep(.mobile-factory-modal) {
-    top: 20px !important;
-    width: 98% !important;
-    max-width: none !important;
-    margin: 8px !important;
-  }
-
-  :deep(.mobile-factory-modal .ant-modal-content) {
-    overflow: hidden !important;
-    border-radius: 12px !important;
-  }
-
-  :deep(.mobile-factory-modal .ant-modal-header) {
-    padding: 16px 20px !important;
-    border-bottom: 1px solid #f0f0f0 !important;
-  }
-
-  :deep(.mobile-factory-modal .ant-modal-title) {
-    font-size: 18px !important;
-    font-weight: 600 !important;
-  }
-
-  :deep(.mobile-factory-modal .ant-modal-body) {
-    max-height: calc(100vh - 120px) !important;
-    padding: 0 !important;
-    overflow-y: auto !important;
-  }
-
-  :deep(.mobile-factory-modal .ant-modal-footer) {
-    padding: 12px 20px !important;
-    text-align: center !important;
-    border-top: 1px solid #f0f0f0 !important;
-  }
-
-  :deep(.mobile-factory-modal .ant-modal-footer .ant-btn) {
-    min-width: 80px !important;
-    height: 40px !important;
-    font-size: 15px !important;
-    border-radius: 6px !important;
-  }
+/* 底部操作区域 */
+.mobile-form-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-start;
+  padding: 16px 0;
 }
 
-@media (max-width: 768px) {
-  .modal-content {
-    padding: 16px;
-  }
-}
-
-@media (max-width: 768px) {
-  .form-card {
-    background-color: #fff;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-  }
-}
-
-@media (max-width: 768px) {
-  .factory-form {
-    margin: 0;
-  }
-
-  /* 优化表单项在移动端的显示 */
-  :deep(.factory-form .ant-form-item) {
-    margin-bottom: 16px;
-  }
-
-  :deep(.factory-form .ant-form-item-label) {
-    padding-bottom: 4px;
-  }
-
-  :deep(.factory-form .ant-form-item-label > label) {
-    font-size: 14px;
-    font-weight: 500;
-  }
-
-  :deep(.factory-form .ant-input) {
-    height: 44px;
-    font-size: 16px;
-    border-radius: 6px;
-  }
-
-  :deep(.factory-form .ant-select) {
-    font-size: 16px;
-  }
-
-  :deep(.factory-form .ant-select-selector) {
-    height: 44px !important;
-    border-radius: 6px !important;
-  }
-
-  :deep(.factory-form .ant-select-selection-item) {
-    font-size: 16px;
-    line-height: 42px !important;
-  }
-
-  :deep(.factory-form .ant-picker) {
-    height: 44px;
-    font-size: 16px;
-    border-radius: 6px;
-  }
-
-  :deep(.factory-form .ant-input-number) {
-    width: 100%;
-    height: 44px;
-    font-size: 16px;
-    border-radius: 6px;
-  }
-
-  :deep(.factory-form .ant-input-number-input) {
-    height: 42px;
-    font-size: 16px;
-  }
-}
-
-:deep(.mobile-factory-modal) {
-  width: 95% !important;
-  max-width: 1200px !important;
-  margin: 0 auto !important;
-}
-
-.modal-content {
-  padding: 20px;
-}
-
-.form-card {
-  background-color: #fcfcfc;
-  border: 1px solid #f0f0f0;
+.reset-btn {
   border-radius: 8px;
-  box-shadow: none;
+  transition: all 0.3s ease;
 }
 
-.factory-form {
-  margin: 2vh 2vw 0 0;
+.reset-btn:hover {
+  box-shadow: 0 2px 4px rgb(0 0 0 / 10%);
+  transform: translateY(-1px);
 }
-
-/* 移动端模态框样式优化 */
 </style>

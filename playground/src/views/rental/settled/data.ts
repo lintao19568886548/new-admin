@@ -14,7 +14,7 @@ import { message } from 'ant-design-vue';
 import { z } from '#/adapter/form';
 import { $t } from '#/locales';
 
-import FactoryForm from './modules/factory-form.vue';
+// import FactoryForm from './modules/factory-form.vue';
 import FloorForm from './modules/floor-form.vue';
 
 const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
@@ -190,15 +190,6 @@ export function useParkFormSchema(): VbenFormSchema[] {
           default: () => $t('page.factory.upload-image'),
         };
       },
-    },
-  ];
-}
-
-export function useFactoryFormSchema(): VbenFormSchema[] {
-  return [
-    {
-      component: markRaw(FactoryForm),
-      fieldName: 'factories',
     },
   ];
 }

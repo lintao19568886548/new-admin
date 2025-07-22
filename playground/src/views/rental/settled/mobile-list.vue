@@ -31,7 +31,7 @@ import { $t } from '#/locales';
 import { router } from '#/router';
 import { useLayoutStore } from '#/store/layout';
 
-import MobileFactoryForm from './modules/mobile-form.vue';
+import MobileFactoryForm from './modules/form.vue';
 
 const loading = ref(false);
 const searchForm = ref({
