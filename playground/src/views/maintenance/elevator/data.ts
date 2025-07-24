@@ -1,6 +1,8 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
+import { markRaw } from 'vue';
+
 import { formatDateTime } from '@vben/utils';
 
 import { z } from '#/adapter/form';
@@ -8,6 +10,16 @@ import { getFactoryListByParkId } from '#/api/factory'; // 确保导入
 // 新增导入 (如果之前没有)
 // <-- 新增导入
 import { $t } from '#/locales';
+
+import SizeForm from './modules/size-form.vue';
+
+// 电梯尺寸项类型定义
+export interface ElevatorSizeItem {
+  description?: string;
+  height: string;
+  length: string;
+  width: string;
+}
 
 /**
  * 获取新增、修改表单的字段配置
@@ -27,14 +39,12 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       defaultValue: [], // 值将是 [parkId, factoryId]
       fieldName: 'factoryId', // 注意：此字段将持有数组值
-      formItemClass: 'col-span-3',
       label: '厂房名称',
       rules: 'required',
     },
     {
       component: 'Input',
       fieldName: 'name',
-      formItemClass: 'col-span-3',
       label: '电梯名称',
     },
     {
@@ -50,7 +60,6 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       defaultValue: '正常',
       fieldName: 'status',
-      formItemClass: 'col-span-3',
       label: '电梯状态',
       rules: 'required',
     },
@@ -63,36 +72,13 @@ export function useFormSchema(): VbenFormSchema[] {
         },
       },
       fieldName: 'loadCapacity',
-      formItemClass: 'col-span-3',
       label: '承重',
       rules: 'required', // 根据业务需求决定是否必填，以及具体校验规则
     },
     {
-      component: 'Input',
-      componentProps: {
-        addonAfter: '米',
-        addonBefore: '长',
-      },
-      fieldName: 'sizeLength',
+      component: markRaw(SizeForm),
+      fieldName: 'size',
       label: '尺寸',
-      rules: 'required',
-    },
-    {
-      component: 'Input',
-      componentProps: {
-        addonAfter: '米',
-        addonBefore: '宽',
-      },
-      fieldName: 'sizeWidth',
-      rules: 'required',
-    },
-    {
-      component: 'Input',
-      componentProps: {
-        addonAfter: '米',
-        addonBefore: '高',
-      },
-      fieldName: 'sizeHeight',
       rules: 'required',
     },
     {
@@ -104,14 +90,12 @@ export function useFormSchema(): VbenFormSchema[] {
         valueFormat: 'YYYY-MM-DD',
       },
       fieldName: 'productionDate',
-      formItemClass: 'col-span-3',
       label: '生产日期',
       // rules: 'required', // 根据业务需求决定是否必填
     },
     {
       component: 'Input',
       fieldName: 'checker',
-      formItemClass: 'col-span-3',
       label: $t('system.rental.checker'),
       rules: 'required',
     },
@@ -126,7 +110,6 @@ export function useFormSchema(): VbenFormSchema[] {
         valueFormat: 'YYYY-MM-DD HH:mm:ss',
       },
       fieldName: 'checkTime',
-      formItemClass: 'col-span-3',
       label: $t('page.maintenance.checkTime'),
       rules: 'required',
     },
@@ -142,7 +125,6 @@ export function useFormSchema(): VbenFormSchema[] {
         },
       },
       fieldName: 'remark',
-      formItemClass: 'col-span-3',
       label: $t('page.common.remark'),
       rules: z
         .string()

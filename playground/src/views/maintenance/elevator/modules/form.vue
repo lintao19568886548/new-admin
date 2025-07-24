@@ -23,7 +23,6 @@ const [Form, formApi] = useVbenForm({
   layout: 'vertical',
   schema: useFormSchema(),
   showDefaultActions: false,
-  wrapperClass: 'grid-cols-3 gap-4',
 });
 
 function resetForm() {
@@ -97,9 +96,7 @@ const [Modal, modalApi] = useVbenModal({
     if (isOpen) {
       const data = modalApi.getData(); // 编辑时的数据
       if (data) {
-        formData.value = { ...data };
-
-        // 解析 size 字符串填充长宽高字段
+        formData.value = { ...data }; // 解析 size 字符串填充长宽高字段
         if (data.size?.length > 0) {
           const sizeMatch = data.size.match(
             /长(\d+(\.\d+)?)米\*宽(\d+(\.\d+)?)米\*高(\d+(\.\d+)?)米/,

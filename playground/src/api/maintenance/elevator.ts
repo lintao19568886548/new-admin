@@ -11,9 +11,7 @@ export interface Elevator {
   parkId?: number;
   productionDate?: string;
   remark?: string;
-  sizeHeight: number;
-  sizeLength: number;
-  sizeWidth: number;
+  size: string;
   status: string;
   updateTime?: string;
 }

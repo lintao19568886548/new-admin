@@ -1,15 +1,16 @@
 <script lang="ts" setup>
 import type { Elevator } from '#/api/maintenance';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
-import { Plus, Search } from '@vben/icons';
+import { Search } from '@vben/icons';
 import { formatDate, formatDateTime } from '@vben/utils';
 
 import {
   Button,
-  Collapse,
+  Card,
+  Col,
   DatePicker,
   Empty,
   Form,
@@ -17,13 +18,15 @@ import {
   message,
   Modal,
   Pagination,
+  Row,
   Select,
   Spin,
   Tag,
 } from 'ant-design-vue';
 
 import { deleteElevator, getElevatorList } from '#/api/maintenance';
-import AreaSelector from '#/components/AreaSelector.vue';
+import { getParkList as fetchParks } from '#/api/park';
+import { useLayoutStore } from '#/store/layout';
 
 import FormComponent from './modules/form.vue';
 
@@ -34,13 +37,15 @@ const STATUS_MAP: Record<string, { color: string; text: string }> = {
   维护: { color: 'blue', text: '维护' },
 };
 
-const activeKey = ref([]);
-
 // Store and reactive data
-// const userStore = useUserStore();
+const layoutStore = useLayoutStore();
 const loading = ref(false);
 const list = ref<Elevator[]>([]);
-const currentPark = ref<null | { parkId: string; parkName: string }>(null);
+
+type ParkList = Awaited<ReturnType<typeof fetchParks>>;
+type ParkItem = ParkList[number];
+
+const parkOptions = ref<{ label: string; value: number }[]>([]);
 
 // Pagination
 const pagination = reactive({
@@ -54,6 +59,7 @@ const searchForm = reactive({
   checker: '',
   checkTime: [] as [] | [string, string],
   name: '',
+  parkId: undefined,
   status: undefined,
 });
 
@@ -78,7 +84,7 @@ async function fetchData() {
     const params = {
       ...queryParams,
       currentPage: pagination.current,
-      currentPark: currentPark.value?.parkId ?? -1,
+      currentPark: queryParams.parkId ?? -1,
       limit: pagination.pageSize,
     };
     const result = await getElevatorList(params);
@@ -94,6 +100,18 @@ async function fetchData() {
   }
 }
 
+async function fetchParkOptions() {
+  try {
+    const parks = await fetchParks();
+    parkOptions.value = parks.map((park: ParkItem) => ({
+      label: park.parkName,
+      value: park.parkId,
+    }));
+  } catch (error) {
+    console.error('获取园区列表失败', error);
+  }
+}
+
 function handleSearch() {
   pagination.current = 1;
   fetchData();
@@ -104,6 +122,7 @@ function resetSearch() {
   searchForm.status = undefined;
   searchForm.checker = '';
   searchForm.checkTime = [];
+  searchForm.parkId = undefined;
   handleSearch();
 }
 
@@ -111,11 +130,6 @@ function handlePageChange(page: number, pageSize: number) {
   pagination.current = page;
   pagination.pageSize = pageSize;
   fetchData();
-}
-
-function handleAreaChange(park: any) {
-  currentPark.value = park;
-  handleSearch();
 }
 
 function onCreate() {
@@ -144,35 +158,49 @@ function onDelete(record: Elevator) {
   });
 }
 
+// Computed
+const listIsEmpty = computed(() => !loading.value && list.value.length === 0);
+
 // Lifecycle
 onMounted(() => {
-  // if (userStore.userInfo?.parks?.[0]) {
-  //   currentPark.value = userStore.userInfo.parks[0];
-  // }
   fetchData();
+  fetchParkOptions();
+  layoutStore.setHeaderActions([
+    {
+      key: 'add-elevator',
+      onClick: () => onCreate(),
+      text: '添加',
+    },
+  ]);
 });
+
+onUnmounted(() => {
+  layoutStore.clearHeaderActions();
+});
+
+function refreshList() {
+  fetchData();
+}
 </script>
 
 <template>
-  <div class="mobile-maint-container">
-    <FormModal @success="fetchData" />
-    <header class="page-header">
-      <h2 class="page-title">电梯维保记录</h2>
-      <AreaSelector
-        :default-park="
-          currentPark
-            ? { ...currentPark, parkId: Number(currentPark.parkId) }
-            : undefined
-        "
-        :refresh-callback="fetchData"
-        @change="handleAreaChange"
-      />
-    </header>
+  <div class="elevator-mobile-page">
+    <FormModal @success="refreshList" />
 
-    <Collapse v-model:active-key="activeKey" ghost>
-      <Collapse.Panel key="1" header="搜索条件">
-        <div class="search-filters">
-          <Form layout="vertical">
+    <div class="search-filters">
+      <Form layout="vertical" :model="searchForm">
+        <Row :gutter="16">
+          <Col :span="24">
+            <Form.Item label="园区">
+              <Select
+                v-model:value="searchForm.parkId"
+                :options="parkOptions"
+                allow-clear
+                placeholder="选择园区"
+              />
+            </Form.Item>
+          </Col>
+          <Col :span="12">
             <Form.Item label="电梯名称">
               <Input
                 v-model:value="searchForm.name"
@@ -180,6 +208,8 @@ onMounted(() => {
                 allow-clear
               />
             </Form.Item>
+          </Col>
+          <Col :span="12">
             <Form.Item label="电梯状态">
               <Select
                 v-model:value="searchForm.status"
@@ -193,6 +223,8 @@ onMounted(() => {
                 allow-clear
               />
             </Form.Item>
+          </Col>
+          <Col :span="12">
             <Form.Item label="检查人">
               <Input
                 v-model:value="searchForm.checker"
@@ -200,6 +232,8 @@ onMounted(() => {
                 allow-clear
               />
             </Form.Item>
+          </Col>
+          <Col :span="12">
             <Form.Item label="检查时间">
               <DatePicker.RangePicker
                 v-model:value="
@@ -209,187 +243,268 @@ onMounted(() => {
                 value-format="YYYY-MM-DD"
               />
             </Form.Item>
-            <div class="search-actions">
-              <Button type="primary" @click="handleSearch" block>
-                <Search class="mr-1 h-4 w-4" />
-                搜索
-              </Button>
-              <Button @click="resetSearch" block style="margin-top: 8px">
-                重置
-              </Button>
-            </div>
-          </Form>
+          </Col>
+        </Row>
+        <div class="search-actions">
+          <Button type="primary" @click="handleSearch" class="flex-1">
+            <Search class="mr-1 h-4 w-4" />
+            搜索
+          </Button>
+          <Button @click="resetSearch" class="flex-1"> 重置 </Button>
         </div>
-      </Collapse.Panel>
-    </Collapse>
-    <div class="content-area">
-      <Spin :spinning="loading" tip="加载中...">
-        <div v-if="list.length > 0" class="maint-list">
-          <div v-for="item in list" :key="item.elevatorId" class="maint-card">
-            <div class="card-header">
-              <span class="maint-item">{{ item.name }}</span>
+      </Form>
+    </div>
+    <Spin :spinning="loading" tip="加载中...">
+      <div v-if="list.length > 0">
+        <Card
+          v-for="item in list"
+          :key="item.elevatorId"
+          class="elevator-card"
+          :body-style="{ padding: '0' }"
+        >
+          <div class="card-header">
+            <span class="elevator-title">{{ item.name }}</span>
+            <div class="header-tags">
               <Tag :color="STATUS_MAP[item.status]?.color || 'default'">
                 {{ STATUS_MAP[item.status]?.text || item.status }}
               </Tag>
             </div>
-            <div class="card-body">
-              <p><strong>厂房:</strong> {{ item.factory }}</p>
-              <p><strong>承重:</strong> {{ item.loadCapacity }} 吨</p>
-              <p>
-                <strong>尺寸:</strong> {{ item.sizeLength }}米 *
-                {{ item.sizeWidth }}米 * {{ item.sizeHeight }}米
-              </p>
-              <p><strong>检查人:</strong> {{ item.checker }}</p>
-              <p>
-                <strong>检查时间:</strong> {{ formatDateTime(item.checkTime) }}
-              </p>
-              <p v-if="item.productionDate">
-                <strong>生产日期:</strong> {{ formatDate(item.productionDate) }}
-              </p>
-              <p v-if="item.remark"><strong>备注:</strong> {{ item.remark }}</p>
-            </div>
-            <div class="card-footer">
-              <Button type="primary" size="small" @click="onEdit(item)">
-                编辑
-              </Button>
-              <Button
-                type="primary"
-                danger
-                size="small"
-                @click="onDelete(item)"
-              >
-                删除
-              </Button>
-            </div>
           </div>
-          <Pagination
-            v-if="pagination.total > pagination.pageSize"
-            :current="pagination.current"
-            :page-size="pagination.pageSize"
-            :total="pagination.total"
-            @change="handlePageChange"
-            size="small"
-            class="list-pagination"
-          />
-        </div>
-        <Empty v-else :description="loading ? '加载中...' : '暂无记录'" />
-      </Spin>
-    </div>
-    <div class="fab-container">
-      <Button
-        type="primary"
-        shape="circle"
-        @click="onCreate"
-        class="fab-button"
-      >
-        <Plus class="size-6" />
-      </Button>
-    </div>
+          <div class="card-content">
+            <div class="mb-3 grid grid-cols-2 gap-4">
+              <div class="info-item">
+                <span class="info-label">厂房</span>
+                <span class="info-value">{{ item.factory }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">承重</span>
+                <span class="info-value">{{ item.loadCapacity }} 吨</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">尺寸</span>
+                <span class="info-value">
+                  {{ item.size }}
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">检查人</span>
+                <span class="info-value">{{ item.checker }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">检查时间</span>
+                <span class="info-value">{{
+                  formatDateTime(item.checkTime)
+                }}</span>
+              </div>
+              <div v-if="item.productionDate" class="info-item">
+                <span class="info-label">生产日期</span>
+                <span class="info-value">{{
+                  formatDate(item.productionDate)
+                }}</span>
+              </div>
+            </div>
+            <p v-if="item.remark" class="remark-info">
+              <span class="remark-label">备注:</span>
+              <span class="remark-text">{{ item.remark }}</span>
+            </p>
+          </div>
+          <div class="card-actions">
+            <Button type="primary" ghost @click="onEdit(item)"> 编辑 </Button>
+            <Button type="primary" danger ghost @click="onDelete(item)">
+              删除
+            </Button>
+          </div>
+        </Card>
+
+        <Pagination
+          v-if="pagination.total > pagination.pageSize"
+          v-model:current="pagination.current"
+          :page-size="pagination.pageSize"
+          :total="pagination.total"
+          @change="handlePageChange"
+          size="small"
+          class="list-pagination"
+        />
+      </div>
+      <Empty v-if="listIsEmpty" class="py-10" description="暂无记录" />
+    </Spin>
   </div>
 </template>
 
 <style scoped>
-.mobile-maint-container {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
+.elevator-mobile-page {
+  box-sizing: border-box;
+  padding: 8px;
   background-color: #f0f2f5;
 }
 
-.page-header {
-  z-index: 10;
-  padding: 10px 10px 0;
-  background-color: #fff;
-  box-shadow: 0 2px 8px #f0f1f2;
-}
-
-.page-title {
-  margin: 0 0 8px;
-  font-size: 1.2em;
-  font-weight: bold;
-  text-align: center;
+.dark .elevator-mobile-page {
+  background-color: #1a1a1a;
 }
 
 .search-filters {
-  padding: 12px;
+  padding: 12px 8px;
+  margin-bottom: 8px;
   background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+}
+
+.dark .search-filters {
+  background-color: #2d2d2d;
 }
 
 .search-filters .ant-form-item {
-  margin-bottom: 12px;
-}
-
-.content-area {
-  flex-grow: 1;
-  padding: 8px;
-  overflow-y: auto;
-  background-color: #f0f2f5;
-}
-
-.maint-list {
-  padding-bottom: 60px; /* Space for FAB */
-}
-
-.maint-card {
-  padding: 12px;
   margin-bottom: 8px;
-  font-size: 0.9em;
+}
+
+.search-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.elevator-card {
+  margin-bottom: 12px;
+  overflow: hidden;
+  font-size: 14px;
   background-color: #fff;
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+}
+
+.dark .elevator-card {
+  background-color: #2d2d2d;
 }
 
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 8px;
-  margin-bottom: 8px;
+  padding: 12px 16px;
   border-bottom: 1px solid #f0f0f0;
 }
 
-.maint-item {
-  font-size: 1.1em;
-  font-weight: bold;
+.dark .card-header {
+  border-bottom-color: #424242;
 }
 
-.card-body p {
-  margin-bottom: 5px;
-  line-height: 1.5;
+.elevator-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #323233;
+  word-break: break-word;
+  white-space: normal;
 }
 
-.card-body p strong {
-  margin-right: 4px;
-  color: #555;
+.dark .elevator-title {
+  color: #f1f1f1;
 }
 
-.card-footer {
+.header-tags {
   display: flex;
   gap: 8px;
-  justify-content: flex-end;
+  align-items: center;
+}
+
+.card-content {
+  padding: 16px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.info-label {
+  margin-bottom: 2px;
+  font-size: 13px;
+  color: #969799;
+}
+
+.dark .info-label {
+  color: #a0a0a0;
+}
+
+.info-value {
+  font-size: 14px;
+  color: #323233;
+}
+
+.dark .info-value {
+  color: #e0e0e0;
+}
+
+.remark-info {
+  padding: 10px 12px;
   margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #646566;
+  background-color: #f7f8fa;
+  border-radius: 6px;
+}
+
+.dark .remark-info {
+  color: #c0c0c0;
+  background-color: #3a3a3a;
+}
+
+.remark-label {
+  margin-right: 4px;
+  font-weight: 600;
+}
+
+.remark-text {
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.card-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  padding: 12px 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.dark .card-actions {
+  border-top-color: #424242;
 }
 
 .list-pagination {
-  padding: 16px 0;
+  padding-bottom: 10px;
+  margin-top: 10px;
   text-align: center;
 }
 
-.fab-container {
-  position: fixed;
-  right: 16px;
-  bottom: 24px;
-  z-index: 100;
+/* Grid utilities */
+.grid {
+  display: grid;
 }
 
-.fab-button {
-  width: 50px;
-  height: 50px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+.grid-cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-:deep(.ant-empty-description) {
-  color: #888;
+.col-span-2 {
+  grid-column: span 2 / span 2;
+}
+
+.gap-4 {
+  gap: 1rem;
+}
+
+.mb-3 {
+  margin-bottom: 0.75rem;
+}
+
+.py-10 {
+  padding-top: 2.5rem;
+  padding-bottom: 2.5rem;
 }
 </style>
