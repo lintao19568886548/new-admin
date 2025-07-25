@@ -25,15 +25,35 @@ export default eventHandler(async (event) => {
       },
     };
 
-    // 获取所有符合条件的记录，不进行分页
+    // 获取所有符合条件的记录，并包含用户信息和园区信息
     const records = await prismaClient.attendance.findMany({
       where,
+      include: {
+        user: {
+          select: {
+            username: true,
+            realName: true,
+            park: {
+              select: {
+                parkName: true,
+              },
+            },
+          },
+        },
+      },
       orderBy: {
         punchIn: 'desc',
       },
     });
 
-    const formattedItems = records.map((record) => {
+    // 按园区分组
+    const groupedByPark: Record<string, any[]> = {};
+    for (const record of records) {
+      const parkName = record.user?.park?.parkName || '未分配园区';
+      if (!groupedByPark[parkName]) {
+        groupedByPark[parkName] = [];
+      }
+
       let workHours = 0;
       if (record.punchIn && record.punchOut) {
         const workDuration = dayjs(record.punchOut).diff(
@@ -44,9 +64,9 @@ export default eventHandler(async (event) => {
         workHours = Math.round(workDuration * 100) / 100;
       }
 
-      return {
+      const formattedRecord = {
         key: record.attendanceId,
-        username: record.username,
+        username: record.user?.realName || record.user?.username || '未知用户',
         date: dayjs(record.punchIn).format('YYYY-MM-DD'),
         punchIn: dayjs(record.punchIn).format('HH:mm:ss'),
         punchOut: record.punchOut
@@ -57,9 +77,11 @@ export default eventHandler(async (event) => {
         latitude: record.latitude,
         longitude: record.longitude,
       };
-    });
 
-    return useResponseSuccess(formattedItems);
+      groupedByPark[parkName].push(formattedRecord);
+    }
+
+    return useResponseSuccess(groupedByPark);
   } catch (error: any) {
     console.error('导出考勤轨迹失败:', error);
     return useResponseError(error.message || '导出失败');

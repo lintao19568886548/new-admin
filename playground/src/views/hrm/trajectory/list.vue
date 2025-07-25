@@ -14,6 +14,7 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
+import ExcelJS from 'exceljs';
 
 import { exportTrajectoryData, getTrajectoryList } from '#/api/hrm/trajectory';
 import { BAIDU_MAP_AK } from '#/config';
@@ -173,64 +174,68 @@ const handleExport = async () => {
       endDate: dateRange.value[1].format('YYYY-MM-DD'),
       startDate: dateRange.value[0].format('YYYY-MM-DD'),
     };
-    const dataToExport = await exportTrajectoryData(params);
 
-    if (!dataToExport || dataToExport.length === 0) {
+    const trajectoryDataByPark = await exportTrajectoryData(params);
+
+    if (Object.keys(trajectoryDataByPark).length === 0) {
       message.warning('没有可导出的数据');
       return;
     }
 
-    // 转换为CSV
-    const headers = [
-      '用户名',
-      '日期',
-      '上班打卡',
-      '下班打卡',
-      '状态',
-      '工时(h)',
-      '纬度',
-      '经度',
-    ];
-    const statusMap = {
-      0: '正常',
-      1: '迟到',
-      2: '早退',
-      3: '迟到+早退',
-    };
-    const rows = dataToExport.map(
-      (row: {
-        date: any;
-        latitude: any;
-        longitude: any;
-        punchIn: any;
-        punchOut: any;
-        status: number;
-        username: any;
-        workHours: any;
-      }) => [
-        row.username,
-        row.date,
-        row.punchIn,
-        row.punchOut,
-        statusMap[row.status as keyof typeof statusMap] || '未知',
-        row.workHours,
-        row.latitude,
-        row.longitude,
-      ],
-    );
+    const workbook = new ExcelJS.Workbook();
 
-    const csvContent = `data:text/csv;charset=utf-8,\uFEFF${[
-      headers.join(','),
-      ...rows.map((e: any[]) => e.join(',')),
-    ].join('\n')}`;
+    for (const parkName in trajectoryDataByPark) {
+      if (
+        Object.prototype.hasOwnProperty.call(trajectoryDataByPark, parkName)
+      ) {
+        const worksheet = workbook.addWorksheet(parkName);
+        const parkData = trajectoryDataByPark[parkName];
 
-    // 下载CSV文件
+        // 按日期排序
+        parkData.sort(
+          (a: TrajectoryRecord, b: TrajectoryRecord) =>
+            dayjs(a.date).valueOf() - dayjs(b.date).valueOf(),
+        );
+
+        worksheet.columns = [
+          { header: '用户名', key: 'username', width: 15 },
+          { header: '日期', key: 'date', width: 15 },
+          { header: '上班打卡', key: 'punchIn', width: 15 },
+          { header: '下班打卡', key: 'punchOut', width: 15 },
+          { header: '状态', key: 'status', width: 20 },
+          { header: '工时(h)', key: 'workHours', width: 10 },
+          { header: '纬度', key: 'latitude', width: 20 },
+          { header: '经度', key: 'longitude', width: 20 },
+        ];
+
+        const statusMap = {
+          0: '正常',
+          1: '迟到',
+          2: '早退',
+          3: '迟到+早退',
+          4: '缺勤',
+        };
+
+        const rows = parkData.map((row: any) => {
+          const status =
+            statusMap[row.status as keyof typeof statusMap] || '未知';
+          return {
+            ...row,
+            status,
+          };
+        });
+
+        worksheet.addRows(rows);
+      }
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
     const link = document.createElement('a');
-    link.setAttribute('href', encodeURI(csvContent));
-    link.setAttribute(
-      'download',
-      `考勤轨迹_${params.startDate}_${params.endDate}.csv`,
-    );
+    link.href = URL.createObjectURL(blob);
+    link.download = `考勤轨迹_${params.startDate}_${params.endDate}.xlsx`;
     document.body.append(link);
     link.click();
     link.remove();
