@@ -26,7 +26,8 @@ export default eventHandler(async (event) => {
     if (
       userinfo.realName !== 'Vben' &&
       userinfo.realName !== '董事长' &&
-      userinfo.realName.includes('总监') === false
+      userinfo.realName.includes('总监') === false &&
+      userinfo.realName.includes('总经理') === false
     ) {
       where.userId = userinfo.id;
       const parkIds = userinfo.parks?.map((park) => park.parkId) || [];
