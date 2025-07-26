@@ -17,7 +17,7 @@ model Reimbursement {
   park         Park?                @relation("ParkToReimbursement", fields: [parkId], references: [parkId])
   images       ReimbursementImage[] @relation("ReimbursementToReimbursementImage")
   auditOpinion String?              @db.VarChar(200)
-  claimant     String?              @db.VarChar(50)
+
 
   @@index([parkId])
   @@index([userId])

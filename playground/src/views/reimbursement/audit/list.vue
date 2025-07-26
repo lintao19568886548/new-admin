@@ -5,6 +5,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Page } from '@vben/common-ui';
 import { Search } from '@vben/icons';
 import { useUserStore } from '@vben/stores';
+import { formatDateTime } from '@vben/utils';
 
 import {
   Button,
@@ -256,7 +257,7 @@ onMounted(() => {
           </div>
           <div>
             <p class="text-gray-500">申请日期</p>
-            <p>{{ currentRecord.date }}</p>
+            <p>{{ formatDateTime(currentRecord.date) }}</p>
           </div>
           <div v-if="currentRecord.status > 0">
             <p class="text-gray-500">审核结果</p>

@@ -96,9 +96,7 @@ async function fetchReimbursements() {
       pageSize: pagination.pageSize,
     };
 
-    // 所有用户只能查看自己的申请记录。后端会根据提交的 claimant (realName)
-    // 和当前用户的 userId 进行联合查询，以兼容新旧数据。
-    params.claimant = userStore.userInfo?.realName;
+    // 所有用户只能查看自己的申请记录。后端会根据当前用户的 userId 进行查询。
 
     // 添加其他搜索条件
     if (searchForm.purpose) {
@@ -401,7 +399,6 @@ async function handleSubmit() {
     // 创建模式：构建完整的创建数据
     const createData = {
       amount: formState.amount,
-      claimant: userStore.userInfo?.realName, // 自动填充当前用户的 realName
       date: new Date().toISOString(),
       images: newImages,
       parkId: formState.parkId,

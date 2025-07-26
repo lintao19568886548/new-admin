@@ -24,10 +24,11 @@ export default eventHandler(async (event) => {
 
     // 根据用户权限过滤：如果不是特定高权限用户，则只查询用户关联园区的记录
     if (
-      userinfo.username !== 'vben' &&
-      userinfo.username !== '董事长' &&
-      userinfo.username !== '总监'
+      userinfo.realName !== 'Vben' &&
+      userinfo.realName !== '董事长' &&
+      userinfo.realName.includes('总监') === false
     ) {
+      where.userId = userinfo.id;
       const parkIds = userinfo.parks?.map((park) => park.parkId) || [];
 
       // 如果用户有关联的园区，则按园区过滤；否则，作为一个非高级用户，
@@ -41,19 +42,6 @@ export default eventHandler(async (event) => {
           total: 0,
         });
       }
-    }
-
-    // 按申请人姓名进行模糊查询
-    // if (query.username) {
-    //   where.username = { contains: String(query.username) };
-    // }
-
-    // 按报销人姓名进行精确查询. Now uses userId primarily, with claimant for backward compatibility.
-    if (query.claimant) {
-      where.OR = [
-        { userId: userinfo.id },
-        { claimant: String(query.claimant), userId: null },
-      ];
     }
 
     // 用途模糊查询

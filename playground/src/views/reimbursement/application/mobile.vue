@@ -216,7 +216,6 @@ async function handleSubmit() {
 
     const submitData = {
       ...dataToSubmit,
-      claimant: userStore.userInfo?.realName,
       date: new Date().toISOString(), // Keep full ISO string like in list.vue
       images: formState.images
         .filter((file: any) => file.status === 'done' && file.imgId)
@@ -252,9 +251,6 @@ async function fetchReimbursements() {
   }
   try {
     const params: any = {
-      // 后端会根据提交的 claimant (realName) 和当前用户的 userId
-      // 进行联合查询，以兼容新旧数据。
-      claimant: userStore.userInfo.realName,
       pageNo: recordPagination.current,
       pageSize: recordPagination.pageSize,
       purpose: recordSearchForm.purpose || undefined,
