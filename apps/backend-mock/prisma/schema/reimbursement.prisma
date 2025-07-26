@@ -11,6 +11,8 @@ model Reimbursement {
   updateTime   DateTime?            @updatedAt @map("update_time")
   status       Int                  @default(0)
   isDeleted    Boolean              @default(false) @map("is_deleted")
+  userId       Int?                 @map("user_id") // 申请账号
+  user         User?                @relation("UserToReimbursement",fields: [userId], references: [id])
   parkId       Int?                 @map("park_id")
   park         Park?                @relation("ParkToReimbursement", fields: [parkId], references: [parkId])
   images       ReimbursementImage[] @relation("ReimbursementToReimbursementImage")
@@ -18,5 +20,6 @@ model Reimbursement {
   claimant     String?              @db.VarChar(50)
 
   @@index([parkId])
+  @@index([userId])
   @@map("reimbursement")
 }

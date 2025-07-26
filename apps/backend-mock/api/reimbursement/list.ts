@@ -48,9 +48,12 @@ export default eventHandler(async (event) => {
     //   where.username = { contains: String(query.username) };
     // }
 
-    // 按报销人姓名进行精确查询
+    // 按报销人姓名进行精确查询. Now uses userId primarily, with claimant for backward compatibility.
     if (query.claimant) {
-      where.claimant = String(query.claimant);
+      where.OR = [
+        { userId: userinfo.id },
+        { claimant: String(query.claimant), userId: null },
+      ];
     }
 
     // 用途模糊查询

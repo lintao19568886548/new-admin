@@ -10,6 +10,7 @@ model User {
   localizations              Localization[]     @relation("UserToLocalization")
   submittedLeaveApplications LeaveApplication[] @relation("ApplicantLeaveApplications")
   auditedLeaveApplications   LeaveApplication[] @relation("AuditorLeaveApplications")
+  reimbursements             Reimbursement[]    @relation("UserToReimbursement")
   parkId                     Int?               @map("park_id")
   park                       Park?              @relation("ParkToUser", fields: [parkId], references: [parkId])
   attendances                Attendance[]       @relation("UserToAttendance")

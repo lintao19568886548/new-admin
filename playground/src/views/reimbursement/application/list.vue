@@ -96,7 +96,8 @@ async function fetchReimbursements() {
       pageSize: pagination.pageSize,
     };
 
-    // 所有用户只能查看自己的申请记录, 根据 claimant (realName) 进行判断
+    // 所有用户只能查看自己的申请记录。后端会根据提交的 claimant (realName)
+    // 和当前用户的 userId 进行联合查询，以兼容新旧数据。
     params.claimant = userStore.userInfo?.realName;
 
     // 添加其他搜索条件

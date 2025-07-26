@@ -252,6 +252,8 @@ async function fetchReimbursements() {
   }
   try {
     const params: any = {
+      // 后端会根据提交的 claimant (realName) 和当前用户的 userId
+      // 进行联合查询，以兼容新旧数据。
       claimant: userStore.userInfo.realName,
       pageNo: recordPagination.current,
       pageSize: recordPagination.pageSize,
