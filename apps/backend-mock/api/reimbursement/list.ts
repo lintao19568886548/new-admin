@@ -26,6 +26,8 @@ export default eventHandler(async (event) => {
     if (
       userinfo.realName !== 'Vben' &&
       userinfo.realName !== '董事长' &&
+      userinfo.realName.includes('财务') === false &&
+      userinfo.realName.includes('人事部') === false &&
       userinfo.realName.includes('总监') === false &&
       userinfo.realName.includes('总经理') === false
     ) {
