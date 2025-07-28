@@ -112,6 +112,8 @@ async function fetchReimbursements() {
       params.endDate = searchForm.dateRange[1];
     }
 
+    params.type = 'application';
+
     // 调用 API
     const res = await getReimbursementList(params);
     reimbursementList.value = res.items || [];

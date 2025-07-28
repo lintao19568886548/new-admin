@@ -23,29 +23,32 @@ export default eventHandler(async (event) => {
     };
 
     // 根据用户权限过滤：如果不是特定高权限用户，则只查询用户关联园区的记录
-    if (
-      userinfo.realName !== 'Vben' &&
-      userinfo.realName !== '董事长' &&
-      userinfo.realName.includes('财务') === false &&
-      userinfo.realName.includes('人事部') === false &&
-      userinfo.realName.includes('总监') === false &&
-      userinfo.realName.includes('总经理') === false
-    ) {
+    if (query.type === 'application') {
       where.userId = userinfo.id;
-      const parkIds = userinfo.parks?.map((park) => park.parkId) || [];
-
-      // 如果用户有关联的园区，则按园区过滤；否则，作为一个非高级用户，
-      // 他们没有被分配可审计的园区，因此不应该看到任何记录。
-      if (parkIds.length > 0) {
-        where.parkId = { in: parkIds };
-      } else {
-        // 直接返回空结果，因为没有可审计的园区
-        return useResponseSuccess({
-          items: [],
-          total: 0,
-        });
-      }
     }
+    // if (
+    //   userinfo.realName !== 'Vben' &&
+    //   userinfo.realName !== '董事长' &&
+    //   userinfo.realName.includes('财务') === false &&
+    //   userinfo.realName.includes('人事部') === false &&
+    //   userinfo.realName.includes('总监') === false &&
+    //   userinfo.realName.includes('总经理') === false
+    // ) {
+    //   where.userId = userinfo.id;
+    //   const parkIds = userinfo.parks?.map((park) => park.parkId) || [];
+
+    //   // 如果用户有关联的园区，则按园区过滤；否则，作为一个非高级用户，
+    //   // 他们没有被分配可审计的园区，因此不应该看到任何记录。
+    //   if (parkIds.length > 0) {
+    //     where.parkId = { in: parkIds };
+    //   } else {
+    //     // 直接返回空结果，因为没有可审计的园区
+    //     return useResponseSuccess({
+    //       items: [],
+    //       total: 0,
+    //     });
+    //   }
+    // }
 
     // 用途模糊查询
     if (query.purpose) {
