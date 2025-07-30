@@ -24,7 +24,10 @@ export default eventHandler(async (event) => {
     // 如果更新身份证号，验证其唯一性
     if (body.idNumber && body.idNumber !== existingEmployee.idNumber) {
       const duplicateEmployee = await prismaClient.employee.findUnique({
-        where: { idNumber: body.idNumber },
+        where: {
+          idNumber: body.idNumber,
+          isDeleted: false,
+        },
       });
       if (duplicateEmployee) {
         return useResponseError('该身份证号已存在');
@@ -37,17 +40,16 @@ export default eventHandler(async (event) => {
       },
       data: {
         ...body,
-        checkIn: body.checkIn
-          ? new Date(`1970-01-01T${body.checkIn}Z`)
-          : undefined,
-        checkOut: body.checkOut
-          ? new Date(`1970-01-01T${body.checkOut}Z`)
-          : undefined,
-        // 如果提供了入职日期，转换为Date类型
+        checkIn: body.checkIn ? new Date(body.checkIn) : undefined,
+        checkOut: body.checkOut ? new Date(body.checkOut) : undefined,
         hireDate: body.hireDate ? new Date(body.hireDate) : undefined,
-        // 如果提供了离职日期，转换为Date类型
-        leaveDate: body.leaveDate ? new Date(body.leaveDate) : undefined,
-        // 更新时间会自动更新（通过@updatedAt)
+        leaveDate: (() => {
+          if (body.isResigned) {
+            return body.leaveDate ? new Date(body.leaveDate) : undefined;
+          } else {
+            return null;
+          }
+        })(),
       },
     });
 

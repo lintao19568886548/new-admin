@@ -4,6 +4,8 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn } from '#/adapter/vxe-table';
 import type { EmployeeApi } from '#/api/hrm/employee';
 
+import { formatDate } from '@vben/utils';
+
 import { z } from '#/adapter/form';
 
 /**
@@ -88,16 +90,39 @@ export function useSchema(): VbenFormSchema[] {
     {
       component: 'DatePicker',
       componentProps: {
-        valueFormat: 'YYYY-MM-DD',
+        valueFormat: 'YYYY-MM-DDTHH:mm:ss.SSSZ',
       },
       fieldName: 'hireDate',
       label: '入职日期',
       rules: z.string().optional(),
     },
     {
+      component: 'RadioGroup',
+      componentProps: {
+        buttonStyle: 'solid',
+        options: [
+          { label: '在职', value: false },
+          { label: '离职', value: true },
+        ],
+        optionType: 'button',
+      },
+      defaultValue: false,
+      fieldName: 'isResigned',
+      label: '是否离职',
+    },
+    {
       component: 'DatePicker',
       componentProps: {
-        valueFormat: 'YYYY-MM-DD',
+        valueFormat: 'YYYY-MM-DDTHH:mm:ss.SSSZ',
+      },
+      dependencies: {
+        rules: (values) => {
+          return values.isResigned ? 'required' : null;
+        },
+        show: (values) => {
+          return values.isResigned;
+        },
+        triggerFields: ['isResigned'],
       },
       fieldName: 'leaveDate',
       label: '离职日期',
@@ -126,7 +151,7 @@ export function useSchema(): VbenFormSchema[] {
         format: 'HH:mm:ss',
         placeholder: '请选择上班时间',
         style: { width: '100%' },
-        valueFormat: 'HH:mm:ss',
+        valueFormat: 'YYYY-MM-DDTHH:mm:ss.SSSZ',
       },
       fieldName: 'checkIn',
       label: '上班时间',
@@ -137,7 +162,7 @@ export function useSchema(): VbenFormSchema[] {
         format: 'HH:mm:ss',
         placeholder: '请选择下班时间',
         style: { width: '100%' },
-        valueFormat: 'HH:mm:ss',
+        valueFormat: 'YYYY-MM-DDTHH:mm:ss.SSSZ',
       },
       fieldName: 'checkOut',
       label: '下班时间',
@@ -189,47 +214,49 @@ export function useColumns(
       title: '学历',
       width: 100,
     },
+    // {
+    //   cellRender: {
+    //     name: 'CellTag',
+    //     options: [
+    //       {
+    //         color: 'green',
+    //         label: '是',
+    //         value: true,
+    //       },
+    //       {
+    //         color: 'red',
+    //         label: '否',
+    //         value: false,
+    //       },
+    //     ],
+    //   },
+    //   field: 'isResigned',
+    //   title: '是否在职',
+    //   width: 100,
+    // },
     {
       field: 'hireDate',
-      formatter: ({ cellValue }) => {
-        if (!cellValue) return '';
-        return cellValue.split('T')[0]; // 确保只显示年月日
-      },
+      formatter: ({ cellValue }) => formatDate(cellValue),
       title: '入职日期',
       width: 120,
     },
+
     {
       field: 'leaveDate',
-      formatter: ({ cellValue }) => {
-        if (!cellValue) return '';
-        return cellValue.split('T')[0]; // 确保只显示年月日
-      },
+      formatter: ({ cellValue }) => formatDate(cellValue),
       title: '离职日期',
       width: 120,
     },
-    {
-      cellRender: { name: 'CellTag' },
-      field: 'isDeleted',
-      title: '是否离职',
-      width: 100,
-    },
+
     {
       field: 'checkIn',
-      formatter: ({ cellValue }) => {
-        if (!cellValue) return '';
-        const timePart = cellValue.split('T')[1];
-        return timePart ? timePart.split('.')[0] : ''; // 移除毫秒部分
-      },
+      formatter: ({ cellValue }) => formatDate(cellValue, 'HH:mm:ss'),
       minWidth: 120,
       title: '上班时间',
     },
     {
       field: 'checkOut',
-      formatter: ({ cellValue }) => {
-        if (!cellValue) return '';
-        const timePart = cellValue.split('T')[1];
-        return timePart ? timePart.split('.')[0] : ''; // 移除毫秒部分
-      },
+      formatter: ({ cellValue }) => formatDate(cellValue, 'HH:mm:ss'),
       minWidth: 120,
       title: '下班时间',
     },
@@ -298,37 +325,6 @@ export function useSearchSchema(): VbenFormSchema[] {
       label: '手机号',
     },
     {
-      component: 'Input',
-      componentProps: {
-        placeholder: '请输入部门',
-      },
-      fieldName: 'department',
-      label: '部门',
-    },
-    {
-      component: 'Input',
-      componentProps: {
-        placeholder: '请输入身份证号',
-      },
-      fieldName: 'idNumber',
-      label: '身份证号',
-    },
-    {
-      component: 'RadioGroup',
-      componentProps: {
-        buttonStyle: 'solid',
-        options: [
-          { label: '全部', value: '' },
-          { label: '男', value: '男' },
-          { label: '女', value: '女' },
-        ],
-        optionType: 'button',
-      },
-      defaultValue: '',
-      fieldName: 'gender',
-      label: '性别',
-    },
-    {
       component: 'Select',
       componentProps: {
         options: [
@@ -346,6 +342,45 @@ export function useSearchSchema(): VbenFormSchema[] {
       fieldName: 'education',
       label: '学历',
     },
+    // {
+    //   component: 'Input',
+    //   componentProps: {
+    //     placeholder: '请输入部门',
+    //   },
+    //   fieldName: 'department',
+    //   label: '部门',
+    // },
+    // {
+    //   component: 'Input',
+    //   componentProps: {
+    //     placeholder: '请输入身份证号',
+    //   },
+    //   fieldName: 'idNumber',
+    //   label: '身份证号',
+    // },
+    {
+      component: 'RangePicker',
+      componentProps: {
+        valueFormat: 'YYYY-MM-DD',
+      },
+      fieldName: 'hireDate',
+      label: '入职日期',
+    },
+    {
+      component: 'RadioGroup',
+      componentProps: {
+        buttonStyle: 'solid',
+        options: [
+          { label: '全部', value: '' },
+          { label: '男', value: '男' },
+          { label: '女', value: '女' },
+        ],
+        optionType: 'button',
+      },
+      defaultValue: '',
+      fieldName: 'gender',
+      label: '性别',
+    },
     {
       component: 'RadioGroup',
       componentProps: {
@@ -358,16 +393,8 @@ export function useSearchSchema(): VbenFormSchema[] {
         optionType: 'button',
       },
       defaultValue: '',
-      fieldName: 'isDeleted',
+      fieldName: 'isResigned',
       label: '是否离职',
-    },
-    {
-      component: 'RangePicker',
-      componentProps: {
-        valueFormat: 'YYYY-MM-DD',
-      },
-      fieldName: 'hireDate',
-      label: '入职日期',
     },
   ];
 }

@@ -14,6 +14,7 @@ model Employee {
   remark     String?   @db.VarChar(500) // 备注
   updateTime DateTime? @updatedAt @map("update_time") // 更新时间
   isDeleted  Boolean   @default(false) @map("is_deleted") // 逻辑删除字段
+  isResigned Boolean   @default(false) @map("is_resigned") // 是否离职
   checkIn    DateTime? @map("check_in") @db.Time // 打卡时间
   checkOut   DateTime? @map("check_out") @db.Time // 打卡时间
 

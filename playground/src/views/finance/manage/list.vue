@@ -60,24 +60,28 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     proxyConfig: {
       ajax: {
-        query: async ({ form, page }) => {
+        query: async (page) => {
           try {
-            const params = form || {};
+            const formData = (await gridApi.formApi?.getValues?.()) || {};
 
             // 处理金额查询
-            if (params.amount) {
-              const amountStr = String(params.amount);
+            if (formData.amount) {
+              const amountStr = String(formData.amount);
               if (
                 amountStr.includes('>') ||
                 amountStr.includes('<') ||
                 amountStr.includes('-')
               ) {
-                params.amount = amountStr;
+                formData.amount = amountStr;
               }
             }
 
-            // 添加区域参数
-            params.parkId = currentPark.value ? currentPark.value.parkId : -1;
+            const params = {
+              ...formData,
+              currentPage: page.page?.currentPage || 1,
+              pageSize: page.page?.pageSize || 20,
+              parkId: currentPark.value ? currentPark.value.parkId : -1,
+            };
 
             const cleanParams: Record<string, any> = {};
             for (const [key, value] of Object.entries(params)) {
@@ -85,9 +89,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
                 cleanParams[key] = value;
               }
             }
-
-            cleanParams.currentPage = page.currentPage;
-            cleanParams.pageSize = page.pageSize;
 
             console.warn('发送查询参数:', cleanParams);
             const response = await getFinanceList(cleanParams);

@@ -35,37 +35,6 @@ export default eventHandler(async (event: H3Event) => {
     }
 
     // Step 4: Prepare data for database insertion (type conversion, defaults)
-    let hireDateObj: Date | undefined;
-    if (body.hireDate) {
-      hireDateObj = new Date(body.hireDate);
-      if (Number.isNaN(hireDateObj.getTime())) {
-        console.warn(
-          '[HRM_POST_VALIDATION] Invalid hireDate format:',
-          body.hireDate,
-        );
-        return serverErrorResponse(
-          '入职日期格式无效，请使用 YYYY-MM-DD',
-          event,
-          400,
-        );
-      }
-    }
-
-    let leaveDateObj: Date | undefined;
-    if (body.leaveDate) {
-      leaveDateObj = new Date(body.leaveDate);
-      if (Number.isNaN(leaveDateObj.getTime())) {
-        console.warn(
-          '[HRM_POST_VALIDATION] Invalid leaveDate format:',
-          body.leaveDate,
-        );
-        return serverErrorResponse(
-          '离职日期格式无效，请使用 YYYY-MM-DD',
-          event,
-          400,
-        );
-      }
-    }
 
     let ageVal: number | undefined;
     if (body.age !== null && body.age !== undefined && body.age !== '') {
@@ -77,21 +46,15 @@ export default eventHandler(async (event: H3Event) => {
     }
 
     // 处理上下班时间
-    let checkInTime: Date | undefined;
-    if (body.checkIn) {
-      checkInTime = new Date(`1970-01-01T${body.checkIn}Z`);
-    }
-
-    let checkOutTime: Date | undefined;
-    if (body.checkOut) {
-      checkOutTime = new Date(`1970-01-01T${body.checkOut}Z`);
-    }
 
     // Check for idNumber uniqueness if provided
     if (body.idNumber) {
       const existingEmployeeByIdNumber = await prismaClient.employee.findUnique(
         {
-          where: { idNumber: String(body.idNumber) },
+          where: {
+            idNumber: String(body.idNumber),
+            isDeleted: false,
+          },
         },
       );
       if (existingEmployeeByIdNumber) {
@@ -111,13 +74,21 @@ export default eventHandler(async (event: H3Event) => {
       department: body.department ? String(body.department) : undefined,
       age: ageVal,
       education: body.education ? String(body.education) : undefined,
-      hireDate: hireDateObj,
-      leaveDate: leaveDateObj,
+      hireDate: body.hireDate ? new Date(body.hireDate) : undefined,
+      leaveDate: (() => {
+        if (body.isResigned) {
+          return body.leaveDate ? new Date(body.leaveDate) : undefined;
+        } else {
+          return null;
+        }
+      })(),
       address: body.address ? String(body.address) : undefined,
       remark: body.remark ? String(body.remark) : undefined,
       isDeleted: typeof body.isDeleted === 'boolean' ? body.isDeleted : false, // Default to false
-      checkIn: checkInTime,
-      checkOut: checkOutTime,
+      isResigned:
+        typeof body.isResigned === 'boolean' ? body.isResigned : false,
+      checkIn: body.checkIn ? new Date(body.checkIn) : undefined,
+      checkOut: body.checkOut ? new Date(body.checkOut) : undefined,
     };
 
     console.log(

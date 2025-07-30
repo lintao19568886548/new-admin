@@ -188,6 +188,12 @@
   "home": {
     "title": "首页"
   },
+  "hrm": {
+    "employee": {
+      "create": "新增员工",
+      "edit": "编辑员工"
+    }
+  },
   "maintenance": {
     "checkTime": "检查时间",
     "create": "新增维修",
