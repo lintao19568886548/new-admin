@@ -15,7 +15,7 @@ export default eventHandler(async (event) => {
   const body = await readBody(event);
   console.log('请求体参数:', body);
   // 兼容旧版逻辑，过滤claimant字段
-  const { images, claimant: _claimant, ...reimbursementData } = body;
+  const { images, ...reimbursementData } = body;
   const userId = userinfo.id;
   try {
     // 创建报销记录并关联图片

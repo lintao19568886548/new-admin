@@ -262,6 +262,7 @@ async function fetchReimbursements() {
         .toISOString();
       params.endDate = recordSearchForm.dateRange[1].endOf('day').toISOString();
     }
+    params.type = 'application';
     const res = await getReimbursementList(params);
     reimbursementList.value = res.items || [];
     recordPagination.total = res.total || 0;

@@ -22,6 +22,11 @@ export default eventHandler(async (event) => {
       isDeleted: false,
     };
 
+    // 兼容旧版本查询
+    if (query.claimant) {
+      where.claimant = String(query.claimant);
+    }
+
     // 根据用户权限过滤：如果不是特定高权限用户，则只查询用户关联园区的记录
     if (query.type === 'application') {
       where.userId = userinfo.id;
