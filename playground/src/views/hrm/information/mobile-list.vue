@@ -5,26 +5,29 @@ import { onMounted, ref, shallowRef } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus, Search } from '@vben/icons';
-import { formatDateTime } from '@vben/utils'; // For date formatting
+import { formatDate } from '@vben/utils';
 
 import {
   Button,
+  Card,
+  Col,
   Empty,
   message,
   Modal,
   Pagination,
+  Row,
   Spin,
   Tag,
 } from 'ant-design-vue';
 
-import { useVbenForm } from '#/adapter/form'; // For search form adapter
+import { useVbenForm } from '#/adapter/form';
 import { deleteEmployee, getEmployeeList } from '#/api/hrm/employee';
 import { $t } from '#/locales';
 
-import { useSearchSchema } from './data'; // Reusing search schema from data.ts
-import MobileForm from './modules/mobile-form.vue'; // Import the new mobile form
+import { useSearchSchema } from './data';
+import MobileDetail from './modules/detail.vue';
+import MobileForm from './modules/form.vue';
 
-// Define QueryParams if not already globally available or in a shared types file
 interface QueryParams {
   [key: string]: any;
   currentPage?: number;
@@ -35,16 +38,19 @@ const tableLoading = shallowRef(false);
 const employeeList = shallowRef<EmployeeApi.Employee[]>([]);
 const paginationState = ref({
   currentPage: 1,
-  pageSize: 10, // Default page size for mobile
+  pageSize: 10,
   total: 0,
 });
 
-// Search form data (can be simplified for mobile)
-const searchParams = ref<Record<string, any>>({}); // 使用通用对象类型作为搜索参数
+const searchParams = ref<Record<string, any>>({});
 
-// Modal for New/Edit Employee
 const [FormModal, formModalApi] = useVbenModal({
-  connectedComponent: MobileForm, // Use the new mobile form component
+  connectedComponent: MobileForm,
+  destroyOnClose: true,
+});
+
+const [DetailModal, detailModalApi] = useVbenModal({
+  connectedComponent: MobileDetail,
   destroyOnClose: true,
 });
 
@@ -53,7 +59,7 @@ const messageHandler = {
     message.error(msg);
     if (error) console.error(msg, error);
   },
-  loading: (msg: string) => message.loading(msg, 0), // duration 0 for manual close
+  loading: (msg: string) => message.loading(msg, 0),
   success: (msg: string) => message.success(msg),
 };
 
@@ -61,11 +67,10 @@ async function fetchEmployees(params: QueryParams = {}) {
   tableLoading.value = true;
   try {
     const query = {
-      ...searchParams.value, // include search form values
+      ...searchParams.value,
       currentPage: params.currentPage || paginationState.value.currentPage,
       pageSize: params.pageSize || paginationState.value.pageSize,
     };
-    // Filter out empty/null search params before sending to API
     const activeQueryParams: Record<string, any> = {};
     for (const key in query) {
       const value = (query as Record<string, any>)[key];
@@ -92,21 +97,13 @@ async function fetchEmployees(params: QueryParams = {}) {
   }
 }
 
-function formatTime(timeStr?: string) {
-  if (!timeStr) {
-    return '';
-  }
-  const timePart = timeStr.split('T')[1];
-  return timePart ? timePart.split('.')[0] : timeStr;
-}
-
 function handleSearch() {
-  paginationState.value.currentPage = 1; // Reset to first page for new search
+  paginationState.value.currentPage = 1;
   fetchEmployees();
 }
 
 function handleResetSearch() {
-  searchParams.value = {}; // Clear search form
+  searchParams.value = {};
   paginationState.value.currentPage = 1;
   fetchEmployees();
 }
@@ -117,6 +114,10 @@ function handleAddNew() {
 
 function handleEdit(employee: EmployeeApi.Employee) {
   formModalApi.setData(employee).open();
+}
+
+function handleView(employee: EmployeeApi.Employee) {
+  detailModalApi.setData(employee).open();
 }
 
 async function handleDelete(employee: EmployeeApi.Employee) {
@@ -132,7 +133,7 @@ async function handleDelete(employee: EmployeeApi.Employee) {
         messageHandler.success(
           $t('员工 {name} 删除成功', { name: employee.name }),
         );
-        fetchEmployees(); // Refresh list
+        fetchEmployees();
       } catch (error) {
         messageHandler.error($t('删除失败'), error);
       } finally {
@@ -153,43 +154,33 @@ onMounted(() => {
   fetchEmployees();
 });
 
-// Simplified search schema for mobile - reuse or adapt from data.ts as needed
 const simplifiedSearchSchema = useSearchSchema().filter((s) =>
-  ['isDeleted', 'name', 'phone'].includes(s.fieldName),
+  ['isResigned', 'name', 'phone'].includes(s.fieldName),
 );
+
 const [SearchForm, searchFormApi] = useVbenForm({
-  layout: 'vertical', // Vertical layout for mobile
+  layout: 'vertical',
   schema: simplifiedSearchSchema,
-  showDefaultActions: false, // We'll use custom buttons
-  // handleSubmit and handleReset are handled by our custom functions above
+  showDefaultActions: false,
 });
 </script>
 
 <template>
-  <Page auto-content-height class="mobile-hrm-list-container">
+  <Page class="mobile-hrm-list-container">
     <FormModal @success="fetchEmployees" />
+    <DetailModal />
 
-    <div class="page-controls">
-      <Button type="primary" @click="handleAddNew" block class="add-button">
-        <Plus class="size-5" />
-        {{ $t('新建员工') }}
-      </Button>
-    </div>
-
-    <details class="search-details">
-      <summary class="search-summary">
-        {{ $t('筛选与搜索') }} <Search class="inline-icon" />
-      </summary>
-      <div class="search-form-container">
-        <SearchForm
-          @submit="
-            (data: Record<string, any>) => {
-              searchParams = data;
-              handleSearch();
-            }
-          "
-        />
-        <div class="search-actions-buttons">
+    <div class="search-filters">
+      <SearchForm
+        @submit="
+          (data: Record<string, any>) => {
+            searchParams = data;
+            handleSearch();
+          }
+        "
+      />
+      <Row :gutter="8">
+        <Col :span="12">
           <Button
             type="primary"
             @click="
@@ -202,8 +193,11 @@ const [SearchForm, searchFormApi] = useVbenForm({
             "
             block
           >
+            <Search class="mr-1 h-4 w-4" />
             {{ $t('查询') }}
           </Button>
+        </Col>
+        <Col :span="12">
           <Button
             @click="
               async () => {
@@ -218,68 +212,85 @@ const [SearchForm, searchFormApi] = useVbenForm({
           >
             {{ $t('重置') }}
           </Button>
-        </div>
-      </div>
-    </details>
+        </Col>
+      </Row>
+    </div>
 
     <Spin :spinning="tableLoading">
       <div v-if="employeeList.length > 0" class="employee-card-list">
-        <div
+        <Card
           v-for="employee in employeeList"
           :key="employee.employeeId"
           class="employee-card"
+          :body-style="{ padding: '0' }"
         >
-          <div class="card-title">
-            {{ employee.name }}
-            <Tag v-if="employee.isDeleted" color="red">{{ $t('已离职') }}</Tag>
+          <div class="card-header">
+            <span class="employee-name">{{ employee.name }}</span>
+            <Tag v-if="employee.isResigned" color="red">{{ $t('已离职') }}</Tag>
+            <Tag v-else color="green">{{ $t('在职') }}</Tag>
           </div>
           <div class="card-content">
-            <p v-if="employee.department">
-              <strong>{{ $t('部门') }}:</strong> {{ employee.department }}
-            </p>
-            <p v-if="employee.phone">
-              <strong>{{ $t('手机') }}:</strong> {{ employee.phone }}
-            </p>
-            <p v-if="employee.hireDate">
-              <strong>{{ $t('入职日期') }}:</strong>
-              {{ formatDateTime(employee.hireDate) }}
-            </p>
-            <p v-if="employee.checkIn">
-              <strong>上班时间:</strong> {{ formatTime(employee.checkIn) }}
-            </p>
-            <p v-if="employee.checkOut">
-              <strong>下班时间:</strong> {{ formatTime(employee.checkOut) }}
-            </p>
-            <p v-if="employee.isDeleted && employee.leaveDate">
-              <strong>{{ $t('离职日期') }}:</strong>
-              {{ formatDateTime(employee.leaveDate) }}
-            </p>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">{{ $t('性别') }}</span>
+                <span class="info-value">{{ employee.gender }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">{{ $t('学历') }}</span>
+                <span class="info-value">{{ employee.education }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">{{ $t('部门') }}</span>
+                <span class="info-value">{{ employee.department }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">{{ $t('手机号') }}</span>
+                <span class="info-value">{{ employee.phone }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">{{ $t('上下班时间') }}</span>
+                <span class="info-value">
+                  {{ formatDate(employee.checkIn, 'HH:mm') }} -
+                  {{ formatDate(employee.checkOut, 'HH:mm') }}
+                </span>
+              </div>
+            </div>
           </div>
           <div class="card-actions">
-            <Button size="small" @click="handleEdit(employee)">
+            <Button @click="handleView(employee)">
+              {{ $t('查看') }}
+            </Button>
+            <Button type="primary" ghost @click="handleEdit(employee)">
               {{ $t('编辑') }}
             </Button>
-            <Button
-              size="small"
-              type="link"
-              danger
-              @click="handleDelete(employee)"
-              v-if="!employee.isDeleted"
-            >
+            <Button danger @click="handleDelete(employee)">
               {{ $t('删除') }}
             </Button>
           </div>
-        </div>
+        </Card>
       </div>
       <Empty
         v-else
+        class="py-10"
         :description="tableLoading ? $t('加载中...') : $t('暂无员工信息')"
       />
     </Spin>
 
+    <div class="fab-container">
+      <Button
+        type="primary"
+        shape="circle"
+        size="large"
+        class="fab"
+        @click="handleAddNew"
+      >
+        <Plus class="size-6" />
+      </Button>
+    </div>
+
     <Pagination
-      v-if="paginationState.total > 0"
-      :current="paginationState.currentPage"
+      v-if="paginationState.total > paginationState.pageSize"
+      v-model:current="paginationState.currentPage"
       :page-size="paginationState.pageSize"
       :total="paginationState.total"
       @change="onPageChange"
@@ -295,8 +306,8 @@ const [SearchForm, searchFormApi] = useVbenForm({
   background-color: #f0f2f5;
 }
 
-.page-controls {
-  margin-bottom: 12px;
+.dark .mobile-hrm-list-container {
+  background-color: #1a1a1a;
 }
 
 .add-button {
@@ -304,41 +315,20 @@ const [SearchForm, searchFormApi] = useVbenForm({
   font-size: 1em;
 }
 
-.search-details {
-  padding: 0;
+.search-filters {
+  padding: 12px;
   margin-bottom: 12px;
   background-color: #fff;
-  border: 1px solid #e8e8e8;
-  border-radius: 4px;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 8%);
 }
 
-.search-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  font-weight: bold;
-  cursor: pointer;
+.dark .search-filters {
+  background-color: #2d2d2d;
 }
 
-.search-summary .inline-icon {
-  width: 1em;
-  height: 1em;
-}
-
-.search-form-container {
-  padding: 12px;
-  border-top: 1px solid #e8e8e8;
-}
-
-.search-actions-buttons {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.search-actions-buttons .ant-btn {
-  flex-grow: 1;
+.search-filters :deep(.ant-form-item) {
+  margin-bottom: 10px;
 }
 
 .employee-card-list {
@@ -346,43 +336,96 @@ const [SearchForm, searchFormApi] = useVbenForm({
 }
 
 .employee-card {
-  padding: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
   background-color: #fff;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
 }
 
-.card-title {
+.dark .employee-card {
+  background-color: #2d2d2d;
+}
+
+.card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 1.1em;
-  font-weight: bold;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
-.card-content p {
+.dark .card-header {
+  border-bottom-color: #424242;
+}
+
+.employee-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #323233;
+}
+
+.dark .employee-name {
+  color: #f1f1f1;
+}
+
+.card-content {
+  padding: 16px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.info-label {
   margin-bottom: 4px;
-  font-size: 0.9em;
-  line-height: 1.5;
-  color: #555;
+  font-size: 13px;
+  color: #969799;
 }
 
-.card-content p strong {
-  color: #333;
+.dark .info-label {
+  color: #a0a0a0;
+}
+
+.info-value {
+  font-size: 14px;
+  color: #323233;
+}
+
+.dark .info-value {
+  color: #f1f1f1;
 }
 
 .card-actions {
   display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  margin-top: 10px;
-  text-align: right;
+  gap: 16px;
+  justify-content: center;
+  padding: 12px 16px;
 }
 
 .list-pagination {
   margin-top: 12px;
   text-align: center;
+}
+
+.fab-container {
+  position: fixed;
+  right: 16px;
+  bottom: 72px;
+  z-index: 10;
+}
+
+.fab {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
 }
 </style>

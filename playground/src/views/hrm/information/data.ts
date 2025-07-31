@@ -135,17 +135,6 @@ export function useSchema(): VbenFormSchema[] {
       rules: z.string().optional(),
     },
     {
-      component: 'Textarea',
-      componentProps: {
-        maxLength: 200,
-        rows: 3,
-        showCount: true,
-      },
-      fieldName: 'remark',
-      label: '备注',
-      rules: z.string().max(200, '备注长度不能超过 200 个字符').optional(),
-    },
-    {
       component: 'TimePicker',
       componentProps: {
         format: 'HH:mm:ss',
@@ -166,6 +155,17 @@ export function useSchema(): VbenFormSchema[] {
       },
       fieldName: 'checkOut',
       label: '下班时间',
+    },
+    {
+      component: 'Textarea',
+      componentProps: {
+        maxLength: 200,
+        rows: 3,
+        showCount: true,
+      },
+      fieldName: 'remark',
+      label: '备注',
+      rules: z.string().max(200, '备注长度不能超过 200 个字符').optional(),
     },
   ];
 }
