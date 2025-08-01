@@ -9,12 +9,12 @@ export default eventHandler(async (event) => {
     const page = Number.parseInt((query.page as string) || '1');
     const pageSize = Number.parseInt((query.pageSize as string) || '10');
 
-    // 如果未提供日期范围，则默认为最近7天
+    // 如果未提供日期范围，则默认为所有历史数据
     const startDate = query.startDate
       ? dayjs(query.startDate as string)
           .startOf('day')
           .toDate()
-      : dayjs().subtract(7, 'day').startOf('day').toDate();
+      : dayjs('2020-01-01').startOf('day').toDate(); // 设置为足够早的日期以覆盖所有历史数据
     const endDate = query.endDate
       ? dayjs(query.endDate as string)
           .endOf('day')

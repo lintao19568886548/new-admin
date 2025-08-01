@@ -65,7 +65,7 @@ const loading = ref(true);
 const exportLoading = ref(false);
 const records = ref<TrajectoryRecord[]>([]);
 const dateRange = ref<[dayjs.Dayjs, dayjs.Dayjs]>([
-  dayjs().subtract(7, 'days'),
+  dayjs('2020-01-01'), // 设置为足够早的日期以覆盖所有历史数据
   dayjs(),
 ]);
 const pagination = reactive({
