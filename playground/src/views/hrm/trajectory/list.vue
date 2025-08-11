@@ -386,6 +386,16 @@ onUnmounted(() => {
 /* 移动端适配 */
 @media (max-width: 768px) {
   .header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .header-left {
+    justify-content: center;
+  }
+
+  .actions {
     justify-content: center;
   }
 
@@ -397,11 +407,34 @@ onUnmounted(() => {
   .map-wrapper {
     flex-shrink: 0;
     height: 45vh;
+    min-height: 300px;
   }
 
   .list-wrapper {
     flex-grow: 1;
     height: 100%;
+    min-height: 300px;
+  }
+
+  .trajectory-page {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .header-title {
+    font-size: 20px;
+    text-align: center;
+  }
+}
+
+/* 平板适配 */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .trajectory-page {
+    padding: 16px;
+  }
+
+  .main-content {
+    gap: 12px;
   }
 }
 
@@ -410,110 +443,237 @@ onUnmounted(() => {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: 100vw;
-  height: 85vh;
-  padding: 8px;
-  overflow: hidden; /* 禁止最外层滚动 */
+  gap: 16px;
+  width: 100%;
+  height: 100vh;
+  padding: 20px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
 }
 
 .view-switcher {
   align-items: center;
-  margin: 0 4px;
+  margin: 0 8px 16px;
+  background: rgb(255 255 255 / 90%);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 10%);
 }
 
 .header {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 16px;
   align-items: center;
   justify-content: space-between;
+  padding: 20px;
+  background: rgb(255 255 255 / 95%);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 10%);
 }
 
 .header-left {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 16px;
   align-items: center;
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
+  align-items: center;
 }
 
 .header-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 24px;
+  font-weight: 600;
+  text-shadow: 0 2px 4px rgb(0 0 0 / 10%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .main-content {
   display: flex;
   flex: 1;
-  gap: 8px;
-  min-height: 0; /*  flexbox 布局中的重要技巧 */
+  gap: 16px;
+  min-height: 0;
 }
 
 .map-wrapper {
   flex: 1;
-  min-width: 300px;
+  min-width: 350px;
   overflow: hidden;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px #00000026;
+  background: rgb(255 255 255 / 10%);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 15%);
 }
 
 .map-container {
   width: 100%;
   height: 100%;
+  border-radius: 16px;
 }
 
 .list-wrapper {
   flex: 1;
-  min-width: 300px;
-  overflow: hidden auto; /* 禁止水平滚动 */ /* 让列表内部滚动 */
+  min-width: 350px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 95%);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 15%);
+}
+
+.record-list {
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-color: rgb(0 0 0 / 20%) transparent;
+  scrollbar-width: thin;
+}
+
+.record-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.record-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.record-list::-webkit-scrollbar-thumb {
+  background: rgb(0 0 0 / 20%);
+  border-radius: 3px;
+}
+
+.record-list::-webkit-scrollbar-thumb:hover {
+  background: rgb(0 0 0 / 30%);
 }
 
 .record-list .ant-spin-container {
-  padding: 8px;
+  padding: 16px;
 }
 
 .record-card {
-  border-radius: 6px;
-  transition:
-    box-shadow 0.3s,
-    transform 0.3s;
+  overflow: hidden;
+  background: rgb(255 255 255 / 90%);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .record-card:hover {
-  box-shadow: 0 4px 12px #00000026;
-  transform: translateY(-4px);
+  border-color: rgb(102 126 234 / 30%);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 20%);
+  transform: translateY(-8px) scale(1.02);
 }
 
 .card-title {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
-  font-weight: 100;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.card-title .iconify {
+  font-size: 18px;
+  color: #667eea;
 }
 
 .card-content {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 12px;
-  color: #666;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #5a6c7d;
 }
 
 .card-content > div {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
+  padding: 4px 0;
+}
+
+.card-content .iconify {
+  flex-shrink: 0;
+  font-size: 16px;
+  color: #8b9dc3;
 }
 
 :deep(.ant-card-actions) {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
+  padding: 12px 16px;
+  background: rgb(248 250 252 / 80%);
+  border-top: 1px solid rgb(0 0 0 / 6%);
+}
+
+:deep(.ant-card-actions > li) {
+  padding: 0;
+  margin: 0;
+}
+
+:deep(.ant-card-actions .ant-tag) {
+  padding: 4px 8px;
+  margin: 0;
+  font-weight: 500;
+  border-radius: 6px;
+}
+
+/* 加载状态优化 */
+:deep(.ant-spin-spinning) {
+  background: rgb(255 255 255 / 90%);
+  backdrop-filter: blur(4px);
+}
+
+/* 分页器样式优化 */
+:deep(.ant-pagination) {
+  padding: 16px;
+  margin: 16px;
+  background: rgb(255 255 255 / 90%);
+  border-radius: 12px;
+}
+
+/* 按钮样式优化 */
+:deep(.ant-btn-primary) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgb(102 126 234 / 40%);
+  transition: all 0.3s ease;
+}
+
+:deep(.ant-btn-primary:hover) {
+  box-shadow: 0 8px 25px rgb(102 126 234 / 60%);
+  transform: translateY(-2px);
+}
+
+/* 日期选择器样式优化 */
+:deep(.ant-picker) {
+  background: rgb(255 255 255 / 90%);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgb(0 0 0 / 10%);
+  border-radius: 8px;
+}
+
+/* 标签样式优化 */
+:deep(.ant-tag) {
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
 }
 </style>
