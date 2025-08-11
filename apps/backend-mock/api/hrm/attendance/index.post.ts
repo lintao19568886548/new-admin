@@ -1,21 +1,27 @@
 import dayjs from 'dayjs';
 import { readBody } from 'h3';
 import { prismaClient } from '~/utils/db';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  unAuthorizedResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
 
 export default eventHandler(async (event) => {
+  // 身份验证
+  const userinfo = await verifyAccessToken(event);
+  if (!userinfo) {
+    return unAuthorizedResponse(event);
+  }
+
   try {
-    const { punchTime, longitude, latitude, username } = await readBody(event);
+    const { punchTime, longitude, latitude } = await readBody(event);
     console.log('punchTime', punchTime);
     console.log('longitude', longitude);
     console.log('latitude', latitude);
 
-    if (
-      !punchTime ||
-      longitude === undefined ||
-      latitude === undefined ||
-      !username
-    ) {
+    if (!punchTime || longitude === undefined || latitude === undefined) {
       return useResponseError('缺少必要的参数');
     }
 
@@ -24,7 +30,7 @@ export default eventHandler(async (event) => {
     const endOfToday = dayjs(punchTime).endOf('day').toDate();
     const existingRecord = await prismaClient.attendance.findFirst({
       where: {
-        username,
+        userId: userinfo.id,
         punchIn: {
           gte: startOfToday,
           lte: endOfToday,
@@ -46,7 +52,8 @@ export default eventHandler(async (event) => {
         longitude,
         latitude,
         status: isLate ? 1 : 0, // 0: 正常, 1: 迟到
-        username,
+        username: userinfo.realName,
+        userId: userinfo.id,
       },
     });
     console.log('newAttendance', newAttendance);
