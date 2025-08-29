@@ -45,7 +45,7 @@ const officeLocations = [
     lat: 22.880_809,
     lng: 113.014_824,
     name: '佛山九江园区',
-    radius: 110,
+    radius: 130,
   },
   {
     lat: 23.105_563,
@@ -69,7 +69,7 @@ const officeLocations = [
     lat: 23.183_788,
     lng: 113.696_806,
     name: '广州荔新',
-    radius: 110,
+    radius: 120,
   },
 ];
 
