@@ -76,8 +76,8 @@ keytool -list -v -keystore app/keystore/team-release-key.jks
 
 # 验证APK签名
 
+```bash
 keytool -printcert -jarfile app/build/outputs/apk/release/app-release.apk
-
 ```
 
 ## ⚠️ 重要提醒
@@ -105,4 +105,3 @@ keytool -printcert -jarfile app/build/outputs/apk/release/app-release.apk
 - [APK vs AAB 格式说明](./APK-vs-AAB-格式说明.md) - 了解格式选择
 - [完整配置指南](./README-团队签名配置.md) - 详细配置步骤
 - [Android 官方文档](https://developer.android.com/studio/publish/app-signing)
-```
