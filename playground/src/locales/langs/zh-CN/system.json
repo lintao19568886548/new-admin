@@ -128,6 +128,20 @@
         "label": "合同状态"
       }
     },
+    "salary": {
+      "amount": "工资金额",
+      "contractor": "合同人姓名",
+      "createTime": "创建时间",
+      "issued": {
+        "false": "未发放",
+        "label": "发放状态",
+        "true": "已发放"
+      },
+      "issueDate": "发放日期",
+      "item": "工资记录",
+      "list": "工资记录列表",
+      "phone": "合同人手机号"
+    },
     "title": "租赁项目",
     "type": "类型",
     "updateTime": "更新时间"

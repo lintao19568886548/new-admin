@@ -67,7 +67,21 @@
     "updateTime": "Update Time",
     "description": "Description",
     "features": "Features",
-    "operation": "Operation"
+    "operation": "Operation",
+    "salary": {
+      "item": "Salary Record",
+      "list": "Salary Records",
+      "contractor": "Contract Person",
+      "phone": "Phone Number",
+      "amount": "Salary Amount",
+      "issueDate": "Issue Date",
+      "createTime": "Created At",
+      "issued": {
+        "label": "Issued Status",
+        "true": "Issued",
+        "false": "Pending"
+      }
+    }
   },
   "role": {
     "title": "Role Management",
