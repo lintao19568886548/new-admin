@@ -5,7 +5,7 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
 import { h } from 'vue';
 
-import { Tag } from 'ant-design-vue';
+import { Image, Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { z } from '#/adapter/form';
@@ -267,6 +267,37 @@ export function useColumns<T = SalaryItem>(
         default: ({ row }: { row: SalaryItem }) => renderIssuedTag(row.issued),
       },
       title: $t('system.rental.salary.issued.label'),
+    },
+    {
+      field: 'images',
+      minWidth: 220,
+      slots: {
+        default: ({ row }: { row: SalaryItem }) => {
+          if (!row.images || row.images.length === 0) {
+            return $t('system.rental.salary.noImages');
+          }
+          return h('div', { class: 'flex flex-wrap gap-2 items-center' }, [
+            h(
+              Image.PreviewGroup,
+              {},
+              {
+                default: () =>
+                  row.images?.map((url) =>
+                    h(Image, {
+                      alt: $t('system.rental.salary.imageAlt'),
+                      class: 'rounded object-cover',
+                      height: 56,
+                      key: url,
+                      src: url,
+                      width: 56,
+                    }),
+                  ),
+              },
+            ),
+          ]);
+        },
+      },
+      title: $t('system.rental.salary.images'),
     },
     {
       field: 'remark',

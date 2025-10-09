@@ -132,6 +132,8 @@
       "amount": "工资金额",
       "contractor": "合同人姓名",
       "createTime": "创建时间",
+      "imageAlt": "工资凭证",
+      "images": "相关图片",
       "issued": {
         "false": "未发放",
         "label": "发放状态",
@@ -140,6 +142,7 @@
       "issueDate": "发放日期",
       "item": "工资记录",
       "list": "工资记录列表",
+      "noImages": "无",
       "phone": "合同人手机号"
     },
     "title": "租赁项目",

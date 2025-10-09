@@ -101,10 +101,15 @@ export default eventHandler(async (event) => {
             phoneNumber: true,
           },
         },
+        images: {
+          include: {
+            image: true,
+          },
+        },
       },
     });
 
-    const items = salaries.map(({ tenant, ...rest }) => ({
+    const items = salaries.map(({ tenant, images, ...rest }) => ({
       ...rest,
       salaryAmount:
         rest.salaryAmount !== null && rest.salaryAmount !== undefined
@@ -112,6 +117,7 @@ export default eventHandler(async (event) => {
           : null,
       tenantName: tenant?.tenantName ?? '',
       phoneNumber: tenant?.phoneNumber ?? '',
+      images: images?.map((item) => item.image?.imgUrl).filter(Boolean) ?? [],
     }));
 
     return useResponseSuccess({

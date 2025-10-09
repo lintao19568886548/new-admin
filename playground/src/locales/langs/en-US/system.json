@@ -80,7 +80,10 @@
         "label": "Issued Status",
         "true": "Issued",
         "false": "Pending"
-      }
+      },
+      "images": "Related Images",
+      "noImages": "None",
+      "imageAlt": "Salary Attachment"
     }
   },
   "role": {
