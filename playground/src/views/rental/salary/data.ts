@@ -291,14 +291,7 @@ export function useColumns<T = SalaryItem>(
           onClick: onActionClick,
         },
         name: 'CellOperation',
-        options: [
-          {
-            code: 'view',
-            text: $t('page.common.view'),
-          },
-          'edit',
-          'delete',
-        ],
+        options: ['edit', 'delete'],
       },
       field: 'operation',
       fixed: 'right',
