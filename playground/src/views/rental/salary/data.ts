@@ -274,15 +274,6 @@ export function useColumns<T = SalaryItem>(
       title: $t('page.common.remark'),
     },
     {
-      field: 'createTime',
-      minWidth: 180,
-      slots: {
-        default: ({ row }: { row: SalaryItem }) =>
-          formatDateTimeDisplay(row.createTime),
-      },
-      title: $t('system.rental.salary.createTime'),
-    },
-    {
       align: 'center',
       cellRender: {
         attrs: {
