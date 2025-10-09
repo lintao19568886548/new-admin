@@ -5,12 +5,79 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
 import { h } from 'vue';
 
-import { Image, Tag } from 'ant-design-vue';
+import { useAppConfig } from '@vben/hooks';
+import { useAccessStore } from '@vben/stores';
+
+import { Image, message, Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { z } from '#/adapter/form';
 import { getSalaryTenantOptions } from '#/api/rental';
 import { $t } from '#/locales';
+
+const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
+const accessStore = useAccessStore();
+
+function beforeUpload(file: File) {
+  const isImage = file.type.startsWith('image/');
+  if (!isImage) {
+    message.error($t('system.rental.salary.uploadInvalidType'));
+  }
+  const isLt10M = file.size / 1024 / 1024 < 10;
+  if (!isLt10M) {
+    message.error($t('system.rental.salary.uploadTooLarge'));
+  }
+  return isImage && isLt10M;
+}
+
+function imageOnChange(info: any) {
+  const { file } = info;
+  if (file.status === 'done') {
+    const responseImgId = file.response?.data?.imgId;
+    if (responseImgId) {
+      file.imgId = responseImgId;
+    }
+    const name =
+      file.response?.data?.name ||
+      file.name ||
+      $t('system.rental.salary.imageAlt');
+    message.success($t('system.rental.salary.uploadSuccess', [String(name)]));
+  } else if (file.status === 'error') {
+    message.error(
+      $t('system.rental.salary.uploadFailed', [String(file.name || '')]),
+    );
+  }
+}
+
+function imageOnPreview(file: any) {
+  if (typeof window === 'undefined') return;
+  const imageUrl =
+    file?.url ||
+    file?.thumbUrl ||
+    file?.response?.data?.thumbUrl ||
+    file?.response?.data?.url;
+  if (!imageUrl) {
+    message.warning($t('system.rental.salary.uploadNoPreview'));
+    return;
+  }
+
+  const previewWindow = window.open('', '_blank');
+  if (previewWindow) {
+    previewWindow.document.title = file?.name || '';
+    previewWindow.document.body.innerHTML = '';
+    const imgElement = previewWindow.document.createElement('img');
+    imgElement.src = imageUrl;
+    imgElement.style.maxWidth = '100%';
+    imgElement.style.maxHeight = '100%';
+    imgElement.style.position = 'absolute';
+    imgElement.style.top = '50%';
+    imgElement.style.left = '50%';
+    imgElement.style.transform = 'translate(-50%, -50%)';
+    previewWindow.document.body.append(imgElement);
+  } else {
+    window.open(imageUrl, '_blank');
+  }
+}
 
 /**
  * 发放状态选项
@@ -171,6 +238,28 @@ export function useFormSchema(): VbenFormSchema[] {
       rules: 'required',
     },
     {
+      component: 'Upload',
+      componentProps: () => ({
+        accept: '.png,.jpg,.jpeg,.webp',
+        action: `${apiURL}/image/upload`,
+        beforeUpload,
+        headers: accessStore.accessToken
+          ? { Authorization: `Bearer ${accessStore.accessToken}` }
+          : {},
+        multiple: true,
+        name: 'file',
+        onChange: imageOnChange,
+        onPreview: imageOnPreview,
+        listType: 'picture-card',
+      }),
+      fieldName: 'images',
+      formItemClass: 'col-span-full',
+      label: $t('system.rental.salary.images'),
+      renderComponentContent: () => ({
+        default: () => $t('system.rental.salary.uploadTip'),
+      }),
+    },
+    {
       component: 'Textarea',
       componentProps: {
         maxLength: 300,
@@ -273,7 +362,28 @@ export function useColumns<T = SalaryItem>(
       minWidth: 220,
       slots: {
         default: ({ row }: { row: SalaryItem }) => {
-          if (!row.images || row.images.length === 0) {
+          const imageItems =
+            row.images
+              ?.map((img, index) => {
+                if (typeof img === 'string') {
+                  return { key: `img-${index}`, url: img };
+                }
+                if (!img?.url) return null;
+                return {
+                  key: `img-${img.imgId ?? index}`,
+                  url: img.url,
+                };
+              })
+              .filter(
+                (
+                  item,
+                ): item is {
+                  key: string;
+                  url: string;
+                } => Boolean(item && item.url),
+              ) ?? [];
+
+          if (imageItems.length === 0) {
             return $t('system.rental.salary.noImages');
           }
           return h('div', { class: 'flex flex-wrap gap-2 items-center' }, [
@@ -282,12 +392,12 @@ export function useColumns<T = SalaryItem>(
               {},
               {
                 default: () =>
-                  row.images?.map((url) =>
+                  imageItems.map(({ key, url }) =>
                     h(Image, {
                       alt: $t('system.rental.salary.imageAlt'),
                       class: 'rounded object-cover',
                       height: 56,
-                      key: url,
+                      key,
                       src: url,
                       width: 56,
                     }),

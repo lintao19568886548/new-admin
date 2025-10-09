@@ -82,6 +82,12 @@
         "false": "Pending"
       },
       "images": "Related Images",
+      "uploadTip": "Click or drag files to upload",
+      "uploadInvalidType": "Only image files are allowed",
+      "uploadTooLarge": "Image must be smaller than 10MB",
+      "uploadSuccess": "{0} uploaded successfully",
+      "uploadFailed": "{0} failed to upload",
+      "uploadNoPreview": "Cannot preview. Image URL is missing",
       "noImages": "None",
       "imageAlt": "Salary Attachment"
     }

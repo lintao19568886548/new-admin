@@ -109,16 +109,33 @@ export default eventHandler(async (event) => {
       },
     });
 
-    const items = salaries.map(({ tenant, images, ...rest }) => ({
-      ...rest,
-      salaryAmount:
-        rest.salaryAmount !== null && rest.salaryAmount !== undefined
-          ? Number(rest.salaryAmount)
-          : null,
-      tenantName: tenant?.tenantName ?? '',
-      phoneNumber: tenant?.phoneNumber ?? '',
-      images: images?.map((item) => item.image?.imgUrl).filter(Boolean) ?? [],
-    }));
+    const items = salaries.map(({ tenant, images, ...rest }) => {
+      const mappedImages =
+        images
+          ?.map((item) => {
+            if (!item.image?.imgId || !item.image?.imgUrl) {
+              return null;
+            }
+            return {
+              imgId: item.image.imgId,
+              url: item.image.imgUrl,
+            };
+          })
+          .filter(
+            (image): image is { imgId: number; url: string } => image !== null,
+          ) ?? [];
+
+      return {
+        ...rest,
+        salaryAmount:
+          rest.salaryAmount !== null && rest.salaryAmount !== undefined
+            ? Number(rest.salaryAmount)
+            : null,
+        tenantName: tenant?.tenantName ?? '',
+        phoneNumber: tenant?.phoneNumber ?? '',
+        images: mappedImages,
+      };
+    });
 
     return useResponseSuccess({
       items,

@@ -34,6 +34,9 @@ export default eventHandler(async (event) => {
       }
     }
 
+    const imagePayload =
+      body.images && typeof body.images === 'object' ? body.images : undefined;
+
     const salary = await prismaClient.salary.create({
       data: {
         rentalTenantId,
@@ -41,6 +44,7 @@ export default eventHandler(async (event) => {
         ...(remark === undefined ? {} : { remark }),
         ...(salaryAmount === undefined ? {} : { salaryAmount }),
         ...(issueDate ? { issueDate } : {}),
+        ...(imagePayload ? { images: imagePayload } : {}),
       },
       include: {
         tenant: {
@@ -50,10 +54,35 @@ export default eventHandler(async (event) => {
             phoneNumber: true,
           },
         },
+        images: {
+          include: {
+            image: true,
+          },
+        },
       },
     });
 
-    return useResponseSuccess(salary);
+    return useResponseSuccess({
+      ...salary,
+      salaryAmount:
+        salary.salaryAmount !== null && salary.salaryAmount !== undefined
+          ? Number(salary.salaryAmount)
+          : null,
+      images:
+        salary.images
+          ?.map((item) => {
+            if (!item.image?.imgId || !item.image?.imgUrl) {
+              return null;
+            }
+            return {
+              imgId: item.image.imgId,
+              url: item.image.imgUrl,
+            };
+          })
+          .filter(
+            (image): image is { imgId: number; url: string } => image !== null,
+          ) ?? [],
+    });
   } catch (error) {
     console.error('创建工资记录失败:', error);
     return serverErrorResponse('创建工资记录失败', event);

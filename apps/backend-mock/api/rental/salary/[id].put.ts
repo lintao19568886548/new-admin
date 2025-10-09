@@ -42,6 +42,12 @@ export default eventHandler(async (event) => {
     data.remark = body.remark ?? null;
   }
 
+  if (body.images && typeof body.images === 'object') {
+    data.images = body.images;
+  } else if (body.images === null) {
+    data.images = { deleteMany: {} };
+  }
+
   try {
     const salary = await prismaClient.salary.update({
       where: {
@@ -56,6 +62,11 @@ export default eventHandler(async (event) => {
             phoneNumber: true,
           },
         },
+        images: {
+          include: {
+            image: true,
+          },
+        },
       },
     });
 
@@ -65,6 +76,20 @@ export default eventHandler(async (event) => {
         salary.salaryAmount !== null && salary.salaryAmount !== undefined
           ? Number(salary.salaryAmount)
           : null,
+      images:
+        salary.images
+          ?.map((item) => {
+            if (!item.image?.imgId || !item.image?.imgUrl) {
+              return null;
+            }
+            return {
+              imgId: item.image.imgId,
+              url: item.image.imgUrl,
+            };
+          })
+          .filter(
+            (image): image is { imgId: number; url: string } => image !== null,
+          ) ?? [],
     });
   } catch (error) {
     console.error('更新工资记录失败:', error);

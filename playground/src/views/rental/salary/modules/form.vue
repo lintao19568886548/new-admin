@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { SalaryItem } from '../types';
+import type { SalaryImageItem, SalaryItem } from '../types';
 
 import { computed, ref } from 'vue';
 
@@ -30,9 +30,65 @@ const [Form, formApi] = useVbenForm({
   wrapperClass: 'grid-cols-1 md:grid-cols-2 gap-4',
 });
 
+function mapImagesToFileList(images?: SalaryImageItem[] | string[]) {
+  if (!images || !Array.isArray(images)) return [];
+  return images
+    .map((item, index) => {
+      if (!item) return null;
+      if (typeof item === 'string') {
+        return {
+          name: `image-${index}`,
+          status: 'done',
+          uid: `existing-string-${index}`,
+          url: item,
+        };
+      }
+      const url = item.url;
+      if (!url) return null;
+      return {
+        imgId: item.imgId,
+        name: `image-${item.imgId ?? index}`,
+        status: 'done',
+        uid: `existing-${item.imgId ?? index}`,
+        url,
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildImagePayload(files: any[], isUpdate: boolean) {
+  if (!files || files.length === 0) {
+    return isUpdate ? { deleteMany: {} } : undefined;
+  }
+
+  const createInputs = files
+    .map((file) => {
+      const rawImgId =
+        file?.imgId ??
+        file?.response?.data?.imgId ??
+        file?.originFileObj?.imgId;
+      const imgId = Number(rawImgId);
+      if (!imgId || Number.isNaN(imgId)) {
+        return null;
+      }
+      return { image: { connect: { imgId } } };
+    })
+    .filter(Boolean);
+
+  if (createInputs.length === 0) {
+    return isUpdate ? { deleteMany: {} } : undefined;
+  }
+
+  return {
+    create: createInputs,
+    ...(isUpdate ? { deleteMany: {} } : {}),
+  };
+}
+
 function transformToFormValues(data?: SalaryItem) {
   if (!data) {
     return {
+      images: [],
       issued: 'false',
       issueDate: undefined,
       phoneNumber: '',
@@ -44,6 +100,7 @@ function transformToFormValues(data?: SalaryItem) {
   }
 
   return {
+    images: mapImagesToFileList(data.images),
     issued: data.issued ? 'true' : 'false',
     issueDate: data.issueDate
       ? dayjs(data.issueDate).format('YYYY-MM-DD')
@@ -86,6 +143,14 @@ const [Modal, modalApi] = useVbenModal({
       typeof values.issued === 'string'
         ? values.issued === 'true'
         : Boolean(values.issued);
+
+    const files = Array.isArray((values as any).images)
+      ? (values as any).images
+      : [];
+    const imagePayload = buildImagePayload(files, Boolean(id.value));
+    if (imagePayload) {
+      payload.images = imagePayload;
+    }
 
     if (values.issueDate) {
       const issueDate = dayjs(values.issueDate);

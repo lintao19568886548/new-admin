@@ -142,6 +142,12 @@
       "issueDate": "发放日期",
       "item": "工资记录",
       "list": "工资记录列表",
+      "uploadTip": "点击或拖拽上传",
+      "uploadInvalidType": "只能上传图片文件",
+      "uploadTooLarge": "图片大小不能超过10MB",
+      "uploadSuccess": "{0} 上传成功",
+      "uploadFailed": "{0} 上传失败",
+      "uploadNoPreview": "无法预览，图片URL不存在",
       "noImages": "无",
       "phone": "合同人手机号"
     },
