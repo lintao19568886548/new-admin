@@ -14,7 +14,7 @@ model RentalTenant {
   area           Decimal?     @map("area") @db.Decimal(10, 2)
   address        String       @db.VarChar(200)
   remark         String?      @db.VarChar(500)
-  createTime     DateTime?    @default(now()) @map("create_time")
+  createTime     DateTime     @default(now()) @map("create_time")
   updateTime     DateTime?    @updatedAt @map("update_time")
   amountBills    AmountBill[] @relation("AmountBillToTenant")
   parkId         Int?         @map("park_id")
@@ -24,4 +24,20 @@ model RentalTenant {
 
   @@index([parkId])
   @@map("rental_tenant")
+}
+
+model Salary {
+  salaryId       Int          @id @default(autoincrement()) @map("salary_id")
+  rentalTenantId Int          @map("rental_tenant_id")
+  salaryAmount   Decimal?     @map("salary_amount") @db.Decimal(10, 2) // 工资金额
+  issueDate      DateTime?    @map("issue_date") // 发放日期
+  issued         Boolean?     @default(false) @map("issued") // 发放状态
+  remark         String?      @db.VarChar(500) // 备注
+  isDeleted      Boolean      @default(false) @map("is_deleted")
+  images         SalaryImage[] @relation("SalaryToSalaryImage")
+  createTime     DateTime     @default(now()) @map("create_time")
+  updateTime     DateTime?    @updatedAt @map("update_time")
+
+  @@index([rentalTenantId])
+  @@map("salary")
 }

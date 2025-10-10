@@ -12,6 +12,15 @@ export default eventHandler(async (event) => {
   }
 
   try {
+    await prismaClient.salary.updateMany({
+      where: {
+        rentalTenantId,
+      },
+      data: {
+        isDeleted: true,
+      },
+    });
+
     await prismaClient.rentalTenant.delete({
       where: {
         rentalTenantId,

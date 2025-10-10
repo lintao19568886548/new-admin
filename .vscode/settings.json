@@ -225,5 +225,6 @@
   "typescript.tsdk": "node_modules/typescript/lib",
   "oxc.enable": false,
   "commentTranslate.targetLanguage": "zh-CN",
-  "java.configuration.updateBuildConfiguration": "interactive"
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "chatgpt.openOnStartup": false
 }
