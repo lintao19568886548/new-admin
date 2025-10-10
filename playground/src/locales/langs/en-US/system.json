@@ -82,6 +82,11 @@
         "false": "Pending"
       },
       "images": "Related Images",
+      "syncButton": "Sync Contracts",
+      "syncTip": "Batch add active contracts to the salary list, without adding duplicates",
+      "syncLoading": "Syncing contract records...",
+      "syncSuccess": "{0} new records synced successfully",
+      "syncFailed": "Failed to sync contracts. Please try again later.",
       "uploadTip": "Click or drag files to upload",
       "uploadInvalidType": "Only image files are allowed",
       "uploadTooLarge": "Image must be smaller than 10MB",

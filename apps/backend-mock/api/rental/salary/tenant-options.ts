@@ -14,9 +14,17 @@ export default eventHandler(async (event) => {
     const accessibleParkIds =
       userinfo.parks?.map((park: any) => park.parkId) ?? [];
 
+    const now = new Date();
     const where: Record<string, any> = {
       isDeleted: false,
-      status: '当期',
+      AND: [
+        {
+          OR: [{ contractEnd: null }, { contractEnd: { gte: now } }],
+        },
+        {
+          OR: [{ contractStart: null }, { contractStart: { lte: now } }],
+        },
+      ],
     };
 
     if (accessibleParkIds.length > 0) {

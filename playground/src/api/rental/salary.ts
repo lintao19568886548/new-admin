@@ -60,3 +60,9 @@ export async function deleteSalary(id: number) {
 export async function getSalaryTenantOptions(params?: { keyword?: string }) {
   return requestClient.get('/rental/salary/tenant-options', { params });
 }
+
+export async function syncSalaryTenants(data?: {
+  currentPark?: number | string;
+}) {
+  return requestClient.post('/rental/salary/sync', data);
+}

@@ -47,18 +47,21 @@ export default eventHandler(async (event) => {
         ...(imagePayload ? { images: imagePayload } : {}),
       },
       include: {
-        tenant: {
-          select: {
-            rentalTenantId: true,
-            tenantName: true,
-            phoneNumber: true,
-          },
-        },
         images: {
           include: {
             image: true,
           },
         },
+      },
+    });
+
+    const tenant = await prismaClient.rentalTenant.findUnique({
+      where: {
+        rentalTenantId,
+      },
+      select: {
+        tenantName: true,
+        phoneNumber: true,
       },
     });
 
@@ -68,6 +71,8 @@ export default eventHandler(async (event) => {
         salary.salaryAmount !== null && salary.salaryAmount !== undefined
           ? Number(salary.salaryAmount)
           : null,
+      tenantName: tenant?.tenantName ?? '',
+      phoneNumber: tenant?.phoneNumber ?? '',
       images:
         salary.images
           ?.map((item) => {

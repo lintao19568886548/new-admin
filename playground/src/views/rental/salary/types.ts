@@ -8,6 +8,7 @@ export interface SalaryImageItem {
 export interface SalaryItem {
   createTime?: string;
   images?: SalaryImageItem[];
+  isDeleted?: boolean;
   issued?: boolean | null;
   issueDate?: null | string;
   phoneNumber?: string;

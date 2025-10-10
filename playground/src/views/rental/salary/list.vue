@@ -11,10 +11,11 @@ import { ref } from 'vue';
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
-import { Button, message } from 'ant-design-vue';
+import { SyncOutlined } from '@ant-design/icons-vue';
+import { Button, message, Tooltip } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { deleteSalary, getSalaryList } from '#/api/rental';
+import { deleteSalary, getSalaryList, syncSalaryTenants } from '#/api/rental';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -25,6 +26,7 @@ import Form from './modules/form.vue';
 const currentPark = ref();
 
 const parkSelectorRef = ref();
+const syncingTenants = ref(false);
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -185,6 +187,43 @@ function onView(row: SalaryItem) {
 function refreshGrid() {
   gridApi.query();
 }
+
+async function onSyncTenants() {
+  if (syncingTenants.value) return;
+  syncingTenants.value = true;
+  const messageKey = 'sync_salary_tenants';
+  message.loading({
+    content: $t('system.rental.salary.syncLoading'),
+    duration: 0,
+    key: messageKey,
+  });
+
+  try {
+    const parkId =
+      currentPark.value && currentPark.value.parkId !== undefined
+        ? currentPark.value.parkId
+        : -1;
+
+    const result = await syncSalaryTenants({ currentPark: parkId });
+
+    message.success({
+      content: $t('system.rental.salary.syncSuccess', [
+        String(result?.created ?? 0),
+      ]),
+      key: messageKey,
+    });
+
+    refreshGrid();
+  } catch (error) {
+    console.error('同步合同列表失败:', error);
+    message.error({
+      content: $t('system.rental.salary.syncFailed'),
+      key: messageKey,
+    });
+  } finally {
+    syncingTenants.value = false;
+  }
+}
 </script>
 
 <template>
@@ -201,6 +240,17 @@ function refreshGrid() {
         />
       </template>
       <template #toolbar-tools>
+        <Tooltip :title="$t('system.rental.salary.syncTip')">
+          <Button
+            class="mr-2"
+            :loading="syncingTenants"
+            type="default"
+            @click="onSyncTenants"
+          >
+            <SyncOutlined class="mr-1" />
+            {{ $t('system.rental.salary.syncButton') }}
+          </Button>
+        </Tooltip>
         <Button type="primary" @click="onCreate">
           <Plus class="size-5" />
           {{ $t('ui.actionTitle.create', [$t('system.rental.salary.item')]) }}

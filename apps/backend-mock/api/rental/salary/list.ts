@@ -13,8 +13,13 @@ export default eventHandler(async (event) => {
     const pageSize = Number(query.pageSize) || 20;
     const skip = (currentPage - 1) * pageSize;
 
-    const where: Record<string, any> = {};
-    const tenantWhere: Record<string, any> = {};
+    const where: Record<string, any> = {
+      isDeleted: false,
+    };
+    const tenantWhere: Record<string, any> = {
+      isDeleted: false,
+    };
+    let requireTenantFilter = false;
 
     const accessibleParkIds =
       userinfo.parks?.map((park: any) => park.parkId) ?? [];
@@ -26,9 +31,11 @@ export default eventHandler(async (event) => {
           tenantWhere.parkId = {
             in: accessibleParkIds,
           };
+          requireTenantFilter = true;
         }
       } else if (accessibleParkIds.includes(currentPark)) {
         tenantWhere.parkId = currentPark;
+        requireTenantFilter = true;
       } else {
         return useResponseError('没有查看权限');
       }
@@ -36,14 +43,17 @@ export default eventHandler(async (event) => {
       tenantWhere.parkId = {
         in: accessibleParkIds,
       };
+      requireTenantFilter = true;
     }
 
     if (query.tenantName) {
       tenantWhere.tenantName = { contains: String(query.tenantName) };
+      requireTenantFilter = true;
     }
 
     if (query.phoneNumber) {
       tenantWhere.phoneNumber = { contains: String(query.phoneNumber) };
+      requireTenantFilter = true;
     }
 
     if (query.issued !== undefined && query.issued !== '') {
@@ -78,8 +88,43 @@ export default eventHandler(async (event) => {
       }
     }
 
-    if (Object.keys(tenantWhere).length > 0) {
-      where.tenant = tenantWhere;
+    let tenantMap = new Map<
+      number,
+      { phoneNumber: string; tenantName: string }
+    >();
+
+    if (requireTenantFilter) {
+      const tenants = await prismaClient.rentalTenant.findMany({
+        where: tenantWhere,
+        select: {
+          rentalTenantId: true,
+          tenantName: true,
+          phoneNumber: true,
+        },
+      });
+
+      if (tenants.length === 0) {
+        return useResponseSuccess({
+          items: [],
+          total: 0,
+          currentPage,
+          pageSize,
+        });
+      }
+
+      where.rentalTenantId = {
+        in: tenants.map((tenant) => tenant.rentalTenantId),
+      };
+
+      tenantMap = new Map(
+        tenants.map((tenant) => [
+          tenant.rentalTenantId,
+          {
+            tenantName: tenant.tenantName,
+            phoneNumber: tenant.phoneNumber,
+          },
+        ]),
+      );
     }
 
     const total = await prismaClient.salary.count({
@@ -94,13 +139,6 @@ export default eventHandler(async (event) => {
         createTime: 'desc',
       },
       include: {
-        tenant: {
-          select: {
-            rentalTenantId: true,
-            tenantName: true,
-            phoneNumber: true,
-          },
-        },
         images: {
           include: {
             image: true,
@@ -109,7 +147,39 @@ export default eventHandler(async (event) => {
       },
     });
 
-    const items = salaries.map(({ tenant, images, ...rest }) => {
+    const tenantIds = [
+      ...new Set(
+        salaries
+          .map((item) => item.rentalTenantId)
+          .filter((id): id is number => typeof id === 'number'),
+      ),
+    ];
+
+    const missingTenantIds = tenantIds.filter((id) => !tenantMap.has(id));
+
+    if (missingTenantIds.length > 0) {
+      const tenants = await prismaClient.rentalTenant.findMany({
+        where: {
+          rentalTenantId: {
+            in: missingTenantIds,
+          },
+          isDeleted: false,
+        },
+        select: {
+          rentalTenantId: true,
+          tenantName: true,
+          phoneNumber: true,
+        },
+      });
+      for (const tenant of tenants) {
+        tenantMap.set(tenant.rentalTenantId, {
+          tenantName: tenant.tenantName,
+          phoneNumber: tenant.phoneNumber,
+        });
+      }
+    }
+
+    const items = salaries.map(({ images, ...rest }) => {
       const mappedImages =
         images
           ?.map((item) => {
@@ -125,14 +195,16 @@ export default eventHandler(async (event) => {
             (image): image is { imgId: number; url: string } => image !== null,
           ) ?? [];
 
+      const tenantInfo = tenantMap.get(rest.rentalTenantId);
+
       return {
         ...rest,
         salaryAmount:
           rest.salaryAmount !== null && rest.salaryAmount !== undefined
             ? Number(rest.salaryAmount)
             : null,
-        tenantName: tenant?.tenantName ?? '',
-        phoneNumber: tenant?.phoneNumber ?? '',
+        tenantName: tenantInfo?.tenantName ?? '',
+        phoneNumber: tenantInfo?.phoneNumber ?? '',
         images: mappedImages,
       };
     });
