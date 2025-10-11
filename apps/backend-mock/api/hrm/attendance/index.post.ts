@@ -8,6 +8,111 @@ import {
   useResponseSuccess,
 } from '~/utils/response';
 
+const AttendanceStatus = {
+  Normal: 0,
+  Late: 1,
+  EarlyLeave: 2,
+  LateAndEarlyLeave: 3,
+  Absent: 4,
+  Leave: 5,
+} as const;
+
+type AttendanceStatusValue =
+  (typeof AttendanceStatus)[keyof typeof AttendanceStatus];
+
+const WORK_INTERVAL_HOURS = [
+  { start: 9, end: 12 },
+  { start: 14, end: 18 },
+] as const;
+
+type WorkInterval = {
+  end: dayjs.Dayjs;
+  start: dayjs.Dayjs;
+};
+
+type WorkSegment = {
+  end: Date;
+  start: Date;
+};
+
+function buildWorkIntervals(dayStart: dayjs.Dayjs): WorkInterval[] {
+  return WORK_INTERVAL_HOURS.map(({ start, end }) => ({
+    start: dayStart.hour(start),
+    end: dayStart.hour(end),
+  }));
+}
+
+function getWorkSegmentsBefore(
+  moment: dayjs.Dayjs,
+  intervals: WorkInterval[],
+): WorkSegment[] {
+  const segments: WorkSegment[] = [];
+  for (const interval of intervals) {
+    if (moment.isBefore(interval.start) || moment.isSame(interval.start)) {
+      break;
+    }
+    const segmentEnd = moment.isBefore(interval.end) ? moment : interval.end;
+    if (segmentEnd.isAfter(interval.start)) {
+      segments.push({
+        start: interval.start.toDate(),
+        end: segmentEnd.toDate(),
+      });
+    }
+    if (moment.isBefore(interval.end)) {
+      break;
+    }
+  }
+  return segments;
+}
+
+async function isIntervalCoveredByLeave(
+  userId: null | number | undefined,
+  intervalStart: Date,
+  intervalEnd: Date,
+) {
+  if (!userId) {
+    return false;
+  }
+
+  if (intervalEnd <= intervalStart) {
+    return false;
+  }
+
+  const approvedLeave = await prismaClient.leaveApplication.findFirst({
+    where: {
+      userId,
+      startDate: {
+        lte: intervalStart,
+      },
+      endDate: {
+        gte: intervalEnd,
+      },
+    },
+  });
+
+  return Boolean(approvedLeave);
+}
+
+async function areSegmentsCoveredByLeave(
+  userId: null | number | undefined,
+  segments: WorkSegment[],
+) {
+  if (segments.length === 0) {
+    return true;
+  }
+  for (const segment of segments) {
+    const covered = await isIntervalCoveredByLeave(
+      userId,
+      segment.start,
+      segment.end,
+    );
+    if (!covered) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export default eventHandler(async (event) => {
   // 身份验证
   const userinfo = await verifyAccessToken(event);
@@ -42,16 +147,50 @@ export default eventHandler(async (event) => {
       return useResponseError('今天已经打过上班卡了');
     }
 
-    // 假设标准上班时间是 09:00:00
-    const standardPunchInTime = dayjs(punchTime).startOf('day').hour(9);
-    const isLate = dayjs(punchTime).isAfter(standardPunchInTime);
+    // 标准工作时段为 09:00-12:00 与 14:00-18:00
+    const punchInMoment = dayjs(punchTime);
+    const dayStart = punchInMoment.startOf('day');
+    const workIntervals = buildWorkIntervals(dayStart);
+    const firstInterval = workIntervals[0];
+    if (!firstInterval) {
+      return useResponseError('未配置有效的工作时间段');
+    }
+    const isAfterStandardStart = punchInMoment.isAfter(firstInterval.start);
+
+    const leaveCoversWholeDay = await areSegmentsCoveredByLeave(
+      userinfo.id,
+      workIntervals.map((interval) => ({
+        start: interval.start.toDate(),
+        end: interval.end.toDate(),
+      })),
+    );
+
+    let shouldMarkLate = false;
+    if (!leaveCoversWholeDay && isAfterStandardStart) {
+      const missedSegments = getWorkSegmentsBefore(
+        punchInMoment,
+        workIntervals,
+      );
+      const leaveCoversMissedSegments = await areSegmentsCoveredByLeave(
+        userinfo.id,
+        missedSegments,
+      );
+      shouldMarkLate = missedSegments.length > 0 && !leaveCoversMissedSegments;
+    }
+
+    let status: AttendanceStatusValue = AttendanceStatus.Normal;
+    if (leaveCoversWholeDay) {
+      status = AttendanceStatus.Leave;
+    } else if (shouldMarkLate) {
+      status = AttendanceStatus.Late;
+    }
 
     const newAttendance = await prismaClient.attendance.create({
       data: {
         punchIn: new Date(punchTime),
         longitude,
         latitude,
-        status: isLate ? 1 : 0, // 0: 正常, 1: 迟到
+        status,
         username: userinfo.realName,
         userId: userinfo.id,
       },
