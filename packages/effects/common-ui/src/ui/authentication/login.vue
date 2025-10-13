@@ -335,7 +335,7 @@ defineExpose({
           @keydown.enter="showServiceAgreement"
           @keydown.space.prevent="showServiceAgreement"
         >
-          {{ $t('authentication.serviceAgreement', '服务协议') }}
+          {{ $t('服务协议') }}
         </span>
         <span
           class="vben-link cursor-pointer pl-4 text-sm font-normal"
@@ -368,27 +368,19 @@ defineExpose({
       {{ submitButtonText || $t('common.login') }}
     </VbenButton>
 
-    <!-- <div
+    <div
       v-if="showCodeLogin || showQrcodeLogin"
       class="mb-2 mt-4 flex items-center justify-between"
     >
       <VbenButton
         v-if="showCodeLogin"
-        class="w-1/2"
+        class="w-full"
         variant="outline"
         @click="handleGo(codeLoginPath)"
       >
         {{ $t('authentication.mobileLogin') }}
       </VbenButton>
-      <VbenButton
-        v-if="showQrcodeLogin"
-        class="ml-4 w-1/2"
-        variant="outline"
-        @click="handleGo(qrCodeLoginPath)"
-      >
-        {{ $t('authentication.qrcodeLogin') }}
-      </VbenButton>
-    </div> -->
+    </div>
 
     <!-- 第三方登录 -->
     <!-- <slot name="third-party-login">
@@ -426,7 +418,7 @@ defineExpose({
       </div>
       <template #footer>
         <VbenButton variant="outline" @click="closePrivacyModal">
-          {{ $t('common.close', '关闭') }}
+          {{ $t('关闭') }}
         </VbenButton>
       </template>
     </VbenModal>
@@ -434,7 +426,7 @@ defineExpose({
     <!-- 服务协议弹窗 -->
     <VbenModal
       v-model:open="showServiceAgreementModal"
-      :title="$t('authentication.serviceAgreement', '服务协议')"
+      :title="$t('服务协议')"
       :class="PRIVACY_POLICY_MODAL_MAX_WIDTH"
       @close="closeServiceAgreementModal"
     >
@@ -450,7 +442,7 @@ defineExpose({
       </div>
       <template #footer>
         <VbenButton variant="outline" @click="closeServiceAgreementModal">
-          {{ $t('common.close', '关闭') }}
+          {{ $t('关闭') }}
         </VbenButton>
       </template>
     </VbenModal>

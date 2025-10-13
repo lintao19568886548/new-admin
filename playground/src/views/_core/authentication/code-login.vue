@@ -9,29 +9,80 @@ import { $t } from '@vben/locales';
 
 import { message } from 'ant-design-vue';
 
+import { sendLoginSmsCodeApi } from '#/api';
+import { useAuthStore } from '#/store';
+
 defineOptions({ name: 'CodeLogin' });
 
-const loading = ref(false);
+const sendCodeLoading = ref(false);
 const CODE_LENGTH = 6;
+const authStore = useAuthStore();
 const loginRef =
   useTemplateRef<InstanceType<typeof AuthenticationCodeLogin>>('loginRef');
-function sendCodeApi(phoneNumber: string) {
+
+function resolveErrorMessage(error: unknown) {
+  if (
+    error &&
+    typeof error === 'object' &&
+    'message' in error &&
+    typeof (error as any).message === 'string'
+  ) {
+    return (error as any).message;
+  }
+  return $t('page.auth.sendCodeFailed', '操作失败，请稍后重试');
+}
+
+function isHttpError(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const maybe = error as Record<string, any>;
+  return (
+    'response' in maybe ||
+    'status' in maybe ||
+    'config' in maybe ||
+    ('isAxiosError' in maybe && maybe.isAxiosError === true)
+  );
+}
+
+async function sendCodeApi(phoneNumber: string) {
+  const messageKey = 'sending-code';
   message.loading({
     content: $t('page.auth.sendingCode'),
     duration: 0,
-    key: 'sending-code',
+    key: messageKey,
   });
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      message.success({
-        content: $t('page.auth.codeSentTo', [phoneNumber]),
-        duration: 3,
-        key: 'sending-code',
+  try {
+    const response = await sendLoginSmsCodeApi({ phoneNumber });
+    message.success({
+      content: $t('page.auth.codeSentTo', [phoneNumber]),
+      duration: 3,
+      key: messageKey,
+    });
+
+    if (
+      import.meta.env.DEV &&
+      response?.debugCode &&
+      typeof response.debugCode === 'string'
+    ) {
+      message.info({
+        content: `${$t('page.auth.debugCodeLabel', '调试验证码')}: ${response.debugCode}`,
+        duration: 5,
       });
-      resolve({ code: '123456', phoneNumber });
-    }, 3000);
-  });
+    }
+  } catch (error) {
+    message.destroy(messageKey);
+    if (!isHttpError(error)) {
+      message.error({
+        content: resolveErrorMessage(error),
+        duration: 3,
+        key: messageKey,
+      });
+    }
+    throw error;
+  }
 }
+
 const formSchema = computed((): VbenFormSchema[] => {
   return [
     {
@@ -44,7 +95,7 @@ const formSchema = computed((): VbenFormSchema[] => {
       rules: z
         .string()
         .min(1, { message: $t('authentication.mobileTip') })
-        .refine((v) => /^\d{11}$/.test(v), {
+        .refine((value) => /^\d{11}$/.test(value), {
           message: $t('authentication.mobileErrortip'),
         }),
     },
@@ -53,30 +104,29 @@ const formSchema = computed((): VbenFormSchema[] => {
       componentProps: {
         codeLength: CODE_LENGTH,
         createText: (countdown: number) => {
-          const text =
-            countdown > 0
-              ? $t('authentication.sendText', [countdown])
-              : $t('authentication.sendCode');
-          return text;
+          return countdown > 0
+            ? $t('authentication.sendText', [countdown])
+            : $t('authentication.sendCode');
         },
         handleSendCode: async () => {
-          // 模拟发送验证码
-          // Simulate sending verification code
-          loading.value = true;
+          sendCodeLoading.value = true;
           const formApi = loginRef.value?.getFormApi();
           if (!formApi) {
-            loading.value = false;
+            sendCodeLoading.value = false;
             throw new Error('formApi is not ready');
           }
           await formApi.validateField('phoneNumber');
           const isPhoneReady = await formApi.isFieldValid('phoneNumber');
           if (!isPhoneReady) {
-            loading.value = false;
-            throw new Error('Phone number is not Ready');
+            sendCodeLoading.value = false;
+            throw new Error('Phone number is not ready');
           }
           const { phoneNumber } = await formApi.getValues();
-          await sendCodeApi(phoneNumber);
-          loading.value = false;
+          try {
+            await sendCodeApi(phoneNumber);
+          } finally {
+            sendCodeLoading.value = false;
+          }
         },
         placeholder: $t('authentication.code'),
       },
@@ -88,14 +138,18 @@ const formSchema = computed((): VbenFormSchema[] => {
     },
   ];
 });
+
+const submitLoading = computed(
+  () => sendCodeLoading.value || authStore.loginLoading,
+);
+
 /**
  * 异步处理登录操作
  * Asynchronously handle the login process
  * @param values 登录表单数据
  */
 async function handleLogin(values: Recordable<any>) {
-  // eslint-disable-next-line no-console
-  console.log(values);
+  await authStore.authLoginBySmsCode(values);
 }
 </script>
 
@@ -103,7 +157,7 @@ async function handleLogin(values: Recordable<any>) {
   <AuthenticationCodeLogin
     ref="loginRef"
     :form-schema="formSchema"
-    :loading="loading"
+    :loading="submitLoading"
     @submit="handleLogin"
   />
 </template>

@@ -7,6 +7,11 @@ export namespace AuthApi {
     username?: string;
   }
 
+  export interface LoginBySmsParams {
+    code: string;
+    phoneNumber: string;
+  }
+
   /** 登录接口返回值 */
   export interface LoginResult {
     accessToken: string;
@@ -23,6 +28,25 @@ export namespace AuthApi {
  */
 export async function loginApi(data: AuthApi.LoginParams) {
   return requestClient.post<AuthApi.LoginResult>('/auth/login', data, {
+    withCredentials: true,
+  });
+}
+
+/**
+ * 发送登录短信验证码
+ */
+export async function sendLoginSmsCodeApi(data: { phoneNumber: string }) {
+  return requestClient.post<{
+    debugCode?: string;
+    expiresIn: number;
+  }>('/auth/send-login-code', data);
+}
+
+/**
+ * 短信验证码登录
+ */
+export async function loginBySmsCodeApi(data: AuthApi.LoginBySmsParams) {
+  return requestClient.post<AuthApi.LoginResult>('/auth/code-login', data, {
     withCredentials: true,
   });
 }

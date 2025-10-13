@@ -15,6 +15,9 @@
     "schema": "./prisma/schema"
   },
   "dependencies": {
+    "@alicloud/dysmsapi20170525": "^2.0.24",
+    "@alicloud/openapi-client": "^0.4.9",
+    "@alicloud/tea-util": "^1.4.8",
     "@faker-js/faker": "catalog:",
     "@prisma/client": "^6.5.0",
     "axios": "^1.8.4",

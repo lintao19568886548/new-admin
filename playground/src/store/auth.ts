@@ -9,7 +9,13 @@ import { resetAllStores, useAccessStore, useUserStore } from '@vben/stores';
 import { notification } from 'ant-design-vue';
 import { defineStore } from 'pinia';
 
-import { getAccessCodesApi, getUserInfoApi, loginApi, logoutApi } from '#/api';
+import {
+  getAccessCodesApi,
+  getUserInfoApi,
+  loginApi,
+  loginBySmsCodeApi,
+  logoutApi,
+} from '#/api';
 import { $t } from '#/locales';
 
 export const useAuthStore = defineStore('auth', () => {
@@ -19,52 +25,80 @@ export const useAuthStore = defineStore('auth', () => {
 
   const loginLoading = ref(false);
 
+  async function handleAfterLogin(
+    accessToken: string,
+    onSuccess?: () => Promise<void> | void,
+  ) {
+    accessStore.setAccessToken(accessToken);
+
+    const [userInfo, accessCodes] = await Promise.all([
+      fetchUserInfo(),
+      getAccessCodesApi(),
+    ]);
+
+    accessStore.setAccessCodes(accessCodes);
+
+    if (accessStore.loginExpired) {
+      accessStore.setLoginExpired(false);
+    } else {
+      await (onSuccess
+        ? onSuccess()
+        : router.push(userInfo.homePath || DEFAULT_HOME_PATH));
+    }
+
+    if (userInfo?.realName) {
+      notification.success({
+        description: `${$t('authentication.loginSuccessDesc')}:${userInfo?.realName}`,
+        duration: 3,
+        message: $t('authentication.loginSuccess'),
+      });
+    }
+
+    return userInfo;
+  }
+
   /**
    * 异步处理登录操作
    * Asynchronously handle the login process
    * @param params 登录表单数据
-   * @param onSuccess 成功之后的回调函数
-   */
+   * @param onSuccess 成功之后的回调函�?   */
   async function authLogin(
     params: Recordable<any>,
     onSuccess?: () => Promise<void> | void,
   ) {
-    // 异步处理用户登录操作并获取 accessToken
     let userInfo: null | UserInfo = null;
     try {
       loginLoading.value = true;
       const { accessToken } = await loginApi(params);
 
-      // 如果成功获取到 accessToken
       if (accessToken) {
-        accessStore.setAccessToken(accessToken);
+        userInfo = await handleAfterLogin(accessToken, onSuccess);
+      }
+    } finally {
+      loginLoading.value = false;
+    }
 
-        // 获取用户信息并存储到 accessStore 中
-        const [fetchUserInfoResult, accessCodes] = await Promise.all([
-          fetchUserInfo(),
-          getAccessCodesApi(),
-        ]);
+    return {
+      userInfo,
+    };
+  }
 
-        userInfo = fetchUserInfoResult;
+  /**
+   * 短信验证码登录
+   */
+  async function authLoginBySmsCode(
+    params: Recordable<any>,
+    onSuccess?: () => Promise<void> | void,
+  ) {
+    let userInfo: null | UserInfo = null;
+    try {
+      loginLoading.value = true;
+      const { accessToken } = await loginBySmsCodeApi(
+        params as { code: string; phoneNumber: string },
+      );
 
-        userStore.setUserInfo(userInfo);
-        accessStore.setAccessCodes(accessCodes);
-
-        if (accessStore.loginExpired) {
-          accessStore.setLoginExpired(false);
-        } else {
-          onSuccess
-            ? await onSuccess?.()
-            : await router.push(userInfo.homePath || DEFAULT_HOME_PATH);
-        }
-
-        if (userInfo?.realName) {
-          notification.success({
-            description: `${$t('authentication.loginSuccessDesc')}:${userInfo?.realName}`,
-            duration: 3,
-            message: $t('authentication.loginSuccess'),
-          });
-        }
+      if (accessToken) {
+        userInfo = await handleAfterLogin(accessToken, onSuccess);
       }
     } finally {
       loginLoading.value = false;
@@ -85,7 +119,6 @@ export const useAuthStore = defineStore('auth', () => {
     resetAllStores();
     accessStore.setLoginExpired(false);
 
-    // 回登录页带上当前路由地址
     await router.replace({
       path: LOGIN_PATH,
       query: redirect
@@ -110,6 +143,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     $reset,
     authLogin,
+    authLoginBySmsCode,
     fetchUserInfo,
     loginLoading,
     logout,
