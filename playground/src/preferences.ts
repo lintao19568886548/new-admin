@@ -16,8 +16,8 @@ export const overridesPreferences = defineOverridesPreferences({
     showHome: true,
   },
   copyright: {
-    companyName: '宜租网络 粤ICP备2025409677号-1',
-    companySiteLink: 'https://www.yizuw.cn',
+    companyName: '粤ICP备2025409677号-1',
+    companySiteLink: 'https://beian.miit.gov.cn/',
     date: '2025',
     enable: true,
     icp: '',
