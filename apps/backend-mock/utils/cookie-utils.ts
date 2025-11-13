@@ -14,7 +14,8 @@ export function setRefreshTokenCookie(
 ) {
   setCookie(event, 'jwt', refreshToken, {
     httpOnly: true,
-    maxAge: 24 * 60 * 60, // unit: seconds
+    // 与 REFRESH_TOKEN_EXPIRES_IN 保持一致（30 天）
+    maxAge: 30 * 24 * 60 * 60, // unit: seconds
     sameSite: 'none',
     secure: true,
   });
