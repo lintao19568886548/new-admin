@@ -2,13 +2,20 @@
 import { computed, onMounted, ref } from 'vue';
 
 import { VbenIcon } from '@vben/common-ui';
-import { ChevronRight, LockKeyhole, LogOut, RotateCw } from '@vben/icons';
+import {
+  ChevronRight,
+  LockKeyhole,
+  LogOut,
+  RotateCw,
+  SvgCardIcon,
+} from '@vben/icons';
 import { useUserStore } from '@vben/stores';
 
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Avatar, Card, List, ListItem, message, Modal } from 'ant-design-vue';
 
+import BusinessCard from '#/components/Businesscard.vue';
 import { useAuthStore } from '#/store';
 import { checkAppUpdate } from '#/utils/update-service';
 import EditPassword from '#/views/_core/authentication/edit-password.vue';
@@ -101,6 +108,12 @@ function handleLogout() {
   });
 }
 
+const showBusinessCard = ref(false);
+
+function handleCreateBusinessCard() {
+  showBusinessCard.value = true;
+}
+
 // function handleEditProfile() {
 //   message.info('该功能正在开发中...');
 // }
@@ -131,6 +144,11 @@ const actions = computed(() => {
       handler: handleChangePassword,
       icon: LockKeyhole,
       title: '修改密码',
+    },
+    {
+      handler: handleCreateBusinessCard,
+      icon: SvgCardIcon,
+      title: '生成个人名片',
     },
     {
       handler: handleLogout,
@@ -182,6 +200,13 @@ const actions = computed(() => {
     <EditPassword
       v-model:open="showPasswordModal"
       @success="handlePasswordChanged"
+    />
+
+    <!-- 个人名片模态框 -->
+    <BusinessCard
+      v-if="showBusinessCard"
+      :user-info="userInfo"
+      @close="showBusinessCard = false"
     />
   </div>
 </template>
