@@ -212,10 +212,16 @@ const chartTabs: TabOption[] = [
       >
         <AnalyticsExpenseData :data="trendData" />
       </AnalysisChartCard>
-      <AnalysisChartCard class="mt-5 md:mr-4 md:w-[32%]" title="支出环比">
+      <AnalysisChartCard
+        class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
+        title="支出环比"
+      >
         <AnalyticsExpenseSource :data="monthCompareData" />
       </AnalysisChartCard>
-      <AnalysisChartCard class="mt-5 md:w-[32%]" title="支出占比">
+      <AnalysisChartCard
+        class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
+        title="支出占比"
+      >
         <AnalyticsExpenseSales :data="totalData" />
       </AnalysisChartCard>
 
