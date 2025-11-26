@@ -43,8 +43,18 @@ interface WorkbenchProjectItem {
   url?: string;
 }
 
+interface RentalProjectItem {
+  content: string;
+  date: string;
+  group: string;
+  imgUrl: string;
+  tag: string;
+  title: string;
+}
+
 export type {
   AnalysisOverviewItem,
+  RentalProjectItem,
   WorkbenchProjectItem,
   WorkbenchQuickNavItem,
   WorkbenchTodoItem,

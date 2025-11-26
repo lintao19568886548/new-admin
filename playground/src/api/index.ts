@@ -7,6 +7,7 @@ export * from './dormitory';
 export * from './examples';
 export * from './factory';
 export * from './finance';
+export * from './hezhong';
 export * from './investment';
 export * from './maintenance';
 export * from './reimbursement';
