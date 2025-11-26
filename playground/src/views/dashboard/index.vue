@@ -252,6 +252,10 @@ function statusClass(status: string) {
   if (s.includes('拒')) return 'rejected';
   return 'pending';
 }
+
+function goVisitorManagement() {
+  router.push({ name: 'VisitorMobileList' });
+}
 </script>
 
 <template>
@@ -382,6 +386,7 @@ function statusClass(status: string) {
                   v-for="v in visitors"
                   :key="v.name + v.time"
                   class="visitor-item"
+                  @click="goVisitorManagement"
                 >
                   <div class="visitor-left">
                     <VbenIcon icon="carbon:user-avatar" class="visitor-icon" />
@@ -493,6 +498,33 @@ function statusClass(status: string) {
   margin-top: 14px;
 }
 
+.cyber-bg {
+  background:
+    radial-gradient(
+      1200px 600px at 50% -20%,
+      rgb(0 60 100 / 20%),
+      transparent 60%
+    ),
+    radial-gradient(
+      1200px 600px at -10% 120%,
+      rgb(0 40 80 / 18%),
+      transparent 60%
+    ),
+    #0b1220;
+}
+
+.neon-card {
+  background: linear-gradient(180deg, rgb(20 28 40 / 88%), rgb(16 22 34 / 92%));
+  border: 1px solid rgb(0 200 255 / 28%);
+  box-shadow:
+    0 0 0 1px rgb(0 200 255 / 16%),
+    0 0 24px rgb(0 200 255 / 22%);
+}
+
+.neon-title {
+  color: #9ee8ff;
+}
+
 .info-section {
   margin-top: 8px;
 }
@@ -566,14 +598,18 @@ function statusClass(status: string) {
   grid-template-columns: 36px 1fr auto;
   gap: 10px;
   align-items: center;
-  padding: 8px 10px;
-  background: rgb(248 250 252);
+  padding: 10px 12px;
+  cursor: pointer;
+  background: linear-gradient(180deg, #f6f9fc 0%, #e9eef5 100%);
   border: 1px solid rgb(226 232 240);
-  border-radius: 10px;
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 70%),
+    0 6px 16px rgb(0 0 0 / 16%);
 }
 
 .dark .visitor-item {
-  background: rgb(17 24 39);
+  background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
   border-color: rgb(55 65 81);
 }
 
@@ -635,14 +671,17 @@ function statusClass(status: string) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 12px 10px;
+  padding: 14px 12px;
   touch-action: manipulation;
   cursor: pointer;
   user-select: none;
-  background: rgb(248 250 252);
-  border: 1px solid rgb(226 232 240);
-  border-radius: 12px;
-  transition: all 0.15s ease;
+  background: linear-gradient(180deg, #f6f9fc 0%, #e9eef5 100%);
+  border: 1px solid rgb(240 244 248);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 70%),
+    0 8px 20px rgb(0 0 0 / 22%);
+  transition: all 0.2s ease;
 }
 
 .tool-item-edit {
@@ -651,13 +690,15 @@ function statusClass(status: string) {
 }
 
 .tool-item:hover {
-  border-color: rgb(59 130 246 / 50%);
-  box-shadow: 0 6px 16px rgb(16 24 40 / 8%);
-  transform: translateY(-1px);
+  border-color: #8bdcff;
+  box-shadow:
+    0 8px 22px rgb(16 24 40 / 22%),
+    0 0 14px rgb(0 200 255 / 40%);
+  transform: translateY(-2px);
 }
 
 .dark .tool-item {
-  background: rgb(31 41 55);
+  background: linear-gradient(180deg, #1f2937 0%, #182230 100%);
   border-color: rgb(55 65 81);
 }
 
