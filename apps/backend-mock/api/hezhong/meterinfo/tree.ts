@@ -2,6 +2,10 @@ import { useResponseSuccess } from '~/utils/response';
 import { getDevice } from '~/utils/thirdparty/hezhong';
 
 export default eventHandler(async (event) => {
+  const userinfo = await verifyAccessToken(event);
+  if (!userinfo) {
+    return unAuthorizedResponse(event);
+  }
   const result = await getDevice({
     comtype: 'D.ZDG.FIWBM-GD04',
     projCode: '241',

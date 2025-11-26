@@ -28,6 +28,10 @@ function normalizeHDM(res: any) {
 }
 
 export default eventHandler(async (event) => {
+  const userinfo = await verifyAccessToken(event);
+  if (!userinfo) {
+    return unAuthorizedResponse(event);
+  }
   const q = getQuery(event) as any;
   const projCode = String(q.projCode || '241');
   const type = String(q.type || '2');
