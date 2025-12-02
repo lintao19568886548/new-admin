@@ -18,6 +18,7 @@ import {
   BulbOutlined,
   EnvironmentOutlined,
   MoreOutlined,
+  PlusOutlined,
 } from '@ant-design/icons-vue';
 import {
   Button,
@@ -69,6 +70,10 @@ function onEdit(row: InvestmentAgent) {
   const rowData = { ...row };
   rowData.meetingTime = String(formatDateTime(rowData.meetingTime));
   formModalApi.setData(rowData).open();
+}
+
+function onAdd() {
+  formModalApi.setData({}).open();
 }
 
 async function onDelete(row: InvestmentAgent) {
@@ -597,6 +602,15 @@ const pageStyle = computed(() => ({
       type="primary"
       shape="circle"
       size="large"
+      @click="onAdd"
+      class="floating-add-btn"
+    >
+      <PlusOutlined class="text-xl" />
+    </Button>
+    <Button
+      type="primary"
+      shape="circle"
+      size="large"
       :loading="recommendLoading"
       @click="onSmartRecommend"
       class="floating-recommend-btn"
@@ -725,6 +739,32 @@ const pageStyle = computed(() => ({
   }
 
   // 确保图标居中
+  :deep(.anticon) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.floating-add-btn {
+  position: fixed;
+  bottom: 150px;
+  right: 20px;
+  width: 60px;
+  height: 60px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
   :deep(.anticon) {
     display: flex;
     align-items: center;
