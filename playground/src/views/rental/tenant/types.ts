@@ -1,4 +1,9 @@
 // 租赁管理项目类型
+export interface TenantImageItem {
+  imgId: number;
+  url: string;
+}
+
 export interface RentalManagementItem {
   address: string;
   // Fields used in mobile-list.vue, added as optional
@@ -7,6 +12,7 @@ export interface RentalManagementItem {
   contractEnd: string;
   contractStart: string;
   createTime: string;
+  images?: TenantImageItem[];
   increaseData: object | string;
   increaseDate: string;
   increaseRate: number;

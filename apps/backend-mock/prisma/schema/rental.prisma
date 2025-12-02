@@ -17,6 +17,7 @@ model RentalTenant {
   createTime     DateTime     @default(now()) @map("create_time")
   updateTime     DateTime?    @updatedAt @map("update_time")
   amountBills    AmountBill[] @relation("AmountBillToTenant")
+  images         TenantImage[] @relation("RentalTenantToTenantImage")
   parkId         Int?         @map("park_id")
   park           Park?        @relation("ParkToRentalTenant", fields: [parkId], references: [parkId])
   isDeleted      Boolean      @default(false) @map("is_deleted")

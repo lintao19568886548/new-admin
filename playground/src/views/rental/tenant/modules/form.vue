@@ -29,9 +29,116 @@ const [Form, formApi] = useVbenForm({
   wrapperClass: 'grid-cols-1 md:grid-cols-2 gap-4',
 });
 
+function mapImagesToFileList(
+  images?: RentalManagementItem['images'] | string[],
+) {
+  if (!images || !Array.isArray(images)) return [];
+  return images
+    .map((item, index) => {
+      if (!item) return null;
+      if (typeof item === 'string') {
+        return {
+          name: `image-${index}`,
+          status: 'done',
+          uid: `existing-string-${index}`,
+          url: item,
+        };
+      }
+      if (
+        (item as any).status &&
+        ((item as any).url || (item as any).thumbUrl)
+      ) {
+        return item as any;
+      }
+      const url = (item as any).url;
+      if (!url) return null;
+      const imgId = (item as any).imgId;
+      return {
+        imgId,
+        name: `image-${imgId ?? index}`,
+        status: 'done',
+        uid: `existing-${imgId ?? index}`,
+        url,
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildImagePayload(files: any[], isUpdate: boolean) {
+  if (!files || files.length === 0) {
+    return isUpdate ? { deleteMany: {} } : undefined;
+  }
+
+  const createInputs = files
+    .map((file) => {
+      const rawImgId =
+        file?.imgId ??
+        file?.response?.data?.imgId ??
+        file?.originFileObj?.imgId ??
+        file?.response?.data?.id;
+      const imgId = Number(rawImgId);
+      if (!imgId || Number.isNaN(imgId)) {
+        return null;
+      }
+      return { image: { connect: { imgId } } };
+    })
+    .filter(Boolean);
+
+  if (createInputs.length === 0) {
+    return isUpdate ? { deleteMany: {} } : undefined;
+  }
+
+  return {
+    create: createInputs,
+    ...(isUpdate ? { deleteMany: {} } : {}),
+  };
+}
+
+function transformToFormValues(data?: RentalManagementItem) {
+  if (!data) {
+    return {
+      images: [],
+      increaseData: [],
+      status: '当期',
+    } as Partial<RentalManagementItem>;
+  }
+
+  const values: Record<string, any> = { ...data };
+
+  if (values.contractStart && values.contractEnd) {
+    values.contractDate = [
+      dayjs(values.contractStart).format('YYYY-MM-DD'),
+      dayjs(values.contractEnd).format('YYYY-MM-DD'),
+    ];
+  }
+
+  if (values.increaseData) {
+    try {
+      let increaseFrom =
+        typeof values.increaseData === 'string'
+          ? JSON.parse(values.increaseData)
+          : values.increaseData;
+
+      if (!Array.isArray(increaseFrom)) {
+        increaseFrom = [];
+      }
+
+      values.increaseData = increaseFrom;
+    } catch (error) {
+      console.error('处理增租数据失败:', error);
+      values.increaseData = [];
+    }
+  } else {
+    values.increaseData = [];
+  }
+
+  values.images = mapImagesToFileList(values.images);
+  return values;
+}
+
 function resetForm() {
   formApi.resetForm();
-  formApi.setValues(formData.value || {});
+  formApi.setValues(transformToFormValues(formData.value));
 }
 
 const id = ref();
@@ -70,6 +177,16 @@ const [Modal, modalApi] = useVbenModal({
       values.increaseData = '[]';
     }
 
+    const files = Array.isArray((values as any).images)
+      ? (values as any).images
+      : [];
+    const imagePayload = buildImagePayload(files, Boolean(id.value));
+    if (imagePayload) {
+      (values as any).images = imagePayload;
+    } else {
+      delete (values as any).images;
+    }
+
     modalApi.lock();
 
     try {
@@ -100,55 +217,18 @@ const [Modal, modalApi] = useVbenModal({
       const data = modalApi.getData<RentalManagementItem>();
       formApi.resetForm();
       if (data && Object.keys(data).length > 0) {
-        // 处理日期格式，将UTC时间转换为本地日期
-        if (data.contractStart && data.contractEnd) {
-          data.contractDate = [
-            dayjs(data.contractStart).format('YYYY-MM-DD'),
-            dayjs(data.contractEnd).format('YYYY-MM-DD'),
-          ];
-        }
+        const values = transformToFormValues(data);
 
-        // 处理增租数据
-        if (data.increaseData) {
-          try {
-            // 检查increaseData是否已经是对象数组
-            let increaseFrom =
-              typeof data.increaseData === 'string'
-                ? JSON.parse(data.increaseData)
-                : data.increaseData;
-
-            // 确保increaseFrom是数组
-            if (!Array.isArray(increaseFrom)) {
-              increaseFrom = [];
-            }
-
-            // 直接设置increaseData为数组，让子组件处理具体的表单项
-            data.increaseData = increaseFrom;
-          } catch (error) {
-            console.error('处理增租数据失败:', error);
-            // 出错时设置为空数组，避免后续处理出错
-            data.increaseData = [];
-          }
-        } else {
-          // 如果没有增租数据，设置为空数组
-          data.increaseData = [];
-        }
-
-        // 先设置formData，确保子组件能够访问到数据
         formData.value = { ...data };
         id.value = data.rentalTenantId;
 
-        // 延迟设置表单值，确保子组件有时间初始化
         setTimeout(() => {
-          formApi.setValues(data);
+          formApi.setValues(values);
         }, 100);
       } else {
         id.value = undefined;
         formData.value = undefined;
-        // 设置默认值
-        formApi.setValues({
-          status: '当期',
-        } as Partial<RentalManagementItem>);
+        formApi.setValues(transformToFormValues());
       }
     }
   },

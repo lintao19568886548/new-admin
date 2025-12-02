@@ -12,6 +12,7 @@ model Image {
   firefightingImages FirefightingImage[]  @relation("ImageToFirefightingImage")
   transformerImages  TransformerImage[]   @relation("ImageToTransformerImage")
   salaryImages       SalaryImage[]        @relation("ImageToSalaryImage")
+  tenantImages       TenantImage[]        @relation("ImageToTenantImage")
 
   @@map("image")
 }
@@ -132,4 +133,18 @@ model SalaryImage {
   @@index([salaryId])
   @@index([imgId])
   @@map("salary_image")
+}
+
+model TenantImage {
+  id             Int           @id @default(autoincrement())
+  rentalTenantId Int           @map("rental_tenant_id")
+  imgId          Int           @map("img_id")
+  tenant         RentalTenant? @relation("RentalTenantToTenantImage", fields: [rentalTenantId], references: [rentalTenantId])
+  image          Image?        @relation("ImageToTenantImage", fields: [imgId], references: [imgId])
+  createTime     DateTime      @default(now()) @map("create_time")
+  updateTime     DateTime?     @updatedAt @map("update_time")
+
+  @@index([rentalTenantId])
+  @@index([imgId])
+  @@map("tenant_image")
 }

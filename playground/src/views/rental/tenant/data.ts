@@ -3,7 +3,10 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
 import { h, markRaw, ref } from 'vue';
 
-import { Tag } from 'ant-design-vue';
+import { useAppConfig } from '@vben/hooks';
+import { useAccessStore } from '@vben/stores';
+
+import { message, Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { z } from '#/adapter/form';
@@ -11,6 +14,67 @@ import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
 import IncreaseForm from './modules/increase-form.vue';
+
+const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
+const accessStore = useAccessStore();
+
+const imageOnChange = (info: any) => {
+  const { file } = info;
+  if (file.status === 'done') {
+    const imgId = file.response?.data?.imgId;
+    if (imgId) {
+      file.imgId = imgId;
+    }
+    const name = file.response?.data?.name || file.name;
+    message.success(`${name} 上传成功`);
+  } else if (file.status === 'error') {
+    const errorMsg = file.response?.message || '上传失败';
+    message.error(`${file.name} ${errorMsg}`);
+    console.error('Upload Error Response:', file.response);
+  }
+};
+
+const imageOnPreview = (file: any) => {
+  const imageUrl =
+    file.url ||
+    file.thumbUrl ||
+    file.response?.data?.thumbUrl ||
+    file.response?.data?.url;
+  if (imageUrl) {
+    const image = new Image();
+    image.src = imageUrl;
+    const imgWindow = window.open('', '_blank');
+    if (imgWindow) {
+      imgWindow.document.body.innerHTML = '';
+      const imgElement = imgWindow.document.createElement('img');
+      imgElement.src = imageUrl;
+      imgElement.style.maxWidth = '100%';
+      imgElement.style.maxHeight = '100%';
+      imgElement.style.position = 'absolute';
+      imgElement.style.top = '50%';
+      imgElement.style.left = '50%';
+      imgElement.style.transform = 'translate(-50%, -50%)';
+      imgWindow.document.body.append(imgElement);
+      imgWindow.document.title = file.name || '图片预览';
+    } else {
+      window.open(imageUrl, '_blank');
+    }
+  } else {
+    message.warning('无法预览，图片URL不存在');
+  }
+};
+
+const beforeUpload = (file: File) => {
+  const isImage = file.type.startsWith('image/');
+  if (!isImage) {
+    message.error('只能上传图片文件!');
+  }
+  const isLt2M = file.size / 1024 / 1024 < 10;
+  if (!isLt2M) {
+    message.error('图片必须小于10MB!');
+  }
+  return isImage && isLt2M;
+};
 
 /**
  * 获取标签颜色
@@ -114,6 +178,26 @@ export function useFormSchema(): VbenFormSchema[] {
       fieldName: 'increaseData', // 保持不变，已与接口一致
       formItemClass: 'col-span-full',
       // label: $t('page.rental.increaseData'),
+    },
+    {
+      component: 'Upload',
+      componentProps: {
+        accept: '.png,.jpg,.jpeg',
+        action: `${apiURL}/image/upload`,
+        beforeUpload,
+        headers: {
+          Authorization: `Bearer ${accessStore.accessToken}`,
+        },
+        onChange: imageOnChange,
+        onPreview: imageOnPreview,
+        listType: 'picture-card',
+      },
+      fieldName: 'images',
+      formItemClass: 'col-span-full',
+      label: $t('page.factory.images'),
+      renderComponentContent: () => ({
+        default: () => $t('page.factory.upload-image'),
+      }),
     },
     // {
     //   component: 'DatePicker',
