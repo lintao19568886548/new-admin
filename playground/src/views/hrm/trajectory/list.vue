@@ -447,7 +447,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100vh;
   padding: 20px;
-  overflow: hidden;
+  overflow: auto;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
 }
 
@@ -508,6 +508,7 @@ onUnmounted(() => {
 .map-wrapper {
   flex: 1;
   min-width: 350px;
+  min-height: 0;
   overflow: hidden;
   background: rgb(255 255 255 / 10%);
   backdrop-filter: blur(10px);
@@ -525,7 +526,8 @@ onUnmounted(() => {
 .list-wrapper {
   flex: 1;
   min-width: 350px;
-  overflow: hidden;
+  min-height: 0;
+  overflow-y: auto;
   background: rgb(255 255 255 / 95%);
   backdrop-filter: blur(20px);
   border: 1px solid rgb(255 255 255 / 20%);
@@ -534,7 +536,7 @@ onUnmounted(() => {
 }
 
 .record-list {
-  height: 100%;
+  height: auto;
   overflow-y: auto;
   scrollbar-color: rgb(0 0 0 / 20%) transparent;
   scrollbar-width: thin;

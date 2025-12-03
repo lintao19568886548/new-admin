@@ -28,7 +28,10 @@ import {
   getAnalyticsTotal,
   getAnalyticsTrend,
 } from '#/api/analytics';
-import { getPendingReimbursementCount } from '#/api/reimbursement';
+import {
+  getPendingReimbursementCount,
+  getReimbursementList,
+} from '#/api/reimbursement';
 
 // 导入重构后的业务组件
 import {
@@ -101,10 +104,32 @@ onMounted(async () => {
     parkElectricityData.value = parkElectricityResult;
 
     // 检查用户是否有报销审核权限
-    if (userStore.userInfo?.reimbursementAuth === 1) {
-      const pendingReimbursement = await getPendingReimbursementCount();
-
-      if (pendingReimbursement.count > 0) {
+    if ((userStore.userInfo?.reimbursementAuth || 0) > 0) {
+      const pageSize = 200;
+      const first = await getReimbursementList({
+        pageNo: 1,
+        pageSize,
+        status: 0,
+      });
+      let count = (first.items || []).filter(
+        (it: any) => Number(it.amount) > 50_000,
+      ).length;
+      const total = first.total || 0;
+      const pages = Math.ceil(total / pageSize);
+      for (let page = 2; page <= pages; page++) {
+        const next = await getReimbursementList({
+          pageNo: page,
+          pageSize,
+          status: 0,
+        });
+        count += (next.items || []).filter(
+          (it: any) => Number(it.amount) > 50_000,
+        ).length;
+      }
+      const isChairman = userStore.userInfo?.realName === '董事长';
+      const pending = await getPendingReimbursementCount();
+      const notifyCount = isChairman ? count : pending.count || 0;
+      if (notifyCount > 0) {
         notification.info({
           btn: h(
             'a',
@@ -124,7 +149,9 @@ onMounted(async () => {
             },
             '去处理',
           ),
-          description: `您有 ${pendingReimbursement.count} 条报销申请待处理`,
+          description: isChairman
+            ? `您有 ${notifyCount} 条金额>50000的报销申请待处理`
+            : `您有 ${notifyCount} 条报销申请待处理`,
           duration: null,
           key: 'reimbursement-notification',
           message: '待办提醒',
@@ -141,13 +168,6 @@ onUnmounted(() => {
 });
 
 // 计算环比增长率
-const calculateGrowth = (data: number[] = []) => {
-  const currentMonth = data[data.length - 1] || 0;
-  const lastMonth = data[data.length - 2] || 0;
-  return lastMonth
-    ? Math.round(((currentMonth - lastMonth) / lastMonth) * 100)
-    : 0;
-};
 
 const overviewItems = computed<AnalysisOverviewItem[]>(() => [
   {
@@ -155,28 +175,28 @@ const overviewItems = computed<AnalysisOverviewItem[]>(() => [
     title: '收入总额',
     totalTitle: '年度收入',
     totalValue: sumData(analyticsData.value.yearData.incomeDatamonths),
-    value: sumData(analyticsData.value.monthData.incomeData),
+    value: sumData(analyticsData.value.yearData.incomeDatamonths),
   },
   {
     icon: SvgCakeIcon,
     title: '支出总额',
     totalTitle: '年度支出',
     totalValue: sumData(analyticsData.value.yearData.expenseDatamonths),
-    value: sumData(analyticsData.value.monthData.expenseData),
+    value: sumData(analyticsData.value.yearData.expenseDatamonths),
   },
   {
     icon: SvgDownloadIcon,
     title: '收入月环比',
     totalTitle: '本月总收入',
     totalValue: sumData(analyticsData.value.monthData.incomeData),
-    value: calculateGrowth(analyticsData.value.yearData.incomeDatamonths),
+    value: sumData(analyticsData.value.monthData.incomeData),
   },
   {
     icon: SvgBellIcon,
     title: '支出月环比',
     totalTitle: '本月总支出',
     totalValue: sumData(analyticsData.value.monthData.expenseData),
-    value: calculateGrowth(analyticsData.value.yearData.expenseDatamonths),
+    value: sumData(analyticsData.value.monthData.expenseData),
   },
 ]);
 
