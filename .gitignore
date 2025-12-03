@@ -64,3 +64,4 @@ playground/src/views/system/role/docs
 commit_log.txt
 git_log.txt
 apps/backend-mock/public/uploads
+playground/.env.llmkey

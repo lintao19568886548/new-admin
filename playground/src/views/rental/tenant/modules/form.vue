@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 import type { RentalManagementItem } from '../types';
 
-import { computed, ref } from 'vue';
+import type { VbenFormSchema } from '#/adapter/form';
+
+import { computed, h, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
@@ -13,21 +15,199 @@ import { createTenant, updateTenant } from '#/api/rental';
 import { $t } from '#/locales';
 
 import { useFormSchema } from '../data';
+import { analyzeTenantImages, filesToDataUrls, fileToDataUrl } from '../llm';
 
 const emit = defineEmits(['success']);
 const formData = ref<RentalManagementItem>();
+const formSchema = useFormSchema();
+const llmLoading = ref(false);
 const getTitle = computed(() => {
   return formData.value?.rentalTenantId
     ? $t('ui.actionTitle.edit', [$t('system.rental.tenant.item')])
     : $t('ui.actionTitle.create', [$t('system.rental.tenant.item')]);
 });
 
+enhanceImageFieldWithLlm(formSchema);
+
 const [Form, formApi] = useVbenForm({
   layout: 'vertical',
-  schema: useFormSchema(),
+  schema: formSchema,
   showDefaultActions: false,
   wrapperClass: 'grid-cols-1 md:grid-cols-2 gap-4',
 });
+
+function enhanceImageFieldWithLlm(schema: VbenFormSchema[]) {
+  const imageField = schema.find((item) => item.fieldName === 'images');
+  if (!imageField) return;
+
+  const baseProps = imageField.componentProps;
+  imageField.componentProps = (values, actions) => {
+    const resolvedProps =
+      typeof baseProps === 'function'
+        ? baseProps(values, actions)
+        : baseProps || {};
+    const baseOnChange =
+      typeof resolvedProps?.onChange === 'function'
+        ? resolvedProps.onChange
+        : undefined;
+
+    return {
+      ...resolvedProps,
+      onChange: async (info: any) => {
+        baseOnChange?.(info);
+        await handleUploadLlm(info);
+      },
+    };
+  };
+
+  imageField.renderComponentContent = () => ({
+    default: () =>
+      h(
+        'div',
+        { class: 'flex flex-col items-center gap-2 text-xs text-gray-600' },
+        [
+          h('span', $t('page.factory.upload-image')),
+          h(
+            Button,
+            {
+              loading: llmLoading.value,
+              onClick: () => handleManualLlm(),
+              size: 'small',
+              type: 'default',
+            },
+            () => '识别填表',
+          ),
+        ],
+      ),
+  });
+}
+
+async function handleUploadLlm(info: any) {
+  if (!info?.file || info.file.status !== 'done') return;
+  if (!info.file.originFileObj) return;
+
+  try {
+    const dataUrl = await fileToDataUrl(info.file.originFileObj);
+    await analyzeAndFill([dataUrl]);
+  } catch (error) {
+    console.error('上传后自动识别失败:', error);
+  }
+}
+
+async function handleManualLlm() {
+  try {
+    const values = await formApi?.getValues?.();
+    const files = Array.isArray((values as any)?.images)
+      ? (values as any).images
+      : [];
+    const dataUrls = await filesToDataUrls(files);
+    if (dataUrls.length === 0) {
+      message.warning('没有可识别的图片');
+      return;
+    }
+    await analyzeAndFill(dataUrls);
+  } catch (error) {
+    console.error('手动识别失败:', error);
+  }
+}
+
+function normalizeDateRange(raw: any): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    const [start, end] = raw;
+    return [start, end].filter(Boolean);
+  }
+  if (typeof raw === 'object') {
+    return [raw.start, raw.end].filter(Boolean);
+  }
+  if (typeof raw === 'string') {
+    const match = raw.match(/(20\d{2}-\d{2}-\d{2}).*?(20\d{2}-\d{2}-\d{2})/);
+    if (match?.[1] && match?.[2]) return [match[1], match[2]];
+    if (raw.trim()) return [raw.trim()];
+  }
+  return [];
+}
+
+function normalizeNumber(raw: any): number | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const cleaned = String(raw).replaceAll(/[^\d.-]/g, '');
+  const num = Number.parseFloat(cleaned);
+  if (Number.isNaN(num)) return undefined;
+  return num;
+}
+
+async function analyzeAndFill(dataUrls: string[]) {
+  if (llmLoading.value) return;
+  if (!dataUrls || dataUrls.length === 0) return;
+  llmLoading.value = true;
+  try {
+    const result = await analyzeTenantImages(dataUrls);
+    if (!result) {
+      message.warning('未从图片中识别到信息');
+      return;
+    }
+
+    const currentValues = (await formApi?.getValues?.()) || {};
+    const patch: Record<string, any> = {};
+
+    if (result.tenantName && !currentValues.tenantName) {
+      patch.tenantName = result.tenantName.trim();
+    }
+    if (result.phoneNumber && !currentValues.phoneNumber) {
+      patch.phoneNumber = result.phoneNumber.trim();
+    }
+    if (result.address && !currentValues.address) {
+      patch.address = result.address.trim();
+    }
+
+    const dates = normalizeDateRange(result.contractDate);
+    if (
+      dates.length > 0 &&
+      (!currentValues.contractDate || currentValues.contractDate.length === 0)
+    ) {
+      const [start, end] = dates;
+      if (dates.length === 1 && start) {
+        patch.contractDate = [start, start];
+      } else if (start && end) {
+        patch.contractDate = [start, end];
+      }
+    }
+
+    const rentNumber = normalizeNumber(result.rent);
+    const hasRent =
+      currentValues.rent !== undefined &&
+      currentValues.rent !== null &&
+      currentValues.rent !== '';
+    if (rentNumber !== undefined && !hasRent) {
+      patch.rent = rentNumber;
+    }
+
+    const areaNumber = normalizeNumber(result.area);
+    const hasArea =
+      currentValues.area !== undefined &&
+      currentValues.area !== null &&
+      currentValues.area !== '';
+    if (areaNumber !== undefined && !hasArea) {
+      patch.area = areaNumber;
+    }
+
+    if (Object.keys(patch).length > 0) {
+      formApi?.setValues?.(patch);
+      message.success('已根据图片自动填充字段');
+    } else {
+      message.info('未找到需要更新的字段或字段已填写');
+    }
+  } catch (error: any) {
+    console.error('图片识别失败:', error);
+    message.error(
+      error?.message?.includes('ALIYUN_BAILIAN_KEY')
+        ? '请先配置 ALIYUN_BAILIAN_KEY'
+        : '图片识别失败，请稍后重试',
+    );
+  } finally {
+    llmLoading.value = false;
+  }
+}
 
 function mapImagesToFileList(
   images?: RentalManagementItem['images'] | string[],

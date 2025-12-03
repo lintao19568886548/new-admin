@@ -70,6 +70,7 @@
     "exceljs": "^4.4.0",
     "lodash-es": "^4.17.21",
     "marked": "^16.0.0",
+    "openai": "^4.88.1",
     "pinia": "catalog:",
     "semver": "^7.7.2",
     "uuid": "^11.1.0",
