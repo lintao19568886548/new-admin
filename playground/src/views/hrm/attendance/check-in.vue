@@ -273,38 +273,81 @@ const updateMapMarkers = (point: any) => {
   map.centerAndZoom(point, 17);
 };
 
+const getPunchPayload = () => ({
+  latitude: latitude.value,
+  longitude: longitude.value,
+  punchTime: dayjs().toISOString(),
+  username: userInfo?.realName || '',
+});
+
+const runOrConfirmOutsideRange = async (action: () => Promise<void> | void) => {
+  if (!isInRange.value) {
+    await new Promise<void>((resolve) => {
+      Modal.confirm({
+        centered: true,
+        content: '当前区域非指定打卡区域，是否继续打卡',
+        okText: '确认打卡',
+        onCancel: () => {
+          resolve();
+        },
+        onOk: async () => {
+          await action();
+          resolve();
+        },
+        title: '非指定区域',
+      });
+    });
+    return;
+  }
+  await action();
+};
+
+const confirmEarlyLeaveThen = async (action: () => Promise<void> | void) => {
+  const now = dayjs();
+  const endTime = dayjs(standardWorkEndTime, 'HH:mm:ss');
+  const isEarlyLeave = now.isBefore(endTime);
+  if (isEarlyLeave) {
+    await new Promise<void>((resolve) => {
+      Modal.confirm({
+        centered: true,
+        content: '当前时间早于规定下班时间，确定要打卡吗？',
+        okText: '确认打卡',
+        onCancel: () => {
+          resolve();
+        },
+        onOk: async () => {
+          await action();
+          resolve();
+        },
+        title: '早退确认',
+      });
+    });
+    return;
+  }
+  await action();
+};
+
 // 上班打卡
 const handlePunchIn = async () => {
   console.warn(
     `[打卡调试] handlePunchIn triggered. Current value of isInRange: ${isInRange.value}`,
   );
 
-  if (!isInRange.value) {
-    console.warn(
-      '[打卡调试] Check failed: isInRange is false. Aborting punch in.',
-    );
-    message.error('不在打卡范围内，无法打卡');
-    return;
-  }
+  const performPunchIn = async () => {
+    punchLoading.value = true;
+    try {
+      await punchIn(getPunchPayload());
+      await loadTodayRecord();
+      message.success('上班打卡成功');
+    } catch (error: any) {
+      console.error('[打卡调试] 上班打卡失败:', error);
+      message.error(`打卡失败: ${error.message || '请重试'}`);
+    } finally {
+      punchLoading.value = false;
+    }
+  };
 
-  console.warn('[打卡调试] Check passed. Proceeding to send API request.');
-  punchLoading.value = true;
-
-  try {
-    await punchIn({
-      latitude: latitude.value,
-      longitude: longitude.value,
-      punchTime: dayjs().toISOString(),
-      username: userInfo?.realName || '',
-    });
-    await loadTodayRecord();
-    message.success('上班打卡成功');
-  } catch (error: any) {
-    console.error('[打卡调试] 上班打卡失败:', error);
-    message.error(`打卡失败: ${error.message || '请重试'}`);
-  } finally {
-    punchLoading.value = false;
-  }
+  await runOrConfirmOutsideRange(performPunchIn);
 };
 
 // 下班打卡
@@ -312,20 +355,12 @@ const handlePunchOut = async () => {
   console.warn(
     `[打卡调试] handlePunchOut triggered. Current value of isInRange: ${isInRange.value}`,
   );
-  if (!isInRange.value) {
-    console.warn(
-      '[打卡调试] Check failed: isInRange is false. Aborting punch out.',
-    );
-    message.error('不在打卡范围内，无法打卡');
-    return;
-  }
 
   if (!todayRecord.value?.attendanceId) {
     message.error('无法找到今日打卡记录，无法下班打卡');
     return;
   }
 
-  // 封装打卡操作
   const performPunchOut = async () => {
     if (!todayRecord.value?.attendanceId) {
       message.error('无法找到今日打卡记录，无法下班打卡');
@@ -349,22 +384,7 @@ const handlePunchOut = async () => {
     }
   };
 
-  // 检查是否早退
-  const now = dayjs();
-  const endTime = dayjs(standardWorkEndTime, 'HH:mm:ss');
-  const isEarlyLeave = now.isBefore(endTime);
-
-  if (isEarlyLeave) {
-    Modal.confirm({
-      centered: true,
-      content: '当前时间早于规定下班时间，确定要打卡吗？',
-      okText: '确认打卡',
-      onOk: performPunchOut,
-      title: '早退确认',
-    });
-  } else {
-    await performPunchOut();
-  }
+  await runOrConfirmOutsideRange(() => confirmEarlyLeaveThen(performPunchOut));
 };
 
 const getStatusInfo = (status: null | number) => {
@@ -450,7 +470,7 @@ watch(
           type="primary"
           size="large"
           class="punch-btn punch-in"
-          :disabled="!isInRange || Boolean(todayRecord?.punchIn)"
+          :disabled="Boolean(todayRecord?.punchIn)"
           :loading="punchLoading"
           @click="handlePunchIn"
         >
@@ -462,9 +482,7 @@ watch(
           size="large"
           class="punch-btn punch-out"
           :disabled="
-            Boolean(
-              !isInRange || !todayRecord?.attendanceId || todayRecord?.punchOut,
-            )
+            Boolean(!todayRecord?.attendanceId || todayRecord?.punchOut)
           "
           :loading="punchLoading"
           @click="handlePunchOut"

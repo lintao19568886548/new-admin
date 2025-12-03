@@ -60,26 +60,18 @@ function enhanceImageFieldWithLlm(schema: VbenFormSchema[]) {
     };
   };
 
-  imageField.renderComponentContent = () => ({
-    default: () =>
-      h(
-        'div',
-        { class: 'flex flex-col items-center gap-2 text-xs text-gray-600' },
-        [
-          h('span', $t('page.factory.upload-image')),
-          h(
-            Button,
-            {
-              loading: llmLoading.value,
-              onClick: () => handleManualLlm(),
-              size: 'small',
-              type: 'default',
-            },
-            () => '识别填表',
-          ),
-        ],
-      ),
-  });
+  imageField.suffix = () =>
+    h(
+      Button,
+      {
+        class: 'ml-8',
+        loading: llmLoading.value,
+        onClick: () => handleManualLlm(),
+        size: 'small',
+        type: 'default',
+      },
+      () => '识别填表',
+    );
 }
 
 async function handleUploadLlm(info: any) {
