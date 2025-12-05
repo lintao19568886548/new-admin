@@ -2,7 +2,9 @@
 import { defineEmits, defineProps, ref } from 'vue';
 
 import { GlobalOutlined, MailOutlined } from '@ant-design/icons-vue';
-import { Button } from 'ant-design-vue';
+import { Capacitor } from '@capacitor/core';
+import { Directory, Filesystem } from '@capacitor/filesystem';
+import { Button, message } from 'ant-design-vue';
 
 interface UserInfo {
   avatar?: string;
@@ -23,8 +25,57 @@ defineEmits(['close']);
 const flipped = ref(false);
 const cardRef = ref<HTMLElement>();
 
+const CARD_FILE_NAME = 'business-card-combined.png';
+
 function toggleFlip() {
   flipped.value = !flipped.value;
+}
+
+async function saveCardToDevice(dataUrl: string) {
+  if (!Capacitor.isNativePlatform()) return false;
+  const base64Data = dataUrl.split(',')[1];
+  if (!base64Data) return false;
+
+  try {
+    await Filesystem.requestPermissions();
+  } catch (error) {
+    console.warn('申请文件权限失败:', error);
+  }
+
+  const directories: Directory[] = [
+    Directory.Documents,
+    ...(Capacitor.getPlatform() === 'android'
+      ? [Directory.ExternalStorage]
+      : []),
+    Directory.Data,
+  ];
+
+  for (const directory of directories) {
+    try {
+      await Filesystem.writeFile({
+        data: base64Data,
+        directory,
+        path: CARD_FILE_NAME,
+        recursive: true,
+      });
+      const { uri } = await Filesystem.getUri({
+        directory,
+        path: CARD_FILE_NAME,
+      });
+      message.success({
+        content: '名片已保存至相册\n请打开相册查看',
+        duration: 5,
+        style: { whiteSpace: 'pre-line' },
+      });
+      console.warn('名片文件路径:', uri);
+      return true;
+    } catch (error) {
+      console.warn(`保存到目录 ${directory} 失败:`, error);
+    }
+  }
+
+  message.warning('保存到本地失败，尝试使用浏览器下载');
+  return false;
 }
 
 async function downloadCard() {
@@ -152,43 +203,49 @@ async function downloadCard() {
   ctx.scale(ratio, ratio);
   ctx.drawImage(img, 0, 0);
 
+  let dataUrl: null | string = null;
+  try {
+    dataUrl = canvas.toDataURL('image/png');
+  } catch (error) {
+    console.warn('生成图片数据失败:', error);
+  }
+
+  if (dataUrl) {
+    const saved = await saveCardToDevice(dataUrl);
+    if (saved) return;
+  }
+
+  const triggerDownload = (href: string, needRevoke = false) => {
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = CARD_FILE_NAME;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    if (needRevoke) {
+      setTimeout(() => URL.revokeObjectURL(href), 100);
+    }
+  };
+
+  const fallbackDownload = () => {
+    if (!dataUrl) {
+      console.warn('导出失败：画布被污染');
+      return;
+    }
+    triggerDownload(dataUrl);
+  };
+
   try {
     canvas.toBlob((b) => {
       if (b) {
         const href = URL.createObjectURL(b);
-        const link = document.createElement('a');
-        link.href = href;
-        link.download = 'business-card-combined.png';
-        document.body.append(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(href), 100);
+        triggerDownload(href, true);
       } else {
-        try {
-          const data = canvas.toDataURL('image/png');
-          const link = document.createElement('a');
-          link.href = data;
-          link.download = 'business-card-combined.png';
-          document.body.append(link);
-          link.click();
-          link.remove();
-        } catch {
-          console.warn('导出失败：画布被污染');
-        }
+        fallbackDownload();
       }
     }, 'image/png');
   } catch {
-    try {
-      const data = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.href = data;
-      link.download = 'business-card-combined.png';
-      document.body.append(link);
-      link.click();
-      link.remove();
-    } catch {
-      console.warn('导出失败：画布被污染');
-    }
+    fallbackDownload();
   }
 }
 </script>
@@ -239,12 +296,12 @@ async function downloadCard() {
           </div>
         </div>
 
-        <div class="qr-section">
+        <!-- <div class="qr-section">
           <div class="qr-code">
             <div class="qr-placeholder"></div>
             <div class="qr-label">扫码联系</div>
           </div>
-        </div>
+        </div> -->
 
         <div class="divider"></div>
       </div>
