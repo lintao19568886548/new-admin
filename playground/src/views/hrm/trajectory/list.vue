@@ -7,6 +7,7 @@ import {
   Card,
   List,
   message,
+  Pagination,
   RangePicker,
   Segmented,
   Spin,
@@ -293,7 +294,7 @@ onUnmounted(() => {
 
 <template>
   <div class="trajectory-page">
-    <Card :bordered="false">
+    <Card :bordered="false" :body-style="{ padding: '12px' }" class="page-card">
       <div class="header">
         <div class="header-left">
           <h2 class="header-title">全员考勤轨迹</h2>
@@ -331,7 +332,7 @@ onUnmounted(() => {
             class="record-list"
             :grid="{ gutter: 16, xs: 1, sm: 1, md: 1, lg: 2, xl: 2, xxl: 3 }"
             :data-source="records"
-            :pagination="{ ...pagination, onChange: handlePageChange }"
+            :pagination="false"
           >
             <template #renderItem="{ item }">
               <List.Item
@@ -377,6 +378,20 @@ onUnmounted(() => {
             </template>
           </List>
         </Spin>
+        <Pagination
+          v-if="pagination.total > pagination.pageSize"
+          v-model:current="pagination.current"
+          :page-size="pagination.pageSize"
+          :total="pagination.total"
+          @change="handlePageChange"
+          :simple="false"
+          :show-size-changer="!isMobile"
+          :size="isMobile ? 'small' : 'default'"
+          :responsive="true"
+          :show-less-items="true"
+          :hide-on-single-page="true"
+          class="list-pagination"
+        />
       </div>
     </div>
   </div>
@@ -401,7 +416,7 @@ onUnmounted(() => {
 
   .main-content {
     flex-direction: column;
-    overflow: hidden;
+    overflow: hidden auto;
   }
 
   .map-wrapper {
@@ -416,14 +431,25 @@ onUnmounted(() => {
     min-height: 300px;
   }
 
+  .map-wrapper,
+  .list-wrapper {
+    width: 100%;
+    min-width: 0;
+  }
+
   .trajectory-page {
-    gap: 12px;
+    gap: 8px;
     padding: 12px;
   }
 
   .header-title {
     font-size: 20px;
     text-align: center;
+  }
+
+  .view-switcher {
+    width: 100%;
+    margin: 0 0 4px;
   }
 }
 
@@ -436,6 +462,57 @@ onUnmounted(() => {
   .main-content {
     gap: 12px;
   }
+
+  .map-wrapper {
+    flex: 0 0 40%;
+  }
+
+  .list-wrapper {
+    flex: 0 0 60%;
+  }
+}
+
+@media (min-width: 1025px) {
+  .map-wrapper {
+    flex: 0 0 38%;
+  }
+
+  .list-wrapper {
+    flex: 0 0 62%;
+  }
+
+  .list-pagination:deep(.ant-pagination) {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .list-pagination:deep(.ant-pagination-options) {
+    display: flex;
+    justify-content: center;
+    order: 3;
+    width: 100%;
+    margin: 8px 0 0;
+  }
+
+  .list-pagination:deep(.ant-pagination-item) {
+    min-width: 32px;
+    height: 32px;
+    line-height: 30px;
+    border-radius: 16px;
+  }
+
+  .list-pagination:deep(.ant-pagination-item a) {
+    padding: 0 8px;
+    line-height: 30px;
+  }
+
+  .list-pagination:deep(.ant-pagination-prev .ant-pagination-item-link),
+  .list-pagination:deep(.ant-pagination-next .ant-pagination-item-link) {
+    min-width: 32px;
+    height: 32px;
+    line-height: 32px;
+    border-radius: 16px;
+  }
 }
 
 .trajectory-page {
@@ -445,15 +522,16 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 16px;
   width: 100%;
-  height: 100vh;
-  padding: 20px;
+  height: 100%;
+  padding: 16px;
   overflow: hidden;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
 }
 
 .view-switcher {
   align-items: center;
-  margin: 0 8px 16px;
+  width: 100%;
+  margin: 0 0 8px;
   background: rgb(255 255 255 / 90%);
   backdrop-filter: blur(10px);
   border-radius: 8px;
@@ -463,15 +541,10 @@ onUnmounted(() => {
 .header {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
   justify-content: space-between;
-  padding: 20px;
-  background: rgb(255 255 255 / 95%);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgb(255 255 255 / 20%);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgb(0 0 0 / 10%);
+  padding: 8px 12px;
 }
 
 .header-left {
@@ -503,17 +576,19 @@ onUnmounted(() => {
   flex: 1;
   gap: 16px;
   min-height: 0;
+  overflow-x: hidden;
+  border-radius: 12px;
 }
 
 .map-wrapper {
   flex: 1;
-  min-width: 350px;
+  min-width: 0;
   overflow: hidden;
   background: rgb(255 255 255 / 10%);
   backdrop-filter: blur(10px);
   border: 1px solid rgb(255 255 255 / 20%);
   border-radius: 16px;
-  box-shadow: 0 12px 40px rgb(0 0 0 / 15%);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 10%);
 }
 
 .map-container {
@@ -524,18 +599,20 @@ onUnmounted(() => {
 
 .list-wrapper {
   flex: 1;
-  min-width: 350px;
-  overflow: hidden;
+  min-width: 0;
+  overflow: hidden auto;
+  overscroll-behavior-x: contain;
   background: rgb(255 255 255 / 95%);
   backdrop-filter: blur(20px);
   border: 1px solid rgb(255 255 255 / 20%);
   border-radius: 16px;
-  box-shadow: 0 12px 40px rgb(0 0 0 / 15%);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 10%);
 }
 
 .record-list {
   height: 100%;
-  overflow-y: auto;
+  overflow: hidden auto;
+  touch-action: pan-y;
   scrollbar-color: rgb(0 0 0 / 20%) transparent;
   scrollbar-width: thin;
 }
@@ -557,11 +634,24 @@ onUnmounted(() => {
   background: rgb(0 0 0 / 30%);
 }
 
+.record-list .ant-spin-nested-loading,
+.record-list .ant-spin-container,
+.record-list .ant-list {
+  box-sizing: border-box;
+  width: 100%;
+}
+
 .record-list .ant-spin-container {
-  padding: 16px;
+  padding: 12px;
+}
+
+:deep(.ant-list-items) {
+  margin: 0;
 }
 
 .record-card {
+  box-sizing: border-box;
+  width: 100%;
   overflow: hidden;
   background: rgb(255 255 255 / 90%);
   backdrop-filter: blur(10px);
@@ -573,7 +663,7 @@ onUnmounted(() => {
 .record-card:hover {
   border-color: rgb(102 126 234 / 30%);
   box-shadow: 0 20px 60px rgb(0 0 0 / 20%);
-  transform: translateY(-8px) scale(1.02);
+  transform: translateY(-6px);
 }
 
 .card-title {
@@ -640,11 +730,73 @@ onUnmounted(() => {
 }
 
 /* 分页器样式优化 */
-:deep(.ant-pagination) {
-  padding: 16px;
-  margin: 16px;
-  background: rgb(255 255 255 / 90%);
-  border-radius: 12px;
+.list-pagination {
+  padding-bottom: 10px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.list-pagination:deep(.ant-pagination) {
+  justify-content: center;
+}
+
+.list-pagination:deep(.ant-pagination-item) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  background: #fff;
+  border: 1px solid transparent;
+  border-radius: 13px;
+}
+
+.list-pagination:deep(.ant-pagination-item a) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+}
+
+.list-pagination:deep(.ant-pagination-item-active) {
+  color: #1677ff;
+  border-color: #1677ff;
+}
+
+.list-pagination:deep(.ant-pagination-item-active a) {
+  color: #1677ff;
+}
+
+.list-pagination:deep(.ant-pagination-prev .ant-pagination-item-link),
+.list-pagination:deep(.ant-pagination-next .ant-pagination-item-link) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 13px;
+}
+
+.list-pagination:deep(.ant-pagination-jump-prev),
+.list-pagination:deep(.ant-pagination-jump-next) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 13px;
+}
+
+.list-pagination:deep(.ant-pagination-jump-prev .ant-pagination-item-link),
+.list-pagination:deep(.ant-pagination-jump-next .ant-pagination-item-link),
+.list-pagination:deep(.ant-pagination-item-ellipsis) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 /* 按钮样式优化 */
