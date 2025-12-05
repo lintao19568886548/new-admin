@@ -32,6 +32,7 @@ import {
   getPendingReimbursementCount,
   getReimbursementList,
 } from '#/api/reimbursement';
+import { CHAIRMAN_ROLE_NAMES, REIMBURSEMENT_NOTIFY_THRESHOLD } from '#/config';
 
 // 导入重构后的业务组件
 import {
@@ -112,7 +113,7 @@ onMounted(async () => {
         status: 0,
       });
       let count = (first.items || []).filter(
-        (it: any) => Number(it.amount) > 50_000,
+        (it: any) => Number(it.amount) > REIMBURSEMENT_NOTIFY_THRESHOLD,
       ).length;
       const total = first.total || 0;
       const pages = Math.ceil(total / pageSize);
@@ -123,10 +124,13 @@ onMounted(async () => {
           status: 0,
         });
         count += (next.items || []).filter(
-          (it: any) => Number(it.amount) > 50_000,
+          (it: any) => Number(it.amount) > REIMBURSEMENT_NOTIFY_THRESHOLD,
         ).length;
       }
-      const isChairman = userStore.userInfo?.realName === '董事长';
+      const roles = userStore.userInfo?.roles ?? [];
+      const isChairman = CHAIRMAN_ROLE_NAMES.some((role) =>
+        roles.includes(role),
+      );
       const pending = await getPendingReimbursementCount();
       const notifyCount = isChairman ? count : pending.count || 0;
       if (notifyCount > 0) {
@@ -150,7 +154,7 @@ onMounted(async () => {
             '去处理',
           ),
           description: isChairman
-            ? `您有 ${notifyCount} 条金额>50000的报销申请待处理`
+            ? `您有 ${notifyCount} 条金额>${REIMBURSEMENT_NOTIFY_THRESHOLD}的报销申请待处理`
             : `您有 ${notifyCount} 条报销申请待处理`,
           duration: null,
           key: 'reimbursement-notification',
