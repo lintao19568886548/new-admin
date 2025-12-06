@@ -8,7 +8,7 @@
 
 # --- Settings ---
 # Replace 'your-commit-hash-here' with your starting commit hash
-$StartCommitHash = '40042e18be93be20bf3845411d24a5a43289e5b4'
+$StartCommitHash = 'c2e9057593ccb884dec10c6ab53ef1ccae1c2b95'
 # Set the output file name
 $OutputFile = "./scripts/commit_log.txt"
 # --- End of settings ---
