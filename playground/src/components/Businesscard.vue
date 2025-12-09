@@ -25,7 +25,7 @@ const emit = defineEmits(['close']);
 const flipped = ref(false);
 const cardRef = ref<HTMLElement>();
 
-const CARD_FILE_NAME = 'business-card-combined.png';
+const CARD_FILE_NAME = `business-card-${Date.now()}.png`;
 
 function toggleFlip() {
   flipped.value = !flipped.value;
