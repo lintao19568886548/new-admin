@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineEmits, defineProps, ref } from 'vue';
+import { ref } from 'vue';
 
 import { GlobalOutlined, MailOutlined } from '@ant-design/icons-vue';
 import { Capacitor } from '@capacitor/core';
@@ -20,7 +20,7 @@ interface Props {
 }
 
 const { userInfo } = defineProps<Props>();
-defineEmits(['close']);
+const emit = defineEmits(['close']);
 
 const flipped = ref(false);
 const cardRef = ref<HTMLElement>();
@@ -251,7 +251,7 @@ async function downloadCard() {
 </script>
 
 <template>
-  <div class="business-card-modal" @click="$emit('close')">
+  <div class="business-card-modal" @click="emit('close')">
     <div
       ref="cardRef"
       class="business-card"
@@ -315,7 +315,7 @@ async function downloadCard() {
           </div>
 
           <div class="taglines">
-            <div class="tagline">智能水电表生产厂家 | 智慧公寓管理平台</div>
+            <div class="tagline">智能物业管理平台 | 智慧公寓管理平台</div>
             <div class="tagline">智慧能源管理云平台 | 远程抄表管理系统</div>
           </div>
         </div>
@@ -324,7 +324,7 @@ async function downloadCard() {
 
     <div class="card-actions">
       <Button type="primary" @click="downloadCard">下载名片</Button>
-      <Button @click="$emit('close')">关闭</Button>
+      <Button @click="emit('close')">关闭</Button>
     </div>
   </div>
 </template>
