@@ -1,17 +1,20 @@
 <script lang="ts" setup>
+import type { Dayjs } from 'dayjs';
+
 import type { InvestmentAgent } from './data';
 
 import {
-  computed,
   createApp,
   h,
   nextTick,
   onMounted,
   onUnmounted,
+  reactive,
   ref,
 } from 'vue';
 
-import { Page, useVbenModal } from '@vben/common-ui';
+import { useVbenModal } from '@vben/common-ui';
+import { Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
 import {
@@ -23,46 +26,72 @@ import {
 import {
   Button,
   Card,
-  Flex,
+  Col,
+  Drawer,
+  Empty,
+  Form,
   Image,
   Input,
-  List,
   message,
   Modal,
+  Pagination,
   Popover,
-  Table,
+  Row,
+  Select,
+  Space,
+  Spin,
   Tag,
-  TypographyText,
 } from 'ant-design-vue';
 
 import { deleteInvestment, getInvestmentList } from '#/api/investment';
+import { getParkList } from '#/api/park';
+import MobileDateRange from '#/components/MobileDateRange.vue';
 import { $t } from '#/locales';
 
-import { getTagTypeOptions } from './data'; // 引入获取标签颜色函数
-import Form from './modules/form.vue';
+import { getTagTypeOptions } from './data';
+import AgentForm from './modules/form.vue';
+
+const meetingRange = ref<[Dayjs | undefined, Dayjs | undefined]>([
+  undefined,
+  undefined,
+]);
+
+const searchForm = reactive({
+  agentName: '',
+  intentLevel: undefined as string | undefined,
+  progress: undefined as string | undefined,
+  tenantName: '',
+});
+
+const parkOptions = ref<{ label: string; value: number }[]>([
+  { label: '全部区域', value: -1 },
+]);
+const selectedParkId = ref<number | undefined>(undefined);
 
 const loading = ref(false);
 const investmentList = ref<InvestmentAgent[]>([]);
-const pagination = ref({
-  currentPage: 1,
-  pageSize: 10, // 移动端每页数量可以少一些
-  total: 0,
-});
-const recommendModalVisible = ref(false);
-const recommendLoading = ref(false);
-const nearbyParks = ref<any[]>([]);
-const manualLocationModalVisible = ref(false);
-const manualAddress = ref('');
+const pagination = reactive({ current: 1, pageSize: 10, total: 0 });
+const activePopoverKey = ref<null | string>(null);
 
 const tagTypeOptions = getTagTypeOptions();
+const intentLevelOptions = tagTypeOptions.map((opt) => ({
+  label: opt.label,
+  value: opt.value,
+}));
+const progressOptions = [
+  { label: '初步接洽', value: '初步接洽' },
+  { label: '深入沟通', value: '深入沟通' },
+  { label: '合同准备', value: '合同准备' },
+  { label: '签约完成', value: '签约完成' },
+];
 
-const getTagColor = (value: string) => {
+function getTagColor(value: string) {
   const option = tagTypeOptions.find((opt) => opt.value === value);
   return option ? option.color : 'default';
-};
+}
 
 const [FormModal, formModalApi] = useVbenModal({
-  connectedComponent: Form,
+  connectedComponent: AgentForm,
   destroyOnClose: true,
 });
 
@@ -70,10 +99,12 @@ function onEdit(row: InvestmentAgent) {
   const rowData = { ...row };
   rowData.meetingTime = String(formatDateTime(rowData.meetingTime));
   formModalApi.setData(rowData).open();
+  activePopoverKey.value = null;
 }
 
 function onAdd() {
   formModalApi.setData({}).open();
+  activePopoverKey.value = null;
 }
 
 async function onDelete(row: InvestmentAgent) {
@@ -100,6 +131,7 @@ async function onDelete(row: InvestmentAgent) {
       });
     }
   }
+  activePopoverKey.value = null;
 }
 
 function onView(row: InvestmentAgent) {
@@ -158,73 +190,101 @@ function onView(row: InvestmentAgent) {
     },
   });
   previewApp.mount(previewContainer);
+  activePopoverKey.value = null;
 }
 
 async function fetchList() {
   loading.value = true;
-  const params = {
-    currentPage: pagination.value.currentPage,
-    currentPark: -1, // 显示所有区域
-    pageSize: pagination.value.pageSize,
-    // 在这里可以添加来自 list.vue 的其他表单筛选参数，如果需要的话
-    // 例如: agentName: searchForm.value.agentName, 等
+  const startDate = meetingRange.value?.[0]?.format('YYYY-MM-DD');
+  const endDate = meetingRange.value?.[1]?.format('YYYY-MM-DD');
+  const startTime = startDate ? `${startDate} 00:00:00` : undefined;
+  const endTime = endDate ? `${endDate} 23:59:59` : undefined;
+  const params: any = {
+    agentName: searchForm.agentName || undefined,
+    currentPage: pagination.current,
+    currentPark: selectedParkId.value ?? -1,
+    endTime,
+    intentLevel: searchForm.intentLevel || undefined,
+    pageSize: pagination.pageSize,
+    progress: searchForm.progress || undefined,
+    startTime,
+    tenantName: searchForm.tenantName || undefined,
   };
   try {
     const result = await getInvestmentList(params);
-    investmentList.value = result.items || [];
-    pagination.value.total = result.page?.total || 0;
+    const items: InvestmentAgent[] = Array.isArray(result?.items)
+      ? result.items
+      : [];
+    investmentList.value = items;
+    pagination.total = Number(result?.total ?? items.length);
   } catch (error) {
     console.error('获取投资项目列表失败:', error);
     message.error('获取投资项目列表失败');
     investmentList.value = [];
-    pagination.value.total = 0;
+    pagination.total = 0;
   } finally {
     loading.value = false;
   }
 }
 
-function handleTableChange(page: number, pageSize: number) {
-  pagination.value.currentPage = page;
-  pagination.value.pageSize = pageSize;
+function handlePageChange(page: number, pageSize: number) {
+  pagination.current = page;
+  pagination.pageSize = pageSize;
   fetchList();
 }
 
-function refreshList() {
-  pagination.value.currentPage = 1;
+function handleSearch() {
+  pagination.current = 1;
   fetchList();
 }
 
-/**
- * 获取当前地理位置
- */
-function getCurrentPosition(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('浏览器不支持地理位置服务'));
-      return;
-    }
-
-    const options = {
-      enableHighAccuracy: true, // 启用高精度定位
-      maximumAge: 300_000, // 5分钟内的缓存位置可用
-      timeout: 15_000, // 15秒超时
-    };
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve(position);
-      },
-      (error) => {
-        reject(error);
-      },
-      options,
-    );
-  });
+function resetSearch() {
+  meetingRange.value = [undefined, undefined];
+  searchForm.agentName = '';
+  searchForm.tenantName = '';
+  searchForm.intentLevel = undefined;
+  searchForm.progress = undefined;
+  pagination.current = 1;
+  fetchList();
 }
 
-/**
- * 使用高德地图POI搜索附近工厂
- */
+function onParkChange(value: any) {
+  selectedParkId.value = value as number;
+  handleSearch();
+}
+
+onMounted(() => {
+  fetchList();
+  getParkList()
+    .then((list: any[]) => {
+      const options = Array.isArray(list)
+        ? list.map((p: any) => ({ label: p.parkName, value: p.parkId }))
+        : [];
+      parkOptions.value = [{ label: '全部区域', value: -1 }, ...options];
+    })
+    .catch(() => {
+      parkOptions.value = [{ label: '全部区域', value: -1 }];
+    });
+});
+
+const recommendModalVisible = ref(false);
+const recommendLoading = ref(false);
+const nearbyParks = ref<any[]>([]);
+const manualLocationModalVisible = ref(false);
+const manualAddress = ref('');
+
+function normalizeTel(t: any): string | undefined {
+  if (Array.isArray(t)) {
+    const s = t.filter(Boolean).join('、');
+    return s.length > 0 ? s : undefined;
+  }
+  if (typeof t === 'string') {
+    const s = t.trim();
+    return s.length > 0 ? s : undefined;
+  }
+  return undefined;
+}
+
 async function searchNearbyParks(longitude: number, latitude: number) {
   const key = import.meta.env.VITE_AMAP_KEY;
   if (!key || key === 'YOUR_AMAP_KEY_HERE') {
@@ -243,7 +303,7 @@ async function searchNearbyParks(longitude: number, latitude: number) {
         id: poi.id,
         location: poi.location,
         name: poi.name,
-        tel: poi.tel || '暂无电话',
+        tel: normalizeTel(poi.tel),
         type: poi.type,
         typecode: poi.typecode,
       }));
@@ -255,9 +315,75 @@ async function searchNearbyParks(longitude: number, latitude: number) {
   }
 }
 
-/**
- * 智能推荐按钮点击事件
- */
+function closeRecommendModal() {
+  recommendModalVisible.value = false;
+  nearbyParks.value = [];
+}
+
+function closeManualLocationModal() {
+  manualLocationModalVisible.value = false;
+  manualAddress.value = '';
+}
+
+async function searchByManualAddress() {
+  if (!manualAddress.value.trim()) {
+    message.warning('请输入地址');
+    return;
+  }
+
+  recommendLoading.value = true;
+
+  try {
+    const key = import.meta.env.VITE_AMAP_KEY;
+    if (!key) {
+      throw new Error('请先配置高德地图API Key');
+    }
+
+    const geocodeUrl = `https://restapi.amap.com/v3/geocode/geo?key=${key}&address=${encodeURIComponent(manualAddress.value)}`;
+    const geocodeResponse = await fetch(geocodeUrl);
+    const geocodeData = await geocodeResponse.json();
+
+    if (
+      geocodeData.status !== '1' ||
+      !geocodeData.geocodes ||
+      geocodeData.geocodes.length === 0
+    ) {
+      throw new Error('无法识别该地址，请输入更详细的地址信息');
+    }
+
+    const location = geocodeData.geocodes[0].location;
+    const [longitude, latitude] = location.split(',').map(Number);
+
+    message.loading({
+      content: '正在搜索附近工厂...',
+      duration: 0,
+      key: 'manual_search_loading',
+    });
+
+    const parks = await searchNearbyParks(longitude, latitude);
+
+    message.destroy('manual_search_loading');
+
+    if (parks.length === 0) {
+      message.info('该地址附近暂无工厂信息');
+      return;
+    }
+
+    nearbyParks.value = parks;
+    manualLocationModalVisible.value = false;
+    recommendModalVisible.value = true;
+    manualAddress.value = '';
+
+    message.success(`找到 ${parks.length} 个附近工厂`);
+  } catch (error: any) {
+    message.destroy('manual_search_loading');
+    console.error('手动搜索失败:', error);
+    message.error(error.message || '搜索失败，请重试');
+  } finally {
+    recommendLoading.value = false;
+  }
+}
+
 async function onSmartRecommend() {
   try {
     recommendLoading.value = true;
@@ -267,7 +393,6 @@ async function onSmartRecommend() {
       key: 'location_loading',
     });
 
-    // 获取当前位置
     const position = await getCurrentPosition();
     const { latitude, longitude } = position.coords;
 
@@ -277,27 +402,20 @@ async function onSmartRecommend() {
       key: 'location_loading',
     });
 
-    // 搜索附近工厂
     const parks = await searchNearbyParks(longitude, latitude);
-
     message.destroy('location_loading');
-
     if (parks.length === 0) {
       message.info('附近暂无工厂信息');
       return;
     }
-
     nearbyParks.value = parks;
     recommendModalVisible.value = true;
-
     message.success(`找到 ${parks.length} 个附近工厂`);
   } catch (error: any) {
     message.destroy('location_loading');
     console.error('智能推荐失败:', error);
-
     let errorMessage = '智能推荐失败';
     let suggestion = '';
-
     switch (error.code) {
       case 1: {
         errorMessage = '位置权限被拒绝';
@@ -323,13 +441,7 @@ async function onSmartRecommend() {
         }
       }
     }
-
-    message.error({
-      content: `${errorMessage}：${suggestion}`,
-      duration: 6, // 延长显示时间以便用户阅读
-    });
-
-    // 如果是定位失败，提供手动输入选项
+    message.error({ content: `${errorMessage}：${suggestion}`, duration: 6 });
     if (error.code === 1 || error.code === 2 || error.code === 3) {
       setTimeout(() => {
         Modal.confirm({
@@ -348,256 +460,198 @@ async function onSmartRecommend() {
   }
 }
 
-/**
- * 关闭推荐弹窗
- */
-function closeRecommendModal() {
-  recommendModalVisible.value = false;
-  nearbyParks.value = [];
-}
-
-function closeManualLocationModal() {
-  manualLocationModalVisible.value = false;
-  manualAddress.value = '';
-}
-
-/**
- * 手动搜索附近工厂
- */
-async function searchByManualAddress() {
-  if (!manualAddress.value.trim()) {
-    message.warning('请输入地址');
-    return;
-  }
-
-  recommendLoading.value = true;
-
-  try {
-    const key = import.meta.env.VITE_AMAP_KEY;
-    if (!key) {
-      throw new Error('请先配置高德地图API Key');
-    }
-
-    // 先进行地理编码，将地址转换为坐标
-    const geocodeUrl = `https://restapi.amap.com/v3/geocode/geo?key=${key}&address=${encodeURIComponent(manualAddress.value)}`;
-
-    const geocodeResponse = await fetch(geocodeUrl);
-    const geocodeData = await geocodeResponse.json();
-
-    if (
-      geocodeData.status !== '1' ||
-      !geocodeData.geocodes ||
-      geocodeData.geocodes.length === 0
-    ) {
-      throw new Error('无法识别该地址，请输入更详细的地址信息');
-    }
-
-    const location = geocodeData.geocodes[0].location;
-    const [longitude, latitude] = location.split(',').map(Number);
-
-    message.loading({
-      content: '正在搜索附近工厂...',
-      duration: 0,
-      key: 'manual_search_loading',
-    });
-
-    // 搜索附近工厂
-    const parks = await searchNearbyParks(longitude, latitude);
-
-    message.destroy('manual_search_loading');
-
-    if (parks.length === 0) {
-      message.info('该地址附近暂无工厂信息');
+function getCurrentPosition(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('浏览器不支持地理位置服务'));
       return;
     }
-
-    nearbyParks.value = parks;
-    manualLocationModalVisible.value = false;
-    recommendModalVisible.value = true;
-    manualAddress.value = '';
-
-    message.success(`找到 ${parks.length} 个附近工厂`);
-  } catch (error: any) {
-    message.destroy('manual_search_loading');
-    console.error('手动搜索失败:', error);
-    message.error(error.message || '搜索失败，请重试');
-  } finally {
-    recommendLoading.value = false;
-  }
+    const options = {
+      enableHighAccuracy: true,
+      maximumAge: 300_000,
+      timeout: 15_000,
+    };
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve(position),
+      (error) => reject(error),
+      options,
+    );
+  });
 }
-
-// 推荐表格列定义
-const recommendColumns = [
-  {
-    dataIndex: 'name',
-    key: 'name',
-    title: '工厂名称',
-    width: 200,
-  },
-  {
-    dataIndex: 'address',
-    key: 'address',
-    title: '地址',
-    width: 250,
-  },
-  {
-    dataIndex: 'distance',
-    key: 'distance',
-    render: (distance: string) => `${distance}米`,
-    title: '距离',
-    width: 100,
-  },
-  {
-    dataIndex: 'tel',
-    key: 'tel',
-    title: '联系电话',
-    width: 150,
-  },
-  {
-    customRender: ({ record }: { record: any }) => {
-      return h(
-        Button,
-        {
-          onClick: () => {
-            message.success(`已选择工厂: ${record.name}`);
-            closeRecommendModal();
-          },
-          size: 'small',
-          type: 'link',
-        },
-        '选择',
-      );
-    },
-    key: 'action',
-    title: '操作',
-    width: 100,
-  },
-];
-
-onMounted(() => {
-  fetchList();
-});
-
-// 计算属性，用于控制页面主体样式，模拟400x641的比例 (可选)
-const pageStyle = computed(() => ({
-  // maxWidth: '400px', // 控制最大宽度
-  // margin: '0 auto', // 居中
-  // border: '1px solid #eee', // 可选边框
-  // overflowY: 'auto', // 内容超出时滚动
-  // height: '641px' // 固定高度，如果需要模拟精确视口
-}));
 </script>
 
 <template>
-  <Page :style="pageStyle" class="mobile-investment-list-page">
-    <FormModal @success="refreshList" />
+  <div class="mobile-investment-container">
+    <FormModal @success="handleSearch" />
 
-    <div class="p-2">
-      <List
-        :data-source="investmentList"
-        :loading="loading"
-        :pagination="{
-          current: pagination.currentPage,
-          pageSize: pagination.pageSize,
-          total: pagination.total,
-          onChange: handleTableChange,
-          size: 'small',
-          showSizeChanger: true,
-          pageSizeOptions: ['10', '20', '50'],
-        }"
-        item-layout="vertical"
-        row-key="investmentId"
-      >
-        <template #renderItem="{ item }">
-          <List.Item>
-            <Card :title="item.agentName" size="small" class="mb-2 shadow-md">
-              <template #extra>
-                <Popover title="操作" trigger="click" placement="leftTop">
-                  <template #content>
-                    <Flex vertical gap="small">
-                      <Button type="link" size="small" @click="onView(item)">
-                        {{ $t('ui.action.view') }}
-                      </Button>
-                      <Button type="link" size="small" @click="onEdit(item)">
-                        {{ $t('ui.action.edit') }}
-                      </Button>
-                      <Button
-                        type="link"
-                        size="small"
-                        danger
-                        @click="onDelete(item)"
-                      >
-                        {{ $t('ui.action.delete') }}
-                      </Button>
-                    </Flex>
-                  </template>
-                  <Button type="text" size="small">
-                    <MoreOutlined />
-                  </Button>
-                </Popover>
-              </template>
-
-              <Flex vertical gap="small">
-                <div>
-                  <TypographyText type="secondary">
-                    {{ $t('page.tenant.name') }}:
-                  </TypographyText>
-                  <TypographyText>{{ item.tenantName }}</TypographyText>
-                </div>
-                <div>
-                  <TypographyText type="secondary">
-                    {{ $t('page.agent.intentLevel') }}:
-                  </TypographyText>
-                  <Tag :color="getTagColor(item.intentLevel)">
-                    {{ item.intentLevel }}
-                  </Tag>
-                </div>
-                <div>
-                  <TypographyText type="secondary">
-                    {{ $t('page.agent.intentArea') }}:
-                  </TypographyText>
-                  <TypographyText>{{ item.intentArea }} ㎡</TypographyText>
-                </div>
-                <div>
-                  <TypographyText type="secondary">
-                    {{ $t('page.agent.progress') }}:
-                  </TypographyText>
-                  <TypographyText>{{ item.progress }}</TypographyText>
-                </div>
-                <div>
-                  <TypographyText type="secondary">
-                    {{ $t('page.agent.phone') }}:
-                  </TypographyText>
-                  <TypographyText>{{ item.phoneNumber }}</TypographyText>
-                </div>
-                <div>
-                  <TypographyText type="secondary">
-                    {{ $t('page.common.date') }}:
-                  </TypographyText>
-                  <TypographyText>
-                    {{ formatDateTime(item.meetingTime) }}
-                  </TypographyText>
-                </div>
-                <div v-if="item.parkName">
-                  <TypographyText type="secondary">
-                    {{ $t('page.common.park') }}:
-                  </TypographyText>
-                  <TypographyText>{{ item.parkName }}</TypographyText>
-                </div>
-                <div v-if="item.remark">
-                  <TypographyText type="secondary">
-                    {{ $t('page.common.remark') }}:
-                  </TypographyText>
-                  <TypographyText>{{ item.remark }}</TypographyText>
-                </div>
-              </Flex>
-            </Card>
-          </List.Item>
-        </template>
-      </List>
+    <div class="search-filters">
+      <Form layout="vertical">
+        <Row :gutter="16">
+          <Col :span="24">
+            <Form.Item label="会谈日期">
+              <MobileDateRange v-model:value="meetingRange" />
+            </Form.Item>
+          </Col>
+          <Col :span="24">
+            <Form.Item label="区域">
+              <Select
+                v-model:value="selectedParkId"
+                :options="parkOptions"
+                placeholder="选择区域"
+                allow-clear
+                @change="onParkChange"
+              />
+            </Form.Item>
+          </Col>
+          <Col :span="12">
+            <Form.Item label="中介人">
+              <Input
+                v-model:value="searchForm.agentName"
+                placeholder="请输入中介人"
+                allow-clear
+              />
+            </Form.Item>
+          </Col>
+          <Col :span="12">
+            <Form.Item label="租户名称">
+              <Input
+                v-model:value="searchForm.tenantName"
+                placeholder="请输入租户名称"
+                allow-clear
+              />
+            </Form.Item>
+          </Col>
+          <Col :span="12">
+            <Form.Item label="意向等级">
+              <Select
+                v-model:value="searchForm.intentLevel"
+                :options="intentLevelOptions"
+                placeholder="选择等级"
+                allow-clear
+              />
+            </Form.Item>
+          </Col>
+          <Col :span="12">
+            <Form.Item label="跟进进度">
+              <Select
+                v-model:value="searchForm.progress"
+                :options="progressOptions"
+                placeholder="选择进度"
+                allow-clear
+              />
+            </Form.Item>
+          </Col>
+        </Row>
+        <div class="search-actions">
+          <Button type="primary" @click="handleSearch" class="flex-1">
+            <Search class="mr-1 h-4 w-4" />
+            {{ $t('搜索') }}
+          </Button>
+          <Button @click="resetSearch" class="flex-1">{{ $t('重置') }}</Button>
+        </div>
+      </Form>
     </div>
 
-    <!-- 悬浮智能推荐按钮 -->
+    <Spin :spinning="loading" :tip="$t('加载中...')">
+      <div v-if="investmentList.length > 0" class="agent-list">
+        <Card
+          v-for="item in investmentList"
+          :key="
+            item.investmentId +
+            String(item.meetingTime) +
+            String(item.updateTime)
+          "
+          class="agent-card"
+          :body-style="{ padding: '0' }"
+        >
+          <div class="card-header">
+            <span class="title">{{ item.agentName || item.tenantName }}</span>
+            <div>
+              <Tag :color="getTagColor(item.intentLevel)">
+                {{ item.intentLevel }}
+              </Tag>
+              <Popover
+                title="操作"
+                trigger="click"
+                placement="leftTop"
+                :open="activePopoverKey === String(item.investmentId)"
+                @open-change="
+                  (open: boolean) =>
+                    (activePopoverKey = open ? String(item.investmentId) : null)
+                "
+              >
+                <template #content>
+                  <div class="action-list">
+                    <Button type="link" size="small" @click="onView(item)">
+                      {{ $t('ui.action.view') }}
+                    </Button>
+                    <Button type="link" size="small" @click="onEdit(item)">
+                      {{ $t('ui.action.edit') }}
+                    </Button>
+                    <Button
+                      type="link"
+                      size="small"
+                      danger
+                      @click="onDelete(item)"
+                    >
+                      {{ $t('ui.action.delete') }}
+                    </Button>
+                  </div>
+                </template>
+                <Button type="text" size="small" class="ml-2">
+                  <MoreOutlined />
+                </Button>
+              </Popover>
+            </div>
+          </div>
+          <div class="card-content">
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">租户名称</span>
+                <span class="info-value">{{ item.tenantName }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">意向面积</span>
+                <span class="info-value">{{ item.intentArea }} ㎡</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">进展阶段</span>
+                <span class="info-value">{{ item.progress }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">联系电话</span>
+                <span class="info-value">{{ item.phoneNumber }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">会谈时间</span>
+                <span class="info-value">{{
+                  formatDateTime(item.meetingTime)
+                }}</span>
+              </div>
+              <div class="info-item" v-if="item.parkName">
+                <span class="info-label">园区</span>
+                <span class="info-value">{{ item.parkName }}</span>
+              </div>
+              <div class="info-item full-line" v-if="item.remark">
+                <span class="info-label">备注</span>
+                <span class="info-value">{{ item.remark }}</span>
+              </div>
+            </div>
+          </div>
+        </Card>
+        <Pagination
+          v-if="pagination.total > 0"
+          :current="pagination.current"
+          :page-size="pagination.pageSize"
+          :total="pagination.total"
+          @change="handlePageChange"
+          size="small"
+          class="list-pagination"
+        />
+      </div>
+      <Empty v-else :description="loading ? $t('加载中...') : $t('暂无数据')" />
+    </Spin>
+
     <Button
       type="primary"
       shape="circle"
@@ -618,51 +672,50 @@ const pageStyle = computed(() => ({
       <BulbOutlined class="text-xl" />
     </Button>
 
-    <!-- 智能推荐弹窗 -->
-    <Modal
+    <Drawer
       v-model:open="recommendModalVisible"
       title="附近工厂推荐"
-      width="90%"
-      :footer="null"
-      @cancel="closeRecommendModal"
+      placement="bottom"
+      height="80%"
+      :closable="true"
+      @close="closeRecommendModal"
     >
-      <div class="mb-4 text-gray-600">
+      <div class="mb-2 text-gray-600">
         <p>基于您的当前位置，为您推荐以下附近的工厂：</p>
       </div>
-
-      <Table
-        :columns="recommendColumns"
-        :data-source="nearbyParks"
-        :pagination="false"
-        :scroll="{ y: 300, x: 600 }"
-        row-key="id"
-        size="small"
-      >
-        <template #emptyText>
-          <div class="py-8 text-center">
-            <p class="text-gray-500">暂无附近工厂信息</p>
+      <div class="recommend-list">
+        <div v-for="park in nearbyParks" :key="park.id" class="recommend-item">
+          <div class="item-header">
+            <span class="name">{{ park.name }}</span>
+            <span class="distance">{{ park.distance }} 米</span>
           </div>
-        </template>
-      </Table>
-
-      <div class="mt-4 text-right">
-        <Button @click="closeRecommendModal"> 关闭 </Button>
+          <div class="item-body">
+            <div class="line">{{ park.address }}</div>
+            <div class="line" v-if="park.tel">{{ park.tel }}</div>
+          </div>
+        </div>
+        <div v-if="nearbyParks.length === 0" class="py-8 text-center">
+          <p class="text-gray-500">暂无附近工厂信息</p>
+        </div>
       </div>
-    </Modal>
+      <div class="drawer-footer">
+        <Button block @click="closeRecommendModal">关闭</Button>
+      </div>
+    </Drawer>
 
-    <!-- 手动输入地址弹窗 -->
-    <Modal
+    <Drawer
       v-model:open="manualLocationModalVisible"
       title="手动输入地址"
-      width="90%"
-      @cancel="closeManualLocationModal"
+      placement="bottom"
+      height="auto"
+      :closable="true"
+      @close="closeManualLocationModal"
     >
-      <div class="py-4">
-        <div class="mb-4 text-gray-600">
+      <div class="py-2">
+        <div class="mb-2 text-gray-600">
           <p>请输入您要搜索的地址，系统将为您推荐附近的工厂：</p>
         </div>
-
-        <div class="mb-4">
+        <div class="mb-2">
           <Input
             v-model:value="manualAddress"
             placeholder="请输入详细地址，如：北京市朝阳区建国路"
@@ -674,16 +727,15 @@ const pageStyle = computed(() => ({
             </template>
           </Input>
         </div>
-
         <div class="text-sm text-gray-500">
           <p>提示：地址越详细，搜索结果越准确</p>
         </div>
       </div>
-
-      <template #footer>
-        <Space>
-          <Button @click="closeManualLocationModal">取消</Button>
+      <div class="drawer-footer">
+        <Space class="w-full">
+          <Button block @click="closeManualLocationModal">取消</Button>
           <Button
+            block
             type="primary"
             :loading="recommendLoading"
             @click="searchByManualAddress"
@@ -691,34 +743,112 @@ const pageStyle = computed(() => ({
             搜索附近工厂
           </Button>
         </Space>
-      </template>
-    </Modal>
-  </Page>
+      </div>
+    </Drawer>
+  </div>
 </template>
 
 <style lang="less" scoped>
-// 可以在这里添加特定于移动端的样式
-.mobile-investment-list-page {
-  position: relative;
-  // background-color: #f0f2f5; // 设置页面背景色
-
-  // :deep(.ant-card-head) {
-  //   padding: 0 12px;
-  //   min-height: 38px;
-  // }
-  // :deep(.ant-card-body) {
-  //   padding: 12px;
-  // }
-  // :deep(.ant-list-item) {
-  //   padding: 8px 0;
-  // }
-  // :deep(.ant-list-pagination) {
-  //   margin-top: 16px;
-  //   padding: 0 8px; // 为分页器添加一些内边距
-  // }
+.mobile-investment-container {
+  box-sizing: border-box;
+  padding: 8px;
+  background-color: #f0f2f5;
 }
 
-// 悬浮智能推荐按钮样式
+.search-filters {
+  padding: 12px 8px;
+  margin-bottom: 8px;
+  background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+}
+
+.search-filters .ant-form-item {
+  margin-bottom: 8px;
+}
+
+.search-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.agent-list {
+  padding-bottom: 10px;
+}
+
+.agent-card {
+  margin-bottom: 12px;
+  overflow: hidden;
+  font-size: 14px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+}
+
+:deep(.agent-card .ant-card-body) {
+  padding: 0;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.title {
+  margin-right: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #323233;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.card-content {
+  padding: 16px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+  margin-left: 16px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.info-label {
+  margin-bottom: 2px;
+  font-size: 13px;
+  color: #969799;
+}
+
+.info-value {
+  font-size: 14px;
+  color: #323233;
+}
+
+.full-line {
+  grid-column: span 2;
+}
+
+.list-pagination {
+  padding-bottom: 10px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
 .floating-recommend-btn {
   position: fixed;
   bottom: 80px;
@@ -738,7 +868,6 @@ const pageStyle = computed(() => ({
     transform: translateY(0);
   }
 
-  // 确保图标居中
   :deep(.anticon) {
     display: flex;
     align-items: center;
@@ -770,5 +899,41 @@ const pageStyle = computed(() => ({
     align-items: center;
     justify-content: center;
   }
+}
+
+.recommend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recommend-item {
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+}
+
+.item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  color: #323233;
+}
+
+.item-body {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #666;
+}
+
+.drawer-footer {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  padding: 12px;
+  border-top: 1px solid #f0f0f0;
 }
 </style>

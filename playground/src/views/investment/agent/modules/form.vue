@@ -71,7 +71,14 @@ const [Modal, modalApi] = useVbenModal({
   },
   onOpenChange(isOpen) {
     if (isOpen) {
-      /* empty */
+      const data = modalApi.getData<InvestmentAgent>();
+      if (data) {
+        formData.value = data;
+        formApi.setValues(data as any);
+      } else {
+        formData.value = undefined;
+        formApi.resetForm();
+      }
     } else {
       // 模态框关闭时重置表单，避免下次打开时显示旧数据
       formApi.resetForm();
