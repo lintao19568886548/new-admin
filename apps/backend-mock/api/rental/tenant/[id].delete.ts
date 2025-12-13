@@ -12,21 +12,27 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    await prismaClient.salary.updateMany({
-      where: {
-        rentalTenantId,
-      },
-      data: {
-        isDeleted: true,
-      },
+    const result = await prismaClient.$transaction(async (tx) => {
+      await tx.tenantImage.deleteMany({
+        where: {
+          rentalTenantId,
+        },
+      });
+      await tx.salary.updateMany({
+        where: {
+          rentalTenantId,
+        },
+        data: {
+          isDeleted: true,
+        },
+      });
+      await tx.rentalTenant.delete({
+        where: {
+          rentalTenantId,
+        },
+      });
     });
-
-    await prismaClient.rentalTenant.delete({
-      where: {
-        rentalTenantId,
-      },
-    });
-    return useResponseSuccess(null);
+    return useResponseSuccess(result);
   } catch (error) {
     console.error('删除租户失败:', error);
     return serverErrorResponse(`删除租户失败`, event);
