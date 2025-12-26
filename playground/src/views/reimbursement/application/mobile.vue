@@ -454,7 +454,7 @@ onMounted(() => {
           />
         </Form.Item>
 
-        <Form.Item name="images" :label="$t('相关图片(最多9张)')">
+        <Form.Item name="images" :label="$t('相关图片')">
           <Upload
             v-model:file-list="formState.images"
             :action="`${apiURL}/image/upload`"
@@ -464,7 +464,7 @@ onMounted(() => {
             @change="handleChange"
             @preview="handlePreview"
           >
-            <div v-if="formState.images.length < 9">
+            <div>
               <LoadingOutlined v-if="submitting" />
               <div v-else>
                 <div class="text-lg">+</div>
