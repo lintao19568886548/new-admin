@@ -67,6 +67,7 @@ const parkOptions = ref<{ label: string; value: number }[]>([
   { label: '全部区域', value: -1 },
 ]);
 const selectedParkId = ref<number | undefined>(undefined);
+const parkNameMap = ref<Record<number, string>>({});
 
 const loading = ref(false);
 const investmentList = ref<InvestmentAgent[]>([]);
@@ -261,6 +262,11 @@ onMounted(() => {
         ? list.map((p: any) => ({ label: p.parkName, value: p.parkId }))
         : [];
       parkOptions.value = [{ label: '全部区域', value: -1 }, ...options];
+      if (Array.isArray(list)) {
+        parkNameMap.value = Object.fromEntries(
+          list.map((p: any) => [p.parkId as number, String(p.parkName)]),
+        );
+      }
     })
     .catch(() => {
       parkOptions.value = [{ label: '全部区域', value: -1 }];
@@ -283,6 +289,15 @@ function normalizeTel(t: any): string | undefined {
     return s.length > 0 ? s : undefined;
   }
   return undefined;
+}
+
+function resolveParkName(id?: number, name?: string) {
+  const n = (name || '').trim();
+  if (n) return n;
+  if (typeof id === 'number') {
+    return parkNameMap.value[id] || '';
+  }
+  return '';
 }
 
 async function searchNearbyParks(longitude: number, latitude: number) {
@@ -628,15 +643,20 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
                   formatDateTime(item.meetingTime)
                 }}</span>
               </div>
-              <div class="info-item" v-if="item.parkName">
-                <span class="info-label">园区</span>
-                <span class="info-value">{{ item.parkName }}</span>
-              </div>
-              <div class="info-item full-line" v-if="item.remark">
-                <span class="info-label">备注</span>
-                <span class="info-value">{{ item.remark }}</span>
+              <div
+                class="info-item"
+                v-if="resolveParkName(item.parkId, item.parkName)"
+              >
+                <span class="info-label">所在园区</span>
+                <span class="info-value">{{
+                  resolveParkName(item.parkId, item.parkName)
+                }}</span>
               </div>
             </div>
+            <p v-if="item.remark" class="remark-info">
+              <span class="remark-label">备注：</span>
+              <span class="remark-text">{{ item.remark }}</span>
+            </p>
           </div>
         </Card>
         <Pagination
@@ -935,5 +955,30 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
   background: #fff;
   padding: 12px;
   border-top: 1px solid #f0f0f0;
+}
+
+.remark-info {
+  padding: 10px 12px;
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #646566;
+  background-color: #f7f8fa;
+  border-radius: 6px;
+}
+
+.remark-label {
+  margin-right: 4px;
+  font-weight: 600;
+}
+
+.remark-text {
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.dark .remark-info {
+  color: #c0c0c0;
+  background-color: #3a3a3a;
 }
 </style>
