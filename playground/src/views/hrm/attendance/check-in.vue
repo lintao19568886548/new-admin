@@ -83,6 +83,7 @@ const isTodayRecordLoaded = ref(false);
 let map: any = null;
 const currentMarker = ref<any>(null);
 const officeCircles = ref<any[]>([]);
+const locateFn = ref<(() => void) | null>(null);
 
 // 生命周期
 onMounted(async () => {
@@ -97,15 +98,24 @@ onMounted(async () => {
       },
     },
   ]);
+  layoutStore.setOnRefresh(() => {
+    if (!mapInitialized.value || !locateFn.value) {
+      message.info('地图未初始化');
+      return;
+    }
+    locateFn.value();
+  });
   await initMap();
 });
 
 onUnmounted(() => {
   layoutStore.clearHeaderActions();
+  layoutStore.setOnRefresh(null);
   if (map) {
     map = null;
     mapInitialized.value = false;
   }
+  locateFn.value = null;
 });
 
 // 初始化地图
@@ -177,6 +187,7 @@ const initMap = async () => {
       },
     );
   };
+  locateFn.value = locate;
 
   // 创建自定义定位控件
   function CustomLocationControl(this: any) {

@@ -144,14 +144,12 @@ const showPasswordModal = ref(false);
 const { handleRefresh } = usePullToRefresh({
   enabled: true,
   onRefresh: async () => {
-    // 自定义刷新逻辑
-    // 这里可以根据当前路由执行不同的刷新操作
-    const currentRoute = router.currentRoute.value;
-
-    // 可以在这里添加具体的数据刷新逻辑
-    // 比如重新获取用户信息、刷新页面数据等
-    console.warn('刷新页面:', currentRoute.path);
-    window.location.reload();
+    const fn = layoutStore.onRefresh;
+    if (fn) {
+      await fn();
+    } else {
+      window.location.reload();
+    }
   },
   showSuccessMessage: true,
   successMessage: '页面已刷新',

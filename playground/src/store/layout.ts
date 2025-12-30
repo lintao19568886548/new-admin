@@ -58,6 +58,7 @@ interface HeaderAction {
  */
 export const useLayoutStore = defineStore('app-layout', () => {
   const headerActions = ref<HeaderAction[]>([]);
+  const onRefresh = ref<(() => Promise<void> | void) | null>(null);
 
   // 记录初始状态
   const initialState = {
@@ -79,15 +80,22 @@ export const useLayoutStore = defineStore('app-layout', () => {
     headerActions.value = [];
   }
 
+  function setOnRefresh(handler: (() => Promise<void> | void) | null) {
+    onRefresh.value = handler;
+  }
+
   // 重置 Store
   function $reset() {
     headerActions.value = initialState.headerActions;
+    onRefresh.value = null;
   }
 
   return {
     $reset,
     clearHeaderActions,
     headerActions,
+    onRefresh,
     setHeaderActions,
+    setOnRefresh,
   };
 });
