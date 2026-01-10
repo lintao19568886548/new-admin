@@ -18,7 +18,6 @@ import { Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
 import {
-  BulbOutlined,
   EnvironmentOutlined,
   MoreOutlined,
   PlusOutlined,
@@ -688,8 +687,12 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
       :loading="recommendLoading"
       @click="onSmartRecommend"
       class="floating-recommend-btn"
+      title="定位并推荐附近工厂"
     >
-      <BulbOutlined class="text-xl" />
+      <div class="fab-content">
+        <EnvironmentOutlined class="fab-icon" />
+        <span class="fab-text">招商推荐</span>
+      </div>
     </Button>
 
     <Drawer
@@ -888,10 +891,23 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
     transform: translateY(0);
   }
 
-  :deep(.anticon) {
+  .fab-content {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  .fab-icon {
+    font-size: 18px;
+  }
+
+  .fab-text {
+    margin-top: 2px;
+    font-size: 11px;
+    line-height: 1;
   }
 }
 
