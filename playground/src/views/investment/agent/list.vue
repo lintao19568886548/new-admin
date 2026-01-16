@@ -17,6 +17,7 @@ import { Button, Input, message, Modal, Space, Table } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteInvestment, getInvestmentList } from '#/api/investment';
+import { getParkList } from '#/api/park';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
@@ -24,12 +25,12 @@ import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 const currentPark = ref();
-const parkSelectorRef = ref();
 const recommendModalVisible = ref(false);
 const recommendLoading = ref(false);
 const nearbyParks = ref<any[]>([]);
 const manualLocationModalVisible = ref(false);
 const manualAddress = ref('');
+const parkNameMap = ref<Record<number, string>>({});
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -192,8 +193,19 @@ const [Grid, gridApi] = useVbenVxeGrid({
           };
           try {
             const result = await getInvestmentList(params);
+            const items = Array.isArray(result?.items) ? result.items : [];
+            const normalizedItems = items.map((item: any) => {
+              const n = String(item?.parkName || '').trim();
+              if (n) return item;
+              const id = item?.parkId;
+              if (typeof id === 'number') {
+                return { ...item, parkName: parkNameMap.value[id] };
+              }
+              return item;
+            });
             return {
               ...result,
+              items: normalizedItems,
             };
           } catch (error) {
             console.error('获取投资项目列表失败:', error); // 修正错误消息
@@ -229,6 +241,20 @@ const [Grid, gridApi] = useVbenVxeGrid({
 function refreshGrid() {
   gridApi.query();
 }
+
+onMounted(() => {
+  getParkList()
+    .then((list: any[]) => {
+      if (!Array.isArray(list)) return;
+      parkNameMap.value = Object.fromEntries(
+        list.map((p: any) => [Number(p.parkId), String(p.parkName)]),
+      );
+      refreshGrid();
+    })
+    .catch(() => {
+      parkNameMap.value = {};
+    });
+});
 
 /**
  * 获取当前地理位置
@@ -528,7 +554,6 @@ const recommendColumns = [
           :default-park="currentPark"
           :refresh-callback="refreshGrid"
           @change="(park) => (currentPark = park)"
-          ref="parkSelectorRef"
         />
       </template>
       <template #toolbar-tools>

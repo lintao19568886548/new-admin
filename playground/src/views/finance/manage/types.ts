@@ -7,6 +7,7 @@ export interface FinanceItem {
   financeId: number; // 主键ID
   images?: { url: string }[]; // 图片
   parkId?: number; // 园区ID
+  parkName?: string; // 园区名称
   remark?: string; // 备注
   transactionTime: string; // 交易时间
   transactionType: string; // 交易类型（收入/支出）

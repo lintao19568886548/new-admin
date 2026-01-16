@@ -15,6 +15,7 @@ import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteFinance, getFinanceList } from '#/api/finance';
+import { getParkList } from '#/api/park';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { usePlatform } from '#/hooks/usePlatform';
 import { $t } from '#/locales';
@@ -33,11 +34,23 @@ const [FormModal, formModalApi] = useVbenModal({
 // 当前选中的区域
 const currentPark = ref();
 const parkSelectorRef = ref();
+const parkNameMap = ref<Record<number, string>>({});
 
 // 组件挂载后初始化查询
 onMounted(() => {
-  // 初始加载数据
-  gridApi.query();
+  getParkList()
+    .then((list: any[]) => {
+      if (!Array.isArray(list)) return;
+      parkNameMap.value = Object.fromEntries(
+        list.map((p: any) => [Number(p.parkId), String(p.parkName)]),
+      );
+    })
+    .catch(() => {
+      parkNameMap.value = {};
+    })
+    .finally(() => {
+      gridApi.query();
+    });
 });
 
 const [Grid, gridApi] = useVbenVxeGrid({
@@ -94,15 +107,29 @@ const [Grid, gridApi] = useVbenVxeGrid({
             const response = await getFinanceList(cleanParams);
             console.warn('获取到的响应数据:', response);
 
-            return response;
+            const items = Array.isArray(response?.items) ? response.items : [];
+            const normalizedItems = items.map((item: any) => {
+              const n = String(item?.parkName || '').trim();
+              if (n) return item;
+              const id = item?.parkId;
+              if (typeof id === 'number') {
+                return { ...item, parkName: parkNameMap.value[id] };
+              }
+              return item;
+            });
+
+            return {
+              ...response,
+              items: normalizedItems,
+            };
           } catch (error) {
             console.error('获取财务数据失败:', error);
             message.error('获取账单列表失败');
             return {
-              page: {
-                total: 0,
-              },
-              result: [],
+              currentPage: page.page?.currentPage || 1,
+              pageSize: page.page?.pageSize || 20,
+              total: 0,
+              items: [],
             };
           }
         },

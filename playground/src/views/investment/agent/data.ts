@@ -254,6 +254,11 @@ export function useColumns<T = InvestmentAgent>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
+      field: 'parkName',
+      minWidth: 160,
+      title: $t('page.park.name'),
+    },
+    {
       field: 'tenantName',
       minWidth: 150,
       title: $t('page.tenant.name'),
@@ -263,6 +268,7 @@ export function useColumns<T = InvestmentAgent>(
       minWidth: 150,
       title: $t('page.agent.name'),
     },
+
     {
       cellRender: {
         name: 'CellTag',

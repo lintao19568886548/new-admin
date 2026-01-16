@@ -135,6 +135,11 @@ export default eventHandler(async (event) => {
           image: true,
         },
       },
+      park: {
+        select: {
+          parkName: true,
+        },
+      },
     },
     orderBy: {
       meetingTime: 'desc',
@@ -153,6 +158,8 @@ export default eventHandler(async (event) => {
       ...item,
       imageUrlList: imageUrls,
       images: undefined, // 移除原始images字段
+      parkName: item.park?.parkName,
+      park: undefined,
     };
   });
 

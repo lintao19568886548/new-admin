@@ -238,6 +238,11 @@ export function useColumns<T = FinanceItem>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
+      field: 'parkName',
+      minWidth: 140,
+      title: $t('page.park.item'),
+    },
+    {
       field: 'billName',
       minWidth: 200,
       title: $t('page.finance.billName'),
