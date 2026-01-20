@@ -11,6 +11,16 @@ const routes: RouteRecordRaw[] = [
     name: 'Notices',
     path: '/notices',
   },
+  {
+    component: () => import('#/views/notices/mobile-list.vue'),
+    meta: {
+      activePath: '/notices',
+      hideMenu: true,
+      title: '公告列表',
+    },
+    name: 'NoticesMobile',
+    path: '/notices/mobile',
+  },
 ];
 
 export default routes;
