@@ -1,0 +1,27 @@
+generator client {
+  provider      = "prisma-client"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  output        = "../../node_modules/@prisma/.prisma/notices-client"
+}
+
+datasource db {
+  provider     = "mysql"
+  relationMode = "prisma"
+}
+
+model Notice {
+  noticeId    String   @id @map("notice_id") @db.VarChar(64)
+  title       String   @db.VarChar(500)
+  date        String   @db.VarChar(14)
+  type        String?  @db.VarChar(50)
+  category    String?  @db.VarChar(100)
+  projectType String?  @map("project_type") @db.VarChar(200)
+  owner       String?  @db.VarChar(200)
+  platform    String?  @db.VarChar(200)
+  link        String?  @db.VarChar(1000)
+  createdAt   DateTime @map("created_at") @db.DateTime(0)
+  updatedAt   DateTime @map("updated_at") @db.DateTime(0)
+
+  @@index([date])
+  @@map("notices")
+}

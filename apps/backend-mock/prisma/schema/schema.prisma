@@ -5,13 +5,12 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider      = "prisma-client-js"
+  provider      = "prisma-client"
   binaryTargets = ["native", "debian-openssl-3.0.x"]
   output        = "../../node_modules/@prisma/.prisma/client"
 }
 
 datasource db {
   provider     = "mysql"
-  url          = env("DATABASE_URL")
   relationMode = "prisma"
 }
