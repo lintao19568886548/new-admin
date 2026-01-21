@@ -25,6 +25,7 @@
     "@faker-js/faker": "catalog:",
     "@prisma/adapter-mariadb": "^7.0.0",
     "@prisma/client": "^7.0.0",
+    "@prisma/client-runtime-utils": "^7.0.0",
     "axios": "^1.8.4",
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^11.9.1",
