@@ -1,4 +1,11 @@
+import { getQuery } from 'h3';
 import { prismaClient } from '~/utils/db';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  unAuthorizedResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -34,35 +41,19 @@ export default eventHandler(async (event) => {
   }
 
   // 区域查询
-  if (currentPark) {
-    if (Number(currentPark) === -1) {
-      // 选择全部区域时,直接查询全部有权限的园区
-      const parks = await prismaClient.park.findMany({
-        where: {
-          parkId: {
-            in: userinfo.parks.map((park) => park.parkId),
-          },
-        },
-        select: { parkId: true },
-      });
+  if (currentPark !== undefined) {
+    const authorizedParkIds = (userinfo.parks || []).map((park) =>
+      Number(park.parkId),
+    );
+    if (authorizedParkIds.length === 0) {
+      return useResponseSuccess({ items: [], total: 0 });
+    }
 
-      if (parks.length > 0) {
-        where.parkId = {
-          in: parks.map((park) => park.parkId),
-        };
-      }
-    } else if (
-      userinfo.parks.map((park) => park.parkId).includes(Number(currentPark))
-    ) {
-      // 当用户有权限查看特定园区时
-      const park = await prismaClient.park.findFirst({
-        where: { parkId: Number(currentPark) },
-        select: { parkId: true },
-      });
-
-      if (park) {
-        where.parkId = park.parkId;
-      }
+    const parkIdToFilter = Number(currentPark);
+    if (parkIdToFilter === -1) {
+      where.parkId = { in: authorizedParkIds };
+    } else if (authorizedParkIds.includes(parkIdToFilter)) {
+      where.parkId = parkIdToFilter;
     } else {
       return useResponseError('没有查看权限');
     }

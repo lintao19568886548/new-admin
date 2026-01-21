@@ -1,16 +1,16 @@
 <script lang="ts" setup>
+import type { Dayjs } from 'dayjs';
+
 import type { Firefighting } from '#/api/maintenance';
 
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, onUnmounted, reactive, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
-import { Plus, Search } from '@vben/icons';
+import { Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
 import {
   Button,
-  Collapse,
-  DatePicker,
   Empty,
   Form,
   Input,
@@ -23,7 +23,10 @@ import {
 } from 'ant-design-vue';
 
 import { deleteFirefighting, getFirefightingList } from '#/api/maintenance';
-import AreaSelector from '#/components/AreaSelector.vue';
+import { getParkList as fetchParks } from '#/api/park';
+import MobileDateRange from '#/components/MobileDateRange.vue';
+import { $t } from '#/locales';
+import { useLayoutStore } from '#/store/layout';
 
 import FormComponent from './modules/form.vue';
 
@@ -39,13 +42,11 @@ const STATUS_OPTIONS = Object.values(STATUS_MAP).map((s) => ({
   value: s.text,
 }));
 
-const activeKey = ref([]);
-
 // Store and reactive data
 // const userStore = useUserStore();
 const loading = ref(false);
 const list = ref<Firefighting[]>([]);
-const currentPark = ref<null | { parkId: string; parkName: string }>(null);
+const parkOptions = ref<{ label: string; value: number }[]>([]);
 
 // Pagination
 const pagination = reactive({
@@ -55,12 +56,20 @@ const pagination = reactive({
 });
 
 // Search form
-const searchForm = reactive({
+const searchForm = reactive<{
+  checker: '';
+  checkTime?: [Dayjs | undefined, Dayjs | undefined];
+  extinguisher: undefined;
+  fireExit: undefined;
+  hydrant: undefined;
+  parkId?: number;
+}>({
   checker: '',
-  checkTime: [] as [] | [string, string],
+  checkTime: undefined,
   extinguisher: undefined,
   fireExit: undefined,
   hydrant: undefined,
+  parkId: undefined,
 });
 
 // Modal
@@ -69,27 +78,78 @@ const [FormModal, formModalApi] = useVbenModal({
   destroyOnClose: true,
 });
 
+const layoutStore = useLayoutStore();
+
+function getParkName(record: Firefighting) {
+  const currentPark = (record as any)?.currentPark;
+  const parkFromObj = (record as any)?.park?.parkId;
+  const parkId =
+    record.parkId ??
+    (currentPark === null || currentPark === undefined
+      ? undefined
+      : Number(currentPark)) ??
+    (parkFromObj === null || parkFromObj === undefined
+      ? undefined
+      : Number(parkFromObj));
+  if (!parkId && parkId !== 0) return '';
+  return parkOptions.value.find((p) => p.value === Number(parkId))?.label ?? '';
+}
+
+function processFormParams(values: Record<string, any>) {
+  const params: Record<string, any> = {};
+  if (values.parkId !== undefined) {
+    params.currentPark = Number(values.parkId);
+  }
+  if (values.checker) {
+    params.checker = values.checker;
+  }
+  if (values.extinguisher !== undefined && values.extinguisher !== '') {
+    params.extinguisher = values.extinguisher;
+  }
+  if (values.hydrant !== undefined && values.hydrant !== '') {
+    params.hydrant = values.hydrant;
+  }
+  if (values.fireExit !== undefined && values.fireExit !== '') {
+    params.fireExit = values.fireExit;
+  }
+  if (
+    Array.isArray(values.checkTime) &&
+    values.checkTime.length === 2 &&
+    values.checkTime[0] &&
+    values.checkTime[1]
+  ) {
+    params.startTime = (values.checkTime[0] as Dayjs)
+      .startOf('day')
+      .toISOString();
+    params.endTime = (values.checkTime[1] as Dayjs).endOf('day').toISOString();
+  }
+  return params;
+}
+
+async function fetchParkOptions() {
+  try {
+    const parks = await fetchParks();
+    parkOptions.value = (parks || []).map((p: any) => ({
+      label: p.parkName,
+      value: Number(p.parkId),
+    }));
+  } catch (error) {
+    console.error('获取园区列表失败:', error);
+  }
+}
+
 // Methods
 async function fetchData() {
   loading.value = true;
   try {
-    const queryParams: Record<string, any> = { ...searchForm };
-
-    if (queryParams.checkTime && queryParams.checkTime.length === 2) {
-      queryParams.startTime = `${queryParams.checkTime[0]} 00:00:00`;
-      queryParams.endTime = `${queryParams.checkTime[1]} 23:59:59`;
-    }
-    delete queryParams.checkTime;
-
     const params = {
-      ...queryParams,
+      ...processFormParams(searchForm),
       currentPage: pagination.current,
-      currentPark: currentPark.value?.parkId ?? -1,
-      limit: pagination.pageSize,
+      pageSize: pagination.pageSize,
     };
     const result = await getFirefightingList(params);
     list.value = result.items || [];
-    pagination.total = result.total || 0;
+    pagination.total = result.page?.total || result.total || 0;
   } catch (error) {
     console.error('Failed to fetch firefighting list:', error);
     message.error('获取列表失败');
@@ -106,10 +166,11 @@ function handleSearch() {
 }
 
 function resetSearch() {
+  searchForm.parkId = undefined;
   searchForm.extinguisher = undefined;
   searchForm.hydrant = undefined;
   searchForm.fireExit = undefined;
-  searchForm.checkTime = [];
+  searchForm.checkTime = undefined;
   searchForm.checker = '';
   handleSearch();
 }
@@ -118,11 +179,6 @@ function handlePageChange(page: number, pageSize: number) {
   pagination.current = page;
   pagination.pageSize = pageSize;
   fetchData();
-}
-
-function handleAreaChange(park: any) {
-  currentPark.value = park;
-  handleSearch();
 }
 
 function onCreate() {
@@ -153,86 +209,88 @@ function onDelete(record: Firefighting) {
 
 // Lifecycle
 onMounted(() => {
-  // if (userStore.userInfo?.parks?.[0]) {
-  //   currentPark.value = userStore.userInfo.parks[0];
-  // }
+  fetchParkOptions();
   fetchData();
+  layoutStore.setHeaderActions([
+    {
+      key: 'add-firefighting',
+      onClick: () => onCreate(),
+      text: $t('page.common.add'),
+    },
+  ]);
+});
+
+onUnmounted(() => {
+  layoutStore.clearHeaderActions();
 });
 </script>
 
 <template>
   <div class="mobile-maint-container">
     <FormModal @success="fetchData" />
-    <header class="page-header">
-      <h2 class="page-title">消防维保记录</h2>
-      <AreaSelector
-        :default-park="
-          currentPark
-            ? { ...currentPark, parkId: Number(currentPark.parkId) }
-            : undefined
-        "
-        :refresh-callback="fetchData"
-        @change="handleAreaChange"
-      />
-    </header>
-
-    <Collapse v-model:active-key="activeKey" ghost>
-      <Collapse.Panel key="1" header="搜索条件">
-        <div class="search-filters">
-          <Form layout="vertical">
-            <Form.Item label="灭火器检查">
-              <Select
-                v-model:value="searchForm.extinguisher"
-                :options="STATUS_OPTIONS"
-                placeholder="选择状态"
-                allow-clear
-              />
-            </Form.Item>
-            <Form.Item label="消防栓检查">
-              <Select
-                v-model:value="searchForm.hydrant"
-                :options="STATUS_OPTIONS"
-                placeholder="选择状态"
-                allow-clear
-              />
-            </Form.Item>
-            <Form.Item label="安全通道检查">
-              <Select
-                v-model:value="searchForm.fireExit"
-                :options="STATUS_OPTIONS"
-                placeholder="选择状态"
-                allow-clear
-              />
-            </Form.Item>
-            <Form.Item label="检查人">
-              <Input
-                v-model:value="searchForm.checker"
-                placeholder="搜索检查人"
-                allow-clear
-              />
-            </Form.Item>
-            <Form.Item label="检查时间">
-              <DatePicker.RangePicker
-                v-model:value="
-                  searchForm.checkTime as [string, string] | undefined
-                "
-                class="w-full"
-                value-format="YYYY-MM-DD"
-              />
-            </Form.Item>
-            <div class="search-actions">
-              <Button type="primary" @click="handleSearch" block>
-                <Search class="mr-1 h-4 w-4" />
-                搜索
-              </Button>
-              <Button @click="resetSearch" block style="margin-top: 8px">
-                重置
-              </Button>
-            </div>
-          </Form>
+    <div class="search-filters">
+      <Form layout="vertical" :model="searchForm">
+        <div>
+          <Form.Item :label="$t('page.park.item')">
+            <Select
+              v-model:value="searchForm.parkId"
+              :options="parkOptions"
+              allow-clear
+              :placeholder="$t('page.common.selectPark')"
+            />
+          </Form.Item>
         </div>
-      </Collapse.Panel>
-    </Collapse>
+        <div>
+          <Form.Item label="检查人">
+            <Input
+              v-model:value="searchForm.checker"
+              placeholder="请输入检查人"
+              allow-clear
+            />
+          </Form.Item>
+        </div>
+        <div>
+          <Form.Item label="检查时间">
+            <MobileDateRange v-model:value="searchForm.checkTime" />
+          </Form.Item>
+        </div>
+        <div class="status-row">
+          <Form.Item label="灭火器检查" class="status-item">
+            <Select
+              v-model:value="searchForm.extinguisher"
+              :options="STATUS_OPTIONS"
+              placeholder="选择状态"
+              allow-clear
+            />
+          </Form.Item>
+          <Form.Item label="消防栓检查" class="status-item">
+            <Select
+              v-model:value="searchForm.hydrant"
+              :options="STATUS_OPTIONS"
+              placeholder="选择状态"
+              allow-clear
+            />
+          </Form.Item>
+          <Form.Item label="安全通道检查" class="status-item">
+            <Select
+              v-model:value="searchForm.fireExit"
+              :options="STATUS_OPTIONS"
+              placeholder="选择状态"
+              allow-clear
+            />
+          </Form.Item>
+        </div>
+        <div class="search-actions">
+          <Button type="primary" @click="handleSearch" class="flex-1">
+            <Search class="mr-1 h-4 w-4" />
+            {{ $t('common.search') }}
+          </Button>
+          <Button @click="resetSearch" class="flex-1">
+            {{ $t('common.reset') }}
+          </Button>
+        </div>
+      </Form>
+    </div>
 
     <div class="content-area">
       <Spin :spinning="loading" tip="加载中...">
@@ -244,9 +302,11 @@ onMounted(() => {
           >
             <div class="card-header">
               <span class="maint-item">{{ item.factory }}</span>
-              <span class="checker">检查人: {{ item.checker }}</span>
             </div>
             <div class="card-body">
+              <p v-if="getParkName(item)">
+                <strong>园区:</strong> {{ getParkName(item) }}
+              </p>
               <p>
                 <strong>灭火器:</strong>
                 <Tag :color="STATUS_MAP[item.extinguisher]?.color || 'default'">
@@ -265,6 +325,8 @@ onMounted(() => {
                   {{ STATUS_MAP[item.fireExit]?.text || item.fireExit }}
                 </Tag>
               </p>
+              <p><strong>检查人:</strong> {{ item.checker }}</p>
+
               <p>
                 <strong>检查时间:</strong> {{ formatDateTime(item.checkTime) }}
               </p>
@@ -297,16 +359,6 @@ onMounted(() => {
         <Empty v-else :description="loading ? '加载中...' : '暂无记录'" />
       </Spin>
     </div>
-    <div class="fab-container">
-      <Button
-        type="primary"
-        shape="circle"
-        @click="onCreate"
-        class="fab-button"
-      >
-        <Plus class="size-6" />
-      </Button>
-    </div>
   </div>
 </template>
 
@@ -314,32 +366,35 @@ onMounted(() => {
 .mobile-maint-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
   background-color: #f0f2f5;
 }
 
-.page-header {
-  z-index: 10;
-  padding: 10px 10px 0;
-  background-color: #fff;
-  box-shadow: 0 2px 8px #f0f1f2;
-}
-
-.page-title {
-  margin: 0 0 8px;
-  font-size: 1.2em;
-  font-weight: bold;
-  text-align: center;
-}
-
 .search-filters {
-  padding: 12px;
+  padding: 12px 8px;
+  margin-bottom: 8px;
   background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
 }
 
 .search-filters .ant-form-item {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+}
+
+.status-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.status-item {
+  margin-bottom: 0;
+}
+
+.search-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .content-area {
@@ -356,7 +411,7 @@ onMounted(() => {
 .maint-card {
   padding: 12px;
   margin-bottom: 8px;
-  font-size: 0.9em;
+  font-size: 14px;
   background-color: #fff;
   border-radius: 6px;
   box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
@@ -373,7 +428,7 @@ onMounted(() => {
 
 .maint-item {
   font-size: 1.1em;
-  font-weight: bold;
+  font-weight: 400;
 }
 
 .checker {
@@ -382,7 +437,7 @@ onMounted(() => {
 }
 
 .card-body p {
-  margin-bottom: 5px;
+  margin-bottom: 8px;
   line-height: 1.5;
 }
 
@@ -390,32 +445,25 @@ onMounted(() => {
   display: inline-block;
   width: 70px; /* Align labels */
   margin-right: 4px;
-  color: #555;
+  font-weight: 400;
+  color: inherit;
+}
+
+.card-body {
+  font-size: 14px;
+  color: #000000d9;
 }
 
 .card-footer {
   display: flex;
   gap: 8px;
-  justify-content: flex-end;
+  justify-content: center;
   margin-top: 12px;
 }
 
 .list-pagination {
   padding: 16px 0;
   text-align: center;
-}
-
-.fab-container {
-  position: fixed;
-  right: 16px;
-  bottom: 24px;
-  z-index: 100;
-}
-
-.fab-button {
-  width: 50px;
-  height: 50px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
 }
 
 :deep(.ant-empty-description) {

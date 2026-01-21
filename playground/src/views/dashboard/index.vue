@@ -276,7 +276,7 @@ function goVisitorManagement() {
             />
             <h1 class="banner-title">工作台</h1>
           </div>
-          <p class="banner-subtitle">快速进入应用 · 智能导航 · 科技感满满</p>
+          <!-- <p class="banner-subtitle">快速进入应用 · 智能导航 · 科技感满满</p> -->
           <div class="banner-count">共 {{ totalApps }} 个应用</div>
         </div>
         <div class="banner-search w-full max-w-md sm:w-auto">

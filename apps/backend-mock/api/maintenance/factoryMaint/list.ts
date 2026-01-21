@@ -1,7 +1,11 @@
 import { getQuery } from 'h3';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import {
+  unAuthorizedResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -30,28 +34,19 @@ export default eventHandler(async (event) => {
   const where: any = {};
 
   // 区域查询 (currentPark)
-  // 注意: factoryMaintenance 模型当前没有直接的 parkId 字段。
-  // 下面的逻辑检查用户是否有权访问某个园区，但不会直接在 factoryMaintenance 上按 parkId 筛选。
-  // 如果需要按园区筛选厂房维护记录，您可能需要：
-  // 1. 在 factoryMaintenance 模型中添加 parkId。
-  // 2. 或者，查询指定园区下的所有厂房，然后根据这些厂房ID筛选维护记录。
-  if (currentPark) {
+  if (currentPark !== undefined) {
+    const authorizedParkIds = (userinfo.parks || []).map((park) =>
+      Number(park.parkId),
+    );
+    if (authorizedParkIds.length === 0) {
+      return useResponseSuccess({ items: [], total: 0 });
+    }
+
     const parkIdToFilter = Number(currentPark);
     if (parkIdToFilter === -1) {
-      // 查看所有有权限的园区
-      const userHasAccessToAnyPark =
-        userinfo.parks && userinfo.parks.length > 0;
-      if (!userHasAccessToAnyPark) {
-        // 如果用户没有任何园区权限，但尝试查看“全部”，则可能返回空或错误
-        // Depending on desired behavior, could return empty or an error
-        // For now, this won't add a DB filter, but implies broad access if parks exist
-      }
-      // No direct where.parkId filter here as factoryMaintenance lacks parkId
-    } else if (
-      userinfo.parks.map((park) => park.parkId).includes(parkIdToFilter)
-    ) {
-      // 用户有权限查看特定园区
-      // No direct where.parkId filter here
+      where.factory = { parkId: { in: authorizedParkIds } };
+    } else if (authorizedParkIds.includes(parkIdToFilter)) {
+      where.factory = { parkId: parkIdToFilter };
     } else {
       return useResponseError('没有查看权限');
     }

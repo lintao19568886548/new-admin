@@ -1,16 +1,16 @@
 <script lang="ts" setup>
+import type { Dayjs } from 'dayjs';
+
 import type { HygieneCheck } from '#/api/maintenance';
 
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, onUnmounted, reactive, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
-import { Plus, Search } from '@vben/icons';
+import { Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
 import {
   Button,
-  Collapse,
-  DatePicker,
   Empty,
   Form,
   Input,
@@ -23,9 +23,14 @@ import {
 } from 'ant-design-vue';
 
 import { deleteHygieneCheck, getHygieneCheckList } from '#/api/maintenance';
-import AreaSelector from '#/components/AreaSelector.vue';
+import { getParkList as fetchParks } from '#/api/park';
+import MobileDateRange from '#/components/MobileDateRange.vue';
+import { $t } from '#/locales';
+import { useLayoutStore } from '#/store/layout';
 
 import FormComponent from './modules/form.vue';
+
+type HygieneCheckRow = HygieneCheck & { park?: string };
 
 // 状态颜色映射
 const STATUS_MAP: Record<string, { color: string; text: string }> = {
@@ -38,52 +43,97 @@ const STATUS_OPTIONS = Object.values(STATUS_MAP).map((s) => ({
   value: s.text,
 }));
 
-const activeKey = ref([]);
-
-// Store and reactive data
-// const userStore = useUserStore();
 const loading = ref(false);
-const list = ref<HygieneCheck[]>([]);
-const currentPark = ref<null | { parkId: string; parkName: string }>(null);
+const list = ref<HygieneCheckRow[]>([]);
+const parkOptions = ref<{ label: string; value: number }[]>([]);
 
-// Pagination
 const pagination = reactive({
   current: 1,
   pageSize: 10,
   total: 0,
 });
 
-// Search form
-const searchForm = reactive({
-  checkDate: [] as [] | [string, string],
+const searchForm = reactive<{
+  checkDate?: [Dayjs | undefined, Dayjs | undefined];
+  checker: string;
+  checkItems: string;
+  checkResult?: string;
+  parkId?: number;
+}>({
+  checkDate: undefined,
   checker: '',
   checkItems: '',
   checkResult: undefined,
+  parkId: undefined,
 });
 
-// Modal
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: FormComponent,
   destroyOnClose: true,
 });
 
-// Methods
+const layoutStore = useLayoutStore();
+
+function getParkName(record: HygieneCheckRow) {
+  const direct = String((record as any)?.park ?? '').trim();
+  if (direct) return direct;
+
+  const parkId = (record as any)?.parkId;
+  if (parkId === undefined || parkId === null || parkId === '') return '';
+  return parkOptions.value.find((p) => p.value === Number(parkId))?.label ?? '';
+}
+
+function processFormParams(values: Record<string, any>) {
+  const params: Record<string, any> = {};
+
+  params.currentPark = values.parkId === undefined ? -1 : Number(values.parkId);
+
+  if (values.checkItems) {
+    params.checkItems = String(values.checkItems).trim();
+  }
+
+  if (values.checker) {
+    params.checker = String(values.checker).trim();
+  }
+
+  if (values.checkResult) {
+    params.checkResult = values.checkResult;
+  }
+
+  if (
+    Array.isArray(values.checkDate) &&
+    values.checkDate.length === 2 &&
+    values.checkDate[0] &&
+    values.checkDate[1]
+  ) {
+    params.startTime = (values.checkDate[0] as Dayjs)
+      .startOf('day')
+      .toISOString();
+    params.endTime = (values.checkDate[1] as Dayjs).endOf('day').toISOString();
+  }
+
+  return params;
+}
+
+async function fetchParkOptions() {
+  try {
+    const parks = await fetchParks();
+    parkOptions.value = (parks || []).map((p: any) => ({
+      label: p.parkName,
+      value: Number(p.parkId),
+    }));
+  } catch (error) {
+    console.error('获取园区列表失败:', error);
+  }
+}
+
 async function fetchData() {
   loading.value = true;
   try {
-    const queryParams: Record<string, any> = { ...searchForm };
-
-    if (queryParams.checkDate && queryParams.checkDate.length === 2) {
-      queryParams.startTime = `${queryParams.checkDate[0]} 00:00:00`;
-      queryParams.endTime = `${queryParams.checkDate[1]} 23:59:59`;
-    }
-    delete queryParams.checkDate;
-
     const params = {
-      ...queryParams,
+      ...processFormParams(searchForm),
       currentPage: pagination.current,
-      currentPark: currentPark.value?.parkId ?? -1,
-      limit: pagination.pageSize,
+      pageSize: pagination.pageSize,
     };
     const result = await getHygieneCheckList(params);
     list.value = result.items || [];
@@ -104,10 +154,11 @@ function handleSearch() {
 }
 
 function resetSearch() {
+  searchForm.parkId = undefined;
   searchForm.checkItems = '';
   searchForm.checkResult = undefined;
   searchForm.checker = '';
-  searchForm.checkDate = [];
+  searchForm.checkDate = undefined;
   handleSearch();
 }
 
@@ -115,11 +166,6 @@ function handlePageChange(page: number, pageSize: number) {
   pagination.current = page;
   pagination.pageSize = pageSize;
   fetchData();
-}
-
-function handleAreaChange(park: any) {
-  currentPark.value = park;
-  handleSearch();
 }
 
 function onCreate() {
@@ -148,79 +194,82 @@ function onDelete(record: HygieneCheck) {
   });
 }
 
-// Lifecycle
 onMounted(() => {
-  // if (userStore.userInfo?.parks?.[0]) {
-  //   currentPark.value = userStore.userInfo.parks[0];
-  // }
+  fetchParkOptions();
   fetchData();
+  layoutStore.setHeaderActions([
+    {
+      key: 'add-hygieneCheck',
+      onClick: () => onCreate(),
+      text: $t('page.common.add'),
+    },
+  ]);
+});
+
+onUnmounted(() => {
+  layoutStore.clearHeaderActions();
 });
 </script>
 
 <template>
   <div class="mobile-maint-container">
     <FormModal @success="fetchData" />
-    <header class="page-header">
-      <h2 class="page-title">卫生检查记录</h2>
-      <AreaSelector
-        :default-park="
-          currentPark
-            ? { ...currentPark, parkId: Number(currentPark.parkId) }
-            : undefined
-        "
-        :refresh-callback="fetchData"
-        @change="handleAreaChange"
-      />
-    </header>
-
-    <Collapse v-model:active-key="activeKey" ghost>
-      <Collapse.Panel key="1" header="搜索条件">
-        <div class="search-filters">
-          <Form layout="vertical">
-            <Form.Item label="检查项目">
-              <Input
-                v-model:value="searchForm.checkItems"
-                placeholder="搜索检查项目"
-                allow-clear
-              />
-            </Form.Item>
-            <Form.Item label="检查结果">
-              <Select
-                v-model:value="searchForm.checkResult"
-                :options="STATUS_OPTIONS"
-                placeholder="选择结果"
-                allow-clear
-              />
-            </Form.Item>
-            <Form.Item label="检查人">
-              <Input
-                v-model:value="searchForm.checker"
-                placeholder="搜索检查人"
-                allow-clear
-              />
-            </Form.Item>
-            <Form.Item label="检查日期">
-              <DatePicker.RangePicker
-                v-model:value="
-                  searchForm.checkDate as [string, string] | undefined
-                "
-                class="w-full"
-                value-format="YYYY-MM-DD"
-              />
-            </Form.Item>
-            <div class="search-actions">
-              <Button type="primary" @click="handleSearch" block>
-                <Search class="mr-1 h-4 w-4" />
-                搜索
-              </Button>
-              <Button @click="resetSearch" block style="margin-top: 8px">
-                重置
-              </Button>
-            </div>
-          </Form>
+    <div class="search-filters">
+      <Form layout="vertical" :model="searchForm">
+        <div>
+          <Form.Item :label="$t('page.park.item')">
+            <Select
+              v-model:value="searchForm.parkId"
+              :options="parkOptions"
+              allow-clear
+              :placeholder="$t('page.common.selectPark')"
+            />
+          </Form.Item>
         </div>
-      </Collapse.Panel>
-    </Collapse>
+        <div>
+          <Form.Item label="检查项目">
+            <Input
+              v-model:value="searchForm.checkItems"
+              placeholder="搜索检查项目"
+              allow-clear
+            />
+          </Form.Item>
+        </div>
+        <div>
+          <Form.Item label="检查人">
+            <Input
+              v-model:value="searchForm.checker"
+              placeholder="搜索检查人"
+              allow-clear
+            />
+          </Form.Item>
+        </div>
+        <div>
+          <Form.Item label="检查日期">
+            <MobileDateRange v-model:value="searchForm.checkDate" />
+          </Form.Item>
+        </div>
+        <div>
+          <Form.Item label="检查结果">
+            <Select
+              v-model:value="searchForm.checkResult"
+              :options="STATUS_OPTIONS"
+              placeholder="选择结果"
+              allow-clear
+            />
+          </Form.Item>
+        </div>
+        <div class="search-actions">
+          <Button type="primary" @click="handleSearch" class="flex-1">
+            <Search class="mr-1 h-4 w-4" />
+            {{ $t('common.search') }}
+          </Button>
+          <Button @click="resetSearch" class="flex-1">
+            {{ $t('common.reset') }}
+          </Button>
+        </div>
+      </Form>
+    </div>
     <div class="content-area">
       <Spin :spinning="loading" tip="加载中...">
         <div v-if="list.length > 0" class="maint-list">
@@ -236,6 +285,9 @@ onMounted(() => {
               </Tag>
             </div>
             <div class="card-body">
+              <p v-if="getParkName(item)">
+                <strong>园区:</strong> {{ getParkName(item) }}
+              </p>
               <p><strong>检查项目:</strong> {{ item.checkItems }}</p>
               <p><strong>检查人:</strong> {{ item.checker }}</p>
               <p>
@@ -270,16 +322,6 @@ onMounted(() => {
         <Empty v-else :description="loading ? '加载中...' : '暂无记录'" />
       </Spin>
     </div>
-    <div class="fab-container">
-      <Button
-        type="primary"
-        shape="circle"
-        @click="onCreate"
-        class="fab-button"
-      >
-        <Plus class="size-6" />
-      </Button>
-    </div>
   </div>
 </template>
 
@@ -287,32 +329,29 @@ onMounted(() => {
 .mobile-maint-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
   background-color: #f0f2f5;
 }
 
-.page-header {
-  z-index: 10;
-  padding: 10px 10px 0;
-  background-color: #fff;
-  box-shadow: 0 2px 8px #f0f1f2;
-}
-
-.page-title {
-  margin: 0 0 8px;
-  font-size: 1.2em;
-  font-weight: bold;
-  text-align: center;
-}
-
 .search-filters {
-  padding: 12px;
+  padding: 12px 8px;
+  margin-bottom: 8px;
   background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
 }
 
 .search-filters .ant-form-item {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+}
+
+.search-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.flex-1 {
+  flex: 1;
 }
 
 .content-area {
@@ -323,13 +362,13 @@ onMounted(() => {
 }
 
 .maint-list {
-  padding-bottom: 60px; /* Space for FAB */
+  padding-bottom: 60px;
 }
 
 .maint-card {
   padding: 12px;
   margin-bottom: 8px;
-  font-size: 0.9em;
+  font-size: 14px;
   background-color: #fff;
   border-radius: 6px;
   box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
@@ -346,44 +385,37 @@ onMounted(() => {
 
 .maint-item {
   font-size: 1.1em;
-  font-weight: bold;
+  font-weight: 400;
+}
+
+.card-body {
+  font-size: 14px;
+  color: #000000d9;
 }
 
 .card-body p {
-  margin-bottom: 5px;
+  margin-bottom: 8px;
   line-height: 1.5;
 }
 
 .card-body p strong {
   display: inline-block;
-  width: 70px; /* Align labels */
+  width: 70px;
   margin-right: 4px;
-  color: #555;
+  font-weight: 400;
+  color: inherit;
 }
 
 .card-footer {
   display: flex;
   gap: 8px;
-  justify-content: flex-end;
+  justify-content: center;
   margin-top: 12px;
 }
 
 .list-pagination {
   padding: 16px 0;
   text-align: center;
-}
-
-.fab-container {
-  position: fixed;
-  right: 16px;
-  bottom: 24px;
-  z-index: 100;
-}
-
-.fab-button {
-  width: 50px;
-  height: 50px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
 }
 
 :deep(.ant-empty-description) {

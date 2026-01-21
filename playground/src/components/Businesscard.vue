@@ -316,7 +316,7 @@ async function downloadCard() {
 
           <div class="taglines">
             <div class="tagline">智能物业管理平台 | 智慧公寓管理平台</div>
-            <div class="tagline">智慧能源管理云平台 | 远程抄表管理系统</div>
+            <div class="tagline">智慧能源管理平台 | 远程抄表管理系统</div>
           </div>
         </div>
       </div>
