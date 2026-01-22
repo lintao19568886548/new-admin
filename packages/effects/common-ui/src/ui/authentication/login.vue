@@ -330,14 +330,17 @@ defineExpose({
     <!-- 隐私政策弹窗 -->
     <VbenModal
       v-model:open="showPrivacyModal"
-      :title="$t('authentication.privacyPolicy', '隐私政策')"
+      :title="$t('authentication.privacyPolicy', '隐私协议')"
+      class="mobile-small-modal"
       :class="PRIVACY_POLICY_MODAL_MAX_WIDTH"
+      :bordered="true"
+      :centered="true"
+      header-class="bg-card text-foreground px-5 py-3"
+      content-class="bg-card text-foreground p-4 no-scrollbar"
+      :closable="false"
       @close="closePrivacyModal"
     >
-      <div
-        class="overflow-y-auto p-4"
-        :class="[PRIVACY_POLICY_MODAL_MAX_HEIGHT]"
-      >
+      <div class="p-4" :class="[PRIVACY_POLICY_MODAL_MAX_HEIGHT]">
         <pre
           class="text-foreground whitespace-pre-wrap text-sm leading-relaxed"
         >
@@ -355,13 +358,16 @@ defineExpose({
     <VbenModal
       v-model:open="showServiceAgreementModal"
       :title="$t('服务协议')"
+      class="mobile-small-modal"
       :class="PRIVACY_POLICY_MODAL_MAX_WIDTH"
+      :bordered="true"
+      :centered="true"
+      header-class="bg-card text-foreground px-5 py-3"
+      content-class="bg-card text-foreground p-4 no-scrollbar"
+      :closable="false"
       @close="closeServiceAgreementModal"
     >
-      <div
-        class="overflow-y-auto p-4"
-        :class="[PRIVACY_POLICY_MODAL_MAX_HEIGHT]"
-      >
+      <div class="p-4" :class="[PRIVACY_POLICY_MODAL_MAX_HEIGHT]">
         <pre
           class="text-foreground whitespace-pre-wrap text-sm leading-relaxed"
         >
@@ -376,3 +382,36 @@ defineExpose({
     </VbenModal>
   </div>
 </template>
+
+<style>
+@media (max-width: 768px) {
+  .mobile-small-modal {
+    top: 50vh !important;
+    right: 0 !important;
+    left: 0 !important;
+    width: 92vw !important;
+    max-width: 480px !important;
+    height: auto !important;
+    max-height: 75vh !important;
+    margin-right: auto !important;
+    margin-left: auto !important;
+    color: hsl(var(--card-foreground));
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 8%);
+    transform: translateY(-50%) !important;
+  }
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+</style>
