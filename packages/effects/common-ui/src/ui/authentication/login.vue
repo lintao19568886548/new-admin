@@ -386,21 +386,18 @@ defineExpose({
 <style>
 @media (max-width: 768px) {
   .mobile-small-modal {
-    top: 50vh !important;
-    right: 0 !important;
-    left: 0 !important;
+    inset: 0 !important;
     width: 92vw !important;
     max-width: 480px !important;
     height: auto !important;
     max-height: 75vh !important;
-    margin-right: auto !important;
-    margin-left: auto !important;
+    margin: auto !important;
     color: hsl(var(--card-foreground));
     background-color: hsl(var(--card));
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
     box-shadow: 0 8px 24px rgb(0 0 0 / 8%);
-    transform: translateY(-50%) !important;
+    transform: none !important;
   }
 }
 
