@@ -16,6 +16,7 @@ model Notice {
   type        String?  @db.VarChar(50)
   category    String?  @db.VarChar(100)
   projectType String?  @map("project_type") @db.VarChar(200)
+  siteCode    String?  @map("site_code") @db.VarChar(20)
   owner       String?  @db.VarChar(200)
   platform    String?  @db.VarChar(200)
   link        String?  @db.VarChar(1000)

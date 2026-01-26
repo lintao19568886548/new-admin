@@ -13,12 +13,15 @@ import {
   Input,
   message,
   Pagination,
+  Select,
   Spin,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { getNoticeList } from '#/api/notices';
 import { $t } from '#/locales';
+
+import { getCityNameByCode, GUANGDONG_CITY_CODE_MAP } from './data';
 
 const list = ref<NoticeItem[]>([]);
 const loading = ref(false);
@@ -31,7 +34,15 @@ const pagination = reactive({
 
 const searchForm = reactive({
   keyword: '',
+  regionCode: undefined as string | undefined,
 });
+
+const regionOptions = Object.entries(GUANGDONG_CITY_CODE_MAP).map(
+  ([code, name]) => ({
+    label: name,
+    value: code.slice(0, 4),
+  }),
+);
 
 const keywordText = computed(() => String(searchForm.keyword ?? '').trim());
 
@@ -63,6 +74,7 @@ async function fetchList() {
       currentPage: pagination.current,
       keyword: keywordText.value || undefined,
       pageSize: pagination.pageSize,
+      regionCode: String(searchForm.regionCode ?? '').trim() || undefined,
     })) as NoticeListResponse;
 
     list.value = Array.isArray(result?.items) ? result.items : [];
@@ -77,6 +89,11 @@ async function fetchList() {
   }
 }
 
+function resolveCityName(it: any) {
+  const code = String(it?.site_code ?? it?.siteCode ?? '').trim();
+  return getCityNameByCode(code);
+}
+
 function handleSearch() {
   pagination.current = 1;
   fetchList();
@@ -84,6 +101,7 @@ function handleSearch() {
 
 function handleReset() {
   searchForm.keyword = '';
+  searchForm.regionCode = undefined;
   handleSearch();
 }
 
@@ -107,6 +125,14 @@ onMounted(() => {
             v-model:value="searchForm.keyword"
             placeholder="标题/单位/分类"
             allow-clear
+          />
+        </Form.Item>
+        <Form.Item label="所属区域">
+          <Select
+            v-model:value="searchForm.regionCode"
+            :options="regionOptions"
+            allow-clear
+            placeholder="选择所属区域"
           />
         </Form.Item>
         <div class="search-actions">
@@ -147,14 +173,13 @@ onMounted(() => {
                   formatPublishDate(item.date)
                 }}</span>
               </div>
-
+              <div v-if="resolveCityName(item)" class="info-row">
+                <span class="info-label">所属区域</span>
+                <span class="info-value">{{ resolveCityName(item) }}</span>
+              </div>
               <div v-if="item.projectType" class="info-row">
                 <span class="info-label">项目类型</span>
                 <span class="info-value">{{ item.projectType }}</span>
-              </div>
-              <div v-if="item.type" class="info-row">
-                <span class="info-label">类型</span>
-                <span class="info-value">{{ item.type }}</span>
               </div>
               <div v-if="item.category" class="info-row">
                 <span class="info-label">分类</span>

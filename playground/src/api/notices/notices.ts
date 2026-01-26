@@ -25,6 +25,7 @@ export interface GetNoticeListParams {
   currentPage?: number;
   keyword?: string;
   pageSize?: number;
+  regionCode?: string;
 }
 
 export async function getNoticeList(params: GetNoticeListParams = {}) {

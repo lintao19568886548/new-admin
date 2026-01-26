@@ -1,7 +1,5 @@
 <script lang="ts" setup>
 import type { VbenFormSchema } from '#/adapter/form';
-import type { VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { NoticeItem } from '#/api/notices';
 
 import { Page } from '@vben/common-ui';
 
@@ -11,6 +9,8 @@ import dayjs from 'dayjs';
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { getNoticeList } from '#/api/notices';
 
+import { getCityNameByCode, GUANGDONG_CITY_CODE_MAP } from './data';
+
 const { Link: TypographyLink } = Typography;
 
 function formatPublishDate(value: string) {
@@ -19,6 +19,13 @@ function formatPublishDate(value: string) {
   const d = dayjs(s, 'YYYYMMDDHHmmss', true);
   return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : s;
 }
+
+const regionOptions = Object.entries(GUANGDONG_CITY_CODE_MAP).map(
+  ([code, name]) => ({
+    label: name,
+    value: code.slice(0, 4),
+  }),
+);
 
 const gridFormSchema: VbenFormSchema[] = [
   {
@@ -30,9 +37,19 @@ const gridFormSchema: VbenFormSchema[] = [
     fieldName: 'keyword',
     label: '关键字',
   },
+  {
+    component: 'Select',
+    componentProps: {
+      allowClear: true,
+      options: regionOptions,
+      placeholder: '选择所属区域',
+    },
+    fieldName: 'regionCode',
+    label: '所属区域',
+  },
 ];
 
-const columns: VxeTableGridOptions<NoticeItem>['columns'] = [
+const columns = [
   {
     field: 'title',
     fixed: 'left',
@@ -48,6 +65,12 @@ const columns: VxeTableGridOptions<NoticeItem>['columns'] = [
     title: '分类',
   },
   {
+    field: 'site_code',
+    minWidth: 160,
+    slots: { default: 'site_code_cell' },
+    title: '所属区域',
+  },
+  {
     field: 'projectType',
     minWidth: 220,
     slots: { default: 'projectType_cell' },
@@ -61,7 +84,8 @@ const columns: VxeTableGridOptions<NoticeItem>['columns'] = [
   },
   {
     field: 'date',
-    formatter: ({ cellValue }) => formatPublishDate(String(cellValue ?? '')),
+    formatter: ({ cellValue }: any) =>
+      formatPublishDate(String(cellValue ?? '')),
     minWidth: 180,
     title: '发布时间',
   },
@@ -79,7 +103,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridOptions: {
     border: true,
-    columns,
+    columns: columns as any,
     height: 'auto',
     keepSource: true,
     pagerConfig: {
@@ -89,12 +113,13 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     proxyConfig: {
       ajax: {
-        query: async ({ page }) => {
+        query: async ({ page }: any) => {
           const formValues = (await gridApi.formApi?.getValues?.()) || {};
           const params = {
             currentPage: page?.currentPage || 1,
             keyword: String(formValues.keyword ?? '').trim() || undefined,
             pageSize: page?.pageSize || 20,
+            regionCode: String(formValues.regionCode ?? '').trim() || undefined,
           };
           return await getNoticeList(params);
         },
@@ -110,7 +135,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       search: true,
       zoom: true,
     },
-  } as VxeTableGridOptions<NoticeItem>,
+  },
 });
 
 function refreshGrid() {
@@ -134,6 +159,12 @@ function refreshGrid() {
 
       <template #category_cell="{ row }">
         <Tag color="geekblue">{{ row.category }}</Tag>
+      </template>
+
+      <template #site_code_cell="{ row }">
+        <Tag color="cyan">
+          {{ getCityNameByCode(row.site_code || row.siteCode) }}
+        </Tag>
       </template>
 
       <template #projectType_cell="{ row }">

@@ -1,4 +1,3 @@
-import dayjs from 'dayjs';
 import { noticesPrismaClient } from '~/utils/notices-db';
 import { useResponseSuccess } from '~/utils/response';
 
@@ -15,11 +14,12 @@ export default eventHandler(async (event) => {
     200,
     Math.max(1, Number(query.pageSize ?? 20) || 20),
   );
+  const regionCode = String(query.regionCode ?? '').trim();
 
   try {
     const start = (currentPage - 1) * pageSize;
 
-    const where = keyword
+    const where: any = keyword
       ? {
           OR: [
             { title: { contains: keyword } },
@@ -30,6 +30,12 @@ export default eventHandler(async (event) => {
           ],
         }
       : {};
+    if (regionCode) {
+      const prefix = regionCode.slice(0, 4);
+      if (prefix) {
+        where.siteCode = { startsWith: prefix };
+      }
+    }
 
     const [total, rows] = await Promise.all([
       noticesPrismaClient.notice.count({ where }),
@@ -45,21 +51,7 @@ export default eventHandler(async (event) => {
       currentPage,
       pageSize,
       total,
-      items: rows.map((it) => {
-        return {
-          category: it.category ?? '',
-          createdAt: dayjs(it.createdAt).format('YYYY-MM-DD HH:mm:ss'),
-          date: it.date ?? '',
-          link: it.link ?? '',
-          noticeId: it.noticeId,
-          owner: it.owner ?? '',
-          platform: it.platform ?? '',
-          projectType: it.projectType ?? '',
-          title: it.title ?? '',
-          type: it.type ?? '',
-          updatedAt: dayjs(it.updatedAt).format('YYYY-MM-DD HH:mm:ss'),
-        };
-      }),
+      items: rows,
     });
   } catch {
     return useResponseSuccess({
