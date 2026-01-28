@@ -30,6 +30,9 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- 手机端 ICP 备案号元数据，部分商店上架需要 -->
+        <meta-data android:name="miit_app_id" android:value="粤ICP备2025409677号-2A" />
     </application>
 
     <!-- Permissions -->

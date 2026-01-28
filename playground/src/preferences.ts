@@ -16,12 +16,12 @@ export const overridesPreferences = defineOverridesPreferences({
     showHome: true,
   },
   copyright: {
-    companyName: '粤ICP备2025409677号-1',
-    companySiteLink: 'https://beian.miit.gov.cn/',
+    companyName: '东莞市宜租网络科技有限公司',
+    companySiteLink: 'https://kwzg.yizuw.cn',
     date: '2025',
     enable: true,
-    icp: '',
-    icpLink: '',
+    icp: '粤ICP备2025409677号-2A',
+    icpLink: 'https://beian.miit.gov.cn/',
     settingShow: true,
   },
   logo: {

@@ -12,6 +12,7 @@ import { VbenModal } from '@vben/common-ui';
 import { $t } from '@vben/locales';
 
 import { useVbenForm } from '@vben-core/form-ui';
+import { preferences } from '@vben-core/preferences';
 import { VbenButton, VbenCheckbox } from '@vben-core/shadcn-ui';
 
 import Title from './auth-title.vue';
@@ -380,6 +381,24 @@ defineExpose({
         </VbenButton>
       </template>
     </VbenModal>
+
+    <!-- ICP 备案信息 -->
+    <div
+      v-if="preferences.copyright.enable && preferences.copyright.icp"
+      class="mt-8 flex flex-col items-center justify-center pb-6 text-xs text-gray-400"
+    >
+      <a
+        :href="preferences.copyright.icpLink || 'https://beian.miit.gov.cn/'"
+        class="hover:text-primary mb-1 text-gray-400 no-underline"
+        target="_blank"
+      >
+        {{ preferences.copyright.icp }}
+      </a>
+      <div>
+        Copyright © {{ preferences.copyright.date }}
+        {{ preferences.copyright.companyName }}
+      </div>
+    </div>
   </div>
 </template>
 
