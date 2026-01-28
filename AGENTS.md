@@ -5,6 +5,7 @@
 - 根目录采用 pnpm monorepo，主要包：`playground` (前端示例/实际开发)、`apps/backend-mock` (Nitro+Prisma Mock 接口)、`internal` (共享配置如 vite-config)。
 - 前端源码在 `playground/src`，相关视图位于 `playground/src/views`；API 请求在 `playground/src/api`。
 - Prisma schema 位于 `apps/backend-mock/prisma/schema`，上传接口在 `apps/backend-mock/api/image/upload.post.ts`。
+- 手机端由 capacitor 自动构建，位于 `playground/android`
 
 ## 构建、测试与开发命令
 
