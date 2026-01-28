@@ -63,12 +63,10 @@ app/keystore/*.p12
 ### 团队成员使用步骤
 
 1. **获取keystore文件**
-
    - 从团队负责人处获取 `team-release-key.jks` 文件
    - 将文件放置到 `app/keystore/` 目录下
 
 2. **配置密码**
-
    - 复制 `team-keystore.properties` 文件
    - 填入正确的密码信息
 
@@ -83,12 +81,10 @@ app/keystore/*.p12
    ```
 
    **Android Studio中的操作：**
-
    - **生成APK**：`Build > Generate Signed Bundle / APK > APK`
    - **生成AAB**：`Build > Generate Signed Bundle / APK > Android App Bundle`
 
    **格式选择说明：**
-
    - **APK格式**：适合内部分发、测试、直接安装
    - **AAB格式**：主要用于Google Play商店上架
 
@@ -178,19 +174,16 @@ signingConfigs {
 ### 常见问题
 
 1. **找不到keystore文件**
-
    - 检查文件路径是否正确
    - 确认文件是否存在于 `app/keystore/` 目录
    - 确保路径分隔符正确（Windows用`\`，Linux/macOS用`/`）
 
 2. **密码错误**
-
    - 检查 `team-keystore.properties` 中的密码是否正确
    - 确认keystore密码和key密码
    - 注意密码中的特殊字符是否需要转义
 
 3. **Java环境问题**
-
    - 确保已安装JDK（不仅仅是JRE）
    - 检查 `java -version` 和 `keytool -help` 命令是否可用
    - 确认JAVA_HOME环境变量设置正确

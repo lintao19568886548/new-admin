@@ -97,7 +97,6 @@ pnpm build
 ## Git貢献提出規則
 
 - 参考 [vue](https://github.com/vuejs/vue/blob/dev/.github/COMMIT_CONVENTION.md) 規則 ([Angular](https://github.com/conventional-changelog/conventional-changelog/tree/master/packages/conventional-changelog-angular))
-
   - `feat` 新機能の追加
   - `fix` 問題/バグの修正
   - `style` コードスタイルに関連し、実行結果に影響しない

@@ -18,7 +18,6 @@
 ### 3. Vue 应用启动
 
 - **main.ts**: 应用入口点
-
   - 初始化偏好设置
   - 调用 `bootstrap()` 函数
 
@@ -31,7 +30,6 @@
 ### 4. 路由层启动
 
 - **router/index.ts**: 路由配置
-
   - 创建路由实例
   - 配置路由守卫 `createRouterGuard`
 
@@ -42,7 +40,6 @@
 ### 5. 布局层启动
 
 - **app.vue**: 根组件
-
   - 配置 Ant Design Vue 主题和国际化
   - 包含 `<RouterView />` 显示路由组件
 
