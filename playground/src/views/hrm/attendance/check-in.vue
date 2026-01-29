@@ -84,6 +84,7 @@ let map: any = null;
 const currentMarker = ref<any>(null);
 const officeCircles = ref<any[]>([]);
 const locateFn = ref<(() => void) | null>(null);
+let geolocation: any = null;
 
 // 生命周期
 onMounted(async () => {
@@ -98,13 +99,7 @@ onMounted(async () => {
       },
     },
   ]);
-  layoutStore.setOnRefresh(() => {
-    if (!mapInitialized.value || !locateFn.value) {
-      message.info('地图未初始化');
-      return;
-    }
-    locateFn.value();
-  });
+  layoutStore.setOnRefresh(() => handleRelocate());
   await initMap();
 });
 
@@ -116,13 +111,106 @@ onUnmounted(() => {
     mapInitialized.value = false;
   }
   locateFn.value = null;
+  geolocation = null;
 });
+
+const getUsername = () => {
+  const username = userStore.userInfo?.realName;
+  if (!username) {
+    throw new Error('未获取到用户信息，请重新登录');
+  }
+  return username;
+};
+
+const confirmModal = (options: {
+  content: string;
+  okText: string;
+  title: string;
+}) => {
+  return new Promise<boolean>((resolve) => {
+    Modal.confirm({
+      centered: true,
+      content: options.content,
+      okText: options.okText,
+      onCancel: () => resolve(false),
+      onOk: () => resolve(true),
+      title: options.title,
+    });
+  });
+};
+
+const confirmOutsideRange = async () => {
+  return confirmModal({
+    content: '当前区域非指定打卡区域，是否继续打卡',
+    okText: '确认打卡',
+    title: '非指定区域',
+  });
+};
+
+const confirmEarlyLeave = async () => {
+  const now = dayjs();
+  const endTime = dayjs(`${now.format('YYYY-MM-DD')} ${standardWorkEndTime}`);
+  if (!now.isBefore(endTime)) {
+    return true;
+  }
+  return confirmModal({
+    content: '当前时间早于规定下班时间，确定要打卡吗？',
+    okText: '确认打卡',
+    title: '早退确认',
+  });
+};
+
+const locateOnce = async () => {
+  if (!mapInitialized.value || !map || !geolocation) {
+    throw new Error('地图未初始化');
+  }
+
+  locationLoading.value = true;
+  return new Promise<void>((resolve, reject) => {
+    geolocation.getCurrentPosition(
+      (result: any) => {
+        if (geolocation.getStatus() === (window as any).BMAP_STATUS_SUCCESS) {
+          updateLocationDetails(result.point);
+          locationLoading.value = false;
+          resolve();
+          return;
+        }
+
+        currentLocation.value = '定位失败';
+        locationLoading.value = false;
+        reject(new Error('定位失败，请检查设备权限或网络连接'));
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10_000,
+      },
+    );
+  });
+};
+
+const handleRelocate = async () => {
+  try {
+    await locateOnce();
+  } catch (error: any) {
+    message.error(error?.message || '定位失败');
+  }
+};
 
 // 初始化地图
 const initMap = async () => {
   mapInitialized.value = false;
   await nextTick();
   if (!document.querySelector('#map-container')) return;
+  officeCircles.value = [];
+  currentMarker.value = null;
+  geolocation = null;
+  const container = document.querySelector(
+    '#map-container',
+  ) as HTMLElement | null;
+  if (container) {
+    container.innerHTML = '';
+  }
 
   try {
     officeLocations.value = await getOfficeLocations();
@@ -163,29 +251,11 @@ const initMap = async () => {
   mapInitialized.value = true;
 
   // 这是用于程序化调用的核心定位服务
-  const geolocation = new BMap.Geolocation();
+  geolocation = new BMap.Geolocation();
 
   // 统一定位逻辑
   const locate = () => {
-    locationLoading.value = true;
-    geolocation.getCurrentPosition(
-      (result: any) => {
-        if (geolocation.getStatus() === (window as any).BMAP_STATUS_SUCCESS) {
-          updateLocationDetails(result.point);
-          locationLoading.value = false;
-        } else {
-          message.error('定位失败，请检查设备权限或网络连接');
-          currentLocation.value = '定位失败';
-          locationLoading.value = false;
-        }
-      },
-      // 优化定位参数
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0, // 不使用缓存
-        timeout: 10_000, // 10秒超时
-      },
-    );
+    void handleRelocate();
   };
   locateFn.value = locate;
 
@@ -233,6 +303,9 @@ const updateLocationDetails = (point: any) => {
   const BMap = (window as any).BMap;
   if (!BMap) {
     console.error('BMap not available in updateLocationDetails');
+    return;
+  }
+  if (!map) {
     return;
   }
   latitude.value = point.lat;
@@ -288,114 +361,63 @@ const getPunchPayload = () => ({
   latitude: latitude.value,
   longitude: longitude.value,
   punchTime: dayjs().toISOString(),
-  username: userInfo?.realName || '',
+  username: getUsername(),
 });
-
-const runOrConfirmOutsideRange = async (action: () => Promise<void> | void) => {
-  if (!isInRange.value) {
-    await new Promise<void>((resolve) => {
-      Modal.confirm({
-        centered: true,
-        content: '当前区域非指定打卡区域，是否继续打卡',
-        okText: '确认打卡',
-        onCancel: () => {
-          resolve();
-        },
-        onOk: async () => {
-          await action();
-          resolve();
-        },
-        title: '非指定区域',
-      });
-    });
-    return;
-  }
-  await action();
-};
-
-const confirmEarlyLeaveThen = async (action: () => Promise<void> | void) => {
-  const now = dayjs();
-  const endTime = dayjs(standardWorkEndTime, 'HH:mm:ss');
-  const isEarlyLeave = now.isBefore(endTime);
-  if (isEarlyLeave) {
-    await new Promise<void>((resolve) => {
-      Modal.confirm({
-        centered: true,
-        content: '当前时间早于规定下班时间，确定要打卡吗？',
-        okText: '确认打卡',
-        onCancel: () => {
-          resolve();
-        },
-        onOk: async () => {
-          await action();
-          resolve();
-        },
-        title: '早退确认',
-      });
-    });
-    return;
-  }
-  await action();
-};
 
 // 上班打卡
 const handlePunchIn = async () => {
-  console.warn(
-    `[打卡调试] handlePunchIn triggered. Current value of isInRange: ${isInRange.value}`,
-  );
+  if (punchLoading.value) return;
+  try {
+    await locateOnce();
+  } catch {}
 
-  const performPunchIn = async () => {
-    punchLoading.value = true;
-    try {
-      await punchIn(getPunchPayload());
-      await loadTodayRecord();
-      message.success('上班打卡成功');
-    } catch (error: any) {
-      console.error('[打卡调试] 上班打卡失败:', error);
-      message.error(`打卡失败: ${error.message || '请重试'}`);
-    } finally {
-      punchLoading.value = false;
-    }
-  };
+  if (!isInRange.value) {
+    const ok = await confirmOutsideRange();
+    if (!ok) return;
+  }
 
-  await runOrConfirmOutsideRange(performPunchIn);
+  punchLoading.value = true;
+  try {
+    await punchIn(getPunchPayload());
+    await loadTodayRecord();
+    message.success('上班打卡成功');
+  } catch (error: any) {
+    message.error(`打卡失败: ${error?.message || '请重试'}`);
+  } finally {
+    punchLoading.value = false;
+  }
 };
 
 // 下班打卡
 const handlePunchOut = async () => {
-  console.warn(
-    `[打卡调试] handlePunchOut triggered. Current value of isInRange: ${isInRange.value}`,
-  );
-
   if (!todayRecord.value?.attendanceId) {
     message.error('无法找到今日打卡记录，无法下班打卡');
     return;
   }
 
-  const performPunchOut = async () => {
-    if (!todayRecord.value?.attendanceId) {
-      message.error('无法找到今日打卡记录，无法下班打卡');
-      return;
-    }
-    punchLoading.value = true;
-    try {
-      await punchOut(todayRecord.value.attendanceId, {
-        latitude: latitude.value,
-        longitude: longitude.value,
-        punchTime: dayjs().toISOString(),
-        username: userInfo?.realName || '',
-      });
-      await loadTodayRecord();
-      message.success('下班打卡成功');
-    } catch (error: any) {
-      console.error('[打卡调试] 下班打卡失败:', error);
-      message.error(`打卡失败: ${error.message || '请重试'}`);
-    } finally {
-      punchLoading.value = false;
-    }
-  };
+  if (punchLoading.value) return;
+  try {
+    await locateOnce();
+  } catch {}
 
-  await runOrConfirmOutsideRange(() => confirmEarlyLeaveThen(performPunchOut));
+  if (!isInRange.value) {
+    const ok = await confirmOutsideRange();
+    if (!ok) return;
+  }
+
+  const okEarlyLeave = await confirmEarlyLeave();
+  if (!okEarlyLeave) return;
+
+  punchLoading.value = true;
+  try {
+    await punchOut(todayRecord.value.attendanceId, getPunchPayload());
+    await loadTodayRecord();
+    message.success('下班打卡成功');
+  } catch (error: any) {
+    message.error(`打卡失败: ${error?.message || '请重试'}`);
+  } finally {
+    punchLoading.value = false;
+  }
 };
 
 const getStatusInfo = (status: null | number) => {
@@ -443,7 +465,11 @@ const loadTodayRecord = async () => {
 // 监听 username 的变化，一旦获取到有效的 username，就加载所有相关数据
 watch(
   () => userInfo?.realName,
-  (newUsername) => {
+  (newUsername, oldUsername) => {
+    if (newUsername && newUsername !== oldUsername) {
+      isTodayRecordLoaded.value = false;
+      todayRecord.value = null;
+    }
     if (newUsername && !isTodayRecordLoaded.value) {
       loadTodayRecord();
     }
