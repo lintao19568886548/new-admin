@@ -111,6 +111,20 @@ async function fetchParkList() {
   }
 }
 
+// Normalize filename to avoid device-specific upload failures.
+const normalizeFileName = (name: string) => {
+  const dotIndex = name.lastIndexOf('.');
+  const ext = dotIndex === -1 ? '' : name.slice(dotIndex);
+  const base = dotIndex === -1 ? name : name.slice(0, dotIndex);
+  const safeBase = base.replaceAll(/[^\w.-]+/g, '_');
+  const maxBaseLength = 10;
+  const trimmedBase =
+    safeBase.length > maxBaseLength
+      ? safeBase.slice(0, maxBaseLength)
+      : safeBase;
+  return `${trimmedBase}${ext}`;
+};
+
 // 上传前检查
 const beforeUpload = (file: File) => {
   const isImage = file.type.startsWith('image/');
@@ -129,6 +143,12 @@ const beforeUpload = (file: File) => {
       title: '文件过大',
     });
     return false;
+  }
+  const safeName = normalizeFileName(file.name);
+  if (safeName !== file.name) {
+    const renamedFile = new File([file], safeName, { type: file.type });
+    message.info(`文件名已被安全处理为 "${safeName}"`);
+    return renamedFile;
   }
   return true;
 };
@@ -155,6 +175,14 @@ const handleChange = (info: any) => {
     }
   }
   if (info.file.status === 'error') {
+    const errorDetail = {
+      error: info.file.error,
+      name: info.file.name,
+      nameLen: info.file.name?.length,
+      size: info.file.size,
+      type: info.file.type,
+    };
+    message.error(`上传错误: ${JSON.stringify(errorDetail)}`);
     message.error(`文件 ${info.file.name} 上传失败。`);
   }
   // Update formState.images to ensure it reflects the Upload component's internal list
