@@ -125,6 +125,17 @@ const normalizeFileName = (name: string) => {
   return `${trimmedBase}${ext}`;
 };
 
+const resolveImageUrl = (rawUrl?: string) => {
+  if (!rawUrl) {
+    return '';
+  }
+  if (/^https?:\/\//i.test(rawUrl)) {
+    return rawUrl;
+  }
+  const base = apiURL ? apiURL.replace(/\/api\/?$/, '') : '';
+  return `${base}${rawUrl}`;
+};
+
 // 上传前检查
 const beforeUpload = (file: File) => {
   const isImage = file.type.startsWith('image/');
@@ -176,9 +187,13 @@ const handleChange = (info: any) => {
   if (info.file.status === 'done') {
     // 当上传成功后，从服务器响应中提取 imgId 和 url
     const responseData = info.file.response?.data;
-    if (responseData && responseData.imgId && responseData.url) {
+    const resolvedUrl = resolveImageUrl(
+      responseData?.thumbUrl || responseData?.url,
+    );
+    if (responseData && responseData.imgId && resolvedUrl) {
       info.file.imgId = responseData.imgId;
-      info.file.url = responseData.url; // 关键：为文件对象设置URL以供预览
+      info.file.url = resolvedUrl; // 关键：为文件对象设置URL以供预览
+      info.file.thumbUrl = resolvedUrl;
     } else {
       // 如果响应格式不正确，将状态标记为错误并提示
       info.file.status = 'error';
