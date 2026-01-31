@@ -72,6 +72,8 @@ const REMEMBER_ME_KEY = `${REMEMBER_ME_KEY_PREFIX}${location.hostname}`;
 
 // 响应式数据
 const rememberMe = ref(false);
+const agreed = ref(false);
+const showAgreeError = ref(false);
 const showPrivacyModal = ref(false);
 const showServiceAgreementModal = ref(false);
 
@@ -169,6 +171,12 @@ const serviceAgreementContent = computed(() => {
 
 async function handleSubmit() {
   try {
+    if (!agreed.value) {
+      showAgreeError.value = true;
+      return;
+    }
+    showAgreeError.value = false;
+
     const { valid } = await formApi.validate();
     if (!valid) {
       return;
@@ -202,6 +210,19 @@ function showPrivacyPolicy() {
 
 function closePrivacyModal() {
   showPrivacyModal.value = false;
+}
+
+function handleAgree() {
+  agreed.value = true;
+  showPrivacyModal.value = false;
+  showServiceAgreementModal.value = false;
+  showAgreeError.value = false;
+}
+
+function handleReject() {
+  agreed.value = false;
+  showPrivacyModal.value = false;
+  showServiceAgreementModal.value = false;
 }
 
 function showServiceAgreement() {
@@ -247,35 +268,15 @@ defineExpose({
 
     <div
       v-if="showRememberMe || showForgetPassword"
-      class="mb-6 flex justify-between"
+      class="mb-4 flex justify-between"
     >
-      <div class="flex items-center space-x-4">
-        <VbenCheckbox
-          v-if="showRememberMe"
-          v-model:checked="rememberMe"
-          name="rememberMe"
-        >
-          {{ $t('authentication.rememberMe') }}
-        </VbenCheckbox>
-        <span
-          class="vben-link cursor-pointer text-sm font-normal"
-          tabindex="0"
-          @click="showServiceAgreement"
-          @keydown.enter="showServiceAgreement"
-          @keydown.space.prevent="showServiceAgreement"
-        >
-          {{ $t('服务协议') }}
-        </span>
-        <span
-          class="vben-link cursor-pointer pl-4 text-sm font-normal"
-          tabindex="0"
-          @click="showPrivacyPolicy"
-          @keydown.enter="showPrivacyPolicy"
-          @keydown.space.prevent="showPrivacyPolicy"
-        >
-          {{ $t('authentication.privacyPolicy', '隐私政策') }}
-        </span>
-      </div>
+      <VbenCheckbox
+        v-if="showRememberMe"
+        v-model:checked="rememberMe"
+        name="rememberMe"
+      >
+        {{ $t('authentication.rememberMe') }}
+      </VbenCheckbox>
 
       <span
         v-if="showForgetPassword"
@@ -284,6 +285,32 @@ defineExpose({
       >
         {{ $t('authentication.forgetPassword') }}
       </span>
+    </div>
+
+    <div class="mb-4 flex flex-col">
+      <div class="flex items-center">
+        <VbenCheckbox v-model:checked="agreed" name="agreed">
+          <span class="text-muted-foreground text-sm font-normal">
+            {{ $t('authentication.agree') }}
+            <span
+              class="vben-link cursor-pointer"
+              @click.stop="showServiceAgreement"
+            >
+              《{{ $t('服务协议') }}》
+            </span>
+            {{ $t('common.and', '和') }}
+            <span
+              class="vben-link cursor-pointer"
+              @click.stop="showPrivacyPolicy"
+            >
+              《{{ $t('authentication.privacyPolicy', '隐私政策') }}》
+            </span>
+          </span>
+        </VbenCheckbox>
+      </div>
+      <div v-if="showAgreeError" class="text-destructive mt-1 text-xs">
+        {{ $t('authentication.agreeTip') }}
+      </div>
     </div>
     <VbenButton
       :class="{
@@ -349,9 +376,14 @@ defineExpose({
         </pre>
       </div>
       <template #footer>
-        <VbenButton variant="outline" @click="closePrivacyModal">
-          {{ $t('关闭') }}
-        </VbenButton>
+        <div class="flex w-full justify-end space-x-2">
+          <VbenButton variant="outline" @click="handleReject">
+            {{ $t('拒绝') }}
+          </VbenButton>
+          <VbenButton @click="handleAgree">
+            {{ $t('同意') }}
+          </VbenButton>
+        </div>
       </template>
     </VbenModal>
 
@@ -376,9 +408,14 @@ defineExpose({
         </pre>
       </div>
       <template #footer>
-        <VbenButton variant="outline" @click="closeServiceAgreementModal">
-          {{ $t('关闭') }}
-        </VbenButton>
+        <div class="flex w-full justify-end space-x-2">
+          <VbenButton variant="outline" @click="handleReject">
+            {{ $t('拒绝') }}
+          </VbenButton>
+          <VbenButton @click="handleAgree">
+            {{ $t('同意') }}
+          </VbenButton>
+        </div>
       </template>
     </VbenModal>
 
