@@ -1,9 +1,11 @@
 package cn.yizuw.magic;
 
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebView;
 import androidx.core.content.FileProvider;
 import com.getcapacitor.BridgeActivity;
 import java.io.File;
@@ -13,6 +15,13 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onStart() {
         super.onStart();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            boolean isDebuggable = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+            if (isDebuggable) {
+                WebView.setWebContentsDebuggingEnabled(true);
+            }
+        }
         
         // 添加 JavaScript 接口
         getBridge().getWebView().addJavascriptInterface(new AndroidInterface(), "AndroidInterface");
