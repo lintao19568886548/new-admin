@@ -46,6 +46,7 @@
     "dev:play": "pnpm -F @vben/playground run dev",
     "format": "vsh lint --format",
     "generate:android:assemble:release": "cd playground/android && .\\gradlew assembleRelease",
+    "generate:android:assemble:dev": "cd playground/android && .\\gradlew assembleDebug",
     "generate:android:assemble:release:warning": "cd playground/android && .\\gradlew assembleRelease --warning-mode all",
     "generate:android:open:release": "explorer playground\\android\\app\\build\\outputs\\apk\\release",
     "get:commits": "pwsh -ExecutionPolicy Bypass -File scripts/get-commits.ps1",
