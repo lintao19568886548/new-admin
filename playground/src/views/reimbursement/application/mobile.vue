@@ -117,7 +117,7 @@ const normalizeFileName = (name: string) => {
   const ext = dotIndex === -1 ? '' : name.slice(dotIndex);
   const base = dotIndex === -1 ? name : name.slice(0, dotIndex);
   const safeBase = base.replaceAll(/[^\w.-]+/g, '_');
-  const maxBaseLength = 10;
+  const maxBaseLength = 60;
   const trimmedBase =
     safeBase.length > maxBaseLength
       ? safeBase.slice(0, maxBaseLength)
@@ -144,13 +144,26 @@ const beforeUpload = (file: File) => {
     });
     return false;
   }
+  return true;
+};
+
+// 将文件读取为内存副本，规避 WebView 的 ERR_UPLOAD_FILE_CHANGED
+const transformFile = async (file: File) => {
   const safeName = normalizeFileName(file.name);
   if (safeName !== file.name) {
-    const renamedFile = new File([file], safeName, { type: file.type });
     message.info(`文件名已被安全处理为 "${safeName}"`);
-    return renamedFile;
   }
-  return true;
+  try {
+    const buffer = await file.arrayBuffer();
+    return new File([buffer], safeName, {
+      lastModified: file.lastModified,
+      type: file.type,
+    });
+  } catch (error) {
+    console.error('读取文件失败:', error);
+    message.error('读取文件失败，请重试');
+    return file;
+  }
 };
 
 // To store file name during getBase64 conversion
@@ -175,15 +188,42 @@ const handleChange = (info: any) => {
     }
   }
   if (info.file.status === 'error') {
+    const xhr =
+      info.file?.xhr ||
+      info.file?.error?.target ||
+      info.file?.error?.currentTarget;
+    const status = xhr?.status || info.file?.status;
+    let responseText = xhr?.responseText || xhr?.response || '';
+    if (!responseText && info.file.response) {
+      responseText =
+        typeof info.file.response === 'string'
+          ? info.file.response
+          : JSON.stringify(info.file.response);
+    }
     const errorDetail = {
       error: info.file.error,
+      errorMessage: info.file.error?.message,
+      errorName: info.file.error?.name,
+      errorType: info.file.error?.type,
       name: info.file.name,
       nameLen: info.file.name?.length,
       size: info.file.size,
       type: info.file.type,
     };
-    message.error(`上传错误: ${JSON.stringify(errorDetail)}`);
-    message.error(`文件 ${info.file.name} 上传失败。`);
+    const statusText = status ? `HTTP ${status}` : '网络/跨域错误';
+    const responseSnippet = responseText ? `，响应：${responseText}` : '';
+    message.error({
+      content: `上传失败（${statusText}${responseSnippet}）`,
+      duration: 10,
+    });
+    message.warning({
+      content: `上传详情: ${JSON.stringify(errorDetail)}`,
+      duration: 10,
+    });
+    message.error({
+      content: `文件 ${info.file.name} 上传失败。`,
+      duration: 10,
+    });
   }
   // Update formState.images to ensure it reflects the Upload component's internal list
   formState.images = info.fileList;
@@ -487,6 +527,7 @@ onMounted(() => {
             v-model:file-list="formState.images"
             :action="`${apiURL}/image/upload`"
             :before-upload="beforeUpload"
+            :transform-file="transformFile"
             :headers="headers"
             list-type="picture-card"
             @change="handleChange"
