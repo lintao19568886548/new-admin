@@ -41,6 +41,30 @@ services:
       - ACCESS_TOKEN_SECRET=access_prod_syxd_magic_secret
       - REFRESH_TOKEN_SECRET=refresh_prod_syxd_magic_secret
       - DATABASE_URL=mysql://root:123456@mysql:3306/magic?timezone=Asia/Shanghai
+      - NOTICES_DATABASE_URL=mysql://root:123456@mysql:3306/spider?timezone=Asia/Shanghai
+      - TZ=Asia/Shanghai # 后端时区
+      - SMS_MCH_ID=1066338
+      - SMS_APP_ID=10011751423821130
+      - SMS_SIGN_NAME=东莞市宜租网络科技有限公司
+      - SMS_SECRET_KEY=f5dc94c3b92944dead6edc2ad56d0294
+    command: node ./server/index.mjs
+    depends_on:
+      - mysql
+    networks:
+      - magic-network
+
+  public-magic:
+    image: node:22.14.0
+    volumes:
+      - ./public-node:/app
+      - public_upload_data:/app/public/uploads # <-- 新增：挂载共享卷到 Node.js 图片存储路径 (请确保 /app/uploads 是你后端实际存储图片的路径)
+    working_dir: /app
+    environment:
+      - PORT=5320
+      - ACCESS_TOKEN_SECRET=access_public_prod_syxd_magic_secret
+      - REFRESH_TOKEN_SECRET=refresh_public_prod_syxd_magic_secret
+      - DATABASE_URL=mysql://root:123456@mysql:3306/public_magic?timezone=Asia/Shanghai
+      - NOTICES_DATABASE_URL=mysql://root:123456@mysql:3306/spider?timezone=Asia/Shanghai
       - TZ=Asia/Shanghai # 后端时区
       - SMS_MCH_ID=1066338
       - SMS_APP_ID=10011751423821130
@@ -59,3 +83,4 @@ networks:
 volumes:
   mysql_data:
   uploads_data: {} # <-- 新增：定义共享数据卷
+  public_upload_data: {} # <-- 新增：定义共享数据卷
