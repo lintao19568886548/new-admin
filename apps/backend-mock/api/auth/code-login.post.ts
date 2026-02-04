@@ -1,8 +1,13 @@
+import { randomBytes } from 'node:crypto';
+
+import bcrypt from 'bcryptjs';
 import {
   clearRefreshTokenCookie,
   setRefreshTokenCookie,
 } from '~/utils/cookie-utils';
+import { prismaClient } from '~/utils/db';
 import { generateAccessToken, generateRefreshToken } from '~/utils/jwt-utils';
+import { applyUserRolesToUser } from '~/utils/permission-modules';
 import {
   badRequestResponse,
   forbiddenResponse,
@@ -10,7 +15,10 @@ import {
   useResponseSuccess,
 } from '~/utils/response';
 import { SmsCodeError, verifySmsCode } from '~/utils/sms-code-store';
-import { transformPrismaUserToUserInfo } from '~/utils/user-service';
+import {
+  fetchUserWithDetails,
+  transformPrismaUserToUserInfo,
+} from '~/utils/user-service';
 
 interface CodeLoginBody {
   code?: string;
@@ -45,8 +53,49 @@ export default defineEventHandler(async (event) => {
     const userResult = await fetchUserWithDetails(phoneNumber);
 
     if (!userResult) {
-      clearRefreshTokenCookie(event);
-      return forbiddenResponse(event, '该手机号未绑定系统账户');
+      try {
+        const plainPassword = randomBytes(24).toString('hex');
+        const password = await bcrypt.hash(plainPassword, 10);
+
+        const createdUser = await prismaClient.user.create({
+          data: {
+            username: phoneNumber,
+            phone: phoneNumber,
+            realName: phoneNumber,
+            password,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        await applyUserRolesToUser({
+          userId: createdUser.id,
+          roleIds: [1],
+        });
+      } catch (error) {
+        console.error('短信登录自动创建用户失败:', error);
+      }
+
+      const createdOrExistingUser = await fetchUserWithDetails(phoneNumber);
+      if (!createdOrExistingUser) {
+        clearRefreshTokenCookie(event);
+        return forbiddenResponse(event, '该手机号未绑定系统账户');
+      }
+
+      const createdUserInfo = await transformPrismaUserToUserInfo(
+        createdOrExistingUser,
+      );
+
+      const accessToken = generateAccessToken(createdUserInfo);
+      const refreshToken = generateRefreshToken(createdUserInfo);
+
+      setRefreshTokenCookie(event, refreshToken);
+
+      return useResponseSuccess({
+        ...createdUserInfo,
+        accessToken,
+      });
     }
 
     const userInfo = await transformPrismaUserToUserInfo(userResult);
