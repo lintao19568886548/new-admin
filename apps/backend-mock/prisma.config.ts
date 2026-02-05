@@ -1,7 +1,8 @@
 import dotenv from 'dotenv';
 import { defineConfig, env } from 'prisma/config';
 
-dotenv.config();
+import 'dotenv/config';
+
 dotenv.config({ path: '.env.dev' });
 
 const target = process.env.PRISMA_TARGET;
