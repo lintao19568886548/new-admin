@@ -14,28 +14,25 @@ export const viteArchiverPlugin = (
   return {
     apply: 'build',
     closeBundle: {
-      handler() {
+      async handler() {
         const { name = 'dist', outputDir = '.' } = options;
+        const folderToZip = 'dist';
+        // 确定项目根目录
+        const projectRoot = join(process.cwd(), '..'); // 从 playground 或其他运行目录上溯两级
+        const zipOutputDir = join(projectRoot, outputDir); // outputDir 默认为 '.'
+        const zipOutputPath = join(zipOutputDir, `${name}.zip`);
+        try {
+          await fsp.mkdir(zipOutputDir, { recursive: true });
+        } catch {
+          // ignore
+        }
 
-        setTimeout(async () => {
-          const folderToZip = 'dist';
-          // 确定项目根目录
-          const projectRoot = join(process.cwd(), '..'); // 从 playground 或其他运行目录上溯两级
-          const zipOutputDir = join(projectRoot, outputDir); // outputDir 默认为 '.'
-          const zipOutputPath = join(zipOutputDir, `${name}.zip`);
-          try {
-            await fsp.mkdir(zipOutputDir, { recursive: true });
-          } catch {
-            // ignore
-          }
-
-          try {
-            await zipFolder(folderToZip, zipOutputPath);
-            console.log(`Folder has been zipped to: ${zipOutputPath}`);
-          } catch (error) {
-            console.error('Error zipping folder:', error);
-          }
-        }, 0);
+        try {
+          await zipFolder(folderToZip, zipOutputPath);
+          console.log(`Folder has been zipped to: ${zipOutputPath}`);
+        } catch (error) {
+          console.error('Error zipping folder:', error);
+        }
       },
       order: 'post',
     },
