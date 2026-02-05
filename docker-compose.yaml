@@ -53,10 +53,10 @@ services:
     networks:
       - magic-network
 
-  public-magic:
+  public_magic:
     image: node:22.14.0
     volumes:
-      - ./public-node:/app
+      - ./public_node:/app
       - public_upload_data:/app/public/uploads # <-- 新增：挂载共享卷到 Node.js 图片存储路径 (请确保 /app/uploads 是你后端实际存储图片的路径)
     working_dir: /app
     environment:
