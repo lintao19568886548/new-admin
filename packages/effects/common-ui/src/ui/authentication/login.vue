@@ -201,6 +201,13 @@ async function handleSubmit() {
 }
 
 function handleGo(path: string) {
+  if (path === props.codeLoginPath) {
+    if (!agreed.value) {
+      showAgreeError.value = true;
+      return;
+    }
+    showAgreeError.value = false;
+  }
   router.push(path);
 }
 
