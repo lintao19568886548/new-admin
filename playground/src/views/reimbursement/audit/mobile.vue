@@ -25,6 +25,7 @@ import {
 } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+import { openMobileImagePreview } from '#/utils/mobile-image-preview';
 
 import { STATUS_MAP, useFormRules } from './data';
 import { statusOptions, useReimbursementAudit } from './modules/type';
@@ -76,6 +77,13 @@ function getStatusDisplay(status: number) {
       text: '未知',
     }
   );
+}
+
+function handleImagePreview(images: string[] | undefined, index: number) {
+  if (!images || images.length === 0) {
+    return;
+  }
+  void openMobileImagePreview(images, index);
 }
 
 // Wrapper for showAuditModal to handle all cases
@@ -208,21 +216,21 @@ function getStatusDisplay(status: number) {
               v-if="item.images && item.images.length > 0"
               class="card-images"
             >
-              <Image.PreviewGroup>
-                <Carousel
-                  class="image-carousel"
-                  :dots="item.images.length > 1"
-                  :infinite="false"
-                  :adaptive-height="true"
-                >
-                  <Image
-                    v-for="(img, index) in item.images"
-                    :key="index"
-                    :src="img"
-                    class="carousel-main-image"
-                  />
-                </Carousel>
-              </Image.PreviewGroup>
+              <Carousel
+                class="image-carousel"
+                :dots="item.images.length > 1"
+                :infinite="false"
+                :adaptive-height="true"
+              >
+                <Image
+                  v-for="(img, index) in item.images"
+                  :key="index"
+                  :src="img"
+                  :preview="false"
+                  class="carousel-main-image"
+                  @click="handleImagePreview(item.images, index)"
+                />
+              </Carousel>
             </div>
           </div>
           <div class="card-actions">
@@ -328,21 +336,21 @@ function getStatusDisplay(status: number) {
           class="modal-detail-section"
         >
           <h4 class="modal-section-title">相关图片</h4>
-          <Image.PreviewGroup>
-            <Carousel
-              class="image-carousel-modal"
-              :dots="currentRecord.images.length > 1"
-              :infinite="false"
-              :adaptive-height="true"
-            >
-              <Image
-                v-for="(img, index) in currentRecord.images"
-                :key="index"
-                :src="img"
-                class="carousel-detail-image"
-              />
-            </Carousel>
-          </Image.PreviewGroup>
+          <Carousel
+            class="image-carousel-modal"
+            :dots="currentRecord.images.length > 1"
+            :infinite="false"
+            :adaptive-height="true"
+          >
+            <Image
+              v-for="(img, index) in currentRecord.images"
+              :key="index"
+              :src="img"
+              :preview="false"
+              class="carousel-detail-image"
+              @click="handleImagePreview(currentRecord.images, index)"
+            />
+          </Carousel>
         </div>
 
         <!-- Warning -->
@@ -701,6 +709,7 @@ function getStatusDisplay(status: number) {
   width: 100%;
   height: auto;
   max-height: 40vh; /* 限制最大高度为视口的40% */
+  cursor: zoom-in;
   object-fit: contain; /* 保证图片完整显示 */
 }
 
@@ -728,6 +737,7 @@ function getStatusDisplay(status: number) {
   width: 100%;
   height: auto;
   max-height: 50vh; /* 弹窗中可以稍高一些 */
+  cursor: zoom-in;
   object-fit: contain;
 }
 

@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
+    "@capacitor-community/media": "^9.0.1",
     "@capacitor/android": "^8.0.2",
     "@capacitor/app": "^8.0.0",
     "@capacitor/browser": "^8.0.0",
@@ -69,6 +70,7 @@
     "lodash-es": "^4.17.23",
     "marked": "^16.4.2",
     "openai": "^4.104.0",
+    "photoswipe": "^5.4.4",
     "pinia": "^2.3.1",
     "semver": "^7.7.3",
     "uuid": "^11.1.0",
