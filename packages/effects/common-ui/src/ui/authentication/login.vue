@@ -220,7 +220,7 @@ function closePrivacyModal() {
 }
 
 function handleAgree() {
-  agreed.value = true;
+  // agreed.value = true;
   showPrivacyModal.value = false;
   showServiceAgreementModal.value = false;
   showAgreeError.value = false;
