@@ -8,6 +8,8 @@ import { App, ConfigProvider, theme } from 'ant-design-vue';
 
 import { antdLocale } from '#/locales';
 
+import PrivacyPolicyModal from './components/PrivacyPolicyModal.vue';
+
 defineOptions({ name: 'App' });
 
 const { isDark } = usePreferences();
@@ -61,6 +63,7 @@ onMounted(() => {
   <ConfigProvider :locale="antdLocale" :theme="tokenTheme">
     <App>
       <RouterView />
+      <PrivacyPolicyModal />
     </App>
   </ConfigProvider>
 </template>
