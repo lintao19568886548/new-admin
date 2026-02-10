@@ -220,7 +220,7 @@ function closePrivacyModal() {
 }
 
 function handleAgree() {
-  // agreed.value = true;
+  agreed.value = true;
   showPrivacyModal.value = false;
   showServiceAgreementModal.value = false;
   showAgreeError.value = false;
@@ -301,14 +301,14 @@ defineExpose({
             {{ $t('authentication.agree') }}
             <span
               class="vben-link cursor-pointer"
-              @click.stop="showServiceAgreement"
+              @click.stop.prevent="showServiceAgreement"
             >
               《{{ $t('服务协议') }}》
             </span>
             {{ $t('common.and', '和') }}
             <span
               class="vben-link cursor-pointer"
-              @click.stop="showPrivacyPolicy"
+              @click.stop.prevent="showPrivacyPolicy"
             >
               《{{ $t('authentication.privacyPolicy', '隐私政策') }}》
             </span>
