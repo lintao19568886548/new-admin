@@ -6,6 +6,7 @@ import type { VbenFormSchema } from '@vben-core/form-ui';
 import type { AuthenticationProps } from './types';
 
 import { computed, onMounted, reactive, ref } from 'vue';
+// @ts-ignore  临时忽略类型声明缺失
 import { useRouter } from 'vue-router';
 
 import { VbenModal } from '@vben/common-ui';
@@ -219,17 +220,10 @@ function closePrivacyModal() {
   showPrivacyModal.value = false;
 }
 
-function handleAgree() {
-  agreed.value = true;
+function handleClose() {
   showPrivacyModal.value = false;
   showServiceAgreementModal.value = false;
   showAgreeError.value = false;
-}
-
-function handleReject() {
-  agreed.value = false;
-  showPrivacyModal.value = false;
-  showServiceAgreementModal.value = false;
 }
 
 function showServiceAgreement() {
@@ -384,12 +378,7 @@ defineExpose({
       </div>
       <template #footer>
         <div class="flex w-full justify-end space-x-2">
-          <VbenButton variant="outline" @click="handleReject">
-            {{ $t('拒绝') }}
-          </VbenButton>
-          <VbenButton @click="handleAgree">
-            {{ $t('同意') }}
-          </VbenButton>
+          <VbenButton @click="handleClose"> 关闭 </VbenButton>
         </div>
       </template>
     </VbenModal>
@@ -416,12 +405,7 @@ defineExpose({
       </div>
       <template #footer>
         <div class="flex w-full justify-end space-x-2">
-          <VbenButton variant="outline" @click="handleReject">
-            {{ $t('拒绝') }}
-          </VbenButton>
-          <VbenButton @click="handleAgree">
-            {{ $t('同意') }}
-          </VbenButton>
+          <VbenButton @click="handleClose"> 关闭 </VbenButton>
         </div>
       </template>
     </VbenModal>
