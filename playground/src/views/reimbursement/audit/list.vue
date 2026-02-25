@@ -19,12 +19,14 @@ import {
   Select,
   Spin,
   Table,
+  Tabs,
   Tag,
 } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
 import { STATUS_MAP, useColumns, useFormRules } from './data';
+import AnalysisPanel from './modules/analysis-panel.vue';
 import {
   getUserPrivilegeInfo,
   statusOptions,
@@ -68,6 +70,7 @@ const {
 
 // 表单相关
 const formRef = ref(null);
+const activeTab = ref('audit');
 
 // 表单验证规则
 const rules = useFormRules();
@@ -90,118 +93,125 @@ onMounted(() => {
 <template>
   <Page>
     <Card :title="$t('报销审核')" class="mb-4">
-      <div class="mb-4 flex flex-col gap-4">
-        <div class="flex items-center justify-between gap-4">
-          <h2 class="text-lg font-semibold">报销审核</h2>
-          <div v-if="hasAuditPermission" class="text-sm text-gray-600">
-            审核权限：可审核金额 {{ userPrivilegeInfo.maxAmount }}
-          </div>
-        </div>
-
-        <div class="flex flex-wrap gap-4 rounded-md bg-white p-4 shadow-sm">
-          <DatePicker.RangePicker
-            v-model:value="searchForm.dateRange"
-            :placeholder="['开始日期', '结束日期']"
-            value-format="YYYY-MM-DD"
-            class="w-64"
-          />
-          <Input
-            v-model:value="searchForm.purpose"
-            placeholder="搜索用途"
-            class="w-48"
-            allow-clear
-          />
-          <Input
-            v-model:value="searchForm.payee"
-            placeholder="搜索领款人"
-            class="w-48"
-            allow-clear
-            :title="!hasAuditPermission ? '您只能查看自己的报销申请记录' : ''"
-          />
-          <Select
-            v-model:value="(searchForm as any).park"
-            :options="parkOptions"
-            placeholder="请选择园区搜索"
-            class="w-48"
-            allow-clear
-          />
-          <Select
-            v-model:value="searchForm.status"
-            :options="statusOptions"
-            placeholder="选择状态"
-            class="w-32"
-            allow-clear
-          />
-          <Button type="primary" @click="handleSearch">
-            <Search class="mr-1 h-4 w-4" />
-            搜索
-          </Button>
-          <Button @click="resetSearch">重置</Button>
+      <div class="flex items-center justify-between gap-4">
+        <h2 class="text-lg font-semibold">报销审核</h2>
+        <div v-if="hasAuditPermission" class="text-sm text-gray-600">
+          审核权限：可审核金额 {{ userPrivilegeInfo.maxAmount }}
         </div>
       </div>
 
-      <Spin :spinning="loading" tip="加载中...">
-        <Table
-          :columns="useColumns(showAuditModal)"
-          :data-source="reimbursementList"
-          row-key="id"
-          :pagination="pagination"
-          @change="handleTableChange"
-          :scroll="{ x: 1300 }"
-        >
-          <template #emptyText>
-            <Empty :description="loading ? '加载中...' : '暂无数据'" />
-          </template>
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'images'">
-              <div
-                v-if="record.images && record.images.length > 0"
-                class="flex flex-wrap items-center gap-1"
-              >
-                <Image.PreviewGroup>
-                  <Image
-                    v-for="(img, index) in record.images.slice(0, 12)"
-                    :key="index"
-                    :src="img"
-                    :width="40"
-                    :height="40"
-                    class="rounded object-cover"
-                  />
-                </Image.PreviewGroup>
-                <div v-if="record.images.length > 12" class="ml-1">
-                  <Tag color="blue">+{{ record.images.length - 12 }}</Tag>
-                </div>
-              </div>
-              <span v-else>无</span>
-            </template>
-            <template v-if="column.key === 'action'">
-              <div class="flex justify-center gap-2">
-                <Button
-                  type="primary"
-                  size="small"
-                  @click="showAuditModal(record as any)"
-                  :disabled="record.status !== 0"
-                >
-                  审核
-                </Button>
-                <Button
-                  type="link"
-                  danger
-                  size="small"
-                  @click="handleDelete(record as any)"
-                  v-if="
-                    hasAuditPermission ||
-                    record.username ===
-                      (userInfo?.realName || userInfo?.username)
-                  "
-                >
-                  删除
-                </Button>
-              </div>
-            </template>
-          </template>
-        </Table>
-      </Spin>
+      <Tabs v-model:active-key="activeTab" class="mt-4">
+        <Tabs.TabPane key="audit" tab="审核列表">
+          <div
+            class="mb-4 flex flex-wrap gap-4 rounded-md bg-white p-4 shadow-sm"
+          >
+            <DatePicker.RangePicker
+              v-model:value="searchForm.dateRange"
+              :placeholder="['开始日期', '结束日期']"
+              value-format="YYYY-MM-DD"
+              class="w-64"
+            />
+            <Input
+              v-model:value="searchForm.purpose"
+              placeholder="搜索用途"
+              class="w-48"
+              allow-clear
+            />
+            <Input
+              v-model:value="searchForm.payee"
+              placeholder="搜索领款人"
+              class="w-48"
+              allow-clear
+              :title="!hasAuditPermission ? '您只能查看自己的报销申请记录' : ''"
+            />
+            <Select
+              v-model:value="(searchForm as any).park"
+              :options="parkOptions"
+              placeholder="请选择园区搜索"
+              class="w-48"
+              allow-clear
+            />
+            <Select
+              v-model:value="searchForm.status"
+              :options="statusOptions"
+              placeholder="选择状态"
+              class="w-32"
+              allow-clear
+            />
+            <Button type="primary" @click="handleSearch">
+              <Search class="mr-1 h-4 w-4" />
+              搜索
+            </Button>
+            <Button @click="resetSearch">重置</Button>
+          </div>
+
+          <Spin :spinning="loading" tip="加载中...">
+            <Table
+              :columns="useColumns(showAuditModal)"
+              :data-source="reimbursementList"
+              row-key="id"
+              :pagination="pagination"
+              @change="handleTableChange"
+              :scroll="{ x: 1300 }"
+            >
+              <template #emptyText>
+                <Empty :description="loading ? '加载中...' : '暂无数据'" />
+              </template>
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'images'">
+                  <div
+                    v-if="record.images && record.images.length > 0"
+                    class="flex flex-wrap items-center gap-1"
+                  >
+                    <Image.PreviewGroup>
+                      <Image
+                        v-for="(img, index) in record.images.slice(0, 12)"
+                        :key="index"
+                        :src="img"
+                        :width="40"
+                        :height="40"
+                        class="rounded object-cover"
+                      />
+                    </Image.PreviewGroup>
+                    <div v-if="record.images.length > 12" class="ml-1">
+                      <Tag color="blue">+{{ record.images.length - 12 }}</Tag>
+                    </div>
+                  </div>
+                  <span v-else>无</span>
+                </template>
+                <template v-if="column.key === 'action'">
+                  <div class="flex justify-center gap-2">
+                    <Button
+                      type="primary"
+                      size="small"
+                      @click="showAuditModal(record as any)"
+                      :disabled="record.status !== 0"
+                    >
+                      审核
+                    </Button>
+                    <Button
+                      type="link"
+                      danger
+                      size="small"
+                      @click="handleDelete(record as any)"
+                      v-if="
+                        hasAuditPermission ||
+                        record.username ===
+                          (userInfo?.realName || userInfo?.username)
+                      "
+                    >
+                      删除
+                    </Button>
+                  </div>
+                </template>
+              </template>
+            </Table>
+          </Spin>
+        </Tabs.TabPane>
+        <Tabs.TabPane v-if="hasAuditPermission" key="analysis" tab="数据分析">
+          <AnalysisPanel :park-options="parkOptions" />
+        </Tabs.TabPane>
+      </Tabs>
     </Card>
 
     <!-- 审核弹窗 -->

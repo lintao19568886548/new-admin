@@ -1,5 +1,38 @@
 import { requestClient } from '#/api/request';
 
+export interface ReimbursementAnalysisQuery {
+  endDate?: string;
+  parkId?: number;
+  startDate?: string;
+  status?: number;
+}
+
+export interface ReimbursementParkStat {
+  count: number;
+  park: string;
+  parkId: number;
+  ratio?: number;
+  totalAmount: number;
+}
+
+export interface ReimbursementTrendStat {
+  count: number;
+  date: string;
+  totalAmount: number;
+}
+
+export interface ReimbursementAnalysisResponse {
+  parkStats: ReimbursementParkStat[];
+  summary: {
+    averageAmount: number;
+    count: number;
+    parkCount: number;
+    totalAmount: number;
+  };
+  topParks: ReimbursementParkStat[];
+  trend: ReimbursementTrendStat[];
+}
+
 // 创建报销申请
 export async function createReimbursement(data: any) {
   return requestClient.post('/reimbursement', data);
@@ -40,4 +73,15 @@ export async function deleteReimbursement(id: number) {
 
 export async function getPendingReimbursementCount() {
   return requestClient.get<{ count: number }>('/reimbursement/pending-count');
+}
+
+export async function getReimbursementAnalysis(
+  params?: ReimbursementAnalysisQuery,
+) {
+  return requestClient.get<ReimbursementAnalysisResponse>(
+    '/reimbursement/analysis',
+    {
+      params,
+    },
+  );
 }
