@@ -21,6 +21,7 @@ import {
   Row,
   Select,
   Spin,
+  Tabs,
   Tag,
 } from 'ant-design-vue';
 
@@ -28,6 +29,7 @@ import { $t } from '#/locales';
 import { openMobileImagePreview } from '#/utils/mobile-image-preview';
 
 import { STATUS_MAP, useFormRules } from './data';
+import AnalysisPanel from './modules/analysis-panel.vue';
 import { statusOptions, useReimbursementAudit } from './modules/type';
 
 // 使用组合式函数
@@ -39,6 +41,7 @@ const {
   fetchReimbursements,
   handleAuditSubmit,
   handleSearch,
+  hasAuditPermission,
   isAmountOverLimit,
   isAuditModalVisible,
   loading,
@@ -53,6 +56,7 @@ const {
 
 // 表单相关 for the audit modal
 const auditModalFormRef = ref();
+const activeTab = ref('audit');
 
 // 表单验证规则
 const rules = useFormRules();
@@ -114,153 +118,164 @@ function handleImagePreview(images: string[] | undefined, index: number) {
       </div>
     </header> -->
 
-    <div class="search-filters">
-      <Form layout="vertical">
-        <Row :gutter="16">
-          <Col :span="24">
-            <Form.Item :label="$t('page.park.item')">
-              <Select
-                v-model:value="searchForm.park"
-                :options="parkOptions"
-                :placeholder="$t('选择园区')"
-                allow-clear
-              />
-            </Form.Item>
-          </Col>
-          <Col :span="12">
-            <Form.Item :label="$t('用途')">
-              <Input
-                v-model:value="searchForm.purpose"
-                :placeholder="$t('搜索用途')"
-                allow-clear
-              />
-            </Form.Item>
-          </Col>
-          <Col :span="12">
-            <Form.Item :label="$t('状态')">
-              <Select
-                v-model:value="searchForm.status"
-                :options="statusOptions"
-                :placeholder="$t('选择状态')"
-                allow-clear
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-        <div class="search-actions">
-          <Button type="primary" @click="handleSearch" class="flex-1">
-            <Search class="mr-1 h-4 w-4" />
-            {{ $t('搜索') }}
-          </Button>
-          <Button @click="resetSearch" class="flex-1">
-            {{ $t('重置') }}
-          </Button>
+    <Tabs v-model:active-key="activeTab" class="mobile-tabs">
+      <Tabs.TabPane key="audit" tab="审核列表">
+        <div class="search-filters">
+          <Form layout="vertical">
+            <Row :gutter="16">
+              <Col :span="24">
+                <Form.Item :label="$t('page.park.item')">
+                  <Select
+                    v-model:value="searchForm.park"
+                    :options="parkOptions"
+                    :placeholder="$t('选择园区')"
+                    allow-clear
+                  />
+                </Form.Item>
+              </Col>
+              <Col :span="12">
+                <Form.Item :label="$t('用途')">
+                  <Input
+                    v-model:value="searchForm.purpose"
+                    :placeholder="$t('搜索用途')"
+                    allow-clear
+                  />
+                </Form.Item>
+              </Col>
+              <Col :span="12">
+                <Form.Item :label="$t('状态')">
+                  <Select
+                    v-model:value="searchForm.status"
+                    :options="statusOptions"
+                    :placeholder="$t('选择状态')"
+                    allow-clear
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+            <div class="search-actions">
+              <Button type="primary" @click="handleSearch" class="flex-1">
+                <Search class="mr-1 h-4 w-4" />
+                {{ $t('搜索') }}
+              </Button>
+              <Button @click="resetSearch" class="flex-1">
+                {{ $t('重置') }}
+              </Button>
+            </div>
+          </Form>
         </div>
-      </Form>
-    </div>
 
-    <Spin :spinning="loading" :tip="$t('加载中...')">
-      <div v-if="reimbursementList.length > 0" class="audit-list">
-        <Card
-          v-for="item in reimbursementList"
-          :key="item.id"
-          class="audit-card"
-          :body-style="{ padding: '0' }"
-        >
-          <div class="card-header">
-            <span class="purpose-title">{{ item.purpose }}</span>
-            <Tag :color="getStatusDisplay(item.status).color">
-              {{ getStatusDisplay(item.status).text }}
-            </Tag>
-          </div>
-          <div class="card-content">
-            <div class="amount-display">
-              <span class="amount-label">报销金额</span>
-              <span class="amount">￥{{ Number(item.amount).toFixed(2) }}</span>
-            </div>
-
-            <div class="info-grid">
-              <div class="info-item">
-                <span class="info-label">申请人</span>
-                <span class="info-value">{{ item.username }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">领款人</span>
-                <span class="info-value">{{ item.payee }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">申请日期</span>
-                <span class="info-value">{{ formatDateTime(item.date) }}</span>
-              </div>
-              <div v-if="item.park" class="info-item">
-                <span class="info-label">园区</span>
-                <span class="info-value">{{ item.park }}</span>
-              </div>
-            </div>
-
-            <div
-              v-if="(item as any).remark || item.auditOpinion"
-              class="opinions-section"
+        <Spin :spinning="loading" :tip="$t('加载中...')">
+          <div v-if="reimbursementList.length > 0" class="audit-list">
+            <Card
+              v-for="item in reimbursementList"
+              :key="item.id"
+              class="audit-card"
+              :body-style="{ padding: '0' }"
             >
-              <p v-if="(item as any).remark" class="opinion-info">
-                <span class="opinion-label">申请备注:</span>
-                <span class="opinion-text">{{ (item as any).remark }}</span>
-              </p>
-              <p v-if="item.auditOpinion" class="opinion-info">
-                <!-- <span class="opinion-label"></span> -->
-                <span class="opinion-label">{{ item.auditOpinion }}</span>
-              </p>
-            </div>
+              <div class="card-header">
+                <span class="purpose-title">{{ item.purpose }}</span>
+                <Tag :color="getStatusDisplay(item.status).color">
+                  {{ getStatusDisplay(item.status).text }}
+                </Tag>
+              </div>
+              <div class="card-content">
+                <div class="amount-display">
+                  <span class="amount-label">报销金额</span>
+                  <span class="amount">
+                    ￥{{ Number(item.amount).toFixed(2) }}
+                  </span>
+                </div>
 
-            <div
-              v-if="item.images && item.images.length > 0"
-              class="card-images"
-            >
-              <Carousel
-                class="image-carousel"
-                :dots="item.images.length > 1"
-                :infinite="false"
-                :adaptive-height="true"
-              >
-                <Image
-                  v-for="(img, index) in item.images"
-                  :key="index"
-                  :src="img"
-                  :preview="false"
-                  class="carousel-main-image"
-                  @click="handleImagePreview(item.images, index)"
-                />
-              </Carousel>
-            </div>
+                <div class="info-grid">
+                  <div class="info-item">
+                    <span class="info-label">申请人</span>
+                    <span class="info-value">{{ item.username }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">领款人</span>
+                    <span class="info-value">{{ item.payee }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">申请日期</span>
+                    <span class="info-value">
+                      {{ formatDateTime(item.date) }}
+                    </span>
+                  </div>
+                  <div v-if="item.park" class="info-item">
+                    <span class="info-label">园区</span>
+                    <span class="info-value">{{ item.park }}</span>
+                  </div>
+                </div>
+
+                <div
+                  v-if="(item as any).remark || item.auditOpinion"
+                  class="opinions-section"
+                >
+                  <p v-if="(item as any).remark" class="opinion-info">
+                    <span class="opinion-label">申请备注:</span>
+                    <span class="opinion-text">{{ (item as any).remark }}</span>
+                  </p>
+                  <p v-if="item.auditOpinion" class="opinion-info">
+                    <!-- <span class="opinion-label"></span> -->
+                    <span class="opinion-label">{{ item.auditOpinion }}</span>
+                  </p>
+                </div>
+
+                <div
+                  v-if="item.images && item.images.length > 0"
+                  class="card-images"
+                >
+                  <Carousel
+                    class="image-carousel"
+                    :dots="item.images.length > 1"
+                    :infinite="false"
+                    :adaptive-height="true"
+                  >
+                    <Image
+                      v-for="(img, index) in item.images"
+                      :key="index"
+                      :src="img"
+                      :preview="false"
+                      class="carousel-main-image"
+                      @click="handleImagePreview(item.images, index)"
+                    />
+                  </Carousel>
+                </div>
+              </div>
+              <div class="card-actions">
+                <Button
+                  type="primary"
+                  :disabled="
+                    item.status === 0 && isAmountOverLimit(Number(item.amount))
+                  "
+                  block
+                  @click="showAuditModal(item)"
+                >
+                  {{ item.status !== 0 ? $t('查看详情') : $t('审核') }}
+                </Button>
+              </div>
+            </Card>
+            <Pagination
+              v-if="pagination.total > 0"
+              :current="pagination.current"
+              :page-size="pagination.pageSize"
+              :total="pagination.total"
+              @change="handlePageChange"
+              size="small"
+              class="list-pagination"
+            />
           </div>
-          <div class="card-actions">
-            <Button
-              type="primary"
-              :disabled="
-                item.status === 0 && isAmountOverLimit(Number(item.amount))
-              "
-              block
-              @click="showAuditModal(item)"
-            >
-              {{ item.status !== 0 ? $t('查看详情') : $t('审核') }}
-            </Button>
-          </div>
-        </Card>
-        <Pagination
-          v-if="pagination.total > 0"
-          :current="pagination.current"
-          :page-size="pagination.pageSize"
-          :total="pagination.total"
-          @change="handlePageChange"
-          size="small"
-          class="list-pagination"
-        />
-      </div>
-      <Empty
-        v-else
-        :description="loading ? $t('加载中...') : $t('暂无待审核记录')"
-      />
-    </Spin>
+          <Empty
+            v-else
+            :description="loading ? $t('加载中...') : $t('暂无待审核记录')"
+          />
+        </Spin>
+      </Tabs.TabPane>
+      <Tabs.TabPane v-if="hasAuditPermission" key="analysis" tab="数据分析">
+        <AnalysisPanel :park-options="parkOptions" />
+      </Tabs.TabPane>
+    </Tabs>
 
     <!-- 审核弹窗 -->
     <Modal
@@ -414,6 +429,10 @@ function handleImagePreview(images: string[] | undefined, index: number) {
   box-sizing: border-box;
   padding: 8px; /* Reduced padding for mobile */
   background-color: #f0f2f5;
+}
+
+.mobile-tabs :deep(.ant-tabs-nav) {
+  margin-bottom: 8px;
 }
 
 .search-filters {
