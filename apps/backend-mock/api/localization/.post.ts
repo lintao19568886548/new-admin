@@ -1,17 +1,20 @@
 import { eventHandler, readBody } from 'h3';
 import { prismaClient } from '~/utils/db';
+import { verifyAccessToken } from '~/utils/jwt-utils';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
+  const userinfo = await verifyAccessToken(event);
+  if (!userinfo) {
+    return useResponseError('未登录或登录已过期', { statusCode: 401 });
+  }
+
   try {
-    const { punchTime, username, status, userId, longitude, latitude } =
-      await readBody(event);
+    const { punchTime, status, longitude, latitude } = await readBody(event);
 
     if (
       !punchTime ||
-      !username ||
       status === undefined ||
-      !userId ||
       longitude === undefined ||
       latitude === undefined
     ) {
@@ -28,10 +31,10 @@ export default eventHandler(async (event) => {
         status: Number(status),
         user: {
           connect: {
-            id: userId,
+            id: userinfo.id,
           },
         },
-        username,
+        username: userinfo.username,
       },
     });
 

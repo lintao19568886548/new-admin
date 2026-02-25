@@ -1,17 +1,35 @@
 import dayjs from 'dayjs';
 import { getQuery } from 'h3';
 import { prismaClient } from '~/utils/db';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  unAuthorizedResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
 
 export default eventHandler(async (event) => {
+  const userinfo = await verifyAccessToken(event);
+  if (!userinfo) {
+    return unAuthorizedResponse(event);
+  }
+
   try {
     const query = getQuery(event);
     const page = Number.parseInt(query.page as string) || 1;
     const pageSize = Number.parseInt(query.pageSize as string) || 10;
-    const username = query.username as string;
+    const roleNames = userinfo.roles ?? [];
+    const isSuper = roleNames.includes('Super');
+    const requestedUsername =
+      typeof query.username === 'string' ? query.username.trim() : '';
+    const username = requestedUsername || userinfo.username;
 
-    if (!username) {
-      return useResponseError('缺少用户名');
+    if (
+      requestedUsername &&
+      requestedUsername !== userinfo.username &&
+      !isSuper
+    ) {
+      return useResponseError('没有权限查看其他用户考勤');
     }
 
     const startDate = query.startDate

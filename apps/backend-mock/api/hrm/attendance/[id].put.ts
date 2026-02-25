@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import { readBody } from 'h3';
 import { prismaClient } from '~/utils/db';
+import { verifyAccessToken } from '~/utils/jwt-utils';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 const AttendanceStatus = {
@@ -108,6 +109,11 @@ async function areSegmentsCoveredByLeave(
 }
 
 export default eventHandler(async (event) => {
+  const userinfo = await verifyAccessToken(event);
+  if (!userinfo) {
+    return useResponseError('未登录或登录已过期', { statusCode: 401 });
+  }
+
   const id = Number.parseInt(event.context.params.id);
   if (!id || Number.isNaN(id)) {
     return useResponseError('无效的ID');
@@ -122,6 +128,12 @@ export default eventHandler(async (event) => {
 
     if (!existingAttendance) {
       return useResponseError('找不到该打卡记录');
+    }
+
+    const roleNames = userinfo.roles ?? [];
+    const isSuper = roleNames.includes('Super');
+    if (!isSuper && existingAttendance.userId !== userinfo.id) {
+      return useResponseError('没有权限修改他人考勤记录', { statusCode: 403 });
     }
 
     // 更新状态：如果在工作时间段内提前离开，需要额外判断

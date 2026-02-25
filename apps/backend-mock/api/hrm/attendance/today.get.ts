@@ -1,14 +1,33 @@
 import dayjs from 'dayjs';
 import { getQuery } from 'h3';
 import { prismaClient } from '~/utils/db';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  unAuthorizedResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
 
 export default eventHandler(async (event) => {
-  try {
-    const { username } = getQuery(event);
+  const userinfo = await verifyAccessToken(event);
+  if (!userinfo) {
+    return unAuthorizedResponse(event);
+  }
 
-    if (!username) {
-      return useResponseError('缺少用户名');
+  try {
+    const query = getQuery(event);
+    const roleNames = userinfo.roles ?? [];
+    const isSuper = roleNames.includes('Super');
+    const requestedUsername =
+      typeof query.username === 'string' ? query.username.trim() : '';
+    const username = requestedUsername || userinfo.username;
+
+    if (
+      requestedUsername &&
+      requestedUsername !== userinfo.username &&
+      !isSuper
+    ) {
+      return useResponseError('没有权限查看其他用户考勤');
     }
 
     const startOfToday = dayjs().startOf('day').toDate();
@@ -16,7 +35,7 @@ export default eventHandler(async (event) => {
 
     const todayRecord = await prismaClient.attendance.findFirst({
       where: {
-        username: username as string,
+        username,
         punchIn: {
           gte: startOfToday,
           lte: endOfToday,
