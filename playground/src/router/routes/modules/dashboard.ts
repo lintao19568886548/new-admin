@@ -23,6 +23,16 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'Analysis',
+        path: '/analysis',
+        component: () => import('#/views/dashboard/analysis.vue'),
+        meta: {
+          affixTab: true,
+          icon: 'lucide:bar-chart-3',
+          title: '数据分析',
+        },
+      },
+      {
         name: 'Workspace',
         path: '/workspace',
         component: () => import('#/views/dashboard/workspace/index.vue'),

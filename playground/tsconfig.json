@@ -9,6 +9,11 @@
     "types": ["vite/client", "vue"]
   },
   "references": [{ "path": "./tsconfig.node.json" }],
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "src/typings/**/*.d.ts"
+  ],
   "exclude": ["src/views/test/example/*"]
 }
