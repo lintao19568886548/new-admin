@@ -3,7 +3,7 @@ import type { Rule } from 'ant-design-vue/es/form';
 
 import type { AmountBill } from './data';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
@@ -23,6 +23,7 @@ import {
   message,
   Modal,
   Spin,
+  Switch,
   Tag,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
@@ -52,11 +53,30 @@ const parkSelectorRef = ref();
 const mobileBillFormRef = ref();
 const mobileBillDetailRef = ref();
 
-// Helper to format fee with currency
+// 脱敏开关 - 从 localStorage 读取持久化状态
+const enableMask = ref(localStorage.getItem('bill-enableMask') !== 'false');
+
+// Helper to format fee with currency (带脱敏)
 const formatFee = (value?: number | string) => {
   const numValue = Number(value);
-  return Number.isNaN(numValue) ? '0.00 元' : `${numValue.toFixed(2)} 元`;
+  if (Number.isNaN(numValue)) return '0.00 元';
+  if (!enableMask.value) {
+    return `${numValue.toFixed(2)} 元`;
+  }
+  const intPart = Math.floor(numValue);
+  const decimalPart = ((numValue - intPart) * 100).toFixed(0).padStart(2, '0');
+  const intStr = String(intPart);
+  if (intStr.length <= 1) {
+    return `¥${intStr}.${decimalPart} 元`;
+  }
+  const masked = intStr[0] + '*'.repeat(intStr.length - 1);
+  return `¥${masked}.${decimalPart} 元`;
 };
+
+// 监听脱敏开关变化并持久化
+watch(enableMask, (val) => {
+  localStorage.setItem('bill-enableMask', String(val));
+});
 
 // 获取账单列表
 async function fetchBillList(isRefresh = false) {
@@ -290,23 +310,36 @@ const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
     :title="$t('page.bill.amount.mobileTitle', '总账单管理')"
     class="amount-bill-mobile-page"
   >
-    <template #headerContent>
-      <div class="flex items-center justify-between bg-white p-2 dark:bg-black">
+    <div class="p-2">
+      <div
+        class="mb-2 flex items-center justify-between rounded bg-white p-2 dark:bg-black"
+      >
         <AreaSelector
           :default-area="currentPark"
           :refresh-callback="refreshList"
           @change="onParkChange"
           ref="parkSelectorRef"
           size="small"
-          class="w-1/2"
+          class="flex-1"
         />
-        <Button type="primary" @click="handleCreate" size="small">
+        <div class="flex shrink-0 items-center gap-1">
+          <span class="text-xs">脱敏</span>
+          <Switch
+            v-model:checked="enableMask"
+            checked-children="开"
+            un-checked-children="关"
+            size="small"
+          />
+        </div>
+        <Button
+          type="primary"
+          @click="handleCreate"
+          size="small"
+          class="shrink-0"
+        >
           <PlusOutlined /> {{ $t('common.create') }}
         </Button>
       </div>
-    </template>
-
-    <div class="p-2">
       <Spin :spinning="loading && currentPage === 1">
         <List
           item-layout="horizontal"

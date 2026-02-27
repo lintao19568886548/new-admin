@@ -50,7 +50,9 @@ export async function exportToPDF(elementId?: string, fileName?: string) {
     const html2canvas = html2canvasModule.default;
     const { jsPDF: JsPDF } = jsPDFModule;
 
-    const element = document.querySelector(`#${elementId || ''}`);
+    const element = document.querySelector(
+      `#${elementId || ''}`,
+    ) as HTMLElement | null;
     if (!element) {
       console.warn(`找不到ID为 ${elementId} 的元素`);
       return;

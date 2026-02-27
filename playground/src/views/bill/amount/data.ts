@@ -139,6 +139,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
  */
 export function useColumns<T = AmountBill>(
   onActionClick: OnActionClickFn<T>,
+  enableMask = true,
 ): VxeTableGridOptions['columns'] {
   return [
     {
@@ -207,7 +208,21 @@ export function useColumns<T = AmountBill>(
     {
       field: 'totalFee',
       formatter: ({ cellValue }) => {
-        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
+        if (!cellValue) return '0.00 元';
+        const amount = Number(cellValue);
+        if (!enableMask) {
+          return `${amount.toFixed(2)} 元`;
+        }
+        const intPart = Math.floor(amount);
+        const decimalPart = ((amount - intPart) * 100)
+          .toFixed(0)
+          .padStart(2, '0');
+        const intStr = String(intPart);
+        if (intStr.length <= 1) {
+          return `¥${intStr}.${decimalPart} 元`;
+        }
+        const masked = intStr[0] + '*'.repeat(intStr.length - 1);
+        return `¥${masked}.${decimalPart} 元`;
       },
       minWidth: 130,
       title: '本月收费金额',

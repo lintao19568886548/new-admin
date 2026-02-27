@@ -235,6 +235,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
 
 export function useColumns<T = FinanceItem>(
   onActionClick: OnActionClickFn<T>,
+  enableMask = true,
 ): VxeTableGridOptions['columns'] {
   return [
     {
@@ -264,7 +265,21 @@ export function useColumns<T = FinanceItem>(
     {
       field: 'amount',
       formatter: ({ cellValue }) => {
-        return cellValue ? `¥${Number(cellValue).toFixed(2)}` : '0';
+        if (!cellValue) return '0';
+        const amount = Number(cellValue);
+        if (!enableMask) {
+          return `¥${amount.toFixed(2)}`;
+        }
+        const intPart = Math.floor(amount);
+        const decimalPart = ((amount - intPart) * 100)
+          .toFixed(0)
+          .padStart(2, '0');
+        const intStr = String(intPart);
+        if (intStr.length <= 1) {
+          return `¥${intStr}.${decimalPart}`;
+        }
+        const masked = intStr[0] + '*'.repeat(intStr.length - 1);
+        return `¥${masked}.${decimalPart}`;
       },
       minWidth: 120,
       title: $t('page.finance.amount'),

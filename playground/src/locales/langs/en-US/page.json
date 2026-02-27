@@ -8,6 +8,24 @@
     "register": "Register",
     "sendingCode": "SMS Code is sending..."
   },
+  "bill": {
+    "amount": {
+      "detail": "Bill Detail",
+      "mobileTitle": "Bill Management",
+      "printSettingsTitle": "Print Settings"
+    },
+    "create": "Create Bill",
+    "detail": "Bill Detail",
+    "edit": "Edit Bill",
+    "electricity": "Electricity",
+    "gas": "Gas",
+    "list": "Bill List",
+    "other": "Other Fees",
+    "rent": "Rent",
+    "title": "Bill Management",
+    "view": "View Bill",
+    "water": "Water"
+  },
   "dashboard": {
     "analytics": "Analytics",
     "title": "Dashboard",

@@ -1,17 +1,14 @@
 <script lang="ts" setup>
 import type { FinanceItem } from './types';
 
-import type {
-  OnActionClickParams,
-  VxeTableGridOptions,
-} from '#/adapter/vxe-table';
+import type { OnActionClickParams } from '#/adapter/vxe-table';
 
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
-import { Button, message } from 'ant-design-vue';
+import { Button, message, Switch } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteFinance, getFinanceList } from '#/api/finance';
@@ -25,6 +22,9 @@ import Form from './modules/form.vue';
 
 // 使用 usePlatform Hook 获取平台信息
 const { isNativePlatform } = usePlatform();
+
+// 脱敏开关 - 从 localStorage 读取持久化状态
+const enableMask = ref(localStorage.getItem('finance-enableMask') !== 'false');
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -53,6 +53,8 @@ onMounted(() => {
     });
 });
 
+const columns = computed(() => useColumns(onActionClick, enableMask.value));
+
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
@@ -62,7 +64,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridOptions: {
     border: true,
-    columns: useColumns(onActionClick),
+    columns: columns.value,
     height: 'auto',
     keepSource: true,
     // 添加分页配置
@@ -73,7 +75,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     proxyConfig: {
       ajax: {
-        query: async (page) => {
+        query: async (page: any) => {
           try {
             const formData = (await gridApi.formApi?.getValues?.()) || {};
 
@@ -157,7 +159,16 @@ const [Grid, gridApi] = useVbenVxeGrid({
       // 如果是原生平台，则禁用缩放按钮 (设置为 false)
       zoom: !isNativePlatform.value,
     },
-  } as VxeTableGridOptions<FinanceItem>,
+  },
+});
+
+// 监听脱敏开关变化并持久化
+watch(enableMask, (val) => {
+  localStorage.setItem('finance-enableMask', String(val));
+  const newColumns = useColumns(onActionClick, val);
+  if (newColumns) {
+    gridApi.grid?.loadColumn(newColumns);
+  }
 });
 
 function onActionClick(e: OnActionClickParams<FinanceItem>) {
@@ -227,6 +238,15 @@ function onParkChange(area: any) {
           @change="onParkChange"
           ref="parkSelectorRef"
         />
+        <!-- 脱敏开关 -->
+        <div class="ml-4 flex items-center">
+          <span class="mr-2 text-sm">金额脱敏</span>
+          <Switch
+            v-model:checked="enableMask"
+            checked-children="开"
+            un-checked-children="关"
+          />
+        </div>
       </template>
       <template #toolbar-tools>
         <!-- 网页端按钮样式 -->
