@@ -21,7 +21,15 @@
     // CSS 变量提示
     "vunguyentuan.vscode-css-variables",
     // 在 package.json 中显示 PNPM catalog 的版本
-    "antfu.pnpm-catalog-lens"
+    "antfu.pnpm-catalog-lens",
+    "ms-azuretools.vscode-containers",
+    "usernamehw.errorlens",
+    "eamodio.gitlens",
+    "yzhang.markdown-all-in-one",
+    "aaaaronzhou.nginx-config-formatter-vscode-extension",
+    "hangxingliu.vscode-nginx-conf-hint",
+    "prisma.prisma",
+    "prisma.prisma-insider"
   ],
   "unwantedRecommendations": [
     // 和 volar 冲突
