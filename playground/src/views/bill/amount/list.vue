@@ -3,12 +3,9 @@ import type { Rule } from 'ant-design-vue/es/form';
 
 import type { AmountBill } from './data';
 
-import type {
-  OnActionClickParams,
-  VxeTableGridOptions,
-} from '#/adapter/vxe-table';
+import type { OnActionClickParams } from '#/adapter/vxe-table';
 
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router'; // 新增: 引入 useRouter
 
 import { Page } from '@vben/common-ui';
@@ -22,6 +19,7 @@ import {
   message,
   Modal,
   Select,
+  Switch,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
@@ -51,6 +49,9 @@ onMounted(async () => {
 
 const currentPark = ref();
 const parkSelectorRef = ref();
+
+// 脱敏开关 - 从 localStorage 读取持久化状态
+const enableMask = ref(localStorage.getItem('bill-enableMask') !== 'false');
 
 // 账单表单组件引用
 const billFormRef = ref();
@@ -205,6 +206,8 @@ function onActionClick({ code, row }: OnActionClickParams<AmountBill>) {
   }
 }
 
+const columns = computed(() => useColumns(onActionClick, enableMask.value));
+
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
@@ -216,12 +219,12 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridOptions: {
     border: true,
-    columns: useColumns(onActionClick),
+    columns: columns.value,
     footerAlign: 'center',
-    footerMethod({ columns, data }: { columns: any[]; data: any[] }) {
+    footerMethod({ columns: cols, data }: { columns: any[]; data: any[] }) {
       // 返回一个合计行
       return [
-        columns.map((column) => {
+        cols.map((column) => {
           // 根据列的字段名称进行不同的合计计算
           if (column.field === 'parkName') {
             return '合计';
@@ -291,7 +294,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     proxyConfig: {
       ajax: {
-        query: async (page) => {
+        query: async (page: any) => {
           // 获取表单数据
           const formData = (await gridApi.formApi?.getValues?.()) || {};
 
@@ -341,7 +344,16 @@ const [Grid, gridApi] = useVbenVxeGrid({
       search: true,
       zoom: true,
     },
-  } as VxeTableGridOptions,
+  },
+});
+
+// 监听脱敏开关变化并持久化
+watch(enableMask, (val) => {
+  localStorage.setItem('bill-enableMask', String(val));
+  const newColumns = useColumns(onActionClick, val);
+  if (newColumns) {
+    gridApi.grid?.loadColumn(newColumns);
+  }
 });
 
 // 导出Excel模态框相关状态
@@ -493,6 +505,15 @@ function handlePrintCancel() {
           @change="(park) => (currentPark = park)"
           ref="parkSelectorRef"
         />
+        <!-- 脱敏开关 -->
+        <div class="ml-4 flex items-center">
+          <span class="mr-2 text-sm">金额脱敏</span>
+          <Switch
+            v-model:checked="enableMask"
+            checked-children="开"
+            un-checked-children="关"
+          />
+        </div>
       </template>
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate" style="margin-right: 10px">

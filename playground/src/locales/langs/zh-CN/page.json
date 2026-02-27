@@ -67,6 +67,11 @@
     "sendingCode": "正在发送验证码"
   },
   "bill": {
+    "amount": {
+      "detail": "账单详情",
+      "mobileTitle": "总账单管理",
+      "printSettingsTitle": "打印设置"
+    },
     "create": "新增账单",
     "detail": "账单详情",
     "edit": "修改账单",

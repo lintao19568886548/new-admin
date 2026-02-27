@@ -6,14 +6,14 @@ import { computed, ref, watch } from 'vue'; // Import watch
 import { useVbenModal } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
 
-import { Button } from 'ant-design-vue';
+import { Button, message } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { useVbenForm } from '#/adapter/form';
-// Assuming these API functions exist or will be created
+import { createAmountBill, updateAmountBill } from '#/api/bill/amount';
 import { $t } from '#/locales';
 
-// Define emits
+const emits = defineEmits<{ success: [] }>();
 
 const recordId = ref<number | undefined>();
 const formMode = ref<'create' | 'edit' | 'next'>('create');
@@ -156,11 +156,48 @@ async function calculateTotalFee() {
 const [Modal, modalApi] = useVbenModal({
   draggable: false,
   onCancel() {
-    formApi.resetForm(); // Use resetForm instead of resetFields
+    formApi.resetForm();
     recordId.value = undefined;
     formMode.value = 'create';
   },
-  onConfirm: confirm, // Rename 'confirm' to 'onConfirm' and sort alphabetically
+  async onConfirm() {
+    const { valid } = await formApi.validate();
+    if (!valid) return;
+
+    const values = await formApi.getValues();
+    const submissionData = {
+      ...values,
+      receiptTime: values.receiptTime
+        ? new Date(values.receiptTime as string).toISOString()
+        : new Date().toISOString(),
+    };
+
+    modalApi.lock();
+
+    try {
+      if (recordId.value && formMode.value !== 'next') {
+        await updateAmountBill(recordId.value, submissionData);
+        message.success(
+          $t('ui.actionMessage.updateSuccess', [values?.tenantName ?? '']),
+        );
+      } else {
+        await createAmountBill(submissionData);
+        message.success(
+          $t('ui.actionMessage.createSuccess', [values?.tenantName ?? '']),
+        );
+      }
+      emits('success');
+      modalApi.close();
+    } catch (error: any) {
+      console.error('操作失败:', error);
+      message.error(
+        error?.message ||
+          $t('ui.actionMessage.operationFailed', [values?.tenantName ?? '']),
+      );
+    } finally {
+      modalApi.unlock();
+    }
+  },
   onOpenChange(isOpen) {
     if (isOpen) {
       const modalPayload =
@@ -207,7 +244,8 @@ function open(data?: AmountBill, mode?: 'next') {
   const openParams: { data?: AmountBill; mode?: string } = {};
   if (data) openParams.data = data;
   if (mode) openParams.mode = mode;
-  modalApi.setData(openParams); // Use setData to pass data, not open
+  modalApi.setData(openParams);
+  modalApi.open();
 }
 
 defineExpose({ open });

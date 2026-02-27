@@ -2,7 +2,7 @@
 <script lang="ts" setup>
 import type { FinanceItem as BaseFinanceItem } from './types';
 
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 import { Search } from '@vben/icons';
@@ -23,6 +23,7 @@ import {
   Row,
   Select,
   Spin,
+  Switch,
   Tag,
 } from 'ant-design-vue';
 
@@ -59,6 +60,35 @@ const loading = ref(false);
 const layoutStore = useLayoutStore();
 
 const parkOptions = ref<{ label: string; value: number }[]>([]);
+
+// 脱敏开关 - 从 localStorage 读取持久化状态
+const enableMask = ref(localStorage.getItem('finance-enableMask') !== 'false');
+
+// 格式化金额（带脱敏）
+function formatAmount(amount: number | string): string {
+  const num = Number(amount);
+  if (!enableMask.value) {
+    return `¥ ${num.toFixed(2)}`;
+  }
+  const intPart = Math.floor(num);
+  const decimalPart = ((num - intPart) * 100).toFixed(0).padStart(2, '0');
+  const intStr = String(intPart);
+  if (intStr.length <= 1) {
+    return `¥ ${intStr}.${decimalPart}`;
+  }
+  const masked = intStr[0] + '*'.repeat(intStr.length - 1);
+  return `¥ ${masked}.${decimalPart}`;
+}
+
+// 监听脱敏开关变化并持久化
+watch(enableMask, (val) => {
+  localStorage.setItem('finance-enableMask', String(val));
+  // 重新格式化所有账单金额
+  bills.value = bills.value.map((item) => ({
+    ...item,
+    formattedAmount: formatAmount(item.amount),
+  }));
+});
 
 // 搜索表单
 const searchForm = reactive({
@@ -104,7 +134,7 @@ function processBills(result: { items: BaseFinanceItem[]; total: number }) {
     bills.value = result.items.map((item) => {
       return {
         ...item,
-        formattedAmount: `¥ ${Number(item.amount).toFixed(2)}`,
+        formattedAmount: formatAmount(item.amount),
         images: item.images || [],
         transactionTime: formatDateTime(item.transactionTime),
       } as FinanceItem;
@@ -272,6 +302,15 @@ function getTransactionTypeClass(type: string) {
             {{ $t('common.reset') }}
           </Button>
         </div>
+        <div class="mask-switch">
+          <span class="mr-2 text-sm">金额脱敏</span>
+          <Switch
+            v-model:checked="enableMask"
+            checked-children="开"
+            un-checked-children="关"
+            size="small"
+          />
+        </div>
       </Form>
     </div>
 
@@ -411,6 +450,19 @@ function getTransactionTypeClass(type: string) {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+.mask-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.dark .mask-switch {
+  border-top-color: #424242;
 }
 
 .flex-1 {

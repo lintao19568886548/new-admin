@@ -59,8 +59,10 @@ function open(data: AmountBill) {
 defineExpose({ open });
 
 // Helper to render fee with currency
-const formatFee = (value?: number) => {
-  return value ? `${value.toFixed(2)} 元` : '0.00 元';
+const formatFee = (value?: number | string) => {
+  if (!value) return '0.00 元';
+  const num = Number(value);
+  return Number.isNaN(num) ? '0.00 元' : `${num.toFixed(2)} 元`;
 };
 </script>
 
