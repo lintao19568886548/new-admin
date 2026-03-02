@@ -20,22 +20,20 @@ export default eventHandler(async (event) => {
     const isSuper = roleNames.includes('Super');
     const requestedUsername =
       typeof query.username === 'string' ? query.username.trim() : '';
-    const username = requestedUsername || userinfo.username;
-
-    if (
-      requestedUsername &&
-      requestedUsername !== userinfo.username &&
-      !isSuper
-    ) {
-      return useResponseError('没有权限查看其他用户考勤');
-    }
 
     const startOfToday = dayjs().startOf('day').toDate();
     const endOfToday = dayjs().endOf('day').toDate();
 
+    let scopeWhere: { userId: number } | { username: string } = {
+      userId: userinfo.id,
+    };
+    if (isSuper && requestedUsername) {
+      scopeWhere = { username: requestedUsername };
+    }
+
     const todayRecord = await prismaClient.attendance.findFirst({
       where: {
-        username,
+        ...scopeWhere,
         punchIn: {
           gte: startOfToday,
           lte: endOfToday,

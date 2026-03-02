@@ -22,22 +22,20 @@ export default eventHandler(async (event) => {
     const isSuper = roleNames.includes('Super');
     const requestedUsername =
       typeof query.username === 'string' ? query.username.trim() : '';
-    const username = requestedUsername || userinfo.username;
-
-    if (
-      requestedUsername &&
-      requestedUsername !== userinfo.username &&
-      !isSuper
-    ) {
-      return useResponseError('没有权限查看其他用户考勤');
-    }
 
     const startOfMonth = dayjs().startOf('month').toDate();
     const endOfMonth = dayjs().endOf('month').toDate();
 
+    let scopeWhere: { userId: number } | { username: string } = {
+      userId: userinfo.id,
+    };
+    if (isSuper && requestedUsername) {
+      scopeWhere = { username: requestedUsername };
+    }
+
     const records = await prismaClient.attendance.findMany({
       where: {
-        username,
+        ...scopeWhere,
         punchIn: {
           gte: startOfMonth,
           lte: endOfMonth,

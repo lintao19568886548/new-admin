@@ -22,15 +22,6 @@ export default eventHandler(async (event) => {
     const isSuper = roleNames.includes('Super');
     const requestedUsername =
       typeof query.username === 'string' ? query.username.trim() : '';
-    const username = requestedUsername || userinfo.username;
-
-    if (
-      requestedUsername &&
-      requestedUsername !== userinfo.username &&
-      !isSuper
-    ) {
-      return useResponseError('没有权限查看其他用户考勤');
-    }
 
     const startDate = query.startDate
       ? dayjs(query.startDate as string)
@@ -43,9 +34,15 @@ export default eventHandler(async (event) => {
           .toDate()
       : undefined;
 
-    const where: any = {
-      username,
-    };
+    const where: any = {};
+
+    if (isSuper) {
+      if (requestedUsername) {
+        where.username = requestedUsername;
+      }
+    } else {
+      where.userId = userinfo.id;
+    }
 
     if (startDate && endDate) {
       where.punchIn = {
