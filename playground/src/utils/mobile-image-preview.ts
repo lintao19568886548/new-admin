@@ -56,6 +56,14 @@ function isAndroidNativePlatform() {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
 }
 
+function getSupportedNativePlatform() {
+  if (!Capacitor.isNativePlatform()) {
+    return null;
+  }
+  const platform = Capacitor.getPlatform();
+  return platform === 'android' || platform === 'ios' ? platform : null;
+}
+
 function ensureMessageOnTopLayer() {
   if (typeof document === 'undefined') {
     return;
@@ -84,11 +92,19 @@ function ensurePhotoSwipeThemeStyle() {
   --pswp-icon-color-secondary: #fff;
   --pswp-icon-stroke-color: transparent;
   --pswp-icon-stroke-width: 0;
+  --preview-safe-top: env(safe-area-inset-top, 0px);
+  --preview-safe-right: env(safe-area-inset-right, 0px);
+  --preview-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --preview-safe-left: env(safe-area-inset-left, 0px);
 }
 .${PSWP_MAIN_CLASS} .pswp__top-bar {
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0) 100%);
-  height: 60px;
-  padding: 0 4px;
+  box-sizing: border-box;
+  height: calc(60px + var(--preview-safe-top));
+  padding-top: var(--preview-safe-top);
+  padding-right: calc(4px + var(--preview-safe-right));
+  padding-bottom: 0;
+  padding-left: calc(4px + var(--preview-safe-left));
 }
 .${PSWP_MAIN_CLASS} .pswp__button {
   background: transparent;
@@ -432,8 +448,9 @@ async function normalizeImagePathForSaving(imageUrl: string) {
 export async function saveImageToSystemAlbum(imageUrl: string) {
   ensureMessageOnTopLayer();
 
-  if (!isAndroidNativePlatform()) {
-    message.warning('仅安卓端支持保存到系统相册');
+  const nativePlatform = getSupportedNativePlatform();
+  if (!nativePlatform) {
+    message.warning('仅移动端原生应用支持保存到系统相册');
     return false;
   }
 
@@ -452,14 +469,19 @@ export async function saveImageToSystemAlbum(imageUrl: string) {
   });
 
   try {
-    const albumIdentifier = await getOrCreateAlbumIdentifier();
-    const normalizedImagePath = await normalizeImagePathForSaving(imageUrl);
-
-    await Media.savePhoto({
-      albumIdentifier,
-      fileName: `reimbursement-${Date.now()}`,
-      path: normalizedImagePath,
-    });
+    if (nativePlatform === 'android') {
+      const normalizedImagePath = await normalizeImagePathForSaving(imageUrl);
+      const albumIdentifier = await getOrCreateAlbumIdentifier();
+      await Media.savePhoto({
+        albumIdentifier,
+        fileName: `reimbursement-${Date.now()}`,
+        path: normalizedImagePath,
+      });
+    } else {
+      await Media.savePhoto({
+        path: imageUrl,
+      });
+    }
 
     message.success({
       content: '图片已保存到系统相册',
@@ -636,7 +658,7 @@ export async function openMobileImagePreview(images: string[], startIndex = 0) {
       title: '旋转图片',
     });
 
-    if (isAndroidNativePlatform()) {
+    if (getSupportedNativePlatform()) {
       pswp.ui?.registerElement({
         appendTo: 'bar',
         ariaLabel: '保存到系统相册',
