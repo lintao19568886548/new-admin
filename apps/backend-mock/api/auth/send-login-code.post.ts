@@ -45,10 +45,10 @@ export default defineEventHandler(async (event) => {
   const code = generateNumericCode(codeLength);
 
   try {
-    // await sendLoginVerificationCode({
-    //   code,
-    //   phoneNumber,
-    // });
+    await sendLoginVerificationCode({
+      code,
+      phoneNumber,
+    });
     saveSmsCode(phoneNumber, code);
 
     const responsePayload: Record<string, unknown> = {
