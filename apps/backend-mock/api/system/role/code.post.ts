@@ -1,3 +1,4 @@
+import { bumpPermissionCacheVersion } from '~/utils/permission-cache';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
@@ -5,6 +6,7 @@ export default eventHandler(async (event) => {
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
+  const customerId = String(userinfo.customerId);
 
   const body = await readBody(event);
   const { roleId, codeId } = body;
@@ -34,6 +36,7 @@ export default eventHandler(async (event) => {
       },
     });
 
+    await bumpPermissionCacheVersion(customerId).catch(() => undefined);
     return useResponseSuccess(result);
   } catch (error) {
     console.error('创建角色权限码关联失败:', error);

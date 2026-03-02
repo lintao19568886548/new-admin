@@ -3,6 +3,9 @@ model User {
   realName                   String             @map("real_name") @db.VarChar(30)
   username                   String             @unique @db.VarChar(50)
   password                   String             @db.VarChar(100)
+  customerType               String?            @map("customer_type") @db.VarChar(50)
+  status                     Int?               @default(1) @db.TinyInt
+  tokenVersion               Int                @default(1) @map("token_version")
   phone                      String?            @db.VarChar(20)
   homePath                   String?            @map("home_path") @db.VarChar(100)
   userCodes                  UserCode[]         @relation("UserToUserCode")

@@ -3,7 +3,6 @@ import {
   serverErrorResponse,
   useResponseSuccess,
 } from '~/utils/response';
-import { sendLoginVerificationCode } from '~/utils/shlianlu-sms';
 import {
   ensureCanSendCode,
   generateNumericCode,
@@ -46,10 +45,10 @@ export default defineEventHandler(async (event) => {
   const code = generateNumericCode(codeLength);
 
   try {
-    await sendLoginVerificationCode({
-      code,
-      phoneNumber,
-    });
+    // await sendLoginVerificationCode({
+    //   code,
+    //   phoneNumber,
+    // });
     saveSmsCode(phoneNumber, code);
 
     const responsePayload: Record<string, unknown> = {

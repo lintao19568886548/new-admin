@@ -16,23 +16,24 @@ export default eventHandler(async (event) => {
     where: {
       salaryId,
     },
-    include: {
-      tenant: {
-        select: {
-          rentalTenantId: true,
-          tenantName: true,
-          phoneNumber: true,
-        },
-      },
-    },
   });
 
   if (!salary) {
     return useResponseError('工资记录不存在');
   }
 
+  const tenant = await prismaClient.rentalTenant.findUnique({
+    where: { rentalTenantId: salary.rentalTenantId },
+    select: {
+      rentalTenantId: true,
+      tenantName: true,
+      phoneNumber: true,
+    },
+  });
+
   return useResponseSuccess({
     ...salary,
+    tenant,
     salaryAmount:
       salary.salaryAmount !== null && salary.salaryAmount !== undefined
         ? Number(salary.salaryAmount)

@@ -5,8 +5,13 @@ import {
   clearRefreshTokenCookie,
   setRefreshTokenCookie,
 } from '~/utils/cookie-utils';
-import { prismaClient } from '~/utils/db';
-import { generateAccessToken, generateRefreshToken } from '~/utils/jwt-utils';
+import { prismaClient, prismaScopeStorage, systemDbClient } from '~/utils/db';
+import {
+  generateAccessToken,
+  issueRefreshToken,
+  persistRefreshToken,
+} from '~/utils/jwt-utils';
+import { setCachedUserInfoBestEffort } from '~/utils/permission-cache';
 import { applyUserRolesToUser } from '~/utils/permission-modules';
 import {
   badRequestResponse,
@@ -15,9 +20,10 @@ import {
   useResponseSuccess,
 } from '~/utils/response';
 import { SmsCodeError, verifySmsCode } from '~/utils/sms-code-store';
+import { resolveTenantUserForCenterUser } from '~/utils/user-customer-mapping';
 import {
-  fetchUserWithDetails,
-  transformPrismaUserToUserInfo,
+  getActiveCustomerForCenterUser,
+  resolveUserInfoForTokenFromCenterUser,
 } from '~/utils/user-service';
 
 interface CodeLoginBody {
@@ -50,65 +56,178 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const userResult = await fetchUserWithDetails(phoneNumber);
+    let userResult = await systemDbClient.user.findUnique({
+      where: { username: phoneNumber },
+      select: {
+        id: true,
+        username: true,
+        customerType: true,
+        tokenVersion: true,
+        status: true,
+      },
+    });
 
-    if (!userResult) {
+    const rejectLogin = () => {
+      clearRefreshTokenCookie(event);
+      return forbiddenResponse(event, '手机号或验证码错误');
+    };
+
+    const issueTokensAndRespond = async (centerUser: {
+      customerType: unknown;
+      id: unknown;
+      status?: unknown;
+      tokenVersion?: unknown;
+      username?: unknown;
+    }) => {
+      const customerContext = await getActiveCustomerForCenterUser(centerUser);
+      if (!customerContext) {
+        return rejectLogin();
+      }
+
+      const centerUserId = Number(centerUser.id);
+      const customerId = customerContext.customerId;
+      let userInfo = null;
+      try {
+        userInfo = await resolveUserInfoForTokenFromCenterUser({
+          centerUserId,
+          customerId,
+          username: String(centerUser.username),
+          tokenVersion: Number(centerUser.tokenVersion ?? 1),
+          dbName: customerContext.dbName,
+        });
+      } catch (error) {
+        console.error(
+          `[code-login] customer db unavailable (customerId=${customerId}, userId=${centerUserId})`,
+          error,
+        );
+      }
+      if (!userInfo) {
+        return rejectLogin();
+      }
+
+      await setCachedUserInfoBestEffort({
+        customerId: userInfo.customerId,
+        userId: userInfo.id,
+        value: userInfo,
+      });
+
+      const accessToken = generateAccessToken(userInfo);
+      const {
+        expiresAt,
+        jti,
+        token: refreshToken,
+      } = issueRefreshToken(userInfo);
+
+      await persistRefreshToken({
+        event,
+        expiresAt,
+        jti,
+        refreshToken,
+        userId: Number(userInfo.centerUserId),
+      });
+
+      setRefreshTokenCookie(event, refreshToken);
+
+      return useResponseSuccess({
+        ...userInfo,
+        accessToken,
+      });
+    };
+
+    const tryCreateUserIfMissing = async () => {
       try {
         const plainPassword = randomBytes(24).toString('hex');
         const password = await bcrypt.hash(plainPassword, 10);
+        const defaultCustomerId = String(
+          process.env.DEFAULT_CUSTOMER_ID || 'default',
+        );
+        const registerCustomerId = process.env.PUBLIC_DATABASE_URL
+          ? 'public'
+          : defaultCustomerId;
 
-        const createdUser = await prismaClient.user.create({
+        const createdUser = await systemDbClient.user.create({
           data: {
             username: phoneNumber,
             phone: phoneNumber,
             realName: phoneNumber,
             password,
+            customerType: registerCustomerId,
           },
           select: {
             id: true,
+            tokenVersion: true,
           },
         });
 
-        await applyUserRolesToUser({
-          userId: createdUser.id,
-          roleIds: [1],
+        const centerCustomer = await systemDbClient.customer.findUnique({
+          where: { customerId: registerCustomerId },
+          select: { dbName: true },
         });
+
+        await prismaScopeStorage.run(
+          { customerId: registerCustomerId },
+          async () => {
+            const customerUser = await prismaClient.user.upsert({
+              where: { username: phoneNumber },
+              create: {
+                username: phoneNumber,
+                phone: phoneNumber,
+                realName: phoneNumber,
+                password,
+                customerType: registerCustomerId,
+                tokenVersion: 1,
+                status: 1,
+              },
+              update: {
+                phone: phoneNumber,
+                realName: phoneNumber,
+                password,
+                customerType: registerCustomerId,
+                status: 1,
+              },
+              select: { id: true },
+            });
+
+            await applyUserRolesToUser({
+              userId: Number(customerUser.id),
+              roleIds: [1],
+            });
+
+            await resolveTenantUserForCenterUser({
+              centerUserId: Number(createdUser.id),
+              customerId: registerCustomerId,
+              username: phoneNumber,
+              dbName: centerCustomer?.dbName
+                ? String(centerCustomer.dbName)
+                : null,
+              prisma: prismaClient,
+            });
+          },
+        );
       } catch (error) {
         console.error('短信登录自动创建用户失败:', error);
       }
+    };
 
-      const createdOrExistingUser = await fetchUserWithDetails(phoneNumber);
-      if (!createdOrExistingUser) {
-        clearRefreshTokenCookie(event);
-        return forbiddenResponse(event, '该手机号未绑定系统账户');
-      }
-
-      const createdUserInfo = await transformPrismaUserToUserInfo(
-        createdOrExistingUser,
-      );
-
-      const accessToken = generateAccessToken(createdUserInfo);
-      const refreshToken = generateRefreshToken(createdUserInfo);
-
-      setRefreshTokenCookie(event, refreshToken);
-
-      return useResponseSuccess({
-        ...createdUserInfo,
-        accessToken,
+    if (!userResult) {
+      await tryCreateUserIfMissing();
+      userResult = await systemDbClient.user.findUnique({
+        where: { username: phoneNumber },
+        select: {
+          id: true,
+          username: true,
+          customerType: true,
+          tokenVersion: true,
+          status: true,
+        },
       });
     }
 
-    const userInfo = await transformPrismaUserToUserInfo(userResult);
+    if (!userResult) {
+      return rejectLogin();
+    }
 
-    const accessToken = generateAccessToken(userInfo);
-    const refreshToken = generateRefreshToken(userInfo);
-
-    setRefreshTokenCookie(event, refreshToken);
-
-    return useResponseSuccess({
-      ...userInfo,
-      accessToken,
-    });
+    return await issueTokensAndRespond(userResult);
   } catch (error) {
     console.error('短信验证码登录失败:', error);
     clearRefreshTokenCookie(event);

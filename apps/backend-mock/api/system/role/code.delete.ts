@@ -1,3 +1,4 @@
+import { bumpPermissionCacheVersion } from '~/utils/permission-cache';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
@@ -5,6 +6,7 @@ export default eventHandler(async (event) => {
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
+  const customerId = String(userinfo.customerId);
 
   const body = await readBody(event);
   const { roleId, codeId } = body;
@@ -26,6 +28,7 @@ export default eventHandler(async (event) => {
       return useResponseError('未找到要删除的角色权限码关联记录');
     }
 
+    await bumpPermissionCacheVersion(customerId).catch(() => undefined);
     return useResponseSuccess({ deletedCount: result.count });
   } catch (error) {
     console.error('删除角色权限码关联失败:', error);

@@ -5,16 +5,19 @@ import {
   getRefreshTokenFromCookie,
   setRefreshTokenCookie,
 } from '~/utils/cookie-utils';
+import { systemDbClient } from '~/utils/db';
 import {
   generateAccessToken,
-  generateRefreshToken,
+  hashToken,
+  issueRefreshToken,
+  persistRefreshToken,
   verifyRefreshToken,
 } from '~/utils/jwt-utils';
+import { setCachedUserInfoBestEffort } from '~/utils/permission-cache';
 import { forbiddenResponse } from '~/utils/response';
-// 从新的 user-service 导入
 import {
-  fetchUserWithDetails,
-  transformPrismaUserToUserInfo,
+  getActiveCustomerForCenterUser,
+  resolveUserInfoForTokenFromCenterUser,
 } from '~/utils/user-service';
 
 /**
@@ -39,26 +42,130 @@ export default defineEventHandler(async (event) => {
     const verifiedPayload = (await verifyRefreshToken(
       oldRefreshToken,
     )) as null | UserInfoForToken;
-    if (!verifiedPayload?.username) {
+    if (!verifiedPayload?.username || !verifiedPayload?.jti) {
       // 抛出错误，由 catch 块统一处理
       throw new Error('Invalid refresh token payload');
     }
 
+    const tokenHash = hashToken(oldRefreshToken);
+    const stored = await systemDbClient.refreshToken.findUnique({
+      where: { jti: String(verifiedPayload.jti) },
+      select: {
+        expiresAt: true,
+        revokedAt: true,
+        tokenHash: true,
+        userId: true,
+      },
+    });
+
+    if (!stored || stored.tokenHash !== tokenHash) {
+      throw new Error('Refresh token not found');
+    }
+
+    if (stored.revokedAt) {
+      await systemDbClient.$transaction(async (tx) => {
+        await tx.refreshToken.updateMany({
+          where: { userId: stored.userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        await tx.user.update({
+          where: { id: stored.userId },
+          data: { tokenVersion: { increment: 1 } },
+        });
+      });
+      throw new Error('Refresh token reused');
+    }
+
+    if (stored.expiresAt.getTime() <= Date.now()) {
+      throw new Error('Refresh token expired');
+    }
+
     // 步骤 2: 获取最新的用户信息以确保用户状态有效
-    const currentUserFromDB = await fetchUserWithDetails(
-      verifiedPayload.username,
-    );
+    const currentUserFromDB = await systemDbClient.user.findUnique({
+      where: { id: stored.userId },
+      select: {
+        id: true,
+        username: true,
+        customerType: true,
+        status: true,
+        tokenVersion: true,
+      },
+    });
     if (!currentUserFromDB) {
       throw new Error('User not found');
     }
+    if (!currentUserFromDB.customerType) {
+      throw new Error('Customer not found');
+    }
 
-    // 步骤 3: 转换用户信息，为生成新 token 做准备
-    const userInfoForToken =
-      await transformPrismaUserToUserInfo(currentUserFromDB);
+    if (
+      currentUserFromDB.status === 0 ||
+      Number(currentUserFromDB.tokenVersion ?? 1) !==
+        Number(verifiedPayload.tokenVersion ?? 1)
+    ) {
+      await systemDbClient.refreshToken.update({
+        where: { jti: String(verifiedPayload.jti) },
+        data: { revokedAt: new Date() },
+      });
+      throw new Error('Token version mismatch');
+    }
+
+    const customerContext =
+      await getActiveCustomerForCenterUser(currentUserFromDB);
+    if (!customerContext) {
+      throw new Error('Customer disabled');
+    }
+
+    const customerId = customerContext.customerId;
+    let userInfoForToken: null | UserInfoForToken = null;
+    try {
+      userInfoForToken = await resolveUserInfoForTokenFromCenterUser({
+        centerUserId: Number(currentUserFromDB.id),
+        customerId,
+        username: String(currentUserFromDB.username),
+        tokenVersion: Number(currentUserFromDB.tokenVersion ?? 1),
+        dbName: customerContext.dbName,
+      });
+    } catch (error) {
+      console.error(
+        `[refresh] customer db unavailable (customerId=${customerId}, userId=${currentUserFromDB.id})`,
+        error,
+      );
+      throw new Error('Customer database unavailable');
+    }
+    if (!userInfoForToken) {
+      throw new Error('Customer user mapping missing');
+    }
+
+    await setCachedUserInfoBestEffort({
+      customerId: userInfoForToken.customerId,
+      userId: userInfoForToken.id,
+      value: userInfoForToken,
+    });
 
     // 步骤 4: 生成新的 accessToken 和 refreshToken (RefreshToken Rotation)
     const newAccessToken = generateAccessToken(userInfoForToken);
-    const newRefreshToken = generateRefreshToken(userInfoForToken);
+    const {
+      expiresAt,
+      jti,
+      token: newRefreshToken,
+    } = issueRefreshToken(userInfoForToken);
+
+    await systemDbClient.$transaction(async (tx) => {
+      await persistRefreshToken({
+        db: tx,
+        event,
+        expiresAt,
+        jti,
+        refreshToken: newRefreshToken,
+        userId: Number(userInfoForToken.centerUserId),
+      });
+
+      await tx.refreshToken.update({
+        where: { jti: String(verifiedPayload.jti) },
+        data: { replacedByJti: jti, revokedAt: new Date() },
+      });
+    });
 
     // 步骤 5: 在 HttpOnly cookie 中设置新的 refreshToken
     setRefreshTokenCookie(event, newRefreshToken);

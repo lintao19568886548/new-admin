@@ -1,4 +1,5 @@
 import { verifyAccessToken } from '~/utils/jwt-utils';
+import { bumpPermissionCacheVersion } from '~/utils/permission-cache';
 import {
   unAuthorizedResponse,
   useResponseError,
@@ -10,6 +11,7 @@ export default eventHandler(async (event) => {
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
+  const customerId = String(userinfo.customerId);
 
   const body = await readBody(event);
   const { permissions, parkIds, parentId, ...roleData } = body;
@@ -94,6 +96,7 @@ export default eventHandler(async (event) => {
       }
     });
 
+    await bumpPermissionCacheVersion(customerId).catch(() => undefined);
     return useResponseSuccess(res);
   } catch (error) {
     console.error('创建角色失败:', error);

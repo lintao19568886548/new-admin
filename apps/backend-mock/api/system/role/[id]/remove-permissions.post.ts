@@ -1,4 +1,5 @@
 import { verifyAccessToken } from '~/utils/jwt-utils';
+import { bumpPermissionCacheVersion } from '~/utils/permission-cache';
 import {
   unAuthorizedResponse,
   useResponseError,
@@ -10,6 +11,7 @@ export default eventHandler(async (event) => {
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
+  const customerId = String(userinfo.customerId);
   const id = event.context.params?.id;
   if (!id) {
     return useResponseError('id is required', 400);
@@ -39,6 +41,7 @@ export default eventHandler(async (event) => {
       },
     });
 
+    await bumpPermissionCacheVersion(customerId).catch(() => undefined);
     return useResponseSuccess(null);
   } catch (error: any) {
     console.error('移除权限失败:', error);

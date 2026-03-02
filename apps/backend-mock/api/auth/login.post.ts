@@ -3,12 +3,17 @@ import {
   clearRefreshTokenCookie,
   setRefreshTokenCookie,
 } from '~/utils/cookie-utils';
-import { prismaClient } from '~/utils/db';
-import { generateAccessToken, generateRefreshToken } from '~/utils/jwt-utils';
+import { systemDbClient } from '~/utils/db';
+import {
+  generateAccessToken,
+  issueRefreshToken,
+  persistRefreshToken,
+} from '~/utils/jwt-utils';
+import { setCachedUserInfoBestEffort } from '~/utils/permission-cache';
 import { forbiddenResponse } from '~/utils/response';
 import {
-  fetchUserWithDetails,
-  transformPrismaUserToUserInfo, // 如果需要直接使用此类型
+  getActiveCustomerForCenterUser,
+  resolveUserInfoForTokenFromCenterUser,
 } from '~/utils/user-service';
 
 export default defineEventHandler(async (event) => {
@@ -21,13 +26,50 @@ export default defineEventHandler(async (event) => {
     );
   }
 
+  const normalizedUsername = String(username).trim();
+
   // 1. 获取用户详细信息
-  const userResult = await fetchUserWithDetails(username);
+  const userResult = await (async () => {
+    const userByUsername = await systemDbClient.user.findUnique({
+      where: { username: normalizedUsername },
+      select: {
+        id: true,
+        username: true,
+        password: true,
+        customerType: true,
+        tokenVersion: true,
+        status: true,
+      },
+    });
+    if (userByUsername) {
+      return userByUsername;
+    }
+    if (!/^\d{11}$/.test(normalizedUsername)) {
+      return null;
+    }
+    return systemDbClient.user.findFirst({
+      where: { phone: normalizedUsername },
+      select: {
+        id: true,
+        username: true,
+        password: true,
+        customerType: true,
+        tokenVersion: true,
+        status: true,
+      },
+    });
+  })();
 
   if (!userResult) {
     clearRefreshTokenCookie(event);
     return forbiddenResponse(event, '用户名或密码错误');
   }
+  const activeCustomer = await getActiveCustomerForCenterUser(userResult);
+  if (!activeCustomer) {
+    clearRefreshTokenCookie(event);
+    return forbiddenResponse(event, '用户名或密码错误');
+  }
+  const { customerId, dbName } = activeCustomer;
 
   // 2. 验证密码
   let isPasswordValid = false;
@@ -45,7 +87,7 @@ export default defineEventHandler(async (event) => {
       const saltRounds = 10;
       const hashedPassword = await bcrypt.hash(password, saltRounds);
       // 原文密码时更新用户密码
-      await prismaClient.user.update({
+      await systemDbClient.user.update({
         where: { id: userResult.id },
         data: { password: hashedPassword },
       });
@@ -65,12 +107,50 @@ export default defineEventHandler(async (event) => {
     return forbiddenResponse(event, '用户名或密码错误');
   }
 
-  // 3. 使用新服务转换用户信息
-  const userInfoForToken = await transformPrismaUserToUserInfo(userResult);
+  let userInfoForToken = null;
+  try {
+    userInfoForToken = await resolveUserInfoForTokenFromCenterUser({
+      centerUserId: Number(userResult.id),
+      customerId,
+      username: String(userResult.username),
+      tokenVersion: Number(userResult.tokenVersion ?? 1),
+      dbName,
+    });
+  } catch (error) {
+    console.error(
+      `[login] customer db unavailable (customerId=${customerId}, userId=${userResult.id})`,
+      error,
+    );
+    clearRefreshTokenCookie(event);
+    return forbiddenResponse(event, '用户名或密码错误');
+  }
+
+  if (!userInfoForToken) {
+    clearRefreshTokenCookie(event);
+    return forbiddenResponse(event, '用户名或密码错误');
+  }
+
+  await setCachedUserInfoBestEffort({
+    customerId: userInfoForToken.customerId,
+    userId: userInfoForToken.id,
+    value: userInfoForToken,
+  });
 
   // 4. 生成令牌
   const accessToken = generateAccessToken(userInfoForToken);
-  const refreshToken = generateRefreshToken(userInfoForToken);
+  const {
+    expiresAt,
+    jti,
+    token: refreshToken,
+  } = issueRefreshToken(userInfoForToken);
+
+  await persistRefreshToken({
+    event,
+    expiresAt,
+    jti,
+    refreshToken,
+    userId: Number(userInfoForToken.centerUserId),
+  });
 
   setRefreshTokenCookie(event, refreshToken);
 

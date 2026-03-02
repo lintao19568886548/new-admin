@@ -1,3 +1,4 @@
+import type { PrismaClient } from '@prisma/.prisma/client/client.js';
 import type {
   Park,
   Role,
@@ -5,11 +6,34 @@ import type {
   UserRole,
 } from '@prisma/.prisma/client/index.js';
 
-import { prismaClient } from '~/utils/db';
+import { prismaClient, prismaScopeStorage, systemDbClient } from '~/utils/db';
+import { resolveTenantUserForCenterUser } from '~/utils/user-customer-mapping';
+
+export async function isInternalAccountPhone(
+  phoneNumber: string,
+  prisma: PrismaClient = prismaClient,
+): Promise<boolean> {
+  const normalized = phoneNumber.trim();
+  if (!/^\d{11}$/.test(normalized)) {
+    return false;
+  }
+
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [{ phone: normalized }, { username: normalized }],
+    },
+    select: { id: true },
+  });
+
+  return Boolean(user);
+}
 
 // 定义令牌中用户信息的标准结构
 export interface UserInfoForToken {
+  customerId: string;
+  tokenVersion: number;
   id: number;
+  centerUserId?: number;
   username: string;
   realName: string;
   roles: string[];
@@ -18,6 +42,7 @@ export interface UserInfoForToken {
   reimbursementAuth?: number;
   rates?: number;
   codes: string[];
+  jti?: string;
 }
 
 // Prisma返回的带有完整关联信息的用户类型 (近似表示)
@@ -33,7 +58,7 @@ type PrismaRoleWithParks = Role & {
 
 type UserWithFullDetails = User & {
   roles: (UserRole & {
-    role: PrismaRoleWithParks;
+    role: null | PrismaRoleWithParks;
   })[];
 };
 
@@ -44,8 +69,9 @@ type UserWithFullDetails = User & {
  */
 export async function fetchUserWithDetails(
   username: string,
+  prisma: PrismaClient = prismaClient,
 ): Promise<null | UserWithFullDetails> {
-  return prismaClient.user.findUnique({
+  return prisma.user.findUnique({
     where: { username },
     include: {
       roles: {
@@ -78,36 +104,36 @@ export async function fetchUserWithDetails(
  */
 export async function transformPrismaUserToUserInfo(
   prismaUser: UserWithFullDetails,
+  prisma: PrismaClient = prismaClient,
 ): Promise<UserInfoForToken> {
-  const roles = Array.isArray(prismaUser.roles)
-    ? prismaUser.roles
-        .map((item) => item.role.name)
-        .filter(
-          (name): name is string => typeof name === 'string' && name.length > 0,
-        )
-    : [];
+  const userRoles = Array.isArray(prismaUser.roles) ? prismaUser.roles : [];
+  const validUserRoles = userRoles.filter(
+    (item): item is UserRole & { role: PrismaRoleWithParks } =>
+      Boolean(item.role),
+  );
+
+  const roles = validUserRoles
+    .map((item) => item.role.name)
+    .filter(
+      (name): name is string => typeof name === 'string' && name.length > 0,
+    );
 
   let reimbursementAuth = 0;
   let rates = 0;
 
   // 遍历用户所有角色，找到最高的审核权限和对应的金额
-  if (Array.isArray(prismaUser.roles)) {
-    for (const userRole of prismaUser.roles) {
-      const role = userRole.role;
-      if (
-        role.reimbursementAuth &&
-        role.reimbursementAuth > reimbursementAuth
-      ) {
-        reimbursementAuth = role.reimbursementAuth;
-        rates = role.rates || 0;
-      }
+  for (const userRole of validUserRoles) {
+    const role = userRole.role;
+    if (role.reimbursementAuth && role.reimbursementAuth > reimbursementAuth) {
+      reimbursementAuth = role.reimbursementAuth;
+      rates = role.rates || 0;
     }
   }
 
   let parks: Array<{ parkId: number; parkName: string }> = [];
 
   if (roles.includes('Super')) {
-    const superAdminParks = await prismaClient.park.findMany({
+    const superAdminParks = await prisma.park.findMany({
       select: { parkId: true, parkName: true },
       where: { isDeleted: false }, // 确保只选择未删除的园区
     });
@@ -116,7 +142,7 @@ export async function transformPrismaUserToUserInfo(
       parkName: String(p.parkName),
     }));
   } else {
-    const userParks = prismaUser.roles.flatMap((userRole) =>
+    const userParks = validUserRoles.flatMap((userRole) =>
       userRole.role.roleParks.map((rp) => ({
         parkId: Number(rp.park.parkId), // 确保 parkId 是字符串
         parkName: String(rp.park.parkName),
@@ -132,7 +158,7 @@ export async function transformPrismaUserToUserInfo(
   }
 
   // 获取用户的所有权限码
-  const userCodes = prismaUser.roles.flatMap((userRole) =>
+  const userCodes = validUserRoles.flatMap((userRole) =>
     userRole.role.roleCodes
       .map((rc) => rc.code?.code)
       .filter(
@@ -142,7 +168,17 @@ export async function transformPrismaUserToUserInfo(
   // 去重权限码
   const codes = [...new Set(userCodes)];
 
+  const defaultCustomerId = String(
+    process.env.DEFAULT_CUSTOMER_ID || 'default',
+  );
+  let customerId = defaultCustomerId;
+  if (prismaUser.customerType) {
+    customerId = String(prismaUser.customerType);
+  }
+
   return {
+    customerId,
+    tokenVersion: Number(prismaUser.tokenVersion ?? 1),
     id: Number(prismaUser.id),
     username: String(prismaUser.username),
     realName: String(prismaUser.realName),
@@ -152,5 +188,71 @@ export async function transformPrismaUserToUserInfo(
     reimbursementAuth,
     rates,
     codes,
+  };
+}
+
+export async function getActiveCustomerForCenterUser(centerUser: {
+  customerType?: unknown;
+  status?: unknown;
+}): Promise<null | { customerId: string; dbName: null | string }> {
+  if (Number(centerUser.status ?? 1) === 0) {
+    return null;
+  }
+  if (!centerUser.customerType) {
+    return null;
+  }
+  const customerId = String(centerUser.customerType);
+  const customer = await systemDbClient.customer.findUnique({
+    where: { customerId },
+    select: { status: true, dbName: true },
+  });
+  if (!customer || customer.status === 0) {
+    return null;
+  }
+  return {
+    customerId,
+    dbName: customer.dbName ? String(customer.dbName) : null,
+  };
+}
+
+export async function resolveUserInfoForTokenFromCenterUser(params: {
+  centerUserId: number;
+  customerId: string;
+  dbName: null | string;
+  prisma?: PrismaClient;
+  tokenVersion: number;
+  username: string;
+}): Promise<null | UserInfoForToken> {
+  const customerId = String(params.customerId);
+  const prisma = params.prisma ?? prismaClient;
+  const base = await prismaScopeStorage.run({ customerId }, async () => {
+    const resolved = await resolveTenantUserForCenterUser({
+      centerUserId: Number(params.centerUserId),
+      customerId,
+      username: String(params.username),
+      dbName: params.dbName ? String(params.dbName) : null,
+      prisma,
+    });
+    if (!resolved) {
+      return null;
+    }
+
+    const customerUser = await fetchUserWithDetails(resolved.username, prisma);
+    if (!customerUser) {
+      return null;
+    }
+    if (customerUser.status === 0) {
+      return null;
+    }
+    return await transformPrismaUserToUserInfo(customerUser, prisma);
+  });
+  if (!base) {
+    return null;
+  }
+  return {
+    ...base,
+    customerId,
+    tokenVersion: Number(params.tokenVersion ?? 1),
+    centerUserId: Number(params.centerUserId),
   };
 }
