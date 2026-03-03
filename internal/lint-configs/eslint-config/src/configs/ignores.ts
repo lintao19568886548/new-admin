@@ -32,6 +32,8 @@ export async function ignores(): Promise<Linter.Config[]> {
         '**/.cache',
         '**/.output',
         '**/.vite-inspect',
+        '**/playground/android/app/src/main/assets/**',
+        '**/playground/ios/App/App/**',
 
         '**/CHANGELOG*.md',
         '**/*.min.*',
