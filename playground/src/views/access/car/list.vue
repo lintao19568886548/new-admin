@@ -189,7 +189,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       zoom: true,
     },
   } as VxeTableGridOptions,
-});
+} as Parameters<typeof useVbenVxeGrid>[0]);
 
 /**
  * 刷新表格
