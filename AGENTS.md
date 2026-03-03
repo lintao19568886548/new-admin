@@ -9,11 +9,11 @@
 
 ## 构建、测试与开发命令
 
-- 本地开发：`pnpm -F @vben/playground run dev` 或 `pnpm run dev:play`（包含代理配置）。
-- 前端构建：`pnpm -F @vben/playground run build`。
-- 类型检查：`pnpm tsc --noEmit --project <path>` (lsp);`pnpm -F @vben/playground run typecheck`（vue-tsc）。
-- Lint：`pnpm exec eslint --no-cache <paths>`；根目录 `pnpm run lint` 会触发 vben 的 lint 脚本。
-- Backend-mock 运行：`pnpm -F @vben/backend-mock run start`（含 prisma generate）。
+- 本地开发：`pnpm -F @vben/playground dev` 或 `pnpm dev:play`（包含代理配置）。
+- 前端构建：`pnpm -F @vben/playground build`。
+- 类型检查：`pnpm -F <paths> typecheck`。
+- Lint：根目录 `pnpm lint` 会触发 vben 的 lint 脚本；按需跑 `pnpm exec eslint --no-cache <paths>`
+- Backend-mock 运行：`pnpm -F @vben/backend-mock start`（含 prisma generate）。
 
 ## 代码风格与命名
 
