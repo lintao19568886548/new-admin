@@ -23,8 +23,7 @@
 
 ## 测试指引
 
-- 主要检查：`pnpm tsc --noEmit --project <paths>`;`pnpm -F @vben/playground run typecheck`，按需运行。
-- 新增功能至少确保类型检查通过；若涉及表单/接口，建议补充简单的 e2e/集成用例或手动验收步骤。
+- 修改ts、vue文件后：交付功能给用户前必须确保类型检查和Lint通过；若涉及表单/接口，建议补充简单的 e2e/集成用例或手动验收步骤。
 
 ## 提交与 Pull Request
 
