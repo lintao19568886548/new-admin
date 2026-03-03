@@ -9,12 +9,9 @@ interface LintCommandOptions {
   format?: boolean;
 }
 
-const ignorePatterns = [
-  'playground/android/app/src/main/assets/**',
-  'playground/ios/App/App/**',
-];
+const ignorePatterns = ['playground/android/**', 'playground/ios/App/App/**'];
 const eslintIgnoreArgs = ignorePatterns
-  .map((pattern) => `--ignore-pattern "${pattern}"`)
+  .map((pattern) => `--ignore-pattern ${pattern}`)
   .join(' ');
 
 async function runLint({ format }: LintCommandOptions) {

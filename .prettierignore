@@ -8,7 +8,7 @@ coverage
 CODEOWNERS
 .nitro
 .output
-playground/android/app/src/main/assets
+playground/android
 playground/ios/App/App
 
 
