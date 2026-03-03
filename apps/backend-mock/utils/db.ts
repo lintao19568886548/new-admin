@@ -40,7 +40,7 @@ function createMariaDbAdapter(
 
   const database = parsed.pathname.replace(/^\//, '');
   const connectionLimit = getPositiveInt('connection_limit', 10);
-  const acquireTimeout = getPositiveInt('pool_timeout', 30) * 1000;
+  const acquireTimeout = getPositiveInt('pool_timeout', 5) * 1000;
   const connectTimeout = getPositiveInt('connect_timeout', 5) * 1000;
   const idleTimeout = getPositiveInt('max_idle_connection_lifetime', 1800);
 
