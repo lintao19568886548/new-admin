@@ -115,9 +115,15 @@ export default eventHandler(async (event) => {
       status: role.status ? 1 : 0,
       createTime: role.createTime ? role.createTime.toISOString() : null,
       updateTime: role.updateTime ? role.updateTime.toISOString() : null,
-      permissions: role.roleMenus.map((rm) => rm.menu.menuId),
-      parkIds: role.roleParks.map((rp) => rp.park.parkId),
-      codes: role.roleCodes.map((rc) => rc.code.code),
+      permissions: role.roleMenus.flatMap((rm) =>
+        rm.menu?.menuId ? [rm.menu.menuId] : [],
+      ),
+      parkIds: role.roleParks.flatMap((rp) =>
+        rp.park?.parkId ? [rp.park.parkId] : [],
+      ),
+      codes: role.roleCodes.flatMap((rc) =>
+        rc.code?.code ? [rc.code.code] : [],
+      ),
       parentId: role.parentId,
       reimbursementAuth: role.reimbursementAuth,
       rates: role.rates,
@@ -146,9 +152,15 @@ export default eventHandler(async (event) => {
       status: role.status ? 1 : 0,
       createTime: role.createTime ? role.createTime.toISOString() : null,
       updateTime: role.updateTime ? role.updateTime.toISOString() : null,
-      permissions: role.roleMenus.map((rm) => rm.menu.menuId),
-      parkIds: role.roleParks.map((rp) => rp.park.parkId),
-      codes: role.roleCodes.map((rc) => rc.code.code),
+      permissions: role.roleMenus.flatMap((rm) =>
+        rm.menu?.menuId ? [rm.menu.menuId] : [],
+      ),
+      parkIds: role.roleParks.flatMap((rp) =>
+        rp.park?.parkId ? [rp.park.parkId] : [],
+      ),
+      codes: role.roleCodes.flatMap((rc) =>
+        rc.code?.code ? [rc.code.code] : [],
+      ),
       level: role.privilegeLevel,
       parentId: role.parentId,
       reimbursementAuth: role.reimbursementAuth,
