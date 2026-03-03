@@ -223,8 +223,12 @@ const initMap = async () => {
   try {
     await loadBaiduMapScript(BAIDU_MAP_AK);
   } catch (error) {
-    console.error('Baidu Map script failed to load:', error);
-    message.error('地图脚本加载失败，请刷新页面重试');
+    console.error('Baidu Map script failed to load:', {
+      error,
+      pageUrl: window.location.href,
+      userAgent: navigator.userAgent,
+    });
+    message.error('地图脚本加载失败，请检查网络后重试');
     locationLoading.value = false;
     return;
   }

@@ -28,6 +28,8 @@
 	<string>用于将预览图片保存到系统相册</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>用于将预览图片保存到系统相册</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>用于考勤打卡时获取当前位置并显示地图</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
