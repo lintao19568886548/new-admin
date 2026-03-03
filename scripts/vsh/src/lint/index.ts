@@ -9,6 +9,14 @@ interface LintCommandOptions {
   format?: boolean;
 }
 
+const ignorePatterns = [
+  'playground/android/app/src/main/assets/**',
+  'playground/ios/App/App/**',
+];
+const eslintIgnoreArgs = ignorePatterns
+  .map((pattern) => `--ignore-pattern "${pattern}"`)
+  .join(' ');
+
 async function runLint({ format }: LintCommandOptions) {
   // process.env.FORCE_COLOR = '3';
 
@@ -16,7 +24,7 @@ async function runLint({ format }: LintCommandOptions) {
     await execaCommand(`stylelint "**/*.{vue,css,less,scss}" --cache --fix`, {
       stdio: 'inherit',
     });
-    await execaCommand(`eslint . --cache --fix`, {
+    await execaCommand(`eslint . --cache --fix ${eslintIgnoreArgs}`, {
       stdio: 'inherit',
     });
     await execaCommand(`prettier . --write --cache --log-level warn`, {
@@ -25,7 +33,7 @@ async function runLint({ format }: LintCommandOptions) {
     return;
   }
   await Promise.all([
-    execaCommand(`eslint . --cache`, {
+    execaCommand(`eslint . --cache ${eslintIgnoreArgs}`, {
       stdio: 'inherit',
     }),
     execaCommand(`prettier . --ignore-unknown --check --cache`, {

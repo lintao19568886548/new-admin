@@ -8,6 +8,8 @@ coverage
 CODEOWNERS
 .nitro
 .output
+playground/android/app/src/main/assets
+playground/ios/App/App
 
 
 **/*.svg
