@@ -1,22 +1,39 @@
 import dayjs from 'dayjs';
 import { getQuery } from 'h3';
 import { prismaClient } from '~/utils/db';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  unAuthorizedResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
 
 export default eventHandler(async (event) => {
-  try {
-    const { username } = getQuery(event);
+  const userinfo = await verifyAccessToken(event);
+  if (!userinfo) {
+    return unAuthorizedResponse(event);
+  }
 
-    if (!username) {
-      return useResponseError('缺少用户名');
-    }
+  try {
+    const query = getQuery(event);
+    const roleNames = userinfo.roles ?? [];
+    const isSuper = roleNames.includes('Super');
+    const requestedUsername =
+      typeof query.username === 'string' ? query.username.trim() : '';
 
     const startOfToday = dayjs().startOf('day').toDate();
     const endOfToday = dayjs().endOf('day').toDate();
 
+    let scopeWhere: { userId: number } | { username: string } = {
+      userId: userinfo.id,
+    };
+    if (isSuper && requestedUsername) {
+      scopeWhere = { username: requestedUsername };
+    }
+
     const todayRecord = await prismaClient.attendance.findFirst({
       where: {
-        username: username as string,
+        ...scopeWhere,
         punchIn: {
           gte: startOfToday,
           lte: endOfToday,

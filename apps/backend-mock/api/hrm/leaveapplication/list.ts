@@ -1,12 +1,24 @@
 import { prismaClient } from '~/utils/db';
-import { serverErrorResponse, useResponseSuccess } from '~/utils/response';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  serverErrorResponse,
+  unAuthorizedResponse,
+  useResponseSuccess,
+} from '~/utils/response';
 
 export default eventHandler(async (event) => {
+  const userinfo = await verifyAccessToken(event);
+  if (!userinfo) {
+    return unAuthorizedResponse(event);
+  }
+
   try {
     const query = getQuery(event);
     const { currentPage, pageSize, user, parkId } = query;
 
     const where: { [key: string]: any } = {};
+    const roleNames = userinfo.roles ?? [];
+    const isSuper = roleNames.includes('Super');
 
     if (user) {
       where.user = { contains: user };
@@ -14,6 +26,10 @@ export default eventHandler(async (event) => {
 
     if (parkId) {
       where.parkId = Number(parkId);
+    }
+
+    if (!isSuper) {
+      where.userId = userinfo.id;
     }
 
     const leaveApplicationsRaw = await prismaClient.leaveApplication.findMany({

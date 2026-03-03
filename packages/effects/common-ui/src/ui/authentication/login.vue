@@ -6,6 +6,7 @@ import type { VbenFormSchema } from '@vben-core/form-ui';
 import type { AuthenticationProps } from './types';
 
 import { computed, onMounted, reactive, ref } from 'vue';
+// @ts-ignore  临时忽略类型声明缺失
 import { useRouter } from 'vue-router';
 
 import { VbenModal } from '@vben/common-ui';
@@ -201,6 +202,13 @@ async function handleSubmit() {
 }
 
 function handleGo(path: string) {
+  if (path === props.codeLoginPath) {
+    if (!agreed.value) {
+      showAgreeError.value = true;
+      return;
+    }
+    showAgreeError.value = false;
+  }
   router.push(path);
 }
 
@@ -212,17 +220,10 @@ function closePrivacyModal() {
   showPrivacyModal.value = false;
 }
 
-function handleAgree() {
-  agreed.value = true;
+function handleClose() {
   showPrivacyModal.value = false;
   showServiceAgreementModal.value = false;
   showAgreeError.value = false;
-}
-
-function handleReject() {
-  agreed.value = false;
-  showPrivacyModal.value = false;
-  showServiceAgreementModal.value = false;
 }
 
 function showServiceAgreement() {
@@ -294,14 +295,14 @@ defineExpose({
             {{ $t('authentication.agree') }}
             <span
               class="vben-link cursor-pointer"
-              @click.stop="showServiceAgreement"
+              @click.stop.prevent="showServiceAgreement"
             >
               《{{ $t('服务协议') }}》
             </span>
             {{ $t('common.and', '和') }}
             <span
               class="vben-link cursor-pointer"
-              @click.stop="showPrivacyPolicy"
+              @click.stop.prevent="showPrivacyPolicy"
             >
               《{{ $t('authentication.privacyPolicy', '隐私政策') }}》
             </span>
@@ -377,12 +378,7 @@ defineExpose({
       </div>
       <template #footer>
         <div class="flex w-full justify-end space-x-2">
-          <VbenButton variant="outline" @click="handleReject">
-            {{ $t('拒绝') }}
-          </VbenButton>
-          <VbenButton @click="handleAgree">
-            {{ $t('同意') }}
-          </VbenButton>
+          <VbenButton @click="handleClose"> 关闭 </VbenButton>
         </div>
       </template>
     </VbenModal>
@@ -409,12 +405,7 @@ defineExpose({
       </div>
       <template #footer>
         <div class="flex w-full justify-end space-x-2">
-          <VbenButton variant="outline" @click="handleReject">
-            {{ $t('拒绝') }}
-          </VbenButton>
-          <VbenButton @click="handleAgree">
-            {{ $t('同意') }}
-          </VbenButton>
+          <VbenButton @click="handleClose"> 关闭 </VbenButton>
         </div>
       </template>
     </VbenModal>

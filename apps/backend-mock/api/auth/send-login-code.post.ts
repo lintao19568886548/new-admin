@@ -3,14 +3,12 @@ import {
   serverErrorResponse,
   useResponseSuccess,
 } from '~/utils/response';
-import { sendLoginVerificationCode } from '~/utils/shlianlu-sms';
 import {
   ensureCanSendCode,
   generateNumericCode,
   saveSmsCode,
   SmsCodeError,
 } from '~/utils/sms-code-store';
-import { fetchUserWithDetails } from '~/utils/user-service';
 
 interface SendCodeBody {
   phoneNumber?: string;
@@ -26,17 +24,6 @@ export default defineEventHandler(async (event) => {
 
   if (!/^\d{11}$/.test(phoneNumber)) {
     return badRequestResponse('请输入11位手机号', event);
-  }
-
-  // 验证手机号是否在数据库中存在（作为用户名）
-  try {
-    const user = await fetchUserWithDetails(phoneNumber);
-    if (!user) {
-      return badRequestResponse('该手机号未注册', event);
-    }
-  } catch (error) {
-    console.error('查询用户信息失败:', error);
-    return serverErrorResponse('用户验证失败，请稍后重试', event);
   }
 
   try {

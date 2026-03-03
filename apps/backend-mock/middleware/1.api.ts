@@ -1,6 +1,16 @@
-import { decodeAccessToken } from '../utils/jwt-utils';
+import { prismaClient, prismaScopeStorage, systemDbClient } from '~/utils/db';
+
+import { decodeAccessToken, verifyAccessToken } from '../utils/jwt-utils';
+import { unAuthorizedResponse } from '../utils/response';
 
 export default defineEventHandler(async (event) => {
+  const defaultCustomerId = String(
+    process.env.DEFAULT_CUSTOMER_ID || 'default',
+  );
+  const path = event.path;
+  const isApiRequest = path.startsWith('/api/');
+  const isPublicApi = ['/api/auth'].some((p) => path.startsWith(p));
+
   event.node.res.setHeader(
     'Access-Control-Allow-Origin',
     event.headers.get('Origin') ?? '*',
@@ -12,11 +22,70 @@ export default defineEventHandler(async (event) => {
     return 'OK';
   }
 
+  const userinfoForScope = verifyAccessToken(event);
+  if (isApiRequest && !isPublicApi) {
+    if (
+      !userinfoForScope ||
+      !userinfoForScope.customerId ||
+      !userinfoForScope.id ||
+      userinfoForScope.tokenVersion === null ||
+      userinfoForScope.tokenVersion === undefined
+    ) {
+      return unAuthorizedResponse(event);
+    }
+
+    const centerUserId = Number(
+      userinfoForScope.centerUserId ?? userinfoForScope.id,
+    );
+    if (!Number.isFinite(centerUserId) || centerUserId <= 0) {
+      return unAuthorizedResponse(event);
+    }
+
+    const current = await systemDbClient.user.findUnique({
+      where: { id: centerUserId },
+      select: { customerType: true, status: true, tokenVersion: true },
+    });
+    if (!current || current.status === 0) {
+      return unAuthorizedResponse(event);
+    }
+    if (!current.customerType) {
+      return unAuthorizedResponse(event);
+    }
+    if (
+      Number(current.tokenVersion ?? 1) !==
+      Number(userinfoForScope.tokenVersion)
+    ) {
+      return unAuthorizedResponse(event);
+    }
+    if (String(current.customerType) !== userinfoForScope.customerId) {
+      return unAuthorizedResponse(event);
+    }
+
+    const customer = await systemDbClient.customer.findUnique({
+      where: { customerId: String(current.customerType) },
+      select: { status: true },
+    });
+    if (!customer || customer.status === 0) {
+      return unAuthorizedResponse(event);
+    }
+  }
+
+  const customerIdForScope = String(
+    userinfoForScope?.customerId || defaultCustomerId,
+  );
+  prismaScopeStorage.enterWith({ customerId: customerIdForScope });
+  event.context.customerId = customerIdForScope;
+  event.context.userId = userinfoForScope?.id
+    ? Number(userinfoForScope.id)
+    : undefined;
+  event.context.systemDbClient = systemDbClient;
+  event.context.customerDbClient = prismaClient;
+
   // 记录请求开始时间
   const startTime = Date.now();
 
   // 获取用户名 (仅解码，不验证签名)
-  const userinfo = decodeAccessToken(event);
+  const userinfo = userinfoForScope ?? decodeAccessToken(event);
   const username = userinfo?.realName || '';
 
   const excludeList = {
@@ -118,7 +187,7 @@ export default defineEventHandler(async (event) => {
       if (!shouldExclude) {
         try {
           // API请求日志录入到数据库
-          await prismaClient.apiLog.create({
+          await systemDbClient.apiLog.create({
             data: {
               method,
               path,

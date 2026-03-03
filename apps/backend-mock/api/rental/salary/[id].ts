@@ -23,10 +23,9 @@ export default eventHandler(async (event) => {
   }
 
   const tenant = await prismaClient.rentalTenant.findUnique({
-    where: {
-      rentalTenantId: salary.rentalTenantId,
-    },
+    where: { rentalTenantId: salary.rentalTenantId },
     select: {
+      rentalTenantId: true,
       tenantName: true,
       phoneNumber: true,
     },
@@ -34,6 +33,7 @@ export default eventHandler(async (event) => {
 
   return useResponseSuccess({
     ...salary,
+    tenant,
     salaryAmount:
       salary.salaryAmount !== null && salary.salaryAmount !== undefined
         ? Number(salary.salaryAmount)

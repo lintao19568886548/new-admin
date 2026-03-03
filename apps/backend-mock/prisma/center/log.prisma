@@ -1,0 +1,14 @@
+model ApiLog {
+  logId       Int       @id @default(autoincrement()) @map("log_id")
+  method      String    @db.VarChar(10)
+  path        String?   @db.VarChar(255)
+  refererPath String    @map("referer_path") @db.VarChar(255)
+  itemName    String?   @map("item_name") @db.VarChar(50)
+  username    String?   @db.VarChar(50)
+  requestTime DateTime  @default(now()) @map("request_time")
+  createTime  DateTime? @default(now()) @map("create_time")
+  updateTime  DateTime? @updatedAt @map("update_time")
+
+  @@map("api_log")
+}
+
