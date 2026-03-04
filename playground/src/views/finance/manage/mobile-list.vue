@@ -3,6 +3,7 @@
 import type { FinanceItem as BaseFinanceItem } from './types';
 
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { useVbenModal } from '@vben/common-ui';
 import { Search } from '@vben/icons';
@@ -29,6 +30,7 @@ import {
 
 import { deleteFinance, getFinanceList } from '#/api/finance';
 import { getParkList as fetchParks } from '#/api/park';
+import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { $t } from '#/locales';
 import { useLayoutStore } from '#/store/layout';
 
@@ -48,6 +50,23 @@ const [VbenFormModal, formModalApi] = useVbenModal({
   destroyOnClose: true,
 });
 
+// 路由和验证状态
+const route = useRoute();
+const router = useRouter();
+const isVerified = ref(false);
+
+// 短信验证模态框
+const [VerificationModal, verificationModalApi] = useVbenModal({
+  closable: true,
+  closeOnClickModal: false,
+  closeOnPressEscape: false,
+  connectedComponent: SmsVerificationModal,
+  draggable: false,
+  fullscreen: false,
+  modal: true,
+  showCancelButton: true,
+});
+
 const bills = ref<FinanceItem[]>([]);
 const pagination = reactive({
   current: 1,
@@ -63,6 +82,42 @@ const parkOptions = ref<{ label: string; value: number }[]>([]);
 
 // 脱敏开关 - 从 localStorage 读取持久化状态
 const enableMask = ref(localStorage.getItem('finance-enableMask') !== 'false');
+
+// 组件挂载时检查验证状态
+onMounted(() => {
+  const verified = sessionStorage.getItem('finance-verified');
+  if (verified === 'true') {
+    isVerified.value = true;
+  } else {
+    setTimeout(() => {
+      verificationModalApi.open();
+    }, 300);
+  }
+});
+
+// 验证成功回调
+function onVerificationSuccess() {
+  isVerified.value = true;
+  sessionStorage.setItem('finance-verified', 'true');
+}
+
+// 取消验证，返回首页
+function onCancelVerification() {
+  verificationModalApi.close();
+  router.push('/dashboard/workspace');
+  message.info('已取消验证，返回首页');
+}
+
+// 监听路由变化，清除验证状态
+watch(
+  () => route.fullPath,
+  (newPath, oldPath) => {
+    if (newPath !== oldPath) {
+      isVerified.value = false;
+      sessionStorage.removeItem('finance-verified');
+    }
+  },
+);
 
 // 格式化金额（带脱敏）
 function formatAmount(amount: number | string): string {
@@ -259,8 +314,12 @@ function getTransactionTypeClass(type: string) {
 <template>
   <div class="finance-mobile-page">
     <VbenFormModal @success="handleFormSuccess" />
+    <VerificationModal
+      @success="onVerificationSuccess"
+      @cancel="onCancelVerification"
+    />
 
-    <div class="search-filters">
+    <div v-if="isVerified" class="search-filters">
       <Form layout="vertical" :model="searchForm">
         <Row :gutter="16">
           <Col :span="24">

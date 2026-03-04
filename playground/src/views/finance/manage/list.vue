@@ -4,6 +4,7 @@ import type { FinanceItem } from './types';
 import type { OnActionClickParams } from '#/adapter/vxe-table';
 
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -14,6 +15,7 @@ import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteFinance, getFinanceList } from '#/api/finance';
 import { getParkList } from '#/api/park';
 import AreaSelector from '#/components/AreaSelector.vue';
+import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { usePlatform } from '#/hooks/usePlatform';
 import { $t } from '#/locales';
 
@@ -23,8 +25,27 @@ import Form from './modules/form.vue';
 // 使用 usePlatform Hook 获取平台信息
 const { isNativePlatform } = usePlatform();
 
+// 路由和导航
+const route = useRoute();
+const router = useRouter();
+
 // 脱敏开关 - 从 localStorage 读取持久化状态
 const enableMask = ref(localStorage.getItem('finance-enableMask') !== 'false');
+
+// 短信验证模态框
+const [VerificationModal, verificationModalApi] = useVbenModal({
+  closable: true,
+  closeOnClickModal: false,
+  closeOnPressEscape: false,
+  connectedComponent: SmsVerificationModal,
+  draggable: false,
+  fullscreen: false,
+  modal: true,
+  showCancelButton: true,
+});
+
+// 验证状态
+const isVerified = ref(false);
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -38,6 +59,21 @@ const parkNameMap = ref<Record<number, string>>({});
 
 // 组件挂载后初始化查询
 onMounted(() => {
+  // 检查是否已验证，未验证则显示验证模态框
+  const verified = sessionStorage.getItem('finance-verified');
+  if (verified === 'true') {
+    isVerified.value = true;
+    initPage();
+  } else {
+    // 显示验证模态框
+    setTimeout(() => {
+      verificationModalApi.open();
+    }, 300);
+  }
+});
+
+// 初始化页面
+function initPage() {
   getParkList()
     .then((list: any[]) => {
       if (!Array.isArray(list)) return;
@@ -51,7 +87,32 @@ onMounted(() => {
     .finally(() => {
       gridApi.query();
     });
-});
+}
+
+// 验证成功回调
+function onVerificationSuccess() {
+  isVerified.value = true;
+  sessionStorage.setItem('finance-verified', 'true');
+  initPage();
+}
+
+// 取消验证，返回首页
+function onCancelVerification() {
+  verificationModalApi.close();
+  router.push('/dashboard/workspace');
+  message.info('已取消验证，返回首页');
+}
+
+// 监听路由变化，清除验证状态
+watch(
+  () => route.fullPath,
+  (newPath, oldPath) => {
+    if (newPath !== oldPath) {
+      isVerified.value = false;
+      sessionStorage.removeItem('finance-verified');
+    }
+  },
+);
 
 const columns = computed(() => useColumns(onActionClick, enableMask.value));
 
@@ -229,7 +290,11 @@ function onParkChange(area: any) {
 <template>
   <Page auto-content-height>
     <FormModal @success="onRefresh" />
-    <Grid :table-title="$t('page.finance.list-title')">
+    <VerificationModal
+      @success="onVerificationSuccess"
+      @cancel="onCancelVerification"
+    />
+    <Grid v-if="isVerified" :table-title="$t('page.finance.list-title')">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector

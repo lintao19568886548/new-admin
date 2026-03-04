@@ -4,9 +4,9 @@ import type { Rule } from 'ant-design-vue/es/form';
 import type { AmountBill } from './data';
 
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
-import { Page } from '@vben/common-ui';
+import { Page, useVbenModal } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
 
 import { MoreOutlined, PlusOutlined } from '@ant-design/icons-vue'; // 使用 antd 图标
@@ -31,13 +31,31 @@ import dayjs from 'dayjs';
 import { deleteAmountBill, getAmountBillList } from '#/api/bill';
 // 用于 AreaSelector 和可能的打印选项
 import AreaSelector from '#/components/AreaSelector.vue';
+import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
+import { usePullToRefresh } from '#/hooks/usePullToRefresh';
 import { $t } from '#/locales';
 
 import MobileAmountBillDetail from './modules/MobileAmountBillDetail.vue';
 // 导入手机端表单和详情组件 (稍后创建)
 import MobileAmountBillForm from './modules/MobileAmountBillForm.vue';
 
+const route = useRoute();
 const router = useRouter();
+
+// 验证状态
+const isVerified = ref(false);
+
+// 短信验证模态框
+const [VerificationModal, verificationModalApi] = useVbenModal({
+  closable: true,
+  closeOnClickModal: false,
+  closeOnPressEscape: false,
+  connectedComponent: SmsVerificationModal,
+  draggable: false,
+  fullscreen: false,
+  modal: true,
+  showCancelButton: true,
+});
 
 // 数据状态
 const bills = ref<AmountBill[]>([]);
@@ -55,6 +73,51 @@ const mobileBillDetailRef = ref();
 
 // 脱敏开关 - 从 localStorage 读取持久化状态
 const enableMask = ref(localStorage.getItem('bill-enableMask') !== 'false');
+
+// 组件挂载时检查验证状态
+onMounted(() => {
+  const verified = sessionStorage.getItem('bill-verified');
+  if (verified === 'true') {
+    isVerified.value = true;
+    fetchBillList(true);
+  } else {
+    setTimeout(() => {
+      verificationModalApi.open();
+    }, 300);
+  }
+});
+
+// 下拉刷新功能
+const { isRefreshing } = usePullToRefresh({
+  onRefresh: async () => {
+    await refreshList();
+  },
+});
+
+// 验证成功回调
+function onVerificationSuccess() {
+  isVerified.value = true;
+  sessionStorage.setItem('bill-verified', 'true');
+  fetchBillList(true);
+}
+
+// 取消验证，返回首页
+function onCancelVerification() {
+  verificationModalApi.close();
+  router.push('/dashboard/workspace');
+  message.info('已取消验证，返回首页');
+}
+
+// 监听路由变化，清除验证状态
+watch(
+  () => route.fullPath,
+  (newPath, oldPath) => {
+    if (newPath !== oldPath) {
+      isVerified.value = false;
+      sessionStorage.removeItem('bill-verified');
+    }
+  },
+);
 
 // Helper to format fee with currency (带脱敏)
 const formatFee = (value?: number | string) => {
@@ -127,10 +190,6 @@ async function fetchBillList(isRefresh = false) {
     loading.value = false;
   }
 }
-
-onMounted(() => {
-  fetchBillList(true); // 初始加载
-});
 
 function handleLoadMore() {
   if (!allLoaded.value) {
@@ -310,7 +369,11 @@ const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
     :title="$t('page.bill.amount.mobileTitle', '总账单管理')"
     class="amount-bill-mobile-page"
   >
-    <div class="p-2">
+    <VerificationModal
+      @success="onVerificationSuccess"
+      @cancel="onCancelVerification"
+    />
+    <div v-if="isVerified" class="p-2">
       <div
         class="mb-2 flex items-center justify-between rounded bg-white p-2 dark:bg-black"
       >
@@ -341,6 +404,9 @@ const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
         </Button>
       </div>
       <Spin :spinning="loading && currentPage === 1">
+        <div v-if="isRefreshing" class="py-2 text-center text-xs text-gray-500">
+          刷新中...
+        </div>
         <List
           item-layout="horizontal"
           :data-source="bills"

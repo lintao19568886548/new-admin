@@ -1,4 +1,4 @@
-export const BAIDU_MAP_AK = 'Ry6GDxG4wyEdT89fOKfZJQ5tlUeDPm3S';
+export const BAIDU_MAP_AK = 'V3MEar3oaE0GJ81jp5StYmyiQz4I5LDT';
 
 export const REIMBURSEMENT_NOTIFY_THRESHOLD = Number(
   (import.meta as any).env.VITE_REIMBURSEMENT_NOTIFY_THRESHOLD ?? 50_000,

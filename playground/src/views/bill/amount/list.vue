@@ -6,9 +6,9 @@ import type { AmountBill } from './data';
 import type { OnActionClickParams } from '#/adapter/vxe-table';
 
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router'; // 新增: 引入 useRouter
+import { useRoute, useRouter } from 'vue-router';
 
-import { Page } from '@vben/common-ui';
+import { Page, useVbenModal } from '@vben/common-ui';
 import { Download, Plus } from '@vben/icons';
 
 import {
@@ -27,6 +27,7 @@ import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteAmountBill, getAmountBillList, getExportData } from '#/api/bill';
 import { getVisitorParkList } from '#/api/park';
 import AreaSelector from '#/components/AreaSelector.vue';
+import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { $t } from '#/locales';
 import { executeBill } from '#/utils/excel';
 
@@ -39,13 +40,70 @@ import {
 } from './data';
 import MultipageBillForm from './modules/MultipageBillForm.vue';
 
+// 路由和验证状态
+const route = useRoute();
+const router = useRouter();
+const isVerified = ref(false);
+
+// 短信验证模态框
+const [VerificationModal, verificationModalApi] = useVbenModal({
+  closable: true,
+  closeOnClickModal: false,
+  closeOnPressEscape: false,
+  connectedComponent: SmsVerificationModal,
+  draggable: false,
+  fullscreen: false,
+  modal: true,
+  showCancelButton: true,
+});
+
 onMounted(async () => {
+  // 检查是否已验证，未验证则显示验证模态框
+  const verified = sessionStorage.getItem('bill-verified');
+  if (verified === 'true') {
+    isVerified.value = true;
+    initPage();
+  } else {
+    // 显示验证模态框
+    setTimeout(() => {
+      verificationModalApi.open();
+    }, 300);
+  }
+});
+
+// 初始化页面
+async function initPage() {
   const parkList = await getVisitorParkList({ area: 'all' });
   options.value = parkList.map((park: any) => ({
     label: park.parkName,
     value: park.parkId,
   }));
-});
+}
+
+// 验证成功回调
+function onVerificationSuccess() {
+  isVerified.value = true;
+  sessionStorage.setItem('bill-verified', 'true');
+  initPage();
+}
+
+// 取消验证，返回首页
+function onCancelVerification() {
+  verificationModalApi.close();
+  router.push('/dashboard/workspace');
+  message.info('已取消验证，返回首页');
+}
+
+// 监听路由变化，清除验证状态
+watch(
+  () => route.fullPath,
+  (newPath, oldPath) => {
+    if (newPath !== oldPath) {
+      isVerified.value = false;
+      sessionStorage.removeItem('bill-verified');
+    }
+  },
+);
 
 const currentPark = ref();
 const parkSelectorRef = ref();
@@ -377,8 +435,6 @@ function refreshGrid() {
   gridApi.query();
 }
 
-const router = useRouter();
-
 /**
  * 表单提交成功回调
  */
@@ -429,6 +485,10 @@ function handlePrintCancel() {
       ref="billFormRef"
       :config="formConfig"
       @success="handleFormSuccess"
+    />
+    <VerificationModal
+      @success="onVerificationSuccess"
+      @cancel="onCancelVerification"
     />
 
     <!-- --- 新增代码开始 --- -->
@@ -496,7 +556,7 @@ function handlePrintCancel() {
       </div>
     </Modal>
 
-    <Grid table-title="总账单" class="amount-bill-grid">
+    <Grid v-if="isVerified" table-title="总账单" class="amount-bill-grid">
       <template #toolbar-actions>
         <!-- 区域选择下拉菜单 -->
         <AreaSelector
