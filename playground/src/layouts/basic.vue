@@ -12,6 +12,7 @@ import { useAccessStore, useUserStore } from '@vben/stores';
 
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import { IonFooter, IonHeader, IonPage, IonToolbar } from '@ionic/vue';
 import { Button, message } from 'ant-design-vue';
 
 import AutoUpdateChecker from '#/components/auto-update-checker.vue';
@@ -258,45 +259,54 @@ function goBack() {
 
 <template>
   <!-- Mobile Layout -->
-  <div v-if="isMobile" class="app-layout">
+  <IonPage v-if="isMobile" class="app-layout">
     <!-- App Top Navigation Bar -->
-    <header class="app-header">
-      <div class="w-10">
-        <VbenIcon
-          v-if="showBackButton"
-          :icon="ArrowLeft"
-          class="cursor-pointer"
-          @click="goBack"
-        />
-      </div>
-      <div class="font-bold">
-        {{ $t(router.currentRoute.value.meta.title || '标题') }}
-      </div>
-      <div class="flex min-w-10 items-center justify-end space-x-2 text-right">
-        <!-- Right Actions from store -->
-        <template v-for="action in layoutStore.headerActions" :key="action.key">
-          <!-- Render as a Button if text is provided -->
-          <Button
-            v-if="action.text"
-            type="primary"
-            size="small"
-            @click="action.onClick"
+    <IonHeader class="app-header">
+      <IonToolbar class="app-header-toolbar">
+        <div class="app-header-inner">
+          <div class="w-10">
+            <VbenIcon
+              v-if="showBackButton"
+              :icon="ArrowLeft"
+              class="cursor-pointer"
+              @click="goBack"
+            />
+          </div>
+          <div class="font-bold">
+            {{ $t(router.currentRoute.value.meta.title || '标题') }}
+          </div>
+          <div
+            class="flex min-w-10 items-center justify-end space-x-2 text-right"
           >
-            <template #icon v-if="action.icon">
-              <VbenIcon :icon="action.icon" class="size-4" />
+            <!-- Right Actions from store -->
+            <template
+              v-for="action in layoutStore.headerActions"
+              :key="action.key"
+            >
+              <!-- Render as a Button if text is provided -->
+              <Button
+                v-if="action.text"
+                type="primary"
+                size="small"
+                @click="action.onClick"
+              >
+                <template #icon v-if="action.icon">
+                  <VbenIcon :icon="action.icon" class="size-4" />
+                </template>
+                {{ action.text }}
+              </Button>
+              <!-- Render as an Icon if only icon is provided -->
+              <VbenIcon
+                v-else-if="action.icon"
+                :icon="action.icon"
+                class="size-6 cursor-pointer"
+                @click="action.onClick"
+              />
             </template>
-            {{ action.text }}
-          </Button>
-          <!-- Render as an Icon if only icon is provided -->
-          <VbenIcon
-            v-else-if="action.icon"
-            :icon="action.icon"
-            class="size-6 cursor-pointer"
-            @click="action.onClick"
-          />
-        </template>
-      </div>
-    </header>
+          </div>
+        </div>
+      </IonToolbar>
+    </IonHeader>
 
     <!-- Main Content Area -->
     <main class="app-main">
@@ -341,19 +351,23 @@ function goBack() {
     </main>
 
     <!-- App Bottom Tab Bar -->
-    <footer class="app-footer">
-      <div
-        v-for="tab in tabs"
-        :key="tab.path"
-        :class="{ 'app-tab-item--active': activeTab === tab.path }"
-        class="app-tab-item"
-        @click="goTo(tab.path)"
-      >
-        <VbenIcon :icon="tab.icon" class="mb-1" />
-        {{ tab.title }}
-      </div>
-    </footer>
-  </div>
+    <IonFooter class="app-footer">
+      <IonToolbar class="app-footer-toolbar">
+        <div class="app-footer-inner">
+          <div
+            v-for="tab in tabs"
+            :key="tab.path"
+            :class="{ 'app-tab-item--active': activeTab === tab.path }"
+            class="app-tab-item"
+            @click="goTo(tab.path)"
+          >
+            <VbenIcon :icon="tab.icon" class="mb-1" />
+            {{ tab.title }}
+          </div>
+        </div>
+      </IonToolbar>
+    </IonFooter>
+  </IonPage>
   <!-- Desktop Layout -->
   <BasicLayout v-else @clear-preferences-and-logout="handleLogout">
     <template #user-dropdown>
@@ -412,26 +426,44 @@ function goBack() {
 }
 
 .app-layout {
+  --app-mobile-header-height: 48px;
+  --app-mobile-tabbar-height: 52px;
+  --background: #fff;
+
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
+  height: 100%;
+  min-height: 100dvh;
 }
 
 .app-header {
+  --background: #fff;
+  --border-width: 0;
+}
+
+.app-header-toolbar {
+  --background: #fff;
+  --border-width: 0;
+  --min-height: calc(
+    var(--app-mobile-header-height) + var(--app-safe-area-top)
+  );
+  --padding-start: calc(12px + var(--app-safe-area-left));
+  --padding-top: var(--app-safe-area-top);
+  --padding-end: calc(12px + var(--app-safe-area-right));
+}
+
+.app-header-inner {
   display: flex;
-  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  height: 48px;
-  padding: 0 12px;
-  background-color: #fff;
+  min-height: var(--app-mobile-header-height);
   border-bottom: 1px solid #f0f0f0;
 }
 
 .app-main {
   position: relative;
   flex-grow: 1;
+  min-height: 0;
   overflow: hidden; /* 让PullToRefresh组件管理滚动 */
 }
 
@@ -446,12 +478,26 @@ function goBack() {
 }
 
 .app-footer {
+  --background: #fff;
+  --border-width: 0;
+}
+
+.app-footer-toolbar {
+  --background: #fff;
+  --border-width: 0;
+  --min-height: calc(
+    var(--app-mobile-tabbar-height) + var(--app-safe-area-bottom)
+  );
+  --padding-start: var(--app-safe-area-left);
+  --padding-end: var(--app-safe-area-right);
+  --padding-bottom: var(--app-safe-area-bottom);
+}
+
+.app-footer-inner {
   display: flex;
-  flex-shrink: 0;
   align-items: center;
   justify-content: space-around;
-  height: 52px;
-  background-color: #fff;
+  min-height: var(--app-mobile-tabbar-height);
   border-top: 1px solid #f0f0f0;
 }
 

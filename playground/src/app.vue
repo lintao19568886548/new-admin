@@ -4,7 +4,7 @@ import { computed, onMounted } from 'vue';
 import { useAntdDesignTokens } from '@vben/hooks';
 import { preferences, usePreferences } from '@vben/preferences';
 
-import { App, ConfigProvider, theme } from 'ant-design-vue';
+import { App, ConfigProvider, message, theme } from 'ant-design-vue';
 
 import { antdLocale } from '#/locales';
 
@@ -55,7 +55,9 @@ const tokenTheme = computed(() => {
 
 // 组件挂载后执行
 onMounted(() => {
-  // 这里可以添加其他应用级别的初始化逻辑
+  message.config({
+    top: 'calc(var(--app-safe-area-top) + 8px)',
+  });
 });
 </script>
 
@@ -69,17 +71,23 @@ onMounted(() => {
 </template>
 
 <style>
-/*
-  适配 Android 15+ Edge-to-Edge 特性以及其他平台的安全区域。
-  通过 CSS safe-area-inset-* 环境变量，为应用内容提供动态内边距，
-  确保内容不会与状态栏、导航栏或设备刘海等区域重叠。
-*/
-.ant-app {
-  /* antd.css 已经为 .ant-app 设置了 width: 100%; height: 100%; */
+:root {
+  --app-safe-area-top: var(--ion-safe-area-top, env(safe-area-inset-top, 0px));
+  --app-safe-area-right: var(
+    --ion-safe-area-right,
+    env(safe-area-inset-right, 0px)
+  );
+  --app-safe-area-bottom: var(
+    --ion-safe-area-bottom,
+    env(safe-area-inset-bottom, 0px)
+  );
+  --app-safe-area-left: var(
+    --ion-safe-area-left,
+    env(safe-area-inset-left, 0px)
+  );
+}
 
-  /* 添加 box-sizing: border-box; 确保 padding 不会撑大元素原有尺寸 */
+.ant-app {
   box-sizing: border-box;
-  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
-    env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
 }
 </style>

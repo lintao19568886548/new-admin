@@ -12,6 +12,7 @@ import 'photoswipe/style.css';
 const APP_ALBUM_NAME = '瞰维智管';
 const DEFAULT_IMAGE_HEIGHT = 1200;
 const DEFAULT_IMAGE_WIDTH = 1600;
+const MESSAGE_TOP = 'calc(var(--app-safe-area-top) + 8px)';
 const MESSAGE_STYLE_ID = 'mobile-image-preview-message-z-index-style';
 const MESSAGE_Z_INDEX = 200_001;
 const PSWP_THEME_STYLE_ID = 'mobile-image-preview-pswp-theme-style';
@@ -64,6 +65,42 @@ function getSupportedNativePlatform() {
   return platform === 'android' || platform === 'ios' ? platform : null;
 }
 
+function parsePixels(value: string) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getSafeAreaInset(side: 'bottom' | 'left' | 'right' | 'top') {
+  if (typeof document === 'undefined' || !document.body) {
+    return 0;
+  }
+
+  const probe = document.createElement('div');
+  probe.style.position = 'absolute';
+  probe.style.visibility = 'hidden';
+  probe.style.pointerEvents = 'none';
+  probe.style.setProperty(
+    `padding-${side}`,
+    `env(safe-area-inset-${side}, 0px)`,
+  );
+  document.body.append(probe);
+
+  const computedPadding = getComputedStyle(probe)
+    .getPropertyValue(`padding-${side}`)
+    .trim();
+  probe.remove();
+  return parsePixels(computedPadding);
+}
+
+function getSafeAreaInsets() {
+  return {
+    bottom: getSafeAreaInset('bottom'),
+    left: getSafeAreaInset('left'),
+    right: getSafeAreaInset('right'),
+    top: getSafeAreaInset('top'),
+  };
+}
+
 function ensureMessageOnTopLayer() {
   if (typeof document === 'undefined') {
     return;
@@ -79,6 +116,7 @@ function ensureMessageOnTopLayer() {
 
   message.config({
     getContainer: () => document.body,
+    top: MESSAGE_TOP,
   });
 }
 
@@ -526,6 +564,7 @@ export async function openMobileImagePreview(images: string[], startIndex = 0) {
     Math.max(mappedIndex, 0),
     imageList.length - 1,
   );
+  const safeAreaInsets = getSafeAreaInsets();
 
   const pswp = new PhotoSwipe({
     bgOpacity: 0.5,
@@ -536,6 +575,12 @@ export async function openMobileImagePreview(images: string[], startIndex = 0) {
     initialZoomLevel: 'fit',
     mainClass: PSWP_MAIN_CLASS,
     maxZoomLevel: 4,
+    paddingFn: () => ({
+      bottom: safeAreaInsets.bottom,
+      left: safeAreaInsets.left,
+      right: safeAreaInsets.right,
+      top: safeAreaInsets.top,
+    }),
     secondaryZoomLevel: 2,
     showHideAnimationType: 'fade',
     wheelToZoom: true,
