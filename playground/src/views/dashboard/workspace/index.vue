@@ -5,7 +5,7 @@ import type {
   WorkbenchTrendItem,
 } from '@vben/common-ui';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import {
@@ -65,44 +65,61 @@ const weatherDescription = computed(() => {
 // 例如：url: /dashboard/workspace
 
 // 同样，这里的 url 也可以使用以 http 开头的外部链接
-const quickNavItems: WorkbenchQuickNavItem[] = [
-  {
-    color: '#1fdaca',
-    icon: 'ion:home-outline',
-    title: '首页',
-    url: '/',
-  },
-  {
-    color: '#bf0c2c',
-    icon: 'mdi:file-document-multiple',
-    title: '账单管理',
-    url: '/bill',
-  },
-  {
-    color: '#e18525',
-    icon: 'mdi:office-building',
-    title: '招商管理',
-    url: '/investment',
-  },
-  {
-    color: '#3fb27f',
-    icon: 'mdi:currency-usd',
-    title: '财务管理',
-    url: '/finance/manage', // 这里的 URL 是示例，实际项目中需要根据实际情况进行调整
-  },
-  {
-    color: '#4daf1bc9',
-    icon: 'mdi:home-city-outline',
-    title: '园区列表',
-    url: '/rental/list',
-  },
-  {
-    color: '#00d8ff',
-    icon: 'lucide:bot',
-    title: 'AI工具集',
-    url: '/tools',
-  },
-];
+const isMobile = ref(window.innerWidth < 768);
+
+function updateIsMobile() {
+  isMobile.value = window.innerWidth < 768;
+}
+
+onMounted(() => {
+  window.addEventListener('resize', updateIsMobile);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateIsMobile);
+});
+
+const quickNavItems = computed((): WorkbenchQuickNavItem[] => {
+  const isMobileView = isMobile.value;
+  return [
+    {
+      color: '#1fdaca',
+      icon: 'ion:home-outline',
+      title: '首页',
+      url: '/',
+    },
+    {
+      color: '#bf0c2c',
+      icon: 'mdi:file-document-multiple',
+      title: '账单管理',
+      url: isMobileView ? '/bill/mobile-list' : '/bill',
+    },
+    {
+      color: '#e18525',
+      icon: 'mdi:office-building',
+      title: '招商管理',
+      url: isMobileView ? '/investment/mobile' : '/investment',
+    },
+    {
+      color: '#3fb27f',
+      icon: 'mdi:currency-usd',
+      title: '财务管理',
+      url: isMobileView ? '/mobile-manage' : '/finance/manage',
+    },
+    {
+      color: '#4daf1bc9',
+      icon: 'mdi:home-city-outline',
+      title: '园区列表',
+      url: '/rental/list',
+    },
+    {
+      color: '#00d8ff',
+      icon: 'lucide:bot',
+      title: 'AI工具集',
+      url: '/tools',
+    },
+  ];
+});
 
 // 从本地存储加载的动态待办事项
 const todoItems = ref<WorkbenchTodoItem[]>([]);
