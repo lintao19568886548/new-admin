@@ -160,7 +160,7 @@ async function onSubmit(params: Recordable<any>) {
 
   /* Make the container take at least the full viewport height, width defaults to 100% */
   width: 100%;
-  min-height: 100vh; /* 或者使用 100% 如果父元素已设定高度 */
+  min-height: auto; /* 或者使用 100% 如果父元素已设定高度 */
 
   /* 顶部安全区由认证布局统一处理，这里只保留左右与底部 */
   padding: 0 var(--app-safe-area-right, env(safe-area-inset-right, 0))
