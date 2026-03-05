@@ -1,20 +1,5 @@
 import { execSync } from 'node:child_process';
 
-import { getPackagesSync } from '@vben/node-utils';
-
-const { packages } = getPackagesSync();
-
-const allowedScopes = [
-  ...packages.map((pkg) => pkg.packageJson.name),
-  'project',
-  'style',
-  'lint',
-  'ci',
-  'dev',
-  'deploy',
-  'other',
-];
-
 // precomputed scope
 const scopeComplete = execSync('git status --porcelain || true')
   .toString()
@@ -99,21 +84,8 @@ const userConfig = {
      * ^^^^^^^^^^^^^^
      */
     'footer-leading-blank': [1, 'always'],
-    /**
-     * type[scope]: [function] description
-     *      ^^^^^
-     */
-    'function-rules/scope-enum': [
-      2, // level: error
-      'always',
-      (parsed) => {
-        if (!parsed.scope || allowedScopes.includes(parsed.scope)) {
-          return [true];
-        }
-
-        return [false, `scope must be one of ${allowedScopes.join(', ')}`];
-      },
-    ],
+    // 允许任意 scope
+    'function-rules/scope-enum': [0],
     /**
      * type[scope]: [function] description [No more than 108 characters]
      *      ^^^^^
