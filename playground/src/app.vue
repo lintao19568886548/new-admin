@@ -23,7 +23,7 @@ async function syncStatusBarStyle() {
   }
 
   await StatusBar.setStyle({
-    style: isDark.value ? Style.Light : Style.Dark,
+    style: isDark.value ? Style.Dark : Style.Light,
   });
   await StatusBar.setBackgroundColor({
     color: isDark.value ? '#000000ff' : '#ffffffff',
