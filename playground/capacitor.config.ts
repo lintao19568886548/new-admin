@@ -9,6 +9,11 @@ const config: CapacitorConfig = {
       iconPath: 'resources/icon.png',
       // splashPath: 'resources/splash.png', // 可选：启动画面
     },
+    StatusBar: {
+      backgroundColor: '#ffffffff',
+      overlaysWebView: false,
+      style: 'DARK',
+    },
   },
   server: {
     // 需要取消注释此部分以设置 androidScheme

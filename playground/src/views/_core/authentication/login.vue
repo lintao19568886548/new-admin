@@ -162,11 +162,10 @@ async function onSubmit(params: Recordable<any>) {
   width: 100%;
   min-height: 100vh; /* 或者使用 100% 如果父元素已设定高度 */
 
-  /* 使用 CSS 环境变量为容器的四边添加内边距 */
-
-  /* Apply padding to the four sides of the container using CSS environment variables */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* 顶部安全区由认证布局统一处理，这里只保留左右与底部 */
+  padding: 0 var(--app-safe-area-right, env(safe-area-inset-right, 0))
+    var(--app-safe-area-bottom, env(safe-area-inset-bottom, 0))
+    var(--app-safe-area-left, env(safe-area-inset-left, 0));
 
   /* 可选：如果需要内容垂直居中或有特定布局需求 */
 

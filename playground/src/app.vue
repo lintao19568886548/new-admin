@@ -1,9 +1,11 @@
 <script lang="ts" setup>
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, watch } from 'vue';
 
 import { useAntdDesignTokens } from '@vben/hooks';
 import { preferences, usePreferences } from '@vben/preferences';
 
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { App, ConfigProvider, message, theme } from 'ant-design-vue';
 
 import { antdLocale } from '#/locales';
@@ -14,6 +16,19 @@ defineOptions({ name: 'App' });
 
 const { isDark } = usePreferences();
 const { tokens } = useAntdDesignTokens();
+
+async function syncStatusBarStyle() {
+  if (!Capacitor.isNativePlatform()) {
+    return;
+  }
+
+  await StatusBar.setStyle({
+    style: isDark.value ? Style.Light : Style.Dark,
+  });
+  await StatusBar.setBackgroundColor({
+    color: isDark.value ? '#000000ff' : '#ffffffff',
+  });
+}
 
 const tokenTheme = computed(() => {
   const algorithm = isDark.value
@@ -54,9 +69,24 @@ const tokenTheme = computed(() => {
 // };
 
 // 组件挂载后执行
-onMounted(() => {
+onMounted(async () => {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await StatusBar.setOverlaysWebView({ overlay: false });
+      await syncStatusBarStyle();
+    } catch (error) {
+      console.warn('设置状态栏覆盖模式失败:', error);
+    }
+  }
+
   message.config({
     top: 'calc(var(--app-safe-area-top) + 8px)',
+  });
+});
+
+watch(isDark, () => {
+  syncStatusBarStyle().catch((error) => {
+    console.warn('同步状态栏样式失败:', error);
   });
 });
 </script>

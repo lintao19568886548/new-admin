@@ -37,7 +37,7 @@ const { authPanelCenter, authPanelLeft, authPanelRight, isDark } =
 <template>
   <div
     :class="[isDark]"
-    class="flex min-h-full flex-1 select-none overflow-x-hidden"
+    class="auth-layout-root relative flex min-h-full flex-1 select-none overflow-x-hidden"
   >
     <template v-if="toolbar">
       <slot name="toolbar">
@@ -132,6 +132,11 @@ const { authPanelCenter, authPanelLeft, authPanelRight, isDark } =
 </template>
 
 <style scoped>
+.auth-layout-root {
+  box-sizing: border-box;
+  padding-top: var(--app-safe-area-top, env(safe-area-inset-top, 0));
+}
+
 .login-background {
   background: linear-gradient(
     154deg,
