@@ -44,6 +44,14 @@ function setupCommonGuard(router: Router) {
  * @param router
  */
 function setupAccessGuard(router: Router) {
+  // 需要短信验证的页面路由
+  const smsVerificationRequiredRoutes = new Set([
+    'Bill',
+    'BillMobileList',
+    'FinanceManage',
+    'FinanceMobileManage',
+  ]);
+
   router.beforeEach(async (to, from) => {
     const accessStore = useAccessStore();
     const userStore = useUserStore();
@@ -83,6 +91,12 @@ function setupAccessGuard(router: Router) {
       return to;
     }
 
+    // 检查是否需要短信验证码验证
+    if (smsVerificationRequiredRoutes.has(to.name as string)) {
+      // 如果未验证，允许进入页面，但页面会显示验证模态框
+      // 这里不做拦截，由页面组件自行处理验证逻辑
+    }
+
     // 是否已经生成过动态路由
     if (accessStore.isAccessChecked) {
       return true;
@@ -97,7 +111,7 @@ function setupAccessGuard(router: Router) {
     const { accessibleMenus, accessibleRoutes } = await generateAccess({
       roles: userRoles,
       router,
-      // 则会在菜单中显示，但是访问会被重定向到403
+      // 则会在菜单中显示，但是访问会被重定向到 403
       routes: accessRoutes,
     });
 

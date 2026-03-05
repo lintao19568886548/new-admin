@@ -4,8 +4,8 @@ import type { Dayjs } from 'dayjs';
 
 import type { AmountBill } from './data';
 
-import { onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { formatDateTime } from '@vben/utils';
 
@@ -31,12 +31,14 @@ import dayjs from 'dayjs';
 import { getAmountBillList } from '#/api/bill';
 import { getParkList as fetchParks } from '#/api/park';
 import MobileDateRange from '#/components/MobileDateRange.vue';
+import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { $t } from '#/locales';
 import { useLayoutStore } from '#/store/layout';
 
 import MobileAmountBillForm from './modules/MobileAmountBillForm.vue';
 
 const router = useRouter();
+const route = useRoute();
 const layoutStore = useLayoutStore();
 
 const bills = ref<AmountBill[]>([]);
@@ -54,6 +56,23 @@ const mobileBillFormRef = ref();
 
 const enableMask = ref(true);
 localStorage.setItem('bill-enableMask', 'true');
+
+const verificationModalRef = ref<InstanceType<typeof SmsVerificationModal>>();
+const isVerified = ref(false);
+const VERIFIED_KEY = 'bill-amount-verified';
+
+function ensureVerification() {
+  const verified = sessionStorage.getItem(VERIFIED_KEY) === 'true';
+  if (verified) {
+    isVerified.value = true;
+    initPage();
+    return;
+  }
+  isVerified.value = false;
+  setTimeout(() => {
+    verificationModalRef.value?.open();
+  }, 0);
+}
 
 const formatFee = (value?: number | string) => {
   const numValue = Number(value);
@@ -155,6 +174,7 @@ const searchForm = reactive<{
 });
 
 async function fetchBillList() {
+  if (!isVerified.value) return;
   if (loading.value) return;
   loading.value = true;
 
@@ -195,7 +215,7 @@ async function fetchBillList() {
   }
 }
 
-onMounted(() => {
+function initPage() {
   fetchBillList();
   fetchParks()
     .then((parks) => {
@@ -212,6 +232,39 @@ onMounted(() => {
       text: $t('common.create'),
     },
   ]);
+}
+
+function onVerificationSuccess() {
+  isVerified.value = true;
+  sessionStorage.setItem(VERIFIED_KEY, 'true');
+  initPage();
+}
+
+function onCancelVerification() {
+  if (window.history.length > 1) {
+    router.back();
+    return;
+  }
+  router.push({ name: 'Workspace' });
+  message.info('已取消验证，返回上一级');
+}
+
+watch(
+  () => route.fullPath,
+  (newPath, oldPath) => {
+    if (newPath !== oldPath) {
+      isVerified.value = false;
+      sessionStorage.removeItem(VERIFIED_KEY);
+    }
+  },
+);
+
+onMounted(() => {
+  ensureVerification();
+});
+
+onActivated(() => {
+  ensureVerification();
 });
 
 onUnmounted(() => {
@@ -313,246 +366,258 @@ function resetSearch() {
 
 <template>
   <div class="bg-gray-100 p-2 dark:bg-neutral-900">
-    <div
-      class="search-filters mb-2 rounded bg-white p-3 shadow-sm dark:bg-neutral-800"
-    >
-      <Form layout="vertical" :model="searchForm">
-        <Row :gutter="16">
-          <Col :span="24">
-            <Form.Item :label="$t('page.park.item')">
-              <Select
-                v-model:value="currentParkId"
-                :options="parkOptions"
-                allow-clear
-                :placeholder="$t('page.common.selectPark')"
-                @change="handleSearch"
-              />
-            </Form.Item>
-          </Col>
-          <Col :span="12">
-            <Form.Item label="租户名称">
-              <Input
-                v-model:value="searchForm.tenantName"
-                placeholder="请输入租户名称"
-                allow-clear
-              />
-            </Form.Item>
-          </Col>
-          <Col :span="12">
-            <Form.Item label="项目名称">
-              <Input
-                v-model:value="searchForm.projectName"
-                placeholder="请输入项目名称"
-                allow-clear
-              />
-            </Form.Item>
-          </Col>
-          <Col :span="24">
-            <Form.Item label="收款时间">
-              <MobileDateRange v-model:value="receiptRange" />
-            </Form.Item>
-          </Col>
-        </Row>
-        <div class="mt-2 flex gap-2">
-          <Button type="primary" @click="handleSearch" class="flex-1">
-            {{ $t('common.search') }}
-          </Button>
-          <Button @click="resetSearch" class="flex-1">
-            {{ $t('common.reset') }}
-          </Button>
-        </div>
-        <div
-          class="mask-toggle mt-2 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-3 dark:border-neutral-700 dark:bg-neutral-800"
-          role="button"
-          tabindex="0"
-          @click="toggleMask"
-          @keydown.enter.prevent="toggleMask"
-          @keydown.space.prevent="toggleMask"
-        >
-          <div class="flex flex-col gap-0.5">
-            <div
-              class="text-[15px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
-            >
-              金额脱敏
-            </div>
-            <div class="text-[13px] leading-5 text-gray-500 dark:text-gray-400">
-              {{ enableMask ? '已开启，金额将隐藏' : '已关闭，显示完整金额' }}
-            </div>
-          </div>
-          <div class="flex items-center" @click.stop>
-            <Switch
-              v-model:checked="enableMask"
-              checked-children="开"
-              un-checked-children="关"
-            />
-          </div>
-        </div>
-      </Form>
-    </div>
+    <SmsVerificationModal
+      ref="verificationModalRef"
+      @success="onVerificationSuccess"
+      @cancel="onCancelVerification"
+    />
 
-    <Spin :spinning="loading" :tip="$t('ui.loading')">
-      <div v-if="bills.length > 0">
-        <Card
-          v-for="item in bills"
-          :key="item.billId"
-          class="mb-3 overflow-hidden rounded-lg bg-white shadow-sm dark:bg-neutral-800"
-          :body-style="{ padding: '0' }"
-        >
-          <div
-            class="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-neutral-700"
-          >
-            <span
-              class="break-words text-[16px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
-            >
-              {{ item.projectName || '未填写项目名称' }}
-            </span>
+    <template v-if="isVerified">
+      <div
+        class="search-filters mb-2 rounded bg-white p-3 shadow-sm dark:bg-neutral-800"
+      >
+        <Form layout="vertical" :model="searchForm">
+          <Row :gutter="16">
+            <Col :span="24">
+              <Form.Item :label="$t('page.park.item')">
+                <Select
+                  v-model:value="currentParkId"
+                  :options="parkOptions"
+                  allow-clear
+                  :placeholder="$t('page.common.selectPark')"
+                  @change="handleSearch"
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="12">
+              <Form.Item label="租户名称">
+                <Input
+                  v-model:value="searchForm.tenantName"
+                  placeholder="请输入租户名称"
+                  allow-clear
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="12">
+              <Form.Item label="项目名称">
+                <Input
+                  v-model:value="searchForm.projectName"
+                  placeholder="请输入项目名称"
+                  allow-clear
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="24">
+              <Form.Item label="收款时间">
+                <MobileDateRange v-model:value="receiptRange" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <div class="mt-2 flex gap-2">
+            <Button type="primary" @click="handleSearch" class="flex-1">
+              {{ $t('common.search') }}
+            </Button>
+            <Button @click="resetSearch" class="flex-1">
+              {{ $t('common.reset') }}
+            </Button>
           </div>
-          <div class="p-4">
-            <div class="mb-4 text-center">
-              <span
+          <div
+            class="mask-toggle mt-2 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-3 dark:border-neutral-700 dark:bg-neutral-800"
+            role="button"
+            tabindex="0"
+            @click="toggleMask"
+            @keydown.enter.prevent="toggleMask"
+            @keydown.space.prevent="toggleMask"
+          >
+            <div class="flex flex-col gap-0.5">
+              <div
+                class="text-[15px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
+              >
+                金额脱敏
+              </div>
+              <div
                 class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
               >
-                总费用
-              </span>
-              <p class="text-[21px] font-semibold leading-7 text-red-500">
-                {{ formatFee(item.totalFee) }}
-              </p>
+                {{ enableMask ? '已开启，金额将隐藏' : '已关闭，显示完整金额' }}
+              </div>
             </div>
+            <div class="flex items-center" @click.stop>
+              <Switch
+                v-model:checked="enableMask"
+                checked-children="开"
+                un-checked-children="关"
+              />
+            </div>
+          </div>
+        </Form>
+      </div>
 
-            <div class="mb-3 grid grid-cols-2 gap-4">
-              <div
-                class="flex flex-col text-left"
-                :class="{ 'col-span-2': !item.receiptTime }"
+      <Spin :spinning="loading" :tip="$t('ui.loading')">
+        <div v-if="bills.length > 0">
+          <Card
+            v-for="item in bills"
+            :key="item.billId"
+            class="mb-3 overflow-hidden rounded-lg bg-white shadow-sm dark:bg-neutral-800"
+            :body-style="{ padding: '0' }"
+          >
+            <div
+              class="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-neutral-700"
+            >
+              <span
+                class="break-words text-[16px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
               >
+                {{ item.projectName || '未填写项目名称' }}
+              </span>
+            </div>
+            <div class="p-4">
+              <div class="mb-4 text-center">
                 <span
                   class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
                 >
-                  租户名称
+                  总费用
                 </span>
-                <span
-                  class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
-                >
-                  {{ item.tenantName }}
-                </span>
+                <p class="text-[21px] font-semibold leading-7 text-red-500">
+                  {{ formatFee(item.totalFee) }}
+                </p>
               </div>
-              <div v-if="item.receiptTime" class="flex flex-col text-left">
-                <span
-                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+
+              <div class="mb-3 grid grid-cols-2 gap-4">
+                <div
+                  class="flex flex-col text-left"
+                  :class="{ 'col-span-2': !item.receiptTime }"
                 >
-                  收款时间
-                </span>
-                <span
-                  class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
-                >
-                  {{ formatDateTime(item.receiptTime) }}
-                </span>
-              </div>
-              <div class="col-span-2 flex flex-col text-left">
-                <span
-                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
-                >
-                  费用明细
-                </span>
-                <div class="mt-1 space-y-1">
-                  <div
-                    v-for="fee in getFeeItems(item)"
-                    :key="fee.label"
-                    class="flex items-center justify-between gap-3 text-[14px] leading-5"
+                  <span
+                    class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
                   >
-                    <span
-                      class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                    租户名称
+                  </span>
+                  <span
+                    class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                  >
+                    {{ item.tenantName }}
+                  </span>
+                </div>
+                <div v-if="item.receiptTime" class="flex flex-col text-left">
+                  <span
+                    class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                  >
+                    收款时间
+                  </span>
+                  <span
+                    class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                  >
+                    {{ formatDateTime(item.receiptTime) }}
+                  </span>
+                </div>
+                <div class="col-span-2 flex flex-col text-left">
+                  <span
+                    class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                  >
+                    费用明细
+                  </span>
+                  <div class="mt-1 space-y-1">
+                    <div
+                      v-for="fee in getFeeItems(item)"
+                      :key="fee.label"
+                      class="flex items-center justify-between gap-3 text-[14px] leading-5"
                     >
-                      {{ fee.label }}
-                    </span>
-                    <span class="text-[14px] text-gray-800 dark:text-gray-100">
-                      {{ getFeeDisplay(fee.value) }}
-                    </span>
+                      <span
+                        class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                      >
+                        {{ fee.label }}
+                      </span>
+                      <span
+                        class="text-[14px] text-gray-800 dark:text-gray-100"
+                      >
+                        {{ getFeeDisplay(fee.value) }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              <p
+                v-if="item.remark"
+                class="mt-3 rounded-md bg-gray-50 px-3 py-2 text-[14px] leading-relaxed text-gray-600 dark:bg-neutral-700 dark:text-gray-200"
+              >
+                <span class="mr-1 font-semibold">备注:</span>
+                <span class="whitespace-pre-wrap break-all">{{
+                  item.remark
+                }}</span>
+              </p>
             </div>
 
-            <p
-              v-if="item.remark"
-              class="mt-3 rounded-md bg-gray-50 px-3 py-2 text-[14px] leading-relaxed text-gray-600 dark:bg-neutral-700 dark:text-gray-200"
+            <div
+              class="flex justify-center gap-3 border-t border-gray-100 px-4 py-3 dark:border-neutral-700"
             >
-              <span class="mr-1 font-semibold">备注:</span>
-              <span class="whitespace-pre-wrap break-all">{{
-                item.remark
-              }}</span>
-            </p>
-          </div>
+              <Button type="primary" @click="handlePrint(item)">打印</Button>
+            </div>
+          </Card>
 
-          <div
-            class="flex justify-center gap-3 border-t border-gray-100 px-4 py-3 dark:border-neutral-700"
-          >
-            <Button type="primary" @click="handlePrint(item)">打印</Button>
-          </div>
-        </Card>
-
-        <Pagination
-          v-if="pagination.total > pagination.pageSize"
-          v-model:current="pagination.current"
-          :page-size="pagination.pageSize"
-          :total="pagination.total"
-          @change="handlePageChange"
-          size="small"
-          class="mt-2 pb-2 text-center"
+          <Pagination
+            v-if="pagination.total > pagination.pageSize"
+            v-model:current="pagination.current"
+            :page-size="pagination.pageSize"
+            :total="pagination.total"
+            @change="handlePageChange"
+            size="small"
+            class="mt-2 pb-2 text-center"
+          />
+        </div>
+        <Empty
+          v-if="!loading && bills.length === 0"
+          class="py-10"
+          description="暂无账单数据"
         />
-      </div>
-      <Empty
-        v-if="!loading && bills.length === 0"
-        class="py-10"
-        description="暂无账单数据"
-      />
-    </Spin>
+      </Spin>
 
-    <!-- 打印设置模态框 -->
-    <Modal
-      v-model:open="printModalVisible"
-      :title="$t('page.bill.amount.printSettingsTitle', '打印设置')"
-      @ok="handlePrintOk"
-      @cancel="handlePrintCancel"
-      :mask-closable="false"
-      width="90%"
-      :body-style="{ padding: '16px' }"
-    >
-      <Form
-        ref="printFormRef"
-        :model="printFormData"
-        :rules="printFormRules"
-        layout="vertical"
+      <!-- 打印设置模态框 -->
+      <Modal
+        v-model:open="printModalVisible"
+        :title="$t('page.bill.amount.printSettingsTitle', '打印设置')"
+        @ok="handlePrintOk"
+        @cancel="handlePrintCancel"
+        :mask-closable="false"
+        width="90%"
+        :body-style="{ padding: '16px' }"
       >
-        <Form.Item label="水电停供时间" name="cutoffDate">
-          <DatePicker
-            v-model:value="printFormData.cutoffDate"
-            :show-time="{ format: 'HH' }"
-            format="YYYY-MM-DD HH"
-            value-format="YYYY-MM-DD HH:00:00"
-            class="w-full"
-          />
-        </Form.Item>
-        <Form.Item label="制单日期" name="billingDate">
-          <DatePicker
-            v-model:value="printFormData.billingDate"
-            value-format="YYYY-MM-DD"
-            class="w-full"
-          />
-        </Form.Item>
-        <Form.Item label="账户类型" name="accountType">
-          <Checkbox.Group v-model:value="printFormData.accountType">
-            <Checkbox value="public">对公账户</Checkbox>
-            <Checkbox value="private">对私账户</Checkbox>
-          </Checkbox.Group>
-        </Form.Item>
-      </Form>
-    </Modal>
+        <Form
+          ref="printFormRef"
+          :model="printFormData"
+          :rules="printFormRules"
+          layout="vertical"
+        >
+          <Form.Item label="水电停供时间" name="cutoffDate">
+            <DatePicker
+              v-model:value="printFormData.cutoffDate"
+              :show-time="{ format: 'HH' }"
+              format="YYYY-MM-DD HH"
+              value-format="YYYY-MM-DD HH:00:00"
+              class="w-full"
+            />
+          </Form.Item>
+          <Form.Item label="制单日期" name="billingDate">
+            <DatePicker
+              v-model:value="printFormData.billingDate"
+              value-format="YYYY-MM-DD"
+              class="w-full"
+            />
+          </Form.Item>
+          <Form.Item label="账户类型" name="accountType">
+            <Checkbox.Group v-model:value="printFormData.accountType">
+              <Checkbox value="public">对公账户</Checkbox>
+              <Checkbox value="private">对私账户</Checkbox>
+            </Checkbox.Group>
+          </Form.Item>
+        </Form>
+      </Modal>
 
-    <!-- 手机端表单和详情组件的引用 -->
-    <MobileAmountBillForm
-      ref="mobileBillFormRef"
-      @success="handleFormSuccess"
-    />
+      <!-- 手机端表单和详情组件的引用 -->
+      <MobileAmountBillForm
+        ref="mobileBillFormRef"
+        @success="handleFormSuccess"
+      />
+    </template>
   </div>
 </template>
 
