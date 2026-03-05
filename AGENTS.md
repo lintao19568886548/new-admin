@@ -12,7 +12,7 @@
 - 本地开发：`pnpm -F @vben/playground dev` 或 `pnpm dev:play`（包含代理配置）。
 - 前端构建：`pnpm -F @vben/playground build`。
 - 类型检查：`pnpm -F <paths> typecheck`。
-- Lint：`pnpm lint`；按需跑 `pnpm exec eslint --no-cache <paths>`
+- Lint：必跑 `pnpm lint`；按需跑 `pnpm exec eslint --no-cache <paths>`
 - Backend-mock 运行：`pnpm -F @vben/backend-mock start`（含 prisma generate）。
 
 ## 代码风格与命名
