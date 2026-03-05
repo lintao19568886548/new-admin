@@ -3,6 +3,7 @@
 import type { FinanceItem as BaseFinanceItem } from './types';
 
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { useVbenModal } from '@vben/common-ui';
 import { Search } from '@vben/icons';
@@ -29,6 +30,7 @@ import {
 
 import { deleteFinance, getFinanceList } from '#/api/finance';
 import { getParkList as fetchParks } from '#/api/park';
+import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { $t } from '#/locales';
 import { useLayoutStore } from '#/store/layout';
 
@@ -39,7 +41,6 @@ type ParkList = Awaited<ReturnType<typeof fetchParks>>;
 type ParkItem = ParkList[number];
 
 interface FinanceItem extends BaseFinanceItem {
-  formattedAmount?: string;
   images?: { url: string }[];
 }
 
@@ -47,6 +48,8 @@ const [VbenFormModal, formModalApi] = useVbenModal({
   connectedComponent: FormModal,
   destroyOnClose: true,
 });
+
+const verificationModalRef = ref<InstanceType<typeof SmsVerificationModal>>();
 
 const bills = ref<FinanceItem[]>([]);
 const pagination = reactive({
@@ -58,11 +61,16 @@ const pagination = reactive({
 const loading = ref(false);
 
 const layoutStore = useLayoutStore();
+const route = useRoute();
+const router = useRouter();
+
+const isVerified = ref(false);
 
 const parkOptions = ref<{ label: string; value: number }[]>([]);
 
 // 脱敏开关 - 从 localStorage 读取持久化状态
-const enableMask = ref(localStorage.getItem('finance-enableMask') !== 'false');
+const enableMask = ref(true);
+localStorage.setItem('finance-enableMask', 'true');
 
 // 格式化金额（带脱敏）
 function formatAmount(amount: number | string): string {
@@ -83,12 +91,11 @@ function formatAmount(amount: number | string): string {
 // 监听脱敏开关变化并持久化
 watch(enableMask, (val) => {
   localStorage.setItem('finance-enableMask', String(val));
-  // 重新格式化所有账单金额
-  bills.value = bills.value.map((item) => ({
-    ...item,
-    formattedAmount: formatAmount(item.amount),
-  }));
 });
+
+function toggleMask() {
+  enableMask.value = !enableMask.value;
+}
 
 // 搜索表单
 const searchForm = reactive({
@@ -109,6 +116,7 @@ const getTagDisplay = (value: string) => {
 };
 
 async function fetchBillList() {
+  if (!isVerified.value) return;
   if (loading.value) return;
   loading.value = true;
 
@@ -134,7 +142,6 @@ function processBills(result: { items: BaseFinanceItem[]; total: number }) {
     bills.value = result.items.map((item) => {
       return {
         ...item,
-        formattedAmount: formatAmount(item.amount),
         images: item.images || [],
         transactionTime: formatDateTime(item.transactionTime),
       } as FinanceItem;
@@ -163,7 +170,7 @@ async function fetchParkOptions() {
   }
 }
 
-onMounted(() => {
+function initPage() {
   fetchBillList();
   fetchParkOptions();
   layoutStore.setHeaderActions([
@@ -174,6 +181,44 @@ onMounted(() => {
       text: $t('page.common.add'),
     },
   ]);
+}
+
+function onVerificationSuccess() {
+  isVerified.value = true;
+  sessionStorage.setItem('finance-verified', 'true');
+  initPage();
+}
+
+function onCancelVerification() {
+  layoutStore.clearHeaderActions();
+  if (window.history.length > 1) {
+    router.back();
+    return;
+  }
+  router.push({ name: 'Workspace' });
+  message.info('已取消验证，返回首页');
+}
+
+watch(
+  () => route.fullPath,
+  (newPath, oldPath) => {
+    if (newPath !== oldPath) {
+      isVerified.value = false;
+      sessionStorage.removeItem('finance-verified');
+    }
+  },
+);
+
+onMounted(() => {
+  const verified = sessionStorage.getItem('finance-verified');
+  if (verified === 'true') {
+    isVerified.value = true;
+    initPage();
+    return;
+  }
+  setTimeout(() => {
+    verificationModalRef.value?.open();
+  }, 300);
 });
 
 onUnmounted(() => {
@@ -257,388 +302,263 @@ function getTransactionTypeClass(type: string) {
 </script>
 
 <template>
-  <div class="finance-mobile-page">
+  <div class="bg-gray-100 p-2 dark:bg-neutral-900">
     <VbenFormModal @success="handleFormSuccess" />
+    <SmsVerificationModal
+      ref="verificationModalRef"
+      @success="onVerificationSuccess"
+      @cancel="onCancelVerification"
+    />
 
-    <div class="search-filters">
-      <Form layout="vertical" :model="searchForm">
-        <Row :gutter="16">
-          <Col :span="24">
-            <Form.Item :label="$t('page.park.item')">
-              <Select
-                v-model:value="searchForm.parkId"
-                :options="parkOptions"
-                allow-clear
-                :placeholder="$t('page.common.selectPark')"
-              />
-            </Form.Item>
-          </Col>
-          <Col :span="12">
-            <Form.Item :label="$t('page.finance.billName')">
-              <Input
-                v-model:value="searchForm.billName"
-                :placeholder="$t('page.finance.searchBillName')"
-                allow-clear
-              />
-            </Form.Item>
-          </Col>
-          <Col :span="12">
-            <Form.Item :label="$t('page.finance.transactionType')">
-              <Select
-                v-model:value="searchForm.transactionType"
-                :options="transactionTypeOptions"
-                :placeholder="$t('page.finance.selectType')"
-                allow-clear
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-        <div class="search-actions">
-          <Button type="primary" @click="handleSearch" class="flex-1">
-            <Search class="mr-1 h-4 w-4" />
-            {{ $t('common.search') }}
-          </Button>
-          <Button @click="resetSearch" class="flex-1">
-            {{ $t('common.reset') }}
-          </Button>
-        </div>
-        <div class="mask-switch">
-          <span class="mr-2 text-sm">金额脱敏</span>
-          <Switch
-            v-model:checked="enableMask"
-            checked-children="开"
-            un-checked-children="关"
-            size="small"
-          />
-        </div>
-      </Form>
-    </div>
-
-    <Spin :spinning="loading" :tip="$t('ui.loading')">
-      <div v-if="bills.length > 0">
-        <Card
-          v-for="item in bills"
-          :key="item.financeId"
-          class="bill-card"
-          :body-style="{ padding: '0' }"
-        >
-          <div class="card-header">
-            <span class="bill-title">{{ item.billName }}</span>
-            <div class="header-tags">
-              <Tag :color="getTagDisplay(item.transactionType).color">
-                {{ getTagDisplay(item.transactionType).text }}
-              </Tag>
-              <Tag v-if="item.billCategory" color="cyan">
-                {{ item.billCategory }}
-              </Tag>
-            </div>
+    <template v-if="isVerified">
+      <div
+        class="search-filters mb-2 rounded bg-white p-3 shadow-sm dark:bg-neutral-800"
+      >
+        <Form layout="vertical" :model="searchForm">
+          <Row :gutter="16">
+            <Col :span="24">
+              <Form.Item :label="$t('page.park.item')">
+                <Select
+                  v-model:value="searchForm.parkId"
+                  :options="parkOptions"
+                  allow-clear
+                  :placeholder="$t('page.common.selectPark')"
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="12">
+              <Form.Item :label="$t('page.finance.billName')">
+                <Input
+                  v-model:value="searchForm.billName"
+                  :placeholder="$t('page.finance.searchBillName')"
+                  allow-clear
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="12">
+              <Form.Item :label="$t('page.finance.transactionType')">
+                <Select
+                  v-model:value="searchForm.transactionType"
+                  :options="transactionTypeOptions"
+                  :placeholder="$t('page.finance.selectType')"
+                  allow-clear
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <div class="mt-2 flex gap-2">
+            <Button type="primary" @click="handleSearch" class="flex-1">
+              <Search class="mr-1 h-4 w-4" />
+              {{ $t('common.search') }}
+            </Button>
+            <Button @click="resetSearch" class="flex-1">
+              {{ $t('common.reset') }}
+            </Button>
           </div>
-          <div class="card-content">
-            <!-- Amount -->
-            <div class="mb-4 text-center">
-              <span class="info-label">{{
-                $t('page.finance.amountShort')
-              }}</span>
-              <p
-                :class="getTransactionTypeClass(item.transactionType)"
-                class="amount"
+          <div
+            class="mask-toggle mt-2 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-3 dark:border-neutral-700 dark:bg-neutral-800"
+            role="button"
+            tabindex="0"
+            @click="toggleMask"
+            @keydown.enter.prevent="toggleMask"
+            @keydown.space.prevent="toggleMask"
+          >
+            <div class="flex flex-col gap-0.5">
+              <div
+                class="text-[15px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
               >
-                {{ item.formattedAmount }}
-              </p>
-            </div>
-
-            <!-- Park & Time -->
-            <div class="mb-3 grid grid-cols-2 gap-4">
-              <div v-if="getParkName(item.parkId)" class="info-item text-left">
-                <span class="info-label">{{ $t('page.park.item') }}</span>
-                <span class="info-value">{{ getParkName(item.parkId) }}</span>
+                金额脱敏
               </div>
               <div
-                class="info-item text-left"
-                :class="{
-                  'col-span-2': !getParkName(item.parkId),
-                }"
+                class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
               >
-                <span class="info-label">{{
-                  $t('page.finance.transactionTime')
-                }}</span>
-                <span class="info-value">{{ item.transactionTime }}</span>
+                {{ enableMask ? '已开启，金额将隐藏' : '已关闭，显示完整金额' }}
               </div>
             </div>
-            <p v-if="item.remark" class="remark-info">
-              <span class="remark-label">{{ $t('page.finance.remark') }}:</span>
-              <span class="remark-text">{{ item.remark }}</span>
-            </p>
-            <div
-              v-if="item.images && item.images.length > 0"
-              class="card-images"
-            >
-              <Image.PreviewGroup>
-                <Carousel
-                  class="image-carousel"
-                  :adaptive-height="true"
-                  :dots="item.images.length > 1"
-                  :infinite="false"
-                >
-                  <Image
-                    v-for="image in item.images"
-                    :key="image.url"
-                    :src="image.url"
-                    class="carousel-main-image"
-                  />
-                </Carousel>
-              </Image.PreviewGroup>
+            <div class="flex items-center" @click.stop>
+              <Switch
+                v-model:checked="enableMask"
+                checked-children="开"
+                un-checked-children="关"
+              />
             </div>
           </div>
-          <div class="card-actions">
-            <Button type="primary" ghost @click="handleEdit(item)">
-              {{ $t('common.edit') }}
-            </Button>
-            <Button type="primary" danger ghost @click="handleDelete(item)">
-              {{ $t('common.delete') }}
-            </Button>
-          </div>
-        </Card>
-
-        <Pagination
-          v-if="pagination.total > pagination.pageSize"
-          v-model:current="pagination.current"
-          :page-size="pagination.pageSize"
-          :total="pagination.total"
-          @change="handlePageChange"
-          size="small"
-          class="list-pagination"
-        />
+        </Form>
       </div>
-      <Empty
-        v-if="listIsEmpty"
-        class="py-10"
-        :description="$t('page.finance.noData')"
-      />
-    </Spin>
+
+      <Spin :spinning="loading" :tip="$t('ui.loading')">
+        <div v-if="bills.length > 0">
+          <Card
+            v-for="item in bills"
+            :key="item.financeId"
+            class="mb-3 overflow-hidden rounded-lg bg-white shadow-sm dark:bg-neutral-800"
+            :body-style="{ padding: '0' }"
+          >
+            <div
+              class="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-neutral-700"
+            >
+              <span
+                class="break-words text-[16px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
+              >
+                {{ item.billName }}
+              </span>
+              <div class="flex items-center gap-2">
+                <Tag :color="getTagDisplay(item.transactionType).color">
+                  {{ getTagDisplay(item.transactionType).text }}
+                </Tag>
+                <Tag v-if="item.billCategory" color="cyan">
+                  {{ item.billCategory }}
+                </Tag>
+              </div>
+            </div>
+            <div class="p-4">
+              <div class="mb-4 text-center">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  {{ $t('page.finance.amountShort') }}
+                </span>
+                <p
+                  class="text-[21px] font-semibold leading-7"
+                  :class="getTransactionTypeClass(item.transactionType)"
+                >
+                  {{ formatAmount(item.amount) }}
+                </p>
+              </div>
+
+              <div class="mb-3 grid grid-cols-2 gap-4">
+                <div
+                  v-if="getParkName(item.parkId)"
+                  class="flex flex-col text-left"
+                >
+                  <span
+                    class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                  >
+                    {{ $t('page.park.item') }}
+                  </span>
+                  <span
+                    class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                  >
+                    {{ getParkName(item.parkId) }}
+                  </span>
+                </div>
+                <div
+                  class="flex flex-col text-left"
+                  :class="{
+                    'col-span-2': !getParkName(item.parkId),
+                  }"
+                >
+                  <span
+                    class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                  >
+                    {{ $t('page.finance.transactionTime') }}
+                  </span>
+                  <span
+                    class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                  >
+                    {{ item.transactionTime }}
+                  </span>
+                </div>
+              </div>
+              <p
+                v-if="item.remark"
+                class="mt-3 rounded-md bg-gray-50 px-3 py-2 text-[14px] leading-relaxed text-gray-600 dark:bg-neutral-700 dark:text-gray-200"
+              >
+                <span class="mr-1 font-semibold">
+                  {{ $t('page.finance.remark') }}:
+                </span>
+                <span class="whitespace-pre-wrap break-all">{{
+                  item.remark
+                }}</span>
+              </p>
+              <div
+                v-if="item.images && item.images.length > 0"
+                class="mt-4 overflow-hidden rounded-md"
+              >
+                <Image.PreviewGroup>
+                  <Carousel
+                    :adaptive-height="true"
+                    :dots="item.images.length > 1"
+                    :infinite="false"
+                  >
+                    <Image
+                      v-for="image in item.images"
+                      :key="image.url"
+                      :src="image.url"
+                      class="h-auto max-h-[40vh] w-full object-contain"
+                    />
+                  </Carousel>
+                </Image.PreviewGroup>
+              </div>
+            </div>
+            <div
+              class="flex justify-center gap-4 border-t border-gray-100 px-4 py-3 dark:border-neutral-700"
+            >
+              <Button type="primary" ghost @click="handleEdit(item)">
+                {{ $t('common.edit') }}
+              </Button>
+              <Button type="primary" danger ghost @click="handleDelete(item)">
+                {{ $t('common.delete') }}
+              </Button>
+            </div>
+          </Card>
+
+          <Pagination
+            v-if="pagination.total > pagination.pageSize"
+            v-model:current="pagination.current"
+            :page-size="pagination.pageSize"
+            :total="pagination.total"
+            @change="handlePageChange"
+            size="small"
+            class="mt-2 pb-2 text-center"
+          />
+        </div>
+        <Empty
+          v-if="listIsEmpty"
+          class="py-10"
+          :description="$t('page.finance.noData')"
+        />
+      </Spin>
+    </template>
   </div>
 </template>
 
 <style scoped>
-.finance-mobile-page {
-  box-sizing: border-box;
-  padding: 8px;
-  background-color: #f0f2f5;
-}
-
-.dark .finance-mobile-page {
-  background-color: #1a1a1a;
-}
-
-.search-filters {
-  padding: 12px 8px;
-  margin-bottom: 8px;
-  background-color: #fff;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
-}
-
-.dark .search-filters {
-  background-color: #2d2d2d;
-}
-
-.search-filters .ant-form-item {
+.search-filters :deep(.ant-form-item) {
   margin-bottom: 8px;
 }
 
-.search-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
+.mask-toggle :deep(.ant-switch) {
+  min-width: 52px;
+  height: 28px;
 }
 
-.mask-switch {
+.mask-toggle :deep(.ant-switch-handle) {
+  width: 24px;
+  height: 24px;
+}
+
+.mask-toggle :deep(.ant-switch-handle::before) {
+  border-radius: 50%;
+}
+
+.mask-toggle :deep(.ant-switch-inner) {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-top: 8px;
-  margin-top: 8px;
-  border-top: 1px solid #f0f0f0;
+  height: 100%;
+  padding: 0 !important;
+  padding-inline: 0 !important;
 }
 
-.dark .mask-switch {
-  border-top-color: #424242;
-}
-
-.flex-1 {
-  flex: 1;
-}
-
-.bill-card {
-  margin-bottom: 12px;
-  overflow: hidden;
-  font-size: 14px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
-}
-
-.dark .bill-card {
-  background-color: #2d2d2d;
-}
-
-.card-header {
+.mask-toggle :deep(.ant-switch-inner-checked),
+.mask-toggle :deep(.ant-switch-inner-unchecked) {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.dark .card-header {
-  border-bottom-color: #424242;
-}
-
-.bill-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #323233;
-  word-break: break-word;
-  white-space: normal;
-}
-
-.dark .bill-title {
-  color: #f1f1f1;
-}
-
-.header-tags {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.card-content {
-  padding: 16px;
-}
-
-.amount-display {
-  margin-bottom: 16px;
-  text-align: left;
-}
-
-.amount-label {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 13px;
-  color: #969799;
-}
-
-.dark .amount-label {
-  color: #a0a0a0;
-}
-
-.amount {
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.text-green-500 {
-  color: #4caf50;
-}
-
-.text-red-500 {
-  color: #f44336;
-}
-
-.info-item {
-  display: flex;
-  flex-direction: column;
-}
-
-.info-label {
-  margin-bottom: 2px;
-  font-size: 13px;
-  color: #969799;
-}
-
-.dark .info-label {
-  color: #a0a0a0;
-}
-
-.info-value {
-  font-size: 14px;
-  color: #323233;
-}
-
-.dark .info-value {
-  color: #e0e0e0;
-}
-
-.remark-info {
-  padding: 10px 12px;
-  margin-top: 12px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #646566;
-  background-color: #f7f8fa;
-  border-radius: 6px;
-}
-
-.dark .remark-info {
-  color: #c0c0c0;
-  background-color: #3a3a3a;
-}
-
-.remark-label {
-  margin-right: 4px;
-  font-weight: 600;
-}
-
-.remark-text {
-  word-break: break-all;
-  white-space: pre-wrap;
-}
-
-.card-actions {
-  display: flex;
-  gap: 16px;
   justify-content: center;
-  padding: 12px 16px;
-  border-top: 1px solid #f0f0f0;
-}
-
-.dark .card-actions {
-  border-top-color: #424242;
-}
-
-.list-pagination {
-  padding-bottom: 10px;
-  margin-top: 10px;
-  text-align: center;
-}
-
-.card-images {
-  margin-top: 16px;
-}
-
-.image-carousel {
-  overflow: hidden;
-  border-radius: 6px;
-}
-
-.carousel-main-image {
   width: 100%;
-  height: auto;
-  max-height: 40vh; /* 限制最大高度为视口的40% */
-  object-fit: contain; /* 保证图片完整显示 */
-}
-
-:deep(.image-carousel .slick-dots-bottom) {
-  bottom: 5px;
-}
-
-:deep(.image-carousel .slick-dots li button) {
-  background: #fff;
-  opacity: 0.5;
-}
-
-:deep(.image-carousel .slick-dots li.slick-active button) {
-  background: #fff;
-  opacity: 1;
+  margin: 0 !important;
+  line-height: 1;
+  text-align: center;
 }
 </style>

@@ -1,62 +1,79 @@
 <script lang="ts" setup>
 import type { Rule } from 'ant-design-vue/es/form';
+import type { Dayjs } from 'dayjs';
 
 import type { AmountBill } from './data';
 
-import { computed, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
-import { Page } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
 
-import { MoreOutlined, PlusOutlined } from '@ant-design/icons-vue'; // 使用 antd 图标
 import {
-  Avatar,
   Button,
+  Card,
+  Checkbox,
+  Col,
   DatePicker,
-  Dropdown,
+  Empty,
   Form,
   Input,
-  List,
-  Menu,
-  MenuItem,
   message,
   Modal,
+  Pagination,
+  Row,
+  Select,
   Spin,
   Switch,
-  Tag,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
-import { deleteAmountBill, getAmountBillList } from '#/api/bill';
-// 用于 AreaSelector 和可能的打印选项
-import AreaSelector from '#/components/AreaSelector.vue';
+import { getAmountBillList } from '#/api/bill';
+import { getParkList as fetchParks } from '#/api/park';
+import MobileDateRange from '#/components/MobileDateRange.vue';
+import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { $t } from '#/locales';
+import { useLayoutStore } from '#/store/layout';
 
-import MobileAmountBillDetail from './modules/MobileAmountBillDetail.vue';
-// 导入手机端表单和详情组件 (稍后创建)
 import MobileAmountBillForm from './modules/MobileAmountBillForm.vue';
 
 const router = useRouter();
+const route = useRoute();
+const layoutStore = useLayoutStore();
 
-// 数据状态
 const bills = ref<AmountBill[]>([]);
-const currentPage = ref(1);
-const pageSize = ref(15);
-const totalBills = ref(0);
+const pagination = reactive({
+  current: 1,
+  pageSize: 10,
+  total: 0,
+});
 const loading = ref(false);
-const allLoaded = ref(false); // 是否已加载所有数据
 
-const currentPark = ref(); // 当前园区，用于 AreaSelector 和 API 调用
-const parkSelectorRef = ref();
+const currentParkId = ref<number | undefined>(undefined);
+const parkOptions = ref<{ label: string; value: number }[]>([]);
 
 const mobileBillFormRef = ref();
-const mobileBillDetailRef = ref();
 
-// 脱敏开关 - 从 localStorage 读取持久化状态
-const enableMask = ref(localStorage.getItem('bill-enableMask') !== 'false');
+const enableMask = ref(true);
+localStorage.setItem('bill-enableMask', 'true');
 
-// Helper to format fee with currency (带脱敏)
+const verificationModalRef = ref<InstanceType<typeof SmsVerificationModal>>();
+const isVerified = ref(false);
+const VERIFIED_KEY = 'bill-amount-verified';
+
+function ensureVerification() {
+  const verified = sessionStorage.getItem(VERIFIED_KEY) === 'true';
+  if (verified) {
+    isVerified.value = true;
+    initPage();
+    return;
+  }
+  isVerified.value = false;
+  setTimeout(() => {
+    verificationModalRef.value?.open();
+  }, 0);
+}
+
 const formatFee = (value?: number | string) => {
   const numValue = Number(value);
   if (Number.isNaN(numValue)) return '0.00 元';
@@ -73,44 +90,114 @@ const formatFee = (value?: number | string) => {
   return `¥${masked}.${decimalPart} 元`;
 };
 
-// 监听脱敏开关变化并持久化
 watch(enableMask, (val) => {
   localStorage.setItem('bill-enableMask', String(val));
 });
 
-// 获取账单列表
-async function fetchBillList(isRefresh = false) {
-  if (loading.value || (!isRefresh && allLoaded.value)) return;
-  loading.value = true;
-  if (isRefresh) {
-    currentPage.value = 1;
-    bills.value = [];
-    allLoaded.value = false;
+function toggleMask() {
+  enableMask.value = !enableMask.value;
+}
+
+function getFeeDisplay(value: unknown) {
+  const num = Number(value);
+  if (Number.isFinite(num) && !Number.isNaN(num)) return formatFee(num);
+  if (value === null || value === undefined) return '-';
+  const text = String(value).trim();
+  return text === '' ? '-' : text;
+}
+
+function parseProjectAmountItem(item: AmountBill) {
+  const raw =
+    (item as any).project_amount_item ??
+    (item as any).projectAmountItem ??
+    (item as any).extra_project_item ??
+    item.extraProjectItem ??
+    (item as any).projectAmount ??
+    (item as any).project_amount;
+
+  if (!raw) return [];
+
+  let parsed: any = raw;
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return [];
+    }
   }
 
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed
+    .map((it) => {
+      const label =
+        it?.itemName ??
+        it?.item_name ??
+        it?.name ??
+        it?.label ??
+        it?.title ??
+        it?.projectName;
+      const value =
+        it?.value ?? it?.amount ?? it?.fee ?? it?.money ?? it?.total ?? it;
+      if (label === undefined || label === null) return null;
+      return { label: String(label), value };
+    })
+    .filter(Boolean) as Array<{ label: string; value: unknown }>;
+}
+
+function getFeeItems(item: AmountBill) {
+  const parsed = parseProjectAmountItem(item);
+  if (parsed.length > 0) return parsed;
+  return [
+    { label: '电费', value: item.eleFee },
+    { label: '水费', value: item.waterFee },
+    { label: '厂房租金', value: item.factoryRent },
+    { label: '基本管理费', value: item.managementFee },
+    { label: '垃圾管理费', value: item.garbageFee },
+    { label: '服务费', value: item.serviceFee },
+    { label: '开票税金', value: item.invoiceTax },
+    { label: '滞纳金', value: (item as any).penaltyFee },
+  ].filter((x) => x.value !== undefined && x.value !== null);
+}
+
+const receiptRange = ref<[Dayjs | undefined, Dayjs | undefined]>([
+  undefined,
+  undefined,
+]);
+
+const searchForm = reactive<{
+  projectName: string;
+  tenantName: string;
+}>({
+  projectName: '',
+  tenantName: '',
+});
+
+async function fetchBillList() {
+  if (!isVerified.value) return;
+  if (loading.value) return;
+  loading.value = true;
+
   try {
-    const defaultSearchFormData = {
-      projectName: '',
-      receiptTime: [],
-      tenantName: '',
-    };
+    const startDate = receiptRange.value?.[0]?.format('YYYY-MM-DD');
+    const endDate = receiptRange.value?.[1]?.format('YYYY-MM-DD');
+    const startTime = startDate ? `${startDate} 00:00:00` : undefined;
+    const endTime = endDate ? `${endDate} 23:59:59` : undefined;
 
     const params = {
-      ...defaultSearchFormData,
-      currentPage: currentPage.value,
-      currentPark: currentPark.value ? currentPark.value.parkId : -1,
-      pageSize: pageSize.value,
+      ...searchForm,
+      currentPage: pagination.current,
+      currentPark: currentParkId.value ?? -1,
+      endTime,
+      pageSize: pagination.pageSize,
+      startTime,
     };
 
     const result = await getAmountBillList(params);
 
-    // 确保 result.items 和 result.total 存在
     if (result && result.items && typeof result.total === 'number') {
-      bills.value = [...bills.value, ...result.items];
-      totalBills.value = result.total; // 使用 result.total
-      if (bills.value.length >= totalBills.value) {
-        allLoaded.value = true;
-      }
+      bills.value = result.items;
+      pagination.total = result.total;
     } else {
       console.warn(
         'API 返回的数据结构不符合预期或缺少必要字段 (items, total):',
@@ -118,7 +205,7 @@ async function fetchBillList(isRefresh = false) {
       );
       message.warn('获取账单列表失败，数据结构异常。');
       bills.value = [];
-      totalBills.value = 0;
+      pagination.total = 0;
     }
   } catch (error: any) {
     console.error('获取账单列表失败 (mobile):', error);
@@ -128,155 +215,117 @@ async function fetchBillList(isRefresh = false) {
   }
 }
 
+function initPage() {
+  fetchBillList();
+  fetchParks()
+    .then((parks) => {
+      parkOptions.value = parks.map((park: any) => ({
+        label: park.parkName,
+        value: park.parkId,
+      }));
+    })
+    .catch((error) => console.error(error));
+  layoutStore.setHeaderActions([
+    {
+      key: 'add-bill',
+      onClick: () => handleCreate(),
+      text: $t('common.create'),
+    },
+  ]);
+}
+
+function onVerificationSuccess() {
+  isVerified.value = true;
+  sessionStorage.setItem(VERIFIED_KEY, 'true');
+  initPage();
+}
+
+function onCancelVerification() {
+  if (window.history.length > 1) {
+    router.back();
+    return;
+  }
+  router.push({ name: 'Workspace' });
+  message.info('已取消验证，返回上一级');
+}
+
+watch(
+  () => route.fullPath,
+  (newPath, oldPath) => {
+    if (newPath !== oldPath) {
+      isVerified.value = false;
+      sessionStorage.removeItem(VERIFIED_KEY);
+    }
+  },
+);
+
 onMounted(() => {
-  fetchBillList(true); // 初始加载
+  ensureVerification();
 });
 
-function handleLoadMore() {
-  if (!allLoaded.value) {
-    currentPage.value++;
-    fetchBillList();
-  }
-}
+onActivated(() => {
+  ensureVerification();
+});
 
-function refreshList() {
-  fetchBillList(true);
-}
+onUnmounted(() => {
+  layoutStore.clearHeaderActions();
+});
 
-// --- 操作处理 ---
 function handleCreate() {
-  mobileBillFormRef.value?.open();
+  const newBill: AmountBill = {
+    eleBills: [],
+    eleFee: 0,
+    factoryRent: 0,
+    garbageFee: 0,
+    invoiceTax: 0,
+    managementFee: 0,
+    receiptTime: dayjs().toISOString(),
+    serviceFee: 0,
+    tenantName: '',
+    totalFee: 0,
+    waterBills: [],
+    waterFee: 0,
+  };
+  mobileBillFormRef.value?.open(newBill);
 }
 
-function handleEdit(item: AmountBill) {
-  mobileBillFormRef.value?.open(item);
-}
-
-function handleView(item: AmountBill) {
-  mobileBillDetailRef.value?.open(item);
-}
-
-function handleNext(item: AmountBill) {
-  // 'next' 功能通常是基于当前账单创建下一个周期的账单
-  // 这里需要传递原始账单数据，并标记为创建下一个账期
-  mobileBillFormRef.value?.open(item, 'next');
-}
-
-async function handleDelete(item: AmountBill) {
-  Modal.confirm({
-    cancelText: $t('common.cancel'),
-    content: $t('ui.actionMessage.deleteConfirmContent', [
-      item.tenantName || '该账单',
-    ]),
-    okText: $t('common.confirm'),
-    async onOk() {
-      if (!item.billId) return;
-      message.loading({
-        content: $t('ui.actionMessage.deleting', [item.tenantName]),
-        duration: 0,
-        key: 'action_process_msg',
-      });
-      try {
-        await deleteAmountBill(item.billId);
-        message.success({
-          content: $t('ui.actionMessage.deleteSuccess', [item.tenantName]),
-          key: 'action_process_msg',
-        });
-        refreshList();
-      } catch (error: any) {
-        console.error('删除账单失败:', error);
-        message.error({
-          content:
-            error?.message ||
-            $t('ui.actionMessage.operationFailed', [item.tenantName]),
-          key: 'action_process_msg',
-        });
-      }
-    },
-    title: $t('common.confirmDelete'),
-  });
-}
-
-// --- 打印逻辑 (复用自 list.vue) ---
 const printModalVisible = ref(false);
 const printFormRef = ref();
 const currentPrintingBillId = ref<number | string | undefined>(undefined);
 const printFormData = ref({
-  bankName: '',
+  accountType: [] as string[],
   billingDate: dayjs(),
-  companyAccountName: '',
-  companyAccountNumber: '4430 4001 0400 21090', // 注意：硬编码
   cutoffDate: dayjs().add(10, 'day'),
-  parkManager: '',
 });
 
-// 从 Local Storage 加载打印设置
-try {
-  const savedSettings = localStorage.getItem('billPrintSettings');
-  if (savedSettings) {
-    const parsedSettings = JSON.parse(savedSettings);
-    if (parsedSettings.bankName)
-      printFormData.value.bankName = parsedSettings.bankName;
-    if (parsedSettings.companyAccountName)
-      printFormData.value.companyAccountName =
-        parsedSettings.companyAccountName;
-    if (parsedSettings.companyAccountNumber)
-      printFormData.value.companyAccountNumber =
-        parsedSettings.companyAccountNumber;
-    if (parsedSettings.parkManager)
-      printFormData.value.parkManager = parsedSettings.parkManager;
-  }
-} catch (error) {
-  console.error('加载保存的打印设置失败:', error);
-}
-
 const printFormRules: Record<string, Rule[]> = {
-  bankName: [{ message: '请输入开户行', required: true, trigger: 'blur' }],
   billingDate: [
     { message: '请选择制单日期', required: true, trigger: 'change' },
   ],
-  companyAccountName: [
-    { message: '请输入对公户名', required: true, trigger: 'blur' },
-  ],
-  companyAccountNumber: [
-    { message: '请输入对公账号', required: true, trigger: 'blur' },
-  ],
   cutoffDate: [
     { message: '请选择停止供水供电时间', required: true, trigger: 'change' },
-  ],
-  parkManager: [
-    { message: '请输入园区负责人信息', required: true, trigger: 'blur' },
   ],
 };
 
 function handlePrint(item: AmountBill) {
   currentPrintingBillId.value = item.billId;
+  printFormData.value.accountType = [];
   printModalVisible.value = true;
 }
 
 async function handlePrintOk() {
   try {
     await printFormRef.value?.validate();
-    const storageData = {
-      bankName: printFormData.value.bankName,
-      companyAccountName: printFormData.value.companyAccountName,
-      companyAccountNumber: printFormData.value.companyAccountNumber,
-      parkManager: printFormData.value.parkManager,
-    };
-    localStorage.setItem('billPrintSettings', JSON.stringify(storageData));
 
     const formData = printFormData.value;
     const printSettings = {
-      bankName: formData.bankName,
+      accountType: formData.accountType,
       billingDate: dayjs(formData.billingDate).format('YYYY-MM-DD'),
-      companyAccountName: formData.companyAccountName,
-      companyAccountNumber: formData.companyAccountNumber,
       cutoffDate: dayjs(formData.cutoffDate).format('YYYY-MM-DD HH:00:00'),
-      parkManager: formData.parkManager,
     };
 
     const routeData = router.resolve({
-      path: `/bill/print/${currentPrintingBillId.value}`, // 假设打印页面路由已存在
+      path: `/bill/print/${currentPrintingBillId.value}`,
       query: { ...printSettings },
     });
     window.open(routeData.href, '_blank');
@@ -291,224 +340,323 @@ function handlePrintCancel() {
   printModalVisible.value = false;
 }
 
-// 表单成功回调
 function handleFormSuccess() {
-  refreshList();
+  fetchBillList();
 }
 
-// 园区选择变化
-function onParkChange(park: any) {
-  currentPark.value = park;
-  refreshList(); // 切换园区后刷新列表
+function handlePageChange(page: number, pageSize: number) {
+  pagination.current = page;
+  pagination.pageSize = pageSize;
+  fetchBillList();
 }
 
-const listIsEmpty = computed(() => !loading.value && bills.value.length === 0);
+function handleSearch() {
+  pagination.current = 1;
+  fetchBillList();
+}
+
+function resetSearch() {
+  receiptRange.value = [undefined, undefined];
+  searchForm.projectName = '';
+  searchForm.tenantName = '';
+  currentParkId.value = undefined;
+  handleSearch();
+}
 </script>
 
 <template>
-  <Page
-    :title="$t('page.bill.amount.mobileTitle', '总账单管理')"
-    class="amount-bill-mobile-page"
-  >
-    <div class="p-2">
+  <div class="bg-gray-100 p-2 dark:bg-neutral-900">
+    <SmsVerificationModal
+      ref="verificationModalRef"
+      @success="onVerificationSuccess"
+      @cancel="onCancelVerification"
+    />
+
+    <template v-if="isVerified">
       <div
-        class="mb-2 flex items-center justify-between rounded bg-white p-2 dark:bg-black"
+        class="search-filters mb-2 rounded bg-white p-3 shadow-sm dark:bg-neutral-800"
       >
-        <AreaSelector
-          :default-area="currentPark"
-          :refresh-callback="refreshList"
-          @change="onParkChange"
-          ref="parkSelectorRef"
-          size="small"
-          class="flex-1"
-        />
-        <div class="flex shrink-0 items-center gap-1">
-          <span class="text-xs">脱敏</span>
-          <Switch
-            v-model:checked="enableMask"
-            checked-children="开"
-            un-checked-children="关"
+        <Form layout="vertical" :model="searchForm">
+          <Row :gutter="16">
+            <Col :span="24">
+              <Form.Item :label="$t('page.park.item')">
+                <Select
+                  v-model:value="currentParkId"
+                  :options="parkOptions"
+                  allow-clear
+                  :placeholder="$t('page.common.selectPark')"
+                  @change="handleSearch"
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="12">
+              <Form.Item label="租户名称">
+                <Input
+                  v-model:value="searchForm.tenantName"
+                  placeholder="请输入租户名称"
+                  allow-clear
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="12">
+              <Form.Item label="项目名称">
+                <Input
+                  v-model:value="searchForm.projectName"
+                  placeholder="请输入项目名称"
+                  allow-clear
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="24">
+              <Form.Item label="收款时间">
+                <MobileDateRange v-model:value="receiptRange" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <div class="mt-2 flex gap-2">
+            <Button type="primary" @click="handleSearch" class="flex-1">
+              {{ $t('common.search') }}
+            </Button>
+            <Button @click="resetSearch" class="flex-1">
+              {{ $t('common.reset') }}
+            </Button>
+          </div>
+          <div
+            class="mask-toggle mt-2 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-3 dark:border-neutral-700 dark:bg-neutral-800"
+            role="button"
+            tabindex="0"
+            @click="toggleMask"
+            @keydown.enter.prevent="toggleMask"
+            @keydown.space.prevent="toggleMask"
+          >
+            <div class="flex flex-col gap-0.5">
+              <div
+                class="text-[15px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
+              >
+                金额脱敏
+              </div>
+              <div
+                class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+              >
+                {{ enableMask ? '已开启，金额将隐藏' : '已关闭，显示完整金额' }}
+              </div>
+            </div>
+            <div class="flex items-center" @click.stop>
+              <Switch
+                v-model:checked="enableMask"
+                checked-children="开"
+                un-checked-children="关"
+              />
+            </div>
+          </div>
+        </Form>
+      </div>
+
+      <Spin :spinning="loading" :tip="$t('ui.loading')">
+        <div v-if="bills.length > 0">
+          <Card
+            v-for="item in bills"
+            :key="item.billId"
+            class="mb-3 overflow-hidden rounded-lg bg-white shadow-sm dark:bg-neutral-800"
+            :body-style="{ padding: '0' }"
+          >
+            <div
+              class="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-neutral-700"
+            >
+              <span
+                class="break-words text-[16px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
+              >
+                {{ item.projectName || '未填写项目名称' }}
+              </span>
+            </div>
+            <div class="p-4">
+              <div class="mb-4 text-center">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  总费用
+                </span>
+                <p class="text-[21px] font-semibold leading-7 text-red-500">
+                  {{ formatFee(item.totalFee) }}
+                </p>
+              </div>
+
+              <div class="mb-3 grid grid-cols-2 gap-4">
+                <div
+                  class="flex flex-col text-left"
+                  :class="{ 'col-span-2': !item.receiptTime }"
+                >
+                  <span
+                    class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                  >
+                    租户名称
+                  </span>
+                  <span
+                    class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                  >
+                    {{ item.tenantName }}
+                  </span>
+                </div>
+                <div v-if="item.receiptTime" class="flex flex-col text-left">
+                  <span
+                    class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                  >
+                    收款时间
+                  </span>
+                  <span
+                    class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                  >
+                    {{ formatDateTime(item.receiptTime) }}
+                  </span>
+                </div>
+                <div class="col-span-2 flex flex-col text-left">
+                  <span
+                    class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                  >
+                    费用明细
+                  </span>
+                  <div class="mt-1 space-y-1">
+                    <div
+                      v-for="fee in getFeeItems(item)"
+                      :key="fee.label"
+                      class="flex items-center justify-between gap-3 text-[14px] leading-5"
+                    >
+                      <span
+                        class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                      >
+                        {{ fee.label }}
+                      </span>
+                      <span
+                        class="text-[14px] text-gray-800 dark:text-gray-100"
+                      >
+                        {{ getFeeDisplay(fee.value) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <p
+                v-if="item.remark"
+                class="mt-3 rounded-md bg-gray-50 px-3 py-2 text-[14px] leading-relaxed text-gray-600 dark:bg-neutral-700 dark:text-gray-200"
+              >
+                <span class="mr-1 font-semibold">备注:</span>
+                <span class="whitespace-pre-wrap break-all">{{
+                  item.remark
+                }}</span>
+              </p>
+            </div>
+
+            <div
+              class="flex justify-center gap-3 border-t border-gray-100 px-4 py-3 dark:border-neutral-700"
+            >
+              <Button type="primary" @click="handlePrint(item)">打印</Button>
+            </div>
+          </Card>
+
+          <Pagination
+            v-if="pagination.total > pagination.pageSize"
+            v-model:current="pagination.current"
+            :page-size="pagination.pageSize"
+            :total="pagination.total"
+            @change="handlePageChange"
             size="small"
+            class="mt-2 pb-2 text-center"
           />
         </div>
-        <Button
-          type="primary"
-          @click="handleCreate"
-          size="small"
-          class="shrink-0"
-        >
-          <PlusOutlined /> {{ $t('common.create') }}
-        </Button>
-      </div>
-      <Spin :spinning="loading && currentPage === 1">
-        <List
-          item-layout="horizontal"
-          :data-source="bills"
-          :loading="loading && currentPage > 1"
-        >
-          <template #renderItem="{ item }: { item: AmountBill }">
-            <List.Item
-              class="mb-2 rounded-md bg-white p-3 shadow-sm dark:bg-white dark:bg-opacity-10"
-            >
-              <template #actions>
-                <Dropdown placement="bottomRight">
-                  <Button type="text" size="small" class="px-1">
-                    <MoreOutlined class="text-lg" />
-                  </Button>
-                  <template #overlay>
-                    <Menu>
-                      <MenuItem @click="handleView(item)"> 查看 </MenuItem>
-                      <MenuItem @click="handleEdit(item)">
-                        {{ $t('common.edit') }}
-                      </MenuItem>
-                      <MenuItem @click="handleNext(item)">新增下月</MenuItem>
-                      <MenuItem @click="handlePrint(item)"> 打印 </MenuItem>
-                      <MenuItem @click="handleDelete(item)" danger>
-                        {{ $t('common.delete') }}
-                      </MenuItem>
-                    </Menu>
-                  </template>
-                </Dropdown>
-              </template>
-              <List.Item.Meta>
-                <template #title>
-                  <span class="font-semibold">{{ item.tenantName }}</span>
-                  <Tag
-                    v-if="item.projectName"
-                    color="blue"
-                    class="ml-2 text-xs"
-                  >
-                    {{ item.projectName }}
-                  </Tag>
-                </template>
-                <template #description>
-                  <div class="space-y-1 text-xs">
-                    <p v-if="item.receiptTime">
-                      <!-- Add v-if here -->
-                      收款时间:
-                      {{ formatDateTime(item.receiptTime) }}
-                    </p>
-                    <p>
-                      总费用:
-                      <span class="font-medium text-red-500">{{
-                        formatFee(item.totalFee)
-                      }}</span>
-                    </p>
-                    <p v-if="item.eleFee">电费: {{ formatFee(item.eleFee) }}</p>
-                    <p v-if="item.waterFee">
-                      水费: {{ formatFee(item.waterFee) }}
-                    </p>
-                  </div>
-                </template>
-                <template #avatar>
-                  <Avatar class="bg-blue-500 text-white">
-                    {{ item.tenantName?.substring(0, 1) }}
-                  </Avatar>
-                </template>
-              </List.Item.Meta>
-            </List.Item>
-          </template>
-
-          <template #loadMore v-if="!allLoaded && !loading">
-            <div class="my-4 text-center">
-              <Button @click="handleLoadMore">加载更多</Button>
-            </div>
-          </template>
-          <template #header v-if="listIsEmpty">
-            <div class="p-10 text-center text-gray-500">暂无账单数据</div>
-          </template>
-        </List>
+        <Empty
+          v-if="!loading && bills.length === 0"
+          class="py-10"
+          description="暂无账单数据"
+        />
       </Spin>
-    </div>
 
-    <!-- 打印设置模态框 -->
-    <Modal
-      v-model:open="printModalVisible"
-      :title="$t('page.bill.amount.printSettingsTitle', '打印设置')"
-      @ok="handlePrintOk"
-      @cancel="handlePrintCancel"
-      :mask-closable="false"
-      width="90%"
-      wrap-class-name="mobile-modal-wrap"
-    >
-      <Form
-        ref="printFormRef"
-        :model="printFormData"
-        :rules="printFormRules"
-        layout="vertical"
-        class="mt-4"
+      <!-- 打印设置模态框 -->
+      <Modal
+        v-model:open="printModalVisible"
+        :title="$t('page.bill.amount.printSettingsTitle', '打印设置')"
+        @ok="handlePrintOk"
+        @cancel="handlePrintCancel"
+        :mask-closable="false"
+        width="90%"
+        :body-style="{ padding: '16px' }"
       >
-        <Form.Item label="对公户名" name="companyAccountName">
-          <Input v-model:value="printFormData.companyAccountName" />
-        </Form.Item>
-        <Form.Item label="对公账号" name="companyAccountNumber">
-          <Input v-model:value="printFormData.companyAccountNumber" />
-        </Form.Item>
-        <Form.Item label="开户行" name="bankName">
-          <Input v-model:value="printFormData.bankName" />
-        </Form.Item>
-        <Form.Item label="水电停供时间" name="cutoffDate">
-          <DatePicker
-            v-model:value="printFormData.cutoffDate"
-            :show-time="{ format: 'HH' }"
-            format="YYYY-MM-DD HH"
-            value-format="YYYY-MM-DD HH:00:00"
-            class="w-full"
-          />
-        </Form.Item>
-        <Form.Item label="园区负责人" name="parkManager">
-          <Input v-model:value="printFormData.parkManager" />
-        </Form.Item>
-        <Form.Item label="制单日期" name="billingDate">
-          <DatePicker
-            v-model:value="printFormData.billingDate"
-            value-format="YYYY-MM-DD"
-            class="w-full"
-          />
-        </Form.Item>
-      </Form>
-    </Modal>
+        <Form
+          ref="printFormRef"
+          :model="printFormData"
+          :rules="printFormRules"
+          layout="vertical"
+        >
+          <Form.Item label="水电停供时间" name="cutoffDate">
+            <DatePicker
+              v-model:value="printFormData.cutoffDate"
+              :show-time="{ format: 'HH' }"
+              format="YYYY-MM-DD HH"
+              value-format="YYYY-MM-DD HH:00:00"
+              class="w-full"
+            />
+          </Form.Item>
+          <Form.Item label="制单日期" name="billingDate">
+            <DatePicker
+              v-model:value="printFormData.billingDate"
+              value-format="YYYY-MM-DD"
+              class="w-full"
+            />
+          </Form.Item>
+          <Form.Item label="账户类型" name="accountType">
+            <Checkbox.Group v-model:value="printFormData.accountType">
+              <Checkbox value="public">对公账户</Checkbox>
+              <Checkbox value="private">对私账户</Checkbox>
+            </Checkbox.Group>
+          </Form.Item>
+        </Form>
+      </Modal>
 
-    <!-- 手机端表单和详情组件的引用 -->
-    <MobileAmountBillForm
-      ref="mobileBillFormRef"
-      @success="handleFormSuccess"
-    />
-    <MobileAmountBillDetail ref="mobileBillDetailRef" />
-  </Page>
+      <!-- 手机端表单和详情组件的引用 -->
+      <MobileAmountBillForm
+        ref="mobileBillFormRef"
+        @success="handleFormSuccess"
+      />
+    </template>
+  </div>
 </template>
 
 <style lang="less" scoped>
-.amount-bill-mobile-page {
-  :deep(.ant-page-header-heading) {
-    // Возможно, потребуется настроить заголовок страницы для мобильных устройств
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-  :deep(.ant-list-item-meta-title) {
-    margin-bottom: 2px;
-    font-size: 0.9rem;
-  }
-  :deep(.ant-list-item-meta-description) {
-    font-size: 0.75rem;
-  }
-  :deep(.ant-list-item-action > li) {
-    padding: 0 4px;
-  }
+.search-filters :deep(.ant-form-item) {
+  margin-bottom: 8px;
 }
-.mobile-modal-wrap {
-  .ant-modal-content {
-    padding: 16px;
-  }
-  .ant-modal-header {
-    padding: 16px 16px 0;
-    margin-bottom: 12px;
-  }
-  .ant-modal-body {
-    padding: 0; // Form has its own padding
-  }
-  .ant-form-item {
-    margin-bottom: 12px;
-  }
+
+.mask-toggle :deep(.ant-switch) {
+  min-width: 52px;
+  height: 28px;
+}
+
+.mask-toggle :deep(.ant-switch-handle) {
+  width: 24px;
+  height: 24px;
+}
+
+.mask-toggle :deep(.ant-switch-handle::before) {
+  border-radius: 50%;
+}
+
+.mask-toggle :deep(.ant-switch-inner) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 !important;
+  padding-inline: 0 !important;
+}
+
+.mask-toggle :deep(.ant-switch-inner-checked),
+.mask-toggle :deep(.ant-switch-inner-unchecked) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  text-align: center;
+  width: 100%;
+  margin: 0 !important;
 }
 </style>
