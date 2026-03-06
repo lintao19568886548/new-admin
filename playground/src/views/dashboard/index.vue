@@ -37,7 +37,12 @@ interface VisitorPreview {
 const loading = ref(true);
 const router = useRouter();
 
-const colors = ['#42a5f5', '#66bb6a', '#ffa726', '#78909c'];
+const colors = [
+  'text-sky-500',
+  'text-green-500',
+  'text-orange-500',
+  'text-slate-500',
+];
 const navGroups = ref<NavGroup[]>([]);
 const searchQuery = ref('');
 const expanded = ref(false);
@@ -83,7 +88,7 @@ function buildNavGroups(menus: RouteRecordStringComponent[]): NavGroup[] {
           title: $t(menu.meta?.title || 'Unnamed'),
           items: items.map((item) => ({
             ...item,
-            color: colors[colorCounter++ % colors.length] || '#78909c',
+            color: colors[colorCounter++ % colors.length] || 'text-slate-500',
           })),
         });
       }
@@ -248,9 +253,9 @@ function handleItemClick(name: string) {
 
 function statusClass(status: string) {
   const s = status.toLowerCase();
-  if (s.includes('通过')) return 'passed';
-  if (s.includes('拒')) return 'rejected';
-  return 'pending';
+  if (s.includes('通过')) return 'text-green-600 border-green-400/50';
+  if (s.includes('拒')) return 'text-red-500 border-red-400/50';
+  return 'text-amber-500 border-amber-400/50';
 }
 
 function goVisitorManagement() {
@@ -274,12 +279,18 @@ function goVisitorManagement() {
               icon="carbon:dashboard"
               class="text-[22px] text-blue-500"
             />
-            <h1 class="banner-title">工作台</h1>
+            <h1
+              class="text-[20px] font-bold leading-[1.2] tracking-[0.2px] text-gray-800 dark:text-gray-200"
+            >
+              工作台
+            </h1>
           </div>
           <!-- <p class="banner-subtitle">快速进入应用 · 智能导航 · 科技感满满</p> -->
-          <div class="banner-count">共 {{ totalApps }} 个应用</div>
+          <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            共 {{ totalApps }} 个应用
+          </div>
         </div>
-        <div class="banner-search w-full max-w-md sm:w-auto">
+        <div class="banner-search mt-1.5 w-full max-w-md sm:mt-0 sm:w-auto">
           <Input
             v-model:value="searchQuery"
             allow-clear
@@ -291,8 +302,8 @@ function goVisitorManagement() {
           </Input>
         </div>
       </div>
-      <div class="banner-tools">
-        <div class="tools-actions">
+      <div class="mt-3.5">
+        <div class="tools-actions mb-2 flex items-center justify-end">
           <div class="mr-auto"></div>
           <Button size="small" @click="expanded = !expanded">
             {{ expanded ? '收起' : '展开更多' }}
@@ -306,12 +317,17 @@ function goVisitorManagement() {
             {{ customizeMode ? '完成自定义' : '自定义' }}
           </Button>
         </div>
-        <div v-if="visibleApps.length > 0" class="tools-grid">
+        <div
+          v-if="visibleApps.length > 0"
+          class="grid grid-cols-3 gap-2.5 md:grid-cols-4 lg:grid-cols-6"
+        >
           <div
             v-for="(item, idx) in visibleApps"
             :key="item.title"
-            class="tool-item"
-            :class="{ 'tool-item-edit': customizeMode }"
+            class="flex min-h-14 touch-manipulation select-none flex-col items-center justify-center rounded-[14px] border border-slate-100 bg-gradient-to-b from-[#f6f9fc] to-[#e9eef5] px-2 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_8px_20px_rgba(0,0,0,0.22)] transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:border-[#8bdcff] hover:shadow-[0_8px_22px_rgba(16,24,40,0.22),0_0_14px_rgba(0,200,255,0.4)] md:min-h-0 md:px-3 md:py-3.5 dark:border-gray-700 dark:bg-gradient-to-b dark:from-[#1f2937] dark:to-[#182230]"
+            :class="
+              customizeMode ? 'cursor-grab border-dashed' : 'cursor-pointer'
+            "
             :draggable="customizeMode"
             @dragstart="onDragStart(idx, $event)"
             @dragover="onDragOver"
@@ -320,10 +336,14 @@ function goVisitorManagement() {
           >
             <VbenIcon
               :icon="item.icon"
-              :style="{ color: item.color }"
-              class="tool-icon"
+              class="text-[24px] md:text-[22px]"
+              :class="item.color"
             />
-            <div class="tool-title">{{ item.title }}</div>
+            <div
+              class="mt-1.5 w-full truncate text-center text-[13px] leading-[1.25] text-gray-700 dark:text-gray-300"
+            >
+              {{ item.title }}
+            </div>
           </div>
         </div>
         <div v-else class="flex h-20 items-center justify-center">
@@ -341,63 +361,94 @@ function goVisitorManagement() {
       </Row>
     </template>
     <template v-else>
-      <div class="info-section">
+      <div class="mt-2">
         <Row :gutter="[16, 16]">
           <Col :lg="12" :md="12" :sm="24" :xs="24">
-            <Card class="info-card">
-              <div class="info-card-header">
-                <div class="info-card-title">报销申请</div>
+            <Card class="rounded-xl bg-white/80 dark:bg-gray-800/80">
+              <div class="mb-2 flex items-center justify-between">
+                <div
+                  class="text-base font-semibold text-gray-800 dark:text-gray-200"
+                >
+                  报销申请
+                </div>
               </div>
-              <div class="info-stats">
-                <div class="stat">
-                  <div class="stat-value text-blue-600">
+              <div class="grid grid-cols-4 gap-3">
+                <div
+                  class="rounded-[10px] bg-slate-50 px-2.5 py-2 text-center dark:bg-gray-900"
+                >
+                  <div class="text-xl font-bold text-blue-600">
                     {{ reimburse.pending }}
                   </div>
-                  <div class="stat-label">待处理</div>
+                  <div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    待处理
+                  </div>
                 </div>
-                <div class="stat">
-                  <div class="stat-value text-green-600">
+                <div
+                  class="rounded-[10px] bg-slate-50 px-2.5 py-2 text-center dark:bg-gray-900"
+                >
+                  <div class="text-xl font-bold text-green-600">
                     {{ reimburse.approved }}
                   </div>
-                  <div class="stat-label">已通过</div>
+                  <div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    已通过
+                  </div>
                 </div>
-                <div class="stat">
-                  <div class="stat-value text-red-500">
+                <div
+                  class="rounded-[10px] bg-slate-50 px-2.5 py-2 text-center dark:bg-gray-900"
+                >
+                  <div class="text-xl font-bold text-red-500">
                     {{ reimburse.rejected }}
                   </div>
-                  <div class="stat-label">已拒绝</div>
+                  <div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    已拒绝
+                  </div>
                 </div>
-                <div class="stat">
-                  <div class="stat-value text-gray-700 dark:text-gray-200">
+                <div
+                  class="rounded-[10px] bg-slate-50 px-2.5 py-2 text-center dark:bg-gray-900"
+                >
+                  <div
+                    class="text-xl font-bold text-gray-700 dark:text-gray-200"
+                  >
                     {{ reimburse.total }}
                   </div>
-                  <div class="stat-label">总计</div>
+                  <div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    总计
+                  </div>
                 </div>
               </div>
             </Card>
           </Col>
           <Col :lg="12" :md="12" :sm="24" :xs="24">
-            <Card class="info-card">
-              <div class="info-card-header">
-                <div class="info-card-title">访客管理</div>
+            <Card class="rounded-xl bg-white/80 dark:bg-gray-800/80">
+              <div class="mb-2 flex items-center justify-between">
+                <div
+                  class="text-base font-semibold text-gray-800 dark:text-gray-200"
+                >
+                  访客管理
+                </div>
               </div>
-              <div class="visitor-list">
+              <div class="flex flex-col gap-2.5">
                 <div
                   v-for="v in visitors"
                   :key="v.name + v.time"
-                  class="visitor-item"
+                  class="grid grid-cols-[36px_1fr_auto] items-center gap-2.5 rounded-xl border border-slate-200 bg-gradient-to-b from-[#f6f9fc] to-[#e9eef5] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_6px_16px_rgba(0,0,0,0.16)] dark:border-gray-700 dark:bg-gradient-to-b dark:from-[#111827] dark:to-[#0f172a]"
                   @click="goVisitorManagement"
                 >
                   <div class="visitor-left">
-                    <VbenIcon icon="carbon:user-avatar" class="visitor-icon" />
+                    <VbenIcon icon="carbon:user-avatar" class="text-[22px]" />
                   </div>
                   <div class="visitor-right">
-                    <div class="visitor-name">{{ v.name }}</div>
-                    <div class="visitor-meta">
+                    <div class="font-semibold">{{ v.name }}</div>
+                    <div
+                      class="mt-0.5 text-xs text-gray-500 dark:text-gray-400"
+                    >
                       {{ v.time }} · {{ v.reason }}
                     </div>
                   </div>
-                  <div class="visitor-status" :class="statusClass(v.status)">
+                  <div
+                    class="rounded-full border border-slate-200 px-2 py-0.5 text-xs"
+                    :class="statusClass(v.status)"
+                  >
                     {{ v.status }}
                   </div>
                 </div>
@@ -443,43 +494,6 @@ function goVisitorManagement() {
   opacity: 0.45;
 }
 
-.banner-title {
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1.2;
-  color: rgb(31 41 55);
-  letter-spacing: 0.2px;
-}
-
-.dark .banner-title {
-  color: rgb(229 231 235);
-}
-
-.banner-subtitle {
-  margin-top: 4px;
-  font-size: 13px;
-  line-height: 1.45;
-  color: rgb(75 85 99);
-}
-
-.dark .banner-subtitle {
-  color: rgb(148 163 184);
-}
-
-.banner-count {
-  margin-top: 4px;
-  font-size: 12px;
-  color: rgb(107 114 128);
-}
-
-.dark .banner-count {
-  color: rgb(156 163 175);
-}
-
-.banner-search {
-  margin-top: 6px;
-}
-
 :deep(.banner-search .ant-input-affix-wrapper) {
   height: 40px;
   border-radius: 12px;
@@ -492,257 +506,6 @@ function goVisitorManagement() {
 :deep(.banner-search .ant-input-affix-wrapper-focused) {
   border-color: rgb(59 130 246);
   box-shadow: 0 0 0 2px rgb(59 130 246 / 20%);
-}
-
-.banner-tools {
-  margin-top: 14px;
-}
-
-.cyber-bg {
-  background:
-    radial-gradient(
-      1200px 600px at 50% -20%,
-      rgb(0 60 100 / 20%),
-      transparent 60%
-    ),
-    radial-gradient(
-      1200px 600px at -10% 120%,
-      rgb(0 40 80 / 18%),
-      transparent 60%
-    ),
-    #0b1220;
-}
-
-.neon-card {
-  background: linear-gradient(180deg, rgb(20 28 40 / 88%), rgb(16 22 34 / 92%));
-  border: 1px solid rgb(0 200 255 / 28%);
-  box-shadow:
-    0 0 0 1px rgb(0 200 255 / 16%),
-    0 0 24px rgb(0 200 255 / 22%);
-}
-
-.neon-title {
-  color: #9ee8ff;
-}
-
-.info-section {
-  margin-top: 8px;
-}
-
-.info-card {
-  background: rgb(255 255 255 / 80%);
-  border-radius: 12px;
-}
-
-.dark .info-card {
-  background: rgb(31 41 55 / 80%);
-}
-
-.info-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.info-card-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: rgb(31 41 55);
-}
-
-.dark .info-card-title {
-  color: rgb(229 231 235);
-}
-
-.info-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.stat {
-  padding: 8px 10px;
-  text-align: center;
-  background: rgb(248 250 252);
-  border-radius: 10px;
-}
-
-.dark .stat {
-  background: rgb(17 24 39);
-}
-
-.stat-value {
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.stat-label {
-  margin-top: 2px;
-  font-size: 12px;
-  color: rgb(107 114 128);
-}
-
-.dark .stat-label {
-  color: rgb(156 163 175);
-}
-
-.visitor-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.visitor-item {
-  display: grid;
-  grid-template-columns: 36px 1fr auto;
-  gap: 10px;
-  align-items: center;
-  padding: 10px 12px;
-  cursor: pointer;
-  background: linear-gradient(180deg, #f6f9fc 0%, #e9eef5 100%);
-  border: 1px solid rgb(226 232 240);
-  border-radius: 12px;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 70%),
-    0 6px 16px rgb(0 0 0 / 16%);
-}
-
-.dark .visitor-item {
-  background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
-  border-color: rgb(55 65 81);
-}
-
-.visitor-icon {
-  font-size: 22px;
-}
-
-.visitor-name {
-  font-weight: 600;
-}
-
-.visitor-meta {
-  margin-top: 2px;
-  font-size: 12px;
-  color: rgb(107 114 128);
-}
-
-.dark .visitor-meta {
-  color: rgb(156 163 175);
-}
-
-.visitor-status {
-  padding: 2px 8px;
-  font-size: 12px;
-  border: 1px solid rgb(226 232 240);
-  border-radius: 9999px;
-}
-
-.visitor-status.passed {
-  color: rgb(22 163 74);
-  border-color: rgb(74 222 128 / 50%);
-}
-
-.visitor-status.pending {
-  color: rgb(234 179 8);
-  border-color: rgb(250 204 21 / 50%);
-}
-
-.visitor-status.rejected {
-  color: rgb(239 68 68);
-  border-color: rgb(248 113 113 / 50%);
-}
-
-.tools-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
-.tools-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.tool-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 14px 12px;
-  touch-action: manipulation;
-  cursor: pointer;
-  user-select: none;
-  background: linear-gradient(180deg, #f6f9fc 0%, #e9eef5 100%);
-  border: 1px solid rgb(240 244 248);
-  border-radius: 14px;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 70%),
-    0 8px 20px rgb(0 0 0 / 22%);
-  transition: all 0.2s ease;
-}
-
-.tool-item-edit {
-  cursor: grab;
-  border-style: dashed;
-}
-
-.tool-item:hover {
-  border-color: #8bdcff;
-  box-shadow:
-    0 8px 22px rgb(16 24 40 / 22%),
-    0 0 14px rgb(0 200 255 / 40%);
-  transform: translateY(-2px);
-}
-
-.dark .tool-item {
-  background: linear-gradient(180deg, #1f2937 0%, #182230 100%);
-  border-color: rgb(55 65 81);
-}
-
-.tool-icon {
-  font-size: 22px;
-}
-
-.tool-title {
-  max-width: 100%;
-  margin-top: 6px;
-  overflow: hidden;
-  font-size: 13px;
-  line-height: 1.25;
-  color: rgb(55 65 81);
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizelegibility;
-}
-
-.dark .tool-title {
-  color: rgb(209 213 219);
-}
-
-@media (max-width: 1024px) {
-  .tools-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 768px) {
-  .tools-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .tool-item {
-    min-height: 56px;
-    padding: 12px 8px;
-  }
-
-  .tool-icon {
-    font-size: 24px;
-  }
 }
 
 :deep(.tools-actions .ant-btn) {
@@ -758,11 +521,5 @@ function goVisitorManagement() {
 :deep(.tools-actions .ant-btn > span) {
   display: inline-flex;
   align-items: center;
-}
-
-@media (max-width: 420px) {
-  .tools-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 </style>

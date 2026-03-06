@@ -14,7 +14,7 @@ import {
   verifyRefreshToken,
 } from '~/utils/jwt-utils';
 import { setCachedUserInfoBestEffort } from '~/utils/permission-cache';
-import { forbiddenResponse } from '~/utils/response';
+import { unAuthorizedResponse } from '~/utils/response';
 import {
   getActiveCustomerForCenterUser,
   resolveUserInfoForTokenFromCenterUser,
@@ -34,7 +34,8 @@ export default defineEventHandler(async (event) => {
 
   // 如果 cookie 中不存在 refreshToken，直接返回错误
   if (!oldRefreshToken) {
-    return forbiddenResponse(event, 'Refresh token not provided.');
+    clearRefreshTokenCookie(event);
+    return unAuthorizedResponse(event, '会话过期，请重新登录');
   }
 
   try {
@@ -180,6 +181,6 @@ export default defineEventHandler(async (event) => {
     clearRefreshTokenCookie(event);
 
     // 向客户端返回一个统一的、对用户友好的错误响应
-    return forbiddenResponse(event, '会话过期，请重新登录.');
+    return unAuthorizedResponse(event, '会话过期，请重新登录');
   }
 });

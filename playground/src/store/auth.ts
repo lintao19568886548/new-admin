@@ -41,9 +41,11 @@ export const useAuthStore = defineStore('auth', () => {
     if (accessStore.loginExpired) {
       accessStore.setLoginExpired(false);
     } else {
-      await (onSuccess
-        ? onSuccess()
-        : router.push(userInfo.homePath || DEFAULT_HOME_PATH));
+      const isMobile = window.innerWidth < 768;
+      const afterLoginPath = isMobile
+        ? '/home'
+        : userInfo.homePath || DEFAULT_HOME_PATH;
+      await (onSuccess ? onSuccess() : router.push(afterLoginPath));
     }
 
     if (userInfo?.realName) {

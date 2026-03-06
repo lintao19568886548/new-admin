@@ -18,7 +18,10 @@ export default eventHandler(async (event) => {
 
     const where: { [key: string]: any } = {};
     const roleNames = userinfo.roles ?? [];
-    const isSuper = roleNames.includes('Super');
+    const isSuper =
+      roleNames.includes('Super') ||
+      roleNames.includes('董事长') ||
+      roleNames.includes('人事部');
 
     if (user) {
       where.user = { contains: user };

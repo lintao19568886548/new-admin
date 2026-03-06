@@ -60,9 +60,12 @@ export function forbiddenResponse(
   return useResponseError(message, message);
 }
 
-export function unAuthorizedResponse(event: H3Event<EventHandlerRequest>) {
+export function unAuthorizedResponse(
+  event: H3Event<EventHandlerRequest>,
+  message = '验证失败',
+) {
   setResponseStatus(event, 401);
-  return useResponseError('验证失败', '验证失败');
+  return useResponseError(message, message, 401);
 }
 
 export function badRequestResponse(
