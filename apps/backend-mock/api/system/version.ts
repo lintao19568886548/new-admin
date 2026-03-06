@@ -12,6 +12,8 @@ export default defineEventHandler(async () => {
   if (!latestVersion) {
     latestVersion = await prismaClient.appVersion.create({
       data: {
+        androidUrl: 'https://www.yizuw.cn/download/kvapp_v1.0.0.apk',
+        iosUrl: null,
         version: '1.0.0',
         url: 'https://www.yizuw.cn/download/kvapp_v1.0.0.apk',
         notes: 'Initial version.',
@@ -20,5 +22,9 @@ export default defineEventHandler(async () => {
   }
 
   // The frontend API client is configured to expect the data object directly.
-  return useResponseSuccess(latestVersion);
+  return useResponseSuccess({
+    ...latestVersion,
+    androidUrl: latestVersion.androidUrl || latestVersion.url,
+    iosUrl: latestVersion.iosUrl,
+  });
 });

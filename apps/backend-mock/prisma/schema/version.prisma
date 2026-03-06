@@ -2,6 +2,8 @@
 model AppVersion {
   id        Int      @id @default(autoincrement())
   version   String   @unique
+  androidUrl String? @map("android_url")
+  iosUrl     String? @map("ios_url")
   url       String
   notes     String?  @db.LongText
   createdAt DateTime @default(now())
