@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
 
 import { useAccessStore } from '@vben/stores';
 
+import { Capacitor } from '@capacitor/core';
 import { Button, Modal, Progress } from 'ant-design-vue';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
@@ -11,7 +12,7 @@ import {
   cancelDownload,
   checkAppUpdate,
   closeUpdateModal,
-  downloadAndInstallApk,
+  triggerAppUpdate,
   updateState,
 } from '#/utils/update-service';
 
@@ -34,6 +35,17 @@ const {
 const sanitizedNotes = computed(() => {
   const dirty = marked(latestVersionInfo.value.notes || '');
   return DOMPurify.sanitize(dirty as string);
+});
+
+const isIosNativePlatform = computed(
+  () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios',
+);
+
+const updateOkText = computed(() => {
+  if (isDownloading.value) {
+    return '下载中...';
+  }
+  return isIosNativePlatform.value ? '前往更新' : '立即更新';
 });
 
 /**
@@ -60,7 +72,7 @@ async function performAutoCheck() {
  * 处理应用更新
  */
 async function handleUpdateModalOk() {
-  await downloadAndInstallApk();
+  await triggerAppUpdate();
 }
 
 /**
@@ -123,7 +135,7 @@ onUnmounted(() => {
     :title="`发现新版本 v${latestVersionInfo.version}`"
     centered
     :cancel-text="isDownloading ? '取消下载' : '稍后'"
-    :ok-text="isDownloading ? '下载中...' : '立即更新'"
+    :ok-text="updateOkText"
     :ok-button-props="{ loading: isDownloading, disabled: isDownloading }"
     width="90vw"
     @cancel="handleUpdateModalCancel"

@@ -1,8 +1,11 @@
 import type { ProgressStatus } from '@capacitor/file-transfer';
 
+import type { VersionInfo } from '#/api/system/version';
+
 import { ref } from 'vue';
 
 import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 import { FileTransfer } from '@capacitor/file-transfer';
 import { Directory, Filesystem } from '@capacitor/filesystem';
@@ -11,6 +14,71 @@ import { message } from 'ant-design-vue';
 import semver from 'semver';
 
 import { getLatestVersionApi } from '#/api/system';
+
+type UpdatePlatform = 'android' | 'ios';
+
+function getNativeUpdatePlatform(): null | UpdatePlatform {
+  if (!Capacitor.isNativePlatform()) {
+    return null;
+  }
+  const platform = Capacitor.getPlatform();
+  if (platform === 'android' || platform === 'ios') {
+    return platform;
+  }
+  return null;
+}
+
+function isAndroidNativePlatform() {
+  return getNativeUpdatePlatform() === 'android';
+}
+
+function isIosNativePlatform() {
+  return getNativeUpdatePlatform() === 'ios';
+}
+
+function normalizeIosUpdateUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const protocol = parsed.protocol.toLowerCase();
+
+    // iOS 线上分发仅支持 App Store。
+    const isAppStoreHost =
+      host === 'apps.apple.com' ||
+      host === 'itunes.apple.com' ||
+      host.endsWith('.apps.apple.com');
+
+    if (protocol === 'itms-apps:' && isAppStoreHost) {
+      return parsed.toString();
+    }
+    if (protocol === 'https:' && isAppStoreHost) {
+      return parsed.toString();
+    }
+  } catch {
+    // ignore
+  }
+  return '';
+}
+
+function resolveUpdateUrl(versionInfo: VersionInfo, platform: UpdatePlatform) {
+  if (platform === 'android') {
+    return versionInfo.androidUrl || versionInfo.url;
+  }
+
+  // iOS 只接受 App Store 链接。优先 iosUrl，其次兼容旧字段 url。
+  if (versionInfo.iosUrl) {
+    const iosUrl = normalizeIosUpdateUrl(versionInfo.iosUrl);
+    if (iosUrl) {
+      return iosUrl;
+    }
+  }
+
+  if (versionInfo.url) {
+    return normalizeIosUpdateUrl(versionInfo.url);
+  }
+
+  return '';
+}
 
 // 更新状态管理
 export const updateState = {
@@ -68,8 +136,8 @@ export async function checkAppUpdate(
   showSuccessMessage = true,
   autoInstall = false,
 ): Promise<boolean> {
-  // 只在原生平台执行检查
-  if (!Capacitor.isNativePlatform()) {
+  const platform = getNativeUpdatePlatform();
+  if (!platform) {
     return false;
   }
 
@@ -81,11 +149,9 @@ export async function checkAppUpdate(
     const { version: currentVersion } = await App.getInfo();
 
     // 获取最新版本信息
-    const {
-      notes,
-      url: updateUrl,
-      version: latestVersion,
-    } = await getLatestVersionApi();
+    const versionInfo = await getLatestVersionApi();
+    const { notes, version: latestVersion } = versionInfo;
+    const updateUrl = resolveUpdateUrl(versionInfo, platform);
 
     if (showLoading) {
       message.destroy();
@@ -93,6 +159,13 @@ export async function checkAppUpdate(
 
     // 版本比较
     if (semver.lt(currentVersion, latestVersion)) {
+      if (!updateUrl) {
+        if (showSuccessMessage) {
+          message.error('更新链接无效');
+        }
+        return false;
+      }
+
       updateState.latestVersionInfo.value = {
         notes,
         url: updateUrl,
@@ -100,8 +173,8 @@ export async function checkAppUpdate(
       };
 
       if (autoInstall) {
-        // 自动安装模式：直接开始下载安装
-        await downloadAndInstallApk();
+        // 自动安装模式：按平台执行更新动作
+        await triggerAppUpdate();
       } else {
         // 手动确认模式：显示更新弹窗
         updateState.isUpdateModalVisible.value = true;
@@ -133,6 +206,11 @@ export async function checkAppUpdate(
  * 下载并安装 APK
  */
 export async function downloadAndInstallApk(): Promise<void> {
+  if (!isAndroidNativePlatform()) {
+    message.warning('当前平台不支持 APK 安装');
+    return;
+  }
+
   if (!updateState.latestVersionInfo.value.url) {
     message.error('更新链接无效');
     return;
@@ -145,17 +223,22 @@ export async function downloadAndInstallApk(): Promise<void> {
   try {
     // 生成文件名
     const fileName = `app-update-${updateState.latestVersionInfo.value.version}.apk`;
+    let downloadUrl = '';
+
+    try {
+      downloadUrl = new URL(updateState.latestVersionInfo.value.url).toString();
+    } catch {
+      message.error('更新链接格式无效');
+      return;
+    }
 
     sendDebugNotification('开始下载', '正在下载 APK 安装包...');
 
-    // 获取应用数据目录的完整路径
-    const { uri: dataDirectoryUri } = await Filesystem.getUri({
+    // 获取目标文件 URI，iOS/Android 均要求传入完整文件 URI
+    const { uri: targetFileUri } = await Filesystem.getUri({
       directory: Directory.Data,
-      path: '',
+      path: fileName,
     });
-    // 移除 file:// 前缀并构建完整路径
-    const dataPath = dataDirectoryUri.replace('file://', '');
-    const fullPath = `${dataPath}/${fileName}`;
 
     // 添加进度监听器
     const progressListener = await FileTransfer.addListener(
@@ -177,9 +260,9 @@ export async function downloadAndInstallApk(): Promise<void> {
     try {
       // 下载 APK 文件到应用目录
       const downloadResult = await FileTransfer.downloadFile({
-        path: fullPath,
+        path: targetFileUri,
         progress: true,
-        url: updateState.latestVersionInfo.value.url,
+        url: downloadUrl,
       });
 
       console.warn('下载完成，文件路径:', downloadResult.path);
@@ -229,6 +312,54 @@ export async function downloadAndInstallApk(): Promise<void> {
   } finally {
     updateState.isDownloading.value = false;
   }
+}
+
+async function openIosUpdatePage(): Promise<void> {
+  if (!isIosNativePlatform()) {
+    message.warning('当前平台不支持 iOS 更新');
+    return;
+  }
+
+  const updateUrl = updateState.latestVersionInfo.value.url;
+  if (!updateUrl) {
+    message.error('更新链接无效');
+    return;
+  }
+
+  const normalizedUrl = normalizeIosUpdateUrl(updateUrl);
+  if (!normalizedUrl) {
+    message.error('iOS 更新仅支持 App Store 链接');
+    return;
+  }
+
+  try {
+    if (normalizedUrl.startsWith('itms-apps://')) {
+      window.location.assign(normalizedUrl);
+    } else {
+      await Browser.open({ url: normalizedUrl });
+    }
+    updateState.isUpdateModalVisible.value = false;
+  } catch (error) {
+    console.error('打开 iOS 更新页面失败:', error);
+    message.error('打开更新页面失败，请稍后重试');
+  }
+}
+
+/**
+ * 触发更新动作（按平台执行不同策略）
+ */
+export async function triggerAppUpdate(): Promise<void> {
+  if (isAndroidNativePlatform()) {
+    await downloadAndInstallApk();
+    return;
+  }
+
+  if (isIosNativePlatform()) {
+    await openIosUpdatePage();
+    return;
+  }
+
+  message.warning('当前平台不支持应用更新');
 }
 
 /**
