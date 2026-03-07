@@ -304,7 +304,7 @@ async function searchNearbyParks(longitude: number, latitude: number) {
   if (!key || key === 'YOUR_AMAP_KEY_HERE') {
     throw new Error('请先配置高德地图API Key');
   }
-  const url = `https://restapi.amap.com/v3/place/around?key=${key}&location=${longitude},${latitude}&keywords=工厂&types=170300&radius=5000&offset=50&page=1&extensions=all`;
+  const url = `https://restapi.amap.com/v3/place/around?key=${key}&location=${longitude},${latitude}&keywords=工厂&types=170300&radius=20000&offset=50&page=1&extensions=all`;
 
   try {
     const response = await fetch(url);
@@ -495,10 +495,10 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
 </script>
 
 <template>
-  <div class="mobile-investment-container">
+  <div class="box-border bg-gray-100 p-2 pb-28 dark:bg-neutral-900">
     <FormModal @success="handleSearch" />
 
-    <div class="search-filters">
+    <div class="mb-2 rounded bg-white p-3 shadow-sm dark:bg-neutral-800">
       <Form layout="vertical">
         <Row :gutter="16">
           <Col :span="24">
@@ -556,7 +556,7 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
             </Form.Item>
           </Col>
         </Row>
-        <div class="search-actions">
+        <div class="mt-2 flex gap-2">
           <Button type="primary" @click="handleSearch" class="flex-1">
             <Search class="mr-1 h-4 w-4" />
             {{ $t('搜索') }}
@@ -567,7 +567,7 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
     </div>
 
     <Spin :spinning="loading" :tip="$t('加载中...')">
-      <div v-if="investmentList.length > 0" class="agent-list">
+      <div v-if="investmentList.length > 0" class="pb-3">
         <Card
           v-for="item in investmentList"
           :key="
@@ -575,11 +575,17 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
             String(item.meetingTime) +
             String(item.updateTime)
           "
-          class="agent-card"
+          class="mb-3 overflow-hidden rounded-lg bg-white text-sm shadow-sm dark:bg-neutral-800"
           :body-style="{ padding: '0' }"
         >
-          <div class="card-header">
-            <span class="title">{{ item.agentName || item.tenantName }}</span>
+          <div
+            class="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-neutral-700"
+          >
+            <span
+              class="mr-2 break-words text-base font-semibold text-gray-800 dark:text-gray-100"
+            >
+              {{ item.agentName || item.tenantName }}
+            </span>
             <div>
               <Tag :color="getTagColor(item.intentLevel)">
                 {{ item.intentLevel }}
@@ -595,7 +601,7 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
                 "
               >
                 <template #content>
-                  <div class="action-list">
+                  <div class="flex flex-col gap-1">
                     <Button type="link" size="small" @click="onView(item)">
                       {{ $t('ui.action.view') }}
                     </Button>
@@ -618,43 +624,68 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
               </Popover>
             </div>
           </div>
-          <div class="card-content">
-            <div class="info-grid">
-              <div class="info-item">
-                <span class="info-label">租户名称</span>
-                <span class="info-value">{{ item.tenantName }}</span>
+          <div class="p-4">
+            <div class="mt-3 grid grid-cols-2 gap-3">
+              <div class="flex flex-col">
+                <span class="text-[13px] text-gray-500 dark:text-gray-400">
+                  租户名称
+                </span>
+                <span class="text-sm text-gray-800 dark:text-gray-100">
+                  {{ item.tenantName }}
+                </span>
               </div>
-              <div class="info-item">
-                <span class="info-label">意向面积</span>
-                <span class="info-value">{{ item.intentArea }} ㎡</span>
+              <div class="flex flex-col">
+                <span class="text-[13px] text-gray-500 dark:text-gray-400">
+                  意向面积
+                </span>
+                <span class="text-sm text-gray-800 dark:text-gray-100">
+                  {{ item.intentArea }} ㎡
+                </span>
               </div>
-              <div class="info-item">
-                <span class="info-label">进展阶段</span>
-                <span class="info-value">{{ item.progress }}</span>
+              <div class="flex flex-col">
+                <span class="text-[13px] text-gray-500 dark:text-gray-400">
+                  进展阶段
+                </span>
+                <span class="text-sm text-gray-800 dark:text-gray-100">
+                  {{ item.progress }}
+                </span>
               </div>
-              <div class="info-item">
-                <span class="info-label">联系电话</span>
-                <span class="info-value">{{ item.phoneNumber }}</span>
+              <div class="flex flex-col">
+                <span class="text-[13px] text-gray-500 dark:text-gray-400">
+                  联系电话
+                </span>
+                <span class="text-sm text-gray-800 dark:text-gray-100">
+                  {{ item.phoneNumber }}
+                </span>
               </div>
-              <div class="info-item">
-                <span class="info-label">会谈时间</span>
-                <span class="info-value">{{
-                  formatDateTime(item.meetingTime)
-                }}</span>
+              <div class="flex flex-col">
+                <span class="text-[13px] text-gray-500 dark:text-gray-400">
+                  会谈时间
+                </span>
+                <span class="text-sm text-gray-800 dark:text-gray-100">
+                  {{ formatDateTime(item.meetingTime) }}
+                </span>
               </div>
               <div
-                class="info-item"
                 v-if="resolveParkName(item.parkId, item.parkName)"
+                class="flex flex-col"
               >
-                <span class="info-label">所在园区</span>
-                <span class="info-value">{{
-                  resolveParkName(item.parkId, item.parkName)
-                }}</span>
+                <span class="text-[13px] text-gray-500 dark:text-gray-400">
+                  所在园区
+                </span>
+                <span class="text-sm text-gray-800 dark:text-gray-100">
+                  {{ resolveParkName(item.parkId, item.parkName) }}
+                </span>
               </div>
             </div>
-            <p v-if="item.remark" class="remark-info">
-              <span class="remark-label">备注：</span>
-              <span class="remark-text">{{ item.remark }}</span>
+            <p
+              v-if="item.remark"
+              class="mt-3 rounded bg-gray-50 p-3 text-[13px] leading-relaxed text-gray-600 dark:bg-neutral-900/60 dark:text-gray-300"
+            >
+              <span class="mr-1 font-semibold">备注：</span>
+              <span class="whitespace-pre-wrap break-all">{{
+                item.remark
+              }}</span>
             </p>
           </div>
         </Card>
@@ -665,35 +696,39 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
           :total="pagination.total"
           @change="handlePageChange"
           size="small"
-          class="list-pagination"
+          class="mt-3 pb-3 text-center"
         />
       </div>
       <Empty v-else :description="loading ? $t('加载中...') : $t('暂无数据')" />
     </Spin>
 
-    <Button
-      type="primary"
-      shape="circle"
-      size="large"
-      @click="onAdd"
-      class="floating-add-btn"
+    <div
+      class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom)+3.25rem)] right-4 z-[1000] flex flex-col gap-3"
     >
-      <PlusOutlined class="text-xl" />
-    </Button>
-    <Button
-      type="primary"
-      shape="circle"
-      size="large"
-      :loading="recommendLoading"
-      @click="onSmartRecommend"
-      class="floating-recommend-btn"
-      title="定位并推荐附近工厂"
-    >
-      <div class="fab-content">
-        <EnvironmentOutlined class="fab-icon" />
-        <span class="fab-text">招商推荐</span>
-      </div>
-    </Button>
+      <Button
+        type="primary"
+        shape="circle"
+        size="large"
+        @click="onAdd"
+        class="!inline-flex !h-14 !w-14 items-center justify-center !p-0 shadow-md transition-transform duration-200 hover:-translate-y-0.5"
+      >
+        <PlusOutlined class="text-xl" />
+      </Button>
+      <Button
+        type="primary"
+        shape="circle"
+        size="large"
+        :loading="recommendLoading"
+        @click="onSmartRecommend"
+        class="!inline-flex !h-14 !w-14 items-center justify-center !p-0 shadow-md transition-transform duration-200 hover:-translate-y-0.5"
+        title="定位并推荐附近工厂"
+      >
+        <div class="flex h-full w-full flex-col items-center justify-center">
+          <EnvironmentOutlined class="text-[18px]" />
+          <span class="mt-0.5 text-[11px] leading-none">招商推荐</span>
+        </div>
+      </Button>
+    </div>
 
     <Drawer
       v-model:open="recommendModalVisible"
@@ -706,22 +741,34 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
       <div class="mb-2 text-gray-600">
         <p>基于您的当前位置，为您推荐以下附近的工厂：</p>
       </div>
-      <div class="recommend-list">
-        <div v-for="park in nearbyParks" :key="park.id" class="recommend-item">
-          <div class="item-header">
-            <span class="name">{{ park.name }}</span>
-            <span class="distance">{{ park.distance }} 米</span>
+      <div class="flex flex-col gap-3">
+        <div
+          v-for="park in nearbyParks"
+          :key="park.id"
+          class="rounded-lg bg-white p-3 shadow-sm dark:bg-neutral-800"
+        >
+          <div
+            class="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100"
+          >
+            <span class="mr-2 break-words">{{ park.name }}</span>
+            <span
+              class="shrink-0 text-xs font-normal text-gray-500 dark:text-gray-400"
+            >
+              {{ park.distance }} 米
+            </span>
           </div>
-          <div class="item-body">
-            <div class="line">{{ park.address }}</div>
-            <div class="line" v-if="park.tel">{{ park.tel }}</div>
+          <div class="mt-1.5 text-[13px] text-gray-600 dark:text-gray-300">
+            <div class="break-words">{{ park.address }}</div>
+            <div class="break-words" v-if="park.tel">{{ park.tel }}</div>
           </div>
         </div>
         <div v-if="nearbyParks.length === 0" class="py-8 text-center">
           <p class="text-gray-500">暂无附近工厂信息</p>
         </div>
       </div>
-      <div class="drawer-footer">
+      <div
+        class="sticky bottom-0 border-t border-gray-100 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900"
+      >
         <Button block @click="closeRecommendModal">关闭</Button>
       </div>
     </Drawer>
@@ -754,7 +801,9 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
           <p>提示：地址越详细，搜索结果越准确</p>
         </div>
       </div>
-      <div class="drawer-footer">
+      <div
+        class="sticky bottom-0 border-t border-gray-100 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900"
+      >
         <Space class="w-full">
           <Button block @click="closeManualLocationModal">取消</Button>
           <Button
@@ -770,231 +819,3 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
     </Drawer>
   </div>
 </template>
-
-<style lang="less" scoped>
-.mobile-investment-container {
-  box-sizing: border-box;
-  padding: 8px;
-  background-color: #f0f2f5;
-}
-
-.search-filters {
-  padding: 12px 8px;
-  margin-bottom: 8px;
-  background-color: #fff;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
-}
-
-.search-filters .ant-form-item {
-  margin-bottom: 8px;
-}
-
-.search-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.agent-list {
-  padding-bottom: 10px;
-}
-
-.agent-card {
-  margin-bottom: 12px;
-  overflow: hidden;
-  font-size: 14px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
-}
-
-:deep(.agent-card .ant-card-body) {
-  padding: 0;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.title {
-  margin-right: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #323233;
-  word-break: break-word;
-  white-space: normal;
-}
-
-.card-content {
-  padding: 16px;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-top: 12px;
-  margin-left: 16px;
-}
-
-.info-item {
-  display: flex;
-  flex-direction: column;
-}
-
-.info-label {
-  margin-bottom: 2px;
-  font-size: 13px;
-  color: #969799;
-}
-
-.info-value {
-  font-size: 14px;
-  color: #323233;
-}
-
-.full-line {
-  grid-column: span 2;
-}
-
-.list-pagination {
-  padding-bottom: 10px;
-  margin-top: 10px;
-  text-align: center;
-}
-
-.flex-1 {
-  flex: 1;
-}
-
-.floating-recommend-btn {
-  position: fixed;
-  bottom: 80px;
-  right: 20px;
-  width: 60px;
-  height: 60px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
-  transition: all 0.3s ease;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-
-  .fab-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-  }
-
-  .fab-icon {
-    font-size: 18px;
-  }
-
-  .fab-text {
-    margin-top: 2px;
-    font-size: 11px;
-    line-height: 1;
-  }
-}
-
-.floating-add-btn {
-  position: fixed;
-  bottom: 150px;
-  right: 20px;
-  width: 60px;
-  height: 60px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
-  transition: all 0.3s ease;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-
-  :deep(.anticon) {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-}
-
-.recommend-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.recommend-item {
-  padding: 12px;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
-}
-
-.item-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 14px;
-  font-weight: 600;
-  color: #323233;
-}
-
-.item-body {
-  margin-top: 6px;
-  font-size: 13px;
-  color: #666;
-}
-
-.drawer-footer {
-  position: sticky;
-  bottom: 0;
-  background: #fff;
-  padding: 12px;
-  border-top: 1px solid #f0f0f0;
-}
-
-.remark-info {
-  padding: 10px 12px;
-  margin-top: 12px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #646566;
-  background-color: #f7f8fa;
-  border-radius: 6px;
-}
-
-.remark-label {
-  margin-right: 4px;
-  font-weight: 600;
-}
-
-.remark-text {
-  word-break: break-all;
-  white-space: pre-wrap;
-}
-
-.dark .remark-info {
-  color: #c0c0c0;
-  background-color: #3a3a3a;
-}
-</style>

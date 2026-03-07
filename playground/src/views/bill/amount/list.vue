@@ -60,8 +60,15 @@ localStorage.setItem('bill-enableMask', 'true');
 const verificationModalRef = ref<InstanceType<typeof SmsVerificationModal>>();
 const isVerified = ref(false);
 const VERIFIED_KEY = 'bill-amount-verified';
+const isDev = import.meta.env.DEV;
 
 function ensureVerification() {
+  if (isDev) {
+    isVerified.value = true;
+    sessionStorage.setItem(VERIFIED_KEY, 'true');
+    initPage();
+    return;
+  }
   const verified = sessionStorage.getItem(VERIFIED_KEY) === 'true';
   if (verified) {
     isVerified.value = true;
@@ -252,6 +259,7 @@ function onCancelVerification() {
 watch(
   () => route.fullPath,
   (newPath, oldPath) => {
+    if (isDev) return;
     if (newPath !== oldPath) {
       isVerified.value = false;
       sessionStorage.removeItem(VERIFIED_KEY);

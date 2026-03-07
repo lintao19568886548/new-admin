@@ -292,7 +292,7 @@ async function searchNearbyParks(longitude: number, latitude: number) {
   if (!key || key === 'YOUR_AMAP_KEY_HERE') {
     throw new Error('请先配置高德地图API Key');
   }
-  const url = `https://restapi.amap.com/v3/place/around?key=${key}&location=${longitude},${latitude}&keywords=工厂&types=170300&radius=5000&offset=50&page=1&extensions=all`;
+  const url = `https://restapi.amap.com/v3/place/around?key=${key}&location=${longitude},${latitude}&keywords=工厂&types=170300&radius=20000&offset=50&page=1&extensions=all`;
 
   try {
     const response = await fetch(url);

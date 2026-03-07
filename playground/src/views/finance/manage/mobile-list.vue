@@ -65,6 +65,7 @@ const route = useRoute();
 const router = useRouter();
 
 const isVerified = ref(false);
+const isDev = import.meta.env.DEV;
 
 const parkOptions = ref<{ label: string; value: number }[]>([]);
 
@@ -202,6 +203,7 @@ function onCancelVerification() {
 watch(
   () => route.fullPath,
   (newPath, oldPath) => {
+    if (isDev) return;
     if (newPath !== oldPath) {
       isVerified.value = false;
       sessionStorage.removeItem('finance-verified');
@@ -210,6 +212,12 @@ watch(
 );
 
 onMounted(() => {
+  if (isDev) {
+    isVerified.value = true;
+    sessionStorage.setItem('finance-verified', 'true');
+    initPage();
+    return;
+  }
   const verified = sessionStorage.getItem('finance-verified');
   if (verified === 'true') {
     isVerified.value = true;
