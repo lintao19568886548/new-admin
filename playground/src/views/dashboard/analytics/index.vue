@@ -28,11 +28,7 @@ import {
   getAnalyticsTotal,
   getAnalyticsTrend,
 } from '#/api/analytics';
-import {
-  getPendingReimbursementCount,
-  getReimbursementList,
-} from '#/api/reimbursement';
-import { CHAIRMAN_ROLE_NAMES, REIMBURSEMENT_NOTIFY_THRESHOLD } from '#/config';
+import { getPendingReimbursementCount } from '#/api/reimbursement';
 
 // 导入重构后的业务组件
 import {
@@ -106,33 +102,8 @@ onMounted(async () => {
 
     // 检查用户是否有报销审核权限
     if ((userStore.userInfo?.reimbursementAuth || 0) > 0) {
-      const pageSize = 200;
-      const first = await getReimbursementList({
-        pageNo: 1,
-        pageSize,
-        status: 0,
-      });
-      let count = (first.items || []).filter(
-        (it: any) => Number(it.amount) > REIMBURSEMENT_NOTIFY_THRESHOLD,
-      ).length;
-      const total = first.total || 0;
-      const pages = Math.ceil(total / pageSize);
-      for (let page = 2; page <= pages; page++) {
-        const next = await getReimbursementList({
-          pageNo: page,
-          pageSize,
-          status: 0,
-        });
-        count += (next.items || []).filter(
-          (it: any) => Number(it.amount) > REIMBURSEMENT_NOTIFY_THRESHOLD,
-        ).length;
-      }
-      const roles = userStore.userInfo?.roles ?? [];
-      const isChairman = CHAIRMAN_ROLE_NAMES.some((role) =>
-        roles.includes(role),
-      );
       const pending = await getPendingReimbursementCount();
-      const notifyCount = isChairman ? count : pending.count || 0;
+      const notifyCount = pending.count || 0;
       if (notifyCount > 0) {
         notification.info({
           btn: h(
@@ -153,9 +124,7 @@ onMounted(async () => {
             },
             '去处理',
           ),
-          description: isChairman
-            ? `您有 ${notifyCount} 条金额>${REIMBURSEMENT_NOTIFY_THRESHOLD}的报销申请待处理`
-            : `您有 ${notifyCount} 条报销申请待处理`,
+          description: `您有 ${notifyCount} 条报销申请待处理`,
           duration: null,
           key: 'reimbursement-notification',
           message: '待办提醒',

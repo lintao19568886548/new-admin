@@ -202,11 +202,6 @@ export function useReimbursementAudit() {
         }
       }
 
-      // 非审核人员只能在自己的申请中进行搜索
-      if (!hasAuditPermission.value) {
-        params.username = userStore.userInfo?.username;
-      }
-
       const result = await apiGetReimbursementList(params);
       // 处理返回数据的不同格式
       const items = Array.isArray(result) ? result : result.items || [];

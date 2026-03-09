@@ -14,12 +14,21 @@ export default eventHandler(async (event) => {
   }
 
   try {
+    const hasAuditPermission = (userinfo.reimbursementAuth || 0) > 0;
+    if (!hasAuditPermission) {
+      return useResponseSuccess({
+        count: 0,
+      });
+    }
+
     console.log('开始获取待处理报销数量，用户信息:', {
       username: userinfo.username,
       parks: userinfo.parks,
     });
 
-    const parkIds = userinfo.parks?.map((park) => park.parkId);
+    const parkIds = (userinfo.parks || [])
+      .map((park) => Number(park.parkId))
+      .filter((parkId) => !Number.isNaN(parkId));
     console.log('用户园区信息:', userinfo.parks);
     console.log('提取的园区ID:', parkIds);
 

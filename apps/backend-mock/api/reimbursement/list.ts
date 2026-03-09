@@ -16,6 +16,11 @@ export default eventHandler(async (event) => {
   try {
     const query = getQuery(event);
     console.log('后端收到的查询参数:', query);
+    const hasAuditPermission = (userinfo.reimbursementAuth || 0) > 0;
+    const isApplicationQuery = query.type === 'application';
+    const allowedParkIds = (userinfo.parks || [])
+      .map((park) => Number(park.parkId))
+      .filter((parkId) => !Number.isNaN(parkId));
 
     // 构建查询条件
     const where: any = {
@@ -27,33 +32,21 @@ export default eventHandler(async (event) => {
       where.claimant = String(query.claimant);
     }
 
-    // 根据用户权限过滤：如果不是特定高权限用户，则只查询用户关联园区的记录
-    if (query.type === 'application') {
+    if (isApplicationQuery) {
       where.userId = userinfo.id;
+    } else if (!hasAuditPermission) {
+      // 非审核人员只能查看自己的申请记录
+      where.userId = userinfo.id;
+    } else if (allowedParkIds.length > 0) {
+      // 审核人员仅可查看其可管辖园区
+      where.parkId = { in: allowedParkIds };
+    } else {
+      // 审核人员无任何园区授权时返回空结果
+      return useResponseSuccess({
+        items: [],
+        total: 0,
+      });
     }
-    // if (
-    //   userinfo.realName !== 'Vben' &&
-    //   userinfo.realName !== '董事长' &&
-    //   userinfo.realName.includes('财务') === false &&
-    //   userinfo.realName.includes('人事部') === false &&
-    //   userinfo.realName.includes('总监') === false &&
-    //   userinfo.realName.includes('总经理') === false
-    // ) {
-    //   where.userId = userinfo.id;
-    //   const parkIds = userinfo.parks?.map((park) => park.parkId) || [];
-
-    //   // 如果用户有关联的园区，则按园区过滤；否则，作为一个非高级用户，
-    //   // 他们没有被分配可审计的园区，因此不应该看到任何记录。
-    //   if (parkIds.length > 0) {
-    //     where.parkId = { in: parkIds };
-    //   } else {
-    //     // 直接返回空结果，因为没有可审计的园区
-    //     return useResponseSuccess({
-    //       items: [],
-    //       total: 0,
-    //     });
-    //   }
-    // }
 
     // 用途模糊查询
     if (query.purpose) {
@@ -90,7 +83,21 @@ export default eventHandler(async (event) => {
     }
 
     if (query.parkId) {
-      where.parkId = Number(query.parkId);
+      const parkId = Number(query.parkId);
+      if (Number.isNaN(parkId)) {
+        return useResponseError('园区参数无效', 400);
+      }
+      if (
+        !isApplicationQuery &&
+        hasAuditPermission &&
+        !allowedParkIds.includes(parkId)
+      ) {
+        return useResponseSuccess({
+          items: [],
+          total: 0,
+        });
+      }
+      where.parkId = parkId;
     }
 
     // 分页参数

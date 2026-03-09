@@ -1,6 +1,7 @@
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
+  forbiddenResponse,
   unAuthorizedResponse,
   useResponseError,
   useResponseSuccess,
@@ -19,15 +20,51 @@ export default eventHandler(async (event) => {
       return useResponseError('无效的报销ID', 400);
     }
 
+    const hasAuditPermission = (userinfo.reimbursementAuth || 0) > 0;
+    if (!hasAuditPermission) {
+      return forbiddenResponse(event, '无报销审核权限');
+    }
+
     // 获取请求体数据
     const body = await readBody(event);
 
-    // 验证状态值
-    if (
-      body.status !== undefined &&
-      ![0, 1, 2, 3, 4].includes(Number(body.status))
-    ) {
-      return useResponseError('无效的状态值', 400);
+    // 仅允许通过或拒绝
+    if (body.status === undefined || ![1, 2].includes(Number(body.status))) {
+      return useResponseError('审核状态无效', 400);
+    }
+
+    const reimbursement = await prismaClient.reimbursement.findFirst({
+      where: {
+        id,
+        isDeleted: false,
+      },
+      select: {
+        amount: true,
+        parkId: true,
+        status: true,
+      },
+    });
+
+    if (!reimbursement) {
+      return useResponseError('未找到报销记录', 404);
+    }
+
+    if (reimbursement.status !== 0) {
+      return useResponseError('该报销记录已审核，无法重复操作', 400);
+    }
+
+    const allowedParkIds = (userinfo.parks || [])
+      .map((park) => Number(park.parkId))
+      .filter((parkId) => !Number.isNaN(parkId));
+    if (!allowedParkIds.includes(Number(reimbursement.parkId))) {
+      return forbiddenResponse(event, '无该园区审核权限');
+    }
+
+    const rates = userinfo.rates;
+    const hasUnlimitedRates =
+      rates === null || rates === undefined || Number(rates) < 0;
+    if (!hasUnlimitedRates && Number(reimbursement.amount) > Number(rates)) {
+      return forbiddenResponse(event, '金额超出审核权限');
     }
 
     // 构造审核意见前缀
