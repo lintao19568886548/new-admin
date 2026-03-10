@@ -18,8 +18,7 @@ import dayjs from 'dayjs';
 import ExcelJS from 'exceljs';
 
 import { exportTrajectoryData, getTrajectoryList } from '#/api/hrm/trajectory';
-import { BAIDU_MAP_AK } from '#/config';
-import { loadBaiduMapScript } from '#/utils/map';
+import { getBaiduMapAk, loadBaiduMapScript } from '#/utils/map';
 
 // ================================= 类型定义 =================================
 interface TrajectoryRecord {
@@ -111,10 +110,15 @@ const fetchData = async () => {
 
 const initMap = async () => {
   try {
-    await loadBaiduMapScript(BAIDU_MAP_AK);
+    const baiduMapAk = await getBaiduMapAk();
+    await loadBaiduMapScript(baiduMapAk);
   } catch (error) {
     console.error('Baidu Map script failed to load:', error);
-    message.error('地图脚本加载失败，请刷新页面重试');
+    const errMsg =
+      error instanceof Error
+        ? error.message
+        : '地图脚本加载失败，请刷新页面重试';
+    message.error(errMsg);
     return;
   }
   if (!mapContainer.value) return;

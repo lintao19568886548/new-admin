@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-import { PrismaClient as CenterPrismaClient } from '@prisma/.prisma/center-client/client.js';
-import { PrismaClient as CustomerPrismaClient } from '@prisma/.prisma/client/client.js';
+import { PrismaClient as CenterPrismaClient } from '@prisma/.prisma/center-client/index.js';
+import { PrismaClient as CustomerPrismaClient } from '@prisma/.prisma/client/index.js';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
 function decodeBase64Utf8(varName: string, rawValue: string | undefined) {

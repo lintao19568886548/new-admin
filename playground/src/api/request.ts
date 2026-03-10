@@ -27,6 +27,24 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     baseURL,
   });
 
+  const errorMessageLastShownAt = new Map<string, number>();
+  const showErrorMessageDedup = (
+    content: string,
+    key: string,
+    cooldownMs: number,
+  ) => {
+    const now = Date.now();
+    const last = errorMessageLastShownAt.get(key) ?? 0;
+    if (now - last < cooldownMs) return;
+    errorMessageLastShownAt.set(key, now);
+    message.error({ content, key });
+  };
+
+  const markAuthRefreshError = (error: unknown) =>
+    error && typeof error === 'object'
+      ? Object.assign(error as any, { __fromAuthRefresh: true })
+      : { __fromAuthRefresh: true, message: String(error) };
+
   /**
    * 重新认证逻辑
    */
@@ -41,7 +59,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     ) {
       accessStore.setLoginExpired(true);
     } else {
-      await authStore.logout();
+      await authStore.logout(true, !client.isRefreshing);
     }
   }
 
@@ -50,10 +68,14 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
    */
   async function doRefreshToken() {
     const accessStore = useAccessStore();
-    const resp = await refreshTokenApi();
-    const newToken = resp.data;
-    accessStore.setAccessToken(newToken);
-    return newToken;
+    try {
+      const resp = await refreshTokenApi();
+      const newToken = resp.data;
+      accessStore.setAccessToken(newToken);
+      return newToken;
+    } catch (error) {
+      throw markAuthRefreshError(error);
+    }
   }
 
   function formatToken(token: null | string) {
@@ -98,8 +120,28 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       // 当前mock接口返回的错误字段是 error 或者 message
       const responseData = error?.response?.data ?? {};
       const errorMessage = responseData?.error ?? responseData?.message ?? '';
+
+      if ((error as any)?.__fromAuthRefresh && !error?.response) {
+        const code = (error as any)?.status ?? (error as any)?.code;
+        if (code === 401) {
+          const directMessage =
+            (error as any)?.message ?? (error as any)?.error;
+          showErrorMessageDedup(
+            directMessage || '登录过期，请重新登录',
+            '__auth_refresh_401__',
+            3000,
+          );
+          return;
+        }
+      }
+
       // 如果没有错误信息，则会根据状态码进行提示
-      message.error(errorMessage || msg);
+      const finalMessage = errorMessage || msg;
+      showErrorMessageDedup(
+        finalMessage,
+        `__http_error__${String(finalMessage)}`,
+        1200,
+      );
     }),
   );
 

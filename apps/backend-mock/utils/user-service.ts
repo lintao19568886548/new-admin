@@ -1,6 +1,6 @@
-import type { PrismaClient } from '@prisma/.prisma/client/client.js';
 import type {
   Park,
+  PrismaClient,
   Role,
   User,
   UserRole,

@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/.prisma/client/client.js';
+import type { PrismaClient } from '@prisma/.prisma/client/index.js';
 
 import { systemDbClient } from '~/utils/db';
 

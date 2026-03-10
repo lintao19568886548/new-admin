@@ -14,9 +14,8 @@ import {
   punchIn,
   punchOut,
 } from '#/api/hrm/attendance';
-import { BAIDU_MAP_AK } from '#/config';
 import { useLayoutStore } from '#/store/layout';
-import { loadBaiduMapScript } from '#/utils/map';
+import { getBaiduMapAk, loadBaiduMapScript } from '#/utils/map';
 
 // ================================= 类型定义 =================================
 interface TodayRecord {
@@ -221,14 +220,19 @@ const initMap = async () => {
   }
 
   try {
-    await loadBaiduMapScript(BAIDU_MAP_AK);
+    const baiduMapAk = await getBaiduMapAk();
+    await loadBaiduMapScript(baiduMapAk);
   } catch (error) {
     console.error('Baidu Map script failed to load:', {
       error,
       pageUrl: window.location.href,
       userAgent: navigator.userAgent,
     });
-    message.error('地图脚本加载失败，请检查网络后重试');
+    const errMsg =
+      error instanceof Error
+        ? error.message
+        : '地图脚本加载失败，请检查网络后重试';
+    message.error(errMsg);
     locationLoading.value = false;
     return;
   }
