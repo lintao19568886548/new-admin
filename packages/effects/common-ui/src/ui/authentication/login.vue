@@ -77,6 +77,7 @@ const agreed = ref(false);
 const showAgreeError = ref(false);
 const showPrivacyModal = ref(false);
 const showServiceAgreementModal = ref(false);
+const showAgreementRequiredModal = ref(false);
 
 // 计算属性：获取本地存储的用户名
 const localUsername = computed(() => {
@@ -571,7 +572,7 @@ const serviceAgreementContent = computed(() => {
 async function handleSubmit() {
   try {
     if (!agreed.value) {
-      showAgreeError.value = true;
+      showAgreementRequiredModal.value = true;
       return;
     }
     showAgreeError.value = false;
@@ -600,12 +601,9 @@ async function handleSubmit() {
 }
 
 function handleGo(path: string) {
-  if (path === props.codeLoginPath) {
-    if (!agreed.value) {
-      showAgreeError.value = true;
-      return;
-    }
-    showAgreeError.value = false;
+  if (path === props.codeLoginPath && !agreed.value) {
+    showAgreementRequiredModal.value = true;
+    return;
   }
   router.push(path);
 }
@@ -624,8 +622,27 @@ function handleClose() {
   showAgreeError.value = false;
 }
 
+function closeAgreementRequiredModal() {
+  showAgreementRequiredModal.value = false;
+}
+
+function handleAgreeAndClose() {
+  agreed.value = true;
+  showAgreementRequiredModal.value = false;
+}
+
 function showServiceAgreement() {
   showServiceAgreementModal.value = true;
+}
+
+function showServiceAgreementFromTip() {
+  showAgreementRequiredModal.value = false;
+  showServiceAgreementModal.value = true;
+}
+
+function showPrivacyPolicyFromTip() {
+  showAgreementRequiredModal.value = false;
+  showPrivacyModal.value = true;
 }
 
 function closeServiceAgreementModal() {
@@ -808,6 +825,54 @@ defineExpose({
       </template>
     </VbenModal>
 
+    <!-- 同意协议提示弹窗 -->
+    <VbenModal
+      v-model:open="showAgreementRequiredModal"
+      :title="$t('authentication.agreementRequired', '温馨提示')"
+      class="mobile-small-modal"
+      :bordered="true"
+      :centered="true"
+      header-class="bg-card text-foreground px-5 py-3"
+      content-class="bg-card text-foreground p-4"
+      :closable="false"
+    >
+      <div class="p-4 text-center">
+        <p class="mb-4 text-base">
+          {{
+            $t(
+              'authentication.agreementRequiredMessage',
+              '登录前请先阅读并同意',
+            )
+          }}
+        </p>
+        <p class="mb-2">
+          <span
+            class="vben-link cursor-pointer font-medium"
+            @click.stop.prevent="showServiceAgreementFromTip"
+          >
+            《{{ $t('服务协议') }}》
+          </span>
+          {{ $t('common.and', '和') }}
+          <span
+            class="vben-link cursor-pointer font-medium"
+            @click.stop.prevent="showPrivacyPolicyFromTip"
+          >
+            《{{ $t('authentication.privacyPolicy', '隐私协议') }}》
+          </span>
+        </p>
+      </div>
+      <template #footer>
+        <div class="flex w-full justify-center space-x-3">
+          <VbenButton variant="outline" @click="closeAgreementRequiredModal">
+            取消
+          </VbenButton>
+          <VbenButton type="primary" @click="handleAgreeAndClose">
+            同意并继续
+          </VbenButton>
+        </div>
+      </template>
+    </VbenModal>
+
     <!-- ICP 备案信息 -->
     <div
       v-if="preferences.copyright.enable && preferences.copyright.icp"
@@ -832,10 +897,10 @@ defineExpose({
 @media (max-width: 768px) {
   .mobile-small-modal {
     inset: 0 !important;
-    width: 92vw !important;
-    max-width: 480px !important;
+    width: 90vw !important;
+    max-width: 400px !important;
     height: auto !important;
-    max-height: 75vh !important;
+    max-height: 70vh !important;
     margin: auto !important;
     color: hsl(var(--card-foreground));
     background-color: hsl(var(--card));
@@ -843,6 +908,34 @@ defineExpose({
     border-radius: var(--radius);
     box-shadow: 0 8px 24px rgb(0 0 0 / 8%);
     transform: none !important;
+  }
+
+  .mobile-small-modal .ant-modal-content,
+  .mobile-small-modal [data-slot='content'] {
+    padding: 12px !important;
+  }
+
+  .mobile-small-modal .ant-modal-header,
+  .mobile-small-modal [data-slot='header'] {
+    padding: 12px 16px !important;
+    font-size: 16px !important;
+  }
+
+  .mobile-small-modal .ant-modal-body,
+  .mobile-small-modal [data-slot='body'] {
+    padding: 16px !important;
+    font-size: 14px !important;
+  }
+
+  .mobile-small-modal .ant-modal-footer,
+  .mobile-small-modal [data-slot='footer'] {
+    padding: 12px 16px !important;
+  }
+
+  .mobile-small-modal button {
+    min-height: 40px !important;
+    padding: 8px 16px !important;
+    font-size: 14px !important;
   }
 }
 
