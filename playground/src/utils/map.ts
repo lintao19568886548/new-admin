@@ -1,4 +1,47 @@
+import { getSystemKeyApi } from '#/api/system';
+
 let scriptPromise: null | Promise<void> = null;
+let baiduMapAkPromise: null | Promise<string> = null;
+
+function resolveBaiduMapAk(value: unknown): string {
+  if (typeof value === 'string') {
+    const ak = value.trim();
+    if (ak) {
+      return ak;
+    }
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item !== 'string') {
+        continue;
+      }
+      const ak = item.trim();
+      if (ak) {
+        return ak;
+      }
+    }
+  }
+
+  throw new Error('系统配置 BAIDU_MAP_AK 为空或格式不正确');
+}
+
+export async function getBaiduMapAk(): Promise<string> {
+  if (baiduMapAkPromise) {
+    return baiduMapAkPromise;
+  }
+
+  baiduMapAkPromise = getSystemKeyApi<string | string[]>('BAIDU_MAP_AK')
+    .then((record) => {
+      return resolveBaiduMapAk(record?.value);
+    })
+    .catch((error) => {
+      baiduMapAkPromise = null;
+      throw error;
+    });
+
+  return baiduMapAkPromise;
+}
 
 export function loadBaiduMapScript(ak: string): Promise<void> {
   if ((window as any).BMap) {

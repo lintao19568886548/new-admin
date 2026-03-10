@@ -1,0 +1,9 @@
+model SystemKey {
+  keyId      Int       @id @default(autoincrement()) @map("key_id")
+  key        String    @unique @db.VarChar(100)
+  value      Json
+  createTime DateTime  @default(now()) @map("create_time")
+  updateTime DateTime? @updatedAt @map("update_time")
+
+  @@map("key")
+}
