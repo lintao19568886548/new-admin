@@ -28,7 +28,10 @@ import {
   getAnalyticsTotal,
   getAnalyticsTrend,
 } from '#/api/analytics';
-import { getPendingReimbursementCount } from '#/api/reimbursement';
+import {
+  getPendingReimbursementCount,
+  getReimbursementList,
+} from '#/api/reimbursement';
 
 // 导入重构后的业务组件
 import {
@@ -67,10 +70,38 @@ const trendData = ref({});
 const monthCompareData = ref({});
 const totalData = ref({});
 const parkElectricityData = ref([]);
+const REIMBURSEMENT_NOTIFY_THRESHOLD = 50_000;
+const REIMBURSEMENT_PENDING_PAGE_SIZE = 200;
 
 // 求和辅助函数
 const sumData = (data: number[] = []) =>
   data.reduce((sum, curr) => sum + Number(curr), 0);
+
+async function getOverThresholdPendingCount() {
+  const first = await getReimbursementList({
+    pageNo: 1,
+    pageSize: REIMBURSEMENT_PENDING_PAGE_SIZE,
+    status: 0,
+  });
+  let count = (first.items || []).filter(
+    (it: any) => Number(it.amount) > REIMBURSEMENT_NOTIFY_THRESHOLD,
+  ).length;
+
+  const total = first.total || 0;
+  const pages = Math.ceil(total / REIMBURSEMENT_PENDING_PAGE_SIZE);
+  for (let page = 2; page <= pages; page++) {
+    const next = await getReimbursementList({
+      pageNo: page,
+      pageSize: REIMBURSEMENT_PENDING_PAGE_SIZE,
+      status: 0,
+    });
+    count += (next.items || []).filter(
+      (it: any) => Number(it.amount) > REIMBURSEMENT_NOTIFY_THRESHOLD,
+    ).length;
+  }
+
+  return count;
+}
 
 // 获取数据
 onMounted(async () => {
@@ -103,7 +134,14 @@ onMounted(async () => {
     // 检查用户是否有报销审核权限
     if ((userStore.userInfo?.reimbursementAuth || 0) > 0) {
       const pending = await getPendingReimbursementCount();
-      const notifyCount = pending.count || 0;
+      const rates = userStore.userInfo?.rates;
+      const hasUnlimitedRates =
+        rates === null || rates === undefined || rates < 0;
+      let notifyCount = pending.count || 0;
+      if (hasUnlimitedRates && notifyCount > 0) {
+        notifyCount = await getOverThresholdPendingCount();
+      }
+
       if (notifyCount > 0) {
         notification.info({
           btn: h(
@@ -124,7 +162,9 @@ onMounted(async () => {
             },
             '去处理',
           ),
-          description: `您有 ${notifyCount} 条报销申请待处理`,
+          description: hasUnlimitedRates
+            ? `您有 ${notifyCount} 条金额>${REIMBURSEMENT_NOTIFY_THRESHOLD}的报销申请待处理`
+            : `您有 ${notifyCount} 条报销申请待处理`,
           duration: null,
           key: 'reimbursement-notification',
           message: '待办提醒',
