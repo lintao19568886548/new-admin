@@ -5,13 +5,28 @@ import { useRoute } from 'vue-router';
 import { AuthPageLayout } from '@vben/layouts';
 import { preferences } from '@vben/preferences';
 
+import { usePlatform } from '#/hooks/usePlatform';
 import { $t } from '#/locales';
 
 const route = useRoute();
+const { isNativePlatform } = usePlatform();
 
 const appName = computed(() => preferences.app.name);
 const logo = computed(() => preferences.logo.source);
-const showLayoutCopyright = computed(() => route.name !== 'Login');
+const showLayoutCopyright = computed(() => {
+  const isSmallScreen = window.innerWidth < 768;
+  const routeName = route.name;
+
+  if (routeName === 'Login') {
+    return false;
+  }
+
+  if (routeName === 'CodeLogin' && (isNativePlatform.value || isSmallScreen)) {
+    return false;
+  }
+
+  return true;
+});
 </script>
 
 <template>
