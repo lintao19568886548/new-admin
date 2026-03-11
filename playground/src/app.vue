@@ -1,14 +1,16 @@
 <script lang="ts" setup>
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, onUnmounted, watch } from 'vue';
 
 import { useAntdDesignTokens } from '@vben/hooks';
 import { preferences, usePreferences } from '@vben/preferences';
 
+import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { App, ConfigProvider, message, theme } from 'ant-design-vue';
 
 import { antdLocale } from '#/locales';
+import { router } from '#/router';
 
 import PrivacyPolicyModal from './components/PrivacyPolicyModal.vue';
 
@@ -16,6 +18,9 @@ defineOptions({ name: 'App' });
 
 const { isDark } = usePreferences();
 const { tokens } = useAntdDesignTokens();
+let appUrlOpenListener: null | { remove: () => Promise<void> } = null;
+const ALLOWED_DEEP_LINK_PATHS = new Set(['/home']);
+const DEFAULT_DEEP_LINK_PATH = '/home';
 
 async function syncStatusBarStyle() {
   if (!Capacitor.isNativePlatform()) {
@@ -46,6 +51,65 @@ const tokenTheme = computed(() => {
   };
 });
 
+function resolveDeepLinkTarget(rawUrl: string) {
+  try {
+    const parsed = new URL(rawUrl);
+    const isHttpLink =
+      parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    const fullPath = isHttpLink
+      ? parsed.pathname
+      : `${parsed.host ? `/${parsed.host}` : ''}${parsed.pathname}`;
+
+    const normalizeAndWhitelist = (inputPath: string) => {
+      const normalizedInput = inputPath.startsWith('/')
+        ? inputPath
+        : `/${inputPath}`;
+
+      try {
+        const normalizedUrl = new URL(
+          normalizedInput,
+          'https://deep-link.local',
+        );
+        const { hash, pathname, search } = normalizedUrl;
+        if (!ALLOWED_DEEP_LINK_PATHS.has(pathname)) {
+          return DEFAULT_DEEP_LINK_PATH;
+        }
+        return `${pathname}${search}${hash}`;
+      } catch (error) {
+        console.warn('规范化深链目标失败:', error);
+        return DEFAULT_DEEP_LINK_PATH;
+      }
+    };
+
+    if (fullPath.startsWith('/ul/')) {
+      const target = parsed.searchParams.get('target');
+      if (target) {
+        return normalizeAndWhitelist(target);
+      }
+      return DEFAULT_DEEP_LINK_PATH;
+    }
+
+    return normalizeAndWhitelist(`${fullPath}${parsed.search}${parsed.hash}`);
+  } catch (error) {
+    console.warn('解析深链失败:', error);
+    return DEFAULT_DEEP_LINK_PATH;
+  }
+}
+
+async function handleDeepLink(rawUrl: string) {
+  const targetPath = resolveDeepLinkTarget(rawUrl);
+  if (!targetPath) {
+    return;
+  }
+  await router.isReady();
+  if (router.currentRoute.value.fullPath === targetPath) {
+    return;
+  }
+  await router.push(targetPath).catch((error) => {
+    console.warn('深链路由跳转失败:', error);
+  });
+}
+
 /**
  * @function configureStatusBar
  * @description 配置原生状态栏。 (此函数将被移除)
@@ -74,6 +138,18 @@ onMounted(async () => {
     try {
       await StatusBar.setOverlaysWebView({ overlay: false });
       await syncStatusBarStyle();
+
+      appUrlOpenListener = await CapacitorApp.addListener(
+        'appUrlOpen',
+        ({ url }) => {
+          void handleDeepLink(url);
+        },
+      );
+
+      const launchUrl = await CapacitorApp.getLaunchUrl();
+      if (launchUrl?.url) {
+        void handleDeepLink(launchUrl.url);
+      }
     } catch (error) {
       console.warn('设置状态栏覆盖模式失败:', error);
     }
@@ -82,6 +158,13 @@ onMounted(async () => {
   message.config({
     top: 'calc(var(--app-safe-area-top) + 8px)',
   });
+});
+
+onUnmounted(() => {
+  if (appUrlOpenListener) {
+    void appUrlOpenListener.remove();
+    appUrlOpenListener = null;
+  }
 });
 
 watch(isDark, () => {
