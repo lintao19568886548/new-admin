@@ -56,7 +56,7 @@
     "generate:ios:ipa:development": "pnpm run generate:ios:archive:development && cd playground/ios/App && xcodebuild -exportArchive -archivePath build/App-dev.xcarchive -exportOptionsPlist ExportOptions.development.plist -exportPath build/dev -allowProvisioningUpdates",
     "generate:ios:archive:release": "cd playground/ios/App && xcodebuild -project App.xcodeproj -scheme App -configuration Release -sdk iphoneos -archivePath build/App.xcarchive archive",
     "generate:ios:ipa:release": "pnpm run generate:ios:archive:release && cd playground/ios/App && xcodebuild -exportArchive -archivePath build/App.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build",
-    "get:commits": "pwsh -ExecutionPolicy Bypass -File scripts/get-commits.ps1",
+    "get:commits": "node ./scripts/get-commits.mjs",
     "lint": "vsh lint",
     "postinstall": "pnpm -r run stub --if-present",
     "preinstall": "npx only-allow pnpm",
