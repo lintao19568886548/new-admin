@@ -18,6 +18,7 @@ import { message } from 'ant-design-vue';
 import { useAuthStore } from '#/store';
 
 import { refreshTokenApi } from './core';
+import { createRetryResponseBridge } from './request-retry-bridge';
 
 const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
 
@@ -26,6 +27,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     ...options,
     baseURL,
   });
+  const retryResponseBridge = createRetryResponseBridge();
 
   const errorMessageLastShownAt = new Map<string, number>();
   const showErrorMessageDedup = (
@@ -89,8 +91,14 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
 
       config.headers.Authorization = formatToken(accessStore.accessToken);
       config.headers['Accept-Language'] = preferences.app.locale;
+      retryResponseBridge.attachRequestId(config);
       return config;
     },
+  });
+
+  // 记录 refresh 重试成功响应，供后续链路返回值漂移时兜底
+  client.addResponseInterceptor({
+    fulfilled: (response) => retryResponseBridge.captureRetryResponse(response),
   });
 
   // 处理返回的响应数据格式
@@ -112,6 +120,12 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       formatToken,
     }),
   );
+
+  // 某些场景下 refresh 重试后 fulfilled 值会漂移为 AxiosRequestConfig，这里统一还原成业务 payload
+  client.addResponseInterceptor({
+    fulfilled: (payload: any): any =>
+      retryResponseBridge.restoreRetryPayload(payload),
+  });
 
   // 通用的错误处理,如果没有进入上面的错误处理逻辑，就会进入这里
   client.addResponseInterceptor(
