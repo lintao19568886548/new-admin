@@ -24,6 +24,9 @@ const open = defineModel<boolean>('open');
 
 const [Modal, modalApi] = useVbenModal();
 
+const POPUP_Z_INDEX_FALLBACK = 2000;
+const LOGIN_EXPIRED_MODAL_Z_INDEX_OFFSET = 10;
+
 watch(
   () => open.value,
   (val) => {
@@ -32,23 +35,24 @@ watch(
 );
 
 const getZIndex = computed(() => {
-  return props.zIndex || calcZIndex();
+  if (props.zIndex > 0) {
+    return props.zIndex;
+  }
+  return resolvePopupBaseZIndex() + LOGIN_EXPIRED_MODAL_Z_INDEX_OFFSET;
 });
 
-/**
- * 获取最大的zIndex值
- */
-function calcZIndex() {
-  let maxZ = 0;
-  const elements = document.querySelectorAll('*');
-  [...elements].forEach((element) => {
-    const style = window.getComputedStyle(element);
-    const zIndex = style.getPropertyValue('z-index');
-    if (zIndex && !Number.isNaN(Number.parseInt(zIndex))) {
-      maxZ = Math.max(maxZ, Number.parseInt(zIndex));
-    }
-  });
-  return maxZ + 1;
+function resolvePopupBaseZIndex() {
+  if (typeof window === 'undefined') {
+    return POPUP_Z_INDEX_FALLBACK;
+  }
+  const popupZIndex = Number.parseInt(
+    window
+      .getComputedStyle(document.documentElement)
+      .getPropertyValue('--popup-z-index')
+      .trim(),
+    10,
+  );
+  return Number.isNaN(popupZIndex) ? POPUP_Z_INDEX_FALLBACK : popupZIndex;
 }
 </script>
 

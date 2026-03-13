@@ -55,6 +55,8 @@ const emit = defineEmits<{
 const REMEMBER_ME_KEY_PREFIX = 'REMEMBER_ME_USERNAME_';
 const PRIVACY_POLICY_MODAL_MAX_HEIGHT = 'max-h-96';
 const PRIVACY_POLICY_MODAL_MAX_WIDTH = 'max-w-4xl';
+const POPUP_Z_INDEX_FALLBACK = 2000;
+const AUTH_TIP_MODAL_Z_INDEX_OFFSET = 20;
 
 const [Form, formApi] = useVbenForm(
   reactive({
@@ -78,6 +80,23 @@ const showAgreeError = ref(false);
 const showPrivacyModal = ref(false);
 const showServiceAgreementModal = ref(false);
 const showAgreementRequiredModal = ref(false);
+
+const authTipModalZIndex = computed(() => {
+  if (typeof window === 'undefined') {
+    return POPUP_Z_INDEX_FALLBACK + AUTH_TIP_MODAL_Z_INDEX_OFFSET;
+  }
+  const popupZIndex = Number.parseInt(
+    window
+      .getComputedStyle(document.documentElement)
+      .getPropertyValue('--popup-z-index')
+      .trim(),
+    10,
+  );
+  const baseZIndex = Number.isNaN(popupZIndex)
+    ? POPUP_Z_INDEX_FALLBACK
+    : popupZIndex;
+  return baseZIndex + AUTH_TIP_MODAL_Z_INDEX_OFFSET;
+});
 
 // 计算属性：获取本地存储的用户名
 const localUsername = computed(() => {
@@ -775,6 +794,8 @@ defineExpose({
     <VbenModal
       v-model:open="showPrivacyModal"
       :title="$t('authentication.privacyPolicy', '隐私协议')"
+      :z-index="authTipModalZIndex"
+      :mobile-fullscreen="false"
       class="mobile-small-modal"
       :class="PRIVACY_POLICY_MODAL_MAX_WIDTH"
       :bordered="true"
@@ -802,6 +823,8 @@ defineExpose({
     <VbenModal
       v-model:open="showServiceAgreementModal"
       :title="$t('服务协议')"
+      :z-index="authTipModalZIndex"
+      :mobile-fullscreen="false"
       class="mobile-small-modal"
       :class="PRIVACY_POLICY_MODAL_MAX_WIDTH"
       :bordered="true"
@@ -829,15 +852,17 @@ defineExpose({
     <VbenModal
       v-model:open="showAgreementRequiredModal"
       :title="$t('authentication.agreementRequired', '温馨提示')"
-      class="mobile-small-modal"
+      :z-index="authTipModalZIndex"
+      :mobile-fullscreen="false"
+      class="mobile-small-modal mobile-agreement-required-modal"
       :bordered="true"
       :centered="true"
       header-class="bg-card text-foreground px-5 py-3"
-      content-class="bg-card text-foreground p-4"
+      content-class="bg-card text-foreground p-3 min-h-0 flex-none"
       :closable="false"
     >
-      <div class="p-4 text-center">
-        <p class="mb-4 text-base">
+      <div class="p-3 text-center">
+        <p class="mb-3 text-sm leading-6">
           {{
             $t(
               'authentication.agreementRequiredMessage',
@@ -845,7 +870,7 @@ defineExpose({
             )
           }}
         </p>
-        <p class="mb-2">
+        <p class="mb-1 text-sm">
           <span
             class="vben-link cursor-pointer font-medium"
             @click.stop.prevent="showServiceAgreementFromTip"
@@ -862,7 +887,7 @@ defineExpose({
         </p>
       </div>
       <template #footer>
-        <div class="flex w-full justify-center space-x-3">
+        <div class="flex w-full flex-wrap justify-center gap-3">
           <VbenButton variant="outline" @click="closeAgreementRequiredModal">
             取消
           </VbenButton>
@@ -896,18 +921,18 @@ defineExpose({
 <style>
 @media (max-width: 768px) {
   .mobile-small-modal {
-    inset: 0 !important;
     width: 90vw !important;
     max-width: 400px !important;
     height: auto !important;
-    max-height: 70vh !important;
-    margin: auto !important;
+    max-height: calc(
+      100dvh - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0) -
+        24px
+    ) !important;
     color: hsl(var(--card-foreground));
     background-color: hsl(var(--card));
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
     box-shadow: 0 8px 24px rgb(0 0 0 / 8%);
-    transform: none !important;
   }
 
   .mobile-small-modal .ant-modal-content,
@@ -936,6 +961,49 @@ defineExpose({
     min-height: 40px !important;
     padding: 8px 16px !important;
     font-size: 14px !important;
+  }
+
+  .mobile-agreement-required-modal {
+    width: calc(
+      100vw - env(safe-area-inset-left, 0) - env(safe-area-inset-right, 0) -
+        40px
+    ) !important;
+    max-width: 420px !important;
+    height: auto !important;
+    max-height: calc(
+      100dvh - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0) -
+        56px
+    ) !important;
+  }
+
+  .mobile-agreement-required-modal .ant-modal-content,
+  .mobile-agreement-required-modal [data-slot='content'] {
+    max-height: inherit !important;
+    overflow: hidden !important;
+  }
+
+  .mobile-agreement-required-modal .ant-modal-body,
+  .mobile-agreement-required-modal [data-slot='body'] {
+    padding: 12px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-agreement-required-modal .ant-modal-header,
+  .mobile-agreement-required-modal [data-slot='header'] {
+    padding: 10px 14px !important;
+    font-size: 15px !important;
+  }
+
+  .mobile-agreement-required-modal .ant-modal-footer,
+  .mobile-agreement-required-modal [data-slot='footer'] {
+    padding: 10px 12px !important;
+  }
+
+  .mobile-agreement-required-modal button {
+    min-height: 36px !important;
+    padding: 6px 12px !important;
+    font-size: 13px !important;
   }
 }
 

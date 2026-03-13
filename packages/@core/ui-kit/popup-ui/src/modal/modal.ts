@@ -93,6 +93,11 @@ export interface ModalProps {
    */
   loading?: boolean;
   /**
+   * 移动端是否强制全屏
+   * @default true
+   */
+  mobileFullscreen?: boolean;
+  /**
    * 是否显示遮罩
    * @default true
    */

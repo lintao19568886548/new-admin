@@ -75,6 +75,7 @@ const {
   header,
   headerClass,
   loading: showLoading,
+  mobileFullscreen,
   modal,
   openAutoFocus,
   overlayBlur,
@@ -87,7 +88,9 @@ const {
 } = usePriorityValues(props, state);
 
 const shouldFullscreen = computed(
-  () => (fullscreen.value && header.value) || isMobile.value,
+  () =>
+    (fullscreen.value && header.value) ||
+    (mobileFullscreen.value && isMobile.value),
 );
 
 const shouldDraggable = computed(

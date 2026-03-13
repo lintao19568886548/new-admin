@@ -53,6 +53,7 @@ export class ModalApi {
       headerClass: '',
       isOpen: false,
       loading: false,
+      mobileFullscreen: true,
       modal: true,
       openAutoFocus: false,
       showCancelButton: true,
