@@ -51,6 +51,16 @@ const routes: RouteRecordRaw[] = [
           title: '首页',
         },
       },
+      {
+        name: 'Workbench',
+        path: '/workbench',
+        component: () => import('#/views/dashboard/workbench/index.vue'),
+        meta: {
+          hideMenu: true,
+          icon: 'carbon:workspace',
+          title: $t('page.dashboard.workspace'),
+        },
+      },
     ],
   },
 ];

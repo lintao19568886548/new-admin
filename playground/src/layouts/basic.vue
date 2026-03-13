@@ -238,6 +238,7 @@ const activeTab = computed(() => router.currentRoute.value.path);
 
 const tabs = [
   { icon: IconDefault, path: '/home', title: '首页' },
+  { icon: 'lucide:layout-grid', path: '/workbench', title: '工作台' },
   // { icon: SwatchBook, path: '/analytics', title: '列表' },
   { icon: UserRoundPen, path: '/profile', title: '我的' },
 ];
@@ -367,7 +368,7 @@ function goBack() {
               class="app-tab-item"
               @click="goTo(tab.path)"
             >
-              <VbenIcon :icon="tab.icon" class="mb-1" />
+              <VbenIcon :icon="tab.icon" class="app-tab-icon mb-1" />
               {{ tab.title }}
             </div>
           </div>
@@ -480,6 +481,11 @@ function goBack() {
   color: #64748b;
   cursor: pointer;
   transition: all 0.2s ease-in-out;
+}
+
+.app-tab-icon {
+  font-size: 20px;
+  line-height: 1;
 }
 
 .app-tab-item:hover {
