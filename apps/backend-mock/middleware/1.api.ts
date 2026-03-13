@@ -9,7 +9,11 @@ export default defineEventHandler(async (event) => {
   );
   const path = event.path;
   const isApiRequest = path.startsWith('/api/');
-  const isPublicApi = ['/api/auth'].some((p) => path.startsWith(p));
+  const isPublicVisitorRegisterApi =
+    event.method === 'POST' &&
+    ['/api/access/visitor', '/api/access/visitor/register'].includes(path);
+  const isPublicApi =
+    ['/api/auth'].some((p) => path.startsWith(p)) || isPublicVisitorRegisterApi;
 
   event.node.res.setHeader(
     'Access-Control-Allow-Origin',
