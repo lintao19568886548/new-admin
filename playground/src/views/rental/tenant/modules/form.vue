@@ -82,7 +82,7 @@ async function handleUploadLlm(info: any) {
     const dataUrl = await fileToDataUrl(info.file.originFileObj);
     await analyzeAndFill([dataUrl]);
   } catch (error) {
-    console.error('上传后自动识别失败:', error);
+    console.error('上传后自动识别失�?', error);
   }
 }
 
@@ -191,11 +191,14 @@ async function analyzeAndFill(dataUrls: string[]) {
     }
   } catch (error: any) {
     console.error('图片识别失败:', error);
-    message.error(
-      error?.message?.includes('ALIYUN_BAILIAN_KEY')
-        ? '请先配置 ALIYUN_BAILIAN_KEY'
-        : '图片识别失败，请稍后重试',
-    );
+    const errorMessage = String(error?.message || error?.error || '');
+    let errorTip = '图片识别失败，请稍后重试';
+    if (errorMessage.includes('ALIYUN_BAILIAN_KEY')) {
+      errorTip = '请先配置 ALIYUN_BAILIAN_KEY';
+    } else if (errorMessage.toLowerCase().includes('timeout')) {
+      errorTip = '图片识别超时，请稍后重试';
+    }
+    message.error(errorTip);
   } finally {
     llmLoading.value = false;
   }
@@ -323,12 +326,12 @@ const [Modal, modalApi] = useVbenModal({
 
     // 处理日期格式，确保使用本地时间
     if (values.contractDate) {
-      values.contractStart = new Date(values.contractDate[0]).toISOString(); // 转换为ISO字符串，确保正确的时间格式
-      values.contractEnd = new Date(values.contractDate[1]).toISOString(); // 转换为ISO字符串，确保正确的时间格式
+      values.contractStart = new Date(values.contractDate[0]).toISOString();
+      values.contractEnd = new Date(values.contractDate[1]).toISOString();
       delete values.contractDate;
     }
     if (values.increaseData) {
-      // 确保increaseData是数组
+      // 确保 increaseData 是数组
       if (Array.isArray(values.increaseData)) {
         const increaseData = [];
         for (const item of values.increaseData) {
@@ -341,11 +344,11 @@ const [Modal, modalApi] = useVbenModal({
         }
         values.increaseData = JSON.stringify(increaseData);
       } else {
-        // 如果不是数组，设置为空数组的JSON字符串
+        // 如果不是数组，设置为空数组的 JSON 字符串
         values.increaseData = '[]';
       }
     } else {
-      // 如果不存在，设置为空数组的JSON字符串
+      // 如果不存在，设置为空数组的 JSON 字符串
       values.increaseData = '[]';
     }
 

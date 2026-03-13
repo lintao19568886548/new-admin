@@ -1,31 +1,12 @@
 import type { DefineApplicationOptions } from '@vben/vite-config/src/typing';
 
-import process from 'node:process';
-
 import { defineConfig } from '@vben/vite-config';
 
-import { loadEnv } from 'vite';
-
-const createConfig: DefineApplicationOptions = async (configEnv) => {
-  const mode =
-    configEnv?.mode ??
-    process.env.MODE ??
-    process.env.NODE_ENV ??
-    'development';
-  const mergedEnv = {
-    ...loadEnv(mode, process.cwd(), ''),
-    ...loadEnv('llmkey', process.cwd(), ''),
-  };
-  const aliyunKey =
-    mergedEnv.ALIYUN_BAILIAN_KEY ?? process.env.ALIYUN_BAILIAN_KEY ?? '';
-
+const createConfig: DefineApplicationOptions = async () => {
   return {
     application: {},
     vite: {
-      define: {
-        'import.meta.env.ALIYUN_BAILIAN_KEY': JSON.stringify(aliyunKey),
-      },
-      envPrefix: ['VITE_', 'ALIYUN_'],
+      envPrefix: ['VITE_'],
       server: {
         proxy: {
           '/api': {

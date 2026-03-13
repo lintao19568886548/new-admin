@@ -203,7 +203,7 @@ async function open(data: AmountBill, options?: { isNextMonth?: boolean }) {
   } else {
     Object.assign(billData, {
       ...data,
-      receiptTime: dayjs().toISOString(), // 确保新账单有默认日期
+      receiptTime: data.receiptTime || dayjs().toISOString(), // 新账单默认日期，优先使用传入值
     });
   }
   isSheetReady.value = true;

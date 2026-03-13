@@ -15,6 +15,7 @@ import { Page } from '@vben/common-ui';
 import { Download, Plus } from '@vben/icons';
 
 import {
+  Upload as AUpload,
   Button,
   Checkbox,
   DatePicker,
@@ -39,6 +40,7 @@ import {
   useGridFormSchema,
   waterFormConfig,
 } from './data';
+import { analyzeAmountBillExcel, mapLlmResultToAmountBill } from './llm';
 import MultipageBillForm from './modules/MultipageBillForm.vue';
 
 onMounted(async () => {
@@ -95,6 +97,62 @@ function onCreate() {
     waterFee: 0,
   };
   billFormRef.value?.open(newBill);
+}
+
+const aiImportLoading = ref(false);
+
+async function handleAiImportBeforeUpload(file: File) {
+  const fileName = String(file?.name || '');
+  if (!/\.(?:xlsx|xlsm|xls)$/i.test(fileName)) {
+    message.warning('仅支持上传 Excel 文件（.xlsx/.xlsm/.xls）');
+    return false;
+  }
+  if (aiImportLoading.value) {
+    return false;
+  }
+
+  aiImportLoading.value = true;
+  message.loading({
+    content: '正在解析并识别Excel内容...',
+    duration: 0,
+    key: 'bill_ai_import',
+  });
+
+  try {
+    const llmResult = await analyzeAmountBillExcel(file);
+    if (!llmResult) {
+      message.warning({
+        content: '未识别到可填充的账单字段',
+        key: 'bill_ai_import',
+      });
+      return false;
+    }
+
+    const mapped = mapLlmResultToAmountBill(llmResult, options.value as any);
+    billFormRef.value?.open(mapped);
+
+    message.success({
+      content: '已完成字段提取，并填充到账单表单',
+      key: 'bill_ai_import',
+    });
+  } catch (error: any) {
+    console.error('AI导入账单失败:', error);
+    const errorMessage = String(error?.message || error?.error || '');
+    let errorTip = 'AI导入失败，请检查 Excel 内容后重试';
+    if (errorMessage.includes('ALIYUN_BAILIAN_KEY')) {
+      errorTip = '请先配置 ALIYUN_BAILIAN_KEY';
+    } else if (errorMessage.toLowerCase().includes('timeout')) {
+      errorTip = 'AI导入超时，请稍后重试（可尝试缩小 Excel 内容）';
+    }
+    message.error({
+      content: errorTip,
+      key: 'bill_ai_import',
+    });
+  } finally {
+    aiImportLoading.value = false;
+  }
+
+  return false;
 }
 
 /**
@@ -495,6 +553,15 @@ function handlePrintCancel() {
         />
       </template>
       <template #toolbar-tools>
+        <AUpload
+          :before-upload="handleAiImportBeforeUpload"
+          :show-upload-list="false"
+          accept=".xlsx,.xlsm,.xls"
+        >
+          <Button :loading="aiImportLoading" style="margin-right: 10px">
+            AI导入Excel
+          </Button>
+        </AUpload>
         <Button type="primary" @click="onCreate" style="margin-right: 10px">
           <Plus class="size-5" />
           {{ $t('ui.actionTitle.create', ['总账单']) }}
