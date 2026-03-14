@@ -13,6 +13,7 @@
     "migrate:deploy": "pnpm run migrate:check-safe && pnpm exec prisma migrate deploy",
     "migrate:dev": "pnpm exec prisma migrate dev",
     "push": "pnpm run prisma:push",
+    "push:multi": "node ./scripts/prisma-push-multi.mjs",
     "push:notices": "pnpm run prisma:push:notices",
     "prisma:generate": "pnpm exec prisma generate && pnpm run prisma:generate:center && pnpm run prisma:generate:notices",
     "prisma:generate:center": "pnpm exec cross-env PRISMA_TARGET=center prisma generate",
