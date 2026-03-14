@@ -3,6 +3,7 @@ import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   badRequestResponse,
+  forbiddenResponse,
   unAuthorizedResponse,
   useResponseError,
   useResponseSuccess,
@@ -15,6 +16,8 @@ type KeyJsonValue =
   | number
   | string
   | { [key: string]: KeyJsonValue };
+
+const INTERNAL_ONLY_KEYS = new Set(['ALIYUN_BAILIAN_KEY']);
 
 function normalizeKeyValue(raw: unknown): KeyJsonValue {
   if (raw === undefined || raw === null) {
@@ -52,6 +55,10 @@ export default eventHandler(async (event) => {
 
   if (!keyName) {
     return badRequestResponse('参数 key 不能为空', event);
+  }
+
+  if (INTERNAL_ONLY_KEYS.has(keyName)) {
+    return forbiddenResponse(event, `key is internal only: ${keyName}`);
   }
 
   const record = await prismaClient.systemKey.findUnique({

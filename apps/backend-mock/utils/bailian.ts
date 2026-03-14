@@ -1,7 +1,10 @@
 import axios from 'axios';
+import { prismaClient, prismaScopeStorage } from '~/utils/db';
 
 const BAILIAN_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 const DEFAULT_MODEL = 'qwen3.5-plus';
+const BAILIAN_KEY_NAME = 'ALIYUN_BAILIAN_KEY';
+const BAILIAN_KEY_CACHE_TTL_MS = 60_000;
 
 type BailianMessageContentPart =
   | {
@@ -25,11 +28,66 @@ interface RequestBailianChatOptions {
   temperature?: number;
 }
 
-function ensureBailianApiKey() {
-  const key = process.env.ALIYUN_BAILIAN_KEY;
+const bailianApiKeyCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    value: string;
+  }
+>();
+
+function getCurrentCustomerIdForCache() {
+  return String(
+    prismaScopeStorage.getStore()?.customerId ||
+      process.env.DEFAULT_CUSTOMER_ID ||
+      'default',
+  );
+}
+
+function normalizeBailianKey(raw: unknown): string {
+  if (typeof raw === 'string') {
+    return raw.trim();
+  }
+
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (typeof item !== 'string') {
+        continue;
+      }
+      const key = item.trim();
+      if (key) {
+        return key;
+      }
+    }
+  }
+
+  return '';
+}
+
+async function ensureBailianApiKey() {
+  const now = Date.now();
+  const customerId = getCurrentCustomerIdForCache();
+  const cached = bailianApiKeyCache.get(customerId);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+
+  const record = await prismaClient.systemKey.findUnique({
+    where: {
+      key: BAILIAN_KEY_NAME,
+    },
+  });
+
+  const key = normalizeBailianKey(record?.value);
   if (!key) {
     throw new Error('ALIYUN_BAILIAN_KEY 未配置');
   }
+
+  bailianApiKeyCache.set(customerId, {
+    expiresAt: now + BAILIAN_KEY_CACHE_TTL_MS,
+    value: key,
+  });
+
   return key;
 }
 
@@ -39,7 +97,7 @@ export async function requestBailianChat({
   model = DEFAULT_MODEL,
   temperature = 0,
 }: RequestBailianChatOptions) {
-  const apiKey = ensureBailianApiKey();
+  const apiKey = await ensureBailianApiKey();
   const response = await axios.post(
     `${BAILIAN_BASE_URL}/chat/completions`,
     {
