@@ -3,11 +3,12 @@ import type { Dayjs } from 'dayjs';
 
 import type { VisitorItem } from './types';
 
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 import { Search } from '@vben/icons';
 
+import { PlusOutlined } from '@ant-design/icons-vue';
 import {
   Button,
   Card,
@@ -28,7 +29,6 @@ import { deleteVisitor, getVisitorList } from '#/api/access/visitor';
 import { getParkList as fetchParks } from '#/api/park';
 import MobileDateRange from '#/components/MobileDateRange.vue';
 import { $t } from '#/locales';
-import { useLayoutStore } from '#/store/layout';
 
 import { VISITOR_STATUS_OPTIONS, VISITOR_STATUS_TAGS } from './data';
 import VisitorForm from './modules/form.vue';
@@ -55,8 +55,6 @@ const pagination = reactive({
   pageSize: 10,
   total: 0,
 });
-
-const layoutStore = useLayoutStore();
 
 /**
  * 清理和处理表单参数
@@ -225,17 +223,6 @@ async function fetchParkOptions() {
 onMounted(() => {
   fetchList();
   fetchParkOptions();
-  layoutStore.setHeaderActions([
-    {
-      key: 'add-visitor',
-      onClick: () => onCreate(),
-      text: $t('page.common.add'),
-    },
-  ]);
-});
-
-onUnmounted(() => {
-  layoutStore.clearHeaderActions();
 });
 
 const listIsEmpty = computed(
@@ -368,6 +355,21 @@ const listIsEmpty = computed(
         :description="$t('page.finance.noData')"
       />
     </Spin>
+    <Teleport to="body">
+      <div
+        class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom)+3.25rem)] right-4 z-[1000] flex flex-col gap-3"
+      >
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          @click="onCreate"
+          class="!inline-flex !h-14 !w-14 items-center justify-center !p-0 shadow-md transition-transform duration-200 hover:-translate-y-0.5"
+        >
+          <PlusOutlined class="text-xl" />
+        </Button>
+      </div>
+    </Teleport>
   </div>
 </template>
 

@@ -470,7 +470,6 @@ onMounted(() => {
 <template>
   <div class="mobile-reimbursement-form-container">
     <div class="form-wrapper">
-      <h2 class="form-title">{{ $t('移动端报销申请') }}</h2>
       <Form
         :ref="(el) => (formRef = el)"
         :model="formState"
@@ -733,13 +732,6 @@ onMounted(() => {
   padding: 16px;
   background-color: #fff;
   border-radius: 8px;
-}
-
-.form-title {
-  margin-bottom: 16px;
-  font-size: 18px;
-  font-weight: 600;
-  text-align: center;
 }
 
 .reimbursement-form .ant-form-item {

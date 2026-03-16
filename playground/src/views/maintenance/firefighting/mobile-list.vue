@@ -3,12 +3,13 @@ import type { Dayjs } from 'dayjs';
 
 import type { Firefighting } from '#/api/maintenance';
 
-import { onMounted, onUnmounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 import { Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
+import { PlusOutlined } from '@ant-design/icons-vue';
 import {
   Button,
   Empty,
@@ -26,7 +27,6 @@ import { deleteFirefighting, getFirefightingList } from '#/api/maintenance';
 import { getParkList as fetchParks } from '#/api/park';
 import MobileDateRange from '#/components/MobileDateRange.vue';
 import { $t } from '#/locales';
-import { useLayoutStore } from '#/store/layout';
 
 import FormComponent from './modules/form.vue';
 
@@ -77,8 +77,6 @@ const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: FormComponent,
   destroyOnClose: true,
 });
-
-const layoutStore = useLayoutStore();
 
 function getParkName(record: Firefighting) {
   const currentPark = (record as any)?.currentPark;
@@ -211,17 +209,6 @@ function onDelete(record: Firefighting) {
 onMounted(() => {
   fetchParkOptions();
   fetchData();
-  layoutStore.setHeaderActions([
-    {
-      key: 'add-firefighting',
-      onClick: () => onCreate(),
-      text: $t('page.common.add'),
-    },
-  ]);
-});
-
-onUnmounted(() => {
-  layoutStore.clearHeaderActions();
 });
 </script>
 
@@ -359,6 +346,21 @@ onUnmounted(() => {
         <Empty v-else :description="loading ? '加载中...' : '暂无记录'" />
       </Spin>
     </div>
+    <Teleport to="body">
+      <div
+        class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom)+3.25rem)] right-4 z-[1000] flex flex-col gap-3"
+      >
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          @click="onCreate"
+          class="!inline-flex !h-14 !w-14 items-center justify-center !p-0 shadow-md transition-transform duration-200 hover:-translate-y-0.5"
+        >
+          <PlusOutlined class="text-xl" />
+        </Button>
+      </div>
+    </Teleport>
   </div>
 </template>
 

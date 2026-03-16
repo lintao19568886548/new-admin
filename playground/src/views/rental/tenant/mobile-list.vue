@@ -10,6 +10,7 @@ import {
   DeleteOutlined,
   EditOutlined,
   MessageOutlined,
+  PlusOutlined,
 } from '@ant-design/icons-vue';
 import {
   Button,
@@ -316,11 +317,6 @@ onMounted(() => {
       onClick: onBulkSendSms,
       text: '批量短信',
     },
-    {
-      key: 'create-tenant',
-      onClick: onCreate,
-      text: '新增',
-    },
   ]);
 });
 
@@ -502,6 +498,21 @@ onUnmounted(() => {
         </template>
       </List>
     </div>
+    <Teleport to="body">
+      <div
+        class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom)+3.25rem)] right-4 z-[1000] flex flex-col gap-3"
+      >
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          @click="onCreate"
+          class="!inline-flex !h-14 !w-14 items-center justify-center !p-0 shadow-md transition-transform duration-200 hover:-translate-y-0.5"
+        >
+          <PlusOutlined class="text-xl" />
+        </Button>
+      </div>
+    </Teleport>
   </Page>
 </template>
 

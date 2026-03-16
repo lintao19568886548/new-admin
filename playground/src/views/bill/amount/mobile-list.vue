@@ -4,11 +4,12 @@ import type { Dayjs } from 'dayjs';
 
 import type { AmountBill } from './data';
 
-import { onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { formatDateTime } from '@vben/utils';
 
+import { PlusOutlined } from '@ant-design/icons-vue';
 import {
   Button,
   Card,
@@ -33,13 +34,11 @@ import { getParkList as fetchParks } from '#/api/park';
 import MobileDateRange from '#/components/MobileDateRange.vue';
 import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { $t } from '#/locales';
-import { useLayoutStore } from '#/store/layout';
 
 import MobileAmountBillForm from './modules/MobileAmountBillForm.vue';
 
 const router = useRouter();
 const route = useRoute();
-const layoutStore = useLayoutStore();
 
 const bills = ref<AmountBill[]>([]);
 const pagination = reactive({
@@ -232,13 +231,6 @@ function initPage() {
       }));
     })
     .catch((error) => console.error(error));
-  layoutStore.setHeaderActions([
-    {
-      key: 'add-bill',
-      onClick: () => handleCreate(),
-      text: $t('common.create'),
-    },
-  ]);
 }
 
 function onVerificationSuccess() {
@@ -273,10 +265,6 @@ onMounted(() => {
 
 onActivated(() => {
   ensureVerification();
-});
-
-onUnmounted(() => {
-  layoutStore.clearHeaderActions();
 });
 
 function handleCreate() {
@@ -625,6 +613,21 @@ function resetSearch() {
         ref="mobileBillFormRef"
         @success="handleFormSuccess"
       />
+      <Teleport to="body">
+        <div
+          class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom)+3.25rem)] right-4 z-[1000] flex flex-col gap-3"
+        >
+          <Button
+            type="primary"
+            shape="circle"
+            size="large"
+            @click="handleCreate"
+            class="!inline-flex !h-14 !w-14 items-center justify-center !p-0 shadow-md transition-transform duration-200 hover:-translate-y-0.5"
+          >
+            <PlusOutlined class="text-xl" />
+          </Button>
+        </div>
+      </Teleport>
     </template>
   </div>
 </template>

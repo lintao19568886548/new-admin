@@ -2,13 +2,14 @@
 <script lang="ts" setup>
 import type { FinanceItem as BaseFinanceItem } from './types';
 
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { useVbenModal } from '@vben/common-ui';
 import { Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
+import { PlusOutlined } from '@ant-design/icons-vue';
 import {
   Button,
   Card,
@@ -32,7 +33,6 @@ import { deleteFinance, getFinanceList } from '#/api/finance';
 import { getParkList as fetchParks } from '#/api/park';
 import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { $t } from '#/locales';
-import { useLayoutStore } from '#/store/layout';
 
 import { getTagTypeOptions } from './data';
 import FormModal from './modules/form.vue';
@@ -60,7 +60,6 @@ const pagination = reactive({
 
 const loading = ref(false);
 
-const layoutStore = useLayoutStore();
 const route = useRoute();
 const router = useRouter();
 
@@ -174,14 +173,6 @@ async function fetchParkOptions() {
 function initPage() {
   fetchBillList();
   fetchParkOptions();
-  layoutStore.setHeaderActions([
-    {
-      // icon: PlusOutlined,
-      key: 'add-bill',
-      onClick: () => handleCreate(),
-      text: $t('page.common.add'),
-    },
-  ]);
 }
 
 function onVerificationSuccess() {
@@ -191,7 +182,6 @@ function onVerificationSuccess() {
 }
 
 function onCancelVerification() {
-  layoutStore.clearHeaderActions();
   if (window.history.length > 1) {
     router.back();
     return;
@@ -227,10 +217,6 @@ onMounted(() => {
   setTimeout(() => {
     verificationModalRef.value?.open();
   }, 300);
-});
-
-onUnmounted(() => {
-  layoutStore.clearHeaderActions();
 });
 
 function handlePageChange(page: number, pageSize: number) {
@@ -527,6 +513,21 @@ function getTransactionTypeClass(type: string) {
           :description="$t('page.finance.noData')"
         />
       </Spin>
+      <Teleport to="body">
+        <div
+          class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom)+3.25rem)] right-4 z-[1000] flex flex-col gap-3"
+        >
+          <Button
+            type="primary"
+            shape="circle"
+            size="large"
+            @click="handleCreate"
+            class="!inline-flex !h-14 !w-14 items-center justify-center !p-0 shadow-md transition-transform duration-200 hover:-translate-y-0.5"
+          >
+            <PlusOutlined class="text-xl" />
+          </Button>
+        </div>
+      </Teleport>
     </template>
   </div>
 </template>

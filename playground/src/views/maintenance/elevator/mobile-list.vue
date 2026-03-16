@@ -1,12 +1,13 @@
 <script lang="ts" setup>
 import type { Elevator } from '#/api/maintenance';
 
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 import { Search } from '@vben/icons';
 import { formatDate, formatDateTime } from '@vben/utils';
 
+import { PlusOutlined } from '@ant-design/icons-vue';
 import {
   Button,
   Card,
@@ -26,7 +27,6 @@ import {
 
 import { deleteElevator, getElevatorList } from '#/api/maintenance';
 import { getParkList as fetchParks } from '#/api/park';
-import { useLayoutStore } from '#/store/layout';
 
 import FormComponent from './modules/form.vue';
 
@@ -38,7 +38,6 @@ const STATUS_MAP: Record<string, { color: string; text: string }> = {
 };
 
 // Store and reactive data
-const layoutStore = useLayoutStore();
 const loading = ref(false);
 const list = ref<Elevator[]>([]);
 
@@ -165,17 +164,6 @@ const listIsEmpty = computed(() => !loading.value && list.value.length === 0);
 onMounted(() => {
   fetchData();
   fetchParkOptions();
-  layoutStore.setHeaderActions([
-    {
-      key: 'add-elevator',
-      onClick: () => onCreate(),
-      text: '添加',
-    },
-  ]);
-});
-
-onUnmounted(() => {
-  layoutStore.clearHeaderActions();
 });
 
 function refreshList() {
@@ -328,6 +316,21 @@ function refreshList() {
       </div>
       <Empty v-if="listIsEmpty" class="py-10" description="暂无记录" />
     </Spin>
+    <Teleport to="body">
+      <div
+        class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom)+3.25rem)] right-4 z-[1000] flex flex-col gap-3"
+      >
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          @click="onCreate"
+          class="!inline-flex !h-14 !w-14 items-center justify-center !p-0 shadow-md transition-transform duration-200 hover:-translate-y-0.5"
+        >
+          <PlusOutlined class="text-xl" />
+        </Button>
+      </div>
+    </Teleport>
   </div>
 </template>
 

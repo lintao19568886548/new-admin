@@ -6,9 +6,10 @@ import type { TransformerItem } from '#/api/maintenance';
 import { onMounted, reactive, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
-import { Plus, Search } from '@vben/icons';
+import { Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
+import { PlusOutlined } from '@ant-design/icons-vue';
 import {
   Button,
   Empty,
@@ -291,16 +292,21 @@ onMounted(() => {
         <Empty v-else :description="loading ? '加载中...' : '暂无记录'" />
       </Spin>
     </div>
-    <div class="fab-container">
-      <Button
-        type="primary"
-        shape="circle"
-        @click="onCreate"
-        class="fab-button"
+    <Teleport to="body">
+      <div
+        class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom)+3.25rem)] right-4 z-[1000] flex flex-col gap-3"
       >
-        <Plus class="size-6" />
-      </Button>
-    </div>
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          @click="onCreate"
+          class="!inline-flex !h-14 !w-14 items-center justify-center !p-0 shadow-md transition-transform duration-200 hover:-translate-y-0.5"
+        >
+          <PlusOutlined class="text-xl" />
+        </Button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -395,19 +401,6 @@ onMounted(() => {
 .list-pagination {
   padding: 16px 0;
   text-align: center;
-}
-
-.fab-container {
-  position: fixed;
-  right: 16px;
-  bottom: 24px;
-  z-index: 100;
-}
-
-.fab-button {
-  width: 50px;
-  height: 50px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
 }
 
 :deep(.ant-empty-description) {
