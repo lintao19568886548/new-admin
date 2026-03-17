@@ -10,7 +10,7 @@ import dayjs from 'dayjs';
 
 import { getVisitorList } from '#/api/access/visitor';
 import { getTodayRecord } from '#/api/hrm/attendance';
-import { getReimbursementList } from '#/api/reimbursement/reimbursement';
+import { getReimbursementSummary } from '#/api/reimbursement/reimbursement';
 
 interface VisitorPreview {
   name: string;
@@ -47,33 +47,12 @@ async function fetchPreviewData() {
   loading.value = true;
   try {
     try {
-      const [pending, approved, rejected, total] = await Promise.all([
-        getReimbursementList({
-          pageNo: 1,
-          pageSize: 1,
-          status: 0,
-          type: 'application',
-        }),
-        getReimbursementList({
-          pageNo: 1,
-          pageSize: 1,
-          status: 1,
-          type: 'application',
-        }),
-        getReimbursementList({
-          pageNo: 1,
-          pageSize: 1,
-          status: 2,
-          type: 'application',
-        }),
-        getReimbursementList({ pageNo: 1, pageSize: 1, type: 'application' }),
-      ]);
-
+      const summary = await getReimbursementSummary();
       reimburse.value = {
-        approved: approved?.total || 0,
-        pending: pending?.total || 0,
-        rejected: rejected?.total || 0,
-        total: total?.total || 0,
+        approved: summary?.approved || 0,
+        pending: summary?.pending || 0,
+        rejected: summary?.rejected || 0,
+        total: summary?.total || 0,
       };
     } catch (error) {
       console.error('reimbursement stats failed', error);

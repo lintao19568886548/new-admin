@@ -33,6 +33,13 @@ export interface ReimbursementAnalysisResponse {
   trend: ReimbursementTrendStat[];
 }
 
+export interface ReimbursementSummaryResponse {
+  approved: number;
+  pending: number;
+  rejected: number;
+  total: number;
+}
+
 // 创建报销申请
 export async function createReimbursement(data: any) {
   return requestClient.post('/reimbursement', data);
@@ -73,6 +80,15 @@ export async function deleteReimbursement(id: number) {
 
 export async function getPendingReimbursementCount() {
   return requestClient.get<{ count: number }>('/reimbursement/pending-count');
+}
+
+export async function getReimbursementSummary(params?: any) {
+  return requestClient.get<ReimbursementSummaryResponse>(
+    '/reimbursement/summary',
+    {
+      params,
+    },
+  );
 }
 
 export async function getReimbursementAnalysis(
