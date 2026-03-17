@@ -392,8 +392,17 @@ async function init() {
     const feeHeaderRow = rowIndex;
 
     const feeDataStartRow = rowIndex;
-    let feeData: (number | string)[][] = [];
-    let useDefaultFeeLogic = true;
+    const standardFeeData: (number | string)[][] = [
+      ['电费', props.billData.eleFee || 0],
+      ['水费', props.billData.waterFee || 0],
+      ['厂房租金', props.billData.factoryRent || 0],
+      ['基本管理费', props.billData.managementFee || 0],
+      ['垃圾处理费', props.billData.garbageFee || 0],
+      ['服务费', props.billData.serviceFee || 0],
+      ['开票税金', props.billData.invoiceTax || 0],
+      ['滞纳金', props.billData.penaltyFee || 0],
+    ];
+    let feeData: (number | string)[][] = [...standardFeeData];
 
     if (props.billData.extraProjectItem) {
       try {
@@ -406,34 +415,27 @@ async function init() {
           (p) => p.itemName !== '本月收费金额',
         );
         if (itemsToDisplay.length > 0) {
-          feeData = itemsToDisplay.map((item) => {
+          itemsToDisplay.forEach((item) => {
             const valueToUse = item.originalText || item.value;
-            return [item.itemName, valueToUse];
+            const matchedIndex = feeData.findIndex(
+              ([itemName]) => itemName === item.itemName,
+            );
+
+            if (matchedIndex !== -1) {
+              feeData[matchedIndex] = [item.itemName, valueToUse];
+              return;
+            }
+
+            feeData.push([item.itemName, valueToUse]);
           });
-          useDefaultFeeLogic = false;
-        } else {
-          feeData = [];
         }
       } catch (error) {
         console.error(
           'Failed to parse extraProjectItem, using default fee data.',
           error,
         );
-        useDefaultFeeLogic = true;
+        feeData = [...standardFeeData];
       }
-    }
-
-    if (useDefaultFeeLogic) {
-      feeData = [
-        ['电费', ''],
-        ['水费', ''],
-        ['厂房租金', props.billData.factoryRent || 0],
-        ['基本管理费', props.billData.managementFee || 0],
-        ['垃圾处理费', props.billData.garbageFee || 0],
-        ['服务费', props.billData.serviceFee || 0],
-        ['开票税金', props.billData.invoiceTax || 0],
-        ['滞纳金', props.billData.penaltyFee || 0],
-      ];
     }
 
     if (feeData.length > 0) {
@@ -445,6 +447,8 @@ async function init() {
 
     worksheet.getRange(`A${rowIndex}`).setValue('本月收费金额');
     const feeTotalRow = rowIndex;
+    const eleFeeRow = feeDataStartRow;
+    const waterFeeRow = feeDataStartRow + 1;
     rowIndex++;
     rowIndex++; // Spacer row
 
@@ -687,15 +691,6 @@ async function init() {
         }
       }
 
-      if (useDefaultFeeLogic) {
-        worksheet
-          .getRange(`B${feeDataStartRow}`)
-          .setFormula(`=H${eleTotalRow}`);
-        worksheet
-          .getRange(`B${feeDataStartRow + 1}`)
-          .setFormula(`=H${waterTotalRow}`);
-      }
-
       if (eleDataEndRow >= eleDataStartRow) {
         worksheet
           .getRange(`F${eleTotalRow}`)
@@ -703,6 +698,15 @@ async function init() {
         worksheet
           .getRange(`H${eleTotalRow}`)
           .setFormula(`=SUM(H${eleDataStartRow}:H${eleDataEndRow})`);
+        worksheet.getRange(`B${eleFeeRow}`).setFormula(`=H${eleTotalRow}`);
+      } else {
+        worksheet.getRange(`F${eleTotalRow}`).setValue(0);
+        worksheet
+          .getRange(`H${eleTotalRow}`)
+          .setValue(props.billData.eleFee || 0);
+        worksheet
+          .getRange(`B${eleFeeRow}`)
+          .setValue(props.billData.eleFee || 0);
       }
 
       if (waterDataEndRow >= waterDataStartRow) {
@@ -712,6 +716,15 @@ async function init() {
         worksheet
           .getRange(`H${waterTotalRow}`)
           .setFormula(`=SUM(H${waterDataStartRow}:H${waterDataEndRow})`);
+        worksheet.getRange(`B${waterFeeRow}`).setFormula(`=H${waterTotalRow}`);
+      } else {
+        worksheet.getRange(`F${waterTotalRow}`).setValue(0);
+        worksheet
+          .getRange(`H${waterTotalRow}`)
+          .setValue(props.billData.waterFee || 0);
+        worksheet
+          .getRange(`B${waterFeeRow}`)
+          .setValue(props.billData.waterFee || 0);
       }
 
       worksheet
