@@ -101,7 +101,7 @@
     "playwright": "catalog:",
     "rimraf": "catalog:",
     "tailwindcss": "catalog:",
-    "turbo": "^2.8.12",
+    "turbo": "^2.8.17",
     "typescript": "catalog:",
     "unbuild": "catalog:",
     "vite": "catalog:",
