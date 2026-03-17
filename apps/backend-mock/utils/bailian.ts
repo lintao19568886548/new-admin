@@ -25,7 +25,25 @@ interface RequestBailianChatOptions {
   maxTokens?: number;
   messages: BailianChatMessage[];
   model?: string;
+  responseFormat?: Record<string, any>;
   temperature?: number;
+}
+
+interface UploadBailianFileOptions {
+  contentType?: string;
+  data: Uint8Array;
+  filename: string;
+  purpose?: string;
+}
+
+export interface BailianFileObject {
+  bytes?: number;
+  created_at?: number;
+  filename?: string;
+  id: string;
+  object?: string;
+  purpose?: string;
+  status?: string;
 }
 
 const bailianApiKeyCache = new Map<
@@ -80,7 +98,7 @@ async function ensureBailianApiKey() {
 
   const key = normalizeBailianKey(record?.value);
   if (!key) {
-    throw new Error('ALIYUN_BAILIAN_KEY 未配置');
+    throw new Error('ALIYUN_BAILIAN_KEY is not configured');
   }
 
   bailianApiKeyCache.set(customerId, {
@@ -91,21 +109,109 @@ async function ensureBailianApiKey() {
   return key;
 }
 
+function buildBailianErrorMessage(
+  payload: any,
+  fallback = 'Bailian request failed',
+) {
+  return (
+    payload?.error?.message || payload?.message || payload?.msg || fallback
+  );
+}
+
+async function requestBailianFileApi(
+  path: string,
+  init: RequestInit,
+  fallbackMessage: string,
+) {
+  const apiKey = await ensureBailianApiKey();
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${apiKey}`);
+
+  const response = await fetch(`${BAILIAN_BASE_URL}${path}`, {
+    ...init,
+    headers,
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(
+      buildBailianErrorMessage(payload, response.statusText || fallbackMessage),
+    );
+  }
+
+  return payload as BailianFileObject;
+}
+
+export async function uploadBailianFile({
+  contentType = 'application/octet-stream',
+  data,
+  filename,
+  purpose = 'file-extract',
+}: UploadBailianFileOptions) {
+  const formData = new FormData();
+  const fileBuffer = Buffer.from(data);
+  formData.set('purpose', purpose);
+  formData.set('file', new Blob([fileBuffer], { type: contentType }), filename);
+
+  return requestBailianFileApi(
+    '/files',
+    {
+      body: formData,
+      method: 'POST',
+    },
+    'Failed to upload file to Bailian',
+  );
+}
+
+export async function retrieveBailianFile(fileId: string) {
+  return requestBailianFileApi(
+    `/files/${encodeURIComponent(fileId)}`,
+    {
+      method: 'GET',
+    },
+    'Failed to retrieve Bailian file status',
+  );
+}
+
+export async function deleteBailianFile(fileId: string) {
+  try {
+    await requestBailianFileApi(
+      `/files/${encodeURIComponent(fileId)}`,
+      {
+        method: 'DELETE',
+      },
+      'Failed to delete Bailian file',
+    );
+  } catch (error) {
+    console.warn('[bailian] failed to delete file:', error);
+  }
+}
+
 export async function requestBailianChat({
-  maxTokens = 400,
+  maxTokens,
   messages,
   model = DEFAULT_MODEL,
+  responseFormat,
   temperature = 0,
 }: RequestBailianChatOptions) {
   const apiKey = await ensureBailianApiKey();
+  const payload: Record<string, any> = {
+    messages,
+    model,
+    temperature,
+  };
+
+  if (typeof maxTokens === 'number') {
+    payload.max_tokens = maxTokens;
+  }
+
+  if (responseFormat) {
+    payload.response_format = responseFormat;
+  }
+
   const response = await axios.post(
     `${BAILIAN_BASE_URL}/chat/completions`,
-    {
-      max_tokens: maxTokens,
-      messages,
-      model,
-      temperature,
-    },
+    payload,
     {
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -147,7 +253,7 @@ export function parseBailianJson<T>(responseData: any): null | T {
   try {
     return JSON.parse(jsonText) as T;
   } catch (error) {
-    console.warn('百炼返回 JSON 解析失败:', error);
+    console.warn('Failed to parse Bailian JSON response:', error);
     return null;
   }
 }

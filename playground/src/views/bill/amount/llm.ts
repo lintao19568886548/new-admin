@@ -1,12 +1,22 @@
 import type { AmountBill } from './data';
 
-import * as ExcelJS from 'exceljs';
-
 import { requestClient } from '#/api/request';
 
-const MAX_CHAR_LENGTH = 25_000;
-const MAX_ROWS_PER_SHEET = 200;
-const AI_REQUEST_TIMEOUT_MS = 120_000;
+const AI_REQUEST_TIMEOUT_MS = 300_000;
+const MAX_METER_NAME_LENGTH = 120;
+const MAX_NAME_LENGTH = 60;
+const MAX_PROJECT_NAME_LENGTH = 120;
+const MAX_REMARK_LENGTH = 100;
+const TITLE_LIKE_KEYWORDS = [
+  '明细',
+  '通知单',
+  '账单',
+  '收费',
+  '收款',
+  '水电',
+  '房租',
+  '租金',
+];
 
 export interface AmountBillLlmMeterItem {
   currentReading?: null | number | string;
@@ -51,67 +61,6 @@ export interface AmountBillLlmResult {
   waterItems?: AmountBillLlmMeterItem[];
 }
 
-function normalizeCell(cell: unknown): string {
-  if (cell === null || cell === undefined) return '';
-  if (cell instanceof Date) {
-    return cell.toISOString();
-  }
-  if (typeof cell === 'object') {
-    const anyCell = cell as any;
-    if (Array.isArray(anyCell.richText)) {
-      return anyCell.richText.map((item: any) => item?.text || '').join('');
-    }
-    if (typeof anyCell.text === 'string') {
-      return anyCell.text;
-    }
-    if (anyCell.result !== undefined && anyCell.result !== null) {
-      return String(anyCell.result);
-    }
-    if (typeof anyCell.formula === 'string' && anyCell.formula.trim()) {
-      return `=${anyCell.formula}`;
-    }
-    if (typeof anyCell.hyperlink === 'string') {
-      return String(anyCell.text || anyCell.hyperlink);
-    }
-  }
-  return String(cell);
-}
-
-async function extractWorkbookText(file: File): Promise<string> {
-  const workbook = new ExcelJS.Workbook();
-  const fileBuffer = await file.arrayBuffer();
-  await workbook.xlsx.load(fileBuffer);
-
-  const blocks: string[] = [];
-
-  for (const worksheet of workbook.worksheets) {
-    const rows: string[] = [];
-    let captured = 0;
-
-    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      if (captured >= MAX_ROWS_PER_SHEET) return;
-      const values = Array.isArray(row.values) ? row.values.slice(1) : [];
-      const cells = values
-        .map((cell) => normalizeCell(cell).trim())
-        .slice(0, 20);
-
-      if (cells.every((cell) => !cell)) return;
-      rows.push(`${rowNumber}\t${cells.join('\t')}`);
-      captured += 1;
-    });
-
-    if (rows.length > 0) {
-      blocks.push(`### 工作表: ${worksheet.name}\n${rows.join('\n')}`);
-    }
-  }
-
-  const text = blocks.join('\n\n');
-  if (!text.trim()) {
-    throw new Error('Excel 文件内容为空或无法解析');
-  }
-  return text.length > MAX_CHAR_LENGTH ? text.slice(0, MAX_CHAR_LENGTH) : text;
-}
-
 function parseNumber(value: unknown): number | undefined {
   if (value === null || value === undefined || value === '') return undefined;
   const cleaned = String(value).replaceAll(/[^\d.-]/g, '');
@@ -130,10 +79,47 @@ function parseDate(value: unknown): string | undefined {
   return text;
 }
 
+function normalizeText(value: unknown) {
+  if (value === null || value === undefined) return '';
+  return String(value).replaceAll(/\s+/g, ' ').trim();
+}
+
+function clipText(value: unknown, maxLength: number) {
+  const text = normalizeText(value);
+  if (!text) return '';
+  return text.slice(0, maxLength);
+}
+
+function looksLikeDocumentTitle(value: unknown) {
+  const text = normalizeText(value).replaceAll(/\s+/g, '');
+  if (!text) return false;
+
+  return (
+    TITLE_LIKE_KEYWORDS.some((keyword) => text.includes(keyword)) &&
+    (/[、，,:：]/.test(text) || /\d{4}年|\d+月/.test(text))
+  );
+}
+
+function sanitizeNameField(
+  value: unknown,
+  maxLength: number,
+  options: { rejectDocumentTitle?: boolean } = {},
+) {
+  const text = clipText(value, maxLength);
+  if (!text) return '';
+  if (options.rejectDocumentTitle && looksLikeDocumentTitle(text)) {
+    return '';
+  }
+  return text;
+}
+
 function toMeterRows(items: AmountBillLlmMeterItem[] = []) {
   return items
     .map((item) => {
-      const meterName = String(item.meterName || '').trim();
+      const meterName = sanitizeNameField(
+        item.meterName,
+        MAX_METER_NAME_LENGTH,
+      );
       if (!meterName) return null;
       return {
         amount: 0,
@@ -142,7 +128,7 @@ function toMeterRows(items: AmountBillLlmMeterItem[] = []) {
         monthlyUsage: 0,
         multiplier: parseNumber(item.multiplier) ?? 1,
         previousReading: parseNumber(item.previousReading) ?? 0,
-        remark: String(item.remark || '').trim(),
+        remark: clipText(item.remark, MAX_REMARK_LENGTH),
         totalUsage: 0,
         unitPrice: parseNumber(item.unitPrice) ?? 0,
       };
@@ -154,13 +140,16 @@ function toMeterItemJson(items: AmountBillLlmMeterItem[] = []) {
   return JSON.stringify(
     items
       .map((item) => {
-        const meterName = String(item.meterName || '').trim();
+        const meterName = sanitizeNameField(
+          item.meterName,
+          MAX_METER_NAME_LENGTH,
+        );
         if (!meterName) return null;
         const previousReading = parseNumber(item.previousReading) ?? 0;
         const currentReading = parseNumber(item.currentReading) ?? 0;
         const multiplier = parseNumber(item.multiplier) ?? 1;
         const unitPrice = parseNumber(item.unitPrice) ?? 0;
-        const remark = String(item.remark || '').trim();
+        const remark = clipText(item.remark, MAX_REMARK_LENGTH);
         return {
           amount: { originalText: '0', value: 0 },
           currentReading: {
@@ -231,12 +220,9 @@ function normalizeExtraProjectItems(
 export async function analyzeAmountBillExcel(
   file: File,
 ): Promise<AmountBillLlmResult | null> {
-  const workbookText = await extractWorkbookText(file);
-  return requestClient.post(
+  return requestClient.upload(
     '/llm/amount-bill-analyze',
-    {
-      workbookText,
-    },
+    { file },
     {
       timeout: AI_REQUEST_TIMEOUT_MS,
     },
@@ -252,7 +238,21 @@ export function mapLlmResultToAmountBill(
   const eleRows = toMeterRows(eleItems);
   const waterRows = toMeterRows(waterItems);
 
-  const parkName = String(result.parkName || '').trim();
+  const rawProjectName = clipText(result.projectName, MAX_PROJECT_NAME_LENGTH);
+  const projectName = sanitizeNameField(
+    rawProjectName,
+    MAX_PROJECT_NAME_LENGTH,
+    {
+      rejectDocumentTitle: true,
+    },
+  );
+  const fallbackRemarkFromTitle =
+    !projectName && looksLikeDocumentTitle(rawProjectName)
+      ? rawProjectName
+      : '';
+  const parkName = sanitizeNameField(result.parkName, MAX_NAME_LENGTH, {
+    rejectDocumentTitle: true,
+  });
   const matchedPark = parkName
     ? parkOptions.find((park) => String(park.label).trim() === parkName)
     : undefined;
@@ -270,13 +270,18 @@ export function mapLlmResultToAmountBill(
     parkId: Number.isFinite(parkId) ? parkId : undefined,
     penaltyFee: parseNumber(result.penaltyFee) ?? 0,
     privateBankAccount: normalizeBankAccount(result.privateBankAccount),
-    projectName: String(result.projectName || '').trim(),
+    projectName,
     publicBankAccount: normalizeBankAccount(result.publicBankAccount),
     receiptAmount: parseNumber(result.receiptAmount) ?? 0,
     receiptTime: parseDate(result.receiptTime),
-    remark: String(result.remark || '').trim(),
+    remark: clipText(
+      result.remark || fallbackRemarkFromTitle,
+      MAX_REMARK_LENGTH,
+    ),
     serviceFee: parseNumber(result.serviceFee) ?? 0,
-    tenantName: String(result.tenantName || '').trim(),
+    tenantName: sanitizeNameField(result.tenantName, MAX_NAME_LENGTH, {
+      rejectDocumentTitle: true,
+    }),
     totalFee: parseNumber(result.totalFee) ?? 0,
     waterBills: waterRows,
     waterFee: parseNumber(result.waterFee) ?? 0,

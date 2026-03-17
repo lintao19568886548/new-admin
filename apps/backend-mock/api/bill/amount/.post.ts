@@ -1,7 +1,7 @@
 import { prismaClient } from '~/utils/db';
 import { serverErrorResponse, useResponseSuccess } from '~/utils/response';
 
-import { upsertFinanceRecord } from './utils';
+import { sanitizeAmountBillPayload, upsertFinanceRecord } from './utils';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -9,7 +9,8 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
   const body = await readBody(event);
-  const { eleBills, waterBills, parkId, tenantId, ...billData } = body;
+  const sanitizedBody = sanitizeAmountBillPayload(body || {});
+  const { eleBills, waterBills, parkId, tenantId, ...billData } = sanitizedBody;
   try {
     // 使用事务处理创建操作
     const bill = await prismaClient.$transaction(async (prisma) => {
@@ -23,6 +24,7 @@ export default eventHandler(async (event) => {
       return await prisma.amountBill.create({
         data: {
           ...billData,
+          projectName: String(billData.projectName || ''),
           finance: financeId // 使用关联写入
             ? {
                 connect: { financeId },

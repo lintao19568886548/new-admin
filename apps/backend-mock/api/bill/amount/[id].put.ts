@@ -1,7 +1,7 @@
 import { prismaClient } from '~/utils/db';
 import { useResponseSuccess } from '~/utils/response';
 
-import { upsertFinanceRecord } from './utils';
+import { sanitizeAmountBillPayload, upsertFinanceRecord } from './utils';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -13,8 +13,8 @@ export default eventHandler(async (event) => {
     return useResponseError('billId错误');
   }
   const body = await readBody(event);
-
-  const { eleBills, waterBills, parkId, tenantId, ...billData } = body;
+  const sanitizedBody = sanitizeAmountBillPayload(body || {});
+  const { eleBills, waterBills, parkId, tenantId, ...billData } = sanitizedBody;
   delete billData.tenant;
   delete billData.createTime;
   delete billData.updateTime;

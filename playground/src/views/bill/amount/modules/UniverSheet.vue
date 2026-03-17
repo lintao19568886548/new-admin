@@ -24,13 +24,74 @@ import { getTenantSelectList } from '#/api/rental/tenant';
 
 const props = defineProps<{
   billData: AmountBill;
+  parkOptions?: any[];
+  tenantOptions?: any[];
 }>();
+
+let cachedTenantOptions: any[] | null = null;
+let cachedParkOptions: any[] | null = null;
+let tenantOptionsPromise: null | Promise<any[]> = null;
+let parkOptionsPromise: null | Promise<any[]> = null;
+
+function normalizeOptionList(value: unknown) {
+  return Array.isArray(value) ? value : [];
+}
+
+function rememberTenantOptions(value: unknown) {
+  const normalized = normalizeOptionList(value);
+  if (normalized.length > 0) {
+    cachedTenantOptions = normalized;
+  }
+  return normalized;
+}
+
+function rememberParkOptions(value: unknown) {
+  const normalized = normalizeOptionList(value);
+  if (normalized.length > 0) {
+    cachedParkOptions = normalized;
+  }
+  return normalized;
+}
+
+async function loadTenantOptions(prefilled: any[] = []) {
+  if (prefilled.length > 0) {
+    return rememberTenantOptions(prefilled);
+  }
+  if (cachedTenantOptions) {
+    return cachedTenantOptions;
+  }
+  if (!tenantOptionsPromise) {
+    tenantOptionsPromise = getTenantSelectList()
+      .then((result) => rememberTenantOptions(result))
+      .finally(() => {
+        tenantOptionsPromise = null;
+      });
+  }
+  return tenantOptionsPromise;
+}
+
+async function loadParkOptions(prefilled: any[] = []) {
+  if (prefilled.length > 0) {
+    return rememberParkOptions(prefilled);
+  }
+  if (cachedParkOptions) {
+    return cachedParkOptions;
+  }
+  if (!parkOptionsPromise) {
+    parkOptionsPromise = getParkList()
+      .then((result) => rememberParkOptions(result))
+      .finally(() => {
+        parkOptionsPromise = null;
+      });
+  }
+  return parkOptionsPromise;
+}
 
 const univerContainer = ref<HTMLElement | null>(null);
 let univerInstance: null | Univer = null;
 let univerAPI: FUniver | null = null;
-const tenantOptions = ref<any[]>([]);
-const parkOptions = ref<any[]>([]);
+const tenantLookupOptions = ref<any[]>([]);
+const parkLookupOptions = ref<any[]>([]);
 
 async function init() {
   if (!univerContainer.value) {
@@ -40,8 +101,10 @@ async function init() {
   dispose();
 
   try {
-    tenantOptions.value = await getTenantSelectList();
-    parkOptions.value = await getParkList();
+    const referenceDataPromise = Promise.all([
+      loadTenantOptions(props.tenantOptions || []),
+      loadParkOptions(props.parkOptions || []),
+    ]);
 
     const result = createUniver({
       locale: LocaleType.ZH_CN,
@@ -63,6 +126,9 @@ async function init() {
 
     univerInstance = result.univer;
     univerAPI = result.univerAPI;
+
+    [tenantLookupOptions.value, parkLookupOptions.value] =
+      await referenceDataPromise;
 
     const workbook = univerAPI.createWorkbook({
       name: '水电费明细',
@@ -88,8 +154,8 @@ async function init() {
       .getRange(`A${rowIndex}:I${rowIndex}`)
       .setVerticalAlignment('middle');
 
-    if (tenantOptions.value && Array.isArray(tenantOptions.value)) {
-      const tenantNames = tenantOptions.value.map(
+    if (tenantLookupOptions.value && Array.isArray(tenantLookupOptions.value)) {
+      const tenantNames = tenantLookupOptions.value.map(
         (tenant: any) => tenant.tenantName || tenant.label || '',
       );
 
@@ -119,8 +185,8 @@ async function init() {
       .setValue('园区')
       .setHorizontalAlignment('center');
 
-    if (parkOptions.value && Array.isArray(parkOptions.value)) {
-      const parkNames = parkOptions.value.map(
+    if (parkLookupOptions.value && Array.isArray(parkLookupOptions.value)) {
+      const parkNames = parkLookupOptions.value.map(
         (park: any) => park.parkName || park.label || '',
       );
 
@@ -141,7 +207,7 @@ async function init() {
           worksheet
             .getRange(`G${rowIndex}`)
             .setValue(
-              parkOptions.value.find(
+              parkLookupOptions.value.find(
                 (park) => park.parkId === props.billData.parkId,
               )?.parkName || '',
             );
@@ -892,10 +958,12 @@ function getData() {
   billData.projectName = String(projectNameValue || '');
   billData.tenantName = tenantName;
 
-  const tenant = tenantOptions.value.find((t) => t.tenantName === tenantName);
+  const tenant = tenantLookupOptions.value.find(
+    (t) => t.tenantName === tenantName,
+  );
   billData.tenantId = tenant?.tenantId || null;
 
-  const park = parkOptions.value.find((p) => p.parkName === parkName);
+  const park = parkLookupOptions.value.find((p) => p.parkName === parkName);
   if (park) {
     billData.parkId = park.parkId;
   }

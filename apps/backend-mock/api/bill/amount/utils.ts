@@ -1,3 +1,87 @@
+const MAX_BANK_ACCOUNT_FIELD_LENGTH = 60;
+const MAX_METER_NAME_LENGTH = 120;
+const MAX_PROJECT_NAME_LENGTH = 120;
+const MAX_REMARK_LENGTH = 100;
+const MAX_TENANT_NAME_LENGTH = 60;
+
+function normalizeText(value: unknown) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  return String(value).replaceAll(/\s+/g, ' ').trim();
+}
+
+function clipText(value: unknown, maxLength: number) {
+  const text = normalizeText(value);
+  if (!text) {
+    return null;
+  }
+
+  return text.slice(0, maxLength);
+}
+
+function sanitizeBankAccountJson(value: unknown) {
+  const text = normalizeText(value);
+  if (!text) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    const sanitized = {
+      bank: clipText(parsed?.bank, MAX_BANK_ACCOUNT_FIELD_LENGTH) || '',
+      name: clipText(parsed?.name, MAX_BANK_ACCOUNT_FIELD_LENGTH) || '',
+      number: clipText(parsed?.number, MAX_BANK_ACCOUNT_FIELD_LENGTH) || '',
+    };
+
+    return Object.values(sanitized).some(Boolean)
+      ? JSON.stringify(sanitized)
+      : null;
+  } catch {
+    return clipText(text, 180);
+  }
+}
+
+function sanitizeBillItems(items: unknown): any {
+  if (!Array.isArray(items)) {
+    return items;
+  }
+
+  return items.map((item) => {
+    if (!item || typeof item !== 'object') {
+      return item;
+    }
+
+    return {
+      ...item,
+      meterName:
+        clipText(
+          (item as Record<string, any>).meterName,
+          MAX_METER_NAME_LENGTH,
+        ) || '',
+      remark: clipText((item as Record<string, any>).remark, MAX_REMARK_LENGTH),
+    };
+  });
+}
+
+export function sanitizeAmountBillPayload(
+  payload: Record<string, any>,
+): Record<string, any> {
+  const sanitized: Record<string, any> = {
+    ...payload,
+    eleBills: sanitizeBillItems(payload.eleBills),
+    privateBankAccount: sanitizeBankAccountJson(payload.privateBankAccount),
+    projectName: clipText(payload.projectName, MAX_PROJECT_NAME_LENGTH) || '',
+    publicBankAccount: sanitizeBankAccountJson(payload.publicBankAccount),
+    remark: clipText(payload.remark, MAX_REMARK_LENGTH),
+    tenantName: clipText(payload.tenantName, MAX_TENANT_NAME_LENGTH),
+    waterBills: sanitizeBillItems(payload.waterBills),
+  };
+
+  return sanitized;
+}
+
 /**
  * 创建或更新与 AmountBill 关联的财务记录。
  * 此函数应在 Prisma 事务中调用。

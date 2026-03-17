@@ -29,6 +29,7 @@ import dayjs from 'dayjs';
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteAmountBill, getAmountBillList, getExportData } from '#/api/bill';
 import { getVisitorParkList } from '#/api/park';
+import { getTenantSelectList } from '#/api/rental/tenant';
 import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 import { executeBill } from '#/utils/excel';
@@ -43,12 +44,34 @@ import {
 import { analyzeAmountBillExcel, mapLlmResultToAmountBill } from './llm';
 import MultipageBillForm from './modules/MultipageBillForm.vue';
 
+const billParkOptions = ref<any[]>([]);
+const billTenantOptions = ref<any[]>([]);
+
 onMounted(async () => {
-  const parkList = await getVisitorParkList({ area: 'all' });
-  options.value = parkList.map((park: any) => ({
-    label: park.parkName,
-    value: park.parkId,
-  }));
+  const [parkResult, tenantResult] = await Promise.allSettled([
+    getVisitorParkList({ area: 'all' }),
+    getTenantSelectList(),
+  ]);
+
+  if (parkResult.status === 'fulfilled') {
+    billParkOptions.value = Array.isArray(parkResult.value)
+      ? parkResult.value
+      : [];
+    options.value = billParkOptions.value.map((park: any) => ({
+      label: park.parkName,
+      value: park.parkId,
+    }));
+  } else {
+    console.error('获取园区选项失败:', parkResult.reason);
+  }
+
+  if (tenantResult.status === 'fulfilled') {
+    billTenantOptions.value = Array.isArray(tenantResult.value)
+      ? tenantResult.value
+      : [];
+  } else {
+    console.error('获取租户选项失败:', tenantResult.reason);
+  }
 });
 
 const currentPark = ref();
@@ -103,8 +126,8 @@ const aiImportLoading = ref(false);
 
 async function handleAiImportBeforeUpload(file: File) {
   const fileName = String(file?.name || '');
-  if (!/\.(?:xlsx|xlsm|xls)$/i.test(fileName)) {
-    message.warning('仅支持上传 Excel 文件（.xlsx/.xlsm/.xls）');
+  if (!/\.xlsx$/i.test(fileName)) {
+    message.warning('AI 直传千问当前仅支持 .xlsx 文件');
     return false;
   }
   if (aiImportLoading.value) {
@@ -113,7 +136,7 @@ async function handleAiImportBeforeUpload(file: File) {
 
   aiImportLoading.value = true;
   message.loading({
-    content: '正在解析并识别Excel内容...',
+    content: '正在上传 Excel 到千问并解析账单字段...',
     duration: 0,
     key: 'bill_ai_import',
   });
@@ -138,11 +161,13 @@ async function handleAiImportBeforeUpload(file: File) {
   } catch (error: any) {
     console.error('AI导入账单失败:', error);
     const errorMessage = String(error?.message || error?.error || '');
-    let errorTip = 'AI导入失败，请检查 Excel 内容后重试';
+    let errorTip = 'AI 导入失败，请稍后重试';
     if (errorMessage.includes('ALIYUN_BAILIAN_KEY')) {
       errorTip = '请先配置 ALIYUN_BAILIAN_KEY';
+    } else if (errorMessage.includes('only .xlsx')) {
+      errorTip = 'AI 直传千问当前仅支持 .xlsx 文件';
     } else if (errorMessage.toLowerCase().includes('timeout')) {
-      errorTip = 'AI导入超时，请稍后重试（可尝试缩小 Excel 内容）';
+      errorTip = 'AI 导入超时，请稍后重试';
     }
     message.error({
       content: errorTip,
@@ -405,8 +430,8 @@ const [Grid, gridApi] = useVbenVxeGrid({
 // 导出Excel模态框相关状态
 const exportModalVisible = ref(false);
 const exportLoading = ref(false);
-const exportParks = ref([]);
-const options = ref([]);
+const exportParks = ref<Array<number | string>>([]);
+const options = ref<Array<{ label: string; value: number | string }>>([]);
 
 async function onExport() {
   const exportData = await getExportData({
@@ -474,6 +499,8 @@ function handlePrintCancel() {
     <MultipageBillForm
       ref="billFormRef"
       :config="formConfig"
+      :park-options="billParkOptions"
+      :tenant-options="billTenantOptions"
       @success="handleFormSuccess"
     />
 
@@ -556,7 +583,7 @@ function handlePrintCancel() {
         <AUpload
           :before-upload="handleAiImportBeforeUpload"
           :show-upload-list="false"
-          accept=".xlsx,.xlsm,.xls"
+          accept=".xlsx"
         >
           <Button :loading="aiImportLoading" style="margin-right: 10px">
             AI导入Excel

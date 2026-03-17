@@ -30,6 +30,8 @@ export interface MultipageBillFormConfig {
 // 组件属性定义
 const props = defineProps<{
   config?: MultipageBillFormConfig;
+  parkOptions?: any[];
+  tenantOptions?: any[];
 }>();
 
 // 定义事件
@@ -222,6 +224,8 @@ defineExpose({ open });
         v-if="isSheetReady"
         ref="univerSheet"
         :bill-data="billData"
+        :park-options="props.parkOptions"
+        :tenant-options="props.tenantOptions"
       />
     </div>
 
