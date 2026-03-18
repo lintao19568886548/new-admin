@@ -3,7 +3,7 @@ import type { FinanceItem } from './types';
 
 import type { OnActionClickParams } from '#/adapter/vxe-table';
 
-import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import { onActivated, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { Page, useVbenModal } from '@vben/common-ui';
@@ -120,8 +120,6 @@ function onCancelVerification() {
   message.info('已取消验证，返回首页');
 }
 
-const columns = computed(() => useColumns(onActionClick, enableMask.value));
-
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
@@ -131,7 +129,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridOptions: {
     border: true,
-    columns: columns.value,
+    columns: useColumns(onActionClick, enableMask.value),
     height: 'auto',
     keepSource: true,
     // 添加分页配置
@@ -232,10 +230,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
 // 监听脱敏开关变化并持久化
 watch(enableMask, (val) => {
   localStorage.setItem('finance-enableMask', String(val));
-  const newColumns = useColumns(onActionClick, val);
-  if (newColumns) {
-    gridApi.grid?.loadColumn(newColumns);
-  }
+  gridApi.setGridOptions({
+    columns: useColumns(onActionClick, val),
+  });
 });
 
 function onActionClick(e: OnActionClickParams<FinanceItem>) {
