@@ -238,7 +238,7 @@ const activeTab = computed(() => router.currentRoute.value.path);
 
 const tabs = [
   { icon: IconDefault, path: '/home', title: '首页' },
-  { icon: 'lucide:layout-grid', path: '/workbench', title: '工作台' },
+  { icon: 'lucide:layout-grid', path: '/workbench', title: '导航' },
   // { icon: SwatchBook, path: '/analytics', title: '列表' },
   { icon: UserRoundPen, path: '/profile', title: '我的' },
 ];

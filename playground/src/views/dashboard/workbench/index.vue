@@ -39,7 +39,6 @@ interface GroupSeed {
 const router = useRouter();
 const searchQuery = ref('');
 const groups = ref<NavGroup[]>([]);
-const recentNames = ref<string[]>([]);
 
 const colors = [
   'text-sky-500',
@@ -49,11 +48,6 @@ const colors = [
 ];
 const DEFAULT_APP_ICON = 'carbon:application-web';
 const DEFAULT_GROUP_ICON = 'carbon:category';
-const RECENT_GROUP_KEY = 'recent';
-const RECENT_GROUP_TITLE = '最近使用';
-const RECENT_GROUP_ICON = 'carbon:recently-viewed';
-const RECENT_STORAGE_KEY = 'workbench_recent_apps';
-const MAX_RECENT_ITEMS = 9;
 
 function parseOrder(order: unknown) {
   if (typeof order === 'number' && Number.isFinite(order)) return order;
@@ -188,42 +182,11 @@ function buildGroups(menuRoutes: RouteRecordStringComponent[]) {
     .filter((group) => group.items.length > 0);
 }
 
-const navItemsMap = computed(() => {
-  const map = new Map<string, NavItem>();
-  for (const group of groups.value) {
-    for (const item of group.items) {
-      map.set(item.name, item);
-    }
-  }
-  return map;
-});
-
-const recentGroup = computed<NavGroup | null>(() => {
-  const items = recentNames.value
-    .map((name) => navItemsMap.value.get(name))
-    .filter((item): item is NavItem => item !== undefined);
-
-  if (items.length === 0) return null;
-
-  return {
-    icon: RECENT_GROUP_ICON,
-    key: RECENT_GROUP_KEY,
-    order: -99_999,
-    title: RECENT_GROUP_TITLE,
-    items,
-  };
-});
-
-const displayGroups = computed<NavGroup[]>(() => {
-  if (!recentGroup.value) return groups.value;
-  return [recentGroup.value, ...groups.value];
-});
-
 const filteredGroups = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
-  if (!keyword) return displayGroups.value;
+  if (!keyword) return groups.value;
 
-  return displayGroups.value
+  return groups.value
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
@@ -237,53 +200,17 @@ const filteredGroups = computed(() => {
     .filter((group) => group.items.length > 0);
 });
 
-function loadRecentNames() {
-  try {
-    const raw = localStorage.getItem(RECENT_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed)) {
-      recentNames.value = [];
-      return;
-    }
-    recentNames.value = parsed
-      .filter(
-        (item): item is string => typeof item === 'string' && item.length > 0,
-      )
-      .slice(0, MAX_RECENT_ITEMS);
-  } catch {
-    recentNames.value = [];
-  }
-}
-
-function persistRecentNames() {
-  try {
-    localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(recentNames.value));
-  } catch {}
-}
-
-function addRecentItem(item: NavItem) {
-  const next = [
-    item.name,
-    ...recentNames.value.filter((name) => name !== item.name),
-  ];
-  recentNames.value = next.slice(0, MAX_RECENT_ITEMS);
-  persistRecentNames();
-}
-
 onMounted(() => {
   try {
     const menuStore = useMenuStore();
     groups.value = buildGroups(menuStore.menus);
-    loadRecentNames();
   } catch (error) {
     console.error('Failed to build workbench navigation:', error);
     groups.value = [];
-    recentNames.value = [];
   }
 });
 
 function handleItemClick(item: NavItem) {
-  addRecentItem(item);
   if (item.name) {
     void router.push({ name: item.name }).catch(() => {
       if (item.path) void router.push(item.path);
@@ -331,11 +258,6 @@ function handleItemClick(item: NavItem) {
               {{ group.title }}
             </div>
           </div>
-          <span
-            class="rounded-full border border-slate-300/90 bg-slate-50/85 px-2 py-0.5 text-[11px] text-slate-500 dark:border-slate-600/85 dark:bg-slate-700/80 dark:text-slate-400"
-          >
-            {{ group.items.length }} 项
-          </span>
         </div>
 
         <div class="grid grid-cols-3 gap-2.5 md:grid-cols-4 lg:grid-cols-6">
