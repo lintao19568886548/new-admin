@@ -107,6 +107,18 @@ export function useFormSchema(): VbenFormSchema[] {
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
+    },
+    {
       component: 'Input',
       fieldName: 'carNumber',
       label: '车牌号',

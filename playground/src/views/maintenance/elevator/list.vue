@@ -4,8 +4,6 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { ref } from 'vue'; // <-- 确保导入 onMounted
-
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
@@ -14,16 +12,10 @@ import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteElevator, getElevatorList } from '#/api/maintenance';
-import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data'; // <-- 新增导入 getParkFactoryCascaderOptions
 import Form from './modules/form.vue';
-
-// 当前选中的区域
-const currentPark = ref();
-
-const parkSelectorRef = ref();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -118,6 +110,12 @@ const [Grid, gridApi] = useVbenVxeGrid({
         query: async (page) => {
           const rawFormData = (await gridApi.formApi?.getValues?.()) || {};
           const formDataForQuery = { ...rawFormData };
+          const selectedParkId =
+            formDataForQuery.parkId ??
+            (Array.isArray(rawFormData.factoryId) &&
+            rawFormData.factoryId.length > 0
+              ? rawFormData.factoryId[0]
+              : undefined);
 
           // 处理来自筛选 Cascader 的 factoryId
           if (
@@ -139,7 +137,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
           const params = {
             ...formDataForQuery,
             currentPage: page.page?.currentPage || 1,
-            currentPark: currentPark.value ? currentPark.value.parkId : -1,
+            currentPark: selectedParkId ?? -1,
             // 后端分页参数已从 pageSize 改为 limit
             limit: page.page?.pageSize || 20,
           };
@@ -190,15 +188,6 @@ function refreshGrid() {
   <Page auto-content-height>
     <FormModal @success="refreshGrid" />
     <Grid :table-title="$t('page.maintenance.elevatorList')">
-      <template #toolbar-actions>
-        <!-- 区域选择下拉菜单 -->
-        <AreaSelector
-          :default-park="currentPark"
-          :refresh-callback="refreshGrid"
-          @change="(park) => (currentPark = park)"
-          ref="parkSelectorRef"
-        />
-      </template>
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">
           <Plus class="size-5" />

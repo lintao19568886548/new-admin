@@ -16,16 +16,11 @@ import { Button, message, Tooltip } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteSalary, getSalaryList, syncSalaryTenants } from '#/api/rental';
-import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
-// 当前选中的区域
-const currentPark = ref();
-
-const parkSelectorRef = ref();
 const syncingTenants = ref(false);
 
 const [FormModal, formModalApi] = useVbenModal({
@@ -70,9 +65,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
               }
             });
 
-            params.currentPark = currentPark.value
-              ? currentPark.value.parkId
-              : -1;
+            params.currentPark = formValues.parkId ?? -1;
 
             // 添加分页参数
             params.currentPage = page?.currentPage || 1;
@@ -199,10 +192,8 @@ async function onSyncTenants() {
   });
 
   try {
-    const parkId =
-      currentPark.value && currentPark.value.parkId !== undefined
-        ? currentPark.value.parkId
-        : -1;
+    const formValues = (await gridApi.formApi?.getValues?.()) || {};
+    const parkId = formValues.parkId ?? -1;
 
     const result = await syncSalaryTenants({ currentPark: parkId });
 
@@ -230,15 +221,6 @@ async function onSyncTenants() {
   <Page auto-content-height>
     <FormModal @success="refreshGrid" />
     <Grid :table-title="$t('system.rental.salary.list')">
-      <template #toolbar-actions>
-        <!-- 区域选择下拉菜单 -->
-        <AreaSelector
-          :default-park="currentPark"
-          :refresh-callback="refreshGrid"
-          @change="(park) => (currentPark = park)"
-          ref="parkSelectorRef"
-        />
-      </template>
       <template #toolbar-tools>
         <Tooltip :title="$t('system.rental.salary.syncTip')">
           <Button

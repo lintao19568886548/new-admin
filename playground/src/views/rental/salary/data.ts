@@ -12,6 +12,7 @@ import { Image, message, Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { z } from '#/adapter/form';
+import { getParkList } from '#/api/park';
 import { getSalaryTenantOptions } from '#/api/rental';
 import { $t } from '#/locales';
 
@@ -283,6 +284,18 @@ export function useFormSchema(): VbenFormSchema[] {
  */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
+    {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
+    },
     {
       component: 'Input',
       fieldName: 'tenantName',

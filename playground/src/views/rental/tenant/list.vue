@@ -6,8 +6,6 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { ref } from 'vue';
-
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
@@ -22,16 +20,10 @@ import {
   sendBulkSms,
   sendSms,
 } from '#/api/rental';
-import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
-
-// 当前选中的区域
-const currentPark = ref();
-
-const parkSelectorRef = ref();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -116,9 +108,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
               }
             });
 
-            params.currentPark = currentPark.value
-              ? currentPark.value.parkId
-              : -1;
+            params.currentPark = formValues.parkId ?? -1;
 
             // 添加分页参数
             params.currentPage = page?.currentPage || 1;
@@ -383,15 +373,6 @@ async function onBulkSendSms() {
   <Page auto-content-height>
     <FormModal @success="refreshGrid" />
     <Grid :table-title="$t('system.rental.tenant.list')">
-      <template #toolbar-actions>
-        <!-- 区域选择下拉菜单 -->
-        <AreaSelector
-          :default-park="currentPark"
-          :refresh-callback="refreshGrid"
-          @change="(park) => (currentPark = park)"
-          ref="parkSelectorRef"
-        />
-      </template>
       <template #toolbar-tools>
         <Button class="mr-2" type="primary" @click="onBulkSendSms">
           <MessageOutlined class="mr-1" />

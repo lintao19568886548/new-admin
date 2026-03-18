@@ -14,7 +14,6 @@ import { Button, message, Switch } from 'ant-design-vue';
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteFinance, getFinanceList } from '#/api/finance';
 import { getParkList } from '#/api/park';
-import AreaSelector from '#/components/AreaSelector.vue';
 import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { usePlatform } from '#/hooks/usePlatform';
 import { $t } from '#/locales';
@@ -44,9 +43,7 @@ const [FormModal, formModalApi] = useVbenModal({
   destroyOnClose: true,
 });
 
-// 当前选中的区域
-const currentPark = ref();
-const parkSelectorRef = ref();
+// 园区名称映射
 const parkNameMap = ref<Record<number, string>>({});
 
 // 组件挂载后初始化查询
@@ -165,7 +162,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
               ...formData,
               currentPage: page.page?.currentPage || 1,
               pageSize: page.page?.pageSize || 20,
-              parkId: currentPark.value ? currentPark.value.parkId : -1,
+              parkId: formData.parkId ?? -1,
             };
 
             const cleanParams: Record<string, any> = {};
@@ -290,11 +287,6 @@ function onRefresh() {
 function onCreate() {
   formModalApi.setData({}).open();
 }
-
-function onParkChange(area: any) {
-  currentPark.value = area;
-  gridApi.query();
-}
 </script>
 <template>
   <Page auto-content-height>
@@ -306,13 +298,6 @@ function onParkChange(area: any) {
     />
     <Grid v-if="isVerified" :table-title="$t('page.finance.list-title')">
       <template #toolbar-actions>
-        <!-- 区域选择下拉菜单 -->
-        <AreaSelector
-          :default-area="currentPark"
-          :refresh-callback="onRefresh"
-          @change="onParkChange"
-          ref="parkSelectorRef"
-        />
         <!-- 脱敏开关 -->
         <div class="ml-4 flex items-center">
           <span class="mr-2 text-sm">金额脱敏</span>

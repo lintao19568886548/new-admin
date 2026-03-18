@@ -6,6 +6,9 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
 import { formatDate, formatDateTime } from '@vben/utils';
 
+import { getParkList } from '#/api/park';
+import { $t } from '#/locales';
+
 /**
  * 总账单接口
  */
@@ -111,6 +114,18 @@ export const waterFormConfig: BillFormConfig = {
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
+    },
+    {
       component: 'Input',
       fieldName: 'projectName',
       label: '项目名称',
@@ -120,7 +135,6 @@ export function useGridFormSchema(): VbenFormSchema[] {
       fieldName: 'tenantName',
       label: '租户名称',
     },
-
     {
       component: 'RangePicker',
       componentProps: {

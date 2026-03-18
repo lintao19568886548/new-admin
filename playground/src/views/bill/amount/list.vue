@@ -30,7 +30,6 @@ import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteAmountBill, getAmountBillList, getExportData } from '#/api/bill';
 import { getVisitorParkList } from '#/api/park';
 import { getTenantSelectList } from '#/api/rental/tenant';
-import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 import { executeBill } from '#/utils/excel';
 
@@ -73,9 +72,6 @@ onMounted(async () => {
     console.error('获取租户选项失败:', tenantResult.reason);
   }
 });
-
-const currentPark = ref();
-const parkSelectorRef = ref();
 
 // 账单表单组件引用
 const billFormRef = ref();
@@ -382,7 +378,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
           const params = {
             ...formData,
             currentPage: page.page?.currentPage || 1,
-            currentPark: currentPark.value ? currentPark.value.parkId : -1,
+            currentPark: formData.parkId ?? -1,
             pageSize: page.page?.pageSize || 20,
           };
           try {
@@ -570,15 +566,6 @@ function handlePrintCancel() {
     </Modal>
 
     <Grid table-title="总账单" class="amount-bill-grid">
-      <template #toolbar-actions>
-        <!-- 区域选择下拉菜单 -->
-        <AreaSelector
-          :default-area="currentPark"
-          :refresh-callback="refreshGrid"
-          @change="(park) => (currentPark = park)"
-          ref="parkSelectorRef"
-        />
-      </template>
       <template #toolbar-tools>
         <AUpload
           :before-upload="handleAiImportBeforeUpload"

@@ -18,14 +18,12 @@ import { Button, Input, message, Modal, Space, Table } from 'ant-design-vue';
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteInvestment, getInvestmentList } from '#/api/investment';
 import { getParkList } from '#/api/park';
-import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 import { useSmartRecommend } from './modules/recommend-fab.vue';
 
-const currentPark = ref();
 const parkNameMap = ref<Record<number, string>>({});
 const {
   closeManualLocationModal,
@@ -197,7 +195,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
           const params = {
             ...formData,
             currentPage: page.page?.currentPage || 1,
-            currentPark: currentPark.value ? currentPark.value.parkId : -1,
+            currentPark: formData.parkId ?? -1,
             pageSize: page.page?.pageSize || 20,
           };
           try {
@@ -323,14 +321,6 @@ const recommendColumns = [
   <Page auto-content-height>
     <FormModal @success="refreshGrid" />
     <Grid :table-title="$t('page.agent.list')">
-      <template #toolbar-actions>
-        <!-- 区域选择下拉菜单 -->
-        <AreaSelector
-          :default-park="currentPark"
-          :refresh-callback="refreshGrid"
-          @change="(park) => (currentPark = park)"
-        />
-      </template>
       <template #toolbar-tools>
         <Space>
           <Button

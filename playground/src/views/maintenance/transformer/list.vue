@@ -4,8 +4,6 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { ref } from 'vue'; // <-- 修改：确保导入 ref
-
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
@@ -14,14 +12,10 @@ import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteTransformer, getTransformerList } from '#/api/maintenance';
-import AreaSelector from '#/components/AreaSelector.vue';
 import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
-
-const currentPark = ref();
-const parkSelectorRef = ref();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -129,9 +123,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
           }
 
           // 为了让逻辑更清晰，我们在这里处理园区ID
-          const parkIdToSend = currentPark.value
-            ? currentPark.value.parkId
-            : -1;
+          const parkIdToSend = formData.parkId ?? -1;
 
           // 构建查询参数，包含分页信息
           const params = {
@@ -187,15 +179,6 @@ function refreshGrid() {
   <Page auto-content-height>
     <FormModal @success="refreshGrid" />
     <Grid :table-title="$t('page.maintenance.transformerList')">
-      <template #toolbar-actions>
-        <!-- 区域选择下拉菜单 -->
-        <AreaSelector
-          :default-park="currentPark"
-          :refresh-callback="refreshGrid"
-          @change="(park: any) => (currentPark = park)"
-          ref="parkSelectorRef"
-        />
-      </template>
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">
           <Plus class="size-5" />

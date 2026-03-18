@@ -6,6 +6,7 @@ import { formatDateTime } from '@vben/utils';
 
 import { z } from '#/adapter/form';
 import { getFactoryListByParkId } from '#/api';
+import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
 /**
@@ -138,6 +139,18 @@ export function useFormSchema(): VbenFormSchema[] {
  */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
+    {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getParkList,
+        class: 'w-full',
+        labelField: 'parkName',
+        valueField: 'parkId',
+      },
+      fieldName: 'parkId',
+      label: $t('page.common.park'),
+    },
     {
       component: 'ApiCascader',
       componentProps: {
