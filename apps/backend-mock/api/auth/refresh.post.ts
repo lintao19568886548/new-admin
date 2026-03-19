@@ -100,7 +100,7 @@ export default defineEventHandler(async (event) => {
     }
 
     if (
-      currentUserFromDB.status === 0 ||
+      Number(currentUserFromDB.status ?? 1) !== 1 ||
       Number(currentUserFromDB.tokenVersion ?? 1) !==
         Number(verifiedPayload.tokenVersion ?? 1)
     ) {

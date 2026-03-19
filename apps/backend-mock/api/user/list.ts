@@ -56,6 +56,7 @@ export default eventHandler(async (event) => {
 
   const where: any = {
     customerType: customerId,
+    status: { not: 2 },
   };
 
   if (username) {
@@ -71,110 +72,110 @@ export default eventHandler(async (event) => {
     where.status = status;
   }
 
-  const total = await systemDbClient.user.count({ where });
-  const centerUsers = await systemDbClient.user.findMany({
-    where,
-    orderBy: { createTime: 'desc' },
-    skip: (currentPage - 1) * pageSize,
-    take: pageSize,
-    select: {
-      id: true,
-      username: true,
-      realName: true,
-      phone: true,
-      status: true,
-      tokenVersion: true,
-      customerType: true,
-      createTime: true,
-      updateTime: true,
-    },
-  });
+  const [total, tenantUsers] = await prismaScopeStorage.run(
+    { customerId },
+    async () =>
+      Promise.all([
+        prismaClient.user.count({ where }),
+        prismaClient.user.findMany({
+          where,
+          orderBy: { createTime: 'desc' },
+          skip: (currentPage - 1) * pageSize,
+          take: pageSize,
+          select: {
+            id: true,
+            username: true,
+            realName: true,
+            phone: true,
+            status: true,
+            tokenVersion: true,
+            customerType: true,
+            createTime: true,
+            updateTime: true,
+            roles: {
+              include: {
+                role: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        }),
+      ]),
+  );
 
-  if (centerUsers.length === 0) {
+  if (tenantUsers.length === 0) {
     return useResponseSuccess({
       items: [],
       total,
     });
   }
 
-  const usernames = centerUsers.map((item) => item.username);
-  const centerUserIds = centerUsers.map((item) => item.id);
+  const tenantUserIds = tenantUsers.map((item) => item.id);
+  const mappings = await systemDbClient.userCustomerMapping.findMany({
+    where: {
+      customerId,
+      customerUserId: {
+        in: tenantUserIds,
+      },
+    },
+    select: {
+      centerUserId: true,
+      customerUserId: true,
+    },
+  });
 
-  const [customerUsers, mappings] = await Promise.all([
-    prismaScopeStorage.run({ customerId }, async () =>
-      prismaClient.user.findMany({
-        where: {
-          username: {
-            in: usernames,
-          },
-        },
-        select: {
-          id: true,
-          username: true,
-          status: true,
-          roles: {
-            include: {
-              role: {
-                select: {
-                  name: true,
-                },
-              },
+  const centerUserIds = [...new Set(mappings.map((item) => item.centerUserId))];
+  const centerUsers =
+    centerUserIds.length > 0
+      ? await systemDbClient.user.findMany({
+          where: {
+            id: {
+              in: centerUserIds,
             },
           },
-        },
-      }),
-    ),
-    systemDbClient.userCustomerMapping.findMany({
-      where: {
-        customerId,
-        centerUserId: {
-          in: centerUserIds,
-        },
-      },
-      select: {
-        centerUserId: true,
-        customerUserId: true,
-      },
-    }),
-  ]);
-
-  const customerUserMap = new Map(
-    customerUsers.map((item) => [item.username, item]),
-  );
-  const mappingByCenterUserId = new Map(
-    mappings.map((item) => [item.centerUserId, item.customerUserId]),
-  );
-
-  const items = centerUsers.map((item) => {
-    const customerUser = customerUserMap.get(item.username);
-    const roleIds = customerUser
-      ? [...new Set(customerUser.roles.map((row) => Number(row.roleId)))]
+          select: {
+            id: true,
+            status: true,
+            tokenVersion: true,
+            createTime: true,
+            updateTime: true,
+          },
+        })
       : [];
-    const roles = customerUser
-      ? [
-          ...new Set(
-            customerUser.roles
-              .map((row) => String(row.role?.name || '').trim())
-              .filter((name) => name.length > 0),
-          ),
-        ]
-      : [];
+
+  const mappingByTenantUserId = new Map(
+    mappings.map((item) => [item.customerUserId, item.centerUserId]),
+  );
+  const centerUserById = new Map(centerUsers.map((item) => [item.id, item]));
+
+  const items = tenantUsers.map((item) => {
+    const roleIds = [...new Set(item.roles.map((row) => Number(row.roleId)))];
+    const roles = [
+      ...new Set(
+        item.roles
+          .map((row) => String(row.role?.name || '').trim())
+          .filter((name) => name.length > 0),
+      ),
+    ];
+    const centerUserId = mappingByTenantUserId.get(item.id);
+    const centerUser = centerUserId ? centerUserById.get(centerUserId) : null;
 
     return {
       id: Number(item.id),
-      centerUserId: Number(item.id),
+      tenantUserId: Number(item.id),
+      centerUserId: centerUserId ? Number(centerUserId) : null,
       createTime: item.createTime ? item.createTime.toISOString() : null,
       customerType: item.customerType ? String(item.customerType) : null,
-      customerUserId: customerUser?.id
-        ? Number(customerUser.id)
-        : (mappingByCenterUserId.get(item.id) ?? null),
+      customerUserId: Number(item.id),
       phone: item.phone ? String(item.phone) : '',
       realName: String(item.realName || ''),
       roleIds,
       roles,
       status: Number(item.status ?? 1),
-      tenantStatus: Number(customerUser?.status ?? 1),
-      tokenVersion: Number(item.tokenVersion ?? 1),
+      tokenVersion: Number(centerUser?.tokenVersion ?? item.tokenVersion ?? 1),
       updateTime: item.updateTime ? item.updateTime.toISOString() : null,
       username: String(item.username || ''),
     };

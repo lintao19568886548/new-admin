@@ -49,37 +49,35 @@ export default eventHandler(async (event) => {
   const nextStatus = normalizeStatus(body.status);
   const nextRoleIds = normalizeRoleIds(body.roleIds);
 
-  const centerUser = await systemDbClient.user.findFirst({
-    where: {
-      customerType: customerId,
-      id,
-    },
-    select: {
-      id: true,
-      password: true,
-      phone: true,
-      realName: true,
-      status: true,
-      username: true,
-    },
-  });
+  const tenantUser = await prismaScopeStorage.run({ customerId }, async () =>
+    prismaClient.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        password: true,
+        phone: true,
+        realName: true,
+        status: true,
+        username: true,
+      },
+    }),
+  );
 
-  if (!centerUser) {
+  if (!tenantUser) {
     setResponseStatus(event, 404);
     return useResponseError('账号不存在', '账号不存在', 404);
   }
-
-  if (nextUsername && nextUsername !== centerUser.username) {
+  if (nextUsername && nextUsername !== tenantUser.username) {
     return badRequestResponse('暂不支持修改账号名', event);
   }
   if (!nextRealName) {
     return badRequestResponse('姓名不能为空', event);
   }
 
-  const currentOperatorCenterUserId = Number(userinfo.centerUserId || 0);
+  const currentTenantUserId = Number(userinfo.id || 0);
   if (
-    currentOperatorCenterUserId > 0 &&
-    id === currentOperatorCenterUserId &&
+    currentTenantUserId > 0 &&
+    currentTenantUserId === id &&
     nextStatus === 0
   ) {
     return badRequestResponse('不能禁用当前登录账号', event);
@@ -90,120 +88,159 @@ export default eventHandler(async (event) => {
     select: { dbName: true },
   });
 
+  const mapping = await systemDbClient.userCustomerMapping.findFirst({
+    where: {
+      customerId,
+      customerUserId: id,
+    },
+    select: {
+      centerUserId: true,
+    },
+  });
+  const centerUserByMapping = mapping
+    ? await systemDbClient.user.findUnique({
+        where: { id: Number(mapping.centerUserId) },
+        select: { id: true, customerType: true },
+      })
+    : null;
+  const centerUserByUsername = centerUserByMapping
+    ? null
+    : await systemDbClient.user.findUnique({
+        where: { username: tenantUser.username },
+        select: { id: true, customerType: true },
+      });
+  const centerUser = centerUserByMapping || centerUserByUsername;
+
+  if (centerUser?.customerType) {
+    const centerCustomerType = String(centerUser.customerType);
+    if (centerCustomerType !== customerId) {
+      setResponseStatus(event, 409);
+      return useResponseError(
+        `中心库账号归属租户为 ${centerCustomerType}，无法修改`,
+        `中心库账号归属租户为 ${centerCustomerType}，无法修改`,
+        409,
+      );
+    }
+  }
+
   const hashedPassword = nextPassword
     ? await bcrypt.hash(nextPassword, 10)
     : null;
   const statusToWrite =
-    nextStatus === null ? Number(centerUser.status ?? 1) : nextStatus;
-  const shouldBumpTokenVersion = Boolean(hashedPassword) || statusToWrite === 0;
-
-  const centerUpdateData: any = {
-    phone: nextPhone || null,
-    realName: nextRealName,
-    status: statusToWrite,
-  };
-
-  if (hashedPassword) {
-    centerUpdateData.password = hashedPassword;
-  }
-  if (shouldBumpTokenVersion) {
-    centerUpdateData.tokenVersion = { increment: 1 };
-  }
+    nextStatus === null ? Number(tenantUser.status ?? 1) : nextStatus;
 
   try {
-    await systemDbClient.user.update({
-      where: { id },
-      data: centerUpdateData,
-    });
-
-    if (shouldBumpTokenVersion) {
-      await systemDbClient.refreshToken.updateMany({
-        where: { revokedAt: null, userId: id },
-        data: { revokedAt: new Date() },
-      });
-    }
-
-    const customerUser = await prismaScopeStorage.run(
-      { customerId },
-      async () => {
-        const upserted = await prismaClient.user.upsert({
-          where: { username: centerUser.username },
-          create: {
-            customerType: customerId,
-            password: hashedPassword || centerUser.password,
-            phone: nextPhone || null,
-            realName: nextRealName,
-            status: statusToWrite,
-            tokenVersion: 1,
-            username: centerUser.username,
-          },
-          update: {
-            customerType: customerId,
+    await prismaScopeStorage.run({ customerId }, async () =>
+      prismaClient.$transaction(async (prisma) => {
+        await prisma.user.update({
+          where: { id },
+          data: {
             ...(hashedPassword ? { password: hashedPassword } : null),
             phone: nextPhone || null,
             realName: nextRealName,
             status: statusToWrite,
           },
-          select: {
-            id: true,
-          },
         });
 
         if (nextRoleIds) {
-          await prismaClient.userRole.deleteMany({
-            where: { userId: Number(upserted.id) },
+          await prisma.userRole.deleteMany({
+            where: { userId: id },
           });
 
           if (nextRoleIds.length > 0) {
-            const existingRoles = await prismaClient.role.findMany({
+            const existingRoles = await prisma.role.findMany({
               where: {
                 roleId: {
                   in: nextRoleIds,
                 },
               },
-              select: {
-                roleId: true,
-              },
+              select: { roleId: true },
             });
             const existingRoleIds = existingRoles.map((item) => item.roleId);
             if (existingRoleIds.length > 0) {
-              await prismaClient.userRole.createMany({
+              await prisma.userRole.createMany({
                 data: existingRoleIds.map((roleId) => ({
                   roleId,
-                  userId: Number(upserted.id),
+                  userId: id,
                 })),
               });
             }
           }
         }
-
-        return upserted;
-      },
+      }),
     );
 
-    await systemDbClient.userCustomerMapping.upsert({
-      where: {
-        centerUserId_customerId: {
-          centerUserId: id,
-          customerId,
+    let centerUserId = centerUser?.id ? Number(centerUser.id) : null;
+    const shouldBumpTokenVersion =
+      Boolean(hashedPassword) || statusToWrite === 0;
+
+    if (centerUserId) {
+      await systemDbClient.user.update({
+        where: { id: centerUserId },
+        data: {
+          customerType: customerId,
+          ...(hashedPassword ? { password: hashedPassword } : null),
+          phone: nextPhone || null,
+          realName: nextRealName,
+          status: statusToWrite,
+          ...(shouldBumpTokenVersion
+            ? { tokenVersion: { increment: 1 } }
+            : null),
         },
-      },
-      create: {
-        centerUserId: id,
-        customerId,
-        customerUserId: Number(customerUser.id),
-        dbName: centerCustomer?.dbName ? String(centerCustomer.dbName) : null,
-      },
-      update: {
-        customerUserId: Number(customerUser.id),
-        dbName: centerCustomer?.dbName ? String(centerCustomer.dbName) : null,
-      },
-    });
+      });
+    } else {
+      const createdCenterUser = await systemDbClient.user.create({
+        data: {
+          customerType: customerId,
+          password: hashedPassword || tenantUser.password,
+          phone: nextPhone || null,
+          realName: nextRealName,
+          status: statusToWrite,
+          tokenVersion: 1,
+          username: tenantUser.username,
+        },
+        select: { id: true },
+      });
+      centerUserId = Number(createdCenterUser.id);
+    }
+
+    if (shouldBumpTokenVersion && centerUserId) {
+      await systemDbClient.refreshToken.updateMany({
+        where: {
+          revokedAt: null,
+          userId: centerUserId,
+        },
+        data: { revokedAt: new Date() },
+      });
+    }
+
+    if (centerUserId) {
+      await systemDbClient.userCustomerMapping.upsert({
+        where: {
+          centerUserId_customerId: {
+            centerUserId,
+            customerId,
+          },
+        },
+        create: {
+          centerUserId,
+          customerId,
+          customerUserId: id,
+          dbName: centerCustomer?.dbName ? String(centerCustomer.dbName) : null,
+        },
+        update: {
+          customerUserId: id,
+          dbName: centerCustomer?.dbName ? String(centerCustomer.dbName) : null,
+        },
+      });
+    }
 
     await bumpPermissionCacheVersion(customerId).catch(() => undefined);
 
     return useResponseSuccess({
+      centerUserId,
       id,
+      tenantUserId: id,
     });
   } catch (error) {
     console.error('更新账号失败:', error);

@@ -3,7 +3,6 @@ import { verifyAccessToken } from '~/utils/jwt-utils';
 import { bumpPermissionCacheVersion } from '~/utils/permission-cache';
 import {
   badRequestResponse,
-  serverErrorResponse,
   unAuthorizedResponse,
   useResponseError,
   useResponseSuccess,
@@ -20,8 +19,8 @@ export default eventHandler(async (event) => {
     return badRequestResponse('账号ID不合法', event);
   }
 
-  const currentOperatorCenterUserId = Number(userinfo.centerUserId || 0);
-  if (currentOperatorCenterUserId > 0 && id === currentOperatorCenterUserId) {
+  const currentTenantUserId = Number(userinfo.id || 0);
+  if (currentTenantUserId > 0 && id === currentTenantUserId) {
     return badRequestResponse('不能删除当前登录账号', event);
   }
 
@@ -29,111 +28,117 @@ export default eventHandler(async (event) => {
     userinfo.customerId || process.env.DEFAULT_CUSTOMER_ID || 'default',
   );
 
-  const centerUser = await systemDbClient.user.findFirst({
-    where: {
-      customerType: customerId,
-      id,
-    },
-    select: {
-      id: true,
-      username: true,
-    },
-  });
-
-  if (!centerUser) {
+  const tenantUser = await prismaScopeStorage.run({ customerId }, async () =>
+    prismaClient.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        username: true,
+      },
+    }),
+  );
+  if (!tenantUser) {
     setResponseStatus(event, 404);
     return useResponseError('账号不存在', '账号不存在', 404);
   }
 
-  const markAsDisabled = async () => {
+  const mapping = await systemDbClient.userCustomerMapping.findFirst({
+    where: {
+      customerId,
+      customerUserId: id,
+    },
+    select: {
+      centerUserId: true,
+    },
+  });
+  const centerUserByMapping = mapping
+    ? await systemDbClient.user.findUnique({
+        where: { id: Number(mapping.centerUserId) },
+        select: { id: true, customerType: true, username: true },
+      })
+    : null;
+  const centerUserByUsername = centerUserByMapping
+    ? null
+    : await systemDbClient.user.findUnique({
+        where: { username: tenantUser.username },
+        select: { id: true, customerType: true, username: true },
+      });
+  const centerUserRaw = centerUserByMapping || centerUserByUsername;
+  const centerUserBelongsCurrentCustomer =
+    !centerUserRaw?.customerType ||
+    String(centerUserRaw.customerType) === customerId;
+  const centerUser = centerUserBelongsCurrentCustomer ? centerUserRaw : null;
+  await prismaScopeStorage.run({ customerId }, async () =>
+    prismaClient.$transaction(async (prisma) => {
+      await prisma.user.update({
+        where: { id },
+        data: { status: 2 },
+      });
+      await prisma.userRole.deleteMany({
+        where: { userId: id },
+      });
+      await prisma.userCode.deleteMany({
+        where: { userId: id },
+      });
+    }),
+  );
+
+  if (mapping?.centerUserId) {
+    const centerUserId = Number(mapping.centerUserId);
+    await systemDbClient.userCustomerMapping.deleteMany({
+      where: {
+        centerUserId,
+        customerId,
+        customerUserId: id,
+      },
+    });
+
+    if (centerUserBelongsCurrentCustomer) {
+      const mappingCount = await systemDbClient.userCustomerMapping.count({
+        where: {
+          centerUserId,
+        },
+      });
+      if (mappingCount === 0) {
+        await systemDbClient.$transaction(async (tx) => {
+          await tx.user.update({
+            where: { id: centerUserId },
+            data: {
+              status: 2,
+              tokenVersion: { increment: 1 },
+            },
+          });
+          await tx.refreshToken.deleteMany({
+            where: {
+              userId: centerUserId,
+            },
+          });
+        });
+      }
+    }
+  } else if (centerUser?.id) {
+    const centerUserId = Number(centerUser.id);
     await systemDbClient.$transaction(async (tx) => {
       await tx.user.update({
-        where: { id },
+        where: { id: centerUserId },
         data: {
-          status: 0,
+          status: 2,
           tokenVersion: { increment: 1 },
         },
       });
-      await tx.refreshToken.updateMany({
-        where: { revokedAt: null, userId: id },
-        data: { revokedAt: new Date() },
-      });
-    });
-
-    await prismaScopeStorage.run({ customerId }, async () => {
-      const customerUser = await prismaClient.user.findUnique({
-        where: { username: centerUser.username },
-        select: { id: true },
-      });
-      if (!customerUser) {
-        return;
-      }
-      await prismaClient.user.update({
-        where: { id: Number(customerUser.id) },
-        data: { status: 0 },
-      });
-      await prismaClient.userRole.deleteMany({
-        where: { userId: Number(customerUser.id) },
-      });
-    });
-  };
-
-  try {
-    await prismaScopeStorage.run({ customerId }, async () => {
-      const customerUser = await prismaClient.user.findUnique({
-        where: { username: centerUser.username },
-        select: { id: true },
-      });
-
-      if (customerUser) {
-        await prismaClient.userRole.deleteMany({
-          where: { userId: Number(customerUser.id) },
-        });
-        await prismaClient.userCode.deleteMany({
-          where: { userId: Number(customerUser.id) },
-        });
-        await prismaClient.user.delete({
-          where: { id: Number(customerUser.id) },
-        });
-      }
-    });
-
-    await systemDbClient.$transaction(async (tx) => {
       await tx.refreshToken.deleteMany({
-        where: { userId: id },
-      });
-      await tx.userCustomerMapping.deleteMany({
         where: {
-          centerUserId: id,
-          customerId,
+          userId: centerUserId,
         },
       });
-      await tx.user.delete({
-        where: { id },
-      });
     });
-
-    await bumpPermissionCacheVersion(customerId).catch(() => undefined);
-
-    return useResponseSuccess({
-      id,
-      mode: 'hard',
-    });
-  } catch (error) {
-    console.warn('删除账号失败，降级为禁用账号:', error);
-    try {
-      await markAsDisabled();
-      await bumpPermissionCacheVersion(customerId).catch(() => undefined);
-      return useResponseSuccess(
-        {
-          id,
-          mode: 'soft',
-        },
-        '账号存在关联数据，已自动改为禁用',
-      );
-    } catch (fallbackError) {
-      console.error('删除账号失败(含禁用降级):', fallbackError);
-      return serverErrorResponse('删除账号失败', event);
-    }
   }
+
+  await bumpPermissionCacheVersion(customerId).catch(() => undefined);
+
+  return useResponseSuccess({
+    id,
+    mode: 'soft',
+    tenantUserId: id,
+  });
 });

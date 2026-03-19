@@ -54,50 +54,59 @@ export default eventHandler(async (event) => {
     return badRequestResponse('密码不能为空', event);
   }
 
-  const existedCenterUser = await systemDbClient.user.findUnique({
-    where: { username },
-    select: { id: true },
-  });
-  if (existedCenterUser) {
-    setResponseStatus(event, 409);
-    return useResponseError('账号已存在', '账号已存在', 409);
-  }
-
   const centerCustomer = await systemDbClient.customer.findUnique({
     where: { customerId },
     select: { dbName: true, status: true },
   });
-  if (!centerCustomer || centerCustomer.status === 0) {
+  if (!centerCustomer || Number(centerCustomer.status ?? 1) === 0) {
     return badRequestResponse('当前租户不可用，无法创建账号', event);
+  }
+
+  const existingTenantUser = await prismaScopeStorage.run(
+    { customerId },
+    async () =>
+      prismaClient.user.findUnique({
+        where: { username },
+        select: { id: true },
+      }),
+  );
+
+  if (existingTenantUser) {
+    setResponseStatus(event, 409);
+    return useResponseError('租户库账号已存在', '租户库账号已存在', 409);
+  }
+
+  const centerUserBeforeCreate = await systemDbClient.user.findUnique({
+    where: { username },
+    select: {
+      id: true,
+      customerType: true,
+    },
+  });
+  if (centerUserBeforeCreate) {
+    const mappedCustomerType = centerUserBeforeCreate.customerType
+      ? String(centerUserBeforeCreate.customerType)
+      : '';
+    if (mappedCustomerType && mappedCustomerType !== customerId) {
+      setResponseStatus(event, 409);
+      return useResponseError(
+        `中心库账号已被租户 ${mappedCustomerType} 占用`,
+        `中心库账号已被租户 ${mappedCustomerType} 占用`,
+        409,
+      );
+    }
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
   let createdCenterUserId: null | number = null;
+  let createdTenantUserId: null | number = null;
 
   try {
-    const createdCenterUser = await systemDbClient.user.create({
-      data: {
-        customerType: customerId,
-        password: hashedPassword,
-        phone: phone || null,
-        realName,
-        status,
-        tokenVersion: 1,
-        username,
-      },
-      select: {
-        id: true,
-      },
-    });
-    createdCenterUserId = Number(createdCenterUser.id);
-
-    const customerUser = await prismaScopeStorage.run(
-      { customerId },
-      async () => {
-        const upserted = await prismaClient.user.upsert({
-          where: { username },
-          create: {
+    const tenantUser = await prismaScopeStorage.run({ customerId }, async () =>
+      prismaClient.$transaction(async (prisma) => {
+        const createdUser = await prisma.user.create({
+          data: {
             customerType: customerId,
             password: hashedPassword,
             phone: phone || null,
@@ -106,61 +115,87 @@ export default eventHandler(async (event) => {
             tokenVersion: 1,
             username,
           },
-          update: {
-            customerType: customerId,
-            password: hashedPassword,
-            phone: phone || null,
-            realName,
-            status,
-          },
           select: { id: true },
         });
 
-        await prismaClient.userRole.deleteMany({
-          where: { userId: Number(upserted.id) },
-        });
-
         if (roleIds.length > 0) {
-          const existingRoles = await prismaClient.role.findMany({
+          const existingRoles = await prisma.role.findMany({
             where: {
               roleId: {
                 in: roleIds,
               },
             },
-            select: {
-              roleId: true,
-            },
+            select: { roleId: true },
           });
           const existingRoleIds = existingRoles.map((item) => item.roleId);
+
           if (existingRoleIds.length > 0) {
-            await prismaClient.userRole.createMany({
+            await prisma.userRole.createMany({
               data: existingRoleIds.map((roleId) => ({
                 roleId,
-                userId: Number(upserted.id),
+                userId: Number(createdUser.id),
               })),
             });
           }
         }
 
-        return upserted;
-      },
+        return createdUser;
+      }),
     );
+    createdTenantUserId = Number(tenantUser.id);
+
+    let centerUser = centerUserBeforeCreate;
+
+    if (centerUser) {
+      await systemDbClient.user.update({
+        where: { id: Number(centerUser.id) },
+        data: {
+          customerType: customerId,
+          password: hashedPassword,
+          phone: phone || null,
+          realName,
+          status,
+          tokenVersion: { increment: 1 },
+        },
+      });
+      await systemDbClient.refreshToken.updateMany({
+        where: {
+          revokedAt: null,
+          userId: Number(centerUser.id),
+        },
+        data: { revokedAt: new Date() },
+      });
+    } else {
+      centerUser = await systemDbClient.user.create({
+        data: {
+          customerType: customerId,
+          password: hashedPassword,
+          phone: phone || null,
+          realName,
+          status,
+          tokenVersion: 1,
+          username,
+        },
+        select: { id: true, customerType: true },
+      });
+      createdCenterUserId = Number(centerUser.id);
+    }
 
     await systemDbClient.userCustomerMapping.upsert({
       where: {
         centerUserId_customerId: {
-          centerUserId: Number(createdCenterUser.id),
+          centerUserId: Number(centerUser.id),
           customerId,
         },
       },
       create: {
-        centerUserId: Number(createdCenterUser.id),
+        centerUserId: Number(centerUser.id),
         customerId,
-        customerUserId: Number(customerUser.id),
+        customerUserId: Number(tenantUser.id),
         dbName: centerCustomer.dbName ? String(centerCustomer.dbName) : null,
       },
       update: {
-        customerUserId: Number(customerUser.id),
+        customerUserId: Number(tenantUser.id),
         dbName: centerCustomer.dbName ? String(centerCustomer.dbName) : null,
       },
     });
@@ -168,9 +203,33 @@ export default eventHandler(async (event) => {
     await bumpPermissionCacheVersion(customerId).catch(() => undefined);
 
     return useResponseSuccess({
-      id: Number(createdCenterUser.id),
+      id: Number(tenantUser.id),
+      centerUserId: Number(centerUser.id),
+      tenantUserId: Number(tenantUser.id),
     });
   } catch (error) {
+    if (createdTenantUserId) {
+      await prismaScopeStorage
+        .run({ customerId }, async () => {
+          await prismaClient.userRole
+            .deleteMany({
+              where: { userId: createdTenantUserId },
+            })
+            .catch(() => undefined);
+          await prismaClient.userCode
+            .deleteMany({
+              where: { userId: createdTenantUserId },
+            })
+            .catch(() => undefined);
+          await prismaClient.user
+            .delete({
+              where: { id: createdTenantUserId },
+            })
+            .catch(() => undefined);
+        })
+        .catch(() => undefined);
+    }
+
     if (createdCenterUserId) {
       await systemDbClient.userCustomerMapping
         .deleteMany({
@@ -183,6 +242,7 @@ export default eventHandler(async (event) => {
         })
         .catch(() => undefined);
     }
+
     console.error('创建账号失败:', error);
     return serverErrorResponse('创建账号失败', event);
   }

@@ -40,7 +40,7 @@ export async function resolveTenantUserForCenterUser(params: {
     if (!userByUsername) {
       return null;
     }
-    if (Number(userByUsername.status ?? 1) === 0) {
+    if (Number(userByUsername.status ?? 1) !== 1) {
       return null;
     }
 
@@ -70,7 +70,7 @@ export async function resolveTenantUserForCenterUser(params: {
   if (!userById) {
     return null;
   }
-  if (Number(userById.status ?? 1) === 0) {
+  if (Number(userById.status ?? 1) !== 1) {
     return null;
   }
 

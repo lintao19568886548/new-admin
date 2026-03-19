@@ -195,7 +195,7 @@ export async function getActiveCustomerForCenterUser(centerUser: {
   customerType?: unknown;
   status?: unknown;
 }): Promise<null | { customerId: string; dbName: null | string }> {
-  if (Number(centerUser.status ?? 1) === 0) {
+  if (Number(centerUser.status ?? 1) !== 1) {
     return null;
   }
   if (!centerUser.customerType) {
@@ -241,7 +241,7 @@ export async function resolveUserInfoForTokenFromCenterUser(params: {
     if (!customerUser) {
       return null;
     }
-    if (customerUser.status === 0) {
+    if (Number(customerUser.status ?? 1) !== 1) {
       return null;
     }
     return await transformPrismaUserToUserInfo(customerUser, prisma);

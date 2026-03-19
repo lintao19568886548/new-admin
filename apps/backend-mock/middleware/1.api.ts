@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
       where: { id: centerUserId },
       select: { customerType: true, status: true, tokenVersion: true },
     });
-    if (!current || current.status === 0) {
+    if (!current || Number(current.status ?? 1) !== 1) {
       return unAuthorizedResponse(event);
     }
     if (!current.customerType) {
