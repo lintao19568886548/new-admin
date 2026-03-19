@@ -109,5 +109,10 @@
     "operation": "Operation",
     "permissions": "Permissions",
     "setPermissions": "Permissions"
+  },
+  "user": {
+    "title": "User Management",
+    "list": "User List",
+    "name": "User"
   }
 }
