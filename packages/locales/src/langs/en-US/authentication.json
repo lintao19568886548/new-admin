@@ -40,7 +40,7 @@
   "code": "Security code",
   "codeTip": "Security code required {0} characters",
   "mobile": "Mobile",
-  "mobileLogin": "Mobile Login",
+  "mobileLogin": "Mobile Login / Register",
   "mobileTip": "Please enter mobile number",
   "mobileErrortip": "The phone number format is incorrect",
   "sendCode": "Get Security code",

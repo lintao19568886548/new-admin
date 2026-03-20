@@ -164,6 +164,7 @@ async function handleLogin(values: Recordable<any>) {
     ref="loginRef"
     :form-schema="formSchema"
     :loading="submitLoading"
+    :submit-button-text="$t('page.auth.loginOrRegister')"
     @submit="handleLogin"
   />
 </template>

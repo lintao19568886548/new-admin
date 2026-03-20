@@ -4,6 +4,7 @@
     "codeSentTo": "Code has been sent to {0}",
     "forgetPassword": "Forget Password",
     "login": "Login",
+    "loginOrRegister": "Login / Register",
     "qrcodeLogin": "Qr Code Login",
     "register": "Register",
     "sendingCode": "SMS Code is sending..."

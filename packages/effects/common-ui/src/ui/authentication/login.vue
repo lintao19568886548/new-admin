@@ -747,18 +747,6 @@ defineExpose({
         {{ $t('authentication.agreeTip') }}
       </div>
     </div>
-    <VbenButton
-      :class="{
-        'cursor-wait': loading,
-      }"
-      :loading="loading"
-      aria-label="login"
-      class="w-full"
-      @click="handleSubmit"
-    >
-      {{ submitButtonText || $t('common.login') }}
-    </VbenButton>
-
     <div
       v-if="showCodeLogin || showQrcodeLogin"
       class="mb-2 mt-4 flex items-center justify-between"
@@ -772,6 +760,18 @@ defineExpose({
         {{ $t('authentication.mobileLogin') }}
       </VbenButton>
     </div>
+
+    <VbenButton
+      :class="{
+        'cursor-wait': loading,
+      }"
+      :loading="loading"
+      aria-label="login"
+      class="w-full"
+      @click="handleSubmit"
+    >
+      {{ submitButtonText || $t('common.login') }}
+    </VbenButton>
 
     <!-- 第三方登录 -->
     <!-- <slot name="third-party-login">
