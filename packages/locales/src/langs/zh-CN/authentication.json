@@ -36,7 +36,7 @@
   "qrcodeSubtitle": "请用手机扫描二维码登录",
   "qrcodePrompt": "扫码后点击 '确认'，即可完成登录",
   "qrcodeLogin": "扫码登录",
-  "codeSubtitle": "请输入您的手机号码以开始管理您的项目",
+  "codeSubtitle": "输入您的手机号码开始登录，未注册手机号将自动注册",
   "code": "验证码",
   "codeTip": "请输入{0}位验证码",
   "mobile": "手机号码",

@@ -91,6 +91,12 @@ const formSchema = computed((): VbenFormSchema[] => {
         placeholder: $t('authentication.mobile'),
       },
       fieldName: 'phoneNumber',
+      formFieldProps: {
+        validateOnBlur: false,
+        validateOnChange: false,
+        validateOnInput: false,
+        validateOnModelUpdate: false,
+      },
       label: $t('authentication.mobile'),
       rules: z
         .string()
