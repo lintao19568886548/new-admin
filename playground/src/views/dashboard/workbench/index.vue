@@ -12,12 +12,20 @@ import { Empty, Input } from 'ant-design-vue';
 import { useMenuStore } from '#/store/menu';
 
 interface NavItem {
+  bgClass: string;
   color: string;
+  glowClass: string;
   icon: string;
   name: string;
   order: number;
   path: string;
   title: string;
+}
+
+interface NavVisualTheme {
+  bgClass: string;
+  color: string;
+  glowClass: string;
 }
 
 interface NavGroup {
@@ -40,11 +48,35 @@ const router = useRouter();
 const searchQuery = ref('');
 const groups = ref<NavGroup[]>([]);
 
-const colors = [
-  'text-sky-500',
-  'text-green-500',
-  'text-orange-500',
-  'text-slate-500',
+const themes: NavVisualTheme[] = [
+  {
+    bgClass:
+      'bg-gradient-to-br from-cyan-100 via-sky-50 to-blue-200 dark:from-cyan-500/35 dark:via-sky-900/55 dark:to-blue-700/35',
+    color: 'text-sky-500',
+    glowClass:
+      'shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_20px_rgba(14,165,233,0.2)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_10px_22px_rgba(14,165,233,0.16)]',
+  },
+  {
+    bgClass:
+      'bg-gradient-to-br from-emerald-100 via-lime-50 to-green-200 dark:from-emerald-500/35 dark:via-emerald-900/55 dark:to-green-700/35',
+    color: 'text-green-500',
+    glowClass:
+      'shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_20px_rgba(34,197,94,0.2)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_10px_22px_rgba(34,197,94,0.16)]',
+  },
+  {
+    bgClass:
+      'bg-gradient-to-br from-amber-100 via-orange-50 to-orange-200 dark:from-amber-500/35 dark:via-amber-900/55 dark:to-orange-700/35',
+    color: 'text-orange-500',
+    glowClass:
+      'shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_20px_rgba(249,115,22,0.2)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_10px_22px_rgba(249,115,22,0.16)]',
+  },
+  {
+    bgClass:
+      'bg-gradient-to-br from-slate-100 via-slate-50 to-slate-300 dark:from-slate-400/30 dark:via-slate-700/80 dark:to-slate-900/90',
+    color: 'text-slate-500',
+    glowClass:
+      'shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_20px_rgba(100,116,139,0.18)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_10px_22px_rgba(15,23,42,0.3)]',
+  },
 ];
 const DEFAULT_APP_ICON = 'carbon:application-web';
 const DEFAULT_GROUP_ICON = 'carbon:category';
@@ -100,11 +132,13 @@ function collectAppRoutes(
 
 function toNavItem(
   route: RouteRecordStringComponent,
-  color: string,
+  theme: NavVisualTheme,
 ): NavItem | null {
   if (!route.name) return null;
   return {
-    color,
+    bgClass: theme.bgClass,
+    color: theme.color,
+    glowClass: theme.glowClass,
     icon: normalizeIcon(route.meta?.icon, DEFAULT_APP_ICON),
     name: String(route.name),
     order: parseOrder(route.meta?.order),
@@ -165,7 +199,8 @@ function buildGroups(menuRoutes: RouteRecordStringComponent[]) {
           .map((route) =>
             toNavItem(
               route,
-              colors[colorIndex++ % colors.length] || 'text-slate-500',
+              themes[colorIndex++ % themes.length] ||
+                themes[themes.length - 1]!,
             ),
           )
           .filter((item): item is NavItem => item !== null),
@@ -248,9 +283,9 @@ function handleItemClick(item: NavItem) {
         <div class="mb-3 flex items-center justify-between">
           <div class="flex items-center gap-2.5">
             <span
-              class="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-sky-100 to-blue-100 text-sky-500 dark:from-cyan-900/50 dark:to-slate-700/85 dark:text-sky-300"
+              class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-100 to-blue-100 text-sky-500 dark:from-cyan-900/50 dark:to-slate-700/85 dark:text-sky-300"
             >
-              <VbenIcon :icon="group.icon" class="text-sm" />
+              <VbenIcon :icon="group.icon" class="text-base" />
             </span>
             <div
               class="text-sm font-semibold text-slate-800 dark:text-slate-100"
@@ -269,11 +304,15 @@ function handleItemClick(item: NavItem) {
             @click="handleItemClick(item)"
           >
             <span
-              class="inline-flex h-[34px] w-[34px] items-center justify-center rounded-xl bg-gradient-to-br from-slate-50 to-slate-200 dark:from-slate-600/80 dark:to-slate-700/90"
+              class="relative inline-flex h-[40px] w-[40px] items-center justify-center overflow-hidden rounded-xl border border-white/80 dark:border-white/10"
+              :class="[item.bgClass, item.glowClass]"
             >
+              <span
+                class="dark:bg-white/12 pointer-events-none absolute inset-x-1 top-0 h-1/2 rounded-full bg-white/55 blur-md"
+              ></span>
               <VbenIcon
                 :icon="item.icon"
-                class="text-[21px]"
+                class="relative z-10 text-[24px]"
                 :class="item.color"
               />
             </span>
