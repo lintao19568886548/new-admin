@@ -15,6 +15,7 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Avatar, Card, List, ListItem, message, Modal } from 'ant-design-vue';
 
+import { cancelCurrentUserApi } from '#/api';
 import BusinessCard from '#/components/Businesscard.vue';
 import { useAuthStore } from '#/store';
 import { checkAppUpdate } from '#/utils/update-service';
@@ -94,6 +95,57 @@ async function handleCheckUpdate() {
   await checkAppUpdate(true, true, false);
 }
 
+function handleCancelAccount() {
+  const currentUser = userInfo.value as null | {
+    id?: number;
+    realName?: string;
+    username?: string;
+  };
+  const currentUserId = Number(currentUser?.id || 0);
+  if (!Number.isFinite(currentUserId) || currentUserId <= 0) {
+    message.error('未获取到当前账号信息，暂时无法注销');
+    return;
+  }
+
+  const displayName =
+    currentUser?.realName || currentUser?.username || '当前账号';
+
+  Modal.confirm({
+    cancelText: '取消',
+    centered: true,
+    content: `账号注销后将无法继续登录，${displayName} 的权限信息会被清除，且该操作不可恢复，是否继续？`,
+    okButtonProps: {
+      danger: true,
+    },
+    okText: '确认注销',
+    onOk: async () => {
+      const messageKey = 'account_cancel_msg';
+
+      message.loading({
+        content: '账号注销中...',
+        duration: 0,
+        key: messageKey,
+      });
+
+      try {
+        await cancelCurrentUserApi();
+        message.success({
+          content: '账号已注销',
+          key: messageKey,
+        });
+        await authStore.logout(false, false);
+      } catch (error) {
+        console.error('账号注销失败:', error);
+        message.error({
+          content: '账号注销失败，请稍后重试',
+          key: messageKey,
+        });
+      }
+    },
+    title: '账号注销',
+  });
+}
+
 function handleLogout() {
   Modal.confirm({
     cancelText: '取消',
@@ -151,6 +203,12 @@ const actions = computed(() => {
       title: '生成个人名片',
     },
     {
+      danger: true,
+      handler: handleCancelAccount,
+      icon: 'mdi:account-remove-outline',
+      title: '账号注销',
+    },
+    {
       handler: handleLogout,
       icon: LogOut,
       title: '退出登录',
@@ -183,13 +241,17 @@ const actions = computed(() => {
     <Card :bordered="false">
       <List :data-source="actions">
         <template #renderItem="{ item }">
-          <ListItem @click="item.handler">
+          <ListItem
+            :class="{ 'danger-action': item.danger }"
+            class="cursor-pointer"
+            @click="item.handler"
+          >
             <div class="flex w-full items-center justify-between">
               <div class="flex items-center">
-                <VbenIcon :icon="item.icon" class="mr-2" />
+                <VbenIcon :icon="item.icon" class="mr-2 size-4" />
                 <span>{{ item.title }}</span>
               </div>
-              <VbenIcon :icon="ChevronRight" />
+              <VbenIcon :icon="ChevronRight" class="size-4" />
             </div>
           </ListItem>
         </template>
@@ -211,4 +273,8 @@ const actions = computed(() => {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.danger-action {
+  color: #ff4d4f;
+}
+</style>
