@@ -1,5 +1,9 @@
 import dayjs from 'dayjs';
 import { getQuery } from 'h3';
+import {
+  getApprovedLeaveRangesByUserIds,
+  resolveAttendanceState,
+} from '~/utils/attendance';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
@@ -61,6 +65,25 @@ export default eventHandler(async (event) => {
       },
     });
 
+    const rangeStart =
+      records.length > 0
+        ? dayjs(records[records.length - 1].punchIn)
+            .startOf('day')
+            .toDate()
+        : startDate;
+    const rangeEnd =
+      records.length > 0
+        ? dayjs(records[0].punchIn).endOf('day').toDate()
+        : endDate;
+    const leaveMap =
+      rangeStart && rangeEnd
+        ? await getApprovedLeaveRangesByUserIds(
+            records.map((record) => record.userId).filter(Boolean),
+            rangeStart,
+            rangeEnd,
+          )
+        : new Map<number, { end: Date; start: Date }[]>();
+
     const formattedItems = records.map((record) => {
       let workHours = 0;
       if (record.punchIn && record.punchOut) {
@@ -72,14 +95,24 @@ export default eventHandler(async (event) => {
         workHours = Math.round(workDuration * 100) / 100;
       }
 
+      const attendanceState = resolveAttendanceState({
+        punchIn: record.punchIn,
+        punchOut: record.punchOut,
+        leaveRanges: record.userId ? (leaveMap.get(record.userId) ?? []) : [],
+      });
+
       return {
+        attendanceId: record.attendanceId,
+        id: record.attendanceId,
         key: record.attendanceId,
         date: dayjs(record.punchIn).format('YYYY-MM-DD'),
+        leaveMinutes: attendanceState.leaveMinutes,
+        leaveScope: attendanceState.leaveScope,
         punchIn: dayjs(record.punchIn).format('HH:mm:ss'),
         punchOut: record.punchOut
           ? dayjs(record.punchOut).format('HH:mm:ss')
           : '-',
-        status: record.status,
+        status: attendanceState.status,
         workHours,
       };
     });

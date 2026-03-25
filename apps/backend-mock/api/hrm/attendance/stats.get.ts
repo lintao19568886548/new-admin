@@ -1,5 +1,11 @@
 import dayjs from 'dayjs';
 import { getQuery } from 'h3';
+import {
+  AttendanceStatus,
+  calculateApprovedLeaveDaysInRange,
+  getApprovedLeaveRangesByUserIds,
+  resolveAttendanceState,
+} from '~/utils/attendance';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
@@ -43,6 +49,41 @@ export default eventHandler(async (event) => {
       },
     });
 
+    const leaveWhere: Record<string, any> = {
+      endDate: {
+        gt: startOfMonth,
+      },
+      startDate: {
+        lt: endOfMonth,
+      },
+      status: 1,
+    };
+    if (isSuper) {
+      if (requestedUsername) {
+        leaveWhere.user = requestedUsername;
+      }
+    } else {
+      leaveWhere.userId = userinfo.id;
+    }
+
+    const approvedLeaves = await prismaClient.leaveApplication.findMany({
+      where: leaveWhere,
+      select: {
+        endDate: true,
+        startDate: true,
+        userId: true,
+      },
+    });
+
+    const leaveMap = await getApprovedLeaveRangesByUserIds(
+      [
+        ...records.map((record) => record.userId).filter(Boolean),
+        ...approvedLeaves.map((leave) => leave.userId).filter(Boolean),
+      ],
+      startOfMonth,
+      endOfMonth,
+    );
+
     const stats = {
       attendanceDays: 0,
       lateDays: 0,
@@ -52,17 +93,24 @@ export default eventHandler(async (event) => {
     };
 
     records.forEach((record) => {
-      // 状态为1 (迟到) 或 3 (迟到+早退)
-      if (record.status === 1 || record.status === 3) {
+      const attendanceState = resolveAttendanceState({
+        punchIn: record.punchIn,
+        punchOut: record.punchOut,
+        leaveRanges: record.userId ? (leaveMap.get(record.userId) ?? []) : [],
+      });
+
+      if (
+        attendanceState.status === AttendanceStatus.Late ||
+        attendanceState.status === AttendanceStatus.LateAndEarlyLeave
+      ) {
         stats.lateDays++;
       }
-      // 状态为2 (早退) 或 3 (迟到+早退)
-      if (record.status === 2 || record.status === 3) {
+
+      if (
+        attendanceState.status === AttendanceStatus.EarlyLeave ||
+        attendanceState.status === AttendanceStatus.LateAndEarlyLeave
+      ) {
         stats.earlyLeaveDays++;
-      }
-      // 状态为5代表请假
-      if (record.status === 5) {
-        stats.leaveDays++;
       }
 
       if (record.punchIn && record.punchOut) {
@@ -78,8 +126,36 @@ export default eventHandler(async (event) => {
       }
     });
 
-    // 四舍五入加班时长到两位小数
-    // stats.overtimeHours = Math.round(stats.overtimeHours * 100) / 100;
+    const approvedLeaveDays =
+      [...leaveMap.values()].reduce((total, leaveRanges) => {
+        return (
+          total +
+          calculateApprovedLeaveDaysInRange({
+            leaveRanges,
+            rangeEnd: endOfMonth,
+            rangeStart: startOfMonth,
+          })
+        );
+      }, 0) +
+      approvedLeaves
+        .filter((leave) => !leave.userId)
+        .reduce((total, leave) => {
+          return (
+            total +
+            calculateApprovedLeaveDaysInRange({
+              leaveRanges: [
+                {
+                  start: leave.startDate,
+                  end: leave.endDate,
+                },
+              ],
+              rangeEnd: endOfMonth,
+              rangeStart: startOfMonth,
+            })
+          );
+        }, 0);
+
+    stats.leaveDays = Number(approvedLeaveDays.toFixed(2));
 
     return useResponseSuccess(stats);
   } catch (error: any) {

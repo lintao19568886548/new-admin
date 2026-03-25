@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import type {
+  AttendanceLeaveScope,
+  TodayAttendanceRecord,
+} from '#/api/hrm/attendance';
+
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -18,11 +23,7 @@ import { useLayoutStore } from '#/store/layout';
 import { getBaiduMapAk, loadBaiduMapScript } from '#/utils/map';
 
 // ================================= 类型定义 =================================
-interface TodayRecord {
-  attendanceId: null | number;
-  punchIn: string;
-  punchOut: string;
-  status: null | number;
+interface TodayRecord extends TodayAttendanceRecord {
   workHours: number;
 }
 
@@ -50,6 +51,14 @@ const attendanceStatusMeta = {
   [AttendanceStatus.LateAndEarlyLeave]: { color: 'red', text: '迟到+早退' },
   [AttendanceStatus.Leave]: { color: 'blue', text: '请假' },
   [AttendanceStatus.Normal]: { color: 'green', text: '正常' },
+};
+
+const leaveScopeMeta: Record<
+  Exclude<AttendanceLeaveScope, 'none'>,
+  { color: string; text: string }
+> = {
+  full: { color: 'blue', text: '整天请假' },
+  partial: { color: 'cyan', text: '部分请假' },
 };
 
 // 默认下班时间
@@ -438,6 +447,13 @@ const getStatusInfo = (status: null | number) => {
   return attendanceStatusMeta[status as keyof typeof attendanceStatusMeta];
 };
 
+const getLeaveScopeInfo = (leaveScope: AttendanceLeaveScope) => {
+  if (leaveScope === 'none') {
+    return null;
+  }
+  return leaveScopeMeta[leaveScope];
+};
+
 // 加载今日记录
 const loadTodayRecord = async () => {
   if (!userInfo?.realName) return; // 如果没有 username，则不执行
@@ -487,18 +503,21 @@ watch(
 </script>
 
 <template>
-  <div class="attendance-page">
+  <div class="box-border h-full bg-[#f5f5f5] p-6">
     <!-- 打卡区域 -->
-    <div class="punch-card-section">
-      <div class="location-info">
-        <div class="location-status" :class="{ 'in-range': isInRange }">
-          <Icon icon="mdi:map-marker" class="location-icon" />
-          <div class="location-text">
-            <div class="location-name">
+    <div class="rounded-lg bg-white p-6 shadow-[0_2px_8px_rgb(0_0_0_/_10%)]">
+      <div class="mb-6">
+        <div
+          class="flex items-center rounded-lg border-2 border-[#f0f0f0] p-4 transition-all duration-300"
+          :class="isInRange ? 'border-[#52c41a] bg-[#f6ffed]' : ''"
+        >
+          <Icon icon="mdi:map-marker" class="mr-3 text-2xl text-[#1890ff]" />
+          <div class="flex-1">
+            <div class="mb-1 text-base font-medium text-[#333]">
               <span v-if="locationLoading">正在定位中...</span>
               <span v-else>{{ currentLocation }}</span>
             </div>
-            <div class="location-status-text">
+            <div class="text-sm text-[#666]">
               <span v-if="locationLoading">请稍候...</span>
               <span v-else>{{
                 isInRange ? '在打卡范围内' : '不在打卡范围内'
@@ -508,13 +527,16 @@ watch(
         </div>
       </div>
 
-      <div id="map-container" class="map-container"></div>
+      <div
+        id="map-container"
+        class="mb-6 h-[300px] overflow-hidden rounded-[6px] border border-[#d9d9d9]"
+      ></div>
 
-      <div class="punch-buttons">
+      <div class="mb-6 flex justify-center gap-4">
         <Button
           type="primary"
           size="large"
-          class="punch-btn punch-in"
+          class="punch-btn !flex !h-[60px] !flex-1 !items-center !justify-center !gap-2 !rounded-lg !border-none !bg-[linear-gradient(135deg,#52c41a,#73d13d)] !text-base"
           :disabled="Boolean(todayRecord?.punchIn)"
           :loading="punchLoading"
           @click="handlePunchIn"
@@ -525,7 +547,7 @@ watch(
         <Button
           type="primary"
           size="large"
-          class="punch-btn punch-out"
+          class="punch-btn !flex !h-[60px] !flex-1 !items-center !justify-center !gap-2 !rounded-lg !border-none !bg-[linear-gradient(135deg,#1890ff,#40a9ff)] !text-base"
           :disabled="
             Boolean(!todayRecord?.attendanceId || todayRecord?.punchOut)
           "
@@ -538,172 +560,41 @@ watch(
       </div>
 
       <!-- 今日打卡记录 -->
-      <div class="today-record" v-if="todayRecord">
-        <div class="record-item" v-if="todayRecord.punchIn">
-          <span class="record-label">上班时间:</span>
-          <span class="record-time">{{ todayRecord.punchIn }}</span>
+      <div v-if="todayRecord" class="border-t border-[#f0f0f0] pt-4">
+        <div v-if="todayRecord.punchIn" class="mb-2 flex items-center gap-3">
+          <span class="min-w-20 font-medium text-[#333]">上班时间:</span>
+          <span
+            class="font-[Monaco,Menlo,monospace] font-medium text-[#1890ff]"
+          >
+            {{ todayRecord.punchIn }}
+          </span>
           <Tag :color="getStatusInfo(todayRecord.status).color">
             {{ getStatusInfo(todayRecord.status).text }}
           </Tag>
+          <Tag
+            v-if="getLeaveScopeInfo(todayRecord.leaveScope)"
+            :color="getLeaveScopeInfo(todayRecord.leaveScope)?.color"
+          >
+            {{ getLeaveScopeInfo(todayRecord.leaveScope)?.text }}
+          </Tag>
         </div>
-        <div class="record-item" v-if="todayRecord.punchOut">
-          <span class="record-label">下班时间:</span>
-          <span class="record-time">{{ todayRecord.punchOut }}</span>
+        <div v-if="todayRecord.punchOut" class="mb-2 flex items-center gap-3">
+          <span class="min-w-20 font-medium text-[#333]">下班时间:</span>
+          <span
+            class="font-[Monaco,Menlo,monospace] font-medium text-[#1890ff]"
+          >
+            {{ todayRecord.punchOut }}
+          </span>
         </div>
-        <div class="record-item" v-if="todayRecord.workHours">
-          <span class="record-label">工作时长:</span>
-          <span class="record-time">{{ todayRecord.workHours }}小时</span>
+        <div v-if="todayRecord.workHours" class="mb-2 flex items-center gap-3">
+          <span class="min-w-20 font-medium text-[#333]">工作时长:</span>
+          <span
+            class="font-[Monaco,Menlo,monospace] font-medium text-[#1890ff]"
+          >
+            {{ todayRecord.workHours }}小时
+          </span>
         </div>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.attendance-page {
-  box-sizing: border-box;
-  height: 100%;
-  padding: 24px;
-  background: #f5f5f5;
-}
-
-.punch-card-section {
-  padding: 24px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
-}
-
-.location-info {
-  margin-bottom: 24px;
-}
-
-.location-status {
-  display: flex;
-  align-items: center;
-  padding: 16px;
-  border: 2px solid #f0f0f0;
-  border-radius: 8px;
-  transition: all 0.3s;
-}
-
-.location-status.in-range {
-  background: #f6ffed;
-  border-color: #52c41a;
-}
-
-.location-icon {
-  margin-right: 12px;
-  font-size: 24px;
-  color: #1890ff;
-}
-
-.location-text {
-  flex: 1;
-}
-
-.location-name {
-  margin-bottom: 4px;
-  font-size: 16px;
-  font-weight: 500;
-  color: #333;
-}
-
-.location-status-text {
-  font-size: 14px;
-  color: #666;
-}
-
-.punch-buttons {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  margin-bottom: 24px;
-}
-
-.punch-btn {
-  display: flex;
-  flex: 1;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-  height: 60px;
-  font-size: 16px;
-  border-radius: 8px;
-}
-
-.punch-in {
-  background: linear-gradient(135deg, #52c41a, #73d13d);
-  border: none;
-}
-
-.punch-out {
-  background: linear-gradient(135deg, #1890ff, #40a9ff);
-  border: none;
-}
-
-.today-record {
-  padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
-}
-
-.record-item {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.record-label {
-  min-width: 80px;
-  font-weight: 500;
-  color: #333;
-}
-
-.record-time {
-  font-family: Monaco, Menlo, monospace;
-  font-weight: 500;
-  color: #1890ff;
-}
-
-.map-container {
-  height: 300px;
-  margin-bottom: 24px;
-  overflow: hidden;
-  border: 1px solid #d9d9d9;
-  border-radius: 6px;
-}
-
-.map-legend {
-  display: block;
-  margin-bottom: 24px;
-}
-
-.office-locations-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.legend-item {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  font-size: 12px;
-  color: #666;
-}
-
-.legend-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.legend-color.office {
-  background: #1890ff;
-}
-
-.legend-color.current {
-  background: #ff4d4f;
-}
-</style>
