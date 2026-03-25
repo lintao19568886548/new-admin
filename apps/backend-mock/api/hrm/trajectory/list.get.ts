@@ -8,6 +8,8 @@ export default eventHandler(async (event) => {
     const query = getQuery(event);
     const page = Number.parseInt((query.page as string) || '1');
     const pageSize = Number.parseInt((query.pageSize as string) || '10');
+    const employeeName =
+      typeof query.employeeName === 'string' ? query.employeeName.trim() : '';
 
     // 如果未提供日期范围，则默认为所有历史数据
     const startDate = query.startDate
@@ -28,8 +30,44 @@ export default eventHandler(async (event) => {
       },
     };
 
+    if (employeeName) {
+      where.OR = [
+        {
+          username: {
+            contains: employeeName,
+          },
+        },
+        {
+          user: {
+            is: {
+              realName: {
+                contains: employeeName,
+              },
+            },
+          },
+        },
+        {
+          user: {
+            is: {
+              username: {
+                contains: employeeName,
+              },
+            },
+          },
+        },
+      ];
+    }
+
     const total = await prismaClient.attendance.count({ where });
     const records = await prismaClient.attendance.findMany({
+      include: {
+        user: {
+          select: {
+            realName: true,
+            username: true,
+          },
+        },
+      },
       where,
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -51,7 +89,11 @@ export default eventHandler(async (event) => {
 
       return {
         key: record.attendanceId,
-        username: record.username,
+        username:
+          record.user?.realName ||
+          record.user?.username ||
+          record.username ||
+          '未知用户',
         date: dayjs(record.punchIn).format('YYYY-MM-DD'),
         punchIn: dayjs(record.punchIn).format('HH:mm:ss'),
         punchOut: record.punchOut
