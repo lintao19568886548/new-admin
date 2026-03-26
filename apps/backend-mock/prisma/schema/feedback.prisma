@@ -1,0 +1,20 @@
+model Feedback {
+  id             Int             @id @default(autoincrement())
+  category       String          @db.VarChar(20)
+  content        String          @db.LongText
+  contact        String?         @db.VarChar(50)
+  clientPlatform String?         @map("client_platform") @db.VarChar(20)
+  source         String?         @default("profile") @db.VarChar(20)
+  userAgent      String?         @map("user_agent") @db.VarChar(500)
+  userId         Int?            @map("user_id")
+  user           User?           @relation("UserToFeedback", fields: [userId], references: [id])
+  username       String?         @db.VarChar(50)
+  realName       String?         @map("real_name") @db.VarChar(30)
+  centerUserId   Int?            @map("center_user_id")
+  customerId     String?         @map("customer_id") @db.VarChar(50)
+  createTime     DateTime?       @default(now()) @map("create_time")
+  updateTime     DateTime?       @updatedAt @map("update_time")
+
+  @@index([userId])
+  @@map("feedback")
+}

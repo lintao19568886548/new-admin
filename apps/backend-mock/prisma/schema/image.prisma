@@ -9,6 +9,7 @@ model Image {
   dormitoryImages    DormitoryImage[]     @relation("ImageToDormitoryImage")
   parkImages         ParkImage[]          @relation("ImageToParkImage")
   Reimbursement      ReimbursementImage[] @relation("ImageToReimbursementImage")
+  bindings           ImageBinding[]       @relation("ImageToImageBinding")
   firefightingImages FirefightingImage[]  @relation("ImageToFirefightingImage")
   transformerImages  TransformerImage[]   @relation("ImageToTransformerImage")
   salaryImages       SalaryImage[]        @relation("ImageToSalaryImage")
@@ -91,6 +92,24 @@ model ReimbursementImage {
   @@index([reimbursementId])
   @@index([imgId])
   @@map("reimbursement_image")
+}
+
+model ImageBinding {
+  id         Int       @id @default(autoincrement())
+  bizType    String    @map("biz_type") @db.VarChar(50)
+  bizId      Int       @map("biz_id")
+  imgId      Int       @map("img_id")
+  field      String?   @db.VarChar(30)
+  sort       Int       @default(0)
+  image      Image?    @relation("ImageToImageBinding", fields: [imgId], references: [imgId])
+  createTime DateTime? @default(now()) @map("create_time")
+  updateTime DateTime? @updatedAt @map("update_time")
+
+  @@index([bizType, bizId])
+  @@index([bizType, bizId, field])
+  @@index([imgId])
+  @@unique([bizType, bizId, imgId])
+  @@map("image_binding")
 }
 
 model FirefightingImage {

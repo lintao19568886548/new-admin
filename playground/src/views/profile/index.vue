@@ -21,11 +21,14 @@ import { useAuthStore } from '#/store';
 import { checkAppUpdate } from '#/utils/update-service';
 import EditPassword from '#/views/_core/authentication/edit-password.vue';
 
+import FeedbackModal from './modules/feedback-modal.vue';
+
 const userStore = useUserStore();
 const authStore = useAuthStore();
 
 const userInfo = computed(() => userStore.userInfo);
 const showPasswordModal = ref(false);
+const showFeedbackModal = ref(false);
 
 /**
  * 初始化通知功能（包括本地通知和推送通知）
@@ -166,6 +169,10 @@ function handleCreateBusinessCard() {
   showBusinessCard.value = true;
 }
 
+function handleOpenFeedback() {
+  showFeedbackModal.value = true;
+}
+
 // function handleEditProfile() {
 //   message.info('该功能正在开发中...');
 // }
@@ -201,6 +208,11 @@ const actions = computed(() => {
       handler: handleCreateBusinessCard,
       icon: SvgCardIcon,
       title: '生成个人名片',
+    },
+    {
+      handler: handleOpenFeedback,
+      icon: 'mdi:message-text-outline',
+      title: '意见反馈',
     },
     {
       danger: true,
@@ -257,6 +269,8 @@ const actions = computed(() => {
         </template>
       </List>
     </Card>
+
+    <FeedbackModal v-model:open="showFeedbackModal" />
 
     <!-- 添加修改密码模态框 -->
     <EditPassword
