@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>打开瞰维智管 App</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family:
+          'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont,
+          'Segoe UI', sans-serif;
+        background:
+          radial-gradient(circle at top, #e0f2fe 0%, #f8fafc 42%, #eef2ff 100%);
+        color: #0f172a;
+      }
+      main {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 440px;
+        background: rgba(255, 255, 255, 0.94);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 24px;
+        padding: 28px;
+        box-shadow: 0 22px 70px rgba(15, 23, 42, 0.12);
+      }
+      .eyebrow {
+        display: inline-flex;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: #e0f2fe;
+        color: #0369a1;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+      h1 {
+        margin: 16px 0 8px;
+        font-size: 28px;
+        line-height: 1.15;
+      }
+      p {
+        margin: 0;
+        color: #475569;
+        line-height: 1.65;
+      }
+      .tips {
+        margin-top: 18px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: #f8fafc;
+        color: #334155;
+        font-size: 14px;
+      }
+      .wechat-tip {
+        margin-top: 14px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: #fff7ed;
+        color: #9a3412;
+        font-size: 14px;
+      }
+      .wechat-tip strong {
+        color: #7c2d12;
+      }
+      .actions {
+        display: grid;
+        gap: 12px;
+        margin-top: 24px;
+      }
+      button,
+      a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        border-radius: 14px;
+        border: none;
+        font-size: 15px;
+        font-weight: 700;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .primary {
+        background: linear-gradient(135deg, #0f766e 0%, #0891b2 100%);
+        color: #fff;
+      }
+      .secondary {
+        background: #e2e8f0;
+        color: #0f172a;
+      }
+      .small {
+        margin-top: 16px;
+        font-size: 12px;
+        color: #64748b;
+        word-break: break-all;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="card">
+        <div class="eyebrow">Deep Link</div>
+        <h1>打开瞰维智管 App</h1>
+        <p id="desc">
+          如果设备已安装 App，点击“打开 App”将跳转到对应页面；如果未安装，可继续浏览网页或前往下载页。
+        </p>
+
+        <div class="tips">
+          目标页面：<span id="targetText">/home</span>
+        </div>
+
+        <div id="wechatTip" class="wechat-tip hidden">
+          当前处于微信内。请先点击右上角菜单，选择
+          <strong>“在浏览器打开”</strong>，再点击“打开 App”。
+        </div>
+
+        <div class="actions">
+          <a id="openBtn" class="primary" href="#">打开 App</a>
+          <a id="downloadBtn" class="secondary" href="/app/download">
+            前往下载页
+          </a>
+        </div>
+
+        <p id="debugUrl" class="small hidden"></p>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        var APP_PACKAGE = 'cn.yizuw.magic';
+        var DEFAULT_TARGET = '/home';
+        var DEFAULT_WEB_ORIGIN = 'https://yizuw.cn';
+        var DEEP_LINK_BASE_ORIGIN = 'https://deep-link.local';
+        var params = new URLSearchParams(window.location.search);
+        var rawTarget = params.get('target') || DEFAULT_TARGET;
+        var rawWebOrigin = params.get('webOrigin') || DEFAULT_WEB_ORIGIN;
+        var isDebug = params.get('debug') === '1';
+        var ua = navigator.userAgent || '';
+        var isWechat = /MicroMessenger/i.test(ua);
+        var isAndroid = /Android/i.test(ua);
+        var openBtn = document.getElementById('openBtn');
+        var downloadBtn = document.getElementById('downloadBtn');
+        var wechatTip = document.getElementById('wechatTip');
+        var targetText = document.getElementById('targetText');
+        var debugUrl = document.getElementById('debugUrl');
+        var target = normalizeTarget(rawTarget);
+        var webOrigin = sanitizeWebOrigin(rawWebOrigin);
+
+        function isAllowedTargetPath(pathname) {
+          return (
+            /^\/home$/.test(pathname) ||
+            /^\/rental\/factory$/.test(pathname) ||
+            /^\/rental\/factory\/detail\/[^/]+$/.test(pathname)
+          );
+        }
+
+        function normalizeTarget(input) {
+          try {
+            var parsedTarget = new URL(input, DEEP_LINK_BASE_ORIGIN);
+            if (parsedTarget.origin !== DEEP_LINK_BASE_ORIGIN) {
+              return DEFAULT_TARGET;
+            }
+            if (!isAllowedTargetPath(parsedTarget.pathname)) {
+              return DEFAULT_TARGET;
+            }
+            return (
+              parsedTarget.pathname + parsedTarget.search + parsedTarget.hash
+            );
+          } catch (error) {
+            return DEFAULT_TARGET;
+          }
+        }
+
+        function sanitizeWebOrigin(input) {
+          try {
+            var parsedOrigin = new URL(input);
+            var hostname = parsedOrigin.hostname.toLowerCase();
+            var isAllowedHostname =
+              hostname === 'localhost' ||
+              hostname === '127.0.0.1' ||
+              hostname === 'yizuw.cn' ||
+              hostname.endsWith('.yizuw.cn');
+
+            if (parsedOrigin.protocol !== 'https:' && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+              return DEFAULT_WEB_ORIGIN;
+            }
+
+            if (!isAllowedHostname) {
+              return DEFAULT_WEB_ORIGIN;
+            }
+
+            return parsedOrigin.origin;
+          } catch (error) {
+            return DEFAULT_WEB_ORIGIN;
+          }
+        }
+
+        function buildWebFallbackUrl() {
+          return new URL(target, webOrigin).toString();
+        }
+
+        function buildDownloadUrl() {
+          return new URL('/app/download', webOrigin).toString();
+        }
+
+        function buildHttpsLaunchUrl() {
+          var launchUrl = new URL('/ul/link/index.html', window.location.origin);
+          launchUrl.searchParams.set('target', target);
+          launchUrl.searchParams.set('webOrigin', webOrigin);
+          launchUrl.searchParams.set('launch', '1');
+          launchUrl.searchParams.set('ts', String(Date.now()));
+          return launchUrl.toString();
+        }
+
+        function buildIntentLaunchUrl(httpsLaunchUrl) {
+          var parsedLaunchUrl = new URL(httpsLaunchUrl);
+          return (
+            'intent://' +
+            parsedLaunchUrl.host +
+            parsedLaunchUrl.pathname +
+            parsedLaunchUrl.search +
+            '#Intent;scheme=https;package=' +
+            APP_PACKAGE +
+            ';S.browser_fallback_url=' +
+            encodeURIComponent(httpsLaunchUrl) +
+            ';end'
+          );
+        }
+
+        function refreshLaunchTarget() {
+          var httpsLaunchUrl = buildHttpsLaunchUrl();
+          var intentLaunchUrl = buildIntentLaunchUrl(httpsLaunchUrl);
+
+          openBtn.href = isAndroid ? intentLaunchUrl : httpsLaunchUrl;
+
+          if (!isDebug) {
+            return;
+          }
+
+          debugUrl.classList.remove('hidden');
+          debugUrl.textContent =
+            'Target: ' +
+            target +
+            '\nHTTPS Launch: ' +
+            httpsLaunchUrl +
+            '\nIntent Launch: ' +
+            intentLaunchUrl;
+        }
+
+        targetText.textContent = target;
+        refreshLaunchTarget();
+
+        if (isWechat) {
+          wechatTip.classList.remove('hidden');
+        }
+
+        downloadBtn.href = buildDownloadUrl();
+
+        if (!isAndroid) {
+          downloadBtn.textContent = '继续浏览网页';
+          downloadBtn.href = buildWebFallbackUrl();
+        }
+
+        openBtn.addEventListener('click', function (event) {
+          if (isWechat) {
+            event.preventDefault();
+            alert('请先点击右上角，并选择“在浏览器打开”。');
+            return;
+          }
+
+          refreshLaunchTarget();
+
+          if (isAndroid) {
+            event.preventDefault();
+            window.location.href = openBtn.href;
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

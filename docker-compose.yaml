@@ -49,6 +49,9 @@ services:
       - SMS_APP_ID=10011751423821130
       - SMS_SIGN_NAME=东莞市宜租网络科技有限公司
       - SMS_SECRET_KEY=f5dc94c3b92944dead6edc2ad56d0294
+      - DATABASE_CACHING_RSA_PUBLIC_KEY_BASE64=
+      - WECHAT_APP_ID= # 微信服务号 AppID
+      - WECHAT_APP_SECRET= # 微信服务号 AppSecret
     command: node ./server/index.mjs
     depends_on:
       - mysql

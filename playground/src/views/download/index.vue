@@ -29,7 +29,7 @@ function downloadFile(url: string) {
 async function fetchDownloadUrl() {
   try {
     const data = await getLatestVersionApi();
-    downloadUrl.value = data.url;
+    downloadUrl.value = data.androidUrl || data.url || '';
 
     // If not in WeChat and a download URL is available, trigger download automatically
     if (!isWeChat.value && downloadUrl.value) {

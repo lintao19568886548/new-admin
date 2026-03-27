@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>正在打开瞰维智管 App</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family:
+          'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont,
+          'Segoe UI', sans-serif;
+        background:
+          radial-gradient(circle at top, #ecfeff 0%, #f8fafc 45%, #f1f5f9 100%);
+        color: #0f172a;
+      }
+      main {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 440px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.96);
+        padding: 28px;
+        box-shadow: 0 22px 70px rgba(15, 23, 42, 0.12);
+      }
+      .eyebrow {
+        display: inline-flex;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: #ccfbf1;
+        color: #0f766e;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+      h1 {
+        margin: 16px 0 8px;
+        font-size: 28px;
+        line-height: 1.15;
+      }
+      p {
+        margin: 0;
+        color: #475569;
+        line-height: 1.65;
+      }
+      .tips {
+        margin-top: 18px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: #f8fafc;
+        color: #334155;
+        font-size: 14px;
+      }
+      .actions {
+        display: grid;
+        gap: 12px;
+        margin-top: 24px;
+      }
+      a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        border-radius: 14px;
+        border: none;
+        font-size: 15px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .primary {
+        background: linear-gradient(135deg, #0f766e 0%, #0891b2 100%);
+        color: #fff;
+      }
+      .secondary {
+        background: #e2e8f0;
+        color: #0f172a;
+      }
+      .small {
+        margin-top: 16px;
+        font-size: 12px;
+        color: #64748b;
+        word-break: break-all;
+        white-space: pre-line;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="card">
+        <div class="eyebrow">App Link</div>
+        <h1>正在尝试打开 App</h1>
+        <p>
+          如果没有自动跳转，说明当前设备未安装 App，或系统未把该链接交给 App
+          处理。你可以前往下载页，或继续浏览网页。
+        </p>
+
+        <div class="tips">
+          目标页面：<span id="targetText">/home</span>
+        </div>
+
+        <div class="actions">
+          <a id="retryBtn" class="primary" href="/app/download">再次打开 App</a>
+          <a id="downloadBtn" class="secondary" href="/app/download">前往下载页</a>
+          <a id="continueBtn" class="secondary" href="/">继续浏览网页</a>
+        </div>
+
+        <p id="debugUrl" class="small hidden"></p>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        var APP_PACKAGE = 'cn.yizuw.magic';
+        var DEFAULT_TARGET = '/home';
+        var DEFAULT_WEB_ORIGIN = 'https://yizuw.cn';
+        var DEEP_LINK_BASE_ORIGIN = 'https://deep-link.local';
+        var params = new URLSearchParams(window.location.search);
+        var rawTarget = params.get('target') || DEFAULT_TARGET;
+        var rawWebOrigin = params.get('webOrigin') || DEFAULT_WEB_ORIGIN;
+        var isDebug = params.get('debug') === '1';
+        var ua = navigator.userAgent || '';
+        var isAndroid = /Android/i.test(ua);
+        var targetText = document.getElementById('targetText');
+        var retryBtn = document.getElementById('retryBtn');
+        var downloadBtn = document.getElementById('downloadBtn');
+        var continueBtn = document.getElementById('continueBtn');
+        var debugUrl = document.getElementById('debugUrl');
+        var target = normalizeTarget(rawTarget);
+        var webOrigin = sanitizeWebOrigin(rawWebOrigin);
+
+        function isAllowedTargetPath(pathname) {
+          return (
+            /^\/home$/.test(pathname) ||
+            /^\/rental\/factory$/.test(pathname) ||
+            /^\/rental\/factory\/detail\/[^/]+$/.test(pathname)
+          );
+        }
+
+        function normalizeTarget(input) {
+          try {
+            var parsedTarget = new URL(input, DEEP_LINK_BASE_ORIGIN);
+            if (parsedTarget.origin !== DEEP_LINK_BASE_ORIGIN) {
+              return DEFAULT_TARGET;
+            }
+            if (!isAllowedTargetPath(parsedTarget.pathname)) {
+              return DEFAULT_TARGET;
+            }
+            return (
+              parsedTarget.pathname + parsedTarget.search + parsedTarget.hash
+            );
+          } catch (error) {
+            return DEFAULT_TARGET;
+          }
+        }
+
+        function sanitizeWebOrigin(input) {
+          try {
+            var parsedOrigin = new URL(input);
+            var hostname = parsedOrigin.hostname.toLowerCase();
+            var isAllowedHostname =
+              hostname === 'localhost' ||
+              hostname === '127.0.0.1' ||
+              hostname === 'yizuw.cn' ||
+              hostname.endsWith('.yizuw.cn');
+
+            if (parsedOrigin.protocol !== 'https:' && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+              return DEFAULT_WEB_ORIGIN;
+            }
+
+            if (!isAllowedHostname) {
+              return DEFAULT_WEB_ORIGIN;
+            }
+
+            return parsedOrigin.origin;
+          } catch (error) {
+            return DEFAULT_WEB_ORIGIN;
+          }
+        }
+
+        function buildWebFallbackUrl() {
+          return new URL(target, webOrigin).toString();
+        }
+
+        function buildDownloadUrl() {
+          return new URL('/app/download', webOrigin).toString();
+        }
+
+        function buildHttpsLaunchUrl() {
+          var launchUrl = new URL('/ul/link/index.html', window.location.origin);
+          launchUrl.searchParams.set('target', target);
+          launchUrl.searchParams.set('webOrigin', webOrigin);
+          launchUrl.searchParams.set('launch', '1');
+          launchUrl.searchParams.set('ts', String(Date.now()));
+          return launchUrl.toString();
+        }
+
+        function buildIntentLaunchUrl() {
+          var httpsLaunchUrl = buildHttpsLaunchUrl();
+          var parsedLaunchUrl = new URL(httpsLaunchUrl);
+          return (
+            'intent://' +
+            parsedLaunchUrl.host +
+            parsedLaunchUrl.pathname +
+            parsedLaunchUrl.search +
+            '#Intent;scheme=https;package=' +
+            APP_PACKAGE +
+            ';S.browser_fallback_url=' +
+            encodeURIComponent(httpsLaunchUrl) +
+            ';end'
+          );
+        }
+
+        targetText.textContent = target;
+        continueBtn.href = buildWebFallbackUrl();
+        downloadBtn.href = buildDownloadUrl();
+        retryBtn.href = isAndroid ? buildIntentLaunchUrl() : buildWebFallbackUrl();
+        retryBtn.textContent = isAndroid ? '再次打开 App' : '继续浏览网页';
+
+        if (isDebug) {
+          debugUrl.classList.remove('hidden');
+          debugUrl.textContent =
+            'Fallback URL: ' +
+            buildHttpsLaunchUrl() +
+            '\nTarget: ' +
+            target +
+            '\nWeb Fallback: ' +
+            buildWebFallbackUrl() +
+            '\nIntent Launch: ' +
+            buildIntentLaunchUrl();
+        }
+
+        retryBtn.addEventListener('click', function (event) {
+          if (!isAndroid) {
+            return;
+          }
+
+          event.preventDefault();
+          window.location.href = retryBtn.href;
+        });
+      })();
+    </script>
+  </body>
+</html>

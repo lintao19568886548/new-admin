@@ -1,10 +1,5 @@
 import { prismaClient } from '~/utils/db';
-import { verifyAccessToken } from '~/utils/jwt-utils';
-import {
-  unAuthorizedResponse,
-  useResponseError,
-  useResponseSuccess,
-} from '~/utils/response';
+import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 const IMG_BASE_URL = '';
 
@@ -13,11 +8,6 @@ const IMG_BASE_URL = '';
  * 支持分页查询和条件筛选，只返回空闲面积大于0的厂房
  */
 export default eventHandler(async (event) => {
-  const userinfo = await verifyAccessToken(event);
-  if (!userinfo) {
-    return unAuthorizedResponse(event);
-  }
-
   try {
     const query = getQuery(event);
     const currentPage = Number(query.currentPage) || 1;

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "cn.yizuw.magic",
+      "sha256_cert_fingerprints": [
+        "A2:57:75:93:2F:06:55:FD:27:B3:8D:59:F3:C9:1B:12:0B:7D:DB:A7:AF:B7:88:95:D9:EF:50:9C:7C:B9:01:BE"
+      ]
+    }
+  }
+]

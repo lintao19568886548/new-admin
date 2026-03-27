@@ -11,6 +11,7 @@ import { App, ConfigProvider, message, theme } from 'ant-design-vue';
 
 import { antdLocale } from '#/locales';
 import { router } from '#/router';
+import { bootstrapWechatRuntimeDetection } from '#/utils/wechat-jssdk';
 
 import PrivacyPolicyModal from './components/PrivacyPolicyModal.vue';
 
@@ -19,7 +20,12 @@ defineOptions({ name: 'App' });
 const { isDark } = usePreferences();
 const { tokens } = useAntdDesignTokens();
 let appUrlOpenListener: null | { remove: () => Promise<void> } = null;
-const ALLOWED_DEEP_LINK_PATHS = new Set(['/home']);
+let stopWechatRuntimeDetection: (() => void) | null = null;
+const ALLOWED_DEEP_LINK_PATTERNS = [
+  /^\/home$/,
+  /^\/rental\/factory$/,
+  /^\/rental\/factory\/detail\/[^/]+$/,
+];
 const DEFAULT_DEEP_LINK_PATH = '/home';
 
 async function syncStatusBarStyle() {
@@ -60,6 +66,9 @@ function resolveDeepLinkTarget(rawUrl: string) {
       ? parsed.pathname
       : `${parsed.host ? `/${parsed.host}` : ''}${parsed.pathname}`;
 
+    const isAllowedDeepLinkPath = (pathname: string) =>
+      ALLOWED_DEEP_LINK_PATTERNS.some((pattern) => pattern.test(pathname));
+
     const normalizeAndWhitelist = (inputPath: string) => {
       const normalizedInput = inputPath.startsWith('/')
         ? inputPath
@@ -71,7 +80,7 @@ function resolveDeepLinkTarget(rawUrl: string) {
           'https://deep-link.local',
         );
         const { hash, pathname, search } = normalizedUrl;
-        if (!ALLOWED_DEEP_LINK_PATHS.has(pathname)) {
+        if (!isAllowedDeepLinkPath(pathname)) {
           return DEFAULT_DEEP_LINK_PATH;
         }
         return `${pathname}${search}${hash}`;
@@ -134,6 +143,8 @@ async function handleDeepLink(rawUrl: string) {
 
 // 组件挂载后执行
 onMounted(async () => {
+  stopWechatRuntimeDetection = bootstrapWechatRuntimeDetection();
+
   if (Capacitor.isNativePlatform()) {
     try {
       await StatusBar.setOverlaysWebView({ overlay: false });
@@ -161,6 +172,11 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  if (stopWechatRuntimeDetection) {
+    stopWechatRuntimeDetection();
+    stopWechatRuntimeDetection = null;
+  }
+
   if (appUrlOpenListener) {
     void appUrlOpenListener.remove();
     appUrlOpenListener = null;

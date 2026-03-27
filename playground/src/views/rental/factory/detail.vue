@@ -14,8 +14,11 @@ import { useRoute } from 'vue-router';
 
 import { formatDateTime } from '@vben/utils';
 
+import { Capacitor } from '@capacitor/core';
 import { Share } from '@capacitor/share';
+import { useHead } from '@vueuse/head';
 import {
+  Alert,
   Button,
   Card,
   Carousel,
@@ -34,9 +37,28 @@ import {
 import { getFactoryDetail } from '#/api/factory';
 import { useParkStore } from '#/store';
 import { useLayoutStore } from '#/store/layout';
+import {
+  canUseNativeWechatShare,
+  isWechatInstalled,
+  shareWechatWebpage,
+} from '#/utils/native-wechat-share';
+import {
+  syncWechatRuntimeState,
+  useWechatRuntimeState,
+  waitForWechatMiniProgramWebView,
+} from '#/utils/wechat-jssdk';
 
 const store = useParkStore();
 const layoutStore = useLayoutStore();
+const DEEP_LINK_ORIGIN =
+  import.meta.env.VITE_DEEP_LINK_ORIGIN || 'https://link.yizuw.cn';
+const PUBLIC_SHARE_ORIGIN =
+  import.meta.env.VITE_PUBLIC_SHARE_ORIGIN ||
+  import.meta.env.VITE_GLOB_API_URL?.replace(/\/api\/?$/, '') ||
+  'https://yizuw.cn';
+const WECHAT_OPEN_APP_ID = import.meta.env.VITE_WECHAT_OPEN_APP_ID || '';
+const isNativePlatform = Capacitor.isNativePlatform();
+const isNativeAndroid = Capacitor.getPlatform() === 'android';
 
 // 辅助函数，用于确定图片URL列表
 const determineImageUrls = (
@@ -62,6 +84,10 @@ const id = ref(route.params.id);
 const loading = ref(false);
 const activeFloorKey = ref<string[]>([]);
 const activeTabKey = ref('1');
+const isMobileBrowser = ref(false);
+const wechatRuntimeState = useWechatRuntimeState();
+const isWechat = computed(() => wechatRuntimeState.isWechat);
+const isWechatMiniProgram = computed(() => wechatRuntimeState.isMiniProgram);
 
 // function goBack() {
 //   router.push({ name: 'RentalFactory' }); // 使用命名路由确保导航正确
@@ -152,6 +178,41 @@ const currentTag = computed<StatusTag>(() => {
   return status as StatusTag;
 });
 
+const currentPageUrl = computed(() => {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+  return window.location.href.split('#')[0];
+});
+
+const isWechatH5Page = computed(
+  () => isWechat.value && !isWechatMiniProgram.value && !isNativePlatform,
+);
+
+const isMiniProgramWebViewPage = computed(
+  () => isWechatMiniProgram.value && !isNativePlatform,
+);
+
+const isExternalMobileBrowserPage = computed(
+  () => !isNativePlatform && !isWechat.value && isMobileBrowser.value,
+);
+
+const deepLinkTarget = computed(
+  () => route.fullPath || `/rental/factory/detail/${String(id.value)}`,
+);
+
+const openAppUrl = computed(() => {
+  const url = new URL('/ul/open/index.html', DEEP_LINK_ORIGIN);
+  url.searchParams.set('target', deepLinkTarget.value);
+  url.searchParams.set('webOrigin', PUBLIC_SHARE_ORIGIN);
+  return url.toString();
+});
+
+const publicShareUrl = computed(() => {
+  const url = new URL(deepLinkTarget.value, PUBLIC_SHARE_ORIGIN);
+  return url.toString();
+});
+
 // 计算厂房特点列表
 const factoryFeatures = computed(() => {
   const featureList = [];
@@ -185,6 +246,67 @@ const getFactoryFloorStats = () => {
 
   return { availableArea, totalArea, usedArea };
 };
+
+const shareTitle = computed(() => {
+  if (!detail.value.factoryName) {
+    return '厂房详情';
+  }
+  return `${detail.value.factoryName} - 厂房详情`;
+});
+
+const shareDescription = computed(() => {
+  const stats = getFactoryFloorStats();
+  const segments = [detail.value.address];
+  if (stats.availableArea > 0) {
+    segments.push(`可租 ${stats.availableArea} m²`);
+  }
+  if (detail.value.contact) {
+    segments.push(`联系 ${detail.value.contact}`);
+  }
+  return segments.filter(Boolean).join('｜') || '查看厂房详情';
+});
+
+const shareImage = computed(
+  () =>
+    detail.value.imageUrls?.[0] || detail.value.imgUrl || store.defaultImgUrl,
+);
+
+const shareImagePublicUrl = computed(() => {
+  try {
+    return new URL(shareImage.value, PUBLIC_SHARE_ORIGIN).toString();
+  } catch (error) {
+    console.warn('生成分享图片地址失败:', error);
+    return '';
+  }
+});
+
+useHead(
+  computed(() => ({
+    meta: [
+      {
+        content: shareDescription.value,
+        name: 'description',
+      },
+      {
+        content: shareDescription.value,
+        property: 'og:description',
+      },
+      {
+        content: shareImage.value,
+        property: 'og:image',
+      },
+      {
+        content: shareTitle.value,
+        property: 'og:title',
+      },
+      {
+        content: publicShareUrl.value,
+        property: 'og:url',
+      },
+    ],
+    title: shareTitle.value,
+  })),
+);
 
 // 打开图片预览
 function openImagePreview(
@@ -253,6 +375,131 @@ function openImagePreview(
   previewApp.mount(previewContainer);
 }
 
+async function copyCurrentLink() {
+  const targetUrl =
+    (isNativePlatform ? publicShareUrl.value : currentPageUrl.value) ||
+    publicShareUrl.value;
+  if (!targetUrl) {
+    message.error('当前页面链接不可用');
+    return;
+  }
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(targetUrl);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = targetUrl;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.append(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+    message.success('链接已复制');
+  } catch (error) {
+    console.error('复制链接失败:', error);
+    message.error('复制链接失败，请手动复制地址栏链接');
+  }
+}
+
+function showWeChatBrowserGuide() {
+  message.info('请点击右上角菜单，并选择“在浏览器打开”后再尝试打开 App');
+}
+
+function openAppFromBrowser() {
+  if (isWechatH5Page.value) {
+    showWeChatBrowserGuide();
+    return;
+  }
+
+  window.location.href = openAppUrl.value;
+}
+
+async function syncWechatRuntimeEnvironment() {
+  isMobileBrowser.value = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  syncWechatRuntimeState();
+
+  if (!isWechat.value || isWechatMiniProgram.value || isNativePlatform) {
+    return;
+  }
+
+  await waitForWechatMiniProgramWebView();
+  syncWechatRuntimeState();
+}
+
+function showMiniProgramShareUnavailableMessage() {
+  message.info('请点击小程序右上角“···”中的“转发给朋友”。');
+}
+
+function showWechatH5ShareMessage() {
+  message.info('请点击右上角“···”中的“转发给朋友”。');
+}
+
+async function shareFactoryFromNativeApp() {
+  if (!isNativeAndroid || !canUseNativeWechatShare() || !WECHAT_OPEN_APP_ID) {
+    return false;
+  }
+
+  if (!isWechatInstalled(WECHAT_OPEN_APP_ID)) {
+    message.warning('未检测到微信，已切换为系统分享');
+    return false;
+  }
+
+  const nativeWechatResult = await shareWechatWebpage({
+    appId: WECHAT_OPEN_APP_ID,
+    description: shareDescription.value,
+    thumbUrl: shareImagePublicUrl.value,
+    title: shareTitle.value,
+    url: publicShareUrl.value,
+  });
+
+  if (nativeWechatResult.ok) {
+    message.success(nativeWechatResult.message || '已拉起微信，请继续完成发送');
+    return true;
+  }
+
+  if (nativeWechatResult.reason === 'wechat-not-installed') {
+    message.warning('未检测到微信，已切换为系统分享');
+  } else if (
+    !['app-id-missing', 'unavailable'].includes(nativeWechatResult.reason || '')
+  ) {
+    message.warning(
+      nativeWechatResult.message || '原生微信分享不可用，已切换为系统分享',
+    );
+  }
+
+  return false;
+}
+
+async function shareFactoryFromSystemShare() {
+  const { value: canShare } = await Share.canShare();
+  if (!canShare) {
+    message.error('当前设备不支持分享功能');
+    return;
+  }
+
+  const stats = getFactoryFloorStats();
+  const shareText =
+    `【厂房推荐】${detail.value.factoryName}\n` +
+    `📍 地址：${detail.value.address}\n` +
+    `📏 总面积：${stats.totalArea}m²\n` +
+    `✅ 可租面积：${stats.availableArea}m²\n` +
+    `💰 联系方式：${detail.value.contact}\n` +
+    `${detail.value.description ? `📝 ${detail.value.description}` : ''}`;
+
+  await Share.share({
+    dialogTitle: '分享厂房信息',
+    text: shareText,
+    title: `厂房推荐 - ${detail.value.factoryName}`,
+    url: publicShareUrl.value,
+  });
+
+  message.success('分享成功');
+}
+
 const getTagColor = (status: string) => {
   switch (status) {
     case '异常': {
@@ -270,35 +517,28 @@ const getTagColor = (status: string) => {
   }
 };
 
-// 分享厂房信息到微信
-async function shareFactory() {
+async function handleFactoryShareAction() {
+  if (isMiniProgramWebViewPage.value) {
+    showMiniProgramShareUnavailableMessage();
+    return;
+  }
+
+  if (isWechatH5Page.value) {
+    showWechatH5ShareMessage();
+    return;
+  }
+
+  if (!isNativePlatform) {
+    await copyCurrentLink();
+    return;
+  }
+
+  if (await shareFactoryFromNativeApp()) {
+    return;
+  }
+
   try {
-    // 检查是否支持分享功能
-    const { value: canShare } = await Share.canShare();
-    if (!canShare) {
-      message.error('当前设备不支持分享功能');
-      return;
-    }
-
-    // 构建分享内容
-    const stats = getFactoryFloorStats();
-    const shareText =
-      `【厂房推荐】${detail.value.factoryName}\n` +
-      `📍 地址：${detail.value.address}\n` +
-      `📏 总面积：${stats.totalArea}m²\n` +
-      `✅ 可租面积：${stats.availableArea}m²\n` +
-      `💰 联系方式：${detail.value.contact}\n` +
-      `${detail.value.description ? `📝 ${detail.value.description}` : ''}`;
-
-    // 分享内容
-    await Share.share({
-      dialogTitle: '分享厂房信息',
-      text: shareText,
-      title: `厂房推荐 - ${detail.value.factoryName}`,
-      url: window.location.href,
-    });
-
-    message.success('分享成功');
+    await shareFactoryFromSystemShare();
   } catch (error) {
     console.error('分享失败:', error);
     message.error('分享失败，请重试');
@@ -306,14 +546,17 @@ async function shareFactory() {
 }
 
 onMounted(() => {
-  fetchFactoryDetail();
+  void (async () => {
+    await syncWechatRuntimeEnvironment();
+    await fetchFactoryDetail();
+  })();
 
   // 设置头部动作按钮
   layoutStore.setHeaderActions([
     {
       icon: 'mdi:share-variant',
       key: 'share',
-      onClick: shareFactory,
+      onClick: handleFactoryShareAction,
       text: '分享',
     },
   ]);
@@ -327,6 +570,54 @@ onUnmounted(() => {
 
 <template>
   <Spin :spinning="loading">
+    <Alert v-if="isMiniProgramWebViewPage" class="mb-4" show-icon type="info">
+      <template #message>当前在微信小程序内查看</template>
+      <template #description>
+        <div class="flex flex-col gap-3">
+          <p>如需分享，请点击小程序右上角“···”中的“转发给朋友”。</p>
+          <p>
+            如需跳转 App，请点击下方“复制当前链接”按钮，粘贴到浏览器中打开。
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <Button size="small" @click="copyCurrentLink">复制当前链接</Button>
+          </div>
+        </div>
+      </template>
+    </Alert>
+
+    <Alert v-else-if="isWechatH5Page" class="mb-4" show-icon type="warning">
+      <template #message>当前在微信内查看</template>
+      <template #description>
+        <div class="flex flex-col gap-3">
+          <p>如需分享，请点击右上角“···”中的“转发给朋友”。</p>
+          <p>如需跳转 App，请点击右上角“···”中的“在浏览器中打开”。</p>
+          <div class="flex flex-wrap gap-2">
+            <Button size="small" @click="copyCurrentLink">复制当前链接</Button>
+          </div>
+        </div>
+      </template>
+    </Alert>
+
+    <Alert
+      v-else-if="isExternalMobileBrowserPage"
+      class="mb-4"
+      show-icon
+      type="info"
+    >
+      <template #message>已在系统浏览器中</template>
+      <template #description>
+        <div class="flex flex-col gap-3">
+          <p>如果设备已安装瞰维智管 App，可直接打开并跳转到当前厂房详情。</p>
+          <div class="flex flex-wrap gap-2">
+            <Button type="primary" @click="openAppFromBrowser">
+              打开 App
+            </Button>
+            <Button @click="copyCurrentLink">复制当前链接</Button>
+          </div>
+        </div>
+      </template>
+    </Alert>
+
     <!-- 厂房基本信息 -->
     <Card>
       <div class="flex flex-col md:flex-row">

@@ -8,12 +8,27 @@ export default defineEventHandler(async (event) => {
     process.env.DEFAULT_CUSTOMER_ID || 'default',
   );
   const path = event.path;
-  const isApiRequest = path.startsWith('/api/');
+  const requestPath = path.split('?')[0] || path;
+  const isApiRequest = requestPath.startsWith('/api/');
   const isPublicVisitorRegisterApi =
     event.method === 'POST' &&
-    ['/api/access/visitor', '/api/access/visitor/register'].includes(path);
+    ['/api/access/visitor', '/api/access/visitor/register'].includes(
+      requestPath,
+    );
+  const isPublicFactoryApi =
+    event.method === 'GET' &&
+    (requestPath === '/api/factory/available-list' ||
+      /^\/api\/factory\/\d+$/.test(requestPath));
+  const isPublicWechatApi =
+    event.method === 'GET' && requestPath === '/api/wechat/js-sdk-config';
+  const isPublicAppVersionApi =
+    event.method === 'GET' && requestPath === '/api/system/version';
   const isPublicApi =
-    ['/api/auth'].some((p) => path.startsWith(p)) || isPublicVisitorRegisterApi;
+    ['/api/auth'].some((p) => requestPath.startsWith(p)) ||
+    isPublicVisitorRegisterApi ||
+    isPublicFactoryApi ||
+    isPublicWechatApi ||
+    isPublicAppVersionApi;
 
   event.node.res.setHeader(
     'Access-Control-Allow-Origin',
