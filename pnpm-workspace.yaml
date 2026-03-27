@@ -55,8 +55,8 @@ catalog:
   '@typescript-eslint/parser': ^8.54.0
   '@vee-validate/zod': ^4.15.1
   '@vite-pwa/vitepress': ^0.5.4
-  '@vitejs/plugin-vue': ^5.2.4
-  '@vitejs/plugin-vue-jsx': ^4.2.0
+  '@vitejs/plugin-vue': ^6.0.5
+  '@vitejs/plugin-vue-jsx': ^5.1.5
   '@vue/reactivity': ^3.5.27
   '@vue/shared': ^3.5.27
   '@vue/test-utils': ^2.4.6
@@ -164,13 +164,13 @@ catalog:
   unbuild: ^3.6.1
   unplugin-element-plus: ^0.9.1
   vee-validate: ^4.15.1
-  vite: ^6.4.1
+  vite: ^8.0.3
   vite-plugin-compression: ^0.5.1
   vite-plugin-dts: ^4.5.4
   vite-plugin-html: ^3.2.2
   vite-plugin-lazy-import: ^1.0.7
-  vite-plugin-pwa: ^0.21.2
-  vite-plugin-vue-devtools: ^7.7.9
+  vite-plugin-pwa: ^1.2.0
+  vite-plugin-vue-devtools: ^8.1.1
   vitepress: ^1.6.4
   vitepress-plugin-group-icons: ^1.7.1
   vitest: ^2.1.9
