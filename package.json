@@ -103,7 +103,7 @@
     "rimraf": "catalog:",
     "sass-embedded": "^1.98.0",
     "tailwindcss": "catalog:",
-    "turbo": "^2.8.17",
+    "turbo": "^2.8.20",
     "typescript": "catalog:",
     "unbuild": "catalog:",
     "vite": "catalog:",
