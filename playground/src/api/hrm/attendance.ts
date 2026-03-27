@@ -4,8 +4,48 @@ const API = {
   ATTENDANCE: '/hrm/attendance',
 };
 
+export type AttendanceLeaveScope = 'full' | 'none' | 'partial';
+
+export interface AttendanceListItem {
+  attendanceId: number;
+  date: string;
+  id: number;
+  leaveMinutes: number;
+  leaveScope: AttendanceLeaveScope;
+  punchIn: string;
+  punchOut: string;
+  status: null | number;
+  workHours: number;
+}
+
+export interface AttendanceListResult {
+  items: AttendanceListItem[];
+  total: number;
+}
+
+export interface TodayAttendanceRecord {
+  attendanceId: null | number;
+  latitude?: number;
+  leaveMinutes: number;
+  leaveScope: AttendanceLeaveScope;
+  longitude?: number;
+  punchIn: string;
+  punchOut: null | string;
+  status: null | number;
+}
+
+export interface MonthAttendanceStats {
+  attendanceDays: number;
+  earlyLeaveDays: number;
+  lateDays: number;
+  leaveDays: number;
+  overtimeHours: number;
+}
+
 export function getAttendanceList(params: any) {
-  return requestClient.get(`${API.ATTENDANCE}/list`, { params });
+  return requestClient.get<AttendanceListResult>(`${API.ATTENDANCE}/list`, {
+    params,
+  });
 }
 
 export function punchIn(data: {
@@ -30,11 +70,16 @@ export function punchOut(
 }
 
 export function getTodayRecord(params: { username: string }) {
-  return requestClient.get(`${API.ATTENDANCE}/today`, { params });
+  return requestClient.get<null | TodayAttendanceRecord>(
+    `${API.ATTENDANCE}/today`,
+    { params },
+  );
 }
 
 export function getMonthStats(params: { username: string }) {
-  return requestClient.get(`${API.ATTENDANCE}/stats`, { params });
+  return requestClient.get<MonthAttendanceStats>(`${API.ATTENDANCE}/stats`, {
+    params,
+  });
 }
 
 export function getOfficeLocations() {

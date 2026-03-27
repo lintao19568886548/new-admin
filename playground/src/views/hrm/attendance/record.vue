@@ -1,41 +1,26 @@
 <script setup lang="ts">
+import type {
+  AttendanceLeaveScope,
+  AttendanceListItem,
+  MonthAttendanceStats,
+} from '#/api/hrm/attendance';
+
 import { computed, reactive, ref, watch } from 'vue';
 
 import { useUserStore } from '@vben/stores';
 
-import {
-  Button,
-  Card,
-  Col,
-  message,
-  RangePicker,
-  Row,
-  Spin,
-  Statistic,
-  Tag,
-} from 'ant-design-vue';
+import { Button, message, Spin, Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { getAttendanceList, getMonthStats } from '#/api/hrm/attendance';
+import MobileDateRange from '#/components/MobileDateRange.vue';
 
 // ================================= 类型定义 =================================
-interface MonthStats {
-  attendanceDays: number;
-  earlyLeaveDays: number;
-  lateDays: number;
-  leaveDays: number;
-  overtimeHours: number;
+interface MonthStats extends MonthAttendanceStats {
   requiredAttendanceDays: number;
 }
 
-interface AttendanceRecord {
-  date: string;
-  id: number;
-  punchIn: string;
-  punchOut: string;
-  status: number;
-  workHours: number;
-}
+type AttendanceRecord = AttendanceListItem;
 
 // ================================= 考勤状态 =================================
 const AttendanceStatus = {
@@ -54,6 +39,14 @@ const attendanceStatusMeta = {
   [AttendanceStatus.LateAndEarlyLeave]: { color: 'red', text: '迟到+早退' },
   [AttendanceStatus.Leave]: { color: 'blue', text: '请假' },
   [AttendanceStatus.Normal]: { color: 'green', text: '正常' },
+};
+
+const leaveScopeMeta: Record<
+  Exclude<AttendanceLeaveScope, 'none'>,
+  { color: string; text: string }
+> = {
+  full: { color: 'blue', text: '整天请假' },
+  partial: { color: 'cyan', text: '部分请假' },
 };
 
 // ================================= 响应式数据 =================================
@@ -103,6 +96,13 @@ const getStatusInfo = (status: null | number) => {
   return attendanceStatusMeta[status as keyof typeof attendanceStatusMeta];
 };
 
+const getLeaveScopeInfo = (leaveScope: AttendanceLeaveScope) => {
+  if (leaveScope === 'none') {
+    return null;
+  }
+  return leaveScopeMeta[leaveScope];
+};
+
 const formatToLocalTime = (dateStr: string, timeStr: string) => {
   if (!timeStr || timeStr.includes('--')) {
     return '--:--:--';
@@ -114,14 +114,14 @@ const formatToLocalTime = (dateStr: string, timeStr: string) => {
   return localDateTime.isValid() ? localDateTime.format('HH:mm:ss') : timeStr;
 };
 
-const isLate = (status: number) => {
+const isLate = (status: null | number) => {
   return (
     status === AttendanceStatus.Late ||
     status === AttendanceStatus.LateAndEarlyLeave
   );
 };
 
-const isEarlyLeave = (status: number) => {
+const isEarlyLeave = (status: null | number) => {
   return (
     status === AttendanceStatus.EarlyLeave ||
     status === AttendanceStatus.LateAndEarlyLeave
@@ -237,109 +237,138 @@ watch(dateRange, (newRange) => {
 </script>
 
 <template>
-  <div class="attendance-record-page">
-    <!-- 考勤统计 -->
-    <div class="statistics-section">
-      <h3>本月考勤统计</h3>
-      <Row :gutter="[16, 16]">
-        <Col :xs="12" :sm="12" :md="6">
-          <Card class="stat-card">
-            <Statistic
-              title="应出勤天数"
-              :value="monthStats.requiredAttendanceDays"
-              suffix="天"
-            />
-          </Card>
-        </Col>
-        <Col :xs="12" :sm="12" :md="6">
-          <Card class="stat-card">
-            <Statistic
-              title="实出勤天数"
-              :value="monthStats.attendanceDays"
-              suffix="天"
-            />
-          </Card>
-        </Col>
-        <Col v-if="monthStats.leaveDays > 0" :xs="12" :sm="12" :md="6">
-          <Card class="stat-card">
-            <Statistic
-              title="请假天数"
-              :value="monthStats.leaveDays"
-              suffix="天"
-            />
-          </Card>
-        </Col>
-        <Col v-if="monthStats.lateDays > 0" :xs="12" :sm="12" :md="6">
-          <Card class="stat-card">
-            <Statistic
-              title="迟到次数"
-              :value="monthStats.lateDays"
-              suffix="次"
-            />
-          </Card>
-        </Col>
-        <Col v-if="monthStats.earlyLeaveDays > 0" :xs="12" :sm="12" :md="6">
-          <Card class="stat-card">
-            <Statistic
-              title="早退次数"
-              :value="monthStats.earlyLeaveDays"
-              suffix="次"
-            />
-          </Card>
-        </Col>
-        <Col v-if="monthStats.overtimeHours > 0" :xs="12" :sm="12" :md="6">
-          <Card class="stat-card">
-            <Statistic
-              title="加班时长"
-              :value="monthStats.overtimeHours"
-              suffix="小时"
-            />
-          </Card>
-        </Col>
-      </Row>
+  <div class="min-h-screen bg-[#f5f5f5] p-4">
+    <div class="mb-4 rounded-lg bg-white p-4">
+      <h3 class="mb-4 text-base font-semibold">本月考勤统计</h3>
+      <div class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <div class="rounded-lg border border-[#f0f0f0] bg-white p-3">
+          <div class="text-xs text-[#64748b]">应出勤天数</div>
+          <div class="mt-2 flex items-end gap-1">
+            <span class="text-2xl font-semibold leading-none text-[#0f172a]">
+              {{ monthStats.requiredAttendanceDays }}
+            </span>
+            <span class="pb-0.5 text-xs text-[#64748b]">天</span>
+          </div>
+        </div>
+        <div class="rounded-lg border border-[#f0f0f0] bg-white p-3">
+          <div class="text-xs text-[#64748b]">实出勤天数</div>
+          <div class="mt-2 flex items-end gap-1">
+            <span class="text-2xl font-semibold leading-none text-[#0f172a]">
+              {{ monthStats.attendanceDays }}
+            </span>
+            <span class="pb-0.5 text-xs text-[#64748b]">天</span>
+          </div>
+        </div>
+        <div
+          v-if="monthStats.leaveDays > 0"
+          class="rounded-lg border border-[#a5f3fc] bg-[#ecfeff] p-3"
+        >
+          <div class="text-xs text-[#0f766e]">请假天数</div>
+          <div class="mt-2 flex items-end gap-1">
+            <span class="text-2xl font-semibold leading-none text-[#164e63]">
+              {{ monthStats.leaveDays }}
+            </span>
+            <span class="pb-0.5 text-xs text-[#0f766e]">天</span>
+          </div>
+        </div>
+        <div
+          v-if="monthStats.lateDays > 0"
+          class="rounded-lg border border-[#fecdd3] bg-[#fff1f2] p-3"
+        >
+          <div class="text-xs text-[#be123c]">迟到次数</div>
+          <div class="mt-2 flex items-end gap-1">
+            <span class="text-2xl font-semibold leading-none text-[#881337]">
+              {{ monthStats.lateDays }}
+            </span>
+            <span class="pb-0.5 text-xs text-[#be123c]">次</span>
+          </div>
+        </div>
+        <div
+          v-if="monthStats.earlyLeaveDays > 0"
+          class="rounded-lg border border-[#fde68a] bg-[#fffbeb] p-3"
+        >
+          <div class="text-xs text-[#b45309]">早退次数</div>
+          <div class="mt-2 flex items-end gap-1">
+            <span class="text-2xl font-semibold leading-none text-[#92400e]">
+              {{ monthStats.earlyLeaveDays }}
+            </span>
+            <span class="pb-0.5 text-xs text-[#b45309]">次</span>
+          </div>
+        </div>
+        <div
+          v-if="monthStats.overtimeHours > 0"
+          class="rounded-lg border border-[#ddd6fe] bg-[#f5f3ff] p-3"
+        >
+          <div class="text-xs text-[#6d28d9]">加班时长</div>
+          <div class="mt-2 flex items-end gap-1">
+            <span class="text-2xl font-semibold leading-none text-[#4c1d95]">
+              {{ monthStats.overtimeHours }}
+            </span>
+            <span class="pb-0.5 text-xs text-[#6d28d9]">小时</span>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- 考勤记录列表 -->
-    <div class="records-section">
-      <div class="section-header">
-        <h3>考勤记录</h3>
-        <RangePicker v-model:value="dateRange" :input-read-only="true" />
+    <div class="rounded-lg bg-white p-4">
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-4">
+        <h3 class="text-base font-semibold">考勤记录</h3>
+        <MobileDateRange
+          v-model:value="dateRange"
+          class="w-full min-w-0 max-[480px]:gap-[6px] sm:w-auto sm:min-w-[320px] [&_.picker]:min-w-0 max-[480px]:[&_.range-separator]:text-xs"
+        />
       </div>
 
-      <div class="record-list">
+      <div class="flex flex-col gap-3">
         <div
           v-if="listLoading && attendanceRecords.length === 0"
-          class="loading-spinner"
+          class="py-10 text-center text-[#999]"
         >
           <Spin />
         </div>
         <div
           v-for="record in attendanceRecords"
           :key="record.id"
-          class="record-card"
+          class="rounded-lg border border-[#f0f0f0] bg-white p-4 transition-shadow duration-300 hover:shadow-[0_4px_12px_rgb(0_0_0_/_10%)]"
         >
-          <div class="card-header">
-            <div class="date-info">
-              <span class="date">{{ record.date }}</span>
-              <span class="weekday">{{ formatWeekday(record.date) }}</span>
+          <div
+            class="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-[#f0f0f0] pb-3"
+          >
+            <div class="flex items-center gap-2">
+              <span class="text-base font-semibold">{{ record.date }}</span>
+              <span class="text-sm text-[#64748b]">
+                {{ formatWeekday(record.date) }}
+              </span>
             </div>
-            <Tag :color="getStatusInfo(record.status).color">
-              {{ getStatusInfo(record.status).text }}
-            </Tag>
+            <div class="flex flex-wrap gap-2">
+              <Tag :color="getStatusInfo(record.status).color">
+                {{ getStatusInfo(record.status).text }}
+              </Tag>
+              <Tag
+                v-if="getLeaveScopeInfo(record.leaveScope)"
+                :color="getLeaveScopeInfo(record.leaveScope)?.color"
+              >
+                {{ getLeaveScopeInfo(record.leaveScope)?.text }}
+              </Tag>
+            </div>
           </div>
-          <div class="card-body">
-            <div class="punch-item">
-              <span class="punch-label">上班</span>
-              <span class="punch-time">
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-3">
+              <span class="w-10 text-sm text-[#64748b]">上班</span>
+              <span
+                class="grow font-['Courier_New',Courier,monospace] text-base font-semibold"
+              >
                 {{ formatToLocalTime(record.date, record.punchIn) }}
               </span>
               <Tag v-if="isLate(record.status)" color="red" :bordered="false">
                 迟到
               </Tag>
             </div>
-            <div class="punch-item">
-              <span class="punch-label">下班</span>
-              <span class="punch-time">
+            <div class="flex items-center gap-3">
+              <span class="w-10 text-sm text-[#64748b]">下班</span>
+              <span
+                class="grow font-['Courier_New',Courier,monospace] text-base font-semibold"
+              >
                 {{ formatToLocalTime(record.date, record.punchOut) }}
               </span>
               <Tag
@@ -351,17 +380,20 @@ watch(dateRange, (newRange) => {
               </Tag>
             </div>
           </div>
-          <div v-if="record.workHours > 0" class="card-footer">
+          <div
+            v-if="record.workHours > 0"
+            class="mt-3 border-t border-[#f0f0f0] pt-3 text-right text-xs text-[#64748b]"
+          >
             <span>工作时长 {{ record.workHours.toFixed(2) }} 小时</span>
           </div>
         </div>
         <div
           v-if="!listLoading && attendanceRecords.length === 0"
-          class="empty-state"
+          class="py-10 text-center text-[#999]"
         >
           <p>暂无记录</p>
         </div>
-        <div class="load-more-container">
+        <div class="mt-4 text-center">
           <Button
             v-if="!allDataLoaded && attendanceRecords.length > 0"
             :loading="listLoading"
@@ -370,169 +402,11 @@ watch(dateRange, (newRange) => {
           >
             加载更多
           </Button>
-          <p v-if="allDataLoaded" class="no-more-data">没有更多了</p>
+          <p v-if="allDataLoaded" class="py-4 text-xs text-[#999]">
+            没有更多了
+          </p>
         </div>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.attendance-record-page {
-  min-height: 100vh;
-  padding: 16px;
-  background-color: #f5f5f5;
-}
-
-/* Statistics section */
-.statistics-section {
-  padding: 16px;
-  margin-bottom: 16px;
-  background: white;
-  border-radius: 8px;
-}
-
-.statistics-section h3 {
-  margin: 0 0 16px;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.stat-card {
-  border: none;
-  box-shadow: none;
-}
-
-:deep(.ant-statistic-title) {
-  font-size: 12px;
-  color: #64748b;
-}
-
-:deep(.ant-statistic-content) {
-  font-size: 20px;
-  font-weight: 600;
-}
-
-:deep(.stat-card .ant-card-body) {
-  padding: 12px;
-}
-
-/* Records section */
-.records-section {
-  padding: 16px;
-  background: white;
-  border-radius: 8px;
-}
-
-.section-header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.section-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-/* Record List */
-.record-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* Record Card */
-.record-card {
-  padding: 16px;
-  background-color: #fff;
-  border: 1px solid #f0f0f0;
-  border-radius: 8px;
-  transition: box-shadow 0.3s;
-}
-
-.record-card:hover {
-  box-shadow: 0 4px 12px rgb(0 0 0 / 10%);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 12px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.date-info {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.date-info .date {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.date-info .weekday {
-  font-size: 14px;
-  color: #64748b;
-}
-
-.card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.punch-item {
-  display: flex;
-  align-items: center;
-}
-
-.punch-label {
-  width: 40px;
-  font-size: 14px;
-  color: #64748b;
-}
-
-.punch-time {
-  flex-grow: 1;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.card-footer {
-  padding-top: 12px;
-  margin-top: 12px;
-  font-size: 12px;
-  color: #64748b;
-  text-align: right;
-  border-top: 1px solid #f0f0f0;
-}
-
-/* Loading and Empty States */
-.loading-spinner,
-.empty-state {
-  padding: 40px 0;
-  color: #999;
-  text-align: center;
-}
-
-.load-more-container {
-  margin-top: 16px;
-  text-align: center;
-}
-
-.no-more-data {
-  padding: 16px 0;
-  font-size: 12px;
-  color: #999;
-}
-</style>

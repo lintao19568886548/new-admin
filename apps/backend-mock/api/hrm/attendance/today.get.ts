@@ -1,5 +1,9 @@
 import dayjs from 'dayjs';
 import { getQuery } from 'h3';
+import {
+  getApprovedLeaveRangesByUserIds,
+  resolveAttendanceState,
+} from '~/utils/attendance';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
@@ -44,7 +48,29 @@ export default eventHandler(async (event) => {
       },
     });
 
-    return useResponseSuccess(todayRecord);
+    if (!todayRecord) {
+      return useResponseSuccess(null);
+    }
+
+    const leaveMap = await getApprovedLeaveRangesByUserIds(
+      todayRecord.userId ? [todayRecord.userId] : [],
+      startOfToday,
+      endOfToday,
+    );
+    const attendanceState = resolveAttendanceState({
+      punchIn: todayRecord.punchIn,
+      punchOut: todayRecord.punchOut,
+      leaveRanges: todayRecord.userId
+        ? (leaveMap.get(todayRecord.userId) ?? [])
+        : [],
+    });
+
+    return useResponseSuccess({
+      ...todayRecord,
+      leaveMinutes: attendanceState.leaveMinutes,
+      leaveScope: attendanceState.leaveScope,
+      status: attendanceState.status,
+    });
   } catch (error: any) {
     console.error('获取今日打卡记录失败:', error);
     return useResponseError(error.message || '获取失败');

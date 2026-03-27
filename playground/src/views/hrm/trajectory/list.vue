@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import type { TrajectoryApi } from '#/api/hrm/trajectory';
+
 import { nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 import { Icon } from '@iconify/vue';
 import {
   Button,
   Card,
+  Input,
   List,
   message,
   Pagination,
@@ -19,19 +22,6 @@ import ExcelJS from 'exceljs';
 
 import { exportTrajectoryData, getTrajectoryList } from '#/api/hrm/trajectory';
 import { getBaiduMapAk, loadBaiduMapScript } from '#/utils/map';
-
-// ================================= 类型定义 =================================
-interface TrajectoryRecord {
-  date: string;
-  key: number;
-  latitude: number;
-  longitude: number;
-  punchIn: string;
-  punchOut: string;
-  status: number;
-  username: string;
-  workHours: number;
-}
 
 // ================================= 考勤状态 =================================
 const AttendanceStatus = {
@@ -63,11 +53,13 @@ const getStatusInfo = (status: null | number) => {
 // ================================= 响应式数据 =================================
 const loading = ref(true);
 const exportLoading = ref(false);
-const records = ref<TrajectoryRecord[]>([]);
-const dateRange = ref<[dayjs.Dayjs, dayjs.Dayjs]>([
-  dayjs('2020-01-01'), // 设置为足够早的日期以覆盖所有历史数据
+const records = ref<TrajectoryApi.TrajectoryRecord[]>([]);
+const createDefaultDateRange = (): [dayjs.Dayjs, dayjs.Dayjs] => [
+  dayjs('2020-01-01'),
   dayjs(),
-]);
+];
+const dateRange = ref<[dayjs.Dayjs, dayjs.Dayjs]>(createDefaultDateRange());
+const employeeName = ref('');
 const pagination = reactive({
   current: 1,
   pageSize: 12,
@@ -86,19 +78,33 @@ const checkIsMobile = () => {
   isMobile.value = window.innerWidth <= 768;
 };
 
+const buildBaseQueryParams = () => {
+  const params: Pick<
+    TrajectoryApi.TrajectoryExportParams,
+    'employeeName' | 'endDate' | 'startDate'
+  > = {
+    endDate: dateRange.value[1].format('YYYY-MM-DD'),
+    startDate: dateRange.value[0].format('YYYY-MM-DD'),
+  };
+  const trimmedEmployeeName = employeeName.value.trim();
+  if (trimmedEmployeeName) {
+    params.employeeName = trimmedEmployeeName;
+  }
+  return params;
+};
+
 // ================================= 方法 =================================
 const fetchData = async () => {
   loading.value = true;
   try {
     const params = {
-      endDate: dateRange.value[1].format('YYYY-MM-DD'),
+      ...buildBaseQueryParams(),
       page: pagination.current,
       pageSize: pagination.pageSize,
-      startDate: dateRange.value[0].format('YYYY-MM-DD'),
     };
     const { total, items } = await getTrajectoryList(params);
-    records.value = items;
-    pagination.total = total;
+    records.value = items ?? [];
+    pagination.total = total ?? 0;
     await nextTick();
     updateMapMarkers();
   } catch (error: any) {
@@ -172,13 +178,22 @@ const handleDateChange = () => {
   fetchData();
 };
 
+const handleSearch = () => {
+  pagination.current = 1;
+  fetchData();
+};
+
+const handleResetFilters = () => {
+  employeeName.value = '';
+  dateRange.value = createDefaultDateRange();
+  pagination.current = 1;
+  fetchData();
+};
+
 const handleExport = async () => {
   exportLoading.value = true;
   try {
-    const params = {
-      endDate: dateRange.value[1].format('YYYY-MM-DD'),
-      startDate: dateRange.value[0].format('YYYY-MM-DD'),
-    };
+    const params = buildBaseQueryParams();
 
     const trajectoryDataByPark = await exportTrajectoryData(params);
 
@@ -189,49 +204,49 @@ const handleExport = async () => {
 
     const workbook = new ExcelJS.Workbook();
 
-    for (const parkName in trajectoryDataByPark) {
-      if (
-        Object.prototype.hasOwnProperty.call(trajectoryDataByPark, parkName)
-      ) {
-        const worksheet = workbook.addWorksheet(parkName);
-        const parkData = trajectoryDataByPark[parkName];
+    for (const [parkName, parkRecords] of Object.entries(
+      trajectoryDataByPark,
+    )) {
+      const worksheet = workbook.addWorksheet(parkName);
+      const parkData = [...parkRecords];
 
-        // 按日期排序
-        parkData.sort(
-          (a: TrajectoryRecord, b: TrajectoryRecord) =>
-            dayjs(a.date).valueOf() - dayjs(b.date).valueOf(),
-        );
+      // 按日期排序
+      parkData.sort(
+        (
+          a: TrajectoryApi.TrajectoryRecord,
+          b: TrajectoryApi.TrajectoryRecord,
+        ) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf(),
+      );
 
-        worksheet.columns = [
-          { header: '用户名', key: 'username', width: 15 },
-          { header: '日期', key: 'date', width: 15 },
-          { header: '上班打卡', key: 'punchIn', width: 15 },
-          { header: '下班打卡', key: 'punchOut', width: 15 },
-          { header: '状态', key: 'status', width: 20 },
-          { header: '工时(h)', key: 'workHours', width: 10 },
-          { header: '纬度', key: 'latitude', width: 20 },
-          { header: '经度', key: 'longitude', width: 20 },
-        ];
+      worksheet.columns = [
+        { header: '用户名', key: 'username', width: 15 },
+        { header: '日期', key: 'date', width: 15 },
+        { header: '上班打卡', key: 'punchIn', width: 15 },
+        { header: '下班打卡', key: 'punchOut', width: 15 },
+        { header: '状态', key: 'status', width: 20 },
+        { header: '工时(h)', key: 'workHours', width: 10 },
+        { header: '纬度', key: 'latitude', width: 20 },
+        { header: '经度', key: 'longitude', width: 20 },
+      ];
 
-        const statusMap = {
-          0: '正常',
-          1: '迟到',
-          2: '早退',
-          3: '迟到+早退',
-          4: '缺勤',
+      const statusMap = {
+        0: '正常',
+        1: '迟到',
+        2: '早退',
+        3: '迟到+早退',
+        4: '缺勤',
+      };
+
+      const rows = parkData.map((row: TrajectoryApi.TrajectoryRecord) => {
+        const status =
+          statusMap[row.status as keyof typeof statusMap] || '未知';
+        return {
+          ...row,
+          status,
         };
+      });
 
-        const rows = parkData.map((row: any) => {
-          const status =
-            statusMap[row.status as keyof typeof statusMap] || '未知';
-          return {
-            ...row,
-            status,
-          };
-        });
-
-        worksheet.addRows(rows);
-      }
+      worksheet.addRows(rows);
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -253,7 +268,10 @@ const handleExport = async () => {
   }
 };
 
-const highlightMarker = (record: TrajectoryRecord, highlight: boolean) => {
+const highlightMarker = (
+  record: TrajectoryApi.TrajectoryRecord,
+  highlight: boolean,
+) => {
   const targetMarker = markers.find((m) => {
     const pos = m.getPosition();
     return pos.lng === record.longitude && pos.lat === record.latitude;
@@ -308,11 +326,22 @@ onUnmounted(() => {
           </Button>
         </div>
         <div class="actions">
+          <Input
+            v-model:value="employeeName"
+            allow-clear
+            class="filter-input"
+            placeholder="输入员工姓名"
+            @press-enter="handleSearch"
+          />
           <RangePicker
             v-model:value="dateRange"
             :allow-clear="false"
             @change="handleDateChange"
           />
+          <Button class="filter-button" @click="handleSearch">查询</Button>
+          <Button class="filter-button" @click="handleResetFilters">
+            重置
+          </Button>
         </div>
       </div>
     </Card>
@@ -416,6 +445,12 @@ onUnmounted(() => {
 
   .actions {
     justify-content: center;
+  }
+
+  .filter-input,
+  .filter-button,
+  .actions :deep(.ant-picker) {
+    width: 100%;
   }
 
   .main-content {
@@ -563,6 +598,10 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
+}
+
+.filter-input {
+  width: 220px;
 }
 
 .header-title {

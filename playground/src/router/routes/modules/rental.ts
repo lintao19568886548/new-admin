@@ -106,6 +106,16 @@ const routes: RouteRecordRaw[] = [
         name: 'WaterList',
         path: 'water',
       },
+      {
+        component: () => import('#/views/rental/reading/mobile.vue'),
+        meta: {
+          hideMenu: true,
+          icon: 'mdi:cellphone-text',
+          title: $t('水电表抄表数据'),
+        },
+        name: 'ReadingMobile',
+        path: 'reading/mobile',
+      },
     ],
   },
 ];

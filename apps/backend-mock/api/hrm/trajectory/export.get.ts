@@ -6,6 +6,8 @@ import { useResponseError, useResponseSuccess } from '~/utils/response';
 export default eventHandler(async (event) => {
   try {
     const query = getQuery(event);
+    const employeeName =
+      typeof query.employeeName === 'string' ? query.employeeName.trim() : '';
 
     const startDate = query.startDate
       ? dayjs(query.startDate as string)
@@ -24,6 +26,34 @@ export default eventHandler(async (event) => {
         lte: endDate,
       },
     };
+
+    if (employeeName) {
+      where.OR = [
+        {
+          username: {
+            contains: employeeName,
+          },
+        },
+        {
+          user: {
+            is: {
+              realName: {
+                contains: employeeName,
+              },
+            },
+          },
+        },
+        {
+          user: {
+            is: {
+              username: {
+                contains: employeeName,
+              },
+            },
+          },
+        },
+      ];
+    }
 
     // 获取所有符合条件的记录，并包含用户信息和园区信息
     const records = await prismaClient.attendance.findMany({
