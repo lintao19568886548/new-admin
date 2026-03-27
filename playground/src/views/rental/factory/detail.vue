@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 import type { FactoryDetail, StatusTag } from './types';
 
+import type { PageShareContent } from '#/utils/share-content';
+
 import {
   computed,
   createApp,
@@ -9,6 +11,7 @@ import {
   onMounted,
   onUnmounted,
   ref,
+  watch,
 } from 'vue';
 import { useRoute } from 'vue-router';
 
@@ -38,10 +41,15 @@ import { getFactoryDetail } from '#/api/factory';
 import { useParkStore } from '#/store';
 import { useLayoutStore } from '#/store/layout';
 import {
+  clearMiniProgramShare,
+  syncMiniProgramShare,
+} from '#/utils/mini-program-share';
+import {
   canUseNativeWechatShare,
   isWechatInstalled,
   shareWechatWebpage,
 } from '#/utils/native-wechat-share';
+import { buildNativeWechatShareOptions } from '#/utils/share-content';
 import {
   syncWechatRuntimeState,
   useWechatRuntimeState,
@@ -208,28 +216,43 @@ const openAppUrl = computed(() => {
   return url.toString();
 });
 
-const publicShareUrl = computed(() => {
-  const url = new URL(deepLinkTarget.value, PUBLIC_SHARE_ORIGIN);
-  return url.toString();
-});
+function buildMiniProgramShareWebQuery() {
+  const segments: string[] = [];
 
-// 计算厂房特点列表
-const factoryFeatures = computed(() => {
-  const featureList = [];
-  const totalArea = getFactoryFloorStats().totalArea;
-  if (totalArea) featureList.push(`总面积 ${totalArea} m²`);
-  if (detail.value.floors?.length)
-    featureList.push(`${detail.value.floors.length}个楼层`);
-  if (detail.value.elevators?.length)
-    featureList.push(`${detail.value.elevators.length}部升降机`);
-  return featureList;
-});
+  const appendQuerySegment = (
+    key: string,
+    value: null | string | undefined,
+  ) => {
+    const encodedKey = encodeURIComponent(key);
+    if (value === undefined) {
+      return;
+    }
+    if (value === null) {
+      segments.push(encodedKey);
+      return;
+    }
+    segments.push(`${encodedKey}=${encodeURIComponent(value)}`);
+  };
+
+  for (const [key, value] of Object.entries(route.query)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        appendQuerySegment(key, item);
+      }
+      continue;
+    }
+
+    appendQuerySegment(key, value);
+  }
+
+  return segments.join('&');
+}
 
 /**
  * 计算厂房楼层面积统计
  * @returns 楼层面积统计对象
  */
-const getFactoryFloorStats = () => {
+function getFactoryFloorStats() {
   if (!detail.value.floors || detail.value.floors.length === 0) {
     return { availableArea: 0, totalArea: 0, usedArea: 0 };
   }
@@ -245,67 +268,92 @@ const getFactoryFloorStats = () => {
   const availableArea = totalArea - usedArea;
 
   return { availableArea, totalArea, usedArea };
-};
+}
 
-const shareTitle = computed(() => {
-  if (!detail.value.factoryName) {
-    return '厂房详情';
-  }
-  return `${detail.value.factoryName} - 厂房详情`;
-});
-
-const shareDescription = computed(() => {
+const pageShareContent = computed<PageShareContent>(() => {
   const stats = getFactoryFloorStats();
-  const segments = [detail.value.address];
+  const title = detail.value.factoryName
+    ? `${detail.value.factoryName} - 厂房详情`
+    : '厂房详情';
+  const descriptionSegments = [detail.value.address];
+
   if (stats.availableArea > 0) {
-    segments.push(`可租 ${stats.availableArea} m²`);
+    descriptionSegments.push(`可租 ${stats.availableArea} m²`);
   }
   if (detail.value.contact) {
-    segments.push(`联系 ${detail.value.contact}`);
+    descriptionSegments.push(`联系 ${detail.value.contact}`);
   }
-  return segments.filter(Boolean).join('｜') || '查看厂房详情';
-});
 
-const shareImage = computed(
-  () =>
-    detail.value.imageUrls?.[0] || detail.value.imgUrl || store.defaultImgUrl,
-);
-
-const shareImagePublicUrl = computed(() => {
+  let imageUrl = '';
   try {
-    return new URL(shareImage.value, PUBLIC_SHARE_ORIGIN).toString();
+    imageUrl = new URL(
+      detail.value.imageUrls?.[0] || detail.value.imgUrl || store.defaultImgUrl,
+      PUBLIC_SHARE_ORIGIN,
+    ).toString();
   } catch (error) {
     console.warn('生成分享图片地址失败:', error);
-    return '';
   }
+
+  return {
+    description:
+      descriptionSegments.filter(Boolean).join('｜') || '查看厂房详情',
+    imageUrl,
+    title,
+    url: new URL(deepLinkTarget.value, PUBLIC_SHARE_ORIGIN).toString(),
+    // 小程序分享回流按项目约定仅维护当前业务路由，不在这里兼容 hash 地址解析。
+    webPath: route.path || `/rental/factory/detail/${String(id.value)}`,
+    webQuery: buildMiniProgramShareWebQuery(),
+  };
+});
+
+// 计算厂房特点列表
+const factoryFeatures = computed(() => {
+  const featureList = [];
+  const totalArea = getFactoryFloorStats().totalArea;
+  if (totalArea) featureList.push(`总面积 ${totalArea} m²`);
+  if (detail.value.floors?.length)
+    featureList.push(`${detail.value.floors.length}个楼层`);
+  if (detail.value.elevators?.length)
+    featureList.push(`${detail.value.elevators.length}部升降机`);
+  return featureList;
 });
 
 useHead(
   computed(() => ({
     meta: [
       {
-        content: shareDescription.value,
+        content: pageShareContent.value.description || '',
         name: 'description',
       },
       {
-        content: shareDescription.value,
+        content: pageShareContent.value.description || '',
         property: 'og:description',
       },
       {
-        content: shareImage.value,
+        content: pageShareContent.value.imageUrl || '',
         property: 'og:image',
       },
       {
-        content: shareTitle.value,
+        content: pageShareContent.value.title,
         property: 'og:title',
       },
       {
-        content: publicShareUrl.value,
+        content: pageShareContent.value.url,
         property: 'og:url',
       },
     ],
-    title: shareTitle.value,
+    title: pageShareContent.value.title,
   })),
+);
+
+watch(
+  () => pageShareContent.value.title,
+  (title) => {
+    if (typeof document !== 'undefined') {
+      document.title = title;
+    }
+  },
+  { immediate: true },
 );
 
 // 打开图片预览
@@ -377,8 +425,8 @@ function openImagePreview(
 
 async function copyCurrentLink() {
   const targetUrl =
-    (isNativePlatform ? publicShareUrl.value : currentPageUrl.value) ||
-    publicShareUrl.value;
+    (isNativePlatform ? pageShareContent.value.url : currentPageUrl.value) ||
+    pageShareContent.value.url;
   if (!targetUrl) {
     message.error('当前页面链接不可用');
     return;
@@ -448,13 +496,11 @@ async function shareFactoryFromNativeApp() {
     return false;
   }
 
-  const nativeWechatResult = await shareWechatWebpage({
-    appId: WECHAT_OPEN_APP_ID,
-    description: shareDescription.value,
-    thumbUrl: shareImagePublicUrl.value,
-    title: shareTitle.value,
-    url: publicShareUrl.value,
-  });
+  const nativeWechatResult = await shareWechatWebpage(
+    buildNativeWechatShareOptions(pageShareContent.value, {
+      appId: WECHAT_OPEN_APP_ID,
+    }),
+  );
 
   if (nativeWechatResult.ok) {
     message.success(nativeWechatResult.message || '已拉起微信，请继续完成发送');
@@ -493,8 +539,8 @@ async function shareFactoryFromSystemShare() {
   await Share.share({
     dialogTitle: '分享厂房信息',
     text: shareText,
-    title: `厂房推荐 - ${detail.value.factoryName}`,
-    url: publicShareUrl.value,
+    title: pageShareContent.value.title,
+    url: pageShareContent.value.url,
   });
 
   message.success('分享成功');
@@ -545,6 +591,18 @@ async function handleFactoryShareAction() {
   }
 }
 
+watch(
+  [isMiniProgramWebViewPage, pageShareContent],
+  ([isMiniProgram]) => {
+    if (!isMiniProgram) {
+      return;
+    }
+
+    void syncMiniProgramShare(pageShareContent.value);
+  },
+  { immediate: true },
+);
+
 onMounted(() => {
   void (async () => {
     await syncWechatRuntimeEnvironment();
@@ -564,6 +622,9 @@ onMounted(() => {
 
 // 组件卸载时清理头部动作按钮
 onUnmounted(() => {
+  if (isMiniProgramWebViewPage.value) {
+    void clearMiniProgramShare();
+  }
   layoutStore.setHeaderActions([]);
 });
 </script>

@@ -5,6 +5,9 @@ import { readonly, shallowReactive } from 'vue';
 export interface WechatJssdk {
   config: (config: Record<string, any>) => void;
   error: (callback: (error: unknown) => void) => void;
+  miniProgram?: {
+    postMessage?: (options: { data: Record<string, any> }) => void;
+  };
   ready: (callback: () => void) => void;
   updateAppMessageShareData: (data: Record<string, any>) => void;
   updateTimelineShareData: (data: Record<string, any>) => void;
@@ -222,11 +225,11 @@ export async function waitForWechatMiniProgramWebView(
   });
 }
 
-async function loadWechatJssdk() {
+async function loadWechatJssdkScript() {
   if (
     typeof window === 'undefined' ||
-    !isWechatBrowser() ||
-    isWechatMiniProgramWebView()
+    typeof document === 'undefined' ||
+    !isWechatBrowser()
   ) {
     return null;
   }
@@ -270,6 +273,18 @@ async function loadWechatJssdk() {
   }
 
   return wechatSdkPromise;
+}
+
+export async function ensureWechatJsBridge() {
+  return await loadWechatJssdkScript();
+}
+
+async function loadWechatJssdk() {
+  if (isWechatMiniProgramWebView()) {
+    return null;
+  }
+
+  return await loadWechatJssdkScript();
 }
 
 export async function initWechatJssdk(
