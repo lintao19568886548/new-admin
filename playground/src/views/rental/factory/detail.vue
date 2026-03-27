@@ -465,11 +465,12 @@ function openAppFromBrowser() {
   window.location.href = openAppUrl.value;
 }
 
-async function syncWechatRuntimeEnvironment() {
+function syncWechatRuntimeEnvironment() {
   isMobileBrowser.value = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
   syncWechatRuntimeState();
+}
 
+async function confirmWechatRuntimeEnvironment() {
   if (!isWechat.value || isWechatMiniProgram.value || isNativePlatform) {
     return;
   }
@@ -604,9 +605,14 @@ watch(
 );
 
 onMounted(() => {
+  syncWechatRuntimeEnvironment();
+
   void (async () => {
-    await syncWechatRuntimeEnvironment();
     await fetchFactoryDetail();
+  })();
+
+  void (async () => {
+    await confirmWechatRuntimeEnvironment();
   })();
 
   // 设置头部动作按钮
