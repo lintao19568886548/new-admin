@@ -2,6 +2,7 @@
 model AppVersion {
   id         Int      @id @default(autoincrement())
   version    String   @unique
+  url        String?  @map("url")
   androidUrl String   @map("android_url")
   iosUrl     String?  @map("ios_url")
   notes      String?  @db.LongText
