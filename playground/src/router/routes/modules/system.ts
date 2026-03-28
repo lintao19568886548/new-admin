@@ -48,6 +48,15 @@ const routes: RouteRecordRaw[] = [
         },
         component: () => import('#/views/system/dept/list.vue'),
       },
+      {
+        path: '/system/feedback',
+        name: 'SystemFeedback',
+        meta: {
+          icon: 'mdi:message-alert-outline',
+          title: $t('意见反馈'),
+        },
+        component: () => import('#/views/system/feedback/list.vue'),
+      },
     ],
   },
 ];
