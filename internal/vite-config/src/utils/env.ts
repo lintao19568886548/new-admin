@@ -9,6 +9,9 @@ import dotenv from 'dotenv';
 
 const getBoolean = (value: string | undefined) => value === 'true';
 
+const getOptionalBoolean = (value: string | undefined) =>
+  value === undefined ? undefined : getBoolean(value);
+
 const getString = (value: string | undefined, fallback: string) =>
   value ?? fallback;
 
@@ -38,7 +41,7 @@ async function loadEnv<T = Record<string, string>>(
   match = 'VITE_GLOB_',
   confFiles = getConfFiles(),
 ) {
-  let envConfig = {};
+  let envConfig: Record<string, string | undefined> = {};
 
   for (const confFile of confFiles) {
     try {
@@ -54,6 +57,7 @@ async function loadEnv<T = Record<string, string>>(
       console.error(`Error while parsing ${confFile}`, error);
     }
   }
+  envConfig = { ...envConfig, ...process.env };
   const reg = new RegExp(`^(${match})`);
   Object.keys(envConfig).forEach((key) => {
     if (!reg.test(key)) {
@@ -81,6 +85,7 @@ async function loadAndConvertEnv(
     VITE_BASE,
     VITE_COMPRESS,
     VITE_DEVTOOLS,
+    VITE_I18N,
     VITE_INJECT_APP_LOADING,
     VITE_NITRO_MOCK,
     VITE_PORT,
@@ -99,6 +104,7 @@ async function loadAndConvertEnv(
     compress: compressTypes.length > 0,
     compressTypes,
     devtools: getBoolean(VITE_DEVTOOLS),
+    i18n: getOptionalBoolean(VITE_I18N),
     injectAppLoading: getBoolean(VITE_INJECT_APP_LOADING),
     nitroMock: getBoolean(VITE_NITRO_MOCK),
     port: getNumber(VITE_PORT, 5173),

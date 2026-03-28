@@ -23,6 +23,10 @@
         ".vitepress/dist/**"
       ]
     },
+    "play:build": {
+      "env": ["VITE_I18N"],
+      "outputs": ["dist/**", "dist.zip"]
+    },
     "preview": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
