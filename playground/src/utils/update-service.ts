@@ -14,6 +14,7 @@ import { message } from 'ant-design-vue';
 import semver from 'semver';
 
 import { getLatestVersionApi } from '#/api/system';
+import { normalizeIosStoreUrl } from '#/utils/app-update';
 
 type UpdatePlatform = 'android' | 'ios';
 
@@ -36,45 +37,17 @@ function isIosNativePlatform() {
   return getNativeUpdatePlatform() === 'ios';
 }
 
-function normalizeIosUpdateUrl(url: string) {
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase();
-    const protocol = parsed.protocol.toLowerCase();
-
-    // iOS 线上分发仅支持 App Store。
-    const isAppStoreHost =
-      host === 'apps.apple.com' ||
-      host === 'itunes.apple.com' ||
-      host.endsWith('.apps.apple.com');
-
-    if (protocol === 'itms-apps:' && isAppStoreHost) {
-      return parsed.toString();
-    }
-    if (protocol === 'https:' && isAppStoreHost) {
-      return parsed.toString();
-    }
-  } catch {
-    // ignore
-  }
-  return '';
-}
-
 function resolveUpdateUrl(versionInfo: VersionInfo, platform: UpdatePlatform) {
   if (platform === 'android') {
-    return versionInfo.androidUrl || versionInfo.url;
+    return versionInfo.androidUrl || '';
   }
 
-  // iOS 只接受 App Store 链接。优先 iosUrl，其次兼容旧字段 url。
+  // iOS 只接受 App Store 链接。
   if (versionInfo.iosUrl) {
-    const iosUrl = normalizeIosUpdateUrl(versionInfo.iosUrl);
+    const iosUrl = normalizeIosStoreUrl(versionInfo.iosUrl);
     if (iosUrl) {
       return iosUrl;
     }
-  }
-
-  if (versionInfo.url) {
-    return normalizeIosUpdateUrl(versionInfo.url);
   }
 
   return '';
@@ -326,7 +299,7 @@ async function openIosUpdatePage(): Promise<void> {
     return;
   }
 
-  const normalizedUrl = normalizeIosUpdateUrl(updateUrl);
+  const normalizedUrl = normalizeIosStoreUrl(updateUrl);
   if (!normalizedUrl) {
     message.error('iOS 更新仅支持 App Store 链接');
     return;

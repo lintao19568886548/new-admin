@@ -1,10 +1,9 @@
 import { requestClient } from '#/api/request';
 
 export interface VersionInfo {
-  androidUrl?: string;
+  androidUrl: string;
   iosUrl?: string;
   notes: string;
-  url: string;
   version: string;
 }
 

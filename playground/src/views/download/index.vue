@@ -1,12 +1,55 @@
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { Download } from '@vben/icons';
 
 import { getLatestVersionApi } from '#/api/system/version';
+import { normalizeIosStoreUrl } from '#/utils/app-update';
+
+type ClientPlatform = 'android' | 'ios' | 'unknown';
 
 const isWeChat = ref(false);
-const downloadUrl = ref('');
+const clientPlatform = ref<ClientPlatform>('unknown');
+const androidUrl = ref('');
+const iosUrl = ref('');
+
+const hasDownloadEntry = computed(() => {
+  return !!androidUrl.value || !!iosUrl.value;
+});
+
+const pageTitle = computed(() => {
+  if (clientPlatform.value === 'android') {
+    return '准备开始下载...';
+  }
+  if (clientPlatform.value === 'ios') {
+    return '准备前往 App Store...';
+  }
+  return '选择下载方式';
+});
+
+const pageDescription = computed(() => {
+  if (clientPlatform.value === 'android' && androidUrl.value) {
+    return '如果下载未自动开始，请点击下方按钮重试。';
+  }
+  if (clientPlatform.value === 'ios' && iosUrl.value) {
+    return '如果没有自动跳转，请点击下方按钮前往 App Store。';
+  }
+  if (hasDownloadEntry.value) {
+    return '请选择对应平台继续。';
+  }
+  return '';
+});
+
+function detectClientPlatform(): ClientPlatform {
+  const userAgent = navigator.userAgent.toLowerCase();
+  if (userAgent.includes('android')) {
+    return 'android';
+  }
+  if (/iphone|ipad|ipod/.test(userAgent)) {
+    return 'ios';
+  }
+  return 'unknown';
+}
 
 /**
  * Triggers a file download.
@@ -26,14 +69,32 @@ function downloadFile(url: string) {
   a.remove();
 }
 
+function openExternalUrl(url: string) {
+  if (!url) {
+    console.error('Open URL is not provided.');
+    return;
+  }
+  window.location.assign(url);
+}
+
+function triggerPrimaryAction() {
+  if (clientPlatform.value === 'android' && androidUrl.value) {
+    downloadFile(androidUrl.value);
+    return;
+  }
+  if (clientPlatform.value === 'ios' && iosUrl.value) {
+    openExternalUrl(iosUrl.value);
+  }
+}
+
 async function fetchDownloadUrl() {
   try {
     const data = await getLatestVersionApi();
-    downloadUrl.value = data.androidUrl || data.url || '';
+    androidUrl.value = data.androidUrl || '';
+    iosUrl.value = data.iosUrl ? normalizeIosStoreUrl(data.iosUrl) : '';
 
-    // If not in WeChat and a download URL is available, trigger download automatically
-    if (!isWeChat.value && downloadUrl.value) {
-      downloadFile(downloadUrl.value);
+    if (!isWeChat.value && clientPlatform.value !== 'unknown') {
+      triggerPrimaryAction();
     }
   } catch (error) {
     console.error('Failed to fetch download URL:', error);
@@ -44,6 +105,7 @@ async function fetchDownloadUrl() {
 onMounted(() => {
   // 1. Check user agent to determine if it's WeChat
   isWeChat.value = /micromessenger/i.test(navigator.userAgent);
+  clientPlatform.value = detectClientPlatform();
   fetchDownloadUrl();
 });
 </script>
@@ -83,7 +145,7 @@ onMounted(() => {
           然后选择
           <span class="font-semibold text-blue-500">"在浏览器中打开"</span>
         </p>
-        <p class="mt-1 text-base text-gray-600">即可完成下载</p>
+        <p class="mt-1 text-base text-gray-600">即可继续下载或前往 App Store</p>
       </div>
 
       <div class="flex-grow"></div>
@@ -93,22 +155,31 @@ onMounted(() => {
     <div v-else class="m-auto w-full max-w-md">
       <div class="rounded-lg bg-white p-8 text-center shadow-lg">
         <Download class="mx-auto h-16 w-16 text-green-500" />
-        <h1 class="mt-4 text-2xl font-bold">准备开始下载...</h1>
-        <p v-if="downloadUrl" class="mt-2 text-gray-600">
-          如果下载未自动开始，请点击下方的按钮重试。
+        <h1 class="mt-4 text-2xl font-bold">{{ pageTitle }}</h1>
+        <p v-if="pageDescription" class="mt-2 text-gray-600">
+          {{ pageDescription }}
         </p>
         <p v-else class="mt-2 text-red-500">
           下载链接无效，请确认您访问的地址是否正确。
         </p>
 
-        <button
-          v-if="downloadUrl"
-          class="mt-6 w-full rounded-md bg-blue-500 px-4 py-3 text-lg font-semibold text-white transition hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50"
-          :disabled="!downloadUrl"
-          @click="downloadFile(downloadUrl)"
-        >
-          立即下载
-        </button>
+        <div v-if="hasDownloadEntry" class="mt-6 space-y-3">
+          <button
+            v-if="androidUrl"
+            class="w-full rounded-md bg-blue-500 px-4 py-3 text-lg font-semibold text-white transition hover:bg-blue-600 active:bg-blue-700"
+            @click="downloadFile(androidUrl)"
+          >
+            下载 Android 安装包
+          </button>
+
+          <button
+            v-if="iosUrl"
+            class="w-full rounded-md bg-slate-900 px-4 py-3 text-lg font-semibold text-white transition hover:bg-slate-800 active:bg-slate-950"
+            @click="openExternalUrl(iosUrl)"
+          >
+            前往 App Store
+          </button>
+        </div>
       </div>
     </div>
   </div>
