@@ -5,12 +5,13 @@ import { writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const DEFAULT_START_COMMIT = 'd32b59276aefdde8def737d22e48312ea9cb78a8';
+const DEFAULT_START_COMMIT = '56717e19da2cc1bdc8146bc444065875d9342c0d';
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_OUTPUT_FILE = resolve(SCRIPT_DIR, 'commit_log.txt');
 
 function parseArgs(argv) {
   const options = {
+    author: '',
     output: DEFAULT_OUTPUT_FILE,
     start: DEFAULT_START_COMMIT,
   };
@@ -41,6 +42,15 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === '--author') {
+      if (!next) {
+        throw new Error(`${arg} requires a value.`);
+      }
+      options.author = next;
+      index += 1;
+      continue;
+    }
+
     if (arg === '--help' || arg === '-h') {
       options.help = true;
       continue;
@@ -54,11 +64,12 @@ function parseArgs(argv) {
 
 function printUsage() {
   console.log(
-    'Usage: node scripts/get-commits.mjs [--start <commit>] [--output <path>]',
+    'Usage: node scripts/get-commits.mjs [--start <commit>] [--author <pattern>] [--output <path>]',
   );
   console.log('');
   console.log(`Defaults:`);
   console.log(`  --start  ${DEFAULT_START_COMMIT}`);
+  console.log(`  --author (not set, case-insensitive when provided)`);
   console.log(`  --output ${DEFAULT_OUTPUT_FILE}`);
 }
 
@@ -79,12 +90,16 @@ function main() {
   }
 
   const range = `${options.start}^..HEAD`;
-  const gitArgs = [
-    'log',
-    '--no-merges',
+  const gitArgs = ['log', '--no-merges'];
+
+  if (options.author) {
+    gitArgs.push('--regexp-ignore-case', `--author=${options.author}`);
+  }
+
+  gitArgs.push(
     range,
     '--pretty=format:* %h %s (%an, %ar)%n%n%b%n==================================================%n',
-  ];
+  );
 
   console.log(`Generating commit log and writing to ${options.output}...`);
   console.log('-------------------------------------------------');
