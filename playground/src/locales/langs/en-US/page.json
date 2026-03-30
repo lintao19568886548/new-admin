@@ -41,6 +41,36 @@
   "maintenance": {
     "list": "Repair list"
   },
+  "park": {
+    "address": "Park Address",
+    "area": "Park Area",
+    "contact": "Contact Number",
+    "create": "Create Park",
+    "description": "Park Description",
+    "detail": "Park Detail",
+    "edit": "Edit Park",
+    "item": "Park",
+    "list": "Park List",
+    "manager": "Manager",
+    "mobile": {
+      "areaFallback": "Pending",
+      "empty": "No parks found",
+      "emptyDescription": "No parks match the current filters. Try adjusting the search conditions.",
+      "loadMore": "Load More",
+      "noAddress": "No address",
+      "noContact": "No contact information",
+      "noManager": "No manager",
+      "noMore": "No More Data",
+      "resultCount": "{0} parks",
+      "searchAddressPlaceholder": "Enter park address",
+      "searchHint": "Filter quickly by park name or address",
+      "searchParkNamePlaceholder": "Enter park name"
+    },
+    "name": "Park Name",
+    "status": "Park Status",
+    "title": "Park Management",
+    "view": "View Park"
+  },
   "rental": {
     "create": "Create Rental",
     "detail": "Rental Detail",

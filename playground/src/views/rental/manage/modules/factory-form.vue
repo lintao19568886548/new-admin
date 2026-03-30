@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { Factory } from '../data';
 
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { useVbenForm, useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Divider, Popconfirm } from 'ant-design-vue';
+import { Button, Card, Empty, message, Popconfirm } from 'ant-design-vue';
 
 import { createOwnFactory, deleteFactory, updateFactory } from '#/api/factory';
 import { $t } from '#/locales';
@@ -13,7 +13,6 @@ import { useParkStore } from '#/store';
 
 import { useFactoryItemFormSchema } from '../data';
 
-// 添加props定义，接收表单组件传递的属性
 const props = defineProps({
   modelValue: {
     default: () => [],
@@ -21,12 +20,12 @@ const props = defineProps({
   },
 });
 
-// 添加emit定义，用于更新表单值
 const emit = defineEmits(['update:modelValue']);
 
 const store = useParkStore();
-
 const factoryData = ref<Factory[]>([]);
+const isMobileViewport = ref(false);
+const currentEditIndex = ref<null | number>(null);
 
 const getTitle = computed(() => {
   return currentEditIndex.value === null
@@ -34,13 +33,10 @@ const getTitle = computed(() => {
     : $t('ui.actionTitle.edit', [$t('page.factory.item')]);
 });
 
-// 监听props.modelValue的变化，同步到factoryData
 watch(
   () => props.modelValue,
   (val) => {
-    if (val && Array.isArray(val) && val.length > 0) {
-      factoryData.value = [...val] as Factory[];
-    }
+    factoryData.value = Array.isArray(val) ? ([...val] as Factory[]) : [];
   },
   { immediate: true },
 );
@@ -52,157 +48,253 @@ const [FactoryItemForm, factoryItemFormApi] = useVbenForm({
   wrapperClass: 'grid-cols-2',
 });
 
-async function handleAddFactory() {
-  // 重置表单
-  factoryItemFormApi.resetForm();
-  // 重置当前编辑索引
-  currentEditIndex.value = null;
-  // 打开工厂表单Modal
+function updateViewport() {
+  isMobileViewport.value = window.innerWidth < 768;
+  factoryItemFormApi.setState({
+    layout: isMobileViewport.value ? 'vertical' : 'horizontal',
+    wrapperClass: isMobileViewport.value ? 'grid-cols-1' : 'grid-cols-2',
+  });
+}
+
+function openFactoryModal() {
+  factoryModalApi.setState({
+    class: isMobileViewport.value
+      ? 'max-w-[100vw] w-[100vw]'
+      : 'max-w-[90%] w-[1200px]',
+    fullscreen: isMobileViewport.value,
+  });
   factoryModalApi.open();
 }
 
-// 添加编辑工厂的方法
-async function handleEditFactory(index: number) {
+function handleAddFactory() {
+  factoryItemFormApi.resetForm();
+  currentEditIndex.value = null;
+  openFactoryModal();
+}
+
+function handleEditFactory(index: number) {
   factoryItemFormApi.setValues(factoryData.value[index] || {});
   currentEditIndex.value = index;
-  factoryModalApi.open();
+  openFactoryModal();
 }
 
-// 添加当前编辑索引的ref
-const currentEditIndex = ref<null | number>(null);
-
-// 添加删除工厂的方法
 async function handleDeleteFactory(index: number) {
   const currentFactory = factoryData.value[index];
-  if (currentFactory?.factoryId) {
-    await deleteFactory(currentFactory?.factoryId);
+  try {
+    if (currentFactory?.factoryId) {
+      await deleteFactory(currentFactory.factoryId);
+    }
     factoryData.value.splice(index, 1);
+    emit('update:modelValue', factoryData.value);
+    message.success('删除成功');
+  } catch (error) {
+    console.error('删除厂房失败:', error);
+    message.error('删除失败，请稍后重试');
   }
-  // 更新modelValue
-  emit('update:modelValue', factoryData.value);
 }
 
 const [FactoryItemModal, factoryModalApi] = useVbenModal({
-  class: 'max-w-[90%] w-auto',
   closeOnClickModal: false,
   destroyOnClose: false,
+  fullscreenButton: false,
   onClosed: () => {
-    // 关闭Modal时重置当前编辑索引
     currentEditIndex.value = null;
     store.buttonStatus = true;
   },
   async onConfirm() {
     const { valid } = await factoryItemFormApi.validate();
-    if (valid) {
-      factoryModalApi.lock();
-      try {
-        const values = await factoryItemFormApi.getValues();
-        if (values.buildTime) {
-          values.buildTime = new Date(values.buildTime).toISOString();
-        }
+    if (!valid) {
+      return;
+    }
 
-        if (currentEditIndex.value === null) {
-          // 确保 props.parkId 有值再创建
-          if (!store.parkId) {
-            // 可以添加一些错误提示，例如：
-            // message.error('园区ID无效，无法创建厂房');
-            console.error('Park ID is missing, cannot create factory.');
-            factoryModalApi.lock(false); // 解锁
-            return; // 阻止继续执行
-          }
-          // 添加新工厂数据，并传入 parkId
-          const factory = await createOwnFactory({
-            parkId: store.parkId, // <--- 添加 parkId
-            ...values,
-          }); // 使用自有厂房API
-          factoryData.value.push(factory);
-        } else {
-          // 更新现有工厂数据 - 保留原始数据中的其他字段
-          const currentFactory = factoryData.value[currentEditIndex.value];
-          if (currentFactory?.factoryId) {
-            const factory = await updateFactory(
-              currentFactory.factoryId,
-              values,
-            );
-            factoryData.value[currentEditIndex.value] = factory;
-          }
-          currentEditIndex.value = null; // 重置编辑索引
-        }
-        // 更新modelValue
-        // console.log('factoryData.value', factoryData.value);
-        emit('update:modelValue', factoryData.value);
-        factoryModalApi.close();
-      } finally {
-        factoryModalApi.lock(false);
+    factoryModalApi.lock();
+    try {
+      const values = await factoryItemFormApi.getValues();
+      if (values.buildTime) {
+        values.buildTime = new Date(values.buildTime).toISOString();
       }
+
+      if (currentEditIndex.value === null) {
+        if (!store.parkId) {
+          message.error('园区ID缺失，无法新增厂房');
+          return;
+        }
+        const factory = await createOwnFactory({
+          parkId: store.parkId,
+          ...values,
+        });
+        factoryData.value.push(factory);
+      } else {
+        const currentFactory = factoryData.value[currentEditIndex.value];
+        if (currentFactory?.factoryId) {
+          const factory = await updateFactory(currentFactory.factoryId, values);
+          factoryData.value[currentEditIndex.value] = factory;
+        }
+        currentEditIndex.value = null;
+      }
+      emit('update:modelValue', factoryData.value);
+      factoryModalApi.close();
+    } finally {
+      factoryModalApi.lock(false);
     }
   },
 });
+
+onMounted(() => {
+  updateViewport();
+  window.addEventListener('resize', updateViewport);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateViewport);
+});
 </script>
+
 <template>
-  <div class="w-full">
-    <div class="mb-4 flex w-full justify-between">
-      <div class="flex items-center gap-3">
-        <div class="text-primary text-xl font-bold">
-          {{ $t('page.factory.list') }}
-        </div>
-        <Button type="primary" @click="handleAddFactory()">
-          {{ $t('page.factory.create') }}
-        </Button>
-      </div>
+  <div class="factory-module">
+    <div class="module-header">
+      <div class="module-title">{{ $t('page.factory.list') }}</div>
+      <Button
+        type="primary"
+        @click="handleAddFactory"
+        :size="isMobileViewport ? 'large' : 'middle'"
+      >
+        {{ $t('page.factory.create') }}
+      </Button>
     </div>
-    <Divider />
-    <div v-show="factoryData && factoryData.length > 0" class="space-y-4">
-      <div class="grid grid-cols-2 gap-6">
-        <div
-          v-for="(factory, index) in factoryData"
-          :key="index"
-          class="rounded-lg shadow-sm transition-shadow duration-300 hover:shadow-md"
-        >
-          <div class="flex-1">
-            <Card
-              class="hover:border-primary box-border border border-gray-200 shadow-sm transition-colors duration-300"
-            >
-              <div class="flex items-center justify-between p-2">
-                <div class="flex items-center">
-                  <span class="mr-2 text-lg font-bold">厂房名称： </span>
-                  <span class="text-lg">{{ factory.factoryName }}</span>
-                </div>
-                <div class="flex gap-3">
-                  <Button
-                    type="primary"
-                    size="middle"
-                    @click="handleEditFactory(index)"
-                  >
-                    编辑
-                  </Button>
-                  <Popconfirm
-                    title="确认删除"
-                    @confirm="handleDeleteFactory(index)"
-                  >
-                    <Button type="primary" danger size="middle"> 删除 </Button>
-                  </Popconfirm>
-                </div>
-              </div>
-            </Card>
+
+    <div v-if="factoryData.length > 0" class="factory-list">
+      <Card
+        v-for="(factory, index) in factoryData"
+        :key="factory.factoryId || index"
+        class="factory-card"
+        :bordered="false"
+      >
+        <div class="factory-card__top">
+          <div class="factory-card__name">
+            {{ factory.factoryName || '未命名厂房' }}
           </div>
         </div>
-      </div>
+        <div class="factory-card__meta">
+          <div>地址：{{ factory.address || '暂无' }}</div>
+          <div>联系人：{{ factory.contact || '暂无' }}</div>
+          <div>面积：{{ factory.area || 0 }} m²</div>
+        </div>
+        <div class="factory-card__actions">
+          <Button
+            block
+            :size="isMobileViewport ? 'large' : 'middle'"
+            @click="handleEditFactory(index)"
+          >
+            编辑
+          </Button>
+          <Popconfirm title="确认删除" @confirm="handleDeleteFactory(index)">
+            <Button danger block :size="isMobileViewport ? 'large' : 'middle'">
+              删除
+            </Button>
+          </Popconfirm>
+        </div>
+      </Card>
     </div>
+    <Empty v-else description="暂无厂房，请先新增" />
+
     <FactoryItemModal :title="getTitle">
       <FactoryItemForm />
       <template #footer>
-        <Button v-show="store.buttonStatus" @click="factoryModalApi.onCancel()">
-          取消
-        </Button>
-        <Button
-          v-show="store.buttonStatus"
-          type="primary"
-          @click="factoryModalApi.onConfirm()"
-        >
-          确定
-        </Button>
+        <div class="footer-actions">
+          <Button
+            v-show="store.buttonStatus"
+            @click="factoryModalApi.onCancel()"
+            :block="isMobileViewport"
+            :size="isMobileViewport ? 'large' : 'middle'"
+          >
+            取消
+          </Button>
+          <Button
+            v-show="store.buttonStatus"
+            type="primary"
+            @click="factoryModalApi.onConfirm()"
+            :block="isMobileViewport"
+            :size="isMobileViewport ? 'large' : 'middle'"
+          >
+            确定
+          </Button>
+        </div>
       </template>
     </FactoryItemModal>
   </div>
 </template>
+
+<style scoped>
+.factory-module {
+  width: 100%;
+}
+
+.module-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.module-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.factory-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.factory-card {
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+}
+
+.factory-card__top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.factory-card__name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.factory-card__meta {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: rgb(0 0 0 / 65%);
+}
+
+.factory-card__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.footer-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  width: 100%;
+}
+
+@media (width >= 768px) {
+  .factory-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (width < 768px) {
+  .footer-actions {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

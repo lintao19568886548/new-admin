@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { Dormitory } from '../data';
 
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { useVbenForm, useVbenModal } from '@vben/common-ui';
 
-import { Button, Card, Divider, Popconfirm } from 'ant-design-vue';
+import { Button, Card, Empty, message, Popconfirm } from 'ant-design-vue';
 
 import {
   createDormitory,
@@ -17,7 +17,6 @@ import { useParkStore } from '#/store';
 
 import { useDormitoryItemFormSchema } from '../data';
 
-// 添加props定义，接收表单组件传递的属性
 const props = defineProps({
   modelValue: {
     default: () => [],
@@ -25,193 +24,262 @@ const props = defineProps({
   },
 });
 
-// 添加emit定义，用于更新表单值
 const emit = defineEmits(['update:modelValue']);
 
 const data = ref<Dormitory[]>([]);
 const parkStore = useParkStore();
+const isMobileViewport = ref(false);
+const currentEditIndex = ref<null | number>(null);
+
 const getTitle = computed(() => {
   return currentEditIndex.value === null
     ? $t('ui.actionTitle.create', [$t('page.dormitory.item')])
     : $t('ui.actionTitle.edit', [$t('page.dormitory.item')]);
 });
 
-// 监听props.modelValue的变化，同步到dormitoryData
 watch(
   () => props.modelValue,
   (val) => {
-    if (val && Array.isArray(val) && val.length > 0) {
-      data.value = [...val] as Dormitory[];
-    }
+    data.value = Array.isArray(val) ? ([...val] as Dormitory[]) : [];
   },
   { immediate: true },
 );
 
-const [Form, FormApi] = useVbenForm({
+const [Form, formApi] = useVbenForm({
   layout: 'horizontal',
   schema: useDormitoryItemFormSchema(),
   showDefaultActions: false,
   wrapperClass: 'grid-cols-3',
 });
 
-async function handleAddDormitory() {
-  // 重置表单
-  FormApi.resetForm();
-  // 重置当前编辑索引
+function updateViewport() {
+  isMobileViewport.value = window.innerWidth < 768;
+  formApi.setState({
+    layout: isMobileViewport.value ? 'vertical' : 'horizontal',
+    wrapperClass: isMobileViewport.value ? 'grid-cols-1' : 'grid-cols-3',
+  });
+}
+
+function openDormitoryModal() {
+  dormitoryModalApi.setState({
+    class: isMobileViewport.value
+      ? 'max-w-[100vw] w-[100vw]'
+      : 'max-w-[90%] w-[1200px]',
+    fullscreen: isMobileViewport.value,
+  });
+  dormitoryModalApi.open();
+}
+
+function handleAddDormitory() {
+  formApi.resetForm();
   currentEditIndex.value = null;
-  // 打开工厂表单Modal
-  dormitoryModalApi.open();
+  openDormitoryModal();
 }
 
-// 添加编辑工厂的方法
-async function handleEdit(index: number) {
-  FormApi.setValues(data.value[index] || {});
+function handleEdit(index: number) {
+  formApi.setValues(data.value[index] || {});
   currentEditIndex.value = index;
-  dormitoryModalApi.open();
+  openDormitoryModal();
 }
 
-// 添加当前编辑索引的ref
-const currentEditIndex = ref<null | number>(null);
-
-// 添加删除工厂的方法
 async function handleDeleteDormitory(index: number) {
-  const currentFactory = data.value[index];
-  if (currentFactory?.dormitoryId) {
-    await deleteDormitory(currentFactory?.dormitoryId);
+  const currentDormitory = data.value[index];
+  try {
+    if (currentDormitory?.dormitoryId) {
+      await deleteDormitory(currentDormitory.dormitoryId);
+    }
     data.value.splice(index, 1);
+    emit('update:modelValue', data.value);
+    message.success('删除成功');
+  } catch (error) {
+    console.error('删除宿舍失败:', error);
+    message.error('删除失败，请稍后重试');
   }
-  // 更新modelValue
-  emit('update:modelValue', data.value);
 }
 
 const [DormitoryItemModal, dormitoryModalApi] = useVbenModal({
-  class: 'max-w-[90%] w-auto',
   closeOnClickModal: false,
   destroyOnClose: false,
+  fullscreenButton: false,
   onCancel: () => {
-    // 关闭Modal时重置当前编辑索引
     currentEditIndex.value = null;
     dormitoryModalApi.close();
     return false;
   },
   async onConfirm() {
-    const { valid } = await FormApi.validate();
-    if (valid) {
-      dormitoryModalApi.lock();
-      try {
-        const values = await FormApi.getValues();
+    const { valid } = await formApi.validate();
+    if (!valid) {
+      return;
+    }
 
-        values.images =
-          values.images && Array.isArray(values.images)
-            ? values.images
-                .map((image: any) => {
-                  // 检查是否是新上传的图片（Ant Design Upload组件返回的结构）
-                  if (image.response?.data) {
-                    const response = image.response.data;
-                    return {
-                      imgId: response.imgId,
-                      name: response.name,
-                      url: response.url,
-                    };
-                  }
-                  // 检查是否是已存在的图片（从后端获取的结构）
-                  else if (image.imgId && image.url) {
-                    return {
-                      imgId: image.imgId,
-                      name: image.name || image.url.split('/').pop() || '', // 如果没有name，尝试从url提取
-                      url: image.url,
-                    };
-                  }
-                  // 如果数据结构不符合预期，可以选择忽略或记录错误
-                  console.warn('无法识别的图片数据结构:', image);
-                  return null; // 返回 null 或其他标记，以便后续过滤
-                })
-                .filter((img) => img !== null) // 过滤掉无法处理的项
-            : [];
+    dormitoryModalApi.lock();
+    try {
+      const values = await formApi.getValues();
 
-        if (currentEditIndex.value === null) {
-          // 添加新数据
-          const dormitory = await createDormitory({
-            parkId: parkStore.parkId,
-            ...values,
-          });
-          data.value.push(dormitory);
-        } else {
-          // 更新现有数据
-          const originalData = data.value[currentEditIndex.value];
-          if (originalData?.dormitoryId) {
-            const dormitory = await updateDormitory(
-              originalData.dormitoryId,
-              values,
-            );
-            data.value[currentEditIndex.value] = dormitory;
-          }
-          currentEditIndex.value = null; // 重置编辑索引
+      values.images =
+        values.images && Array.isArray(values.images)
+          ? values.images
+              .map((image: any) => {
+                if (image.response?.data) {
+                  const response = image.response.data;
+                  return {
+                    imgId: response.imgId,
+                    name: response.name,
+                    url: response.url,
+                  };
+                }
+                if (image.imgId && image.url) {
+                  return {
+                    imgId: image.imgId,
+                    name: image.name || image.url.split('/').pop() || '',
+                    url: image.url,
+                  };
+                }
+                return null;
+              })
+              .filter((img) => img !== null)
+          : [];
+
+      if (currentEditIndex.value === null) {
+        const dormitory = await createDormitory({
+          parkId: parkStore.parkId,
+          ...values,
+        });
+        data.value.push(dormitory);
+      } else {
+        const originalData = data.value[currentEditIndex.value];
+        if (originalData?.dormitoryId) {
+          const dormitory = await updateDormitory(
+            originalData.dormitoryId,
+            values,
+          );
+          data.value[currentEditIndex.value] = dormitory;
         }
-
-        // 更新modelValue
-        emit('update:modelValue', data.value);
-
-        dormitoryModalApi.close();
-      } finally {
-        dormitoryModalApi.lock(false);
+        currentEditIndex.value = null;
       }
+
+      emit('update:modelValue', data.value);
+      dormitoryModalApi.close();
+    } finally {
+      dormitoryModalApi.lock(false);
     }
   },
 });
+
+onMounted(() => {
+  updateViewport();
+  window.addEventListener('resize', updateViewport);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateViewport);
+});
 </script>
+
 <template>
-  <div class="w-full">
-    <div class="mb-4 flex w-full justify-between">
-      <div class="flex items-center gap-3">
-        <div class="text-primary text-xl font-bold">
-          {{ $t('page.dormitory.list') }}
-        </div>
-        <Button type="primary" @click="handleAddDormitory()">
-          {{ $t('page.dormitory.create') }}
-        </Button>
-      </div>
+  <div class="dormitory-module">
+    <div class="module-header">
+      <div class="module-title">{{ $t('page.dormitory.list') }}</div>
+      <Button
+        type="primary"
+        @click="handleAddDormitory"
+        :size="isMobileViewport ? 'large' : 'middle'"
+      >
+        {{ $t('page.dormitory.create') }}
+      </Button>
     </div>
-    <Divider />
-    <div v-show="data && data.length > 0" class="space-y-4">
-      <div class="grid grid-cols-2 gap-6">
-        <div
-          v-for="(item, index) in data"
-          :key="index"
-          class="rounded-lg shadow-sm transition-shadow duration-300 hover:shadow-md"
-        >
-          <div class="flex-1">
-            <Card
-              class="hover:border-primary box-border border border-gray-200 shadow-sm transition-colors duration-300"
-            >
-              <div class="flex items-center justify-between p-2">
-                <div class="flex items-center">
-                  <span class="mr-2 text-lg font-bold">宿舍名称：</span>
-                  <span class="text-lg">{{ item.dormitoryName }}</span>
-                </div>
-                <div class="flex gap-3">
-                  <Button
-                    type="primary"
-                    size="middle"
-                    @click="handleEdit(index)"
-                  >
-                    编辑
-                  </Button>
-                  <Popconfirm
-                    title="确认删除"
-                    @confirm="handleDeleteDormitory(index)"
-                  >
-                    <Button type="primary" danger size="middle"> 删除 </Button>
-                  </Popconfirm>
-                </div>
-              </div>
-            </Card>
-          </div>
+
+    <div v-if="data.length > 0" class="dormitory-list">
+      <Card
+        v-for="(item, index) in data"
+        :key="item.dormitoryId || index"
+        class="dormitory-card"
+        :bordered="false"
+      >
+        <div class="dormitory-card__name">
+          {{ item.dormitoryName || '未命名宿舍' }}
         </div>
-      </div>
+        <div class="dormitory-card__meta">
+          <div>总层数：{{ item.floorCount || 0 }} 层</div>
+          <div>总房间：{{ item.totalRooms || 0 }} 间</div>
+          <div>单间面积：{{ item.roomArea || 0 }} m²</div>
+        </div>
+        <div class="dormitory-card__actions">
+          <Button
+            block
+            :size="isMobileViewport ? 'large' : 'middle'"
+            @click="handleEdit(index)"
+          >
+            编辑
+          </Button>
+          <Popconfirm title="确认删除" @confirm="handleDeleteDormitory(index)">
+            <Button danger block :size="isMobileViewport ? 'large' : 'middle'">
+              删除
+            </Button>
+          </Popconfirm>
+        </div>
+      </Card>
     </div>
+    <Empty v-else description="暂无宿舍，请先新增" />
+
     <DormitoryItemModal :title="getTitle">
       <Form />
     </DormitoryItemModal>
   </div>
 </template>
+
+<style scoped>
+.dormitory-module {
+  width: 100%;
+}
+
+.module-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.module-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dormitory-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.dormitory-card {
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+}
+
+.dormitory-card__name {
+  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dormitory-card__meta {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: rgb(0 0 0 / 65%);
+}
+
+.dormitory-card__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+@media (width >= 768px) {
+  .dormitory-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+</style>

@@ -171,7 +171,7 @@ export function useParkFormSchema(): VbenFormSchema[] {
         },
       },
       fieldName: 'description',
-      formItemClass: 'col-span-2',
+      formItemClass: 'col-span-1 md:col-span-2',
       label: $t('page.park.description'),
       rules: z
         .string()
@@ -202,7 +202,7 @@ export function useParkFormSchema(): VbenFormSchema[] {
         // 上传列表的内建样式，支持四种基本样式 text, picture, picture-card 和 picture-circle
       },
       fieldName: 'images',
-      formItemClass: 'col-span-2', // 根据你的布局调整
+      formItemClass: 'col-span-1 md:col-span-2',
       label: $t('page.factory.images'),
       renderComponentContent: () => {
         return {
@@ -288,7 +288,7 @@ export function useFactoryItemFormSchema(): VbenFormSchema[] {
         },
       },
       fieldName: 'description', // 保持不变，已与接口一致
-      formItemClass: 'col-span-2',
+      formItemClass: 'col-span-1 md:col-span-2',
       label: $t('page.factory.description'),
       rules: z
         .string()
@@ -301,7 +301,7 @@ export function useFactoryItemFormSchema(): VbenFormSchema[] {
     {
       component: markRaw(FloorForm),
       fieldName: 'floors', // 保持不变，已与接口一致
-      formItemClass: 'col-span-2',
+      formItemClass: 'col-span-1 md:col-span-2',
       label: $t('page.factory.floors'),
     },
   ];
@@ -316,7 +316,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
       component: 'Input',
       componentProps: {
         style: {
-          width: '90%',
+          width: '100%',
         },
       },
       fieldName: 'floorName',
@@ -328,7 +328,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
       componentProps: {
         addonAfter: 'm',
         style: {
-          width: '90%',
+          width: '100%',
         },
       },
       fieldName: 'floorHeight',
@@ -346,7 +346,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
       componentProps: {
         addonAfter: '吨',
         style: {
-          width: '90%',
+          width: '100%',
         },
       },
       fieldName: 'loadBearing',
@@ -364,7 +364,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
       componentProps: {
         addonAfter: '元/m²·月',
         style: {
-          width: '90%',
+          width: '100%',
         },
       },
       fieldName: 'rentPrice',
@@ -382,7 +382,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
       componentProps: {
         addonAfter: 'm²',
         style: {
-          width: '90%',
+          width: '100%',
         },
       },
       fieldName: 'totalArea',
@@ -400,7 +400,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
       componentProps: {
         addonAfter: 'm²',
         style: {
-          width: '90%',
+          width: '100%',
         },
       },
       dependencies: {
@@ -441,7 +441,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
       component: 'Input',
       componentProps: {
         style: {
-          width: '90%',
+          width: '100%',
         },
       },
       fieldName: 'status',
@@ -460,7 +460,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
         },
       },
       fieldName: 'description',
-      formItemClass: 'col-span-4',
+      formItemClass: 'col-span-1 md:col-span-4',
       label: $t('page.factory.description'),
       rules: z
         .string()
@@ -491,7 +491,7 @@ export function useFloorFormSchema(): VbenFormSchema[] {
         // 上传列表的内建样式，支持四种基本样式 text, picture, picture-card 和 picture-circle
       },
       fieldName: 'images',
-      formItemClass: 'col-span-4', // 根据你的布局调整
+      formItemClass: 'col-span-1 md:col-span-4',
       label: $t('page.factory.images'),
       renderComponentContent: () => {
         return {
@@ -538,7 +538,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
         ],
         placeholder: '请输入或选择厂房名称',
         style: {
-          width: '90%',
+          width: '100%',
         },
       },
       defaultValue: '',
@@ -550,7 +550,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '层',
-        style: { width: '90%' },
+        style: { width: '100%' },
       },
       defaultValue: 0,
       fieldName: 'floorCount',
@@ -561,7 +561,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
       component: 'InputNumber',
       componentProps: {
         addonAfter: 'm²',
-        style: { width: '90%' },
+        style: { width: '100%' },
       },
       defaultValue: 0,
       fieldName: 'roomArea',
@@ -572,7 +572,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '间',
-        style: { width: '90%' },
+        style: { width: '100%' },
       },
       defaultValue: 0,
       fieldName: 'totalRooms',
@@ -583,7 +583,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
       component: 'InputNumber',
       componentProps: {
         addonAfter: 'm',
-        style: { width: '90%' },
+        style: { width: '100%' },
       },
       defaultValue: 0,
       fieldName: 'floorHeightFirst',
@@ -594,7 +594,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '元/m²·月',
-        style: { width: '90%' },
+        style: { width: '100%' },
       },
       defaultValue: 0,
       fieldName: 'rentPriceFirst',
@@ -605,7 +605,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '间',
-        style: { width: '90%' },
+        style: { width: '100%' },
       },
       defaultValue: 0,
       fieldName: 'usedRoomsFirst',
@@ -616,7 +616,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
       component: 'InputNumber',
       componentProps: {
         addonAfter: 'm',
-        style: { width: '90%' },
+        style: { width: '100%' },
       },
       defaultValue: 0,
       fieldName: 'floorHeightOther',
@@ -627,7 +627,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '元/m²·月',
-        style: { width: '90%' },
+        style: { width: '100%' },
       },
       defaultValue: 0,
       fieldName: 'rentPriceOther',
@@ -638,7 +638,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
       component: 'InputNumber',
       componentProps: {
         addonAfter: '间',
-        style: { width: '90%' },
+        style: { width: '100%' },
       },
       defaultValue: 0,
       fieldName: 'usedRoomsOther',
@@ -648,7 +648,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
     {
       component: 'Input',
       componentProps: {
-        style: { width: '90%' },
+        style: { width: '100%' },
       },
       fieldName: 'remark',
       label: $t('page.common.remark'),
@@ -681,7 +681,7 @@ export function useDormitoryItemFormSchema(): VbenFormSchema[] {
         // 上传列表的内建样式，支持四种基本样式 text, picture, picture-card 和 picture-circle
       },
       fieldName: 'images',
-      formItemClass: 'col-span-3', // 根据你的布局调整
+      formItemClass: 'col-span-1 md:col-span-3',
       label: $t('page.factory.images'),
       renderComponentContent: () => {
         return {

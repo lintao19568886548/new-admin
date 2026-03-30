@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
@@ -17,10 +17,11 @@ import {
   useParkFormSchema,
 } from '../data';
 
-// 添加emit定义，用于更新表单值
 const emit = defineEmits(['success']);
 
 const currentTab = ref(0);
+const isMobileViewport = ref(false);
+const stepTitles = ['园区信息', '厂房信息', '宿舍信息'];
 
 const formData = ref();
 const getTitle = computed(() => {
@@ -51,7 +52,19 @@ const [DormitoryForm, dormitoryFormApi] = useVbenForm({
 const id = ref<number>();
 
 const parkStore = useParkStore();
-// 添加页面切换函数
+
+function updateViewport() {
+  isMobileViewport.value = window.innerWidth < 768;
+  syncFormLayout();
+}
+
+function syncFormLayout() {
+  const layout = isMobileViewport.value ? 'vertical' : 'horizontal';
+  const wrapperClass = isMobileViewport.value ? 'grid-cols-1' : 'grid-cols-2';
+  parkFormApi.setState({ layout, wrapperClass });
+  factoryFormApi.setState({ layout });
+  dormitoryFormApi.setState({ layout });
+}
 
 async function handleNext(step: number) {
   // 验证当前表单
@@ -63,29 +76,23 @@ async function handleNext(step: number) {
       return;
     }
 
-    // 处理图片数据以符合 Prisma 嵌套写入的格式
     if (apiValues.images && Array.isArray(apiValues.images)) {
       const imageConnectInputs = apiValues.images
         .map((img: any) => {
-          // 从新上传的图片或已存在的图片数据中获取 imgId
           const imgId = img.response?.data?.imgId || img.imgId;
           if (imgId) {
-            // 此结构假设 Park.images 是到 ParkImage 的关联,
-            // ParkImage 有一个 'image' 字段关联到 Image 模型。
-            // 我们正在创建 ParkImage 记录，每个记录连接到一个已存在的 Image。
             return { image: { connect: { imgId: Number(imgId) } } };
           }
           return null;
         })
-        .filter(Boolean); // 过滤掉无效的条目 (比如没有 imgId 的)
+        .filter(Boolean);
 
       apiValues.images = {
         create: imageConnectInputs,
-        ...(id.value ? { deleteMany: {} } : {}), // 如果是更新，则添加 deleteMany
+        ...(id.value ? { deleteMany: {} } : {}),
       };
     } else {
-      // 如果没有提供图片
-      apiValues.images = id.value ? { deleteMany: {} } : undefined; // 更新则删除所有关联，创建则为 undefined
+      apiValues.images = id.value ? { deleteMany: {} } : undefined;
     }
 
     const parkDataForApi = { ...apiValues };
@@ -103,9 +110,8 @@ async function handleNext(step: number) {
 }
 
 const [Modal, modalApi] = useVbenModal({
-  // 或者使用class设置样式
-  class: 'max-w-[90%] w-[1500px]',
   closeOnClickModal: false,
+  fullscreenButton: false,
   async onConfirm() {
     const { valid } = await dormitoryFormApi.validate();
     if (valid) {
@@ -129,14 +135,12 @@ const [Modal, modalApi] = useVbenModal({
 
       try {
         if (id.value) {
-          // await updateSystemPark(id.value, values);
           message.success({
             content: $t('ui.actionMessage.updateSuccess', [
               values.park.parkName,
             ]),
           });
         } else {
-          // await createSystemPark(values);
           message.success({
             content: $t('ui.actionMessage.createSuccess', [
               values.park.parkName,
@@ -160,6 +164,12 @@ const [Modal, modalApi] = useVbenModal({
   },
   async onOpenChange(isOpen) {
     if (isOpen) {
+      modalApi.setState({
+        class: isMobileViewport.value
+          ? 'max-w-[100vw] w-[100vw]'
+          : 'max-w-[90%] w-[1500px]',
+        fullscreen: isMobileViewport.value,
+      });
       const data = modalApi.getData();
       parkFormApi.resetForm();
       if (data && Object.keys(data).length > 0) {
@@ -172,29 +182,45 @@ const [Modal, modalApi] = useVbenModal({
       } else {
         id.value = undefined;
         formData.value = undefined;
-        // 不设置默认值
         parkFormApi.setValues({});
         factoryFormApi.setValues({});
         dormitoryFormApi.setValues({});
       }
     }
   },
-  // 添加以下两行来隐藏默认按钮
   showCancelButton: false,
   showConfirmButton: false,
+});
+
+onMounted(() => {
+  updateViewport();
+  syncFormLayout();
+  window.addEventListener('resize', updateViewport);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateViewport);
 });
 </script>
 
 <template>
-  <div>
+  <div class="manage-form-modal">
     <Modal :title="getTitle">
-      <div>
-        <Steps :current="currentTab" class="steps w-full px-4">
-          <Step title="园区信息" @click="handleNext(0)" />
-          <Step title="厂房信息" @click="handleNext(1)" />
-          <Step title="宿舍信息" @click="handleNext(2)" />
+      <div class="modal-content">
+        <Steps
+          :current="currentTab"
+          class="steps w-full px-2"
+          :size="isMobileViewport ? 'small' : 'default'"
+        >
+          <Step
+            v-for="(stepTitle, stepIndex) in stepTitles"
+            :key="stepTitle"
+            :title="stepTitle"
+            @click="handleNext(stepIndex)"
+          />
         </Steps>
-        <div class="p-5">
+        <div class="step-caption">当前步骤：{{ stepTitles[currentTab] }}</div>
+        <div :class="isMobileViewport ? 'p-3' : 'p-5'">
           <Card style="background-color: #fcfcfc" v-show="currentTab === 0">
             <ParkForm style="margin: 2vh 2vw 0 0" />
           </Card>
@@ -209,9 +235,14 @@ const [Modal, modalApi] = useVbenModal({
         </div>
       </div>
       <template #footer>
-        <div class="flex w-full justify-between">
+        <div class="footer-actions">
           <div>
-            <Button v-if="currentTab > 0" @click="handleNext(currentTab - 1)">
+            <Button
+              v-if="currentTab > 0"
+              @click="handleNext(currentTab - 1)"
+              :block="isMobileViewport"
+              :size="isMobileViewport ? 'large' : 'middle'"
+            >
               上一步
             </Button>
           </div>
@@ -220,10 +251,18 @@ const [Modal, modalApi] = useVbenModal({
               v-if="currentTab < 2"
               type="primary"
               @click="handleNext(currentTab + 1)"
+              :block="isMobileViewport"
+              :size="isMobileViewport ? 'large' : 'middle'"
             >
               下一步
             </Button>
-            <Button v-else type="primary" @click="modalApi.onConfirm()">
+            <Button
+              v-else
+              type="primary"
+              @click="modalApi.onConfirm()"
+              :block="isMobileViewport"
+              :size="isMobileViewport ? 'large' : 'middle'"
+            >
               提交
             </Button>
           </div>
@@ -232,3 +271,34 @@ const [Modal, modalApi] = useVbenModal({
     </Modal>
   </div>
 </template>
+
+<style scoped>
+.steps {
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+  overflow-x: auto;
+}
+
+.step-caption {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: rgb(0 0 0 / 65%);
+}
+
+.footer-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  width: 100%;
+}
+
+@media (width < 768px) {
+  .modal-content {
+    min-height: calc(100vh - 146px);
+  }
+
+  .footer-actions {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
