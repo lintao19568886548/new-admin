@@ -38,12 +38,12 @@ const privacyPolicyContent = `隐私协议
 本APP集成了以下第三方SDK，以提供相关功能和服务：
 1. 微信OpenSDK Android
    开发者：深圳市腾讯计算机系统有限公司
-   隐私政策链接：https://support.weixin.qq.com/cgi-bin/mmsupportacctnodeweb-bin/pages/RYiYJkLOrQwu0nb8
-   收集信息范围：设备信息（如设备型号、操作系统版本）、微信头像、昵称（仅在用户授权微信登录时）、支付订单标识（仅在使用微信支付时）
-   使用目的：实现微信登录、微信分享、微信支付功能
+   SDK隐私政策链接：https://support.weixin.qq.com/cgi-bin/mmsupportacctnodeweb-bin/pages/RYiYJkLOrQwu0nb8
+   收集信息范围：设备信息（如设备型号、操作系统版本）、微信头像和昵称（仅在用户授权微信登录时）、支付订单标识（仅在使用微信支付时）、分享的图片或内容（仅在使用分享/收藏功能时）、在Android系统中验证设备上微信APP的安装状态
+   使用目的：实现微信登录、微信分享/收藏、微信支付功能
 2. 阿里云OSS SDK
    开发者：阿里巴巴（中国）有限公司
-   隐私政策链接：https://www.aliyun.com/legal/privacy-policy
+   SDK隐私政策链接：https://www.aliyun.com/legal/privacy-policy
    收集信息范围：设备信息、文件上传相关日志
    使用目的：实现文件上传和存储功能
 七、协议变更与终止
