@@ -31,6 +31,7 @@ import {
   Divider,
   Image,
   message,
+  Modal,
   Spin,
   TabPane,
   Tabs,
@@ -203,6 +204,16 @@ const isMiniProgramWebViewPage = computed(
 
 const isExternalMobileBrowserPage = computed(
   () => !isNativePlatform && !isWechat.value && isMobileBrowser.value,
+);
+
+type ShareGuideModalType = 'mini-program' | 'wechat-h5';
+
+const shareGuideModalOpen = ref(false);
+const shareGuideModalType = ref<ShareGuideModalType>('mini-program');
+const shareGuideModalTitle = computed(() =>
+  shareGuideModalType.value === 'mini-program'
+    ? '当前在微信小程序内查看'
+    : '当前在微信内查看',
 );
 
 const deepLinkTarget = computed(
@@ -479,12 +490,17 @@ async function confirmWechatRuntimeEnvironment() {
   syncWechatRuntimeState();
 }
 
+function openShareGuideModal(type: ShareGuideModalType) {
+  shareGuideModalType.value = type;
+  shareGuideModalOpen.value = true;
+}
+
 function showMiniProgramShareUnavailableMessage() {
-  message.info('请点击小程序右上角“···”中的“转发给朋友”。');
+  openShareGuideModal('mini-program');
 }
 
 function showWechatH5ShareMessage() {
-  message.info('请点击右上角“···”中的“转发给朋友”。');
+  openShareGuideModal('wechat-h5');
 }
 
 async function shareFactoryFromNativeApp() {
@@ -637,40 +653,7 @@ onUnmounted(() => {
 
 <template>
   <Spin :spinning="loading">
-    <Alert v-if="isMiniProgramWebViewPage" class="mb-4" show-icon type="info">
-      <template #message>当前在微信小程序内查看</template>
-      <template #description>
-        <div class="flex flex-col gap-3">
-          <p>如需分享，请点击小程序右上角“···”中的“转发给朋友”。</p>
-          <p>
-            如需跳转 App，请点击下方“复制当前链接”按钮，粘贴到浏览器中打开。
-          </p>
-          <div class="flex flex-wrap gap-2">
-            <Button size="small" @click="copyCurrentLink">复制当前链接</Button>
-          </div>
-        </div>
-      </template>
-    </Alert>
-
-    <Alert v-else-if="isWechatH5Page" class="mb-4" show-icon type="warning">
-      <template #message>当前在微信内查看</template>
-      <template #description>
-        <div class="flex flex-col gap-3">
-          <p>如需分享，请点击右上角“···”中的“转发给朋友”。</p>
-          <p>如需跳转 App，请点击右上角“···”中的“在浏览器中打开”。</p>
-          <div class="flex flex-wrap gap-2">
-            <Button size="small" @click="copyCurrentLink">复制当前链接</Button>
-          </div>
-        </div>
-      </template>
-    </Alert>
-
-    <Alert
-      v-else-if="isExternalMobileBrowserPage"
-      class="mb-4"
-      show-icon
-      type="info"
-    >
+    <Alert v-if="isExternalMobileBrowserPage" class="mb-4" closable>
       <template #message>已在系统浏览器中</template>
       <template #description>
         <div class="flex flex-col gap-3">
@@ -684,6 +667,32 @@ onUnmounted(() => {
         </div>
       </template>
     </Alert>
+
+    <Modal
+      v-model:open="shareGuideModalOpen"
+      :footer="null"
+      :title="shareGuideModalTitle"
+      centered
+      destroy-on-close
+    >
+      <div
+        v-if="shareGuideModalType === 'mini-program'"
+        class="flex flex-col gap-3"
+      >
+        <p>如需分享，请点击小程序右上角“···”中的“转发给朋友”。</p>
+        <p>如需跳转 App，请点击下方“复制当前链接”按钮，粘贴到浏览器中打开。</p>
+        <div class="flex flex-wrap gap-2">
+          <Button size="small" @click="copyCurrentLink">复制当前链接</Button>
+        </div>
+      </div>
+      <div v-else class="flex flex-col gap-3">
+        <p>如需分享，请点击右上角“···”中的“转发给朋友”。</p>
+        <p>如需跳转 App，请点击右上角“···”中的“在浏览器中打开”。</p>
+        <div class="flex flex-wrap gap-2">
+          <Button size="small" @click="copyCurrentLink">复制当前链接</Button>
+        </div>
+      </div>
+    </Modal>
 
     <!-- 厂房基本信息 -->
     <Card>
