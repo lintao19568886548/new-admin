@@ -50,6 +50,21 @@ import { extendsDefaultFormatter } from './extends';
 // 是否加载过
 let isInit = false;
 
+function normalizeLocaleData(localeModule: Record<string, any>) {
+  let localeData = localeModule;
+
+  while (
+    localeData &&
+    typeof localeData === 'object' &&
+    'default' in localeData &&
+    !('vxe' in localeData)
+  ) {
+    localeData = localeData.default;
+  }
+
+  return localeData;
+}
+
 // eslint-disable-next-line import/no-mutable-exports
 export let useTableForm: typeof useVbenForm;
 
@@ -109,8 +124,8 @@ export function setupVbenVxeTable(setupOptions: SetupVxeTable) {
   const preference = usePreferences();
 
   const localMap = {
-    'zh-CN': zhCN,
-    'en-US': enUS,
+    'zh-CN': normalizeLocaleData(zhCN),
+    'en-US': normalizeLocaleData(enUS),
   };
 
   watch(
