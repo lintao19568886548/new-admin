@@ -1,0 +1,154 @@
+PWSH = "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+
+BUILD_JUSTIFICATION = "build / analyze / docker / playground 构建命令必须由用户手动执行，不允许 Codex 自动运行"
+
+# 1) 直接拦 pnpm script 名
+prefix_rule(
+    pattern = ["pnpm", [
+        "build",
+        "build:analyze",
+        "build:docker",
+        "build:docs",
+        "build:play",
+        "build:play:full",
+        "build:play:no-i18n",
+        "build:play:sync:android",
+        "build:play:sync:ios",
+    ]],
+    decision = "forbidden",
+    justification = BUILD_JUSTIFICATION,
+    match = [
+        "pnpm build",
+        "pnpm build:analyze",
+        "pnpm build:docker",
+        "pnpm build:docs",
+        "pnpm build:play",
+        "pnpm build:play:full",
+        "pnpm build:play:no-i18n",
+        "pnpm build:play:sync:android",
+        "pnpm build:play:sync:ios",
+    ],
+    not_match = [
+        "pnpm dev",
+        "pnpm test",
+        "pnpm lint",
+    ],
+)
+
+prefix_rule(
+    pattern = ["pnpm", "run", [
+        "build",
+        "build:analyze",
+        "build:docker",
+        "build:docs",
+        "build:play",
+        "build:play:full",
+        "build:play:no-i18n",
+        "build:play:sync:android",
+        "build:play:sync:ios",
+    ]],
+    decision = "forbidden",
+    justification = BUILD_JUSTIFICATION,
+    match = [
+        "pnpm run build",
+        "pnpm run build:analyze",
+        "pnpm run build:docker",
+        "pnpm run build:docs",
+        "pnpm run build:play",
+        "pnpm run build:play:full",
+        "pnpm run build:play:no-i18n",
+        "pnpm run build:play:sync:android",
+        "pnpm run build:play:sync:ios",
+        "pnpm run build --filter=@vben/docs",
+        "pnpm run build --filter=@vben/playground",
+    ],
+    not_match = [
+        "pnpm run dev",
+        "pnpm run test",
+    ],
+)
+
+# 2) 拦直接执行底层命令，防止绕过 pnpm script
+prefix_rule(
+    pattern = ["cross-env", "NODE_OPTIONS=--max-old-space-size=8192", "turbo", "build"],
+    decision = "forbidden",
+    justification = BUILD_JUSTIFICATION,
+    match = [
+        "cross-env NODE_OPTIONS=--max-old-space-size=8192 turbo build",
+    ],
+)
+
+prefix_rule(
+    pattern = ["turbo", "build:analyze"],
+    decision = "forbidden",
+    justification = BUILD_JUSTIFICATION,
+    match = [
+        "turbo build:analyze",
+    ],
+)
+
+prefix_rule(
+    pattern = ["./scripts/deploy/build-local-docker-image.sh"],
+    decision = "forbidden",
+    justification = BUILD_JUSTIFICATION,
+    match = [
+        "./scripts/deploy/build-local-docker-image.sh",
+    ],
+)
+
+prefix_rule(
+    pattern = ["turbo", "run", "play:build", "--filter=@vben/playground"],
+    decision = "forbidden",
+    justification = BUILD_JUSTIFICATION,
+    match = [
+        "turbo run play:build --filter=@vben/playground",
+    ],
+)
+
+prefix_rule(
+    pattern = ["cross-env", "VITE_I18N=false", "turbo", "run", "play:build", "--filter=@vben/playground"],
+    decision = "forbidden",
+    justification = BUILD_JUSTIFICATION,
+    match = [
+        "cross-env VITE_I18N=false turbo run play:build --filter=@vben/playground",
+    ],
+)
+
+# 3) 拦 PowerShell -Command 包裹的完整命令
+#    对带环境变量、&& 等复杂脚本尤其重要
+prefix_rule(
+    pattern = [PWSH, "-Command", [
+        "pnpm build",
+        "pnpm build:analyze",
+        "pnpm build:docker",
+        "pnpm build:docs",
+        "pnpm build:play",
+        "pnpm build:play:full",
+        "pnpm build:play:no-i18n",
+        "pnpm build:play:sync:android",
+        "pnpm build:play:sync:ios",
+
+        "pnpm run build",
+        "pnpm run build:analyze",
+        "pnpm run build:docker",
+        "pnpm run build:docs",
+        "pnpm run build:play",
+        "pnpm run build:play:full",
+        "pnpm run build:play:no-i18n",
+        "pnpm run build:play:sync:android",
+        "pnpm run build:play:sync:ios",
+
+        "pnpm run build --filter=@vben/docs",
+        "pnpm run build --filter=@vben/playground",
+
+        "cross-env NODE_OPTIONS=--max-old-space-size=8192 turbo build",
+        "turbo build:analyze",
+        "./scripts/deploy/build-local-docker-image.sh",
+        "turbo run play:build --filter=@vben/playground",
+        "cross-env VITE_I18N=false turbo run play:build --filter=@vben/playground",
+        "turbo run play:build --filter=@vben/playground && cd playground && npx cap sync android",
+        "turbo run play:build --filter=@vben/playground && cd playground && npx cap sync ios",
+    ]],
+    decision = "forbidden",
+    justification = BUILD_JUSTIFICATION,
+)
