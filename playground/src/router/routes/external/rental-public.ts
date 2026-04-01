@@ -12,8 +12,7 @@ const routes: RouteRecordRaw[] = [
       ignoreAccess: true,
       title: $t('page.rental.factory'),
     },
-    name: 'RentalPublicRoot',
-    path: '/',
+    path: '/rental/factory',
     children: [
       {
         component: () => import('#/views/rental/factory/index.vue'),
@@ -23,8 +22,20 @@ const routes: RouteRecordRaw[] = [
           title: $t('page.rental.factory'),
         },
         name: 'FactoryList',
-        path: '/rental/factory',
+        path: '',
       },
+    ],
+  },
+  {
+    component: BasicLayout,
+    meta: {
+      hideInBreadcrumb: true,
+      hideInMenu: true,
+      ignoreAccess: true,
+      title: $t('page.rental.factoryDetail'),
+    },
+    path: '/rental/factory/detail/:id',
+    children: [
       {
         component: () => import('#/views/rental/factory/detail.vue'),
         meta: {
@@ -34,7 +45,7 @@ const routes: RouteRecordRaw[] = [
           title: $t('page.rental.factoryDetail'),
         },
         name: 'FactoryDetail',
-        path: '/rental/factory/detail/:id',
+        path: '',
       },
     ],
   },

@@ -6,7 +6,9 @@ import type { IBreadcrumb } from '@vben-core/shadcn-ui';
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
+import { DEFAULT_HOME_PATH } from '@vben/constants';
 import { $t } from '@vben/locales';
+import { useUserStore } from '@vben/stores';
 
 import { VbenBreadcrumbView } from '@vben-core/shadcn-ui';
 
@@ -25,6 +27,12 @@ const props = withDefaults(defineProps<Props>(), {
 
 const route = useRoute();
 const router = useRouter();
+const userStore = useUserStore();
+const homePath = computed(() =>
+  window.innerWidth < 768
+    ? '/home'
+    : userStore.userInfo?.homePath || DEFAULT_HOME_PATH,
+);
 
 const breadcrumbs = computed((): IBreadcrumb[] => {
   const matched = route.matched;
@@ -49,7 +57,7 @@ const breadcrumbs = computed((): IBreadcrumb[] => {
     resultBreadcrumb.unshift({
       icon: 'mdi:home-outline',
       isHome: true,
-      path: '/',
+      path: homePath.value,
     });
   }
   if (props.hideWhenOnlyOne && resultBreadcrumb.length === 1) {

@@ -9,6 +9,7 @@ import { accessRoutes, coreRouteNames } from '#/router/routes';
 import { useAuthStore } from '#/store';
 
 import { generateAccess } from './access';
+import { resolveUserHomePath } from './home-path';
 
 /**
  * 通用守卫配置
@@ -61,8 +62,7 @@ function setupAccessGuard(router: Router) {
       if (to.path === LOGIN_PATH && accessStore.accessToken) {
         return decodeURIComponent(
           (to.query?.redirect as string) ||
-            userStore.userInfo?.homePath ||
-            DEFAULT_HOME_PATH,
+            resolveUserHomePath(userStore.userInfo?.homePath),
         );
       }
       return true;
@@ -121,7 +121,7 @@ function setupAccessGuard(router: Router) {
     accessStore.setIsAccessChecked(true);
     const redirectPath = (from.query.redirect ??
       (to.path === DEFAULT_HOME_PATH
-        ? userInfo.homePath || DEFAULT_HOME_PATH
+        ? resolveUserHomePath(userInfo.homePath)
         : to.fullPath)) as string;
 
     return {

@@ -1,10 +1,12 @@
 import type { RouteRecordRaw } from 'vue-router';
 
-import { DEFAULT_HOME_PATH, LOGIN_PATH } from '@vben/constants';
+import { LOGIN_PATH } from '@vben/constants';
 
 import { AuthPageLayout, BasicLayout } from '#/layouts';
 import { $t } from '#/locales';
 import Login from '#/views/_core/authentication/login.vue';
+
+import { resolveDefaultHomePath } from '../home-path';
 
 /** 全局404页面 */
 const fallbackNotFoundRoute: RouteRecordRaw = {
@@ -34,12 +36,7 @@ const coreRoutes: RouteRecordRaw[] = [
     },
     name: 'Root',
     path: '/',
-    redirect: () => {
-      const isMobile = window.innerWidth < 768;
-      // 在vben-admin中，DEFAULT_HOME_PATH默认是'/analytics'
-      // 移动端默认跳转到/home, pc端默认跳转到/analytics
-      return isMobile ? '/home' : DEFAULT_HOME_PATH;
-    },
+    redirect: () => resolveDefaultHomePath(),
     children: [],
   },
   {

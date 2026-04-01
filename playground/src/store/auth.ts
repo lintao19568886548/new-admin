@@ -3,7 +3,7 @@ import type { Recordable, UserInfo } from '@vben/types';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
-import { DEFAULT_HOME_PATH, LOGIN_PATH } from '@vben/constants';
+import { LOGIN_PATH } from '@vben/constants';
 import { resetAllStores, useAccessStore, useUserStore } from '@vben/stores';
 
 import { notification } from 'ant-design-vue';
@@ -17,6 +17,7 @@ import {
   logoutApi,
 } from '#/api';
 import { $t } from '#/locales';
+import { resolveUserHomePath } from '#/router/home-path';
 
 export const useAuthStore = defineStore('auth', () => {
   const accessStore = useAccessStore();
@@ -41,10 +42,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (accessStore.loginExpired) {
       accessStore.setLoginExpired(false);
     } else {
-      const isMobile = window.innerWidth < 768;
-      const afterLoginPath = isMobile
-        ? '/home'
-        : userInfo.homePath || DEFAULT_HOME_PATH;
+      const afterLoginPath = resolveUserHomePath(userInfo.homePath);
       await (onSuccess ? onSuccess() : router.push(afterLoginPath));
     }
 
