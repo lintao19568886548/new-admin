@@ -5,11 +5,26 @@ export interface Park {
   parkName: string;
 }
 
+export const DEFAULT_LEAVE_TYPE = '事假';
+
+export const LEAVE_TYPE_OPTIONS = [
+  { label: '事假', value: '事假' },
+  { label: '年假', value: '年假' },
+  { label: '病假', value: '病假' },
+] as const;
+
+export type LeaveType = (typeof LEAVE_TYPE_OPTIONS)[number]['value'];
+
+export function getLeaveTypeText(leaveType?: string) {
+  return leaveType || DEFAULT_LEAVE_TYPE;
+}
+
 export interface LeaveApplication {
   auditUser?: string;
   createdAt?: string;
   endDate: string;
   id: number;
+  leaveType?: string;
   park: string;
   parkId?: number;
   reason: string;
@@ -23,7 +38,10 @@ export interface LeaveApplication {
 
 export interface LeaveApplicationQuery {
   currentPage?: number;
+  leaveType?: string;
   pageSize?: number;
+  parkId?: number | string;
+  user?: string;
 }
 
 export interface LeaveApplicationPageResult {

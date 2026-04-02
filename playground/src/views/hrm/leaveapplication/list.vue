@@ -3,9 +3,9 @@ import type {
   OnActionClickParams,
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
-import type { LeaveApplication, Park } from '#/api/hrm/leaveapplication';
+import type { LeaveApplication } from '#/api/hrm/leaveapplication';
 
-import { ref, shallowRef } from 'vue';
+import { shallowRef } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -31,7 +31,6 @@ import Form from './modules/form.vue';
 // }
 
 const tableLoading = shallowRef(false);
-const parkOptions = ref<Park[]>([]);
 const userStore = useUserStore();
 const codes = userStore.userInfo?.codes || [];
 
@@ -167,11 +166,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
               currentPage: page.currentPage,
               pageSize: page.pageSize,
             });
-
-            // The backend for list now returns parks, so we can populate the dropdown
-            if (result.parks) {
-              parkOptions.value = result.parks;
-            }
 
             return {
               total: result.total,

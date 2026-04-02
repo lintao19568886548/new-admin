@@ -5,6 +5,11 @@ import type { LeaveApplication } from '#/api/hrm/leaveapplication';
 
 import { formatDateTime } from '@vben/utils';
 
+import {
+  DEFAULT_LEAVE_TYPE,
+  getLeaveTypeText,
+  LEAVE_TYPE_OPTIONS,
+} from '#/api/hrm/leaveapplication';
 import { getParkList } from '#/api/park';
 
 export function useColumns(): VxeTableGridOptions<LeaveApplication>['columns'] {
@@ -23,6 +28,12 @@ export function useColumns(): VxeTableGridOptions<LeaveApplication>['columns'] {
       field: 'park',
       title: '所在园区',
       width: 150,
+    },
+    {
+      field: 'leaveType',
+      formatter: ({ cellValue }) => getLeaveTypeText(cellValue),
+      title: '请假类型',
+      width: 120,
     },
     {
       field: 'startDate',
@@ -111,6 +122,19 @@ export function useFormSchema(): VbenFormSchema[] {
       rules: 'required',
     },
     {
+      component: 'Select',
+      componentProps: {
+        allowClear: false,
+        options: [...LEAVE_TYPE_OPTIONS],
+        placeholder: '请选择请假类型',
+        style: { width: '100%' },
+      },
+      defaultValue: DEFAULT_LEAVE_TYPE,
+      fieldName: 'leaveType',
+      label: '请假类型',
+      rules: 'required',
+    },
+    {
       component: 'DatePicker',
       componentProps: {
         placeholder: '请选择结束日期',
@@ -155,6 +179,17 @@ export function useSearchSchema(): VbenFormSchema[] {
       },
       fieldName: 'parkId',
       label: '所在园区',
+    },
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        options: [...LEAVE_TYPE_OPTIONS],
+        placeholder: '请选择请假类型',
+        style: { width: '100%' },
+      },
+      fieldName: 'leaveType',
+      label: '请假类型',
     },
   ];
 }

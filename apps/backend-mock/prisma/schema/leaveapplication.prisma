@@ -6,6 +6,7 @@ model LeaveApplication {
   // 核心业务字段
   startDate DateTime @map("start_date") /// 开始日期
   endDate   DateTime @map("end_date") /// 结束日期
+  leaveType String   @default("事假") @map("leave_type") /// 请假类型
   reason    String   @default("") /// 请假事由
   status    Int      @default(0) /// 状态 0-待审批 1-已批准 2-已驳回
   reply     String?  @default("") /// 审批回复

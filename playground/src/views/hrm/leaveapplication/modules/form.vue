@@ -12,6 +12,7 @@ import { message } from 'ant-design-vue';
 import { useVbenForm } from '#/adapter/form';
 import {
   createLeaveApplication,
+  DEFAULT_LEAVE_TYPE,
   updateLeaveApplication,
 } from '#/api/hrm/leaveapplication';
 
@@ -71,16 +72,18 @@ const [Modal, modalApi] = useVbenModal({
       const data = modalApi.getData<LeaveApplication>();
       if (data) {
         recordId.value = data.id;
-        if (data.startDate) {
-          data.startDate = formatDateTime(data.startDate) as string;
-        }
-        if (data.endDate) {
-          data.endDate = formatDateTime(data.endDate) as string;
-        }
-        formApi.setValues(data);
+        formApi.setValues({
+          ...data,
+          endDate: data.endDate ? (formatDateTime(data.endDate) as string) : '',
+          leaveType: data.leaveType || DEFAULT_LEAVE_TYPE,
+          startDate: data.startDate
+            ? (formatDateTime(data.startDate) as string)
+            : '',
+        });
       } else {
         recordId.value = undefined;
         formApi.resetForm();
+        formApi.setValues({ leaveType: DEFAULT_LEAVE_TYPE });
       }
     }
   },

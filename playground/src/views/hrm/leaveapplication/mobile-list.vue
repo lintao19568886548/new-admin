@@ -21,6 +21,7 @@ import {
 import {
   deleteLeaveApplication,
   getLeaveApplicationList,
+  getLeaveTypeText,
   updateLeaveApplication,
 } from '#/api/hrm/leaveapplication';
 
@@ -235,6 +236,9 @@ onMounted(() => {
             <Descriptions :column="1" size="small">
               <Descriptions.Item label="所在园区">
                 {{ item.park }}
+              </Descriptions.Item>
+              <Descriptions.Item label="请假类型">
+                {{ getLeaveTypeText(item.leaveType) }}
               </Descriptions.Item>
               <Descriptions.Item label="开始时间">
                 {{ formatDateTime(item.startDate) }}

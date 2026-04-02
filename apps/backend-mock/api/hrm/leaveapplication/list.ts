@@ -14,7 +14,7 @@ export default eventHandler(async (event) => {
 
   try {
     const query = getQuery(event);
-    const { currentPage, pageSize, user, parkId } = query;
+    const { currentPage, pageSize, user, parkId, leaveType } = query;
 
     const where: { [key: string]: any } = {};
     const roleNames = userinfo.roles ?? [];
@@ -29,6 +29,10 @@ export default eventHandler(async (event) => {
 
     if (parkId) {
       where.parkId = Number(parkId);
+    }
+
+    if (leaveType) {
+      where.leaveType = leaveType;
     }
 
     if (!isSuper) {

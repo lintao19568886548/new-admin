@@ -24,6 +24,7 @@ export default eventHandler(async (event) => {
       parkId,
       startDate,
       endDate,
+      leaveType,
       reason,
       status,
       reply,
@@ -51,6 +52,7 @@ export default eventHandler(async (event) => {
     }
     if (startDate !== undefined) updateData.startDate = startDate;
     if (endDate !== undefined) updateData.endDate = endDate;
+    if (leaveType !== undefined) updateData.leaveType = leaveType;
     if (reason !== undefined) updateData.reason = reason;
     if (status !== undefined) updateData.status = Number(status);
     if (reply !== undefined) updateData.reply = reply;

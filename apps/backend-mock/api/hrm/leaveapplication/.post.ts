@@ -14,7 +14,14 @@ export default eventHandler(async (event) => {
 
   try {
     const body = await readBody(event);
-    const { user, parkId, startDate, endDate, reason } = body;
+    const {
+      user,
+      parkId,
+      startDate,
+      endDate,
+      reason,
+      leaveType = '事假',
+    } = body;
 
     if (!user || !parkId || !startDate || !endDate || !reason) {
       return serverErrorResponse('缺少必要的表单字段', event);
@@ -29,6 +36,7 @@ export default eventHandler(async (event) => {
     const newApplication = await prismaClient.leaveApplication.create({
       data: {
         ...body,
+        leaveType,
         userId: applicant?.id,
         auditUser: body.auditUser || null, // 提供默认空字符串
       },
