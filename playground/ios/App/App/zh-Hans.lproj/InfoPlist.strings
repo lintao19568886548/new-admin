@@ -1,0 +1,6 @@
+"NSCameraUsageDescription" = "用于拍照上传图片和业务资料";
+"NSPhotoLibraryAddUsageDescription" = "用于将应用中的图片保存到系统相册";
+"NSPhotoLibraryUsageDescription" = "用于选择图片上传和业务资料维护";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "用于考勤打卡时获取当前位置并显示地图，不会在后台持续定位";
+"NSLocationWhenInUseUsageDescription" = "用于考勤打卡时获取当前位置并显示地图";
+"NSMicrophoneUsageDescription" = "用于录制视频时采集声音";

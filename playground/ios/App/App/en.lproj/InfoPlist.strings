@@ -1,0 +1,6 @@
+"NSCameraUsageDescription" = "Used to take photos and upload images and business documents";
+"NSPhotoLibraryAddUsageDescription" = "Used to save images from the app to your Photos library";
+"NSPhotoLibraryUsageDescription" = "Used to select images for upload and maintain business documents";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Used to obtain your current location and display the map for attendance check-in. The app does not continuously access your location in the background";
+"NSLocationWhenInUseUsageDescription" = "Used to obtain your current location and display the map for attendance check-in";
+"NSMicrophoneUsageDescription" = "Used to record audio when shooting videos";
