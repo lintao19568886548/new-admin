@@ -50,10 +50,60 @@ const getStatusInfo = (status: null | number) => {
   return attendanceStatusMeta[status as keyof typeof attendanceStatusMeta];
 };
 
+const locationAddressText = {
+  abnormal: '定位异常',
+  failed: '地址解析失败',
+  invalid: '坐标无效',
+  loading: '解析中...',
+  unavailable: '地图服务不可用',
+} as const;
+
+const isLocationAbnormal = (
+  record: Pick<TrajectoryApi.TrajectoryRecord, 'latitude' | 'longitude'>,
+) => {
+  return Number(record.longitude) === 0 && Number(record.latitude) === 0;
+};
+
+const getCoordinateNumber = Number;
+
+const getLongitude = (
+  record: Pick<TrajectoryApi.TrajectoryRecord, 'longitude'>,
+) => {
+  return getCoordinateNumber(record.longitude);
+};
+
+const getLatitude = (
+  record: Pick<TrajectoryApi.TrajectoryRecord, 'latitude'>,
+) => {
+  return getCoordinateNumber(record.latitude);
+};
+
+const isCoordinateInvalid = (
+  record: Pick<TrajectoryApi.TrajectoryRecord, 'latitude' | 'longitude'>,
+) => {
+  return (
+    !Number.isFinite(getLongitude(record)) ||
+    !Number.isFinite(getLatitude(record))
+  );
+};
+
+const getLocationStatusText = (
+  record: Pick<TrajectoryApi.TrajectoryRecord, 'latitude' | 'longitude'>,
+) => {
+  return isLocationAbnormal(record) ? '异常' : '正常';
+};
+
+const getLocationAddressCacheKey = (
+  record: Pick<TrajectoryApi.TrajectoryRecord, 'latitude' | 'longitude'>,
+) => {
+  return `${getLongitude(record)},${getLatitude(record)}`;
+};
+
 // ================================= 响应式数据 =================================
 const loading = ref(true);
 const exportLoading = ref(false);
 const records = ref<TrajectoryApi.TrajectoryRecord[]>([]);
+const locationAddressMap = reactive<Record<string, string>>({});
 const createDefaultDateRange = (): [dayjs.Dayjs, dayjs.Dayjs] => [
   dayjs('2020-01-01'),
   dayjs(),
@@ -70,7 +120,9 @@ const pagination = reactive({
 
 const mapContainer = ref<HTMLDivElement | null>(null);
 let map: any = null;
+let geocoder: any = null;
 const markers: any[] = [];
+const locationAddressPromiseMap = new Map<string, Promise<string>>();
 const activeView = ref('地图');
 const isMobile = ref(false);
 
@@ -94,6 +146,136 @@ const buildBaseQueryParams = () => {
 };
 
 // ================================= 方法 =================================
+const ensureGeocoder = () => {
+  if (geocoder) {
+    return geocoder;
+  }
+  const BMap = (window as any).BMap;
+  if (!BMap) {
+    return null;
+  }
+  geocoder = new BMap.Geocoder();
+  return geocoder;
+};
+
+const formatResolvedAddress = (result: any) => {
+  const address = String(result?.address || '').trim();
+  if (address) {
+    return address;
+  }
+
+  const addressComponents = result?.addressComponents;
+  if (!addressComponents) {
+    return locationAddressText.failed;
+  }
+
+  const parts = [
+    addressComponents.province,
+    addressComponents.city,
+    addressComponents.district,
+    addressComponents.street,
+    addressComponents.streetNumber,
+  ].filter(Boolean);
+
+  return parts.join('') || locationAddressText.failed;
+};
+
+const resolveLocationAddress = async (
+  record: Pick<TrajectoryApi.TrajectoryRecord, 'latitude' | 'longitude'>,
+) => {
+  if (isLocationAbnormal(record)) {
+    return locationAddressText.abnormal;
+  }
+
+  if (isCoordinateInvalid(record)) {
+    return locationAddressText.invalid;
+  }
+
+  const cacheKey = getLocationAddressCacheKey(record);
+  const cachedAddress = locationAddressMap[cacheKey];
+  if (
+    cachedAddress &&
+    cachedAddress !== locationAddressText.loading &&
+    cachedAddress !== locationAddressText.unavailable
+  ) {
+    return cachedAddress;
+  }
+
+  const pendingPromise = locationAddressPromiseMap.get(cacheKey);
+  if (pendingPromise) {
+    return pendingPromise;
+  }
+
+  const geocoderInstance = ensureGeocoder();
+  if (!geocoderInstance) {
+    locationAddressMap[cacheKey] = locationAddressText.unavailable;
+    return locationAddressText.unavailable;
+  }
+
+  locationAddressMap[cacheKey] = locationAddressText.loading;
+
+  const promise = new Promise<string>((resolve) => {
+    const BMap = (window as any).BMap;
+    let settled = false;
+    let timeoutId: null | number = null;
+
+    const finish = (address: string) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+      locationAddressMap[cacheKey] = address;
+      locationAddressPromiseMap.delete(cacheKey);
+      resolve(address);
+    };
+
+    try {
+      const point = new BMap.Point(getLongitude(record), getLatitude(record));
+      geocoderInstance.getLocation(point, (result: any) => {
+        finish(formatResolvedAddress(result));
+      });
+      timeoutId = window.setTimeout(() => {
+        finish(locationAddressText.failed);
+      }, 4000);
+    } catch (error) {
+      console.error('Resolve address failed:', error);
+      finish(locationAddressText.failed);
+    }
+  });
+
+  locationAddressPromiseMap.set(cacheKey, promise);
+
+  return promise;
+};
+
+const getLocationAddressText = (
+  record: Pick<TrajectoryApi.TrajectoryRecord, 'latitude' | 'longitude'>,
+) => {
+  if (isLocationAbnormal(record)) {
+    return locationAddressText.abnormal;
+  }
+
+  if (isCoordinateInvalid(record)) {
+    return locationAddressText.invalid;
+  }
+
+  return (
+    locationAddressMap[getLocationAddressCacheKey(record)] ||
+    locationAddressText.loading
+  );
+};
+
+const preloadLocationAddresses = async (
+  targetRecords: TrajectoryApi.TrajectoryRecord[],
+) => {
+  await Promise.allSettled(
+    targetRecords.map((record) => resolveLocationAddress(record)),
+  );
+};
+
 const fetchData = async () => {
   loading.value = true;
   try {
@@ -107,6 +289,7 @@ const fetchData = async () => {
     pagination.total = total ?? 0;
     await nextTick();
     updateMapMarkers();
+    void preloadLocationAddresses(records.value);
   } catch (error: any) {
     message.error(`加载数据失败: ${error.message}`);
   } finally {
@@ -130,6 +313,7 @@ const initMap = async () => {
   if (!mapContainer.value) return;
   const BMap = (window as any).BMap;
   map = new BMap.Map(mapContainer.value);
+  geocoder = new BMap.Geocoder();
   map.centerAndZoom(new BMap.Point(113.75, 23.09), 12);
   map.enableScrollWheelZoom(true);
 };
@@ -145,7 +329,11 @@ const updateMapMarkers = () => {
   if (records.value.length === 0) return;
 
   records.value.forEach((record) => {
-    const point = new BMap.Point(record.longitude, record.latitude);
+    if (isCoordinateInvalid(record) || isLocationAbnormal(record)) {
+      return;
+    }
+
+    const point = new BMap.Point(getLongitude(record), getLatitude(record));
     points.push(point);
     const marker = new BMap.Marker(point);
     map.addOverlay(marker);
@@ -161,6 +349,10 @@ const updateMapMarkers = () => {
       map.openInfoWindow(infoWindow, point);
     });
   });
+
+  if (points.length === 0) {
+    return;
+  }
 
   map.setViewport(points, {
     margins: [20, 20, 20, 20], // top, right, bottom, left
@@ -229,6 +421,13 @@ const handleExport = async () => {
         { header: '经度', key: 'longitude', width: 20 },
       ];
 
+      worksheet.columns.splice(
+        6,
+        0,
+        { header: '定位状态', key: 'locationStatus', width: 15 },
+        { header: '地址', key: 'address', width: 40 },
+      );
+
       const statusMap = {
         0: '正常',
         1: '迟到',
@@ -237,14 +436,24 @@ const handleExport = async () => {
         4: '缺勤',
       };
 
-      const rows = parkData.map((row: TrajectoryApi.TrajectoryRecord) => {
-        const status =
-          statusMap[row.status as keyof typeof statusMap] || '未知';
-        return {
-          ...row,
-          status,
-        };
-      });
+      const locationAddresses = await Promise.all(
+        parkData.map((row: TrajectoryApi.TrajectoryRecord) =>
+          resolveLocationAddress(row),
+        ),
+      );
+
+      const rows = parkData.map(
+        (row: TrajectoryApi.TrajectoryRecord, index) => {
+          const status =
+            statusMap[row.status as keyof typeof statusMap] || '未知';
+          return {
+            ...row,
+            address: locationAddresses[index],
+            locationStatus: getLocationStatusText(row),
+            status,
+          };
+        },
+      );
 
       worksheet.addRows(rows);
     }
@@ -272,9 +481,13 @@ const highlightMarker = (
   record: TrajectoryApi.TrajectoryRecord,
   highlight: boolean,
 ) => {
+  if (isCoordinateInvalid(record) || isLocationAbnormal(record)) {
+    return;
+  }
+
   const targetMarker = markers.find((m) => {
     const pos = m.getPosition();
-    return pos.lng === record.longitude && pos.lat === record.latitude;
+    return pos.lng === getLongitude(record) && pos.lat === getLatitude(record);
   });
 
   if (targetMarker) {
@@ -391,6 +604,19 @@ onUnmounted(() => {
                     <div>
                       <Icon icon="mdi:clock-out" />
                       <span>下班: {{ item.punchOut }}</span>
+                    </div>
+                    <div>
+                      <Icon icon="mdi:crosshairs-gps" />
+                      <span>定位状态:</span>
+                      <Tag :color="isLocationAbnormal(item) ? 'red' : 'green'">
+                        {{ isLocationAbnormal(item) ? '异常' : '正常' }}
+                      </Tag>
+                    </div>
+                    <div class="address-row">
+                      <Icon icon="mdi:map-marker-radius" />
+                      <span class="address-text">
+                        地址: {{ getLocationAddressText(item) }}
+                      </span>
                     </div>
                   </div>
                   <template #actions>
@@ -737,6 +963,15 @@ onUnmounted(() => {
   gap: 8px;
   align-items: center;
   padding: 4px 0;
+}
+
+.address-row {
+  align-items: flex-start !important;
+}
+
+.address-text {
+  flex: 1;
+  word-break: break-all;
 }
 
 .card-content .iconify {

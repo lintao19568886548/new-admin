@@ -8,8 +8,8 @@ export namespace TrajectoryApi {
   export interface TrajectoryRecord {
     date: string;
     key: number;
-    latitude: number;
-    longitude: number;
+    latitude: number | string;
+    longitude: number | string;
     punchIn: string;
     punchOut: string;
     status: number;
