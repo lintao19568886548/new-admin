@@ -46,6 +46,10 @@ import {
   formatAreaDisplay,
   formatContractDateDisplay,
   formatRentDisplay,
+  getPartyADisplayName,
+  getPartyBContactName,
+  getPartyBContactPhone,
+  getPartyBDisplayName,
   getTagTypeOptions,
 } from './data';
 import TenantForm from './modules/form.vue';
@@ -53,9 +57,10 @@ import TenantForm from './modules/form.vue';
 const currentPark = ref();
 const loading = ref(false);
 const searchForm = ref({
-  phoneNumber: '',
+  partyAName: '',
+  partyBContactPhone: '',
+  partyBName: '',
   status: undefined,
-  tenantName: '',
 });
 const tenantList = ref<RentalManagementItem[]>([]);
 const pagination = ref({
@@ -96,8 +101,9 @@ function onCreate() {
 }
 
 async function onDelete(row: RentalManagementItem) {
+  const displayName = getPartyBDisplayName(row);
   message.loading({
-    content: $t('ui.actionMessage.deleting', [row.tenantName || '']),
+    content: $t('ui.actionMessage.deleting', [displayName || '']),
     duration: 0,
     key: 'action_process_msg',
   });
@@ -105,7 +111,7 @@ async function onDelete(row: RentalManagementItem) {
   try {
     await deleteTenant(row.rentalTenantId);
     message.success({
-      content: $t('ui.actionMessage.deleteSuccess', [row.tenantName || '']),
+      content: $t('ui.actionMessage.deleteSuccess', [displayName || '']),
       key: 'action_process_msg',
     });
     // Refresh the list after deletion
@@ -113,7 +119,7 @@ async function onDelete(row: RentalManagementItem) {
   } catch (error) {
     console.error('删除租户失败:', error);
     message.error({
-      content: $t('ui.actionMessage.deleteFailed', [row.tenantName || '']),
+      content: $t('ui.actionMessage.deleteFailed', [displayName || '']),
       key: 'action_process_msg',
     });
   }
@@ -124,9 +130,10 @@ async function onDelete(row: RentalManagementItem) {
  */
 async function onSendSms(row: RentalManagementItem) {
   try {
+    const displayName = getPartyBDisplayName(row);
     // 添加确认对话框
     Modal.confirm({
-      content: `您确定要向租户 [${row.tenantName}] 发送短信吗？`,
+      content: `您确定要向乙方 [${displayName}] 发送短信吗？`,
       onCancel() {
         message.info('已取消发送短信');
       },
@@ -150,13 +157,13 @@ async function onSendSms(row: RentalManagementItem) {
         await sendSms({
           contractEndDate: smsInfo.contractEndDate,
           increaseDate: smsInfo.increaseDate,
-          phoneNumber: smsInfo.phoneNumber,
+          phoneNumber: smsInfo.partyBContactPhone || smsInfo.phoneNumber,
           rentalTenantId: row.rentalTenantId,
-          tenantName: smsInfo.tenantName,
+          tenantName: smsInfo.partyBName || smsInfo.tenantName,
         });
 
         message.success({
-          content: `短信已成功发送给 ${row.tenantName}`,
+          content: `短信已成功发送给 ${displayName}`,
           key: 'sms_process_msg',
         });
 
@@ -208,9 +215,10 @@ function handleSearch() {
 
 function resetSearch() {
   searchForm.value = {
-    phoneNumber: '',
+    partyAName: '',
+    partyBContactPhone: '',
+    partyBName: '',
     status: undefined,
-    tenantName: '',
   };
   currentPark.value = undefined;
   fetchList();
@@ -337,18 +345,27 @@ onUnmounted(() => {
         <Form :model="searchForm" layout="vertical">
           <Row :gutter="16">
             <Col :span="12">
-              <Form.Item label="租户名称">
+              <Form.Item :label="$t('system.rental.tenant.partyAName')">
                 <Input
-                  v-model:value="searchForm.tenantName"
+                  v-model:value="searchForm.partyAName"
                   allow-clear
                   placeholder="请输入"
                 />
               </Form.Item>
             </Col>
             <Col :span="12">
-              <Form.Item label="联系电话">
+              <Form.Item :label="$t('system.rental.tenant.partyBName')">
                 <Input
-                  v-model:value="searchForm.phoneNumber"
+                  v-model:value="searchForm.partyBName"
+                  allow-clear
+                  placeholder="请输入"
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="24">
+              <Form.Item :label="$t('system.rental.tenant.partyBContactPhone')">
+                <Input
+                  v-model:value="searchForm.partyBContactPhone"
                   allow-clear
                   placeholder="请输入"
                 />
@@ -406,15 +423,25 @@ onUnmounted(() => {
             <Card :bordered="false" class="tenant-card">
               <template #title>
                 <div class="card-header">
-                  <span class="tenant-name">{{ item.tenantName }}</span>
+                  <span class="tenant-name">{{
+                    getPartyBDisplayName(item)
+                  }}</span>
                   <component :is="getStatusTag(item)" />
                 </div>
               </template>
 
               <div class="info-grid">
                 <div class="info-item">
-                  <span class="info-label">电话:</span>
-                  <span>{{ item.phoneNumber || '暂无' }}</span>
+                  <span class="info-label">甲方:</span>
+                  <span>{{ getPartyADisplayName(item) || '暂无' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">乙方联系人:</span>
+                  <span>{{ getPartyBContactName(item) || '暂无' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">乙方电话:</span>
+                  <span>{{ getPartyBContactPhone(item) || '暂无' }}</span>
                 </div>
                 <div class="info-item">
                   <span class="info-label">租金:</span>
@@ -464,7 +491,9 @@ onUnmounted(() => {
                 </Button>
                 <Popconfirm
                   :title="
-                    $t('ui.actionMessage.deleteConfirm', [item.tenantName])
+                    $t('ui.actionMessage.deleteConfirm', [
+                      getPartyBDisplayName(item),
+                    ])
                   "
                   @confirm="onDelete(item)"
                   placement="top"

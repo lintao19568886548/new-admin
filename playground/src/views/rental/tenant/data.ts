@@ -1,3 +1,5 @@
+import type { RentalManagementItem } from './types';
+
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
@@ -101,9 +103,41 @@ export function useFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      fieldName: 'tenantName',
+      fieldName: 'partyAName',
       formItemClass: 'sm:col-span-full md:col-span-1',
-      label: $t('system.rental.tenant.name'),
+      label: $t('system.rental.tenant.partyAName'),
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      fieldName: 'partyAContactName',
+      formItemClass: 'sm:col-span-full md:col-span-1',
+      label: $t('system.rental.tenant.partyAContactName'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'partyAContactPhone',
+      formItemClass: 'sm:col-span-full md:col-span-1',
+      label: $t('system.rental.tenant.partyAContactPhone'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'partyBName',
+      formItemClass: 'sm:col-span-full md:col-span-1',
+      label: $t('system.rental.tenant.partyBName'),
+      rules: 'required',
+    },
+    {
+      component: 'Input',
+      fieldName: 'partyBContactName',
+      formItemClass: 'sm:col-span-full md:col-span-1',
+      label: $t('system.rental.tenant.partyBContactName'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'partyBContactPhone',
+      formItemClass: 'sm:col-span-full md:col-span-1',
+      label: $t('system.rental.tenant.partyBContactPhone'),
       rules: 'required',
     },
     {
@@ -118,13 +152,6 @@ export function useFormSchema(): VbenFormSchema[] {
       fieldName: 'contractDate',
       formItemClass: 'sm:col-span-full md:col-span-1',
       label: $t('system.rental.tenant.contractDate'),
-      rules: 'required',
-    },
-    {
-      component: 'Input',
-      fieldName: 'phoneNumber',
-      formItemClass: 'sm:col-span-full md:col-span-1',
-      label: $t('page.tenant.phone'),
       rules: 'required',
     },
     {
@@ -288,13 +315,18 @@ export function useGridFormSchema(): VbenFormSchema[] {
     },
     {
       component: 'Input',
-      fieldName: 'tenantName',
-      label: $t('system.rental.tenant.name'),
+      fieldName: 'partyAName',
+      label: $t('system.rental.tenant.partyAName'),
     },
     {
       component: 'Input',
-      fieldName: 'phoneNumber',
-      label: $t('page.tenant.phone'),
+      fieldName: 'partyBName',
+      label: $t('system.rental.tenant.partyBName'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'partyBContactPhone',
+      label: $t('system.rental.tenant.partyBContactPhone'),
     },
     {
       component: 'Select',
@@ -409,6 +441,32 @@ export function useIncreaseFormSchema(): VbenFormSchema[] {
   }
 
   return formItems;
+}
+
+export function getPartyADisplayName(row: Partial<RentalManagementItem>) {
+  return row.partyAName || row.partyA?.partyName || '';
+}
+
+export function getPartyAContactName(row: Partial<RentalManagementItem>) {
+  return row.partyAContactName || row.partyA?.contactName || '';
+}
+
+export function getPartyAContactPhone(row: Partial<RentalManagementItem>) {
+  return row.partyAContactPhone || row.partyA?.contactPhone || '';
+}
+
+export function getPartyBDisplayName(row: Partial<RentalManagementItem>) {
+  return row.partyBName || row.partyB?.partyName || row.tenantName || '';
+}
+
+export function getPartyBContactName(row: Partial<RentalManagementItem>) {
+  return row.partyBContactName || row.partyB?.contactName || '';
+}
+
+export function getPartyBContactPhone(row: Partial<RentalManagementItem>) {
+  return (
+    row.partyBContactPhone || row.partyB?.contactPhone || row.phoneNumber || ''
+  );
 }
 
 /**
@@ -764,14 +822,28 @@ export function useColumns<T = any>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
-      field: 'tenantName',
+      field: 'partyAName',
       minWidth: 150,
-      title: $t('system.rental.tenant.name'),
+      slots: {
+        default: ({ row }) => getPartyADisplayName(row) || '--',
+      },
+      title: $t('system.rental.tenant.partyAName'),
     },
     {
-      field: 'phoneNumber',
-      title: $t('system.rental.tenant.phone'),
-      width: 120,
+      field: 'partyBName',
+      minWidth: 150,
+      slots: {
+        default: ({ row }) => getPartyBDisplayName(row) || '--',
+      },
+      title: $t('system.rental.tenant.partyBName'),
+    },
+    {
+      field: 'partyBContactPhone',
+      slots: {
+        default: ({ row }) => getPartyBContactPhone(row) || '--',
+      },
+      title: $t('system.rental.tenant.partyBContactPhone'),
+      width: 140,
     },
     // {
     //   cellRender: {
@@ -857,8 +929,8 @@ export function useColumns<T = any>(
       align: 'center',
       cellRender: {
         attrs: {
-          nameField: 'tenantName',
-          nameTitle: $t('system.rental.tenant.name'),
+          nameField: 'partyBName',
+          nameTitle: $t('system.rental.tenant.partyBName'),
           onClick: onActionClick,
         },
         name: 'CellOperation',

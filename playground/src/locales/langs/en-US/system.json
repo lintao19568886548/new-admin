@@ -68,6 +68,30 @@
     "description": "Description",
     "features": "Features",
     "operation": "Operation",
+    "tenant": {
+      "address": "Rental Address",
+      "contractDate": "Contract Period",
+      "contractEnd": "End Date",
+      "contractStart": "Start Date",
+      "increase": "Escalation",
+      "increaseDate": "Escalation Date",
+      "increaseRate": "Escalation Rate",
+      "item": "Contract",
+      "list": "Contract List",
+      "name": "Party B Name",
+      "partyAContactName": "Party A Contact",
+      "partyAContactPhone": "Party A Phone",
+      "partyAName": "Party A Name",
+      "partyBContactName": "Party B Contact",
+      "partyBContactPhone": "Party B Phone",
+      "partyBName": "Party B Name",
+      "phone": "Party B Phone",
+      "status": {
+        "current": "Active",
+        "expired": "Expired",
+        "label": "Contract Status"
+      }
+    },
     "salary": {
       "item": "Salary Record",
       "list": "Salary Records",

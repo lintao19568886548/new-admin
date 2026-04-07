@@ -142,11 +142,11 @@ async function analyzeAndFill(dataUrls: string[]) {
     const currentValues = (await formApi?.getValues?.()) || {};
     const patch: Record<string, any> = {};
 
-    if (result.tenantName && !currentValues.tenantName) {
-      patch.tenantName = result.tenantName.trim();
+    if (result.tenantName && !currentValues.partyBName) {
+      patch.partyBName = result.tenantName.trim();
     }
-    if (result.phoneNumber && !currentValues.phoneNumber) {
-      patch.phoneNumber = result.phoneNumber.trim();
+    if (result.phoneNumber && !currentValues.partyBContactPhone) {
+      patch.partyBContactPhone = result.phoneNumber.trim();
     }
     if (result.address && !currentValues.address) {
       patch.address = result.address.trim();
@@ -269,16 +269,100 @@ function buildImagePayload(files: any[], isUpdate: boolean) {
   };
 }
 
+function normalizePartyText(value: unknown) {
+  if (value === null || value === undefined) return undefined;
+  const normalized = String(value).trim();
+  return normalized || undefined;
+}
+
+function buildContractPartyPayload(
+  values: Record<string, any>,
+  partyKey: 'A' | 'B',
+) {
+  const prefix = `party${partyKey}`;
+  const contractPartyId = values[`${prefix}ContractPartyId`];
+  const partyId =
+    contractPartyId === null ||
+    contractPartyId === undefined ||
+    contractPartyId === ''
+      ? undefined
+      : Number(contractPartyId);
+  const partyPayload = {
+    address: normalizePartyText(values[`${prefix}Address`]),
+    contactName: normalizePartyText(values[`${prefix}ContactName`]),
+    contactPhone: normalizePartyText(values[`${prefix}ContactPhone`]),
+    contractPartyId:
+      partyId && Number.isFinite(partyId) && partyId > 0 ? partyId : undefined,
+    partyName: normalizePartyText(values[`${prefix}Name`]),
+    remark: normalizePartyText(values[`${prefix}Remark`]),
+    sourceMode: normalizePartyText(values[`${prefix}SourceMode`]),
+  };
+
+  if (
+    !partyPayload.partyName &&
+    !partyPayload.contactName &&
+    !partyPayload.contactPhone &&
+    !partyPayload.address &&
+    !partyPayload.remark &&
+    !partyPayload.contractPartyId
+  ) {
+    return null;
+  }
+
+  return partyPayload;
+}
+
+function stripFlatPartyFields(values: Record<string, any>) {
+  for (const field of [
+    'partyAAddress',
+    'partyAContactName',
+    'partyAContactPhone',
+    'partyAContractPartyId',
+    'partyAName',
+    'partyARemark',
+    'partyASourceMode',
+    'partyBAddress',
+    'partyBContactName',
+    'partyBContactPhone',
+    'partyBContractPartyId',
+    'partyBName',
+    'partyBRemark',
+    'partyBSourceMode',
+  ]) {
+    delete values[field];
+  }
+}
+
 function transformToFormValues(data?: RentalManagementItem) {
   if (!data) {
     return {
       images: [],
       increaseData: [],
+      partyAContactName: '',
+      partyAContactPhone: '',
+      partyAName: '',
+      partyBContactName: '',
+      partyBContactPhone: '',
+      partyBName: '',
       status: '当期',
     } as Partial<RentalManagementItem>;
   }
 
   const values: Record<string, any> = { ...data };
+  values.partyAName = values.partyAName ?? values.partyA?.partyName ?? '';
+  values.partyAContactName =
+    values.partyAContactName ?? values.partyA?.contactName ?? '';
+  values.partyAContactPhone =
+    values.partyAContactPhone ?? values.partyA?.contactPhone ?? '';
+  values.partyBName =
+    values.partyBName ?? values.partyB?.partyName ?? values.tenantName ?? '';
+  values.partyBContactName =
+    values.partyBContactName ?? values.partyB?.contactName ?? '';
+  values.partyBContactPhone =
+    values.partyBContactPhone ??
+    values.partyB?.contactPhone ??
+    values.phoneNumber ??
+    '';
 
   if (values.contractStart && values.contractEnd) {
     values.contractDate = [
@@ -323,6 +407,7 @@ const [Modal, modalApi] = useVbenModal({
     const { valid } = await formApi.validate();
     if (!valid) return;
     const values = await formApi.getValues();
+    const displayName = values.partyBName || values.tenantName || '合同';
 
     // 处理日期格式，确保使用本地时间
     if (values.contractDate) {
@@ -362,18 +447,24 @@ const [Modal, modalApi] = useVbenModal({
       delete (values as any).images;
     }
 
+    values.partyA = buildContractPartyPayload(values, 'A');
+    values.partyB = buildContractPartyPayload(values, 'B');
+    values.tenantName = values.partyB?.partyName || '';
+    values.phoneNumber = values.partyB?.contactPhone || '';
+    stripFlatPartyFields(values);
+
     modalApi.lock();
 
     try {
       if (id.value) {
         await updateTenant(id.value, values);
         message.success({
-          content: $t('ui.actionMessage.updateSuccess', [values.tenantName]),
+          content: $t('ui.actionMessage.updateSuccess', [displayName]),
         });
       } else {
         await createTenant(values);
         message.success({
-          content: $t('ui.actionMessage.createSuccess', [values.tenantName]),
+          content: $t('ui.actionMessage.createSuccess', [displayName]),
         });
       }
       emit('success');
@@ -381,7 +472,7 @@ const [Modal, modalApi] = useVbenModal({
     } catch (error) {
       console.error('操作失败:', error);
       message.error({
-        content: $t('ui.actionMessage.operationFailed', [values.tenantName]),
+        content: $t('ui.actionMessage.operationFailed', [displayName]),
       });
     } finally {
       modalApi.unlock();

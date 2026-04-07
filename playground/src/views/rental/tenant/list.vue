@@ -22,13 +22,17 @@ import {
 } from '#/api/rental';
 import { $t } from '#/locales';
 
-import { useColumns, useGridFormSchema } from './data';
+import { getPartyBDisplayName, useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
   destroyOnClose: true,
 });
+
+const listColumns = (useColumns(onActionClick) ?? []).filter(
+  (column) => column?.field !== 'partyBContactPhone',
+);
 
 // 表格API引用
 const [Grid, gridApi] = useVbenVxeGrid({
@@ -40,7 +44,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridOptions: {
     border: true,
-    columns: useColumns(onActionClick),
+    columns: listColumns,
     footerAlign: 'center',
     footerMethod({
       columns,
@@ -53,7 +57,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       return [
         columns.map((column) => {
           // 根据列的字段名称进行不同的合计计算
-          if (column.field === 'tenantName') {
+          if (column.field === 'partyAName') {
             return '合计';
           }
 
@@ -195,8 +199,9 @@ function onCreate() {
  * 删除租户
  */
 function onDelete(row: RentalManagementItem) {
+  const displayName = getPartyBDisplayName(row);
   message.loading({
-    content: $t('ui.actionMessage.deleting', [row.tenantName]),
+    content: $t('ui.actionMessage.deleting', [displayName]),
     duration: 0,
     key: 'action_process_msg',
   });
@@ -204,7 +209,7 @@ function onDelete(row: RentalManagementItem) {
   deleteTenant(row.rentalTenantId)
     .then(() => {
       message.success({
-        content: $t('ui.actionMessage.deleteSuccess', [row.tenantName]),
+        content: $t('ui.actionMessage.deleteSuccess', [displayName]),
         key: 'action_process_msg',
       });
       refreshGrid();
@@ -212,7 +217,7 @@ function onDelete(row: RentalManagementItem) {
     .catch((error) => {
       console.error('删除租户失败:', error);
       message.error({
-        content: $t('ui.actionMessage.deleteFailed', [row.tenantName]),
+        content: $t('ui.actionMessage.deleteFailed', [displayName]),
         key: 'action_process_msg',
       });
     });
@@ -230,9 +235,10 @@ function onView(row: RentalManagementItem) {
  */
 async function onSendSms(row: RentalManagementItem) {
   try {
+    const displayName = getPartyBDisplayName(row);
     // 添加确认对话框
     Modal.confirm({
-      content: `您确定要向租户 [${row.tenantName}] 发送短信吗？`,
+      content: `您确定要向乙方 [${displayName}] 发送短信吗？`,
       onCancel() {
         message.info('已取消发送短信');
       },
@@ -256,13 +262,13 @@ async function onSendSms(row: RentalManagementItem) {
         await sendSms({
           contractEndDate: smsInfo.contractEndDate,
           increaseDate: smsInfo.increaseDate,
-          phoneNumber: smsInfo.phoneNumber,
+          phoneNumber: smsInfo.partyBContactPhone || smsInfo.phoneNumber,
           rentalTenantId: row.rentalTenantId, // 将rentalTenantId改为id以匹配API接口定义
-          tenantName: smsInfo.tenantName,
+          tenantName: smsInfo.partyBName || smsInfo.tenantName,
         });
 
         message.success({
-          content: `短信已成功发送给 ${row.tenantName}`,
+          content: `短信已成功发送给 ${displayName}`,
           key: 'sms_process_msg',
         });
 

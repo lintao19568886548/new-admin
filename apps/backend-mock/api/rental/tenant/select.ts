@@ -1,6 +1,10 @@
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
+  createRentalTenantInclude,
+  mapRentalTenantOutput,
+} from '~/utils/rental-contract';
+import {
   unAuthorizedResponse,
   useResponseError,
   useResponseSuccess,
@@ -101,7 +105,9 @@ export default eventHandler(async (event) => {
         createTime: 'desc',
       },
       include: {
-        rentalTenants: true,
+        rentalTenants: {
+          include: createRentalTenantInclude({ includeImages: false }),
+        },
       },
     });
 
@@ -121,9 +127,12 @@ export default eventHandler(async (event) => {
       .filter((park) => park.rentalTenants.length > 0)
       .flatMap((park) =>
         park.rentalTenants.map((tenant) => {
+          const mappedTenant = mapRentalTenantOutput(tenant);
           return {
             tenantId: tenant.rentalTenantId,
-            tenantName: `${tenant.tenantName}`,
+            partyBName: mappedTenant.partyBName,
+            phoneNumber: mappedTenant.phoneNumber,
+            tenantName: `${mappedTenant.tenantName}`,
           };
         }),
       );
