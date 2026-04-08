@@ -4,7 +4,6 @@ import type { RentalManagementItem } from './types';
 import { computed, h, onMounted, onUnmounted, ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
-import { Search } from '@vben/icons';
 
 import {
   DeleteOutlined,
@@ -19,12 +18,12 @@ import {
   Empty,
   Form,
   Input,
-  List,
   message,
   Modal,
   Popconfirm,
   Row,
   Select,
+  Spin,
   Tag,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
@@ -46,6 +45,8 @@ import {
   formatAreaDisplay,
   formatContractDateDisplay,
   formatRentDisplay,
+  getPartyAContactName,
+  getPartyAContactPhone,
   getPartyADisplayName,
   getPartyBContactName,
   getPartyBContactPhone,
@@ -87,6 +88,19 @@ const getStatusTag = (row: RentalManagementItem) => {
   return h(Tag, { color: option?.color || 'default' }, () => statusText);
 };
 
+function formatSendMessageDisplay(value?: string) {
+  return value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '未发送';
+}
+
+function getIncreaseSummary(row: RentalManagementItem) {
+  const rate = calculateIncreaseRateDisplay(row) || '无';
+  const date = calculateIncreaseDateDisplay(row) || '无';
+  if (rate === '无' && date === '无') {
+    return '无';
+  }
+  return `${rate} / ${date}`;
+}
+
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: TenantForm,
   destroyOnClose: true,
@@ -114,7 +128,6 @@ async function onDelete(row: RentalManagementItem) {
       content: $t('ui.actionMessage.deleteSuccess', [displayName || '']),
       key: 'action_process_msg',
     });
-    // Refresh the list after deletion
     fetchList();
   } catch (error) {
     console.error('删除租户失败:', error);
@@ -125,13 +138,9 @@ async function onDelete(row: RentalManagementItem) {
   }
 }
 
-/**
- * 发送短信
- */
 async function onSendSms(row: RentalManagementItem) {
   try {
     const displayName = getPartyBDisplayName(row);
-    // 添加确认对话框
     Modal.confirm({
       content: `您确定要向乙方 [${displayName}] 发送短信吗？`,
       onCancel() {
@@ -144,7 +153,6 @@ async function onSendSms(row: RentalManagementItem) {
           key: 'sms_process_msg',
         });
 
-        // 获取租户短信信息
         const smsInfo = await getTenantSmsInfo(row.rentalTenantId);
 
         message.loading({
@@ -153,7 +161,6 @@ async function onSendSms(row: RentalManagementItem) {
           key: 'sms_process_msg',
         });
 
-        // 发送短信
         await sendSms({
           contractEndDate: smsInfo.contractEndDate,
           increaseDate: smsInfo.increaseDate,
@@ -167,7 +174,6 @@ async function onSendSms(row: RentalManagementItem) {
           key: 'sms_process_msg',
         });
 
-        // 刷新列表数据以显示最新的发送时间
         refreshList();
       },
       title: '发送短信确认',
@@ -234,12 +240,8 @@ function refreshList() {
   fetchList();
 }
 
-/**
- * 批量发送短信
- */
 async function onBulkSendSms() {
   try {
-    // 添加确认对话框
     Modal.confirm({
       content: `
         系统将自动筛选符合以下条件的租户发送催缴短信：
@@ -260,10 +262,8 @@ async function onBulkSendSms() {
         });
 
         try {
-          // 调用批量发送短信的API
           const result = await sendBulkSms();
 
-          // 显示详细的发送结果
           if (result.data) {
             const { failed, success, total } = result.data;
 
@@ -279,7 +279,6 @@ async function onBulkSendSms() {
                 key: 'bulk_sms_process_msg',
               });
 
-              // 如果有失败的，显示详细信息
               if (failed > 0 && result.data.errors) {
                 console.warn('发送失败的租户:', result.data.errors);
                 Modal.warning({
@@ -295,7 +294,6 @@ async function onBulkSendSms() {
             });
           }
 
-          // 刷新列表数据以显示可能更新的状态
           refreshList();
         } catch (apiError) {
           console.error('批量发送短信API调用失败:', apiError);
@@ -334,185 +332,282 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <Page class="mobile-tenant-list-page">
+  <Page class="bg-gray-100 p-2 dark:bg-neutral-900">
     <FormModal @success="refreshList" />
 
-    <details class="search-details">
-      <summary class="search-summary">
-        筛选条件 <Search class="inline-icon" />
-      </summary>
-      <div class="search-form-container">
-        <Form :model="searchForm" layout="vertical">
-          <Row :gutter="16">
-            <Col :span="12">
-              <Form.Item :label="$t('system.rental.tenant.partyAName')">
-                <Input
-                  v-model:value="searchForm.partyAName"
-                  allow-clear
-                  placeholder="请输入"
-                />
-              </Form.Item>
-            </Col>
-            <Col :span="12">
-              <Form.Item :label="$t('system.rental.tenant.partyBName')">
-                <Input
-                  v-model:value="searchForm.partyBName"
-                  allow-clear
-                  placeholder="请输入"
-                />
-              </Form.Item>
-            </Col>
-            <Col :span="24">
-              <Form.Item :label="$t('system.rental.tenant.partyBContactPhone')">
-                <Input
-                  v-model:value="searchForm.partyBContactPhone"
-                  allow-clear
-                  placeholder="请输入"
-                />
-              </Form.Item>
-            </Col>
-            <Col :span="24">
-              <Form.Item label="园区">
-                <Select
-                  v-model:value="currentPark"
-                  :options="parkStore.parkList"
-                  :field-names="{ label: 'parkName', value: 'parkId' }"
-                  allow-clear
-                  placeholder="请选择园区"
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item label="合同状态">
-            <Select
-              v-model:value="searchForm.status"
-              :options="tagTypeOptions"
-              allow-clear
-              placeholder="请选择"
-            />
-          </Form.Item>
-          <div class="search-actions">
-            <Button @click="resetSearch" type="default" class="flex-1">
-              重置
-            </Button>
-            <Button @click="handleSearch" type="primary" class="flex-1">
-              <template #icon><Search /></template>
-              查询
-            </Button>
-          </div>
-        </Form>
-      </div>
-    </details>
+    <div
+      class="search-filters mb-2 rounded bg-white p-3 shadow-sm dark:bg-neutral-800"
+    >
+      <Form :model="searchForm" layout="vertical">
+        <Row :gutter="16">
+          <Col :span="24">
+            <Form.Item label="园区">
+              <Select
+                v-model:value="currentPark"
+                :options="parkStore.parkList"
+                :field-names="{ label: 'parkName', value: 'parkId' }"
+                allow-clear
+                placeholder="请选择园区"
+              />
+            </Form.Item>
+          </Col>
+          <Col :span="12">
+            <Form.Item :label="$t('system.rental.tenant.partyAName')">
+              <Input
+                v-model:value="searchForm.partyAName"
+                allow-clear
+                placeholder="请输入甲方名称"
+              />
+            </Form.Item>
+          </Col>
+          <Col :span="12">
+            <Form.Item :label="$t('system.rental.tenant.partyBName')">
+              <Input
+                v-model:value="searchForm.partyBName"
+                allow-clear
+                placeholder="请输入乙方名称"
+              />
+            </Form.Item>
+          </Col>
+          <Col :span="24">
+            <Form.Item :label="$t('system.rental.tenant.partyBContactPhone')">
+              <Input
+                v-model:value="searchForm.partyBContactPhone"
+                allow-clear
+                placeholder="请输入乙方联系电话"
+              />
+            </Form.Item>
+          </Col>
+          <Col :span="24">
+            <Form.Item label="合同状态">
+              <Select
+                v-model:value="searchForm.status"
+                :options="tagTypeOptions"
+                allow-clear
+                placeholder="请选择合同状态"
+              />
+            </Form.Item>
+          </Col>
+        </Row>
+        <div class="mt-2 flex gap-2">
+          <Button type="primary" @click="handleSearch" class="flex-1">
+            {{ $t('common.search') }}
+          </Button>
+          <Button @click="resetSearch" class="flex-1">
+            {{ $t('common.reset') }}
+          </Button>
+        </div>
+      </Form>
+    </div>
 
-    <div class="mobile-content">
-      <Empty
-        v-if="!loading && tenantList.length === 0"
-        description="暂无租户数据"
-        class="py-10"
-      />
-      <List
-        v-else
-        :data-source="tenantList"
-        :loading="loading && pagination.currentPage === 1"
-        :split="false"
-        item-layout="vertical"
-        row-key="rentalTenantId"
-      >
-        <template #renderItem="{ item }">
-          <List.Item>
-            <Card :bordered="false" class="tenant-card">
-              <template #title>
-                <div class="card-header">
-                  <span class="tenant-name">{{
-                    getPartyBDisplayName(item)
-                  }}</span>
-                  <component :is="getStatusTag(item)" />
-                </div>
-              </template>
-
-              <div class="info-grid">
-                <div class="info-item">
-                  <span class="info-label">甲方:</span>
-                  <span>{{ getPartyADisplayName(item) || '暂无' }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">乙方联系人:</span>
-                  <span>{{ getPartyBContactName(item) || '暂无' }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">乙方电话:</span>
-                  <span>{{ getPartyBContactPhone(item) || '暂无' }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">租金:</span>
-                  <span>{{ formatRentDisplay(item.rent) || '暂无' }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">面积:</span>
-                  <span>{{ formatAreaDisplay(item.area) || '暂无' }}</span>
-                </div>
-                <div class="info-item full-width">
-                  <span class="info-label">地址:</span>
-                  <span>{{ item.address || '暂无地址' }}</span>
-                </div>
-
-                <div class="info-item full-width">
-                  <span class="info-label">合同日期:</span>
-                  <span>{{
-                    formatContractDateDisplay(item) || '暂无合同日期'
-                  }}</span>
-                </div>
-                <div class="info-item full-width">
-                  <span class="info-label">下次递增:</span>
-                  <span>{{
-                    `${calculateIncreaseRateDisplay(item) || '无'} (${
-                      calculateIncreaseDateDisplay(item) || '无'
-                    })`
-                  }}</span>
-                </div>
-                <div class="info-item full-width">
-                  <span class="info-label">上次发送短信:</span>
-                  <span>{{
-                    item.sendMessage
-                      ? dayjs(item.sendMessage).format('YYYY-MM-DD HH:mm')
-                      : '未发送'
-                  }}</span>
-                </div>
+    <Spin :spinning="loading" :tip="$t('ui.loading')">
+      <div v-if="tenantList.length > 0" class="mobile-content">
+        <Card
+          v-for="item in tenantList"
+          :key="item.rentalTenantId"
+          class="mb-3 overflow-hidden rounded-lg bg-white shadow-sm dark:bg-neutral-800"
+          :body-style="{ padding: '0' }"
+        >
+          <div class="p-4">
+            <div class="mb-3 grid grid-cols-2 gap-4">
+              <div class="flex flex-col text-left">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  甲方名称
+                </span>
+                <span
+                  class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                >
+                  {{ getPartyADisplayName(item) || '-' }}
+                </span>
+              </div>
+              <div class="flex flex-col text-left">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  乙方名称
+                </span>
+                <span
+                  class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                >
+                  {{ getPartyBDisplayName(item) || '-' }}
+                </span>
+              </div>
+              <div class="flex flex-col text-left">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  甲方联系人
+                </span>
+                <span
+                  class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                >
+                  {{ getPartyAContactName(item) || '-' }}
+                </span>
+              </div>
+              <div class="flex flex-col text-left">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  乙方联系人
+                </span>
+                <span
+                  class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                >
+                  {{ getPartyBContactName(item) || '-' }}
+                </span>
+              </div>
+              <div class="flex flex-col text-left">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  甲方电话
+                </span>
+                <span
+                  class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                >
+                  {{ getPartyAContactPhone(item) || '-' }}
+                </span>
               </div>
 
-              <template #actions>
-                <Button type="text" @click="onEdit(item)">
-                  <template #icon><EditOutlined /></template>
-                  {{ $t('ui.action.edit') }}
-                </Button>
-                <Button type="text" @click="onSendSms(item)">
-                  <template #icon><MessageOutlined /></template>
-                  发短信
-                </Button>
-                <Popconfirm
-                  :title="
-                    $t('ui.actionMessage.deleteConfirm', [
-                      getPartyBDisplayName(item),
-                    ])
-                  "
-                  @confirm="onDelete(item)"
-                  placement="top"
-                  :overlay-style="{ maxWidth: '250px' }"
+              <div class="flex flex-col text-left">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
                 >
-                  <Button
-                    type="text"
-                    status="danger"
-                    :aria-label="$t('ui.action.delete')"
-                  >
-                    <template #icon><DeleteOutlined /></template>
-                    {{ $t('ui.action.delete') }}
-                  </Button>
-                </Popconfirm>
-              </template>
-            </Card>
-          </List.Item>
-        </template>
-        <template #loadMore>
+                  乙方电话
+                </span>
+                <span
+                  class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                >
+                  {{ getPartyBContactPhone(item) || '-' }}
+                </span>
+              </div>
+              <div class="flex flex-col text-left">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  租金
+                </span>
+                <span
+                  class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                >
+                  {{ formatRentDisplay(item.rent ?? '') || '-' }}
+                </span>
+              </div>
+              <div class="flex flex-col text-left">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  面积
+                </span>
+                <span
+                  class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                >
+                  {{ formatAreaDisplay(item.area ?? '') || '-' }}
+                </span>
+              </div>
+              <div class="flex flex-col text-left">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  合同日期
+                </span>
+                <span
+                  class="relative top-[5px] whitespace-nowrap text-[12px] leading-5 text-gray-800 dark:text-gray-100"
+                >
+                  {{ formatContractDateDisplay(item) || '-' }}
+                </span>
+              </div>
+              <div class="flex flex-col text-left">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  合同状态
+                </span>
+                <div class="pt-1">
+                  <component :is="getStatusTag(item)" />
+                </div>
+              </div>
+              <div class="col-span-2 flex flex-col text-left">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  租赁地点
+                </span>
+                <span
+                  class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                >
+                  {{ item.address || '-' }}
+                </span>
+              </div>
+              <div class="col-span-2 flex flex-col text-left">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  下次递增
+                </span>
+                <span
+                  class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                >
+                  {{ getIncreaseSummary(item) }}
+                </span>
+              </div>
+              <div class="col-span-2 flex flex-col text-left">
+                <span
+                  class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                >
+                  上次发送短信
+                </span>
+                <span
+                  class="text-[14px] leading-5 text-gray-800 dark:text-gray-100"
+                >
+                  {{ formatSendMessageDisplay(item.sendMessage) }}
+                </span>
+              </div>
+            </div>
+
+            <p
+              v-if="item.remark"
+              class="mt-3 rounded-md bg-gray-50 px-3 py-2 text-[14px] leading-relaxed text-gray-600 dark:bg-neutral-700 dark:text-gray-200"
+            >
+              <span class="mr-1 font-semibold">备注:</span>
+              <span class="whitespace-pre-wrap break-all">{{
+                item.remark
+              }}</span>
+            </p>
+          </div>
+
+          <div
+            class="flex justify-center gap-3 border-t border-gray-100 px-4 py-3 dark:border-neutral-700"
+          >
+            <Button type="default" @click="onEdit(item)">
+              <template #icon><EditOutlined /></template>
+              {{ $t('ui.action.edit') }}
+            </Button>
+            <Button type="primary" @click="onSendSms(item)">
+              <template #icon><MessageOutlined /></template>
+              发短信
+            </Button>
+            <Popconfirm
+              :title="
+                $t('ui.actionMessage.deleteConfirm', [
+                  getPartyBDisplayName(item),
+                ])
+              "
+              @confirm="onDelete(item)"
+              placement="top"
+              :overlay-style="{ maxWidth: '250px' }"
+            >
+              <Button danger :aria-label="$t('ui.action.delete')">
+                <template #icon><DeleteOutlined /></template>
+                {{ $t('ui.action.delete') }}
+              </Button>
+            </Popconfirm>
+          </div>
+        </Card>
+
+        <div class="pb-2">
           <div v-if="!isLastPage" class="load-more-container">
             <Button @click="handleLoadMore" :loading="loading" block>
               加载更多
@@ -524,9 +619,16 @@ onUnmounted(() => {
           >
             没有更多了
           </div>
-        </template>
-      </List>
-    </div>
+        </div>
+      </div>
+
+      <Empty
+        v-if="!loading && tenantList.length === 0"
+        class="py-10"
+        description="暂无合同数据"
+      />
+    </Spin>
+
     <Teleport to="body">
       <div
         class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom)+3.25rem)] right-4 z-[1000] flex flex-col gap-3"
@@ -545,157 +647,17 @@ onUnmounted(() => {
   </Page>
 </template>
 
-<style scoped>
-.mobile-tenant-list-page {
-  padding: 8px;
-  background-color: #f5f5f5;
-}
-
-.mobile-header {
-  padding: 12px 16px;
-  background-color: #fff;
-  border-bottom: 1px solid #f0f0f0;
+<style lang="less" scoped>
+.search-filters :deep(.ant-form-item) {
+  margin-bottom: 8px;
 }
 
 .mobile-content {
-  padding: 0;
+  padding-bottom: 8px;
 }
 
-:deep(.ant-list-item) {
-  padding: 8px 0 !important;
-  border: none !important;
-}
-
-.tenant-card {
-  width: 100%;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 9%);
-}
-
-:deep(.ant-card-head) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: auto;
-  padding: 10px 16px;
-  font-size: 16px;
-}
-
-:deep(.ant-card-head-title) {
-  flex: 1 1 auto;
-  padding: 0;
-}
-
-:deep(.ant-card-extra) {
-  flex: 0 0 auto;
-  padding: 0;
-  margin-left: 8px;
-}
-
-:deep(.ant-card-body) {
-  padding: 12px 16px;
-}
-
-:deep(.ant-card-actions) {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 10px 16px;
-  font-size: 15px;
-  background-color: #fff;
-}
-
-:deep(.ant-card-actions > li) {
-  flex: 0 1 auto;
-  justify-content: space-between;
-  margin: 0 !important;
-  text-align: center;
-  border-right: none !important;
-}
-
-.card-header {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.tenant-name {
-  font-size: 17px;
-  font-weight: 500;
-  word-break: break-all;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 16px;
-  font-size: 15px;
-  color: #555;
-}
-
-.info-item {
-  display: flex;
-  align-items: start;
-  overflow: hidden;
-}
-
-.info-item.full-width {
-  grid-column: 1 / -1;
-}
-
-.info-label {
-  flex-shrink: 0;
-  padding-right: 8px;
-  color: #888;
-  text-align: left;
-}
-
-.info-item > span:last-of-type {
-  word-break: break-word;
-}
-
-.search-details {
-  padding: 0;
-  margin-bottom: 12px;
-  background-color: #fff;
-  border: 1px solid #e8e8e8;
-  border-radius: 4px;
-}
-
-.search-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  font-size: 17px;
-  cursor: pointer;
-}
-
-.search-summary .inline-icon {
-  width: 1em;
-  height: 1em;
-}
-
-.search-form-container {
-  padding: 12px;
-  border-top: 1px solid #e8e8e8;
-}
-
-.search-form-container .ant-form-item {
-  margin-bottom: 12px;
-}
-
-.search-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.flex-1 {
-  flex: 1;
+:deep(.ant-tag) {
+  margin-inline-end: 0;
 }
 
 .load-more-container {
