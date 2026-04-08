@@ -16,6 +16,7 @@ import { createHead } from '@vueuse/head';
 
 import { $t, setupI18n } from '#/locales';
 import { router } from '#/router';
+import { setupNeutralErrorFeedback } from '#/utils/neutral-feedback';
 
 import { initComponentAdapter } from './adapter/component';
 import App from './app.vue';
@@ -32,6 +33,8 @@ import App from './app.vue';
 // import '@ionic/vue/css/display.css';
 
 async function bootstrap(namespace: string) {
+  setupNeutralErrorFeedback();
+
   // 初始化组件适配器
   await initComponentAdapter();
 
