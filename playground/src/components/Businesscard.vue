@@ -309,11 +309,6 @@ function handleTemplateSelect(templateId: string) {
 
   if (template.premium && !premiumUnlocked.value) {
     pendingPremiumTemplateId.value = template.id;
-    if (purchaseSupported) {
-      message.info(`正在预览“${template.label}”，升级后即可正式使用`);
-    } else {
-      message.info(`正在预览“${template.label}”，正式使用需在 iOS 端解锁`);
-    }
     return;
   }
 
@@ -453,9 +448,8 @@ async function downloadCard() {
   if (previewingLockedPremiumTemplate.value) {
     if (purchaseSupported) {
       openUpgradeSheet();
-      message.info('当前正在预览专业模板，升级后才能下载使用');
     } else {
-      message.info('当前端仅支持预览专业模板，正式使用请在 iOS 端解锁');
+      message.info('该功能仅在 iOS 端支持');
     }
     return;
   }
@@ -638,243 +632,255 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="business-card-modal" @click="emit('close')">
-    <div class="card-shell" @click.stop>
-      <div
-        class="modal-stage"
-        :class="{ 'modal-stage--sheet-open': upgradeSheetVisible }"
-      >
-        <div class="preview-block">
-          <div
-            class="preview-toolbar"
-            :class="{ 'preview-toolbar--muted': upgradeSheetVisible }"
-          >
-            <button
-              class="preview-toolbar__button"
-              type="button"
-              @click.stop="downloadCard"
+  <Teleport to="body">
+    <div class="business-card-modal" @click="emit('close')">
+      <div class="card-shell" @click.stop>
+        <div
+          class="modal-stage"
+          :class="{ 'modal-stage--sheet-open': upgradeSheetVisible }"
+        >
+          <div class="preview-block">
+            <div
+              class="preview-toolbar"
+              :class="{ 'preview-toolbar--muted': upgradeSheetVisible }"
             >
-              <DownloadOutlined />
-            </button>
-            <button
-              class="preview-toolbar__button"
-              type="button"
-              @click.stop="emit('close')"
-            >
-              <CloseOutlined />
-            </button>
-          </div>
-
-          <div
-            ref="cardRef"
-            class="business-card"
-            :class="[`template-${selectedTemplate?.id}`, { flipped }]"
-            @click.stop="toggleFlip"
-          >
-            <div class="card-front">
-              <div class="header">
-                <div class="name-title">
-                  <h2 class="person-name">
-                    {{ userInfo?.realName || '姓名' }}
-                  </h2>
-                  <span class="job-title">{{
-                    userInfo?.job || '岗位信息'
-                  }}</span>
-                </div>
-                <div class="logo-section">
-                  <img class="logo-img" src="/assets/favicon.svg" alt="logo" />
-                  <span class="company-name">瞰维智管</span>
-                </div>
-              </div>
-
-              <div class="content">
-                <div class="contact-info">
-                  <div class="phone-primary">
-                    {{
-                      userInfo?.username || userInfo?.phone || '未设置联系方式'
-                    }}
-                  </div>
-                  <div class="company">东莞市宜租网络科技有限公司</div>
-                  <div class="address">
-                    广东省东莞市高埗镇北王路高埗段5号2号楼
-                  </div>
-                </div>
-
-                <div class="contact-row">
-                  <div class="contact-item">
-                    <MailOutlined class="icon" />
-                    <span>{{ userInfo?.email || 'yizuwang@yeah.net' }}</span>
-                  </div>
-                  <div class="contact-item">
-                    <GlobalOutlined class="icon" />
-                    <span>kwzg.yizuw.cn</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="divider"></div>
+              <button
+                class="preview-toolbar__button"
+                type="button"
+                @click.stop="downloadCard"
+              >
+                <DownloadOutlined />
+              </button>
+              <button
+                class="preview-toolbar__button"
+                type="button"
+                @click.stop="emit('close')"
+              >
+                <CloseOutlined />
+              </button>
             </div>
 
-            <div class="card-back">
-              <div class="back-content">
-                <div class="logo-section">
-                  <img
-                    class="logo-img white"
-                    src="/assets/favicon.svg"
-                    alt="logo"
-                  />
-                  <span class="company-name white">瞰维智管</span>
+            <div
+              ref="cardRef"
+              class="business-card"
+              :class="[`template-${selectedTemplate?.id}`, { flipped }]"
+              @click.stop="toggleFlip"
+            >
+              <div class="card-front">
+                <div class="header">
+                  <div class="name-title">
+                    <h2 class="person-name">
+                      {{ userInfo?.realName || '姓名' }}
+                    </h2>
+                    <span class="job-title">{{
+                      userInfo?.job || '岗位信息'
+                    }}</span>
+                  </div>
+                  <div class="logo-section">
+                    <img
+                      class="logo-img"
+                      src="/assets/favicon.svg"
+                      alt="logo"
+                    />
+                    <span class="company-name">瞰维智管</span>
+                  </div>
                 </div>
 
-                <div class="taglines">
-                  <div class="tagline">智能物业管理平台 | 智慧公寓管理平台</div>
-                  <div class="tagline">智慧能源管理平台 | 远程抄表管理系统</div>
+                <div class="content">
+                  <div class="contact-info">
+                    <div class="phone-primary">
+                      {{
+                        userInfo?.username ||
+                        userInfo?.phone ||
+                        '未设置联系方式'
+                      }}
+                    </div>
+                    <div class="company">东莞市宜租网络科技有限公司</div>
+                    <div class="address">
+                      广东省东莞市高埗镇北王路高埗段5号2号楼
+                    </div>
+                  </div>
+
+                  <div class="contact-row">
+                    <div class="contact-item">
+                      <MailOutlined class="icon" />
+                      <span>{{ userInfo?.email || 'yizuwang@yeah.net' }}</span>
+                    </div>
+                    <div class="contact-item">
+                      <GlobalOutlined class="icon" />
+                      <span>kwzg.yizuw.cn</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="divider"></div>
+              </div>
+
+              <div class="card-back">
+                <div class="back-content">
+                  <div class="logo-section">
+                    <img
+                      class="logo-img white"
+                      src="/assets/favicon.svg"
+                      alt="logo"
+                    />
+                    <span class="company-name white">瞰维智管</span>
+                  </div>
+
+                  <div class="taglines">
+                    <div class="tagline">
+                      智能物业管理平台 | 智慧公寓管理平台
+                    </div>
+                    <div class="tagline">
+                      智慧能源管理平台 | 远程抄表管理系统
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          <p class="preview-block__hint">{{ previewHintText }}</p>
-        </div>
-
-        <section class="template-panel">
-          <div class="template-panel__header">
-            <div>
-              <h3>样式模板</h3>
-              <p>{{ templatePanelCaption }}</p>
-            </div>
-            <span v-if="premiumUnlocked" class="status-badge">
-              专业版已开通
-            </span>
+            <p class="preview-block__hint">{{ previewHintText }}</p>
           </div>
 
-          <div class="template-grid">
-            <button
-              v-for="template in availableTemplates"
-              :key="template.id"
-              class="template-chip"
-              :class="{
-                'is-active': selectedTemplate?.id === template.id,
-                'is-locked': template.premium && !premiumUnlocked,
-              }"
-              type="button"
-              @click="handleTemplateSelect(template.id)"
-            >
-              <span class="template-chip__top">
-                <span class="template-chip__label">{{ template.label }}</span>
-                <span
-                  class="template-chip__meta"
-                  :class="{ premium: template.premium }"
-                >
-                  {{
-                    template.premium
-                      ? premiumUnlocked
-                        ? '已解锁'
-                        : '专业'
-                      : '免费'
-                  }}
-                </span>
+          <section class="template-panel">
+            <div class="template-panel__header">
+              <div>
+                <h3>样式模板</h3>
+                <p>{{ templatePanelCaption }}</p>
+              </div>
+              <span v-if="premiumUnlocked" class="status-badge">
+                专业版已开通
               </span>
-              <span class="template-chip__desc">{{
-                template.description
-              }}</span>
+            </div>
+
+            <div class="template-grid">
+              <button
+                v-for="template in availableTemplates"
+                :key="template.id"
+                class="template-chip"
+                :class="{
+                  'is-active': selectedTemplate?.id === template.id,
+                  'is-locked': template.premium && !premiumUnlocked,
+                }"
+                type="button"
+                @click="handleTemplateSelect(template.id)"
+              >
+                <span class="template-chip__top">
+                  <span class="template-chip__label">{{ template.label }}</span>
+                  <span
+                    class="template-chip__meta"
+                    :class="{ premium: template.premium }"
+                  >
+                    {{
+                      template.premium
+                        ? premiumUnlocked
+                          ? '已解锁'
+                          : '专业'
+                        : '免费'
+                    }}
+                  </span>
+                </span>
+                <span class="template-chip__desc">{{
+                  template.description
+                }}</span>
+              </button>
+            </div>
+          </section>
+
+          <div
+            v-if="purchaseSupported && !premiumUnlocked"
+            class="upgrade-trigger"
+          >
+            <button
+              class="apple-button apple-button--dark"
+              type="button"
+              @click="openUpgradeSheet"
+            >
+              升级专业版
             </button>
+            <p class="upgrade-trigger__caption">{{ upgradeCaption }}</p>
           </div>
-        </section>
+
+          <div
+            v-else-if="purchaseSupported && premiumUnlocked"
+            class="upgrade-status"
+          >
+            <span class="upgrade-status__pill">当前设备已启用专业模板</span>
+          </div>
+        </div>
 
         <div
           v-if="purchaseSupported && !premiumUnlocked"
-          class="upgrade-trigger"
-        >
-          <button
-            class="apple-button apple-button--dark"
-            type="button"
-            @click="openUpgradeSheet"
-          >
-            升级专业版
-          </button>
-          <p class="upgrade-trigger__caption">{{ upgradeCaption }}</p>
-        </div>
+          class="sheet-scrim"
+          :class="{ 'sheet-scrim--visible': upgradeSheetVisible }"
+          @click="closeUpgradeSheet"
+        ></div>
 
-        <div
-          v-else-if="purchaseSupported && premiumUnlocked"
-          class="upgrade-status"
+        <section
+          v-if="purchaseSupported && !premiumUnlocked"
+          class="purchase-sheet"
+          :class="{ 'purchase-sheet--visible': upgradeSheetVisible }"
+          @click.stop
         >
-          <span class="upgrade-status__pill">当前设备已启用专业模板</span>
-        </div>
+          <div class="purchase-sheet__handle"></div>
+          <div class="purchase-sheet__header">
+            <div>
+              <span class="purchase-sheet__eyebrow">App Store 内购</span>
+              <h3>{{ premiumDisplayTitle }}</h3>
+              <p>{{ premiumDisplayDescription }}</p>
+            </div>
+            <button
+              class="purchase-sheet__dismiss"
+              type="button"
+              @click="closeUpgradeSheet"
+            >
+              收起
+            </button>
+          </div>
+
+          <div class="purchase-sheet__hero">
+            <div class="purchase-sheet__price">
+              <span class="purchase-sheet__price-value">
+                {{ premiumDisplayPrice || '价格加载中' }}
+              </span>
+              <span class="purchase-sheet__price-caption">
+                一次购买，永久有效
+              </span>
+            </div>
+            <div class="purchase-sheet__badge">
+              高级模板 {{ premiumTemplateCount }} 套
+            </div>
+          </div>
+
+          <div class="purchase-sheet__benefits">
+            <span>高级模板永久解锁</span>
+            <span>支持恢复购买</span>
+            <span>导出与保存继续免费</span>
+          </div>
+
+          <div class="purchase-sheet__actions">
+            <button
+              class="apple-button apple-button--dark"
+              :disabled="purchaseButtonDisabled"
+              type="button"
+              @click="handlePurchasePremium"
+            >
+              {{ purchaseButtonText }}
+            </button>
+            <button
+              class="apple-button apple-button--secondary"
+              :disabled="restoreButtonDisabled"
+              type="button"
+              @click="handleRestorePremium"
+            >
+              {{ restoreButtonText }}
+            </button>
+          </div>
+
+          <p class="purchase-sheet__hint">{{ purchaseHint }}</p>
+        </section>
       </div>
-
-      <div
-        v-if="purchaseSupported && !premiumUnlocked"
-        class="sheet-scrim"
-        :class="{ 'sheet-scrim--visible': upgradeSheetVisible }"
-        @click="closeUpgradeSheet"
-      ></div>
-
-      <section
-        v-if="purchaseSupported && !premiumUnlocked"
-        class="purchase-sheet"
-        :class="{ 'purchase-sheet--visible': upgradeSheetVisible }"
-        @click.stop
-      >
-        <div class="purchase-sheet__handle"></div>
-        <div class="purchase-sheet__header">
-          <div>
-            <span class="purchase-sheet__eyebrow">App Store 内购</span>
-            <h3>{{ premiumDisplayTitle }}</h3>
-            <p>{{ premiumDisplayDescription }}</p>
-          </div>
-          <button
-            class="purchase-sheet__dismiss"
-            type="button"
-            @click="closeUpgradeSheet"
-          >
-            收起
-          </button>
-        </div>
-
-        <div class="purchase-sheet__hero">
-          <div class="purchase-sheet__price">
-            <span class="purchase-sheet__price-value">
-              {{ premiumDisplayPrice || '价格加载中' }}
-            </span>
-            <span class="purchase-sheet__price-caption">
-              一次购买，永久有效
-            </span>
-          </div>
-          <div class="purchase-sheet__badge">
-            高级模板 {{ premiumTemplateCount }} 套
-          </div>
-        </div>
-
-        <div class="purchase-sheet__benefits">
-          <span>高级模板永久解锁</span>
-          <span>支持恢复购买</span>
-          <span>导出与保存继续免费</span>
-        </div>
-
-        <div class="purchase-sheet__actions">
-          <button
-            class="apple-button apple-button--dark"
-            :disabled="purchaseButtonDisabled"
-            type="button"
-            @click="handlePurchasePremium"
-          >
-            {{ purchaseButtonText }}
-          </button>
-          <button
-            class="apple-button apple-button--secondary"
-            :disabled="restoreButtonDisabled"
-            type="button"
-            @click="handleRestorePremium"
-          >
-            {{ restoreButtonText }}
-          </button>
-        </div>
-
-        <p class="purchase-sheet__hint">{{ purchaseHint }}</p>
-      </section>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -908,8 +914,10 @@ onMounted(() => {
   flex-direction: column;
   gap: 14px;
   min-height: 0;
+  max-height: calc(100dvh - var(--modal-top-gap) - var(--modal-bottom-gap));
   padding: 18px 16px;
-  overflow: hidden;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
   background: linear-gradient(
     180deg,
     rgb(255 255 255 / 84%),
@@ -926,6 +934,11 @@ onMounted(() => {
     opacity 260ms ease,
     filter 320ms ease;
   animation: stage-enter 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-stage::-webkit-scrollbar {
+  display: none;
 }
 
 .modal-stage--sheet-open {
@@ -1741,6 +1754,11 @@ onMounted(() => {
 }
 
 @media (max-height: 760px) {
+  .business-card-modal {
+    --modal-top-gap: max(calc(env(safe-area-inset-top) + 18px), 48px);
+    --modal-bottom-gap: max(calc(env(safe-area-inset-bottom) + 24px), 72px);
+  }
+
   .modal-stage {
     gap: 10px;
     padding: 14px;
