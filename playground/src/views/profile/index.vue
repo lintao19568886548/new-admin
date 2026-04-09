@@ -207,7 +207,7 @@ const actions = computed(() => {
     {
       handler: handleCreateBusinessCard,
       icon: SvgCardIcon,
-      title: '生成个人名片',
+      title: '个人名片',
     },
     {
       handler: handleOpenFeedback,

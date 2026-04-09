@@ -1654,6 +1654,9 @@ importers:
       '@capawesome/capacitor-android-edge-to-edge-support':
         specifier: ^8.0.3
         version: 8.0.3(@capacitor/core@8.1.0)
+      '@capgo/native-purchases':
+        specifier: ^8.3.0
+        version: 8.3.0(@capacitor/core@8.1.0)
       '@iconify/vue':
         specifier: ^5.0.0
         version: 5.0.0(vue@3.5.27(typescript@5.9.3))
@@ -2572,6 +2575,11 @@ packages:
 
   '@capawesome/capacitor-android-edge-to-edge-support@8.0.3':
     resolution: {integrity: sha512-b4ZaVQWbweS0SJZ3WTIZ5Q2FAz/qcbOrLMLu8T7KgLJtCYmsLlML4AJWdES7P0VWcU3IGQT7pxZ5nIOQurO9bw==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@capgo/native-purchases@8.3.0':
+    resolution: {integrity: sha512-KcB3JVh9JtyhOWxHyPrIBfBrmz0Pxo3EyynavPcKhx/4+vwXBNddQ/F4Id5xJZmwZymRliaCKsq+//lKsI5INg==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
@@ -14690,6 +14698,10 @@ snapshots:
   '@capacitor/synapse@1.0.4': {}
 
   '@capawesome/capacitor-android-edge-to-edge-support@8.0.3(@capacitor/core@8.1.0)':
+    dependencies:
+      '@capacitor/core': 8.1.0
+
+  '@capgo/native-purchases@8.3.0(@capacitor/core@8.1.0)':
     dependencies:
       '@capacitor/core': 8.1.0
 

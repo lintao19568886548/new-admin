@@ -20,7 +20,8 @@ let package = Package(
         .package(name: "CapacitorGeolocation", path: "../../../../node_modules/.pnpm/@capacitor+geolocation@8.0.0_@capacitor+core@8.1.0/node_modules/@capacitor/geolocation"),
         .package(name: "CapacitorLocalNotifications", path: "../../../../node_modules/.pnpm/@capacitor+local-notifications@8.0.0_@capacitor+core@8.1.0/node_modules/@capacitor/local-notifications"),
         .package(name: "CapacitorShare", path: "../../../../node_modules/.pnpm/@capacitor+share@8.0.0_@capacitor+core@8.1.0/node_modules/@capacitor/share"),
-        .package(name: "CapacitorStatusBar", path: "../../../../node_modules/.pnpm/@capacitor+status-bar@8.0.0_@capacitor+core@8.1.0/node_modules/@capacitor/status-bar")
+        .package(name: "CapacitorStatusBar", path: "../../../../node_modules/.pnpm/@capacitor+status-bar@8.0.0_@capacitor+core@8.1.0/node_modules/@capacitor/status-bar"),
+        .package(name: "CapgoNativePurchases", path: "../../../../node_modules/.pnpm/@capgo+native-purchases@8.3.0_@capacitor+core@8.1.0/node_modules/@capgo/native-purchases")
     ],
     targets: [
         .target(
@@ -36,7 +37,8 @@ let package = Package(
                 .product(name: "CapacitorGeolocation", package: "CapacitorGeolocation"),
                 .product(name: "CapacitorLocalNotifications", package: "CapacitorLocalNotifications"),
                 .product(name: "CapacitorShare", package: "CapacitorShare"),
-                .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar")
+                .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
+                .product(name: "CapgoNativePurchases", package: "CapgoNativePurchases")
             ]
         )
     ]

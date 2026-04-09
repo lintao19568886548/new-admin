@@ -45,6 +45,7 @@
     "@capacitor/share": "^8.0.0",
     "@capacitor/status-bar": "^8.0.0",
     "@capawesome/capacitor-android-edge-to-edge-support": "^8.0.3",
+    "@capgo/native-purchases": "^8.3.0",
     "@iconify/vue": "^5.0.0",
     "@ionic/vue": "^8.7.17",
     "@tanstack/vue-query": "catalog:",
