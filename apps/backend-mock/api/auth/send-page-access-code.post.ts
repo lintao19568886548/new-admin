@@ -11,10 +11,7 @@ import {
   saveSmsCode,
   SmsCodeError,
 } from '~/utils/sms-code-store';
-
-interface SendCodeBody {
-  phoneNumber?: string;
-}
+import { resolveCurrentUserPhoneNumber } from '~/utils/user-service';
 
 export default defineEventHandler(async (event) => {
   // 验证用户是否已登录
@@ -23,15 +20,15 @@ export default defineEventHandler(async (event) => {
     return badRequestResponse('请先登录', event);
   }
 
-  const body = (await readBody(event)) as SendCodeBody;
-  const phoneNumber = body?.phoneNumber?.trim();
-
+  const phoneNumber = await resolveCurrentUserPhoneNumber({
+    phone: userinfo.phone,
+    username: userinfo.username,
+  });
   if (!phoneNumber) {
-    return badRequestResponse('手机号不能为空', event);
-  }
-
-  if (!/^\d{11}$/.test(phoneNumber)) {
-    return badRequestResponse('请输入 11 位手机号', event);
+    return badRequestResponse(
+      '当前登录账号未绑定有效手机号，请联系管理员',
+      event,
+    );
   }
 
   try {

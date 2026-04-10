@@ -5,10 +5,10 @@ import {
   useResponseSuccess,
 } from '~/utils/response';
 import { SmsCodeError, verifySmsCode } from '~/utils/sms-code-store';
+import { resolveCurrentUserPhoneNumber } from '~/utils/user-service';
 
 interface VerifyCodeBody {
   code?: string;
-  phoneNumber?: string;
 }
 
 export default defineEventHandler(async (event) => {
@@ -19,15 +19,21 @@ export default defineEventHandler(async (event) => {
   }
 
   const body = (await readBody(event)) as VerifyCodeBody;
-  const phoneNumber = body?.phoneNumber?.trim();
   const code = body?.code?.trim();
+  const phoneNumber = await resolveCurrentUserPhoneNumber({
+    phone: userinfo.phone,
+    username: userinfo.username,
+  });
 
-  if (!phoneNumber || !code) {
-    return badRequestResponse('手机号和验证码均不能为空', event);
+  if (!code) {
+    return badRequestResponse('验证码不能为空', event);
   }
 
-  if (!/^\d{11}$/.test(phoneNumber)) {
-    return badRequestResponse('请输入 11 位手机号码', event);
+  if (!phoneNumber) {
+    return badRequestResponse(
+      '当前登录账号未绑定有效手机号，请联系管理员',
+      event,
+    );
   }
 
   try {

@@ -3,6 +3,7 @@ import { verifyAccessToken } from '~/utils/jwt-utils';
 import { getCachedUserInfo, setCachedUserInfo } from '~/utils/permission-cache';
 import {
   fetchUserWithDetails,
+  resolveUserPhoneNumber,
   transformPrismaUserToUserInfo,
 } from '~/utils/user-service';
 
@@ -21,8 +22,9 @@ export default eventHandler(async (event) => {
     customerId,
     userId: Number(userinfo.id),
   }).catch(() => null);
-  if (cached) {
-    return useResponseSuccess(cached);
+  const cachedPhone = cached ? resolveUserPhoneNumber(cached) : '';
+  if (cached && cachedPhone) {
+    return useResponseSuccess({ ...cached, phone: cachedPhone });
   }
 
   const currentUserFromDB = await fetchUserWithDetails(

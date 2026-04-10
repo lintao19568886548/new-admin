@@ -11,6 +11,10 @@ interface BasicUserInfo {
    */
   codes?: string[];
   /**
+   * 手机号
+   */
+  phone?: string;
+  /**
    * 用户昵称
    */
   realName: string;

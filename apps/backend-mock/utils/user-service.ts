@@ -34,6 +34,7 @@ export interface UserInfoForToken {
   tokenVersion: number;
   id: number;
   centerUserId?: number;
+  phone?: string;
   username: string;
   realName: string;
   roles: string[];
@@ -61,6 +62,33 @@ type UserWithFullDetails = User & {
     role: null | PrismaRoleWithParks;
   })[];
 };
+
+function normalizePhoneCandidate(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value).trim();
+}
+
+export function resolveUserPhoneNumber(user: {
+  phone?: unknown;
+  username?: unknown;
+}): string {
+  const username = normalizePhoneCandidate(user.username);
+  if (/^\d{11}$/.test(username)) {
+    return username;
+  }
+
+  const phone = normalizePhoneCandidate(user.phone);
+  if (/^\d{11}$/.test(phone)) {
+    return phone;
+  }
+
+  return '';
+}
 
 /**
  * 从数据库获取用户及其完整的角色和园区信息
@@ -180,6 +208,7 @@ export async function transformPrismaUserToUserInfo(
     customerId,
     tokenVersion: Number(prismaUser.tokenVersion ?? 1),
     id: Number(prismaUser.id),
+    phone: resolveUserPhoneNumber(prismaUser) || undefined,
     username: String(prismaUser.username),
     realName: String(prismaUser.realName),
     roles,
@@ -189,6 +218,24 @@ export async function transformPrismaUserToUserInfo(
     rates,
     codes,
   };
+}
+
+export async function resolveCurrentUserPhoneNumber(params: {
+  phone?: string;
+  prisma?: PrismaClient;
+  username: string;
+}): Promise<string> {
+  const fromPayload = resolveUserPhoneNumber(params);
+  if (fromPayload) {
+    return fromPayload;
+  }
+
+  const currentUser = await fetchUserWithDetails(
+    params.username,
+    params.prisma ?? prismaClient,
+  );
+
+  return currentUser ? resolveUserPhoneNumber(currentUser) : '';
 }
 
 export async function getActiveCustomerForCenterUser(centerUser: {
