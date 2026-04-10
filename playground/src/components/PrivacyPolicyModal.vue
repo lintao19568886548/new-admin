@@ -1,9 +1,14 @@
 <!-- eslint-disable prettier/prettier -->
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 
 import { App as CapacitorApp } from '@capacitor/app';
 import { Button, Modal } from 'ant-design-vue';
+
+import {
+  OPEN_PRIVACY_POLICY_EVENT,
+  OPEN_SERVICE_AGREEMENT_EVENT,
+} from '#/utils/policy-actions';
 
 defineOptions({ name: 'PrivacyPolicyModal' });
 
@@ -139,8 +144,34 @@ function openServiceAgreement() {
   showServiceContentModal.value = true;
 }
 
+function bindPolicyEvents() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.addEventListener(OPEN_PRIVACY_POLICY_EVENT, openPrivacyPolicy);
+  window.addEventListener(OPEN_SERVICE_AGREEMENT_EVENT, openServiceAgreement);
+}
+
+function unbindPolicyEvents() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.removeEventListener(OPEN_PRIVACY_POLICY_EVENT, openPrivacyPolicy);
+  window.removeEventListener(
+    OPEN_SERVICE_AGREEMENT_EVENT,
+    openServiceAgreement,
+  );
+}
+
 onMounted(() => {
   checkPrivacyAgreement();
+  bindPolicyEvents();
+});
+
+onUnmounted(() => {
+  unbindPolicyEvents();
 });
 </script>
 

@@ -18,6 +18,10 @@ import { Avatar, Card, List, ListItem, message, Modal } from 'ant-design-vue';
 import { cancelCurrentUserApi } from '#/api';
 import BusinessCard from '#/components/Businesscard.vue';
 import { useAuthStore } from '#/store';
+import {
+  openPrivacyPolicyDialog,
+  openServiceAgreementDialog,
+} from '#/utils/policy-actions';
 import { checkAppUpdate } from '#/utils/update-service';
 import EditPassword from '#/views/_core/authentication/edit-password.vue';
 
@@ -173,6 +177,14 @@ function handleOpenFeedback() {
   showFeedbackModal.value = true;
 }
 
+function handleOpenPrivacyPolicy() {
+  openPrivacyPolicyDialog();
+}
+
+function handleOpenServiceAgreement() {
+  openServiceAgreementDialog();
+}
+
 // function handleEditProfile() {
 //   message.info('该功能正在开发中...');
 // }
@@ -213,6 +225,16 @@ const actions = computed(() => {
       handler: handleOpenFeedback,
       icon: 'mdi:message-text-outline',
       title: '意见反馈',
+    },
+    {
+      handler: handleOpenPrivacyPolicy,
+      icon: 'mdi:shield-account-outline',
+      title: '\u9690\u79C1\u653F\u7B56',
+    },
+    {
+      handler: handleOpenServiceAgreement,
+      icon: 'mdi:file-document-outline',
+      title: '\u670D\u52A1\u534F\u8BAE',
     },
     {
       danger: true,
