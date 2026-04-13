@@ -31,10 +31,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <data
-                    android:host="link.yizuw.cn"
-                    android:pathPrefix="/ul/link/"
-                    android:scheme="https" />
+                <data android:host="link.yizuw.cn" android:pathPrefix="/ul/link/" android:scheme="https" />
             </intent-filter>
         </activity>
 
