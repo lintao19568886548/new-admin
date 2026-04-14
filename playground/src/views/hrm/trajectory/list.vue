@@ -417,16 +417,11 @@ const handleExport = async () => {
         { header: '下班打卡', key: 'punchOut', width: 15 },
         { header: '状态', key: 'status', width: 20 },
         { header: '工时(h)', key: 'workHours', width: 10 },
+        { header: '定位状态', key: 'locationStatus', width: 15 },
+        { header: '地址', key: 'address', width: 40 },
         { header: '纬度', key: 'latitude', width: 20 },
         { header: '经度', key: 'longitude', width: 20 },
       ];
-
-      worksheet.columns.splice(
-        6,
-        0,
-        { header: '定位状态', key: 'locationStatus', width: 15 },
-        { header: '地址', key: 'address', width: 40 },
-      );
 
       const statusMap = {
         0: '正常',
