@@ -13,7 +13,7 @@
 ## 已知限制
 
 - 当前 deep-link 兜底链路以 Android 为主，iOS Universal Link 的完整上架后链路暂未验收。
-- 下载页当前仍沿用 Android 优先逻辑；iOS 上架前需要补齐 `iosUrl` 优先与 App Store 跳转策略。
+- 下载页的 iOS 商店地址由后端固定返回；如需变更 App Store 链接，修改 `/system/version` 接口常量即可。
 
 ## 已实现参数
 
