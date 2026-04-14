@@ -68,6 +68,7 @@ const PUBLIC_SHARE_ORIGIN =
 const WECHAT_OPEN_APP_ID = import.meta.env.VITE_WECHAT_OPEN_APP_ID || '';
 const isNativePlatform = Capacitor.isNativePlatform();
 const isNativeAndroid = Capacitor.getPlatform() === 'android';
+const brandLogoUrl = '/assets/favicon.png';
 
 // 辅助函数，用于确定图片URL列表
 const determineImageUrls = (
@@ -696,97 +697,118 @@ onUnmounted(() => {
 
     <!-- 厂房基本信息 -->
     <Card>
-      <div class="flex flex-col md:flex-row">
-        <div class="mb-4 flex items-center">
-          <h1 class="mr-4 text-2xl font-bold">{{ detail.factoryName }}</h1>
-          <Tag class="rounded-md px-2 text-base">
-            {{ currentTag }}
-          </Tag>
-        </div>
-        <div class="p-4 md:w-1/3">
-          <!-- 如果有多张图片，使用轮播图展示 -->
-          <Carousel
-            v-if="detail.imageUrls && detail.imageUrls.length > 1"
-            autoplay
-            arrows
-          >
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+          <div class="flex min-w-0 flex-wrap items-center gap-3">
+            <h1 class="text-2xl font-bold">{{ detail.factoryName }}</h1>
+            <Tag class="rounded-md px-2 text-base">
+              {{ currentTag }}
+            </Tag>
+          </div>
+          <div class="ml-auto flex shrink-0 justify-end">
             <div
-              v-for="(url, index) in detail.imageUrls"
-              :key="index"
-              class="cursor-pointer"
-              @click="openImagePreview(detail.imageUrls, index)"
+              class="flex h-16 w-16 items-center justify-center rounded-2xl border border-gray-200 bg-white p-2 shadow-sm"
             >
-              <Image
-                :src="url || store.defaultImgUrl"
-                :alt="`${detail.factoryName}-图片${index + 1}`"
-                class="w-full rounded-lg shadow-md"
-                :preview="false"
+              <img
+                :src="brandLogoUrl"
+                alt="品牌 Logo"
+                class="h-full w-full object-contain"
+                height="64"
+                width="64"
               />
             </div>
-          </Carousel>
-          <!-- 如果只有一张图片，直接展示 -->
-          <Image
-            v-else
-            :src="detail.imageUrls[0] || store.defaultImgUrl"
-            :alt="detail.factoryName"
-            class="w-full cursor-pointer rounded-lg shadow-md"
-            :preview="false"
-            @click="openImagePreview(detail.imageUrls)"
-          />
-        </div>
-        <div class="p-4 md:w-2/3">
-          <Descriptions
-            bordered
-            :column="{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }"
-          >
-            <Descriptions.Item label="总面积">
-              {{ getFactoryFloorStats().totalArea }} m²
-            </Descriptions.Item>
-            <Descriptions.Item label="已用面积">
-              {{ getFactoryFloorStats().usedArea }} m²
-            </Descriptions.Item>
-            <Descriptions.Item label="可租面积">
-              {{ getFactoryFloorStats().availableArea }} m²
-            </Descriptions.Item>
-            <Descriptions.Item label="地址">
-              {{ detail.address }}
-            </Descriptions.Item>
-            <Descriptions.Item label="联系方式">
-              {{ detail.contact }}
-            </Descriptions.Item>
-            <Descriptions.Item label="建设时间">
-              {{ detail.buildTime ? formatDateTime(detail.buildTime) : '未知' }}
-            </Descriptions.Item>
-            <Descriptions.Item label="创建时间">
-              {{
-                detail.createTime ? formatDateTime(detail.createTime) : '未知'
-              }}
-            </Descriptions.Item>
-            <Descriptions.Item label="更新时间">
-              {{
-                detail.updateTime ? formatDateTime(detail.updateTime) : '未更新'
-              }}
-            </Descriptions.Item>
-          </Descriptions>
-
-          <Divider />
-
-          <div class="mb-4">
-            <h3 class="mb-2 text-lg font-semibold">厂房特点</h3>
-            <div class="flex flex-wrap gap-2">
-              <Tag
-                v-for="feature in factoryFeatures"
-                :key="feature"
-                class="rounded-md px-3 py-1"
-              >
-                {{ feature }}
-              </Tag>
-            </div>
           </div>
+        </div>
+        <div class="flex flex-col md:flex-row">
+          <div class="p-4 md:w-1/3">
+            <!-- 如果有多张图片，使用轮播图展示 -->
+            <Carousel
+              v-if="detail.imageUrls && detail.imageUrls.length > 1"
+              autoplay
+              arrows
+            >
+              <div
+                v-for="(url, index) in detail.imageUrls"
+                :key="index"
+                class="cursor-pointer"
+                @click="openImagePreview(detail.imageUrls, index)"
+              >
+                <Image
+                  :src="url || store.defaultImgUrl"
+                  :alt="`${detail.factoryName}-图片${index + 1}`"
+                  class="w-full rounded-lg shadow-md"
+                  :preview="false"
+                />
+              </div>
+            </Carousel>
+            <!-- 如果只有一张图片，直接展示 -->
+            <Image
+              v-else
+              :src="detail.imageUrls[0] || store.defaultImgUrl"
+              :alt="detail.factoryName"
+              class="w-full cursor-pointer rounded-lg shadow-md"
+              :preview="false"
+              @click="openImagePreview(detail.imageUrls)"
+            />
+          </div>
+          <div class="p-4 md:w-2/3">
+            <Descriptions
+              bordered
+              :column="{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }"
+            >
+              <Descriptions.Item label="总面积">
+                {{ getFactoryFloorStats().totalArea }} m²
+              </Descriptions.Item>
+              <Descriptions.Item label="已用面积">
+                {{ getFactoryFloorStats().usedArea }} m²
+              </Descriptions.Item>
+              <Descriptions.Item label="可租面积">
+                {{ getFactoryFloorStats().availableArea }} m²
+              </Descriptions.Item>
+              <Descriptions.Item label="地址">
+                {{ detail.address }}
+              </Descriptions.Item>
+              <Descriptions.Item label="联系方式">
+                {{ detail.contact }}
+              </Descriptions.Item>
+              <Descriptions.Item label="建设时间">
+                {{
+                  detail.buildTime ? formatDateTime(detail.buildTime) : '未知'
+                }}
+              </Descriptions.Item>
+              <Descriptions.Item label="创建时间">
+                {{
+                  detail.createTime ? formatDateTime(detail.createTime) : '未知'
+                }}
+              </Descriptions.Item>
+              <Descriptions.Item label="更新时间">
+                {{
+                  detail.updateTime
+                    ? formatDateTime(detail.updateTime)
+                    : '未更新'
+                }}
+              </Descriptions.Item>
+            </Descriptions>
 
-          <div v-if="detail.description">
-            <h3 class="mb-2 text-lg font-semibold">厂房描述</h3>
-            <p class="text-gray-600">{{ detail.description }}</p>
+            <Divider />
+
+            <div class="mb-4">
+              <h3 class="mb-2 text-lg font-semibold">厂房特点</h3>
+              <div class="flex flex-wrap gap-2">
+                <Tag
+                  v-for="feature in factoryFeatures"
+                  :key="feature"
+                  class="rounded-md px-3 py-1"
+                >
+                  {{ feature }}
+                </Tag>
+              </div>
+            </div>
+
+            <div v-if="detail.description">
+              <h3 class="mb-2 text-lg font-semibold">厂房描述</h3>
+              <p class="text-gray-600">{{ detail.description }}</p>
+            </div>
           </div>
         </div>
       </div>
