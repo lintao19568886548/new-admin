@@ -133,6 +133,9 @@
         var isDebug = params.get('debug') === '1';
         var ua = navigator.userAgent || '';
         var isAndroid = /Android/i.test(ua);
+        var isIos =
+          /iPhone|iPad|iPod/i.test(ua) ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         var targetText = document.getElementById('targetText');
         var retryBtn = document.getElementById('retryBtn');
         var downloadBtn = document.getElementById('downloadBtn');
@@ -226,8 +229,19 @@
         targetText.textContent = target;
         continueBtn.href = buildWebFallbackUrl();
         downloadBtn.href = buildDownloadUrl();
-        retryBtn.href = isAndroid ? buildIntentLaunchUrl() : buildWebFallbackUrl();
-        retryBtn.textContent = isAndroid ? '再次打开 App' : '继续浏览网页';
+
+        if (isAndroid) {
+          retryBtn.href = buildIntentLaunchUrl();
+          retryBtn.textContent = '再次打开 App';
+        } else if (isIos) {
+          retryBtn.classList.add('hidden');
+          downloadBtn.classList.remove('secondary');
+          downloadBtn.classList.add('primary');
+        } else {
+          retryBtn.href = buildWebFallbackUrl();
+          retryBtn.textContent = '继续浏览网页';
+          continueBtn.classList.add('hidden');
+        }
 
         if (isDebug) {
           debugUrl.classList.remove('hidden');
