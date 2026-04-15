@@ -70,6 +70,10 @@ export default eventHandler(async (event) => {
   const centerUser = centerUserBelongsCurrentCustomer ? centerUserRaw : null;
   await prismaScopeStorage.run({ customerId }, async () =>
     prismaClient.$transaction(async (prisma) => {
+      await (prisma.employee as any).updateMany({
+        where: { userId: id },
+        data: { userId: null },
+      });
       await prisma.user.update({
         where: { id },
         data: { status: 2 },

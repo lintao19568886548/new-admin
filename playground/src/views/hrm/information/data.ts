@@ -7,11 +7,19 @@ import type { EmployeeApi } from '#/api/hrm/employee';
 import { formatDate } from '@vben/utils';
 
 import { z } from '#/adapter/form';
+import { getEmployeeAccountDisplayName } from '#/api/hrm/employee';
+
+interface EmployeeSchemaOptions {
+  userSelectComponentProps?: (...args: any[]) => Record<string, any>;
+  userSelectRenderContent?: () => Record<string, any>;
+}
 
 /**
  * 员工表单的字段配置
  */
-export function useSchema(): VbenFormSchema[] {
+export function useSchema(
+  options: EmployeeSchemaOptions = {},
+): VbenFormSchema[] {
   return [
     {
       component: 'Input',
@@ -41,6 +49,28 @@ export function useSchema(): VbenFormSchema[] {
       fieldName: 'phone',
       label: '手机号',
       rules: z.string().regex(/^1[3-9]\d{9}$/, '请输入正确的手机号码'),
+    },
+    {
+      component: 'ApiSelect',
+      componentProps: (...args: any[]) => {
+        const customProps = options.userSelectComponentProps?.(...args) ?? {};
+        const customStyle =
+          typeof customProps.style === 'object' && customProps.style
+            ? customProps.style
+            : {};
+        return {
+          ...customProps,
+          allowClear: customProps.allowClear ?? true,
+          placeholder: customProps.placeholder ?? '请选择绑定账号',
+          style: {
+            ...customStyle,
+            width: '100%',
+          },
+        };
+      },
+      fieldName: 'userId',
+      label: '绑定账号',
+      renderComponentContent: options.userSelectRenderContent,
     },
     {
       component: 'Input',
@@ -193,6 +223,12 @@ export function useColumns(
       field: 'phone',
       title: '手机号',
       width: 120,
+    },
+    {
+      field: 'accountRealName',
+      formatter: ({ row }) => getEmployeeAccountDisplayName(row) || '未绑定',
+      minWidth: 220,
+      title: '绑定账号',
     },
     {
       field: 'idNumber',

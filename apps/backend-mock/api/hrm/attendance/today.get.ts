@@ -57,12 +57,22 @@ export default eventHandler(async (event) => {
       startOfToday,
       endOfToday,
     );
-    const attendanceState = resolveAttendanceState({
+    const attendanceState = await resolveAttendanceState({
       punchIn: todayRecord.punchIn,
       punchOut: todayRecord.punchOut,
       leaveRanges: todayRecord.userId
         ? (leaveMap.get(todayRecord.userId) ?? [])
         : [],
+      phone: todayRecord.userId === userinfo.id ? userinfo.phone : undefined,
+      realName:
+        todayRecord.userId === userinfo.id
+          ? userinfo.realName
+          : todayRecord.username,
+      userId: todayRecord.userId ?? userinfo.id,
+      username:
+        todayRecord.userId === userinfo.id
+          ? userinfo.username
+          : todayRecord.username,
     });
 
     return useResponseSuccess({

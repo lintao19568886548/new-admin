@@ -42,12 +42,44 @@ export default eventHandler(async (event) => {
       punchOutMoment.startOf('day').toDate(),
       punchOutMoment.endOf('day').toDate(),
     );
-    const { status } = resolveAttendanceState({
+    const attendanceUser = existingAttendance.userId
+      ? await prismaClient.user.findUnique({
+          where: {
+            id: existingAttendance.userId,
+          },
+          select: {
+            phone: true,
+            realName: true,
+            username: true,
+          },
+        })
+      : null;
+    let fallbackRealName: string | undefined;
+    let fallbackUsername: string | undefined;
+
+    if (existingAttendance.userId) {
+      if (existingAttendance.userId === userinfo.id) {
+        fallbackRealName = userinfo.realName;
+        fallbackUsername = userinfo.username;
+      }
+    } else {
+      fallbackRealName = existingAttendance.username;
+      fallbackUsername = existingAttendance.username;
+    }
+    const { status } = await resolveAttendanceState({
       punchIn: existingAttendance.punchIn,
       punchOut: new Date(punchTime),
       leaveRanges: existingAttendance.userId
         ? (leaveMap.get(existingAttendance.userId) ?? [])
         : [],
+      phone:
+        attendanceUser?.phone ||
+        (existingAttendance.userId === userinfo.id
+          ? userinfo.phone
+          : undefined),
+      realName: attendanceUser?.realName || fallbackRealName,
+      userId: existingAttendance.userId ?? userinfo.id,
+      username: attendanceUser?.username || fallbackUsername,
     });
 
     const updatedAttendance = await prismaClient.attendance.update({

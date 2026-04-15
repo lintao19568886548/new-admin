@@ -52,9 +52,13 @@ export default eventHandler(async (event) => {
       punchInMoment.startOf('day').toDate(),
       punchInMoment.endOf('day').toDate(),
     );
-    const { status } = resolveAttendanceState({
+    const { status } = await resolveAttendanceState({
       punchIn: new Date(punchTime),
       leaveRanges: leaveMap.get(userinfo.id) ?? [],
+      phone: userinfo.phone,
+      realName: userinfo.realName,
+      userId: userinfo.id,
+      username: userinfo.username,
     });
 
     const newAttendance = await prismaClient.attendance.create({

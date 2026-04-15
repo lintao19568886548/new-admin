@@ -1,31 +1,80 @@
 <script lang="ts" setup>
 import type { EmployeeApi } from '#/api/hrm/employee';
 
-import { computed, ref } from 'vue';
+import { computed, h, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button, message } from 'ant-design-vue';
+import { useDebounceFn } from '@vueuse/core';
+import { Button, message, Spin } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { useVbenForm } from '#/adapter/form';
-import { createEmployee, updateEmployee } from '#/api/hrm/employee';
+import {
+  createEmployee,
+  getEmployeeAccountOptions,
+  updateEmployee,
+} from '#/api/hrm/employee';
 import { $t } from '#/locales';
 
 import { useSchema } from '../data';
 
 const emit = defineEmits(['success']);
 
-const recordId = ref();
+const currentRecord = ref<EmployeeApi.Employee | null>(null);
+const recordId = ref<null | number>(null);
+const accountKeyword = ref('');
+const accountLoading = ref(false);
+
+const handleAccountSearch = useDebounceFn((value: string) => {
+  accountKeyword.value = value;
+}, 300);
+
+async function fetchEmployeeAccountOptions(params?: Record<string, any>) {
+  accountLoading.value = true;
+  try {
+    return await getEmployeeAccountOptions(params);
+  } finally {
+    accountLoading.value = false;
+  }
+}
 
 const [Form, formApi] = useVbenForm({
   layout: 'vertical',
-  schema: useSchema(),
+  schema: useSchema({
+    userSelectComponentProps: () => ({
+      allowClear: true,
+      api: fetchEmployeeAccountOptions,
+      filterOption: false,
+      labelField: 'label',
+      onClear: () => {
+        accountKeyword.value = '';
+      },
+      onSearch: handleAccountSearch,
+      params: {
+        employeeId: recordId.value || undefined,
+        keyword: accountKeyword.value || undefined,
+      },
+      placeholder: '请选择绑定账号',
+      showSearch: true,
+      valueField: 'value',
+    }),
+    userSelectRenderContent: () => ({
+      notFoundContent: accountLoading.value ? h(Spin) : undefined,
+    }),
+  }),
   showDefaultActions: false,
 });
 
 function resetForm() {
+  accountKeyword.value = '';
   formApi.resetForm();
+  formApi.setValues(
+    currentRecord.value ?? {
+      gender: '男',
+      isResigned: false,
+    },
+  );
 }
 
 const [Modal, modalApi] = useVbenModal({
@@ -72,14 +121,18 @@ const [Modal, modalApi] = useVbenModal({
   onOpenChange(isOpen) {
     if (isOpen) {
       const data = modalApi.getData<EmployeeApi.Employee>();
+      accountKeyword.value = '';
       formApi.resetForm();
       if (data && data.employeeId) {
         recordId.value = data.employeeId;
+        currentRecord.value = data;
         formApi.setValues(data);
       } else {
-        recordId.value = undefined;
+        recordId.value = null;
+        currentRecord.value = null;
         formApi.setValues({
           gender: '男',
+          isResigned: false,
         });
       }
     }

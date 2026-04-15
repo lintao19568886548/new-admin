@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type {
+  AttendanceConfig,
   AttendanceLeaveScope,
   TodayAttendanceRecord,
 } from '#/api/hrm/attendance';
@@ -14,6 +15,7 @@ import { Button, message, Modal, Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import {
+  getAttendanceConfig,
   getOfficeLocations,
   getTodayRecord,
   punchIn,
@@ -61,8 +63,11 @@ const leaveScopeMeta: Record<
   partial: { color: 'cyan', text: '部分请假' },
 };
 
-// 默认下班时间
-const standardWorkEndTime = '18:00:00';
+const defaultAttendanceConfig: AttendanceConfig = {
+  scheduledCheckIn: '09:00:00',
+  scheduledCheckOut: '18:00:00',
+  source: 'default',
+};
 
 // ================================= 响应式数据 =================================
 const currentLocation = ref('');
@@ -82,6 +87,8 @@ const layoutStore = useLayoutStore();
 
 // 打卡点
 const officeLocations = ref<OfficeLocation[]>([]);
+const attendanceConfig = ref<AttendanceConfig>(defaultAttendanceConfig);
+const isAttendanceConfigLoaded = ref(false);
 
 // 今日打卡记录
 const todayRecord = ref<null | TodayRecord>(null);
@@ -157,7 +164,9 @@ const confirmOutsideRange = async () => {
 
 const confirmEarlyLeave = async () => {
   const now = dayjs();
-  const endTime = dayjs(`${now.format('YYYY-MM-DD')} ${standardWorkEndTime}`);
+  const endTime = dayjs(
+    `${now.format('YYYY-MM-DD')} ${attendanceConfig.value.scheduledCheckOut}`,
+  );
   if (!now.isBefore(endTime)) {
     return true;
   }
@@ -454,6 +463,17 @@ const getLeaveScopeInfo = (leaveScope: AttendanceLeaveScope) => {
   return leaveScopeMeta[leaveScope];
 };
 
+const loadAttendanceConfig = async () => {
+  try {
+    attendanceConfig.value = await getAttendanceConfig();
+  } catch (error) {
+    console.error('加载考勤配置失败:', error);
+    attendanceConfig.value = { ...defaultAttendanceConfig };
+  } finally {
+    isAttendanceConfigLoaded.value = true;
+  }
+};
+
 // 加载今日记录
 const loadTodayRecord = async () => {
   if (!userInfo?.realName) return; // 如果没有 username，则不执行
@@ -491,8 +511,13 @@ watch(
   () => userInfo?.realName,
   (newUsername, oldUsername) => {
     if (newUsername && newUsername !== oldUsername) {
+      isAttendanceConfigLoaded.value = false;
+      attendanceConfig.value = { ...defaultAttendanceConfig };
       isTodayRecordLoaded.value = false;
       todayRecord.value = null;
+    }
+    if (newUsername && !isAttendanceConfigLoaded.value) {
+      loadAttendanceConfig();
     }
     if (newUsername && !isTodayRecordLoaded.value) {
       loadTodayRecord();

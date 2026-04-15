@@ -84,38 +84,43 @@ export default eventHandler(async (event) => {
           )
         : new Map<number, { end: Date; start: Date }[]>();
 
-    const formattedItems = records.map((record) => {
-      let workHours = 0;
-      if (record.punchIn && record.punchOut) {
-        const workDuration = dayjs(record.punchOut).diff(
-          dayjs(record.punchIn),
-          'hour',
-          true,
-        );
-        workHours = Math.round(workDuration * 100) / 100;
-      }
+    const formattedItems = await Promise.all(
+      records.map(async (record) => {
+        let workHours = 0;
+        if (record.punchIn && record.punchOut) {
+          const workDuration = dayjs(record.punchOut).diff(
+            dayjs(record.punchIn),
+            'hour',
+            true,
+          );
+          workHours = Math.round(workDuration * 100) / 100;
+        }
 
-      const attendanceState = resolveAttendanceState({
-        punchIn: record.punchIn,
-        punchOut: record.punchOut,
-        leaveRanges: record.userId ? (leaveMap.get(record.userId) ?? []) : [],
-      });
+        const attendanceState = await resolveAttendanceState({
+          punchIn: record.punchIn,
+          punchOut: record.punchOut,
+          leaveRanges: record.userId ? (leaveMap.get(record.userId) ?? []) : [],
+          realName: record.userId ? undefined : record.username,
+          userId: record.userId ?? userinfo.id,
+          username: record.userId ? undefined : record.username,
+        });
 
-      return {
-        attendanceId: record.attendanceId,
-        id: record.attendanceId,
-        key: record.attendanceId,
-        date: dayjs(record.punchIn).format('YYYY-MM-DD'),
-        leaveMinutes: attendanceState.leaveMinutes,
-        leaveScope: attendanceState.leaveScope,
-        punchIn: dayjs(record.punchIn).format('HH:mm:ss'),
-        punchOut: record.punchOut
-          ? dayjs(record.punchOut).format('HH:mm:ss')
-          : '-',
-        status: attendanceState.status,
-        workHours,
-      };
-    });
+        return {
+          attendanceId: record.attendanceId,
+          id: record.attendanceId,
+          key: record.attendanceId,
+          date: dayjs(record.punchIn).format('YYYY-MM-DD'),
+          leaveMinutes: attendanceState.leaveMinutes,
+          leaveScope: attendanceState.leaveScope,
+          punchIn: dayjs(record.punchIn).format('HH:mm:ss'),
+          punchOut: record.punchOut
+            ? dayjs(record.punchOut).format('HH:mm:ss')
+            : '-',
+          status: attendanceState.status,
+          workHours,
+        };
+      }),
+    );
 
     return useResponseSuccess({
       items: formattedItems,

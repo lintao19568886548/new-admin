@@ -1,5 +1,10 @@
 import dayjs from 'dayjs';
 import { prismaClient } from '~/utils/db';
+import { resolveUserPhoneNumber } from '~/utils/user-service';
+
+function getEmployeeModel() {
+  return prismaClient.employee as any;
+}
 
 export const AttendanceStatus = {
   Normal: 0,
@@ -21,12 +26,44 @@ export type AttendanceStatusValue =
 
 export type LeaveScopeValue = (typeof LeaveScope)[keyof typeof LeaveScope];
 
+export interface AttendanceScheduleConfig {
+  employeeId?: number;
+  scheduledCheckIn: string;
+  scheduledCheckOut: string;
+  source: 'default' | 'employee';
+  userId?: number;
+}
+
 type TimeRange = {
   end: Date;
   start: Date;
 };
 
+type AttendanceScheduleIdentity = {
+  phone?: null | string;
+  realName?: null | string;
+  userId?: null | number;
+  username?: null | string;
+};
+
+type EmployeeScheduleRecord = {
+  checkIn: Date | null;
+  checkOut: Date | null;
+  employeeId: number;
+  name: string;
+  phone: null | string;
+  userId: null | number;
+};
+
 const APPROVED_LEAVE_STATUS = 1;
+const DEFAULT_SCHEDULE: Pick<
+  AttendanceScheduleConfig,
+  'scheduledCheckIn' | 'scheduledCheckOut' | 'source'
+> = {
+  scheduledCheckIn: '09:00:00',
+  scheduledCheckOut: '18:00:00',
+  source: 'default',
+};
 
 const WORK_INTERVAL_HOURS = [
   { start: 9, end: 12 },
@@ -122,6 +159,262 @@ function sumRangeMinutes(ranges: TimeRange[]) {
   }, 0);
 }
 
+function normalizeText(value: unknown) {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value).trim();
+}
+
+function normalizeScheduleTime(value: Date | null | string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = dayjs(value);
+  if (!parsed.isValid()) {
+    return null;
+  }
+
+  return parsed.format('HH:mm:ss');
+}
+
+function buildScheduleConfig(
+  employee?: EmployeeScheduleRecord,
+): AttendanceScheduleConfig {
+  return {
+    employeeId: employee?.employeeId,
+    scheduledCheckIn:
+      normalizeScheduleTime(employee?.checkIn) ??
+      DEFAULT_SCHEDULE.scheduledCheckIn,
+    scheduledCheckOut:
+      normalizeScheduleTime(employee?.checkOut) ??
+      DEFAULT_SCHEDULE.scheduledCheckOut,
+    source: employee ? 'employee' : DEFAULT_SCHEDULE.source,
+  };
+}
+
+function parseScheduleBoundary(dayStart: dayjs.Dayjs, timeText: string) {
+  const [hourText = '0', minuteText = '0', secondText = '0'] =
+    timeText.split(':');
+  const hour = Number.parseInt(hourText, 10);
+  const minute = Number.parseInt(minuteText, 10);
+  const second = Number.parseInt(secondText, 10);
+
+  if (
+    [hour, minute, second].some((value) => Number.isNaN(value)) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59 ||
+    second < 0 ||
+    second > 59
+  ) {
+    return null;
+  }
+
+  return dayStart
+    .hour(hour)
+    .minute(minute)
+    .second(second)
+    .millisecond(0)
+    .toDate();
+}
+
+function resolveScheduleRange(
+  dayStart: dayjs.Dayjs,
+  schedule: AttendanceScheduleConfig,
+) {
+  const defaultStart = parseScheduleBoundary(
+    dayStart,
+    DEFAULT_SCHEDULE.scheduledCheckIn,
+  );
+  const defaultEnd = parseScheduleBoundary(
+    dayStart,
+    DEFAULT_SCHEDULE.scheduledCheckOut,
+  );
+
+  if (!defaultStart || !defaultEnd) {
+    throw new Error('默认考勤时间配置无效');
+  }
+
+  const start =
+    parseScheduleBoundary(dayStart, schedule.scheduledCheckIn) ?? defaultStart;
+  const end =
+    parseScheduleBoundary(dayStart, schedule.scheduledCheckOut) ?? defaultEnd;
+
+  if (end.getTime() <= start.getTime()) {
+    return {
+      end: defaultEnd,
+      start: defaultStart,
+    };
+  }
+
+  return { end, start };
+}
+
+export async function getAttendanceScheduleMapForUsers(
+  users: AttendanceScheduleIdentity[],
+) {
+  const identities = new Map<number, AttendanceScheduleIdentity>();
+
+  for (const user of users) {
+    const userId = Number(user.userId);
+    if (!userId || Number.isNaN(userId)) {
+      continue;
+    }
+
+    const previous = identities.get(userId) ?? {};
+    identities.set(userId, {
+      phone: previous.phone ?? user.phone,
+      realName: previous.realName ?? user.realName,
+      userId,
+      username: previous.username ?? user.username,
+    });
+  }
+
+  const userIds = [...identities.keys()];
+  if (userIds.length === 0) {
+    return new Map<number, AttendanceScheduleConfig>();
+  }
+
+  const userRecords = await prismaClient.user.findMany({
+    select: {
+      id: true,
+      phone: true,
+      realName: true,
+      username: true,
+    },
+    where: {
+      id: {
+        in: userIds,
+      },
+    },
+  });
+
+  for (const userRecord of userRecords) {
+    const current = identities.get(userRecord.id) ?? { userId: userRecord.id };
+    identities.set(userRecord.id, {
+      phone: current.phone ?? userRecord.phone,
+      realName: current.realName ?? userRecord.realName,
+      userId: userRecord.id,
+      username: current.username ?? userRecord.username,
+    });
+  }
+
+  const phoneCandidates = [...identities.values()]
+    .map((user) =>
+      resolveUserPhoneNumber({
+        phone: user.phone,
+        username: user.username,
+      }),
+    )
+    .filter(Boolean);
+  const realNames = [...identities.values()]
+    .map((user) => normalizeText(user.realName))
+    .filter(Boolean);
+
+  let employees: EmployeeScheduleRecord[] = [];
+  if (phoneCandidates.length > 0 || realNames.length > 0) {
+    const employeeModel = getEmployeeModel();
+    const orConditions: Array<Record<string, any>> = [];
+
+    if (phoneCandidates.length > 0) {
+      orConditions.push({
+        phone: {
+          in: [...new Set(phoneCandidates)],
+        },
+      });
+    }
+
+    if (realNames.length > 0) {
+      orConditions.push({
+        name: {
+          in: [...new Set(realNames)],
+        },
+      });
+    }
+
+    employees = await employeeModel.findMany({
+      orderBy: {
+        createTime: 'desc',
+      },
+      select: {
+        checkIn: true,
+        checkOut: true,
+        employeeId: true,
+        name: true,
+        phone: true,
+        userId: true,
+      },
+      where: {
+        isDeleted: false,
+        OR: orConditions,
+      },
+    });
+  }
+
+  const employeeByPhone = new Map<string, EmployeeScheduleRecord>();
+  const employeeByName = new Map<string, EmployeeScheduleRecord>();
+  const employeeByUserId = new Map<number, EmployeeScheduleRecord>();
+
+  for (const employee of employees) {
+    const boundUserId = Number(employee.userId);
+    if (Number.isFinite(boundUserId) && boundUserId > 0) {
+      if (!employeeByUserId.has(boundUserId)) {
+        employeeByUserId.set(boundUserId, employee);
+      }
+      continue;
+    }
+
+    const employeePhone = normalizeText(employee.phone);
+    if (employeePhone && !employeeByPhone.has(employeePhone)) {
+      employeeByPhone.set(employeePhone, employee);
+    }
+
+    const employeeName = normalizeText(employee.name);
+    if (employeeName && !employeeByName.has(employeeName)) {
+      employeeByName.set(employeeName, employee);
+    }
+  }
+
+  const scheduleMap = new Map<number, AttendanceScheduleConfig>();
+
+  for (const [userId, user] of identities.entries()) {
+    const resolvedPhone = resolveUserPhoneNumber({
+      phone: user.phone,
+      username: user.username,
+    });
+    const resolvedName = normalizeText(user.realName);
+    const matchedEmployee =
+      employeeByUserId.get(userId) ??
+      (resolvedPhone ? employeeByPhone.get(resolvedPhone) : undefined) ??
+      (resolvedName ? employeeByName.get(resolvedName) : undefined);
+
+    scheduleMap.set(userId, {
+      ...buildScheduleConfig(matchedEmployee),
+      userId,
+    });
+  }
+
+  return scheduleMap;
+}
+
+export async function getAttendanceScheduleForUser(
+  user: AttendanceScheduleIdentity & { userId: number },
+) {
+  const scheduleMap = await getAttendanceScheduleMapForUsers([user]);
+  return (
+    scheduleMap.get(user.userId) ?? {
+      ...DEFAULT_SCHEDULE,
+      userId: user.userId,
+    }
+  );
+}
+
 export async function getApprovedLeaveRangesByUserIds(
   userIds: number[],
   rangeStart: Date,
@@ -202,16 +495,23 @@ export function getDailyLeaveSummary(
   };
 }
 
-export function resolveAttendanceState(params: {
+export function resolveAttendanceStateWithSchedule(params: {
   leaveRanges?: TimeRange[];
   punchIn: Date;
   punchOut?: Date | null;
+  schedule: AttendanceScheduleConfig;
 }) {
   const punchInMoment = dayjs(params.punchIn);
-  const { leaveMinutes, leaveScope, requiredSegments } = getDailyLeaveSummary(
+  const normalizedLeaveRanges = normalizeRanges(params.leaveRanges ?? []);
+  const { leaveMinutes, leaveScope } = getDailyLeaveSummary(
     punchInMoment.startOf('day'),
-    params.leaveRanges ?? [],
+    normalizedLeaveRanges,
   );
+  const scheduleRange = resolveScheduleRange(
+    punchInMoment.startOf('day'),
+    params.schedule,
+  );
+  const requiredSegments = subtractRange(scheduleRange, normalizedLeaveRanges);
 
   let status: AttendanceStatusValue = AttendanceStatus.Normal;
 
@@ -238,8 +538,33 @@ export function resolveAttendanceState(params: {
   return {
     leaveMinutes,
     leaveScope,
+    schedule: params.schedule,
     status,
   };
+}
+
+export async function resolveAttendanceState(params: {
+  leaveRanges?: TimeRange[];
+  phone?: null | string;
+  punchIn: Date;
+  punchOut?: Date | null;
+  realName?: null | string;
+  userId: number;
+  username?: null | string;
+}) {
+  const schedule = await getAttendanceScheduleForUser({
+    phone: params.phone,
+    realName: params.realName,
+    userId: params.userId,
+    username: params.username,
+  });
+
+  return resolveAttendanceStateWithSchedule({
+    leaveRanges: params.leaveRanges,
+    punchIn: params.punchIn,
+    punchOut: params.punchOut,
+    schedule,
+  });
 }
 
 export function calculateApprovedLeaveMinutesInRange(params: {

@@ -1,10 +1,24 @@
 import { requestClient } from '#/api/request';
 
 export namespace EmployeeApi {
+  export interface EmployeeAccountOption {
+    label: string;
+    phone?: string;
+    realName?: string;
+    username?: string;
+    value: number;
+  }
+
   export interface Employee {
     [key: string]: any;
+    accountLabel?: string;
+    accountPhone?: string;
+    accountRealName?: string;
+    accountUsername?: string;
     address?: string;
     age?: number;
+    checkIn?: string;
+    checkOut?: string;
     createTime?: string;
     department?: string;
     education?: string;
@@ -13,11 +27,13 @@ export namespace EmployeeApi {
     hireDate?: string;
     idNumber?: string;
     isDeleted?: boolean;
+    isResigned?: boolean;
     leaveDate?: string;
     name: string;
     phone: string;
     remark?: string;
     updateTime?: string;
+    userId?: null | number;
   }
 
   export interface EmployeeQuery {
@@ -40,6 +56,12 @@ export namespace EmployeeApi {
     pageSize: number;
     total: number;
   }
+}
+
+export function getEmployeeAccountDisplayName(
+  employee?: Pick<EmployeeApi.Employee, 'accountLabel' | 'accountRealName'>,
+) {
+  return employee?.accountRealName || employee?.accountLabel || '';
 }
 
 /**
@@ -97,4 +119,27 @@ export async function deleteEmployee(id: number) {
  */
 export async function getEmployeeDetail(id: number) {
   return requestClient.get<EmployeeApi.Employee>(`/hrm/employee/${id}`);
+}
+
+/**
+ * 获取可绑定账号选项
+ * @param params 查询参数
+ * @param params.employeeId 员工ID
+ * @param params.keyword 搜索关键词
+ */
+export async function getEmployeeAccountOptions(params?: {
+  employeeId?: number;
+  keyword?: string;
+}) {
+  const options = await requestClient.get<EmployeeApi.EmployeeAccountOption[]>(
+    '/hrm/employee/accounts',
+    {
+      params,
+    },
+  );
+
+  return options.map((item) => ({
+    ...item,
+    label: item.realName || item.label,
+  }));
 }

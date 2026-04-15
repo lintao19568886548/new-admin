@@ -3,6 +3,7 @@ model Employee {
   name       String    @db.VarChar(50) // 姓名
   gender     String    @db.VarChar(10) // 性别
   phone      String    @db.VarChar(20) // 电话
+  userId     Int?      @map("user_id") // 绑定账号ID（软关联）
   age        Int? // 年龄
   idNumber   String?   @unique @map("id_number") @db.VarChar(18) // 身份证号
   address    String?   @db.VarChar(200) // 住址信息
@@ -18,5 +19,6 @@ model Employee {
   checkIn    DateTime? @map("check_in") @db.Time // 打卡时间
   checkOut   DateTime? @map("check_out") @db.Time // 打卡时间
 
+  @@index([userId])
   @@map("employee")
 }

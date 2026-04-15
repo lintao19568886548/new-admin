@@ -21,7 +21,11 @@ import {
 } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { deleteEmployee, getEmployeeList } from '#/api/hrm/employee';
+import {
+  deleteEmployee,
+  getEmployeeAccountDisplayName,
+  getEmployeeList,
+} from '#/api/hrm/employee';
 import { $t } from '#/locales';
 
 import { useSearchSchema } from './data';
@@ -248,10 +252,25 @@ const [SearchForm, searchFormApi] = useVbenForm({
                 <span class="info-value">{{ employee.phone }}</span>
               </div>
               <div class="info-item">
+                <span class="info-label">{{ $t('绑定账号') }}</span>
+                <span class="info-value">{{
+                  getEmployeeAccountDisplayName(employee) || $t('未绑定')
+                }}</span>
+              </div>
+              <div class="info-item">
                 <span class="info-label">{{ $t('上下班时间') }}</span>
                 <span class="info-value">
-                  {{ formatDate(employee.checkIn, 'HH:mm') }} -
-                  {{ formatDate(employee.checkOut, 'HH:mm') }}
+                  {{
+                    employee.checkIn
+                      ? formatDate(employee.checkIn, 'HH:mm')
+                      : '--'
+                  }}
+                  -
+                  {{
+                    employee.checkOut
+                      ? formatDate(employee.checkOut, 'HH:mm')
+                      : '--'
+                  }}
                 </span>
               </div>
             </div>

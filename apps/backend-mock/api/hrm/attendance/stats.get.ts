@@ -92,11 +92,14 @@ export default eventHandler(async (event) => {
       leaveDays: 0,
     };
 
-    records.forEach((record) => {
-      const attendanceState = resolveAttendanceState({
+    for (const record of records) {
+      const attendanceState = await resolveAttendanceState({
         punchIn: record.punchIn,
         punchOut: record.punchOut,
         leaveRanges: record.userId ? (leaveMap.get(record.userId) ?? []) : [],
+        realName: record.userId ? undefined : record.username,
+        userId: record.userId ?? userinfo.id,
+        username: record.userId ? undefined : record.username,
       });
 
       if (
@@ -124,7 +127,7 @@ export default eventHandler(async (event) => {
           stats.overtimeHours += workHours - STANDARD_WORK_HOURS;
         } */
       }
-    });
+    }
 
     const approvedLeaveDays =
       [...leaveMap.values()].reduce((total, leaveRanges) => {

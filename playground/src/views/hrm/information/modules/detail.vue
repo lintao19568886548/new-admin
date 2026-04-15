@@ -8,6 +8,7 @@ import { formatDate, formatDateTime } from '@vben/utils';
 
 import { Tag } from 'ant-design-vue';
 
+import { getEmployeeAccountDisplayName } from '#/api/hrm/employee';
 import { $t } from '#/locales';
 
 const employee = ref<EmployeeApi.Employee | null>(null);
@@ -41,6 +42,12 @@ const [Modal, modalApi] = useVbenModal({
             <span class="detail-value">{{ employee.phone }}</span>
           </div>
           <div class="detail-item">
+            <span class="detail-label">{{ $t('绑定账号') }}</span>
+            <span class="detail-value">{{
+              getEmployeeAccountDisplayName(employee) || $t('未绑定')
+            }}</span>
+          </div>
+          <div class="detail-item">
             <span class="detail-label">{{ $t('年龄') }}</span>
             <span class="detail-value">{{ employee.age }}</span>
           </div>
@@ -70,8 +77,15 @@ const [Modal, modalApi] = useVbenModal({
           <div class="detail-item">
             <span class="detail-label">{{ $t('打卡时间') }}</span>
             <span class="detail-value">
-              {{ formatDate(employee.checkIn, 'HH:mm') }} -
-              {{ formatDate(employee.checkOut, 'HH:mm') }}
+              {{
+                employee.checkIn ? formatDate(employee.checkIn, 'HH:mm') : '--'
+              }}
+              -
+              {{
+                employee.checkOut
+                  ? formatDate(employee.checkOut, 'HH:mm')
+                  : '--'
+              }}
             </span>
           </div>
           <div class="detail-item">
@@ -117,6 +131,10 @@ const [Modal, modalApi] = useVbenModal({
             <span class="detail-value">{{
               formatDateTime(String(employee.updateTime))
             }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">{{ $t('账号手机号') }}</span>
+            <span class="detail-value">{{ employee.accountPhone || '-' }}</span>
           </div>
         </div>
       </div>

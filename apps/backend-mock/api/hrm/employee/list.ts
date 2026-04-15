@@ -1,5 +1,15 @@
+import { getQuery } from 'h3';
 import { prismaClient } from '~/utils/db';
-import { serverErrorResponse, useResponseSuccess } from '~/utils/response';
+import {
+  attachEmployeeBindingInfo,
+  resolveEmployeeCustomerId,
+} from '~/utils/employee-user-binding';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  serverErrorResponse,
+  unAuthorizedResponse,
+  useResponseSuccess,
+} from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -8,7 +18,7 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    console.log('[HRM Debug] 请求获取所有员工数据, User:', userinfo.username);
+    const customerId = resolveEmployeeCustomerId(userinfo.customerId);
 
     const query = getQuery(event);
     const { currentPage, pageSize } = query;
@@ -41,8 +51,6 @@ export default eventHandler(async (event) => {
     if (isResigned === 'true' || isResigned === 'false') {
       where.isResigned = isResigned === 'true';
     }
-    // 当 isDeleted 为空字符串时，不添加此条件，即查询全部
-
     if (name) {
       where.name = { contains: name };
     }
@@ -71,7 +79,6 @@ export default eventHandler(async (event) => {
       };
     }
 
-    // 获取所有员工数据
     const employees = await prismaClient.employee.findMany({
       where,
       orderBy: {
@@ -83,13 +90,10 @@ export default eventHandler(async (event) => {
 
     const total = await prismaClient.employee.count({ where });
 
-    console.log('[HRM Debug] 数据库查询结果:', {
-      totalEmployees: total,
-      firstEmployeeId: employees[0]?.employeeId,
-    });
+    const items = await attachEmployeeBindingInfo(employees, customerId);
 
     return useResponseSuccess({
-      items: employees,
+      items,
       total,
     });
   } catch (error) {

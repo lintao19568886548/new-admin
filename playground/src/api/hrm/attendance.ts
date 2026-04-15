@@ -42,6 +42,14 @@ export interface MonthAttendanceStats {
   overtimeHours: number;
 }
 
+export interface AttendanceConfig {
+  employeeId?: number;
+  scheduledCheckIn: string;
+  scheduledCheckOut: string;
+  source: 'default' | 'employee';
+  userId?: number;
+}
+
 export function getAttendanceList(params: any) {
   return requestClient.get<AttendanceListResult>(`${API.ATTENDANCE}/list`, {
     params,
@@ -80,6 +88,10 @@ export function getMonthStats(params: { username: string }) {
   return requestClient.get<MonthAttendanceStats>(`${API.ATTENDANCE}/stats`, {
     params,
   });
+}
+
+export function getAttendanceConfig() {
+  return requestClient.get<AttendanceConfig>(`${API.ATTENDANCE}/config`);
 }
 
 export function getOfficeLocations() {

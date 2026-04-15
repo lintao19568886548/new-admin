@@ -1,5 +1,17 @@
 import { prismaClient } from '~/utils/db';
-import { serverErrorResponse, useResponseSuccess } from '~/utils/response';
+import {
+  attachSingleEmployeeBindingInfo,
+  ensureEmployeeBindingUserAvailable,
+  normalizeEmployeeUserId,
+  resolveEmployeeCustomerId,
+} from '~/utils/employee-user-binding';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  serverErrorResponse,
+  unAuthorizedResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -13,20 +25,24 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    // 验证员工是否存在
-    const existingEmployee = await prismaClient.employee.findUnique({
+    const employeeModel = prismaClient.employee as any;
+    const customerId = resolveEmployeeCustomerId(userinfo.customerId);
+
+    const existingEmployee = await employeeModel.findUnique({
       where: { employeeId },
     });
     if (!existingEmployee) {
       return useResponseError('员工不存在');
     }
 
-    // 如果更新身份证号，验证其唯一性
     if (body.idNumber && body.idNumber !== existingEmployee.idNumber) {
-      const duplicateEmployee = await prismaClient.employee.findUnique({
+      const duplicateEmployee = await employeeModel.findFirst({
         where: {
           idNumber: body.idNumber,
           isDeleted: false,
+          NOT: {
+            employeeId,
+          },
         },
       });
       if (duplicateEmployee) {
@@ -34,12 +50,23 @@ export default eventHandler(async (event) => {
       }
     }
 
-    const employee = await prismaClient.employee.update({
+    const normalizedUserId = normalizeEmployeeUserId(body.userId);
+    const bindingValidation = await ensureEmployeeBindingUserAvailable({
+      customerId,
+      excludeEmployeeId: employeeId,
+      userId: normalizedUserId,
+    });
+    if (bindingValidation.error) {
+      return useResponseError(bindingValidation.error);
+    }
+
+    const employee = await employeeModel.update({
       where: {
         employeeId,
       },
       data: {
         ...body,
+        userId: normalizedUserId,
         checkIn: body.checkIn ? new Date(body.checkIn) : undefined,
         checkOut: body.checkOut ? new Date(body.checkOut) : undefined,
         hireDate: body.hireDate ? new Date(body.hireDate) : undefined,
@@ -53,7 +80,9 @@ export default eventHandler(async (event) => {
       },
     });
 
-    return useResponseSuccess(employee);
+    return useResponseSuccess(
+      await attachSingleEmployeeBindingInfo(employee, customerId),
+    );
   } catch (error) {
     console.error('更新员工信息失败:', error);
     return serverErrorResponse(`更新员工信息失败`, event);

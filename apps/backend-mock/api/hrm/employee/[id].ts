@@ -1,5 +1,15 @@
 import { prismaClient } from '~/utils/db';
-import { serverErrorResponse, useResponseSuccess } from '~/utils/response';
+import {
+  attachSingleEmployeeBindingInfo,
+  resolveEmployeeCustomerId,
+} from '~/utils/employee-user-binding';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  serverErrorResponse,
+  unAuthorizedResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -13,6 +23,7 @@ export default eventHandler(async (event) => {
   }
 
   try {
+    const customerId = resolveEmployeeCustomerId(userinfo.customerId);
     const employee = await prismaClient.employee.findUnique({
       where: {
         employeeId,
@@ -23,7 +34,9 @@ export default eventHandler(async (event) => {
       return useResponseError('员工不存在');
     }
 
-    return useResponseSuccess(employee);
+    return useResponseSuccess(
+      await attachSingleEmployeeBindingInfo(employee, customerId),
+    );
   } catch (error) {
     console.error('获取员工信息失败:', error);
     return serverErrorResponse(`获取员工信息失败`, event);
