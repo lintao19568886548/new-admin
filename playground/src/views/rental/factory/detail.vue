@@ -872,7 +872,7 @@ onUnmounted(() => {
                   {{ floor.totalArea - floor.usedArea }} m²
                 </Descriptions.Item>
                 <Descriptions.Item label="承重">
-                  {{ floor.loadBearing }} kg/m²
+                  {{ floor.loadBearing }} 吨/m²
                 </Descriptions.Item>
                 <Descriptions.Item label="租金">
                   ¥{{ floor.rentPrice }}/m²/月
