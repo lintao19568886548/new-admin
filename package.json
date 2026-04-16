@@ -31,6 +31,8 @@
     "build:docs": "pnpm run build --filter=@vben/docs",
     "build:play": "turbo run play:build --filter=@vben/playground",
     "build:play:full": "pnpm run build --filter=@vben/playground",
+    "build:play:full:sync:android": "pnpm run build --filter=@vben/playground && cd playground && npx cap sync android",
+    "build:play:full:sync:ios": "pnpm run build --filter=@vben/playground && cd playground && npx cap sync ios",
     "build:play:no-i18n": "cross-env VITE_I18N=false turbo run play:build --filter=@vben/playground",
     "build:play:sync:android": "turbo run play:build --filter=@vben/playground && cd playground && npx cap sync android",
     "build:play:sync:ios": "turbo run play:build --filter=@vben/playground && cd playground && npx cap sync ios",
