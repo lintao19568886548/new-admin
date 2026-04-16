@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const DEFAULT_START_COMMIT = '428388f7b52da7cb65b9272912226ad1e08f35d6';
+const DEFAULT_START_COMMIT = '9547bcc277556940dff68c10f45a48fe232dbfca';
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_OUTPUT_FILE = resolve(SCRIPT_DIR, 'commit_log.txt');
 
