@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { VbenIcon } from '@vben/common-ui';
 import {
@@ -27,6 +28,7 @@ import EditPassword from '#/views/_core/authentication/edit-password.vue';
 
 import FeedbackModal from './modules/feedback-modal.vue';
 
+const router = useRouter();
 const userStore = useUserStore();
 const authStore = useAuthStore();
 
@@ -185,6 +187,10 @@ function handleOpenServiceAgreement() {
   openServiceAgreementDialog();
 }
 
+function handleOpenVipMembership() {
+  void router.push('/profile/vip-membership');
+}
+
 // function handleEditProfile() {
 //   message.info('该功能正在开发中...');
 // }
@@ -225,6 +231,11 @@ const actions = computed(() => {
       handler: handleOpenFeedback,
       icon: 'mdi:message-text-outline',
       title: '意见反馈',
+    },
+    {
+      handler: handleOpenVipMembership,
+      icon: 'mdi:crown-outline',
+      title: '会员服务',
     },
     {
       handler: handleOpenPrivacyPolicy,
