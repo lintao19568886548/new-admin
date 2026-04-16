@@ -47,7 +47,7 @@ function handleMockPay() {
         <h1>会员服务</h1>
         <p class="vip-hero__description">
           为 {{ userInfo?.realName || '当前账号' }}
-          开通月度会员后，可进入后续扩展的专属功能与服务能力。
+          开通月度会员后，可进入的专属功能与服务能力。
         </p>
       </div>
 
@@ -57,9 +57,7 @@ function handleMockPay() {
           <span class="vip-hero__price-value">¥980</span>
           <span class="vip-hero__price-unit">/月</span>
         </div>
-        <p class="vip-hero__price-caption">
-          当前阶段先完成页面展示，后续再接入真实支付与订阅能力。
-        </p>
+        <p class="vip-hero__price-caption"></p>
       </div>
     </section>
 
@@ -69,11 +67,11 @@ function handleMockPay() {
         <div class="benefit-list">
           <div class="benefit-item">
             <strong>会员专属入口</strong>
-            <span>为后续 VIP 专属功能预留统一开通入口和独立服务页。</span>
+            <span>为 VIP 专属功能统一开通定位服务和招商探索页等服务。</span>
           </div>
           <div class="benefit-item">
             <strong>功能扩展承接</strong>
-            <span>后续新增会员能力时，可直接承接到当前会员服务页。</span>
+            <span>新增会员能力时，可直接承接到当前会员服务页。</span>
           </div>
           <div class="benefit-item">
             <strong>统一开通体验</strong>
@@ -87,10 +85,7 @@ function handleMockPay() {
         <div class="purchase-panel">
           <div class="purchase-panel__summary">
             <p class="purchase-panel__title">VIP 月度会员</p>
-            <p class="purchase-panel__description">
-              标准方案价格为
-              ¥980/月。当前版本先提供页面展示与按钮交互，实际支付流程后续接入。
-            </p>
+            <p class="purchase-panel__description">标准方案价格为 ¥980/月。</p>
           </div>
 
           <div class="purchase-panel__status">
@@ -102,9 +97,7 @@ function handleMockPay() {
             {{ payButtonText }}
           </Button>
 
-          <p class="purchase-panel__hint">
-            点击支付后当前仅提示“待接入”，不会发起真实扣款。
-          </p>
+          <p class="purchase-panel__hint"></p>
         </div>
       </Card>
 
@@ -113,7 +106,6 @@ function handleMockPay() {
         <div class="notice-list">
           <p>当前价格展示为固定方案价：¥980/月。</p>
           <p>当前版本重点是会员服务入口、开通页和交互路径打通。</p>
-          <p>真实支付、订阅状态同步和恢复购买能力后续再接入。</p>
         </div>
       </Card>
     </div>
