@@ -12,6 +12,8 @@ import {
   cancelDownload,
   checkAppUpdate,
   closeUpdateModal,
+  downloadAndInstallApk,
+  openAndroidAppMarketPage,
   triggerAppUpdate,
   updateState,
 } from '#/utils/update-service';
@@ -25,6 +27,8 @@ let hasAutoChecked = false;
 
 // 使用共享的更新状态
 const {
+  androidUpdateStrategy,
+  androidVendorType,
   downloadProgress,
   isDownloading,
   isUpdateModalVisible,
@@ -40,6 +44,27 @@ const sanitizedNotes = computed(() => {
 const isIosNativePlatform = computed(
   () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios',
 );
+
+const isVendorAppMarketUpdate = computed(
+  () =>
+    Capacitor.isNativePlatform() &&
+    Capacitor.getPlatform() === 'android' &&
+    androidUpdateStrategy.value === 'app-market',
+);
+
+const canForceDownloadPackage = computed(() => !!latestVersionInfo.value.url);
+
+const appMarketName = computed(() => {
+  if (androidVendorType.value === 'honor') {
+    return '荣耀应用市场';
+  }
+
+  if (androidVendorType.value === 'huawei') {
+    return '华为应用市场';
+  }
+
+  return '应用商店';
+});
 
 const updateOkText = computed(() => {
   if (isDownloading.value) {
@@ -73,6 +98,20 @@ async function performAutoCheck() {
  */
 async function handleUpdateModalOk() {
   await triggerAppUpdate();
+}
+
+/**
+ * 跳转应用商店
+ */
+async function handleOpenAppMarket() {
+  await openAndroidAppMarketPage();
+}
+
+/**
+ * 华为/荣耀设备强制下载安装包
+ */
+async function handleForceDownloadPackage() {
+  await downloadAndInstallApk();
 }
 
 /**
@@ -134,15 +173,50 @@ onUnmounted(() => {
     v-model:open="isUpdateModalVisible"
     :title="`发现新版本 v${latestVersionInfo.version}`"
     centered
-    :cancel-text="isDownloading ? '取消下载' : '稍后'"
-    :ok-text="updateOkText"
-    :ok-button-props="{ loading: isDownloading, disabled: isDownloading }"
     width="90vw"
     @cancel="handleUpdateModalCancel"
-    @ok="handleUpdateModalOk"
   >
+    <template #footer>
+      <div
+        v-if="!isDownloading"
+        class="update-footer-actions"
+        :class="{
+          'update-footer-actions--dual': isVendorAppMarketUpdate,
+        }"
+      >
+        <template v-if="isVendorAppMarketUpdate">
+          <Button
+            class="update-footer-button"
+            type="primary"
+            ghost
+            @click="handleOpenAppMarket"
+          >
+            跳转应用商店
+          </Button>
+          <Button
+            class="update-footer-button"
+            :disabled="!canForceDownloadPackage"
+            @click="handleForceDownloadPackage"
+          >
+            {{
+              canForceDownloadPackage ? '仍然下载安装包' : '暂无安装包可下载'
+            }}
+          </Button>
+        </template>
+        <Button v-else type="primary" @click="handleUpdateModalOk">
+          {{ updateOkText }}
+        </Button>
+      </div>
+    </template>
+
     <!-- 更新说明 -->
     <div v-if="!isDownloading">
+      <div v-if="isVendorAppMarketUpdate" class="huawei-update-tip">
+        <div>
+          检测到当前设备为华为/荣耀系，建议前往{{ appMarketName }}更新。
+        </div>
+        <div>商店中的版本可能会有延迟，请耐心等待。</div>
+      </div>
       <!-- eslint-disable-next-line vue/no-v-html -->
       <div class="update-notes-content" v-html="sanitizedNotes"></div>
     </div>
@@ -173,6 +247,31 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.update-footer-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.update-footer-actions--dual {
+  justify-content: center;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.update-footer-button {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.huawei-update-tip {
+  padding: 4px 0 0;
+  margin-bottom: 16px;
+  line-height: 1.6;
+  color: #595959;
+}
+
 .update-notes-content {
   max-height: 70vh;
   overflow-y: auto;

@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -127,6 +128,127 @@ public class MainActivity extends BridgeActivity {
         return type + ":" + UUID.randomUUID();
     }
 
+    private boolean containsIgnoreCase(String value, String keyword) {
+        if (TextUtils.isEmpty(value) || TextUtils.isEmpty(keyword)) {
+            return false;
+        }
+        return value.toUpperCase(Locale.ROOT).contains(keyword.toUpperCase(Locale.ROOT));
+    }
+
+    private boolean isHuaweiDevice() {
+        return containsIgnoreCase(Build.MANUFACTURER, "HUAWEI")
+            || containsIgnoreCase(Build.BRAND, "HUAWEI");
+    }
+
+    private boolean isHonorDevice() {
+        return containsIgnoreCase(Build.MANUFACTURER, "HONOR")
+            || containsIgnoreCase(Build.BRAND, "HONOR");
+    }
+
+    private boolean isHuaweiFamilyDevice() {
+        return isHuaweiDevice() || isHonorDevice();
+    }
+
+    private String getVendorType() {
+        if (isHonorDevice()) {
+            return "honor";
+        }
+        if (isHuaweiDevice()) {
+            return "huawei";
+        }
+        return "other";
+    }
+
+    private String buildDeviceVendorResult() {
+        try {
+            JSONObject result = new JSONObject();
+            result.put("manufacturer", Build.MANUFACTURER == null ? "" : Build.MANUFACTURER);
+            result.put("brand", Build.BRAND == null ? "" : Build.BRAND);
+            result.put("isHuaweiFamily", isHuaweiFamilyDevice());
+            result.put("vendorType", getVendorType());
+            return result.toString();
+        } catch (Exception error) {
+            return "{\"manufacturer\":\"\",\"brand\":\"\",\"isHuaweiFamily\":false,\"vendorType\":\"other\"}";
+        }
+    }
+
+    private boolean startFirstAvailableIntent(Intent[] intents) {
+        for (Intent intent : intents) {
+            if (intent == null) {
+                continue;
+            }
+            try {
+                startActivity(intent);
+                return true;
+            } catch (Exception ignored) {
+            }
+        }
+
+        return false;
+    }
+
+    private boolean openHuaweiAppMarketDetailPage() {
+        String packageName = getPackageName();
+
+        Intent detailIntent = new Intent("com.huawei.appmarket.intent.action.AppDetail");
+        detailIntent.setPackage("com.huawei.appmarket");
+        detailIntent.putExtra("APP_PACKAGENAME", packageName);
+        detailIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        Intent schemeIntent = new Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("appmarket://details?id=" + packageName)
+        );
+        schemeIntent.setPackage("com.huawei.appmarket");
+        schemeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage("com.huawei.appmarket");
+        if (launchIntent != null) {
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+
+        return startFirstAvailableIntent(new Intent[] {detailIntent, schemeIntent, launchIntent});
+    }
+
+    private boolean openHonorAppMarketDetailPage() {
+        String packageName = getPackageName();
+
+        Intent detailIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + packageName));
+        detailIntent.setPackage("com.hihonor.appmarket");
+        detailIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage("com.hihonor.appmarket");
+        if (launchIntent != null) {
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+
+        return startFirstAvailableIntent(new Intent[] {detailIntent, launchIntent});
+    }
+
+    private boolean openGenericAppMarketDetailPage() {
+        Intent intent = new Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("market://details?id=" + getPackageName())
+        );
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        return startFirstAvailableIntent(new Intent[] {intent});
+    }
+
+    private boolean openPreferredAppMarketDetailPage() {
+        if (isHonorDevice()) {
+            if (openHonorAppMarketDetailPage()) {
+                return true;
+            }
+            if (openHuaweiAppMarketDetailPage()) {
+                return true;
+            }
+        } else if (isHuaweiDevice() && openHuaweiAppMarketDetailPage()) {
+            return true;
+        }
+
+        return openGenericAppMarketDetailPage();
+    }
+
     /**
      * Android 原生接口类
      */
@@ -141,6 +263,16 @@ public class MainActivity extends BridgeActivity {
             IWXAPI api = WXAPIFactory.createWXAPI(MainActivity.this, appId, true);
             api.registerApp(appId);
             return api.isWXAppInstalled();
+        }
+
+        @JavascriptInterface
+        public String getDeviceVendorInfo() {
+            return buildDeviceVendorResult();
+        }
+
+        @JavascriptInterface
+        public boolean openAppMarket() {
+            return openPreferredAppMarketDetailPage();
         }
 
         @JavascriptInterface

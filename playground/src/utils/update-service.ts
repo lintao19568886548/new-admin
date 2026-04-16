@@ -17,6 +17,23 @@ import { getLatestVersionApi } from '#/api/system';
 import { normalizeIosStoreUrl } from '#/utils/app-update';
 
 type UpdatePlatform = 'android' | 'ios';
+type AndroidUpdateStrategy = 'app-market' | 'direct-download';
+type AndroidVendorType = 'honor' | 'huawei' | 'other';
+
+interface AndroidNativeBridge {
+  getDeviceVendorInfo?: () => string;
+  installApk?: (fileUri: string, fileName: string) => void;
+  openAppMarket?: () => boolean;
+}
+
+interface AndroidVendorInfo {
+  brand: string;
+  isHuaweiFamily: boolean;
+  manufacturer: string;
+  vendorType: AndroidVendorType;
+}
+
+let androidVendorInfoCache: AndroidVendorInfo | null = null;
 
 function getNativeUpdatePlatform(): null | UpdatePlatform {
   if (!Capacitor.isNativePlatform()) {
@@ -37,6 +54,86 @@ function isIosNativePlatform() {
   return getNativeUpdatePlatform() === 'ios';
 }
 
+function getAndroidInterface(): AndroidNativeBridge | null {
+  if (!isAndroidNativePlatform()) {
+    return null;
+  }
+
+  return (
+    (window as Window & { AndroidInterface?: AndroidNativeBridge })
+      .AndroidInterface || null
+  );
+}
+
+function getDefaultAndroidVendorInfo(): AndroidVendorInfo {
+  return {
+    brand: '',
+    isHuaweiFamily: false,
+    manufacturer: '',
+    vendorType: 'other',
+  };
+}
+
+function parseAndroidVendorInfo(payload: string): AndroidVendorInfo {
+  try {
+    const parsed = JSON.parse(payload) as Partial<AndroidVendorInfo>;
+    const vendorType =
+      parsed.vendorType === 'honor' || parsed.vendorType === 'huawei'
+        ? parsed.vendorType
+        : 'other';
+
+    return {
+      brand: typeof parsed.brand === 'string' ? parsed.brand : '',
+      isHuaweiFamily: !!parsed.isHuaweiFamily,
+      manufacturer:
+        typeof parsed.manufacturer === 'string' ? parsed.manufacturer : '',
+      vendorType,
+    };
+  } catch (error) {
+    console.warn('解析设备厂商信息失败:', error);
+    return getDefaultAndroidVendorInfo();
+  }
+}
+
+function getAndroidVendorInfo(): AndroidVendorInfo {
+  if (!isAndroidNativePlatform()) {
+    return getDefaultAndroidVendorInfo();
+  }
+
+  if (androidVendorInfoCache) {
+    return androidVendorInfoCache;
+  }
+
+  const androidInterface = getAndroidInterface();
+  if (!androidInterface?.getDeviceVendorInfo) {
+    androidVendorInfoCache = getDefaultAndroidVendorInfo();
+    return androidVendorInfoCache;
+  }
+
+  androidVendorInfoCache = parseAndroidVendorInfo(
+    androidInterface.getDeviceVendorInfo(),
+  );
+  return androidVendorInfoCache;
+}
+
+function resolveAndroidUpdateStrategy(): AndroidUpdateStrategy {
+  return getAndroidVendorInfo().isHuaweiFamily
+    ? 'app-market'
+    : 'direct-download';
+}
+
+function getAndroidAppMarketName(vendorType: AndroidVendorType): string {
+  if (vendorType === 'honor') {
+    return '荣耀应用市场';
+  }
+
+  if (vendorType === 'huawei') {
+    return '华为应用市场';
+  }
+
+  return '应用商店';
+}
+
 function resolveUpdateUrl(versionInfo: VersionInfo, platform: UpdatePlatform) {
   if (platform === 'android') {
     return versionInfo.androidUrl || '';
@@ -55,6 +152,8 @@ function resolveUpdateUrl(versionInfo: VersionInfo, platform: UpdatePlatform) {
 
 // 更新状态管理
 export const updateState = {
+  androidUpdateStrategy: ref<AndroidUpdateStrategy>('direct-download'),
+  androidVendorType: ref<AndroidVendorType>('other'),
   downloadCancelled: ref(false),
   downloadProgress: ref(0),
   isDownloading: ref(false),
@@ -125,6 +224,14 @@ export async function checkAppUpdate(
     const versionInfo = await getLatestVersionApi();
     const { notes, version: latestVersion } = versionInfo;
     const updateUrl = resolveUpdateUrl(versionInfo, platform);
+    const androidVendorInfo =
+      platform === 'android'
+        ? getAndroidVendorInfo()
+        : getDefaultAndroidVendorInfo();
+    const androidUpdateStrategy =
+      platform === 'android'
+        ? resolveAndroidUpdateStrategy()
+        : 'direct-download';
 
     if (showLoading) {
       message.destroy();
@@ -132,20 +239,29 @@ export async function checkAppUpdate(
 
     // 版本比较
     if (semver.lt(currentVersion, latestVersion)) {
-      if (!updateUrl) {
+      const requiresDirectUpdateUrl =
+        platform === 'ios' ||
+        (platform === 'android' && androidUpdateStrategy === 'direct-download');
+
+      if (requiresDirectUpdateUrl && !updateUrl) {
         if (showSuccessMessage) {
           message.error('更新链接无效');
         }
         return false;
       }
 
+      updateState.androidVendorType.value = androidVendorInfo.vendorType;
+      updateState.androidUpdateStrategy.value = androidUpdateStrategy;
       updateState.latestVersionInfo.value = {
         notes,
         url: updateUrl,
         version: latestVersion,
       };
 
-      if (autoInstall) {
+      const shouldShowHuaweiUpdateModal =
+        platform === 'android' && androidUpdateStrategy === 'app-market';
+
+      if (autoInstall && !shouldShowHuaweiUpdateModal) {
         // 自动安装模式：按平台执行更新动作
         await triggerAppUpdate();
       } else {
@@ -172,6 +288,36 @@ export async function checkAppUpdate(
       message.error(errorMessage);
     }
     return false;
+  }
+}
+
+export async function openAndroidAppMarketPage(): Promise<void> {
+  if (!isAndroidNativePlatform()) {
+    message.warning('当前平台不支持应用商店更新');
+    return;
+  }
+
+  const androidInterface = getAndroidInterface();
+  const appMarketName = getAndroidAppMarketName(
+    updateState.androidVendorType.value,
+  );
+
+  if (!androidInterface?.openAppMarket) {
+    message.warning(`当前设备无法打开${appMarketName}，请尝试下载安装包`);
+    return;
+  }
+
+  try {
+    const opened = androidInterface.openAppMarket();
+    if (!opened) {
+      message.warning(`未能打开${appMarketName}，请尝试下载安装包`);
+      return;
+    }
+
+    updateState.isUpdateModalVisible.value = false;
+  } catch (error) {
+    console.error('打开应用商店失败:', error);
+    message.error(`打开${appMarketName}失败，请稍后重试`);
   }
 }
 
@@ -267,9 +413,10 @@ export async function downloadAndInstallApk(): Promise<void> {
     });
 
     // 调用原生方法安装 APK
-    if (Capacitor.isNativePlatform() && (window as any).AndroidInterface) {
+    const androidInterface = getAndroidInterface();
+    if (androidInterface?.installApk) {
       try {
-        (window as any).AndroidInterface.installApk(fileUri.uri, fileName);
+        androidInterface.installApk(fileUri.uri, fileName);
         message.success('正在安装 APK...');
       } catch (error) {
         console.error('调用原生安装方法失败:', error);
@@ -323,6 +470,11 @@ async function openIosUpdatePage(): Promise<void> {
  */
 export async function triggerAppUpdate(): Promise<void> {
   if (isAndroidNativePlatform()) {
+    if (updateState.androidUpdateStrategy.value === 'app-market') {
+      await openAndroidAppMarketPage();
+      return;
+    }
+
     await downloadAndInstallApk();
     return;
   }
