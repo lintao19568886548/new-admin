@@ -29,9 +29,10 @@ import {
   Tag,
 } from 'ant-design-vue';
 
-import { deleteFinance, getFinanceList } from '#/api/finance';
+import { deleteAllFinance, deleteFinance, getFinanceList } from '#/api/finance';
 import { getParkList as fetchParks } from '#/api/park';
 import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
+import { useSmsActionVerification } from '#/hooks/useSmsActionVerification';
 import { $t } from '#/locales';
 
 import { getTagTypeOptions } from './data';
@@ -50,6 +51,8 @@ const [VbenFormModal, formModalApi] = useVbenModal({
 });
 
 const verificationModalRef = ref<InstanceType<typeof SmsVerificationModal>>();
+const deleteVerificationModalRef =
+  ref<InstanceType<typeof SmsVerificationModal>>();
 
 const bills = ref<FinanceItem[]>([]);
 const pagination = reactive({
@@ -65,12 +68,23 @@ const router = useRouter();
 
 const isVerified = ref(false);
 const isDev = import.meta.env.DEV;
+const DELETE_VERIFY_STORAGE_KEY = 'finance-delete-verified-at';
 
 const parkOptions = ref<{ label: string; value: number }[]>([]);
 
 // 脱敏开关 - 从 localStorage 读取持久化状态
-const enableMask = ref(true);
-localStorage.setItem('finance-enableMask', 'true');
+const enableMask = ref(localStorage.getItem('finance-enableMask') !== 'false');
+
+const {
+  ensureVerified: ensureDeleteVerified,
+  handleVerificationCancel: onDeleteVerificationCancel,
+  handleVerificationSuccess: onDeleteVerificationSuccess,
+} = useSmsActionVerification({
+  modalRef: deleteVerificationModalRef,
+  storageKey: DELETE_VERIFY_STORAGE_KEY,
+  uninitializedMessage: '删除验证组件未初始化',
+  validDurationMs: 0,
+});
 
 // 格式化金额（带脱敏）
 function formatAmount(amount: number | string): string {
@@ -284,6 +298,42 @@ async function handleDelete(item: FinanceItem) {
   });
 }
 
+async function handleDeleteAll() {
+  const verified = await ensureDeleteVerified();
+  if (!verified) {
+    message.info('已取消手机验证，删除操作未执行');
+    return;
+  }
+
+  try {
+    message.loading({
+      content: '正在删除全部财务数据...',
+      duration: 0,
+      key: 'delete_all_finance_mobile',
+    });
+
+    const result = await deleteAllFinance();
+    const deletedCount = Number(result?.deletedCount || 0);
+
+    pagination.current = 1;
+
+    message.success({
+      content:
+        deletedCount > 0
+          ? `已删除 ${deletedCount} 条财务记录`
+          : '当前没有可删除的财务数据',
+      key: 'delete_all_finance_mobile',
+    });
+    refreshList();
+  } catch (error) {
+    console.error('批量删除财务记录失败 (mobile):', error);
+    message.error({
+      content: '批量删除财务记录失败，请稍后重试',
+      key: 'delete_all_finance_mobile',
+    });
+  }
+}
+
 function handleFormSuccess() {
   refreshList();
 }
@@ -302,6 +352,12 @@ function getTransactionTypeClass(type: string) {
       ref="verificationModalRef"
       @success="onVerificationSuccess"
       @cancel="onCancelVerification"
+    />
+    <SmsVerificationModal
+      ref="deleteVerificationModalRef"
+      title="删除财务验证"
+      @success="onDeleteVerificationSuccess"
+      @cancel="onDeleteVerificationCancel"
     />
 
     <template v-if="isVerified">
@@ -349,6 +405,9 @@ function getTransactionTypeClass(type: string) {
               {{ $t('common.reset') }}
             </Button>
           </div>
+          <Button danger class="mt-2 w-full" @click="handleDeleteAll">
+            删除全部
+          </Button>
           <div
             class="mask-toggle mt-2 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-3 dark:border-neutral-700 dark:bg-neutral-800"
             role="button"

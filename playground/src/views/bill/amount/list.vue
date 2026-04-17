@@ -27,9 +27,16 @@ import {
 import dayjs from 'dayjs';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { deleteAmountBill, getAmountBillList, getExportData } from '#/api/bill';
+import {
+  deleteAllAmountBill,
+  deleteAmountBill,
+  getAmountBillList,
+  getExportData,
+} from '#/api/bill';
 import { getVisitorParkList } from '#/api/park';
 import { getTenantSelectList } from '#/api/rental/tenant';
+import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
+import { useSmsActionVerification } from '#/hooks/useSmsActionVerification';
 import { $t } from '#/locales';
 import { executeBill } from '#/utils/excel';
 
@@ -45,6 +52,9 @@ import MultipageBillForm from './modules/MultipageBillForm.vue';
 
 const billParkOptions = ref<any[]>([]);
 const billTenantOptions = ref<any[]>([]);
+const DELETE_VERIFY_STORAGE_KEY = 'bill-delete-verified-at';
+const deleteVerificationModalRef =
+  ref<InstanceType<typeof SmsVerificationModal>>();
 
 onMounted(async () => {
   const [parkResult, tenantResult] = await Promise.allSettled([
@@ -84,6 +94,31 @@ const formConfig = {
   electricityConfig: electricityFormConfig,
   waterConfig: waterFormConfig,
 };
+
+const {
+  ensureVerified: ensureDeleteVerified,
+  handleVerificationCancel: onDeleteVerificationCancel,
+  handleVerificationSuccess: onDeleteVerificationSuccess,
+} = useSmsActionVerification({
+  modalRef: deleteVerificationModalRef,
+  storageKey: DELETE_VERIFY_STORAGE_KEY,
+  uninitializedMessage: '删除验证组件未初始化',
+  validDurationMs: 0,
+});
+
+function runDeleteWithVerification(action: () => Promise<void>) {
+  window.setTimeout(() => {
+    void (async () => {
+      const verified = await ensureDeleteVerified();
+      if (!verified) {
+        message.info('已取消手机验证，删除操作未执行');
+        return;
+      }
+
+      await action();
+    })();
+  }, 0);
+}
 
 /**
  * 编辑账单
@@ -181,35 +216,75 @@ async function handleAiImportBeforeUpload(file: File) {
  * @param row
  */
 async function onDelete(row: AmountBill) {
+  const billDisplayName = row.tenantName || row.projectName || '该账单';
+
   Modal.confirm({
+    cancelText: $t('common.cancel'),
     centered: true,
-    content: $t('ui.actionMessage.deleteConfirm', [row.tenantName]),
-    async onOk() {
-      message.loading({
-        content: $t('ui.actionMessage.deleting', [row.tenantName]),
-        duration: 0,
+    content: $t('ui.actionMessage.deleteConfirm', [billDisplayName]),
+    okText: $t('common.confirm'),
+    okType: 'danger',
+    onOk() {
+      void executeDelete(row);
+    },
+    title: '确认删除账单',
+  });
+}
+
+async function executeDelete(row: AmountBill) {
+  const billDisplayName = row.tenantName || row.projectName || '该账单';
+
+  message.loading({
+    content: $t('ui.actionMessage.deleting', [billDisplayName]),
+    duration: 0,
+    key: 'action_process_msg',
+  });
+
+  const { billId } = row;
+  if (billId) {
+    try {
+      await deleteAmountBill(billId);
+      message.success({
+        content: $t('ui.actionMessage.deleteSuccess', [billDisplayName]),
         key: 'action_process_msg',
       });
+      refreshGrid();
+    } catch (error) {
+      console.error('删除账单失败:', error);
+      message.error({
+        content: $t('ui.actionMessage.operationFailed', [error]),
+        key: 'action_process_msg',
+      });
+    }
+  }
+}
 
-      const { billId } = row;
-      if (billId) {
-        try {
-          await deleteAmountBill(billId);
-          message.success({
-            content: $t('ui.actionMessage.deleteSuccess', [row.tenantName]),
-            key: 'action_process_msg',
-          });
-          refreshGrid();
-        } catch (error) {
-          console.error('删除账单失败:', error);
-          message.error({
-            content: $t('ui.actionMessage.operationFailed', [error]),
-            key: 'action_process_msg',
-          });
-        }
-      }
-    },
-    title: '删除账单',
+async function onDeleteAll() {
+  runDeleteWithVerification(async () => {
+    message.loading({
+      content: '正在删除全部账单数据...',
+      duration: 0,
+      key: 'delete_all_bill',
+    });
+
+    try {
+      const result = await deleteAllAmountBill();
+      const deletedCount = Number(result?.deletedBillCount || 0);
+      message.success({
+        content:
+          deletedCount > 0
+            ? `已删除 ${deletedCount} 条账单`
+            : '当前没有可删除的账单数据',
+        key: 'delete_all_bill',
+      });
+      gridApi.reload();
+    } catch (error) {
+      console.error('删除全部账单失败:', error);
+      message.error({
+        content: '删除全部账单失败，请稍后重试',
+        key: 'delete_all_bill',
+      });
+    }
   });
 }
 
@@ -261,6 +336,7 @@ function onPrint(row: AmountBill) {
  */
 function onActionClick({ code, row }: OnActionClickParams<AmountBill>) {
   switch (code) {
+    case 'delete':
     case 'delete-modal': {
       onDelete(row);
       break;
@@ -492,6 +568,12 @@ function handlePrintCancel() {
 
 <template>
   <Page auto-content-height class="amount-bill-page">
+    <SmsVerificationModal
+      ref="deleteVerificationModalRef"
+      title="删除账单验证"
+      @success="onDeleteVerificationSuccess"
+      @cancel="onDeleteVerificationCancel"
+    />
     <MultipageBillForm
       ref="billFormRef"
       :config="formConfig"
@@ -579,6 +661,9 @@ function handlePrintCancel() {
         <Button type="primary" @click="onCreate" style="margin-right: 10px">
           <Plus class="size-5" />
           {{ $t('ui.actionTitle.create', ['总账单']) }}
+        </Button>
+        <Button danger @click="onDeleteAll" style="margin-right: 10px">
+          删除全部
         </Button>
         <Button
           type="primary"

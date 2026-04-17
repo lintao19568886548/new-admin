@@ -29,10 +29,15 @@ import {
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
-import { getAmountBillList } from '#/api/bill';
+import {
+  deleteAllAmountBill,
+  deleteAmountBill,
+  getAmountBillList,
+} from '#/api/bill';
 import { getParkList as fetchParks } from '#/api/park';
 import MobileDateRange from '#/components/MobileDateRange.vue';
 import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
+import { useSmsActionVerification } from '#/hooks/useSmsActionVerification';
 import { $t } from '#/locales';
 
 import MobileAmountBillForm from './modules/MobileAmountBillForm.vue';
@@ -53,13 +58,40 @@ const parkOptions = ref<{ label: string; value: number }[]>([]);
 
 const mobileBillFormRef = ref();
 
-const enableMask = ref(true);
-localStorage.setItem('bill-enableMask', 'true');
+const enableMask = ref(localStorage.getItem('bill-enableMask') !== 'false');
 
 const verificationModalRef = ref<InstanceType<typeof SmsVerificationModal>>();
+const deleteVerificationModalRef =
+  ref<InstanceType<typeof SmsVerificationModal>>();
 const isVerified = ref(false);
 const VERIFIED_KEY = 'bill-amount-verified';
+const DELETE_VERIFY_STORAGE_KEY = 'bill-delete-verified-at';
 const isDev = import.meta.env.DEV;
+
+const {
+  ensureVerified: ensureDeleteVerified,
+  handleVerificationCancel: onDeleteVerificationCancel,
+  handleVerificationSuccess: onDeleteVerificationSuccess,
+} = useSmsActionVerification({
+  modalRef: deleteVerificationModalRef,
+  storageKey: DELETE_VERIFY_STORAGE_KEY,
+  uninitializedMessage: '删除验证组件未初始化',
+  validDurationMs: 0,
+});
+
+function runDeleteWithVerification(action: () => Promise<void>) {
+  window.setTimeout(() => {
+    void (async () => {
+      const verified = await ensureDeleteVerified();
+      if (!verified) {
+        message.info('已取消手机验证，删除操作未执行');
+        return;
+      }
+
+      await action();
+    })();
+  }, 0);
+}
 
 function ensureVerification() {
   if (isDev) {
@@ -340,6 +372,86 @@ function handleFormSuccess() {
   fetchBillList();
 }
 
+async function handleDelete(item: AmountBill) {
+  const billDisplayName = item.tenantName || item.projectName || '该账单';
+
+  Modal.confirm({
+    cancelText: $t('common.cancel'),
+    centered: true,
+    content: $t('ui.actionMessage.deleteConfirm', [billDisplayName]),
+    okText: $t('common.confirm'),
+    okType: 'danger',
+    onOk() {
+      void executeDelete(item);
+    },
+    title: '确认删除账单',
+  });
+}
+
+async function executeDelete(item: AmountBill) {
+  const billDisplayName = item.tenantName || item.projectName || '该账单';
+
+  if (!item.billId) return;
+
+  try {
+    message.loading({
+      content: $t('ui.actionMessage.deleting', [billDisplayName]),
+      duration: 0,
+      key: 'action_process_msg',
+    });
+
+    await deleteAmountBill(item.billId);
+
+    if (bills.value.length === 1 && pagination.current > 1) {
+      pagination.current -= 1;
+    }
+
+    message.success({
+      content: $t('ui.actionMessage.deleteSuccess', [billDisplayName]),
+      key: 'action_process_msg',
+    });
+    fetchBillList();
+  } catch (error) {
+    console.error('删除账单失败 (mobile):', error);
+    message.error({
+      content: $t('ui.actionMessage.deleteFailed', [billDisplayName]),
+      key: 'action_process_msg',
+    });
+  }
+}
+
+async function handleDeleteAll() {
+  runDeleteWithVerification(async () => {
+    try {
+      message.loading({
+        content: '正在删除全部账单数据...',
+        duration: 0,
+        key: 'delete_all_bill_mobile',
+      });
+
+      const result = await deleteAllAmountBill();
+      const deletedCount = Number(result?.deletedBillCount || 0);
+
+      pagination.current = 1;
+
+      message.success({
+        content:
+          deletedCount > 0
+            ? `已删除 ${deletedCount} 条账单`
+            : '当前没有可删除的账单数据',
+        key: 'delete_all_bill_mobile',
+      });
+      fetchBillList();
+    } catch (error) {
+      console.error('删除全部账单失败 (mobile):', error);
+      message.error({
+        content: '删除全部账单失败，请稍后重试',
+        key: 'delete_all_bill_mobile',
+      });
+    }
+  });
+}
+
 function handlePageChange(page: number, pageSize: number) {
   pagination.current = page;
   pagination.pageSize = pageSize;
@@ -367,7 +479,12 @@ function resetSearch() {
       @success="onVerificationSuccess"
       @cancel="onCancelVerification"
     />
-
+    <SmsVerificationModal
+      ref="deleteVerificationModalRef"
+      title="删除账单验证"
+      @success="onDeleteVerificationSuccess"
+      @cancel="onDeleteVerificationCancel"
+    />
     <template v-if="isVerified">
       <div
         class="search-filters mb-2 rounded bg-white p-3 shadow-sm dark:bg-neutral-800"
@@ -417,6 +534,9 @@ function resetSearch() {
               {{ $t('common.reset') }}
             </Button>
           </div>
+          <Button danger class="mt-2 w-full" @click="handleDeleteAll">
+            删除全部
+          </Button>
           <div
             class="mask-toggle mt-2 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-3 dark:border-neutral-700 dark:bg-neutral-800"
             role="button"
@@ -547,6 +667,7 @@ function resetSearch() {
               class="flex justify-center gap-3 border-t border-gray-100 px-4 py-3 dark:border-neutral-700"
             >
               <Button type="primary" @click="handlePrint(item)">打印</Button>
+              <Button danger ghost @click="handleDelete(item)">删除</Button>
             </div>
           </Card>
 

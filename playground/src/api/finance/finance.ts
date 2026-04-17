@@ -19,3 +19,7 @@ export async function updateFinance(id: number, data: any) {
 export async function deleteFinance(id: number) {
   return requestClient.delete(`/finance/${id}`);
 }
+
+export async function deleteAllFinance() {
+  return requestClient.delete('/finance');
+}

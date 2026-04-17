@@ -12,10 +12,11 @@ import { Plus } from '@vben/icons';
 import { Button, message, Switch } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { deleteFinance, getFinanceList } from '#/api/finance';
+import { deleteAllFinance, deleteFinance, getFinanceList } from '#/api/finance';
 import { getParkList } from '#/api/park';
 import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { usePlatform } from '#/hooks/usePlatform';
+import { useSmsActionVerification } from '#/hooks/useSmsActionVerification';
 import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
@@ -31,12 +32,26 @@ const router = useRouter();
 const enableMask = ref(localStorage.getItem('finance-enableMask') !== 'false');
 
 const verificationModalRef = ref<InstanceType<typeof SmsVerificationModal>>();
+const deleteVerificationModalRef =
+  ref<InstanceType<typeof SmsVerificationModal>>();
 
 // 验证状态
 const isVerified = ref(false);
 const VERIFIED_AT_KEY = 'finance-verified-at';
+const DELETE_VERIFY_STORAGE_KEY = 'finance-delete-verified-at';
 const VERIFY_VALID_DURATION_MS = 6 * 60 * 60 * 1000;
 const isDev = import.meta.env.DEV;
+
+const {
+  ensureVerified: ensureDeleteVerified,
+  handleVerificationCancel: onDeleteVerificationCancel,
+  handleVerificationSuccess: onDeleteVerificationSuccess,
+} = useSmsActionVerification({
+  modalRef: deleteVerificationModalRef,
+  storageKey: DELETE_VERIFY_STORAGE_KEY,
+  uninitializedMessage: '删除验证组件未初始化',
+  validDurationMs: 0,
+});
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -284,6 +299,38 @@ function onRefresh() {
 function onCreate() {
   formModalApi.setData({}).open();
 }
+
+async function onDeleteAll() {
+  const verified = await ensureDeleteVerified();
+  if (!verified) {
+    message.info('已取消手机验证，删除操作未执行');
+    return;
+  }
+
+  try {
+    message.loading({
+      content: '正在删除全部财务数据...',
+      duration: 0,
+      key: 'delete_all_finance',
+    });
+    const result = await deleteAllFinance();
+    const deletedCount = Number(result?.deletedCount || 0);
+    message.success({
+      content:
+        deletedCount > 0
+          ? `已删除 ${deletedCount} 条财务记录`
+          : '当前没有可删除的财务数据',
+      key: 'delete_all_finance',
+    });
+    onRefresh();
+  } catch (error) {
+    console.error('批量删除财务记录失败:', error);
+    message.error({
+      content: '批量删除财务记录失败，请稍后重试',
+      key: 'delete_all_finance',
+    });
+  }
+}
 </script>
 <template>
   <Page auto-content-height>
@@ -292,6 +339,12 @@ function onCreate() {
       ref="verificationModalRef"
       @success="onVerificationSuccess"
       @cancel="onCancelVerification"
+    />
+    <SmsVerificationModal
+      ref="deleteVerificationModalRef"
+      title="删除财务验证"
+      @success="onDeleteVerificationSuccess"
+      @cancel="onDeleteVerificationCancel"
     />
     <Grid v-if="isVerified" :table-title="$t('page.finance.list-title')">
       <template #toolbar-actions>
@@ -307,6 +360,14 @@ function onCreate() {
       </template>
       <template #toolbar-tools>
         <!-- 网页端按钮样式 -->
+        <Button
+          v-if="!isNativePlatform"
+          danger
+          class="mr-2"
+          @click="onDeleteAll"
+        >
+          删除全部
+        </Button>
         <Button v-if="!isNativePlatform" type="primary" @click="onCreate">
           <Plus class="mr-1 size-5" />
           <!-- 稍微调整图标和文字间距 -->

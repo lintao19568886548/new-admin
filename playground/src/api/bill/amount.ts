@@ -23,3 +23,7 @@ export async function updateAmountBill(id: number, data: any) {
 export async function deleteAmountBill(id: number) {
   return requestClient.delete(`/bill/amount/${id}`);
 }
+
+export async function deleteAllAmountBill() {
+  return requestClient.delete('/bill/amount');
+}

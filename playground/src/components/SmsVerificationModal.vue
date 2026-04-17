@@ -249,7 +249,6 @@ async function handleSubmit() {
   } catch (error) {
     const messageContent = resolveErrorMessage(error);
     codeErrorMessage.value = messageContent;
-    message.error(messageContent);
   } finally {
     submitLoading.value = false;
   }
@@ -418,7 +417,7 @@ onBeforeUnmount(() => {
           :disabled="!canSendCode || submitLoading"
           @click="handleSubmit"
         >
-          {{ submitLoading ? '验证中...' : '验证并进入' }}
+          {{ submitLoading ? '验证中...' : '确认' }}
         </button>
       </div>
     </template>
