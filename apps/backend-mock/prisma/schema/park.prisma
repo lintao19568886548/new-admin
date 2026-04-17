@@ -15,6 +15,7 @@ model Park {
   finances           Finance[]            @relation("ParkToFinance")
   visitors           AccessVisitor[]      @relation("ParkToVisitor")
   cars               AccessCar[]          @relation("ParkToCar")
+  doors              AccessDoor[]         @relation("ParkToDoor")
   investments        Investment[]         @relation("ParkToInvestment")
   firefighting       Firefighting[]       @relation("ParkToFirefighting")
   transformers       Transformer[]        @relation("ParkToTransformer")

@@ -13,6 +13,15 @@ const routes: RouteRecordRaw[] = [
     path: '/access',
     children: [
       {
+        name: 'DoorAccess',
+        path: '/access/door',
+        component: () => import('#/views/access/door/list.vue'),
+        meta: {
+          icon: 'carbon:door',
+          title: '门禁管理',
+        },
+      },
+      {
         name: 'CarAccess',
         path: '/access/car',
         component: () => import('#/views/access/car/list.vue'),

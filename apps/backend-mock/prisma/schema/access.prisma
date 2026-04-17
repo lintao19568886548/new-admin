@@ -30,3 +30,19 @@ model AccessCar {
   @@index([parkId])
   @@map("access_car")
 }
+
+// 门禁管理模型 (access/door)
+model AccessDoor {
+  deviceId    Int       @id @default(autoincrement()) @map("device_id")
+  deviceCode  String    @unique @map("device_code") @db.VarChar(30)
+  deviceName  String    @map("device_name") @db.VarChar(50)
+  location    String    @db.VarChar(100)
+  status      Int       @map("status") // 1: 开启, 0: 关闭
+  createTime  DateTime? @default(now()) @map("create_time")
+  updateTime  DateTime? @updatedAt @map("update_time")
+  parkId      Int?      @map("park_id")
+  park        Park?     @relation("ParkToDoor", fields: [parkId], references: [parkId])
+
+  @@index([parkId])
+  @@map("access_door")
+}
