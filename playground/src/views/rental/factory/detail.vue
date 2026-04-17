@@ -926,7 +926,7 @@ onUnmounted(() => {
                   {{ elevator.brand }}
                 </Descriptions.Item>
                 <Descriptions.Item label="载重">
-                  {{ elevator.loadCapacity }} kg
+                  {{ elevator.loadCapacity }} 吨
                 </Descriptions.Item>
                 <Descriptions.Item label="尺寸">
                   {{ elevator.size }}
