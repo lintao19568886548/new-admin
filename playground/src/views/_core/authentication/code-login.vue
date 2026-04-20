@@ -2,7 +2,7 @@
 import type { VbenFormSchema } from '@vben/common-ui';
 import type { Recordable } from '@vben/types';
 
-import { computed, ref, useTemplateRef } from 'vue';
+import { computed, markRaw, ref, useTemplateRef } from 'vue';
 
 import { AuthenticationCodeLogin, z } from '@vben/common-ui';
 import { $t } from '@vben/locales';
@@ -10,6 +10,7 @@ import { $t } from '@vben/locales';
 import { message } from 'ant-design-vue';
 
 import { sendLoginSmsCodeApi } from '#/api';
+import SmsCodePinInput from '#/components/SmsCodePinInput.vue';
 import { useAuthStore } from '#/store';
 
 defineOptions({ name: 'CodeLogin' });
@@ -106,7 +107,7 @@ const formSchema = computed((): VbenFormSchema[] => {
         }),
     },
     {
-      component: 'VbenPinInput',
+      component: markRaw(SmsCodePinInput),
       componentProps: {
         codeLength: CODE_LENGTH,
         createText: (countdown: number) => {
@@ -134,12 +135,14 @@ const formSchema = computed((): VbenFormSchema[] => {
             sendCodeLoading.value = false;
           }
         },
+        loading: sendCodeLoading.value,
+        loadingText: $t('page.auth.sendingCode'),
         placeholder: $t('authentication.code'),
       },
       fieldName: 'code',
       label: $t('authentication.code'),
       rules: z.string().length(CODE_LENGTH, {
-        message: $t('authentication.codeTip', [CODE_LENGTH]),
+        message: '',
       }),
     },
   ];
