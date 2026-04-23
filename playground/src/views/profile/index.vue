@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { VbenIcon } from '@vben/common-ui';
 import {
@@ -29,6 +30,7 @@ import FeedbackModal from './modules/feedback-modal.vue';
 
 const userStore = useUserStore();
 const authStore = useAuthStore();
+const router = useRouter();
 
 const userInfo = computed(() => userStore.userInfo);
 const showPasswordModal = ref(false);
@@ -177,6 +179,10 @@ function handleOpenFeedback() {
   showFeedbackModal.value = true;
 }
 
+function handleOpenVipMembership() {
+  void router.push({ name: 'ProfileVipMembership' });
+}
+
 function handleOpenPrivacyPolicy() {
   openPrivacyPolicyDialog();
 }
@@ -211,6 +217,11 @@ const actions = computed(() => {
     //   icon: UserRoundPen,
     //   title: '修改个人信息',
     // },
+    {
+      handler: handleOpenVipMembership,
+      icon: 'mdi:crown-outline',
+      title: '会员服务',
+    },
     {
       handler: handleChangePassword,
       icon: LockKeyhole,

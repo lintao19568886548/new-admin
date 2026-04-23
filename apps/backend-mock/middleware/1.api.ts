@@ -1,7 +1,8 @@
 import { prismaClient, prismaScopeStorage, systemDbClient } from '~/utils/db';
+import { shouldBlockTenantWriteForProvisioning } from '~/utils/vip-membership';
 
 import { decodeAccessToken, verifyAccessToken } from '../utils/jwt-utils';
-import { unAuthorizedResponse } from '../utils/response';
+import { forbiddenResponse, unAuthorizedResponse } from '../utils/response';
 
 export default defineEventHandler(async (event) => {
   const defaultCustomerId = String(
@@ -21,6 +22,10 @@ export default defineEventHandler(async (event) => {
       /^\/api\/factory\/\d+$/.test(requestPath));
   const isPublicWechatApi =
     event.method === 'GET' && requestPath === '/api/wechat/js-sdk-config';
+  const isPublicWechatPayConfigApi =
+    event.method === 'GET' && requestPath === '/api/wechat/pay/app/config';
+  const isPublicWechatPayNotifyApi =
+    event.method === 'POST' && requestPath === '/api/wechat/pay/notify';
   const isPublicAppVersionApi =
     event.method === 'GET' && requestPath === '/api/system/version';
   const isPublicApi =
@@ -28,6 +33,8 @@ export default defineEventHandler(async (event) => {
     isPublicVisitorRegisterApi ||
     isPublicFactoryApi ||
     isPublicWechatApi ||
+    isPublicWechatPayConfigApi ||
+    isPublicWechatPayNotifyApi ||
     isPublicAppVersionApi;
 
   event.node.res.setHeader(
@@ -86,6 +93,29 @@ export default defineEventHandler(async (event) => {
     });
     if (!customer || customer.status === 0) {
       return unAuthorizedResponse(event);
+    }
+
+    const isWriteRequest = ['DELETE', 'PATCH', 'POST', 'PUT'].includes(
+      event.method,
+    );
+    const isProvisioningWriteAllowed =
+      requestPath.startsWith('/api/auth') ||
+      requestPath.startsWith('/api/wechat/pay') ||
+      requestPath === '/api/tenant/provisioning/status' ||
+      requestPath === '/api/user/info';
+
+    if (
+      isWriteRequest &&
+      !isProvisioningWriteAllowed &&
+      (await shouldBlockTenantWriteForProvisioning({
+        centerUserId: userinfoForScope.centerUserId ?? userinfoForScope.id,
+        customerId: userinfoForScope.customerId,
+      }))
+    ) {
+      return forbiddenResponse(
+        event,
+        '专属空间开通中，暂不能新增或修改业务数据',
+      );
     }
   }
 

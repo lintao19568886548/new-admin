@@ -56,6 +56,7 @@ import {
   useWechatRuntimeState,
   waitForWechatMiniProgramWebView,
 } from '#/utils/wechat-jssdk';
+import { loadWechatPayAppConfig } from '#/utils/wechat-pay-app-config';
 
 const store = useParkStore();
 const layoutStore = useLayoutStore();
@@ -65,7 +66,6 @@ const PUBLIC_SHARE_ORIGIN =
   import.meta.env.VITE_PUBLIC_SHARE_ORIGIN ||
   import.meta.env.VITE_GLOB_API_URL?.replace(/\/api\/?$/, '') ||
   'https://yizuw.cn';
-const WECHAT_OPEN_APP_ID = import.meta.env.VITE_WECHAT_OPEN_APP_ID || '';
 const isNativePlatform = Capacitor.isNativePlatform();
 const isNativeAndroid = Capacitor.getPlatform() === 'android';
 const brandLogoUrl = '/assets/favicon.png';
@@ -95,6 +95,7 @@ const loading = ref(false);
 const activeFloorKey = ref<string[]>([]);
 const activeTabKey = ref('1');
 const isMobileBrowser = ref(false);
+const wechatOpenAppId = ref('');
 const wechatRuntimeState = useWechatRuntimeState();
 const isWechat = computed(() => wechatRuntimeState.isWechat);
 const isWechatMiniProgram = computed(() => wechatRuntimeState.isMiniProgram);
@@ -504,19 +505,35 @@ function showWechatH5ShareMessage() {
   openShareGuideModal('wechat-h5');
 }
 
+async function getWechatOpenAppIdForShare() {
+  if (wechatOpenAppId.value) {
+    return wechatOpenAppId.value;
+  }
+
+  try {
+    const config = await loadWechatPayAppConfig();
+    wechatOpenAppId.value = config.appId;
+    return wechatOpenAppId.value;
+  } catch (error) {
+    console.warn('获取微信开放平台移动应用 AppID 失败:', error);
+    return '';
+  }
+}
+
 async function shareFactoryFromNativeApp() {
-  if (!isNativeAndroid || !canUseNativeWechatShare() || !WECHAT_OPEN_APP_ID) {
+  const appId = await getWechatOpenAppIdForShare();
+  if (!isNativeAndroid || !canUseNativeWechatShare() || !appId) {
     return false;
   }
 
-  if (!isWechatInstalled(WECHAT_OPEN_APP_ID)) {
+  if (!isWechatInstalled(appId)) {
     message.warning('未检测到微信，已切换为系统分享');
     return false;
   }
 
   const nativeWechatResult = await shareWechatWebpage(
     buildNativeWechatShareOptions(pageShareContent.value, {
-      appId: WECHAT_OPEN_APP_ID,
+      appId,
     }),
   );
 
@@ -631,6 +648,10 @@ onMounted(() => {
   void (async () => {
     await confirmWechatRuntimeEnvironment();
   })();
+
+  if (isNativeAndroid) {
+    void getWechatOpenAppIdForShare();
+  }
 
   // 设置头部动作按钮
   layoutStore.setHeaderActions([

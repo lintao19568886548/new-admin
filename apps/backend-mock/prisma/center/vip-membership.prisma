@@ -1,0 +1,56 @@
+model VipMembership {
+  id                Int       @id @default(autoincrement())
+  centerUserId      Int       @unique @map("center_user_id")
+  user              User      @relation("CenterUserToVipMembership", fields: [centerUserId], references: [id])
+  status            String    @default("active") @db.VarChar(20)
+  expireAt          DateTime  @map("expire_at")
+  lastOutTradeNo    String?   @map("last_out_trade_no") @db.VarChar(64)
+  lastTransactionId String?   @map("last_transaction_id") @db.VarChar(64)
+  createTime        DateTime? @default(now()) @map("create_time")
+  updateTime        DateTime? @updatedAt @map("update_time")
+
+  @@map("vip_membership")
+}
+
+model VipMembershipPayment {
+  id               Int       @id @default(autoincrement())
+  outTradeNo       String    @unique @map("out_trade_no") @db.VarChar(64)
+  centerUserId     Int       @map("center_user_id")
+  user             User      @relation("CenterUserToVipMembershipPayment", fields: [centerUserId], references: [id])
+  sourceCustomerId String    @map("source_customer_id") @db.VarChar(50)
+  targetCustomerId String?   @map("target_customer_id") @db.VarChar(50)
+  username         String?   @db.VarChar(50)
+  amountTotal      Int       @default(0) @map("amount_total")
+  tradeState       String    @default("NOTPAY") @map("trade_state") @db.VarChar(32)
+  transactionId    String?   @map("transaction_id") @db.VarChar(64)
+  paidAt           DateTime? @map("paid_at")
+  appliedAt        DateTime? @map("applied_at")
+  rawAttach        String?   @map("raw_attach") @db.LongText
+  createTime       DateTime? @default(now()) @map("create_time")
+  updateTime       DateTime? @updatedAt @map("update_time")
+
+  @@index([centerUserId])
+  @@index([sourceCustomerId])
+  @@map("vip_membership_payment")
+}
+
+model TenantProvisioningJob {
+  id                    Int       @id @default(autoincrement())
+  centerUserId          Int       @unique @map("center_user_id")
+  user                  User      @relation("CenterUserToTenantProvisioningJob", fields: [centerUserId], references: [id])
+  sourceCustomerId      String    @map("source_customer_id") @db.VarChar(50)
+  targetCustomerId      String?   @map("target_customer_id") @db.VarChar(50)
+  status                String    @default("pending") @db.VarChar(32)
+  step                  String?   @db.VarChar(64)
+  retryCount            Int       @default(0) @map("retry_count")
+  lastPaymentOutTradeNo String?   @map("last_payment_out_trade_no") @db.VarChar(64)
+  errorMessage          String?   @map("error_message") @db.LongText
+  startedAt             DateTime? @map("started_at")
+  completedAt           DateTime? @map("completed_at")
+  createTime            DateTime? @default(now()) @map("create_time")
+  updateTime            DateTime? @updatedAt @map("update_time")
+
+  @@index([status])
+  @@index([targetCustomerId])
+  @@map("tenant_provisioning_job")
+}

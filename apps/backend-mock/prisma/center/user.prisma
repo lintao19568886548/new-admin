@@ -10,6 +10,9 @@ model User {
   homePath     String?   @map("home_path") @db.VarChar(100)
   customerMappings UserCustomerMapping[] @relation("UserToCustomerMapping")
   refreshTokens RefreshToken[] @relation("UserToRefreshToken")
+  vipMembership VipMembership? @relation("CenterUserToVipMembership")
+  vipMembershipPayments VipMembershipPayment[] @relation("CenterUserToVipMembershipPayment")
+  tenantProvisioningJob TenantProvisioningJob? @relation("CenterUserToTenantProvisioningJob")
   createTime   DateTime? @default(now()) @map("create_time")
   updateTime   DateTime? @updatedAt @map("update_time")
 

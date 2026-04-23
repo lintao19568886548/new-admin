@@ -11,6 +11,7 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import androidx.core.content.FileProvider;
 import com.getcapacitor.BridgeActivity;
+import com.tencent.mm.opensdk.modelpay.PayReq;
 import com.tencent.mm.opensdk.modelmsg.SendMessageToWX;
 import com.tencent.mm.opensdk.modelmsg.WXMediaMessage;
 import com.tencent.mm.opensdk.modelmsg.WXWebpageObject;
@@ -33,6 +34,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onStart() {
         super.onStart();
+        WechatPayBridge.attachActivity(this);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             boolean isDebuggable = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
@@ -45,6 +47,18 @@ public class MainActivity extends BridgeActivity {
         if (getBridge() != null && getBridge().getWebView() != null) {
             getBridge().getWebView().addJavascriptInterface(new AndroidInterface(), "AndroidInterface");
         }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        WechatPayBridge.flushPendingPayResult();
+    }
+
+    @Override
+    public void onDestroy() {
+        WechatPayBridge.detachActivity(this);
+        super.onDestroy();
     }
 
     private Bitmap decodeWechatThumbBitmap(String thumbUrl) {
@@ -124,8 +138,50 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    private String buildWechatPayLaunchResult(
+        boolean ok,
+        boolean launched,
+        String reason,
+        String message
+    ) {
+        try {
+            JSONObject result = new JSONObject();
+            result.put("launched", launched);
+            result.put("message", message == null ? "" : message);
+            result.put("ok", ok);
+            result.put("reason", reason == null ? "" : reason);
+            return result.toString();
+        } catch (Exception error) {
+            return "{\"ok\":false,\"launched\":false,\"reason\":\"json-error\",\"message\":\"生成支付结果失败\"}";
+        }
+    }
+
     private String buildWechatTransaction(String type) {
         return type + ":" + UUID.randomUUID();
+    }
+
+    boolean emitWechatPayResult(String resultJson) {
+        if (
+            TextUtils.isEmpty(resultJson) ||
+            getBridge() == null ||
+            getBridge().getWebView() == null
+        ) {
+            return false;
+        }
+
+        final String script =
+            "window.dispatchEvent(new CustomEvent('native-wechat-pay-result',{detail:JSON.parse("
+                + JSONObject.quote(resultJson)
+                + ")}));";
+
+        runOnUiThread(() -> {
+            try {
+                getBridge().getWebView().evaluateJavascript(script, null);
+            } catch (Exception error) {
+                System.out.println("派发微信支付结果事件失败: " + error.getMessage());
+            }
+        });
+        return true;
     }
 
     private boolean containsIgnoreCase(String value, String keyword) {
@@ -371,6 +427,126 @@ public class MainActivity extends BridgeActivity {
             } catch (InterruptedException error) {
                 Thread.currentThread().interrupt();
                 return buildShareResult(false, "interrupted", "原生微信分享被中断");
+            }
+
+            return resultRef.get();
+        }
+
+        @JavascriptInterface
+        public String launchWechatPay(String payloadJson) {
+            AtomicReference<String> resultRef = new AtomicReference<>(
+                buildWechatPayLaunchResult(false, false, "unknown", "原生微信支付未执行")
+            );
+            CountDownLatch latch = new CountDownLatch(1);
+
+            new Thread(() -> {
+                try {
+                    JSONObject payload = new JSONObject(payloadJson);
+                    String appId = payload.optString("appId");
+                    String partnerId = payload.optString("partnerId");
+                    String prepayId = payload.optString("prepayId");
+                    String packageValue = payload.optString("packageValue");
+                    String nonceStr = payload.optString("nonceStr");
+                    String timeStamp = payload.optString("timeStamp");
+                    String sign = payload.optString("sign");
+                    String outTradeNo = payload.optString("outTradeNo");
+
+                    if (
+                        TextUtils.isEmpty(appId) ||
+                        TextUtils.isEmpty(partnerId) ||
+                        TextUtils.isEmpty(prepayId) ||
+                        TextUtils.isEmpty(packageValue) ||
+                        TextUtils.isEmpty(nonceStr) ||
+                        TextUtils.isEmpty(timeStamp) ||
+                        TextUtils.isEmpty(sign)
+                    ) {
+                        resultRef.set(
+                            buildWechatPayLaunchResult(
+                                false,
+                                false,
+                                "invalid-params",
+                                "微信支付参数不完整"
+                            )
+                        );
+                        latch.countDown();
+                        return;
+                    }
+
+                    runOnUiThread(() -> {
+                        try {
+                            IWXAPI api = WXAPIFactory.createWXAPI(MainActivity.this, appId, true);
+                            api.registerApp(appId);
+
+                            if (!api.isWXAppInstalled()) {
+                                resultRef.set(
+                                    buildWechatPayLaunchResult(
+                                        false,
+                                        false,
+                                        "wechat-not-installed",
+                                        "未安装微信"
+                                    )
+                                );
+                                return;
+                            }
+
+                            WechatPayBridge.saveAppId(MainActivity.this, appId);
+                            WechatPayBridge.clearPendingPayResult();
+
+                            PayReq req = new PayReq();
+                            req.appId = appId;
+                            req.partnerId = partnerId;
+                            req.prepayId = prepayId;
+                            req.packageValue = packageValue;
+                            req.nonceStr = nonceStr;
+                            req.timeStamp = timeStamp;
+                            req.sign = sign;
+                            if (!TextUtils.isEmpty(outTradeNo)) {
+                                req.extData = outTradeNo;
+                            }
+
+                            boolean sent = api.sendReq(req);
+                            resultRef.set(
+                                buildWechatPayLaunchResult(
+                                    sent,
+                                    sent,
+                                    sent ? "ok" : "send-failed",
+                                    sent ? "已拉起微信支付" : "拉起微信支付失败"
+                                )
+                            );
+                        } catch (Exception error) {
+                            resultRef.set(
+                                buildWechatPayLaunchResult(
+                                    false,
+                                    false,
+                                    "native-exception",
+                                    error.getMessage() == null ? "调用微信支付失败" : error.getMessage()
+                                )
+                            );
+                        } finally {
+                            latch.countDown();
+                        }
+                    });
+                } catch (Exception error) {
+                    resultRef.set(
+                        buildWechatPayLaunchResult(
+                            false,
+                            false,
+                            "native-exception",
+                            error.getMessage() == null ? "调用微信支付失败" : error.getMessage()
+                        )
+                    );
+                    latch.countDown();
+                }
+            }).start();
+
+            try {
+                boolean completed = latch.await(10, TimeUnit.SECONDS);
+                if (!completed) {
+                    return buildWechatPayLaunchResult(false, false, "timeout", "原生微信支付超时");
+                }
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                return buildWechatPayLaunchResult(false, false, "interrupted", "原生微信支付被中断");
             }
 
             return resultRef.get();

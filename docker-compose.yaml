@@ -35,6 +35,7 @@ services:
     volumes:
       - ./node:/app
       - uploads_data:/app/public/uploads # <-- 新增：挂载共享卷到 Node.js 图片存储路径 (请确保 /app/uploads 是你后端实际存储图片的路径)
+      - ./wechat:/app/wechat
     working_dir: /app
     environment:
       - PORT=5320
@@ -52,6 +53,14 @@ services:
       - DATABASE_CACHING_RSA_PUBLIC_KEY_BASE64=
       - WECHAT_APP_ID= # 微信服务号 AppID
       - WECHAT_APP_SECRET= # 微信服务号 AppSecret
+      - WECHAT_OPEN_APP_ID= # 微信开放平台移动应用 AppID
+      - WECHAT_PAY_MERCHANT_ID= # 微信支付商户号
+      - WECHAT_PAY_API_V3_KEY= # 微信支付 API V3 密钥
+      - WECHAT_PAY_CERT_SERIAL_NO= # 微信支付证书序列号
+      - WECHAT_PAY_PUBLIC_KEY_ID= # 微信支付公钥 ID，格式 PUB_KEY_ID_...
+      - WECHAT_PAY_PUBLIC_KEY_PATH= # 微信支付公钥文件路径
+      - WECHAT_PAY_NOTIFY_URL=https://yizuw.cn/api/wechat/pay/notify
+      - WECHAT_PAY_PRIVATE_KEY_PATH= # 微信支付私钥路径
     command: node ./server/index.mjs
     depends_on:
       - mysql

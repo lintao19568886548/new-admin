@@ -6,6 +6,7 @@ import {
   resolveUserPhoneNumber,
   transformPrismaUserToUserInfo,
 } from '~/utils/user-service';
+import { appendVipMembershipInfo } from '~/utils/vip-membership';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -18,13 +19,20 @@ export default eventHandler(async (event) => {
     process.env.DEFAULT_CUSTOMER_ID || 'default',
   );
   const customerId = String(userinfo.customerId || defaultCustomerId);
+  const centerUserId = Number(userinfo.centerUserId ?? userinfo.id);
   const cached = await getCachedUserInfo({
     customerId,
     userId: Number(userinfo.id),
   }).catch(() => null);
   const cachedPhone = cached ? resolveUserPhoneNumber(cached) : '';
   if (cached && cachedPhone) {
-    return useResponseSuccess({ ...cached, phone: cachedPhone });
+    return useResponseSuccess(
+      await appendVipMembershipInfo({
+        ...cached,
+        centerUserId,
+        phone: cachedPhone,
+      }),
+    );
   }
 
   const currentUserFromDB = await fetchUserWithDetails(
@@ -40,12 +48,12 @@ export default eventHandler(async (event) => {
     currentUserFromDB,
     prismaClient,
   );
-  const refreshed = { ...refreshedRaw, customerId };
+  const refreshed = { ...refreshedRaw, centerUserId, customerId };
   await setCachedUserInfo({
     customerId,
     userId: refreshed.id,
     value: refreshed,
   }).catch(() => undefined);
 
-  return useResponseSuccess(refreshed);
+  return useResponseSuccess(await appendVipMembershipInfo(refreshed));
 });
