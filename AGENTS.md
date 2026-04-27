@@ -11,8 +11,8 @@
 
 - 本地开发：`pnpm -F @vben/playground dev` 或 `pnpm dev:play`（包含代理配置）。
 - 前端构建：`pnpm -F @vben/playground build`。
-- 类型检查：`pnpm -F <paths> typecheck`。
-- Lint：必跑 `pnpm lint`；按需跑 `pnpm exec eslint --no-cache <paths>`、`tsc --noEmit`、`vue-tsc --noEmit`
+- 类型检查：按变更范围执行。后端 TS 改动优先跑 `pnpm -F @vben/backend-mock exec tsc --noEmit`；前端 Vue/TS 改动优先跑对应包的 `typecheck` 或 `vue-tsc --noEmit`。
+- Lint：修改 TS/Vue/JS 文件后，交付前至少跑一次目标文件 ESLint，例如 `pnpm exec eslint --no-cache <changed-files>`；大范围改动或提交前再跑 `pnpm lint`。
 - 不要执行安卓构建，应该由用户执行
 
 ## 代码风格与命名
@@ -23,7 +23,8 @@
 
 ## 测试指引
 
-- 修改ts、vue文件后：交付功能给用户前必须确保类型检查和Lint通过；若涉及表单/接口，建议补充简单的 e2e/集成用例或手动验收步骤。
+- 修改 TS/Vue/JS 文件后：交付功能给用户前必须同时确保类型检查和 ESLint 通过，不能用 `tsc`/`vue-tsc` 替代 ESLint。
+- 若涉及表单/接口，建议补充简单的 e2e/集成用例或手动验收步骤。
 
 ## 提交与 Pull Request
 
