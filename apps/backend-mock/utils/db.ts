@@ -120,6 +120,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 type PrismaScope = {
   customerId: string;
+  dbName?: null | string;
 };
 
 export const prismaScopeStorage = new AsyncLocalStorage<PrismaScope>();
@@ -128,19 +129,43 @@ function getDefaultCustomerId() {
   return String(process.env.DEFAULT_CUSTOMER_ID || 'default');
 }
 
-function buildCustomerDatabaseUrl(customerId: string) {
+function normalizeDatabaseName(dbName: unknown) {
+  const normalized = String(dbName || '').trim();
+  if (normalized && !/^\w+$/.test(normalized)) {
+    throw new Error(
+      `Invalid database name: ${normalized}. Only [a-zA-Z0-9_] is allowed.`,
+    );
+  }
+  return normalized;
+}
+
+function applyDatabaseName(databaseUrl: string, dbName: string) {
+  const normalizedDbName = normalizeDatabaseName(dbName);
+  if (!normalizedDbName) {
+    return databaseUrl;
+  }
+
+  const url = new URL(databaseUrl);
+  url.pathname = `/${normalizedDbName}`;
+  return url.toString();
+}
+
+function buildCustomerDatabaseUrl(customerId: string, dbName?: null | string) {
   const normalizedCustomerId = String(customerId || '').trim();
   if (normalizedCustomerId && !/^\w+$/.test(normalizedCustomerId)) {
     throw new Error(
       `Invalid customerId: ${normalizedCustomerId}. Only [a-zA-Z0-9_] is allowed.`,
     );
   }
+  const normalizedDbName = normalizeDatabaseName(dbName);
 
   if (normalizedCustomerId === 'public') {
     if (!publicDatabaseUrl) {
       throw new Error('PUBLIC_DATABASE_URL is required for public customer');
     }
-    return publicDatabaseUrl;
+    return normalizedDbName
+      ? applyDatabaseName(publicDatabaseUrl, normalizedDbName)
+      : publicDatabaseUrl;
   }
 
   const template = process.env.CUSTOMER_DATABASE_URL_TEMPLATE;
@@ -150,21 +175,28 @@ function buildCustomerDatabaseUrl(customerId: string) {
         'CUSTOMER_DATABASE_URL_TEMPLATE must include "{customerId}" placeholder',
       );
     }
-    return template.replaceAll('{customerId}', normalizedCustomerId);
+    const resolved = template.replaceAll('{customerId}', normalizedCustomerId);
+    return normalizedDbName
+      ? applyDatabaseName(resolved, normalizedDbName)
+      : resolved;
   }
 
   const defaultCustomerId = getDefaultCustomerId();
   if (!normalizedCustomerId || normalizedCustomerId === defaultCustomerId) {
-    return databaseUrl;
+    return normalizedDbName
+      ? applyDatabaseName(databaseUrl, normalizedDbName)
+      : databaseUrl;
   }
 
   const url = new URL(databaseUrl);
   const prefix = process.env.CUSTOMER_DB_PREFIX || 'customer_';
   url.pathname = `/${prefix}${normalizedCustomerId}`;
-  return url.toString();
+  return normalizedDbName
+    ? applyDatabaseName(url.toString(), normalizedDbName)
+    : url.toString();
 }
 
-function getCustomerPrismaClient(customerId: string) {
+function getCustomerPrismaClient(customerId: string, dbName?: null | string) {
   if (!globalForPrisma.prismaCustomers) {
     globalForPrisma.prismaCustomers = new Map<
       string,
@@ -173,6 +205,10 @@ function getCustomerPrismaClient(customerId: string) {
   }
 
   const normalizedCustomerId = customerId || getDefaultCustomerId();
+  const normalizedDbName = normalizeDatabaseName(dbName);
+  const cacheKey = normalizedDbName
+    ? `${normalizedCustomerId}:${normalizedDbName}`
+    : normalizedCustomerId;
   const cache = globalForPrisma.prismaCustomers;
   const now = Date.now();
   const ttlSeconds = Number(
@@ -187,25 +223,25 @@ function getCustomerPrismaClient(customerId: string) {
   const max =
     Number.isFinite(maxSize) && maxSize > 0 ? Math.floor(maxSize) : 30;
 
-  const cached = cache.get(normalizedCustomerId);
+  const cached = cache.get(cacheKey);
   if (cached) {
     if (cached.expiresAt > now) {
       cached.lastUsedAt = now;
       return cached.client;
     }
-    cache.delete(normalizedCustomerId);
+    cache.delete(cacheKey);
     cached.client.$disconnect().catch(() => undefined);
   }
 
   const client = new CustomerPrismaClient({
     adapter: createMariaDbAdapter(
-      buildCustomerDatabaseUrl(normalizedCustomerId),
+      buildCustomerDatabaseUrl(normalizedCustomerId, normalizedDbName),
       cachingRsaPublicKey,
     ),
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
 
-  cache.set(normalizedCustomerId, {
+  cache.set(cacheKey, {
     client,
     expiresAt: now + ttlMs,
     lastUsedAt: now,
@@ -238,7 +274,7 @@ function getRequestScopedPrismaClient() {
   if (!scope?.customerId) {
     throw new Error('Missing customer scope');
   }
-  return getCustomerPrismaClient(scope.customerId);
+  return getCustomerPrismaClient(scope.customerId, scope.dbName);
 }
 
 export const prismaClient: CustomerPrismaClient = new Proxy(

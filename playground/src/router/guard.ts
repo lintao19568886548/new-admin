@@ -5,10 +5,15 @@ import { preferences } from '@vben/preferences';
 import { useAccessStore, useUserStore } from '@vben/stores';
 import { startProgress, stopProgress } from '@vben/utils';
 
-import { accessRoutes, coreRouteNames } from '#/router/routes';
+import { coreRouteNames } from '#/router/routes';
 import { useAuthStore } from '#/store';
+import {
+  buildMembershipAccessRedirect,
+  isMembershipAllowedRoutePath,
+  resolveMembershipAccessState,
+} from '#/utils/membership-access';
+import { syncMembershipAccessWatch } from '#/utils/membership-access-watch';
 
-import { generateAccess } from './access';
 import { resolveUserHomePath } from './home-path';
 
 /**
@@ -102,23 +107,18 @@ function setupAccessGuard(router: Router) {
       return true;
     }
 
-    // 生成路由表
-    // 当前登录用户拥有的角色标识列表
-    const userInfo = userStore.userInfo || (await authStore.fetchUserInfo());
-    const userRoles = userInfo.roles ?? [];
-
-    // 生成菜单和路由
-    const { accessibleMenus, accessibleRoutes } = await generateAccess({
-      roles: userRoles,
-      router,
-      // 则会在菜单中显示，但是访问会被重定向到 403
-      routes: accessRoutes,
-    });
-
-    // 保存菜单信息和路由信息
-    accessStore.setAccessMenus(accessibleMenus);
-    accessStore.setAccessRoutes(accessibleRoutes);
-    accessStore.setIsAccessChecked(true);
+    const userInfo =
+      userStore.userInfo || (await authStore.ensureSessionReady());
+    if (!userInfo) {
+      return {
+        path: LOGIN_PATH,
+        query:
+          to.fullPath === DEFAULT_HOME_PATH
+            ? {}
+            : { redirect: encodeURIComponent(to.fullPath) },
+        replace: true,
+      };
+    }
     const redirectPath = (from.query.redirect ??
       (to.path === DEFAULT_HOME_PATH
         ? resolveUserHomePath(userInfo.homePath)
@@ -131,6 +131,43 @@ function setupAccessGuard(router: Router) {
   });
 }
 
+function setupMembershipAccessGuard(router: Router) {
+  router.beforeEach(async (to) => {
+    const accessStore = useAccessStore();
+    const userStore = useUserStore();
+    const authStore = useAuthStore();
+
+    if (!accessStore.accessToken) {
+      return true;
+    }
+
+    if (coreRouteNames.includes(to.name as string)) {
+      return true;
+    }
+
+    const userInfo =
+      userStore.userInfo || (await authStore.ensureSessionReady());
+    if (!userInfo) {
+      return true;
+    }
+    syncMembershipAccessWatch(userInfo, authStore.fetchUserInfo);
+    const membershipAccessState = resolveMembershipAccessState(userInfo);
+
+    if (!membershipAccessState.accessRestricted) {
+      return true;
+    }
+
+    if (isMembershipAllowedRoutePath(to.path)) {
+      return true;
+    }
+
+    return buildMembershipAccessRedirect(
+      to.fullPath,
+      membershipAccessState.membershipGateReason,
+    );
+  });
+}
+
 /**
  * 项目守卫配置
  * @param router
@@ -140,6 +177,8 @@ function createRouterGuard(router: Router) {
   setupCommonGuard(router);
   /** 权限访问 */
   setupAccessGuard(router);
+  /** 会员访问 */
+  setupMembershipAccessGuard(router);
 }
 
 export { createRouterGuard };

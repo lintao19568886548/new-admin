@@ -6,6 +6,7 @@ import { systemDbClient } from '~/utils/db';
 const VIP_MEMBERSHIP_ACTIVE_STATUS = 'active';
 const VIP_MEMBERSHIP_ATTACH_TAG = 'vip-membership';
 const VIP_MEMBERSHIP_DURATION_MONTHS = 1;
+const VIP_TRIAL_DURATION_MONTHS = 1;
 const PROVISIONING_BLOCKING_STATUSES = new Set([
   'failed_manual',
   'failed_retryable',
@@ -24,12 +25,20 @@ interface VipMembershipAttachPayload {
 }
 
 export interface VipMembershipProfileState {
+  accessRestricted: boolean;
+  accessScopeStatus:
+    | 'default_exempt'
+    | 'member_active'
+    | 'restricted'
+    | 'trial_active';
   isMember: boolean;
   isMembership: boolean;
+  isTrialActive: boolean;
   isTenantProvisioning: boolean;
   isVip: boolean;
   memberExpireAt?: string;
   memberStatus: 'active' | 'expired' | 'inactive';
+  membershipGateReason: 'membership_expired' | 'none' | 'trial_expired';
   membershipExpireAt?: string;
   membershipStatus: 'active' | 'expired' | 'inactive';
   sourceCustomerId?: string;
@@ -42,6 +51,8 @@ export interface VipMembershipProfileState {
     | 'none'
     | 'pending'
     | 'provisioning';
+  trialExpireAt?: string;
+  trialStatus: 'active' | 'expired' | 'inactive';
   vipExpireAt?: string;
   vipStatus: 'active' | 'expired' | 'inactive';
 }
@@ -207,6 +218,56 @@ function toVipMembershipCoreState(
   };
 }
 
+function toTrialState(centerUserCreateTime: Date | null | undefined) {
+  const createTime = parseDateValue(centerUserCreateTime);
+  if (!createTime) {
+    return {
+      isTrialActive: false,
+      trialExpireAt: undefined,
+      trialStatus: 'inactive' as const,
+    };
+  }
+
+  const trialExpireAt = addMonths(createTime, VIP_TRIAL_DURATION_MONTHS);
+  const isTrialActive = trialExpireAt.getTime() > Date.now();
+
+  return {
+    isTrialActive,
+    trialExpireAt: trialExpireAt.toISOString(),
+    trialStatus: isTrialActive ? ('active' as const) : ('expired' as const),
+  };
+}
+
+function toVipMembershipAccessState(
+  coreState: ReturnType<typeof toVipMembershipCoreState>,
+  trialState: ReturnType<typeof toTrialState>,
+) {
+  if (coreState.isVip) {
+    return {
+      accessRestricted: false,
+      accessScopeStatus: 'member_active' as const,
+      membershipGateReason: 'none' as const,
+    };
+  }
+
+  if (trialState.isTrialActive) {
+    return {
+      accessRestricted: false,
+      accessScopeStatus: 'trial_active' as const,
+      membershipGateReason: 'none' as const,
+    };
+  }
+
+  return {
+    accessRestricted: true,
+    accessScopeStatus: 'restricted' as const,
+    membershipGateReason:
+      coreState.vipStatus === 'expired'
+        ? ('membership_expired' as const)
+        : ('trial_expired' as const),
+  };
+}
+
 function resolveProvisioningMessage(
   status: VipMembershipProfileState['tenantProvisioningStatus'],
 ) {
@@ -300,6 +361,20 @@ async function getTenantProvisioningJobByCenterUserId(
   return prisma.tenantProvisioningJob.findUnique({
     where: {
       centerUserId,
+    },
+  });
+}
+
+async function getCenterUserMembershipTrialProfile(
+  centerUserId: number,
+  prisma: VipMembershipDbClient = systemDbClient,
+) {
+  return prisma.user.findUnique({
+    select: {
+      createTime: true,
+    },
+    where: {
+      id: centerUserId,
     },
   });
 }
@@ -502,17 +577,45 @@ export async function getTenantProvisioningProfileState(
 }
 
 export async function getVipMembershipProfileState(centerUserId: number) {
-  const membership = await withVipMembershipDb(() =>
-    getVipMembershipByCenterUserId(centerUserId),
-  );
-  const coreState = toVipMembershipCoreState(membership);
+  const membershipState = await getVipMembershipAccessState(centerUserId);
   const provisioningState =
     await getTenantProvisioningProfileState(centerUserId);
 
   return {
-    ...coreState,
+    ...membershipState,
     ...provisioningState,
   } satisfies VipMembershipProfileState;
+}
+
+export async function getVipMembershipAccessState(
+  centerUserId: number,
+  options: {
+    centerUserCreateTime?: Date | null;
+    prisma?: VipMembershipDbClient;
+  } = {},
+) {
+  const prisma = options.prisma ?? systemDbClient;
+  const providedCreateTime = options.centerUserCreateTime;
+  const [membership, centerUser] = await withVipMembershipDb(() =>
+    Promise.all([
+      getVipMembershipByCenterUserId(centerUserId, prisma),
+      providedCreateTime === undefined
+        ? getCenterUserMembershipTrialProfile(centerUserId, prisma)
+        : Promise.resolve({
+            createTime: providedCreateTime,
+          }),
+    ]),
+  );
+
+  const coreState = toVipMembershipCoreState(membership);
+  const trialState = toTrialState(centerUser?.createTime);
+  const accessState = toVipMembershipAccessState(coreState, trialState);
+
+  return {
+    ...coreState,
+    ...trialState,
+    ...accessState,
+  };
 }
 
 export async function appendVipMembershipInfo<T extends Record<string, any>>(
@@ -525,9 +628,22 @@ export async function appendVipMembershipInfo<T extends Record<string, any>>(
 
   try {
     const membershipState = await getVipMembershipProfileState(centerUserId);
+    const defaultCustomerId = String(
+      process.env.DEFAULT_CUSTOMER_ID || 'default',
+    );
+    const currentCustomerId = normalizeString(userInfo.customerId);
+    const resolvedMembershipState =
+      currentCustomerId === defaultCustomerId
+        ? {
+            ...membershipState,
+            accessRestricted: false,
+            accessScopeStatus: 'default_exempt' as const,
+            membershipGateReason: 'none' as const,
+          }
+        : membershipState;
     return {
       ...userInfo,
-      ...membershipState,
+      ...resolvedMembershipState,
     };
   } catch (error) {
     console.warn('补充会员信息失败，已忽略:', error);

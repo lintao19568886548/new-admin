@@ -27,6 +27,7 @@ export interface NativeWechatPayLaunchResult {
 }
 
 export interface WechatAppPayExecutionResult {
+  checkoutFlowToken?: string;
   launchParams: WechatAppLaunchParams;
   payResult: NativeWechatPayLaunchResult;
   prepayId: string;
@@ -193,9 +194,13 @@ export async function payWithWechatApp(
   const payResult = await launchNativeWechatPay(prepay.launchParams);
 
   return {
+    checkoutFlowToken: prepay.checkoutFlowToken,
     launchParams: prepay.launchParams,
     payResult,
     prepayId: prepay.prepayId,
-    queryOrderStatus: () => queryWechatPayOrder(prepay.launchParams.outTradeNo),
+    queryOrderStatus: () =>
+      queryWechatPayOrder(prepay.launchParams.outTradeNo, {
+        checkoutFlowToken: prepay.checkoutFlowToken,
+      }),
   };
 }

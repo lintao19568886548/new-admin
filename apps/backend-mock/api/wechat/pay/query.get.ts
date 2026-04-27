@@ -6,6 +6,7 @@ import {
   unAuthorizedResponse,
   useResponseSuccess,
 } from '~/utils/response';
+import { verifyVipCheckoutFlowTokenFromEvent } from '~/utils/vip-checkout-flow-token';
 import {
   getVipMembershipPaymentOwner,
   handleVipMembershipWechatOrder,
@@ -20,19 +21,32 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const userinfo = await verifyAccessToken(event);
-    if (!userinfo) {
-      return unAuthorizedResponse(event);
-    }
-
     const owner = await getVipMembershipPaymentOwner(outTradeNo);
     if (!owner) {
       return forbiddenResponse(event, '无权查询该支付订单');
     }
+    const flowTokenPayload =
+      event.context.vipCheckoutFlow ??
+      verifyVipCheckoutFlowTokenFromEvent(event);
 
-    const centerUserId = Number(userinfo.centerUserId ?? userinfo.id);
-    if (owner.centerUserId !== centerUserId) {
-      return forbiddenResponse(event, '无权查询该支付订单');
+    if (flowTokenPayload) {
+      if (
+        flowTokenPayload.outTradeNo !== outTradeNo ||
+        flowTokenPayload.centerUserId !== owner.centerUserId ||
+        flowTokenPayload.sourceCustomerId !== owner.sourceCustomerId
+      ) {
+        return forbiddenResponse(event, '无权查询该支付订单');
+      }
+    } else {
+      const userinfo = await verifyAccessToken(event);
+      if (!userinfo) {
+        return unAuthorizedResponse(event);
+      }
+
+      const centerUserId = Number(userinfo.centerUserId ?? userinfo.id);
+      if (owner.centerUserId !== centerUserId) {
+        return forbiddenResponse(event, '无权查询该支付订单');
+      }
     }
 
     const result = await queryWechatPayOrder(outTradeNo);

@@ -272,27 +272,36 @@ export async function resolveUserInfoForTokenFromCenterUser(params: {
 }): Promise<null | UserInfoForToken> {
   const customerId = String(params.customerId);
   const prisma = params.prisma ?? prismaClient;
-  const base = await prismaScopeStorage.run({ customerId }, async () => {
-    const resolved = await resolveTenantUserForCenterUser({
-      centerUserId: Number(params.centerUserId),
+  const base = await prismaScopeStorage.run(
+    {
       customerId,
-      username: String(params.username),
       dbName: params.dbName ? String(params.dbName) : null,
-      prisma,
-    });
-    if (!resolved) {
-      return null;
-    }
+    },
+    async () => {
+      const resolved = await resolveTenantUserForCenterUser({
+        centerUserId: Number(params.centerUserId),
+        customerId,
+        username: String(params.username),
+        dbName: params.dbName ? String(params.dbName) : null,
+        prisma,
+      });
+      if (!resolved) {
+        return null;
+      }
 
-    const customerUser = await fetchUserWithDetails(resolved.username, prisma);
-    if (!customerUser) {
-      return null;
-    }
-    if (Number(customerUser.status ?? 1) !== 1) {
-      return null;
-    }
-    return await transformPrismaUserToUserInfo(customerUser, prisma);
-  });
+      const customerUser = await fetchUserWithDetails(
+        resolved.username,
+        prisma,
+      );
+      if (!customerUser) {
+        return null;
+      }
+      if (Number(customerUser.status ?? 1) !== 1) {
+        return null;
+      }
+      return await transformPrismaUserToUserInfo(customerUser, prisma);
+    },
+  );
   if (!base) {
     return null;
   }

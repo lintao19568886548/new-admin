@@ -5,7 +5,7 @@ import type {
 } from '#/api/wechat-pay';
 
 import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import { VbenIcon } from '@vben/common-ui';
 import { useUserStore } from '@vben/stores';
@@ -14,6 +14,7 @@ import { Button, Checkbox, message, Modal, Tag } from 'ant-design-vue';
 
 import { getTenantProvisioningStatus } from '#/api/wechat-pay';
 import { useAuthStore } from '#/store';
+import { resolveMembershipAccessState } from '#/utils/membership-access';
 import {
   canUseNativeWechatPay,
   isWechatInstalled,
@@ -39,6 +40,7 @@ const membershipPlan = {
   price: MEMBERSHIP_AMOUNT_FEN / 100,
   savings: 300,
 };
+const RESTRICTED_PAGE_LABEL = '租赁管理、人事信息';
 
 const benefitItems = [
   {
@@ -85,6 +87,7 @@ interface ProfileTenantProvisioningState {
 }
 
 const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
 const userStore = useUserStore();
 
@@ -100,8 +103,18 @@ const paymentSectionRef = ref<HTMLElement | null>(null);
 const wechatOpenAppId = ref('');
 
 const userInfo = computed(() => userStore.userInfo);
+const membershipAccessState = computed(() =>
+  resolveMembershipAccessState(
+    userInfo.value as null | Record<string, unknown> | undefined,
+  ),
+);
 const displayName = computed(
   () => userInfo.value?.realName || userInfo.value?.username || '当前账号',
+);
+const backButtonLabel = computed(() =>
+  membershipAccessState.value.accessRestricted
+    ? '前往租赁管理'
+    : '返回个人中心',
 );
 const appPaySupported = computed(
   () => !!wechatOpenAppId.value && canUseNativeWechatPay(),
@@ -160,6 +173,45 @@ const profileTenantProvisioningState =
       latestTenantProvisioningStatus.value || userInfo.value,
     ),
   );
+const membershipGateNotice = computed(() => {
+  const accessState = membershipAccessState.value;
+  const queryReason =
+    typeof route.query.reason === 'string' ? route.query.reason.trim() : '';
+  const hasQueryReason =
+    queryReason === 'membership_expired' || queryReason === 'trial_expired';
+  if (
+    ['default_exempt', 'member_active', 'trial_active'].includes(
+      accessState.accessScopeStatus,
+    )
+  ) {
+    return null;
+  }
+  let reason: 'membership_expired' | 'none' | 'trial_expired' = 'none';
+  if (accessState.accessRestricted) {
+    reason = accessState.membershipGateReason;
+  } else if (hasQueryReason) {
+    reason = queryReason;
+  }
+  if (reason !== 'membership_expired' && reason !== 'trial_expired') {
+    return null;
+  }
+
+  if (reason === 'membership_expired') {
+    return {
+      description:
+        '当前账号仍保留在所属租户空间，但除租赁管理和人事信息外的页面已限制访问。续费后恢复全部功能。',
+      eyebrow: 'Membership Expired',
+      title: '会员已过期',
+    };
+  }
+
+  return {
+    description:
+      '免费试用期已结束，目前仅保留租赁管理和人事信息两个页面可用。开通会员后恢复全部功能。',
+    eyebrow: 'Trial Ended',
+    title: '试用已到期',
+  };
+});
 const orderStatusTag = computed(() => {
   if (profileTenantProvisioningState.value) {
     return {
@@ -375,12 +427,19 @@ function resolveProfileTenantProvisioningState(
 }
 
 function handleGoBack() {
-  if (window.history.length > 1) {
+  if (
+    !membershipAccessState.value.accessRestricted &&
+    window.history.length > 1
+  ) {
     router.back();
     return;
   }
 
-  void router.push('/profile');
+  void router.push(
+    membershipAccessState.value.accessRestricted
+      ? '/rental/manage'
+      : '/profile',
+  );
 }
 
 function sleep(ms: number) {
@@ -511,23 +570,53 @@ async function handleAgreementModalConfirm() {
 
 async function refreshUserProfileAfterPaid() {
   try {
-    await authStore.fetchUserInfo();
+    const refreshedUserInfo = await authStore.fetchUserInfo();
+    if (
+      refreshedUserInfo &&
+      !resolveMembershipAccessState(
+        refreshedUserInfo as unknown as Record<string, unknown>,
+      ).accessRestricted
+    ) {
+      const nextQuery = { ...route.query };
+      let queryChanged = false;
+
+      for (const key of ['from', 'reason', 'source'] as const) {
+        if (!(key in nextQuery)) {
+          continue;
+        }
+        delete nextQuery[key];
+        queryChanged = true;
+      }
+
+      if (queryChanged) {
+        await router.replace({
+          hash: route.hash,
+          path: route.path,
+          query: nextQuery,
+        });
+      }
+    }
   } catch (error) {
     console.warn('支付成功后刷新用户资料失败:', error);
   }
 }
 
-async function refreshTenantProvisioningStatus() {
-  const state = await getTenantProvisioningStatus();
+async function refreshTenantProvisioningStatus(checkoutFlowToken?: string) {
+  const state = await getTenantProvisioningStatus({
+    checkoutFlowToken,
+  });
   latestTenantProvisioningStatus.value = state;
   return state;
 }
 
-async function pollTenantProvisioningStatusAfterPaid() {
+async function pollTenantProvisioningStatusAfterPaid(
+  checkoutFlowToken?: string,
+) {
   let lastStatus: null | TenantProvisioningStatus = null;
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const currentStatus = await refreshTenantProvisioningStatus();
+    const currentStatus =
+      await refreshTenantProvisioningStatus(checkoutFlowToken);
     lastStatus = currentStatus;
 
     if (
@@ -639,16 +728,21 @@ async function handleWechatPay() {
     if (orderStatus.success) {
       let provisioningStatus: null | TenantProvisioningStatus = null;
       try {
-        provisioningStatus = await pollTenantProvisioningStatusAfterPaid();
+        provisioningStatus = await pollTenantProvisioningStatusAfterPaid(
+          execution.checkoutFlowToken,
+        );
       } catch (error) {
         console.warn('支付成功后刷新专属空间状态失败:', error);
       }
 
-      await refreshUserProfileAfterPaid();
+      if (!provisioningStatus?.requiresRelogin) {
+        await refreshUserProfileAfterPaid();
+      }
       message.success({
-        content:
-          provisioningStatus?.tenantProvisioningMessage ||
-          '支付成功，专属空间状态同步中，请稍后刷新。',
+        content: provisioningStatus?.requiresRelogin
+          ? '专属空间已开通，请重新登录进入专属空间。'
+          : provisioningStatus?.tenantProvisioningMessage ||
+            '支付成功，专属空间状态同步中，请稍后刷新。',
         duration: 4,
         key: PAY_MESSAGE_KEY,
       });
@@ -691,8 +785,22 @@ onMounted(() => {
     <div class="vip-pay-page__shell">
       <button class="vip-pay-page__back" type="button" @click="handleGoBack">
         <VbenIcon icon="mdi:arrow-left" class="size-4" />
-        <span>返回个人中心</span>
+        <span>{{ backButtonLabel }}</span>
       </button>
+
+      <section v-if="membershipGateNotice" class="pay-alert">
+        <div>
+          <p class="pay-head__eyebrow">{{ membershipGateNotice.eyebrow }}</p>
+          <h2>{{ membershipGateNotice.title }}</h2>
+          <p class="pay-alert__description">
+            {{ membershipGateNotice.description }}
+          </p>
+        </div>
+        <div class="pay-alert__scope">
+          <span>当前仍可访问</span>
+          <strong>{{ RESTRICTED_PAGE_LABEL }}</strong>
+        </div>
+      </section>
 
       <section class="pay-head">
         <div class="pay-head__intro">
@@ -941,6 +1049,52 @@ onMounted(() => {
   cursor: pointer;
   background: transparent;
   border: 0;
+}
+
+.pay-alert {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+  padding: 22px 24px;
+  margin-top: 18px;
+  background:
+    linear-gradient(135deg, rgb(255 248 235 / 96%), rgb(255 255 255 / 98%)),
+    #fff;
+  border: 1px solid rgb(183 121 31 / 20%);
+  border-radius: 24px;
+  box-shadow: 0 12px 28px rgb(15 23 42 / 6%);
+}
+
+.pay-alert h2 {
+  margin: 0;
+  color: var(--vip-text);
+}
+
+.pay-alert__description {
+  margin: 12px 0 0;
+  line-height: 1.8;
+  color: var(--vip-text-soft);
+}
+
+.pay-alert__scope {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+  padding: 14px 16px;
+  background: rgb(23 100 255 / 5%);
+  border-radius: 18px;
+}
+
+.pay-alert__scope span {
+  font-size: 13px;
+  color: var(--vip-text-soft);
+}
+
+.pay-alert__scope strong {
+  font-size: 16px;
+  color: var(--vip-text);
 }
 
 .pay-head {
@@ -1290,6 +1444,11 @@ onMounted(() => {
 @media (max-width: 900px) {
   .vip-pay-page {
     padding: 16px 16px calc(128px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .pay-alert {
+    grid-template-columns: 1fr;
+    padding: 20px;
   }
 
   .pay-head {

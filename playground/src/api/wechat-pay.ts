@@ -21,6 +21,7 @@ export interface CreateWechatAppPrepayParams {
 }
 
 export interface CreateWechatAppPrepayResponse {
+  checkoutFlowToken?: string;
   launchParams: WechatAppLaunchParams;
   prepayId: string;
 }
@@ -39,7 +40,9 @@ export type TenantProvisioningStatusValue =
   | 'provisioning';
 
 export interface TenantProvisioningStatus {
+  currentCustomerId?: string;
   isTenantProvisioning: boolean;
+  requiresRelogin?: boolean;
   sourceCustomerId?: string;
   targetCustomerId?: string;
   tenantProvisioningMessage?: string;
@@ -65,6 +68,22 @@ export interface WechatPayOrderStatus {
   transactionId: string;
 }
 
+interface VipCheckoutFlowRequestOptions {
+  checkoutFlowToken?: string;
+}
+
+function buildVipCheckoutFlowHeaders(
+  options?: VipCheckoutFlowRequestOptions,
+): Record<string, string> | undefined {
+  const checkoutFlowToken = String(options?.checkoutFlowToken || '').trim();
+  if (!checkoutFlowToken) {
+    return undefined;
+  }
+  return {
+    'x-vip-checkout-flow-token': checkoutFlowToken,
+  };
+}
+
 export async function createWechatAppPrepay(data: CreateWechatAppPrepayParams) {
   return requestClient.post<CreateWechatAppPrepayResponse>(
     '/wechat/pay/app/prepay',
@@ -76,16 +95,25 @@ export async function getWechatPayAppConfig() {
   return requestClient.get<WechatPayAppConfig>('/wechat/pay/app/config');
 }
 
-export async function queryWechatPayOrder(outTradeNo: string) {
+export async function queryWechatPayOrder(
+  outTradeNo: string,
+  options?: VipCheckoutFlowRequestOptions,
+) {
   return requestClient.get<WechatPayOrderStatus>('/wechat/pay/query', {
+    headers: buildVipCheckoutFlowHeaders(options),
     params: {
       outTradeNo,
     },
   });
 }
 
-export async function getTenantProvisioningStatus() {
+export async function getTenantProvisioningStatus(
+  options?: VipCheckoutFlowRequestOptions,
+) {
   return requestClient.get<TenantProvisioningStatus>(
     '/tenant/provisioning/status',
+    {
+      headers: buildVipCheckoutFlowHeaders(options),
+    },
   );
 }

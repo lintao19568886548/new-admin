@@ -1,8 +1,114 @@
 import { prismaClient, prismaScopeStorage, systemDbClient } from '~/utils/db';
-import { shouldBlockTenantWriteForProvisioning } from '~/utils/vip-membership';
+import { verifyVipCheckoutFlowTokenFromEvent } from '~/utils/vip-checkout-flow-token';
+import {
+  getVipMembershipAccessState,
+  shouldBlockTenantWriteForProvisioning,
+} from '~/utils/vip-membership';
 
 import { decodeAccessToken, verifyAccessToken } from '../utils/jwt-utils';
 import { forbiddenResponse, unAuthorizedResponse } from '../utils/response';
+
+function isMembershipAllowedApiRequest(method: string, requestPath: string) {
+  if (requestPath.startsWith('/api/auth')) {
+    return true;
+  }
+
+  if (requestPath.startsWith('/api/wechat/pay')) {
+    return true;
+  }
+
+  if (
+    method === 'GET' &&
+    [
+      '/api/access/visitor/list',
+      '/api/hrm/attendance/today',
+      '/api/hrm/employee/accounts',
+      '/api/reimbursement/summary',
+      '/api/system/version',
+      '/api/tenant/provisioning/status',
+      '/api/user/info',
+    ].includes(requestPath)
+  ) {
+    return true;
+  }
+
+  if (
+    method === 'GET' &&
+    ['/api/park/list', '/api/system/park/list'].includes(requestPath)
+  ) {
+    return true;
+  }
+
+  if (
+    method === 'GET' &&
+    (/^\/api\/system\/park\/\d+$/.test(requestPath) ||
+      /^\/api\/hrm\/employee\/\d+$/.test(requestPath))
+  ) {
+    return true;
+  }
+
+  if (
+    method === 'POST' &&
+    [
+      '/api/dormitory',
+      '/api/factory/own',
+      '/api/hrm/employee',
+      '/api/image/upload',
+      '/api/park',
+      '/api/user/cancel',
+      '/api/user/feedback',
+    ].includes(requestPath)
+  ) {
+    return true;
+  }
+
+  if (method === 'GET' && ['/api/hrm/employee/list'].includes(requestPath)) {
+    return true;
+  }
+
+  if (
+    method === 'PUT' &&
+    (/^\/api\/dormitory\/\d+$/.test(requestPath) ||
+      /^\/api\/factory\/\d+$/.test(requestPath) ||
+      /^\/api\/hrm\/employee\/\d+$/.test(requestPath) ||
+      /^\/api\/park\/\d+$/.test(requestPath))
+  ) {
+    return true;
+  }
+
+  if (
+    method === 'DELETE' &&
+    (/^\/api\/dormitory\/\d+$/.test(requestPath) ||
+      /^\/api\/factory\/\d+$/.test(requestPath) ||
+      /^\/api\/hrm\/employee\/\d+$/.test(requestPath) ||
+      /^\/api\/system\/park\/\d+$/.test(requestPath))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function membershipRequiredResponse(
+  event: Parameters<typeof forbiddenResponse>[0],
+  reason: 'membership_expired' | 'trial_expired',
+) {
+  const message =
+    reason === 'membership_expired'
+      ? '会员已过期，请续费后继续访问当前功能'
+      : '试用已到期，请开通会员后继续访问当前功能';
+
+  setResponseStatus(event, 403);
+  return {
+    code: 403,
+    data: null,
+    error: message,
+    errorCode: 'MEMBERSHIP_REQUIRED',
+    message,
+    redirectTo: '/profile/vip-membership',
+    restrictionReason: reason,
+  };
+}
 
 export default defineEventHandler(async (event) => {
   const defaultCustomerId = String(
@@ -26,8 +132,17 @@ export default defineEventHandler(async (event) => {
     event.method === 'GET' && requestPath === '/api/wechat/pay/app/config';
   const isPublicWechatPayNotifyApi =
     event.method === 'POST' && requestPath === '/api/wechat/pay/notify';
+  const isWechatPayOrderQueryApi =
+    event.method === 'GET' && requestPath === '/api/wechat/pay/query';
+  const isTenantProvisioningStatusApi =
+    event.method === 'GET' && requestPath === '/api/tenant/provisioning/status';
+  const isVipCheckoutFlowApi =
+    isWechatPayOrderQueryApi || isTenantProvisioningStatusApi;
   const isPublicAppVersionApi =
     event.method === 'GET' && requestPath === '/api/system/version';
+  const vipCheckoutFlow = isVipCheckoutFlowApi
+    ? verifyVipCheckoutFlowTokenFromEvent(event)
+    : null;
   const isPublicApi =
     ['/api/auth'].some((p) => requestPath.startsWith(p)) ||
     isPublicVisitorRegisterApi ||
@@ -35,7 +150,9 @@ export default defineEventHandler(async (event) => {
     isPublicWechatApi ||
     isPublicWechatPayConfigApi ||
     isPublicWechatPayNotifyApi ||
-    isPublicAppVersionApi;
+    isPublicAppVersionApi ||
+    Boolean(vipCheckoutFlow);
+  let currentCustomerDbName: null | string = null;
 
   event.node.res.setHeader(
     'Access-Control-Allow-Origin',
@@ -49,6 +166,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const userinfoForScope = verifyAccessToken(event);
+  event.context.vipCheckoutFlow = vipCheckoutFlow;
   if (isApiRequest && !isPublicApi) {
     if (
       !userinfoForScope ||
@@ -69,7 +187,12 @@ export default defineEventHandler(async (event) => {
 
     const current = await systemDbClient.user.findUnique({
       where: { id: centerUserId },
-      select: { customerType: true, status: true, tokenVersion: true },
+      select: {
+        createTime: true,
+        customerType: true,
+        status: true,
+        tokenVersion: true,
+      },
     });
     if (!current || Number(current.status ?? 1) !== 1) {
       return unAuthorizedResponse(event);
@@ -77,23 +200,47 @@ export default defineEventHandler(async (event) => {
     if (!current.customerType) {
       return unAuthorizedResponse(event);
     }
-    if (
+    const currentCustomerId = String(current.customerType);
+    const isDefaultCustomer = currentCustomerId === defaultCustomerId;
+    const isTokenVersionMismatch =
       Number(current.tokenVersion ?? 1) !==
-      Number(userinfoForScope.tokenVersion)
-    ) {
+      Number(userinfoForScope.tokenVersion);
+    if (isTokenVersionMismatch) {
       return unAuthorizedResponse(event);
     }
-    if (String(current.customerType) !== userinfoForScope.customerId) {
+    const isCustomerScopeMismatch =
+      currentCustomerId !== userinfoForScope.customerId;
+    if (isCustomerScopeMismatch) {
       return unAuthorizedResponse(event);
     }
 
+    if (!isDefaultCustomer) {
+      const membershipAccessState = await getVipMembershipAccessState(
+        centerUserId,
+        {
+          centerUserCreateTime: current.createTime || null,
+        },
+      );
+      if (
+        membershipAccessState.accessRestricted &&
+        !isMembershipAllowedApiRequest(event.method, requestPath)
+      ) {
+        const restrictionReason =
+          membershipAccessState.membershipGateReason === 'membership_expired'
+            ? 'membership_expired'
+            : 'trial_expired';
+        return membershipRequiredResponse(event, restrictionReason);
+      }
+    }
+
     const customer = await systemDbClient.customer.findUnique({
-      where: { customerId: String(current.customerType) },
-      select: { status: true },
+      where: { customerId: currentCustomerId },
+      select: { dbName: true, status: true },
     });
     if (!customer || customer.status === 0) {
       return unAuthorizedResponse(event);
     }
+    currentCustomerDbName = customer.dbName ? String(customer.dbName) : null;
 
     const isWriteRequest = ['DELETE', 'PATCH', 'POST', 'PUT'].includes(
       event.method,
@@ -101,7 +248,7 @@ export default defineEventHandler(async (event) => {
     const isProvisioningWriteAllowed =
       requestPath.startsWith('/api/auth') ||
       requestPath.startsWith('/api/wechat/pay') ||
-      requestPath === '/api/tenant/provisioning/status' ||
+      isTenantProvisioningStatusApi ||
       requestPath === '/api/user/info';
 
     if (
@@ -122,7 +269,10 @@ export default defineEventHandler(async (event) => {
   const customerIdForScope = String(
     userinfoForScope?.customerId || defaultCustomerId,
   );
-  prismaScopeStorage.enterWith({ customerId: customerIdForScope });
+  prismaScopeStorage.enterWith({
+    customerId: customerIdForScope,
+    dbName: currentCustomerDbName,
+  });
   event.context.customerId = customerIdForScope;
   event.context.userId = userinfoForScope?.id
     ? Number(userinfoForScope.id)

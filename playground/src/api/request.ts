@@ -3,6 +3,8 @@
  */
 import type { RequestClientOptions } from '@vben/request';
 
+import type { MembershipGateReason } from '#/utils/membership-access';
+
 import { useAppConfig } from '@vben/hooks';
 import { preferences } from '@vben/preferences';
 import {
@@ -15,7 +17,12 @@ import { useAccessStore } from '@vben/stores';
 
 import { message } from 'ant-design-vue';
 
+import { router } from '#/router';
 import { useAuthStore } from '#/store';
+import {
+  buildMembershipAccessRedirect,
+  MEMBERSHIP_PAGE_PATH,
+} from '#/utils/membership-access';
 
 import { refreshTokenApi } from './core';
 import { createRetryResponseBridge } from './request-retry-bridge';
@@ -28,6 +35,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     baseURL,
   });
   const retryResponseBridge = createRetryResponseBridge();
+  let lastMembershipRedirectAt = 0;
 
   const errorMessageLastShownAt = new Map<string, number>();
   const showErrorMessageDedup = (
@@ -40,6 +48,24 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     if (now - last < cooldownMs) return;
     errorMessageLastShownAt.set(key, now);
     message.error({ content, key });
+  };
+  const redirectToMembershipPage = (reason: unknown) => {
+    const normalizedReason: MembershipGateReason =
+      reason === 'membership_expired' ? 'membership_expired' : 'trial_expired';
+    const now = Date.now();
+    if (now - lastMembershipRedirectAt < 1000) {
+      return;
+    }
+    lastMembershipRedirectAt = now;
+
+    const currentRoute = router.currentRoute.value;
+    if (currentRoute.path === MEMBERSHIP_PAGE_PATH) {
+      return;
+    }
+
+    void router.replace(
+      buildMembershipAccessRedirect(currentRoute.fullPath, normalizedReason),
+    );
   };
 
   const markAuthRefreshError = (error: unknown) =>
@@ -54,12 +80,11 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     console.warn('Access token or refresh token is invalid or expired. ');
     const accessStore = useAccessStore();
     const authStore = useAuthStore();
-    accessStore.setAccessToken(null);
-    if (
+    const canShowExpiredModal =
       preferences.app.loginExpiredMode === 'modal' &&
-      accessStore.isAccessChecked
-    ) {
-      accessStore.setLoginExpired(true);
+      accessStore.isAccessChecked;
+    if (canShowExpiredModal) {
+      authStore.requireReauthentication('token_expired');
     } else {
       await authStore.logout(true, !client.isRefreshing);
     }
@@ -133,6 +158,10 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       // 这里可以根据业务进行定制,你可以拿到 error 内的信息进行定制化处理，根据不同的 code 做不同的提示，而不是直接使用 message.error 提示 msg
       // 当前mock接口返回的错误字段是 error 或者 message
       const responseData = error?.response?.data ?? {};
+      if (responseData?.errorCode === 'MEMBERSHIP_REQUIRED') {
+        redirectToMembershipPage(responseData?.restrictionReason);
+        return;
+      }
       const errorMessage = responseData?.error ?? responseData?.message ?? '';
 
       if ((error as any)?.__fromAuthRefresh && !error?.response) {

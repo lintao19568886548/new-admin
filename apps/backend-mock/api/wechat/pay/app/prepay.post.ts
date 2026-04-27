@@ -7,6 +7,7 @@ import {
   unAuthorizedResponse,
   useResponseSuccess,
 } from '~/utils/response';
+import { issueVipCheckoutFlowToken } from '~/utils/vip-checkout-flow-token';
 import {
   buildVipMembershipAttach,
   isVipMembershipAttach,
@@ -46,6 +47,7 @@ export default eventHandler(async (event) => {
 
   try {
     let attach = rawAttach;
+    let checkoutFlowToken: null | string = null;
     if (rawAttach && isVipMembershipAttach(rawAttach)) {
       const userinfo = await verifyAccessToken(event);
       if (!userinfo) {
@@ -78,6 +80,12 @@ export default eventHandler(async (event) => {
         sourceCustomerId: customerId,
         username: userinfo.username,
       });
+
+      checkoutFlowToken = issueVipCheckoutFlowToken({
+        centerUserId,
+        outTradeNo,
+        sourceCustomerId: customerId,
+      });
     }
 
     const payerClientIp =
@@ -99,6 +107,7 @@ export default eventHandler(async (event) => {
     });
 
     return useResponseSuccess({
+      checkoutFlowToken: checkoutFlowToken || undefined,
       launchParams: result.launchParams,
       prepayId: result.prepayId,
     });
