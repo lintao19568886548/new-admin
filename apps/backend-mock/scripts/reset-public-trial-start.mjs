@@ -9,6 +9,35 @@ const backendMockDir = path.resolve(scriptDir, '..');
 
 dotenv.config({ path: path.resolve(backendMockDir, '.env') });
 
+function normalizeArgv(argv) {
+  return argv.filter((arg) => arg !== '--');
+}
+
+function shouldPrintHelp(argv) {
+  return argv.length === 0 || argv.includes('--help') || argv.includes('-h');
+}
+
+function printHelp() {
+  console.log(`重置中心库用户会员试用开始时间
+
+用法:
+  pnpm -F @vben/backend-mock run trial:reset-public -- --customer-id=public
+  pnpm -F @vben/backend-mock run trial:reset-public -- --customer-id=public --trial-start=now --only-empty
+  pnpm -F @vben/backend-mock run trial:reset-public -- --customer-id=public --trial-start=2026-05-01T00:00:00+08:00 --execute
+
+参数:
+  --customer-id=<id>       目标 customerId，默认 public
+  --trial-start=<time>     试用开始时间，默认 now；支持 Date 可解析的时间字符串
+  --only-empty             只更新 membership_trial_start_at 为空的用户
+  --include-disabled       包含 status=0 的禁用用户
+  --execute                执行写入；不传时只预览
+  --help, -h               输出帮助
+
+说明:
+  不带参数只输出帮助，不再执行默认预览。
+  确认预览输出无误后，再追加 --execute 写入。`);
+}
+
 function parseArgs(argv) {
   const options = {
     customerId: 'public',
@@ -135,7 +164,13 @@ function buildWhere(options) {
 }
 
 async function main() {
-  const options = parseArgs(process.argv.slice(2));
+  const argv = normalizeArgv(process.argv.slice(2));
+  if (shouldPrintHelp(argv)) {
+    printHelp();
+    return;
+  }
+
+  const options = parseArgs(argv);
   options.customerId = normalizeCustomerId(options.customerId);
   const trialStartAt = resolveTrialStart(options.trialStart);
   const trialStartSql = formatSqlDateTime(trialStartAt);

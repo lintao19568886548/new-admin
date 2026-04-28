@@ -21,6 +21,7 @@
     "prisma:push": "pnpm exec prisma db push",
     "prisma:push:center": "pnpm exec cross-env PRISMA_TARGET=center prisma db push",
     "prisma:push:notices": "pnpm exec cross-env PRISMA_TARGET=notices prisma db push",
+    "tenant-provisioning:requeue-failed-manual": "node ./scripts/requeue-failed-manual-tenant-provisioning.mjs",
     "trial:reset-public": "node ./scripts/reset-public-trial-start.mjs"
   },
   "dependencies": {
