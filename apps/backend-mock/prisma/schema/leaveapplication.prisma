@@ -35,5 +35,7 @@ model LeaveApplication {
   @@index([userId])
   @@index([parkId])
   @@index([auditUserId])
+  @@index([username])
+  @@index([user])
   @@map("leave_application")
 }

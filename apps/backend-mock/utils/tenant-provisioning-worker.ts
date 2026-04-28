@@ -68,7 +68,13 @@ interface CopyRowsOptions {
   whereSql?: string;
 }
 
+type CopyRowsPageCallback = (
+  rows: Array<Record<string, unknown>>,
+) => Promise<unknown> | unknown;
+
 interface CopyRowsCursorOptions extends CopyRowsOptions {
+  afterWritePage?: CopyRowsPageCallback;
+  beforeWritePage?: CopyRowsPageCallback;
   cursorColumn: string;
   pageSize?: number;
 }
@@ -357,6 +363,17 @@ async function getTableCount(
     `SELECT COUNT(*) AS total FROM ${quoteIdentifier(tableName)} ${whereSql}`,
     params,
   )) as Array<{ total: bigint | number | string }>;
+  return Number(rows[0]?.total || 0);
+}
+
+async function getQueryCount(
+  connection: DbConnection,
+  sql: string,
+  params: unknown[] = [],
+) {
+  const rows = (await connection.query(sql, params)) as Array<{
+    total: bigint | number | string;
+  }>;
   return Number(rows[0]?.total || 0);
 }
 
@@ -695,6 +712,7 @@ async function copyRowsByCursor(
       return copied;
     }
 
+    await params.beforeWritePage?.(rows);
     copied += await writeRowsInChunks({
       heartbeat: params.heartbeat,
       plan,
@@ -702,6 +720,7 @@ async function copyRowsByCursor(
       targetConnection: params.targetConnection,
       targetTransforms: params.targetTransforms,
     });
+    await params.afterWritePage?.(rows);
 
     const nextCursorValue = rows.at(-1)?.[params.cursorColumn];
     if (nextCursorValue === null || nextCursorValue === undefined) {
@@ -716,25 +735,6 @@ async function copyRowsByCursor(
   }
 }
 
-async function readIds(params: {
-  connection: DbConnection;
-  idColumn: string;
-  params?: unknown[];
-  tableName: string;
-  whereSql: string;
-}) {
-  const rows = (await params.connection.query(
-    `SELECT ${quoteIdentifier(params.idColumn)} AS id FROM ${quoteIdentifier(
-      params.tableName,
-    )} ${params.whereSql}`,
-    params.params || [],
-  )) as Array<{ id: bigint | number | string }>;
-
-  return rows
-    .map((row) => Number(row.id))
-    .filter((value) => Number.isFinite(value) && value > 0);
-}
-
 function buildInWhere(column: string, ids: number[]) {
   return {
     params: ids,
@@ -744,11 +744,24 @@ function buildInWhere(column: string, ids: number[]) {
   };
 }
 
-function uniquePositiveNumbers(values: number[]) {
-  return values.filter(
-    (value, index, items) =>
-      Number.isFinite(value) && value > 0 && items.indexOf(value) === index,
-  );
+function toPositiveNumber(value: unknown) {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : null;
+}
+
+function uniquePositiveNumbers(values: unknown[]) {
+  const uniqueIds: number[] = [];
+  for (const value of values) {
+    const id = toPositiveNumber(value);
+    if (id !== null && !uniqueIds.includes(id)) {
+      uniqueIds.push(id);
+    }
+  }
+  return uniqueIds;
+}
+
+function pickPositiveIds(rows: Array<Record<string, unknown>>, column: string) {
+  return uniquePositiveNumbers(rows.map((row) => row[column]));
 }
 
 async function copyRowsByIds(params: {
@@ -760,10 +773,11 @@ async function copyRowsByIds(params: {
   targetConnection: DbConnection;
   targetTransforms?: CopyRowsOptions['targetTransforms'];
 }) {
-  if (params.ids.length === 0) {
+  const ids = uniquePositiveNumbers(params.ids);
+  if (ids.length === 0) {
     return 0;
   }
-  const where = buildInWhere(params.idColumn, params.ids);
+  const where = buildInWhere(params.idColumn, ids);
   return copyRows({
     ...where,
     sourceConnection: params.sourceConnection,
@@ -774,46 +788,23 @@ async function copyRowsByIds(params: {
   });
 }
 
-async function readParkIdsForTable(params: {
-  connection: DbConnection;
-  params?: unknown[];
-  tableName: string;
-  whereSql: string;
+async function copyParksForPage(params: {
+  heartbeat?: () => Promise<void>;
+  rows: Array<Record<string, unknown>>;
+  sourceConnection: DbConnection;
+  targetConnection: DbConnection;
 }) {
-  return uniquePositiveNumbers(
-    await readIds({
-      connection: params.connection,
-      idColumn: 'park_id',
-      params: params.params,
-      tableName: params.tableName,
-      whereSql: `WHERE park_id IS NOT NULL AND (${params.whereSql.replace(/^WHERE\s+/i, '')})`,
-    }),
-  );
+  return copyRowsByIds({
+    heartbeat: params.heartbeat,
+    idColumn: 'park_id',
+    ids: pickPositiveIds(params.rows, 'park_id'),
+    sourceConnection: params.sourceConnection,
+    tableName: 'park',
+    targetConnection: params.targetConnection,
+  });
 }
 
-async function readImageIdsForLinkTable(params: {
-  connection: DbConnection;
-  ownerColumn: string;
-  ownerIds: number[];
-  tableName: string;
-}) {
-  if (params.ownerIds.length === 0) {
-    return [];
-  }
-  const where = buildInWhere(params.ownerColumn, params.ownerIds);
-  const rows = (await params.connection.query(
-    `SELECT DISTINCT img_id AS imgId FROM ${quoteIdentifier(
-      params.tableName,
-    )} ${where.whereSql}`,
-    where.params,
-  )) as Array<{ imgId: bigint | number | string }>;
-
-  return rows
-    .map((row) => Number(row.imgId))
-    .filter((value) => Number.isFinite(value) && value > 0);
-}
-
-async function copyImagesForLinkTable(params: {
+async function copyImagesForLinkOwners(params: {
   heartbeat?: () => Promise<void>;
   linkOwnerColumn: string;
   linkOwnerIds: number[];
@@ -821,29 +812,48 @@ async function copyImagesForLinkTable(params: {
   sourceConnection: DbConnection;
   targetConnection: DbConnection;
 }) {
-  const imageIds = await readImageIdsForLinkTable({
-    connection: params.sourceConnection,
-    ownerColumn: params.linkOwnerColumn,
-    ownerIds: params.linkOwnerIds,
-    tableName: params.linkTableName,
-  });
+  const ownerIds = uniquePositiveNumbers(params.linkOwnerIds);
+  if (ownerIds.length === 0) {
+    return 0;
+  }
 
-  await copyRowsByIds({
-    idColumn: 'img_id',
-    ids: imageIds,
-    sourceConnection: params.sourceConnection,
-    tableName: 'image',
-    targetConnection: params.targetConnection,
+  const where = buildInWhere(params.linkOwnerColumn, ownerIds);
+  return copyRowsByCursor({
+    ...where,
+    beforeWritePage: async (rows) => {
+      await copyRowsByIds({
+        heartbeat: params.heartbeat,
+        idColumn: 'img_id',
+        ids: pickPositiveIds(rows, 'img_id'),
+        sourceConnection: params.sourceConnection,
+        tableName: 'image',
+        targetConnection: params.targetConnection,
+      });
+    },
+    cursorColumn: 'id',
     heartbeat: params.heartbeat,
-  });
-
-  await copyRowsByIds({
-    idColumn: params.linkOwnerColumn,
-    ids: params.linkOwnerIds,
     sourceConnection: params.sourceConnection,
     tableName: params.linkTableName,
     targetConnection: params.targetConnection,
+  });
+}
+
+async function copyImagesForOwnerPage(params: {
+  heartbeat?: () => Promise<void>;
+  linkOwnerColumn: string;
+  linkTableName: string;
+  ownerIdColumn: string;
+  rows: Array<Record<string, unknown>>;
+  sourceConnection: DbConnection;
+  targetConnection: DbConnection;
+}) {
+  return copyImagesForLinkOwners({
     heartbeat: params.heartbeat,
+    linkOwnerColumn: params.linkOwnerColumn,
+    linkOwnerIds: pickPositiveIds(params.rows, params.ownerIdColumn),
+    linkTableName: params.linkTableName,
+    sourceConnection: params.sourceConnection,
+    targetConnection: params.targetConnection,
   });
 }
 
@@ -851,88 +861,6 @@ function buildInvestmentPhones(context: UserMigrationContext) {
   return [context.username, context.centerUser.phone]
     .map((value) => String(value || '').trim())
     .filter((value, index, values) => value && values.indexOf(value) === index);
-}
-
-async function readInvestmentIdsForContext(params: {
-  connection: DbConnection;
-  context: UserMigrationContext;
-}) {
-  const investmentPhones = buildInvestmentPhones(params.context);
-  if (investmentPhones.length === 0) {
-    return [];
-  }
-
-  return readIds({
-    connection: params.connection,
-    idColumn: 'investment_id',
-    params: investmentPhones,
-    tableName: 'investment',
-    whereSql: `WHERE phone_number IN (${investmentPhones
-      .map(() => '?')
-      .join(', ')})`,
-  });
-}
-
-async function copyReferencedParks(params: {
-  context: UserMigrationContext;
-  heartbeat?: () => Promise<void>;
-  investmentIds: number[];
-  reimbursementIds: number[];
-  sourceConnection: DbConnection;
-  targetConnection: DbConnection;
-}) {
-  const leaveParkIds = await readParkIdsForTable({
-    connection: params.sourceConnection,
-    params: [
-      params.context.sourceUserId,
-      params.context.username,
-      params.context.username,
-    ],
-    tableName: 'leave_application',
-    whereSql: 'WHERE user_id = ? OR username = ? OR user = ?',
-  });
-  const reimbursementParkIds =
-    params.reimbursementIds.length > 0
-      ? await readIds({
-          connection: params.sourceConnection,
-          idColumn: 'park_id',
-          params: params.reimbursementIds,
-          tableName: 'reimbursement',
-          whereSql: buildInWhere('id', params.reimbursementIds).whereSql,
-        })
-      : [];
-  const investmentParkIds =
-    params.investmentIds.length > 0
-      ? await readIds({
-          connection: params.sourceConnection,
-          idColumn: 'park_id',
-          params: params.investmentIds,
-          tableName: 'investment',
-          whereSql: buildInWhere('investment_id', params.investmentIds)
-            .whereSql,
-        })
-      : [];
-
-  const parkIds = uniquePositiveNumbers([
-    ...leaveParkIds,
-    ...reimbursementParkIds,
-    ...investmentParkIds,
-  ]);
-
-  if (parkIds.length === 0) {
-    return [];
-  }
-
-  await copyRowsByIds({
-    heartbeat: params.heartbeat,
-    idColumn: 'park_id',
-    ids: parkIds,
-    sourceConnection: params.sourceConnection,
-    tableName: 'park',
-    targetConnection: params.targetConnection,
-  });
-
-  return parkIds;
 }
 
 async function copyBaseTables(params: {
@@ -1081,25 +1009,13 @@ async function migrateUserScopedData(params: {
   targetConnection: DbConnection;
 }) {
   const transforms = userIdTransforms(params.context);
-  const reimbursementIds = await readIds({
-    connection: params.sourceConnection,
-    idColumn: 'id',
-    params: [params.context.sourceUserId, params.context.username],
-    tableName: 'reimbursement',
-    whereSql: 'WHERE user_id = ? OR username = ?',
-  });
-  const investmentIds = await readInvestmentIdsForContext({
-    connection: params.sourceConnection,
-    context: params.context,
-  });
-  const parkIds = await copyReferencedParks({
-    context: params.context,
-    heartbeat: params.heartbeat,
-    investmentIds,
-    reimbursementIds,
-    sourceConnection: params.sourceConnection,
-    targetConnection: params.targetConnection,
-  });
+  const copyParks = (rows: Array<Record<string, unknown>>) =>
+    copyParksForPage({
+      heartbeat: params.heartbeat,
+      rows,
+      sourceConnection: params.sourceConnection,
+      targetConnection: params.targetConnection,
+    });
 
   await copyRowsByCursor({
     cursorColumn: 'localization_id',
@@ -1147,47 +1063,55 @@ async function migrateUserScopedData(params: {
     targetConnection: params.targetConnection,
     targetTransforms: transforms,
     whereSql: 'WHERE user_id = ? OR username = ? OR user = ?',
+    beforeWritePage: copyParks,
     heartbeat: params.heartbeat,
   });
-  await copyRowsByIds({
-    idColumn: 'id',
-    ids: reimbursementIds,
+
+  await copyRowsByCursor({
+    afterWritePage: (rows) =>
+      copyImagesForOwnerPage({
+        heartbeat: params.heartbeat,
+        linkOwnerColumn: 'reimbursement_id',
+        linkTableName: 'reimbursement_image',
+        ownerIdColumn: 'id',
+        rows,
+        sourceConnection: params.sourceConnection,
+        targetConnection: params.targetConnection,
+      }),
+    beforeWritePage: copyParks,
+    cursorColumn: 'id',
+    params: [params.context.sourceUserId, params.context.username],
     sourceConnection: params.sourceConnection,
     tableName: 'reimbursement',
     targetConnection: params.targetConnection,
     targetTransforms: transforms,
+    whereSql: 'WHERE user_id = ? OR username = ?',
     heartbeat: params.heartbeat,
-  });
-  await copyImagesForLinkTable({
-    heartbeat: params.heartbeat,
-    linkOwnerColumn: 'reimbursement_id',
-    linkOwnerIds: reimbursementIds,
-    linkTableName: 'reimbursement_image',
-    sourceConnection: params.sourceConnection,
-    targetConnection: params.targetConnection,
-  });
-  await copyRowsByIds({
-    idColumn: 'investment_id',
-    ids: investmentIds,
-    sourceConnection: params.sourceConnection,
-    tableName: 'investment',
-    targetConnection: params.targetConnection,
-    heartbeat: params.heartbeat,
-  });
-  await copyImagesForLinkTable({
-    heartbeat: params.heartbeat,
-    linkOwnerColumn: 'investment_id',
-    linkOwnerIds: investmentIds,
-    linkTableName: 'investment_image',
-    sourceConnection: params.sourceConnection,
-    targetConnection: params.targetConnection,
   });
 
-  return {
-    investmentIds,
-    parkIds,
-    reimbursementIds,
-  };
+  const investmentWhere = buildInvestmentPhoneWhere(params.context);
+  if (investmentWhere) {
+    await copyRowsByCursor({
+      afterWritePage: (rows) =>
+        copyImagesForOwnerPage({
+          heartbeat: params.heartbeat,
+          linkOwnerColumn: 'investment_id',
+          linkTableName: 'investment_image',
+          ownerIdColumn: 'investment_id',
+          rows,
+          sourceConnection: params.sourceConnection,
+          targetConnection: params.targetConnection,
+        }),
+      beforeWritePage: copyParks,
+      cursorColumn: 'investment_id',
+      params: investmentWhere.params,
+      sourceConnection: params.sourceConnection,
+      tableName: 'investment',
+      targetConnection: params.targetConnection,
+      whereSql: investmentWhere.whereSql,
+      heartbeat: params.heartbeat,
+    });
+  }
 }
 
 async function ensureJobTargetIdentity(job: TenantProvisioningJobRecord) {
@@ -1394,11 +1318,124 @@ async function assertTableCountMatches(params: {
   }
 }
 
+async function assertQueryCountMatches(params: {
+  label: string;
+  sourceConnection: DbConnection;
+  sourceParams?: unknown[];
+  sourceSql: string;
+  targetConnection: DbConnection;
+  targetParams?: unknown[];
+  targetSql: string;
+}) {
+  const expected = await getQueryCount(
+    params.sourceConnection,
+    params.sourceSql,
+    params.sourceParams || [],
+  );
+  const actual = await getQueryCount(
+    params.targetConnection,
+    params.targetSql,
+    params.targetParams || [],
+  );
+
+  if (expected !== actual) {
+    throw new Error(
+      `${params.label} 校验失败，期望 ${expected} 条，实际 ${actual} 条`,
+    );
+  }
+}
+
+function buildInvestmentPhoneWhere(
+  context: UserMigrationContext,
+  columnName = 'phone_number',
+) {
+  const phones = buildInvestmentPhones(context);
+  if (phones.length === 0) {
+    return null;
+  }
+  return {
+    params: phones,
+    whereSql: `WHERE ${columnName} IN (${phones.map(() => '?').join(', ')})`,
+  };
+}
+
+function buildReferencedParkQuery(params: {
+  context: UserMigrationContext;
+  userId: number;
+}) {
+  const sqlParts = [
+    'SELECT park_id FROM leave_application WHERE park_id IS NOT NULL AND (user_id = ? OR username = ? OR user = ?)',
+    'SELECT park_id FROM reimbursement WHERE park_id IS NOT NULL AND (user_id = ? OR username = ?)',
+  ];
+  const queryParams: unknown[] = [
+    params.userId,
+    params.context.username,
+    params.context.username,
+    params.userId,
+    params.context.username,
+  ];
+  const investmentPhones = buildInvestmentPhones(params.context);
+  if (investmentPhones.length > 0) {
+    sqlParts.push(
+      `SELECT park_id FROM investment WHERE park_id IS NOT NULL AND phone_number IN (${investmentPhones
+        .map(() => '?')
+        .join(', ')})`,
+    );
+    queryParams.push(...investmentPhones);
+  }
+
+  return {
+    params: queryParams,
+    sql: sqlParts.join(' UNION '),
+  };
+}
+
+async function assertReferencedParksCopied(params: {
+  context: UserMigrationContext;
+  sourceConnection: DbConnection;
+  targetConnection: DbConnection;
+}) {
+  const sourceRefs = buildReferencedParkQuery({
+    context: params.context,
+    userId: params.context.sourceUserId,
+  });
+  const targetRefs = buildReferencedParkQuery({
+    context: params.context,
+    userId: params.context.targetUserId,
+  });
+  const expected = await getQueryCount(
+    params.sourceConnection,
+    `SELECT COUNT(DISTINCT park_id) AS total FROM (${sourceRefs.sql}) referenced_parks`,
+    sourceRefs.params,
+  );
+  const actualReferences = await getQueryCount(
+    params.targetConnection,
+    `SELECT COUNT(DISTINCT park_id) AS total FROM (${targetRefs.sql}) referenced_parks`,
+    targetRefs.params,
+  );
+  if (expected !== actualReferences) {
+    throw new Error(
+      `园区引用校验失败，期望 ${expected} 个，实际 ${actualReferences} 个`,
+    );
+  }
+
+  const actualParkRows = await getQueryCount(
+    params.targetConnection,
+    `SELECT COUNT(DISTINCT park.park_id) AS total
+       FROM park
+       INNER JOIN (${targetRefs.sql}) referenced_parks
+         ON referenced_parks.park_id = park.park_id`,
+    targetRefs.params,
+  );
+  if (actualParkRows !== actualReferences) {
+    throw new Error(
+      `园区基础数据校验失败，期望 ${actualReferences} 条，实际 ${actualParkRows} 条`,
+    );
+  }
+}
+
 async function validateProvisionedTenant(params: {
   context: UserMigrationContext;
-  investmentIds: number[];
-  parkIds: number[];
-  reimbursementIds: number[];
   sourceConnection: DbConnection;
   targetConnection: DbConnection;
   targetUserId: number;
@@ -1424,21 +1461,6 @@ async function validateProvisionedTenant(params: {
     throw new Error(
       `目标租户用户校验失败，targetUserId=${params.targetUserId}, username=${params.context.username}`,
     );
-  }
-
-  if (params.parkIds.length > 0) {
-    const where = buildInWhere('park_id', params.parkIds);
-    const copiedParkCount = await getTableCount(
-      params.targetConnection,
-      'park',
-      where.whereSql,
-      where.params,
-    );
-    if (copiedParkCount !== params.parkIds.length) {
-      throw new Error(
-        `园区基础数据校验失败，期望 ${params.parkIds.length} 条，实际 ${copiedParkCount} 条`,
-      );
-    }
   }
 
   await assertTableCountMatches({
@@ -1523,36 +1545,84 @@ async function validateProvisionedTenant(params: {
     targetTableName: 'leave_application',
     targetWhereSql: 'WHERE user_id = ? OR username = ? OR user = ?',
   });
+  await assertTableCountMatches({
+    label: '报销记录',
+    sourceConnection: params.sourceConnection,
+    sourceParams: [params.context.sourceUserId, params.context.username],
+    sourceTableName: 'reimbursement',
+    sourceWhereSql: 'WHERE user_id = ? OR username = ?',
+    targetConnection: params.targetConnection,
+    targetParams: [params.context.targetUserId, params.context.username],
+    targetTableName: 'reimbursement',
+    targetWhereSql: 'WHERE user_id = ? OR username = ?',
+  });
+  await assertQueryCountMatches({
+    label: '报销图片',
+    sourceConnection: params.sourceConnection,
+    sourceParams: [params.context.sourceUserId, params.context.username],
+    sourceSql: `
+      SELECT COUNT(*) AS total
+        FROM reimbursement_image image_link
+        INNER JOIN reimbursement owner
+          ON owner.id = image_link.reimbursement_id
+       WHERE owner.user_id = ? OR owner.username = ?
+    `,
+    targetConnection: params.targetConnection,
+    targetParams: [params.context.targetUserId, params.context.username],
+    targetSql: `
+      SELECT COUNT(*) AS total
+        FROM reimbursement_image image_link
+        INNER JOIN reimbursement owner
+          ON owner.id = image_link.reimbursement_id
+       WHERE owner.user_id = ? OR owner.username = ?
+    `,
+  });
 
-  if (params.reimbursementIds.length > 0) {
-    const where = buildInWhere('id', params.reimbursementIds);
-    await assertTableCountMatches({
-      label: '报销记录',
-      sourceConnection: params.sourceConnection,
-      sourceParams: where.params,
-      sourceTableName: 'reimbursement',
-      sourceWhereSql: where.whereSql,
-      targetConnection: params.targetConnection,
-      targetParams: where.params,
-      targetTableName: 'reimbursement',
-      targetWhereSql: where.whereSql,
-    });
-  }
-
-  if (params.investmentIds.length > 0) {
-    const where = buildInWhere('investment_id', params.investmentIds);
+  const investmentWhere = buildInvestmentPhoneWhere(params.context);
+  const investmentOwnerWhere = buildInvestmentPhoneWhere(
+    params.context,
+    'owner.phone_number',
+  );
+  if (investmentWhere && investmentOwnerWhere) {
     await assertTableCountMatches({
       label: '招商记录',
       sourceConnection: params.sourceConnection,
-      sourceParams: where.params,
+      sourceParams: investmentWhere.params,
       sourceTableName: 'investment',
-      sourceWhereSql: where.whereSql,
+      sourceWhereSql: investmentWhere.whereSql,
       targetConnection: params.targetConnection,
-      targetParams: where.params,
+      targetParams: investmentWhere.params,
       targetTableName: 'investment',
-      targetWhereSql: where.whereSql,
+      targetWhereSql: investmentWhere.whereSql,
+    });
+    await assertQueryCountMatches({
+      label: '招商图片',
+      sourceConnection: params.sourceConnection,
+      sourceParams: investmentOwnerWhere.params,
+      sourceSql: `
+        SELECT COUNT(*) AS total
+          FROM investment_image image_link
+          INNER JOIN investment owner
+            ON owner.investment_id = image_link.investment_id
+         ${investmentOwnerWhere.whereSql}
+      `,
+      targetConnection: params.targetConnection,
+      targetParams: investmentOwnerWhere.params,
+      targetSql: `
+        SELECT COUNT(*) AS total
+          FROM investment_image image_link
+          INNER JOIN investment owner
+            ON owner.investment_id = image_link.investment_id
+         ${investmentOwnerWhere.whereSql}
+      `,
     });
   }
+
+  await assertReferencedParksCopied({
+    context: params.context,
+    sourceConnection: params.sourceConnection,
+    targetConnection: params.targetConnection,
+  });
 }
 
 async function processProvisioningJob(job: TenantProvisioningJobRecord) {
@@ -1670,7 +1740,7 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
         });
 
         await updateJobStep(job, 'migrating_user_data');
-        const migrationSummary = await migrateUserScopedData({
+        await migrateUserScopedData({
           context,
           heartbeat: () => updateJobHeartbeat(job),
           sourceConnection,
@@ -1683,9 +1753,6 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
         await updateJobStep(job, 'validating_data');
         await validateProvisionedTenant({
           context,
-          investmentIds: migrationSummary.investmentIds,
-          parkIds: migrationSummary.parkIds,
-          reimbursementIds: migrationSummary.reimbursementIds,
           sourceConnection,
           targetConnection,
           targetUserId,

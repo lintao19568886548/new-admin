@@ -22,5 +22,6 @@ model Reimbursement {
 
   @@index([parkId])
   @@index([userId])
+  @@index([username])
   @@map("reimbursement")
 }

@@ -16,6 +16,7 @@ model Investment {
   images       InvestmentImage[] @relation("InvestmentToInvestmentImage")
 
   @@index([parkId])
+  @@index([phoneNumber])
   @@map("investment")
 }
 
