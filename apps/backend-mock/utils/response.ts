@@ -63,9 +63,13 @@ export function forbiddenResponse(
 export function unAuthorizedResponse(
   event: H3Event<EventHandlerRequest>,
   message = '验证失败',
+  errorCode?: string,
 ) {
   setResponseStatus(event, 401);
-  return useResponseError(message, message, 401);
+  return {
+    ...useResponseError(message, message, 401),
+    ...(errorCode ? { errorCode } : null),
+  };
 }
 
 export function badRequestResponse(

@@ -8,10 +8,19 @@ function isSecureCookie() {
 
 export function clearRefreshTokenCookie(event: H3Event<EventHandlerRequest>) {
   const secure = isSecureCookie();
-  deleteCookie(event, 'jwt', {
+  const options = {
     httpOnly: true,
     sameSite: secure ? 'none' : 'lax',
     secure,
+  } as const;
+
+  deleteCookie(event, 'jwt', {
+    ...options,
+    path: '/',
+  });
+  deleteCookie(event, 'jwt', {
+    ...options,
+    path: '/api/auth',
   });
 }
 
@@ -25,6 +34,7 @@ export function setRefreshTokenCookie(
     maxAge: Number(
       process.env.REFRESH_TOKEN_COOKIE_MAX_AGE_SECONDS || 7 * 24 * 60 * 60,
     ),
+    path: '/',
     sameSite: secure ? 'none' : 'lax',
     secure,
   });

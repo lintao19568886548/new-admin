@@ -52,7 +52,7 @@ export const authenticateResponseInterceptor = ({
   formatToken,
 }: {
   client: RequestClient;
-  doReAuthenticate: () => Promise<void>;
+  doReAuthenticate: (error?: unknown) => Promise<void>;
   doRefreshToken: () => Promise<string>;
   enableRefreshToken: boolean;
   formatToken: (token: string) => null | string;
@@ -67,7 +67,7 @@ export const authenticateResponseInterceptor = ({
       // 判断是否启用了 refreshToken 功能
       // 如果没有启用或者已经是重试请求了，直接跳转到重新登录
       if (!enableRefreshToken || config.__isRetryRequest) {
-        await doReAuthenticate();
+        await doReAuthenticate(error);
         throw error;
       }
       // 如果正在刷新 token，则将请求加入队列，等待刷新完成
@@ -99,7 +99,7 @@ export const authenticateResponseInterceptor = ({
         client.refreshTokenQueue.forEach((callback) => callback(''));
         client.refreshTokenQueue = [];
         console.error('Refresh token failed, please login again.');
-        await doReAuthenticate();
+        await doReAuthenticate(refreshError);
 
         throw refreshError;
       } finally {

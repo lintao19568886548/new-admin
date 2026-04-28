@@ -29,12 +29,37 @@ import { createRetryResponseBridge } from './request-retry-bridge';
 
 const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
 
+const FORCE_LOGOUT_AUTH_ERROR_CODES = new Set([
+  'AUTH_CUSTOMER_SCOPE_CHANGED',
+  'AUTH_REFRESH_TOKEN_INVALID',
+  'AUTH_REFRESH_TOKEN_MISSING',
+  'AUTH_REFRESH_TOKEN_REVOKED',
+  'AUTH_TOKEN_VERSION_MISMATCH',
+]);
+
+function resolveResponseData(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return {};
+  }
+
+  return ((error as any).response?.data ?? {}) as Record<string, unknown>;
+}
+
+function shouldForceLogoutForAuthError(error: unknown) {
+  const responseData = resolveResponseData(error);
+  return FORCE_LOGOUT_AUTH_ERROR_CODES.has(
+    String(responseData.errorCode || ''),
+  );
+}
+
 function createRequestClient(baseURL: string, options?: RequestClientOptions) {
   const client = new RequestClient({
     ...options,
     baseURL,
   });
   const retryResponseBridge = createRetryResponseBridge();
+  let forceLogoutOnNextReauth = false;
+  let forceLogoutRunning = false;
   let lastMembershipRedirectAt = 0;
 
   const errorMessageLastShownAt = new Map<string, number>();
@@ -76,10 +101,26 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
   /**
    * 重新认证逻辑
    */
-  async function doReAuthenticate() {
+  async function doReAuthenticate(error?: unknown) {
     console.warn('Access token or refresh token is invalid or expired. ');
     const accessStore = useAccessStore();
     const authStore = useAuthStore();
+    const shouldForceLogout =
+      forceLogoutOnNextReauth || shouldForceLogoutForAuthError(error);
+    forceLogoutOnNextReauth = false;
+    if (shouldForceLogout) {
+      if (forceLogoutRunning) {
+        return;
+      }
+      forceLogoutRunning = true;
+      try {
+        await authStore.logout(false, false);
+      } finally {
+        forceLogoutRunning = false;
+      }
+      return;
+    }
+
     const canShowExpiredModal =
       preferences.app.loginExpiredMode === 'modal' &&
       accessStore.isAccessChecked;
@@ -101,6 +142,9 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       accessStore.setAccessToken(newToken);
       return newToken;
     } catch (error) {
+      if (shouldForceLogoutForAuthError(error)) {
+        forceLogoutOnNextReauth = true;
+      }
       throw markAuthRefreshError(error);
     }
   }
@@ -157,7 +201,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     errorMessageResponseInterceptor((msg: string, error) => {
       // 这里可以根据业务进行定制,你可以拿到 error 内的信息进行定制化处理，根据不同的 code 做不同的提示，而不是直接使用 message.error 提示 msg
       // 当前mock接口返回的错误字段是 error 或者 message
-      const responseData = error?.response?.data ?? {};
+      const responseData = resolveResponseData(error);
       if (responseData?.errorCode === 'MEMBERSHIP_REQUIRED') {
         redirectToMembershipPage(responseData?.restrictionReason);
         return;
@@ -179,7 +223,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       }
 
       // 如果没有错误信息，则会根据状态码进行提示
-      const finalMessage = errorMessage || msg;
+      const finalMessage = String(errorMessage || msg);
       showErrorMessageDedup(
         finalMessage,
         `__http_error__${String(finalMessage)}`,

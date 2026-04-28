@@ -212,12 +212,20 @@ export default defineEventHandler(async (event) => {
       Number(current.tokenVersion ?? 1) !==
       Number(userinfoForScope.tokenVersion);
     if (isTokenVersionMismatch) {
-      return unAuthorizedResponse(event);
+      return unAuthorizedResponse(
+        event,
+        '登录状态已变更，请重新登录',
+        'AUTH_TOKEN_VERSION_MISMATCH',
+      );
     }
     const isCustomerScopeMismatch =
       currentCustomerId !== userinfoForScope.customerId;
     if (isCustomerScopeMismatch) {
-      return unAuthorizedResponse(event);
+      return unAuthorizedResponse(
+        event,
+        '账号租户已变更，请重新登录',
+        'AUTH_CUSTOMER_SCOPE_CHANGED',
+      );
     }
 
     if (!isDefaultCustomer) {

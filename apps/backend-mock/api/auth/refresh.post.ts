@@ -20,6 +20,20 @@ import {
   resolveUserInfoForTokenFromCenterUser,
 } from '~/utils/user-service';
 
+function resolveRefreshAuthErrorCode(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '');
+
+  if (message === 'Token version mismatch') {
+    return 'AUTH_TOKEN_VERSION_MISMATCH';
+  }
+
+  if (message === 'Refresh token reused') {
+    return 'AUTH_REFRESH_TOKEN_REVOKED';
+  }
+
+  return 'AUTH_REFRESH_TOKEN_INVALID';
+}
+
 /**
  * @description 刷新 Access Token 的后端接口
  *
@@ -35,7 +49,11 @@ export default defineEventHandler(async (event) => {
   // 如果 cookie 中不存在 refreshToken，直接返回错误
   if (!oldRefreshToken) {
     clearRefreshTokenCookie(event);
-    return unAuthorizedResponse(event, '会话过期，请重新登录');
+    return unAuthorizedResponse(
+      event,
+      '会话过期，请重新登录',
+      'AUTH_REFRESH_TOKEN_MISSING',
+    );
   }
 
   try {
@@ -181,6 +199,10 @@ export default defineEventHandler(async (event) => {
     clearRefreshTokenCookie(event);
 
     // 向客户端返回一个统一的、对用户友好的错误响应
-    return unAuthorizedResponse(event, '会话过期，请重新登录');
+    return unAuthorizedResponse(
+      event,
+      '会话过期，请重新登录',
+      resolveRefreshAuthErrorCode(error),
+    );
   }
 });
