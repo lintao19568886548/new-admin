@@ -1,95 +1,32 @@
-enum ContractPartyRole {
-  PARTY_A
-  PARTY_B
-}
-
-enum ContractPartyType {
-  COMPANY
-  PERSON
-}
-
-enum ContractPartySourceMode {
-  MANUAL
-  PARTY_MASTER
-  PARK_DEFAULT
-}
-
-// 合同主表（保留现有 rental/tenant 主键与关系，逐步演进为合同模型）
+// 租户管理模型 (rental/tenant)
 model RentalTenant {
-  rentalTenantId      Int                     @id @default(autoincrement()) @map("rental_tenant_id")
-  tenantName          String                  @map("tenant_name") @db.VarChar(30) /// 兼容旧字段，后续映射为乙方名称
-  phoneNumber         String                  @map("phone_number") @db.VarChar(20) /// 兼容旧字段，后续映射为乙方联系电话
-  status              String?                 @db.VarChar(20) /// 当期、过期等状态
-  contractNo          String?                 @map("contract_no") @db.VarChar(50)
-  signDate            DateTime?               @map("sign_date")
-  contractStart       DateTime?               @map("contract_start")
-  contractEnd         DateTime?               @map("contract_end")
-  partyASourceMode    ContractPartySourceMode @default(MANUAL) @map("party_a_source_mode")
-  partyBSourceMode    ContractPartySourceMode @default(MANUAL) @map("party_b_source_mode")
-  rent                Decimal?                @map("rental_amount") @db.Decimal(10, 2)
-  increaseDate        DateTime?               @map("increase_date")
-  increaseRate        Decimal?                @map("increase_rate") @db.Decimal(5, 2)
-  increaseData        String?                 @map("increase_data") @db.VarChar(300)
-  penaltyRate         Decimal?                @map("penalty_rate") @db.Decimal(5, 2)
-  area                Decimal?                @map("area") @db.Decimal(10, 2)
-  address             String                  @db.VarChar(200)
-  remark              String?                 @db.VarChar(500)
-  createTime          DateTime                @default(now()) @map("create_time")
-  updateTime          DateTime?               @updatedAt @map("update_time")
-  amountBills         AmountBill[]            @relation("AmountBillToTenant")
-  images              TenantImage[]           @relation("RentalTenantToTenantImage")
-  rentalTenantParties RentalTenantParty[]     @relation("RentalTenantToRentalTenantParty")
-  parkId              Int?                    @map("park_id")
-  park                Park?                   @relation("ParkToRentalTenant", fields: [parkId], references: [parkId])
-  isDeleted           Boolean                 @default(false) @map("is_deleted")
-  sendMessage         DateTime?               @map("send_message")
+  rentalTenantId Int          @id @default(autoincrement()) @map("rental_tenant_id")
+  tenantName     String       @map("tenant_name") @db.VarChar(30)
+  phoneNumber    String       @map("phone_number") @db.VarChar(20)
+  transactionType Boolean     @default(true) @map("transaction_type") /// true=收入，false=支出
+  status         String?      @db.VarChar(20) /// 当期、过期等状态
+  contractStart  DateTime?    @map("contract_start")
+  contractEnd    DateTime?    @map("contract_end")
+  rent           Decimal?     @map("rental_amount") @db.Decimal(10, 2)
+  increaseDate   DateTime?    @map("increase_date")
+  increaseRate   Decimal?     @map("increase_rate") @db.Decimal(5, 2)
+  increaseData   String?      @map("increase_data") @db.VarChar(300)
+  penaltyRate    Decimal?     @map("penalty_rate") @db.Decimal(5, 2)
+  area           Decimal?     @map("area") @db.Decimal(10, 2)
+  address        String       @db.VarChar(200)
+  remark         String?      @db.VarChar(500)
+  createTime     DateTime     @default(now()) @map("create_time")
+  updateTime     DateTime?    @updatedAt @map("update_time")
+  amountBills    AmountBill[] @relation("AmountBillToTenant")
+  images         TenantImage[] @relation("RentalTenantToTenantImage")
+  parkId         Int?         @map("park_id")
+  park           Park?        @relation("ParkToRentalTenant", fields: [parkId], references: [parkId])
+  isDeleted      Boolean      @default(false) @map("is_deleted")
+  sendMessage    DateTime?    @map("send_message")
 
   @@index([parkId])
-  @@index([contractNo])
+  @@index([transactionType])
   @@map("rental_tenant")
-}
-
-model ContractParty {
-  contractPartyId     Int                 @id @default(autoincrement()) @map("contract_party_id")
-  partyType           ContractPartyType   @map("party_type")
-  partyName           String              @map("party_name") @db.VarChar(100)
-  unifiedCreditCode   String?             @map("unified_credit_code") @db.VarChar(30)
-  idCardNo            String?             @map("id_card_no") @db.VarChar(30)
-  defaultContactName  String?             @map("default_contact_name") @db.VarChar(100)
-  defaultContactPhone String?             @map("default_contact_phone") @db.VarChar(20)
-  address             String?             @db.VarChar(200)
-  remark              String?             @db.VarChar(500)
-  createTime          DateTime            @default(now()) @map("create_time")
-  updateTime          DateTime?           @updatedAt @map("update_time")
-  isDeleted           Boolean             @default(false) @map("is_deleted")
-  rentalTenantParties RentalTenantParty[] @relation("ContractPartyToRentalTenantParty")
-
-  @@index([partyName])
-  @@index([unifiedCreditCode])
-  @@map("contract_party")
-}
-
-model RentalTenantParty {
-  rentalTenantPartyId  Int                     @id @default(autoincrement()) @map("rental_tenant_party_id")
-  rentalTenantId       Int                     @map("rental_tenant_id")
-  role                 ContractPartyRole       @map("role")
-  sourceMode           ContractPartySourceMode @default(MANUAL) @map("source_mode")
-  contractPartyId      Int?                    @map("contract_party_id")
-  partyNameSnapshot    String                  @map("party_name_snapshot") @db.VarChar(100)
-  contactNameSnapshot  String?                 @map("contact_name_snapshot") @db.VarChar(100)
-  contactPhoneSnapshot String?                 @map("contact_phone_snapshot") @db.VarChar(20)
-  addressSnapshot      String?                 @map("address_snapshot") @db.VarChar(200)
-  remarkSnapshot       String?                 @map("remark_snapshot") @db.VarChar(500)
-  createTime           DateTime                @default(now()) @map("create_time")
-  updateTime           DateTime?               @updatedAt @map("update_time")
-
-  rentalTenant RentalTenant  @relation("RentalTenantToRentalTenantParty", fields: [rentalTenantId], references: [rentalTenantId])
-  contractParty ContractParty? @relation("ContractPartyToRentalTenantParty", fields: [contractPartyId], references: [contractPartyId])
-
-  @@unique([rentalTenantId, role])
-  @@index([contractPartyId])
-  @@index([partyNameSnapshot])
-  @@map("rental_tenant_party")
 }
 
 model Salary {

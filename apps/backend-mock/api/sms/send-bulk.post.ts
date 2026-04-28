@@ -16,6 +16,8 @@ export default eventHandler(async (event) => {
     // 2. 合同截止日期少于90天 或 下次递增时间少于30天
     const tenants = await prismaClient.rentalTenant.findMany({
       where: {
+        // 仅收入合同允许发送
+        transactionType: true,
         // 合同还未到期（生效中）
         contractEnd: {
           gt: now.toDate(),
@@ -77,7 +79,11 @@ export default eventHandler(async (event) => {
     if (eligibleTenants.length === 0) {
       return useResponseSuccess({
         message: '没有符合条件的租户需要发送短信',
-        data: { count: 0 },
+        total: 0,
+        success: 0,
+        failed: 0,
+        results: [],
+        errors: [],
       });
     }
 

@@ -1,9 +1,4 @@
 import { prismaClient } from '~/utils/db';
-import {
-  buildRentalTenantMutationData,
-  createRentalTenantInclude,
-  mapRentalTenantOutput,
-} from '~/utils/rental-contract';
 import { useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
@@ -15,19 +10,13 @@ export default eventHandler(async (event) => {
   console.log(body);
 
   try {
-    const tenant = await prismaClient.$transaction(async (tx) => {
-      const created = await tx.rentalTenant.create({
-        data: await buildRentalTenantMutationData(tx, body),
-      });
-      return tx.rentalTenant.findUnique({
-        where: {
-          rentalTenantId: created.rentalTenantId,
-        },
-        include: createRentalTenantInclude(),
-      });
+    const tenant = await prismaClient.rentalTenant.create({
+      data: {
+        ...body,
+      },
     });
 
-    return useResponseSuccess(tenant ? mapRentalTenantOutput(tenant) : tenant);
+    return useResponseSuccess(tenant);
   } catch (error) {
     console.error('创建租户失败:', error);
     return serverErrorResponse(`创建租户失败`, event);

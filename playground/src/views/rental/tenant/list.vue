@@ -22,17 +22,13 @@ import {
 } from '#/api/rental';
 import { $t } from '#/locales';
 
-import { getPartyBDisplayName, useColumns, useGridFormSchema } from './data';
+import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
   destroyOnClose: true,
 });
-
-const listColumns = (useColumns(onActionClick) ?? []).filter(
-  (column) => column?.field !== 'partyBContactPhone',
-);
 
 // 表格API引用
 const [Grid, gridApi] = useVbenVxeGrid({
@@ -44,7 +40,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridOptions: {
     border: true,
-    columns: listColumns,
+    columns: useColumns(onActionClick),
     footerAlign: 'center',
     footerMethod({
       columns,
@@ -57,7 +53,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       return [
         columns.map((column) => {
           // 根据列的字段名称进行不同的合计计算
-          if (column.field === 'partyAName') {
+          if (column.field === 'tenantName') {
             return '合计';
           }
 
@@ -199,9 +195,8 @@ function onCreate() {
  * 删除租户
  */
 function onDelete(row: RentalManagementItem) {
-  const displayName = getPartyBDisplayName(row);
   message.loading({
-    content: $t('ui.actionMessage.deleting', [displayName]),
+    content: $t('ui.actionMessage.deleting', [row.tenantName]),
     duration: 0,
     key: 'action_process_msg',
   });
@@ -209,7 +204,7 @@ function onDelete(row: RentalManagementItem) {
   deleteTenant(row.rentalTenantId)
     .then(() => {
       message.success({
-        content: $t('ui.actionMessage.deleteSuccess', [displayName]),
+        content: $t('ui.actionMessage.deleteSuccess', [row.tenantName]),
         key: 'action_process_msg',
       });
       refreshGrid();
@@ -217,7 +212,7 @@ function onDelete(row: RentalManagementItem) {
     .catch((error) => {
       console.error('删除租户失败:', error);
       message.error({
-        content: $t('ui.actionMessage.deleteFailed', [displayName]),
+        content: $t('ui.actionMessage.deleteFailed', [row.tenantName]),
         key: 'action_process_msg',
       });
     });
@@ -235,10 +230,9 @@ function onView(row: RentalManagementItem) {
  */
 async function onSendSms(row: RentalManagementItem) {
   try {
-    const displayName = getPartyBDisplayName(row);
     // 添加确认对话框
     Modal.confirm({
-      content: `您确定要向乙方 [${displayName}] 发送短信吗？`,
+      content: `您确定要向租户 [${row.tenantName}] 发送短信吗？`,
       onCancel() {
         message.info('已取消发送短信');
       },
@@ -262,13 +256,13 @@ async function onSendSms(row: RentalManagementItem) {
         await sendSms({
           contractEndDate: smsInfo.contractEndDate,
           increaseDate: smsInfo.increaseDate,
-          phoneNumber: smsInfo.partyBContactPhone || smsInfo.phoneNumber,
+          phoneNumber: smsInfo.phoneNumber,
           rentalTenantId: row.rentalTenantId, // 将rentalTenantId改为id以匹配API接口定义
-          tenantName: smsInfo.partyBName || smsInfo.tenantName,
+          tenantName: smsInfo.tenantName,
         });
 
         message.success({
-          content: `短信已成功发送给 ${displayName}`,
+          content: `短信已成功发送给 ${row.tenantName}`,
           key: 'sms_process_msg',
         });
 
@@ -319,37 +313,33 @@ async function onBulkSendSms() {
         try {
           // 调用批量发送短信的API
           const result = await sendBulkSms();
+          const summary = result?.data ?? result ?? {};
+          const total = Number(summary.total ?? 0);
+          const success = Number(summary.success ?? 0);
+          const failed = Number(summary.failed ?? 0);
+          const errors = Array.isArray(summary.errors) ? summary.errors : [];
 
           // 显示详细的发送结果
-          if (result.data) {
-            const { failed, success, total } = result.data;
-
-            if (total === 0) {
-              message.info({
-                content: '没有符合条件的租户需要发送短信',
-                key: 'bulk_sms_process_msg',
-              });
-            } else {
-              message.success({
-                content: `批量发送完成！共筛选 ${total} 个租户，成功发送 ${success} 条，失败 ${failed} 条`,
-                duration: 6,
-                key: 'bulk_sms_process_msg',
-              });
-
-              // 如果有失败的，显示详细信息
-              if (failed > 0 && result.data.errors) {
-                console.warn('发送失败的租户:', result.data.errors);
-                Modal.warning({
-                  content: `有 ${failed} 条短信发送失败，请查看控制台了解详情`,
-                  title: '部分短信发送失败',
-                });
-              }
-            }
-          } else {
-            message.success({
-              content: '短信已批量发送成功',
+          if (total === 0) {
+            message.info({
+              content: '没有符合条件的租户需要发送短信',
               key: 'bulk_sms_process_msg',
             });
+          } else {
+            message.success({
+              content: `批量发送完成！共筛选 ${total} 个租户，成功发送 ${success} 条，失败 ${failed} 条`,
+              duration: 6,
+              key: 'bulk_sms_process_msg',
+            });
+
+            // 如果有失败的，显示详细信息
+            if (failed > 0 && errors.length > 0) {
+              console.warn('发送失败的租户:', errors);
+              Modal.warning({
+                content: `有 ${failed} 条短信发送失败，请查看控制台了解详情`,
+                title: '部分短信发送失败',
+              });
+            }
           }
 
           // 刷新表格数据以显示可能更新的状态

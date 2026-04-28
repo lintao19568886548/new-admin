@@ -1,8 +1,4 @@
 import { prismaClient } from '~/utils/db';
-import {
-  createRentalTenantInclude,
-  mapRentalTenantOutput,
-} from '~/utils/rental-contract';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
@@ -21,13 +17,18 @@ export default eventHandler(async (event) => {
       where: {
         rentalTenantId,
       },
-      include: createRentalTenantInclude({ includeImages: false }),
+      select: {
+        tenantName: true,
+        phoneNumber: true,
+        increaseDate: true,
+        contractStart: true,
+        contractEnd: true,
+      },
     });
 
     if (!tenant) {
       return useResponseError('租户不存在', 404);
     }
-    const mappedTenant = mapRentalTenantOutput(tenant);
 
     // 格式化日期
     const formatDate = (date: Date | null) => {
@@ -36,12 +37,10 @@ export default eventHandler(async (event) => {
     };
 
     return useResponseSuccess({
-      contractEndDate: formatDate(tenant.contractEnd),
+      tenantName: tenant.tenantName,
+      phoneNumber: tenant.phoneNumber,
       increaseDate: tenant.increaseDate ? formatDate(tenant.increaseDate) : '',
-      partyBContactPhone: mappedTenant.partyBContactPhone,
-      partyBName: mappedTenant.partyBName,
-      phoneNumber: mappedTenant.phoneNumber,
-      tenantName: mappedTenant.tenantName,
+      contractEndDate: formatDate(tenant.contractEnd),
     });
   } catch (error) {
     console.error('获取租户短信信息失败:', error);

@@ -18,11 +18,6 @@ export default eventHandler(async (event) => {
           rentalTenantId,
         },
       });
-      await tx.rentalTenantParty.deleteMany({
-        where: {
-          rentalTenantId,
-        },
-      });
       await tx.salary.updateMany({
         where: {
           rentalTenantId,

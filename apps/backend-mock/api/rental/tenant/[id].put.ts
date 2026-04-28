@@ -1,9 +1,4 @@
 import { prismaClient } from '~/utils/db';
-import {
-  buildRentalTenantMutationData,
-  createRentalTenantInclude,
-  mapRentalTenantOutput,
-} from '~/utils/rental-contract';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
@@ -19,23 +14,15 @@ export default eventHandler(async (event) => {
 
   console.log(body);
   try {
-    const tenant = await prismaClient.$transaction(async (tx) => {
-      await tx.rentalTenant.update({
-        where: {
-          rentalTenantId,
-        },
-        data: await buildRentalTenantMutationData(tx, body, {
-          isUpdate: true,
-        }),
-      });
-      return tx.rentalTenant.findUnique({
-        where: {
-          rentalTenantId,
-        },
-        include: createRentalTenantInclude(),
-      });
+    const tenant = await prismaClient.rentalTenant.update({
+      where: {
+        rentalTenantId,
+      },
+      data: {
+        ...body,
+      },
     });
-    return useResponseSuccess(tenant ? mapRentalTenantOutput(tenant) : tenant);
+    return useResponseSuccess(tenant);
   } catch (error) {
     console.error('更新租户失败:', error);
     return serverErrorResponse(`更新租户失败`, event);

@@ -49,6 +49,12 @@
     },
     "badgeVariants": "Badge Style"
   },
+  "finance": {
+    "transactionType": {
+      "expense": "Expense",
+      "income": "Income"
+    }
+  },
   "rental": {
     "list": "Rental List",
     "name": "Rental Item",
@@ -68,30 +74,6 @@
     "description": "Description",
     "features": "Features",
     "operation": "Operation",
-    "tenant": {
-      "address": "Rental Address",
-      "contractDate": "Contract Period",
-      "contractEnd": "End Date",
-      "contractStart": "Start Date",
-      "increase": "Escalation",
-      "increaseDate": "Escalation Date",
-      "increaseRate": "Escalation Rate",
-      "item": "Contract",
-      "list": "Contract List",
-      "name": "Party B Name",
-      "partyAContactName": "Party A Contact",
-      "partyAContactPhone": "Party A Phone",
-      "partyAName": "Party A Name",
-      "partyBContactName": "Party B Contact",
-      "partyBContactPhone": "Party B Phone",
-      "partyBName": "Party B Name",
-      "phone": "Party B Phone",
-      "status": {
-        "current": "Active",
-        "expired": "Expired",
-        "label": "Contract Status"
-      }
-    },
     "salary": {
       "item": "Salary Record",
       "list": "Salary Records",
@@ -119,6 +101,25 @@
       "uploadNoPreview": "Cannot preview. Image URL is missing",
       "noImages": "None",
       "imageAlt": "Salary Attachment"
+    },
+    "tenant": {
+      "address": "Rental Address",
+      "contractDate": "Contract Period",
+      "contractEnd": "End Date",
+      "contractStart": "Start Date",
+      "increase": "Increase",
+      "increaseDate": "Increase Date",
+      "increaseRate": "Increase Rate",
+      "item": "Contract",
+      "list": "Contract List",
+      "name": "Contract Party",
+      "phone": "Phone Number",
+      "transactionType": "Transaction Type",
+      "status": {
+        "current": "Active",
+        "expired": "Expired",
+        "label": "Contract Status"
+      }
     }
   },
   "role": {

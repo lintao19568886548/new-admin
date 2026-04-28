@@ -1,9 +1,4 @@
 import { prismaClient } from '~/utils/db';
-import {
-  CONTRACT_PARTY_ROLE,
-  createRentalTenantInclude,
-  mapRentalTenantOutput,
-} from '~/utils/rental-contract';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
@@ -13,16 +8,28 @@ export default eventHandler(async (event) => {
   }
 
   try {
+    const parseBooleanQuery = (value: unknown) => {
+      if (value === true || value === false) {
+        return value;
+      }
+      if (typeof value === 'string') {
+        if (value === 'true') {
+          return true;
+        }
+        if (value === 'false') {
+          return false;
+        }
+      }
+      return undefined;
+    };
+
     const query = getQuery(event);
     const currentPage = Number(query.currentPage) || 1;
     const pageSize = Number(query.pageSize) || 20;
     const skip = (currentPage - 1) * pageSize;
 
     // 构建查询条件
-    const where: any = {
-      isDeleted: false,
-    };
-    const andConditions: any[] = [];
+    const where: any = {};
 
     // 区域查询
     if (query.currentPark) {
@@ -67,107 +74,46 @@ export default eventHandler(async (event) => {
     // }
 
     if (query.tenantName) {
-      const keyword = String(query.tenantName);
-      andConditions.push({
-        OR: [
-          { tenantName: { contains: keyword } },
-          {
-            rentalTenantParties: {
-              some: {
-                role: CONTRACT_PARTY_ROLE.PARTY_B,
-                partyNameSnapshot: { contains: keyword },
-              },
-            },
-          },
-        ],
-      });
+      where.tenantName = { contains: query.tenantName };
     }
-    const partyBContactPhoneKeyword =
-      query.partyBContactPhone ?? query.phoneNumber;
-    if (partyBContactPhoneKeyword) {
-      const keyword = String(partyBContactPhoneKeyword);
-      andConditions.push({
-        OR: [
-          { phoneNumber: { contains: keyword } },
-          {
-            rentalTenantParties: {
-              some: {
-                role: CONTRACT_PARTY_ROLE.PARTY_B,
-                contactPhoneSnapshot: { contains: keyword },
-              },
-            },
-          },
-        ],
-      });
+    if (query.phoneNumber) {
+      where.phoneNumber = { contains: query.phoneNumber };
     }
-    if (query.partyAName) {
-      andConditions.push({
-        rentalTenantParties: {
-          some: {
-            role: CONTRACT_PARTY_ROLE.PARTY_A,
-            partyNameSnapshot: { contains: String(query.partyAName) },
-          },
-        },
-      });
-    }
-    if (query.partyBName) {
-      andConditions.push({
-        rentalTenantParties: {
-          some: {
-            role: CONTRACT_PARTY_ROLE.PARTY_B,
-            partyNameSnapshot: { contains: String(query.partyBName) },
-          },
-        },
-      });
+    const transactionType = parseBooleanQuery(query.transactionType);
+    if (transactionType !== undefined) {
+      where.transactionType = transactionType;
     }
     if (query.status) {
       const now = new Date();
       if (query.status === 'active') {
         // "生效中": contractEnd is in the future OR is null
-        andConditions.push({
-          OR: [{ contractEnd: { gte: now } }, { contractEnd: null }],
-        });
+        where.OR = [{ contractEnd: { gte: now } }, { contractEnd: null }];
       } else if (query.status === 'expired') {
         // "过期": contractEnd is in the past AND not null
-        andConditions.push({
-          contractEnd: {
-            lt: now,
-          },
-        });
+        where.contractEnd = {
+          lt: now,
+        };
       }
     }
     if (query.contractDate) {
       const [start, end] = (query.contractDate as string).split(',');
-      andConditions.push({
-        contractStart: {
-          gte: new Date(`${start} 00:00:00`),
-        },
-        contractEnd: {
-          lte: new Date(`${end} 23:59:59`),
-        },
-      });
+      where.contractDate = {
+        gte: new Date(`${start} 00:00:00`), // 添加时间部分
+        lte: new Date(`${end} 23:59:59`), // 添加时间部分，确保包含整天
+      };
     }
     if (query.increaseDate) {
       const [start, end] = (query.increaseDate as string).split(',');
-      andConditions.push({
-        increaseDate: {
-          gte: new Date(`${start} 00:00:00`),
-          lte: new Date(`${end} 23:59:59`),
-        },
-      });
+      where.increaseDate = {
+        gte: new Date(`${start} 00:00:00`), // 添加时间部分
+        lte: new Date(`${end} 23:59:59`), // 添加时间部分，确保包含整天
+      };
     }
     if (query.address) {
-      andConditions.push({
-        address: { contains: query.address },
-      });
+      where.address = { contains: query.address };
     }
     if (query.increaseRate) {
-      andConditions.push({
-        increaseRate: Number(query.increaseRate),
-      });
-    }
-    if (andConditions.length > 0) {
-      where.AND = andConditions;
+      where.increaseRate = Number(query.increaseRate);
     }
     // 获取总数
     const total = await prismaClient.rentalTenant.count({ where });
@@ -180,10 +126,36 @@ export default eventHandler(async (event) => {
       orderBy: {
         createTime: 'desc',
       },
-      include: createRentalTenantInclude(),
+      include: {
+        images: {
+          include: {
+            image: true,
+          },
+        },
+      },
     });
 
-    const items = tenants.map((tenant) => mapRentalTenantOutput(tenant));
+    const items = tenants.map(({ images, ...rest }) => {
+      const mappedImages =
+        images
+          ?.map((item) => {
+            if (!item.image?.imgId || !item.image?.imgUrl) {
+              return null;
+            }
+            return {
+              imgId: item.image.imgId,
+              url: item.image.imgUrl,
+            };
+          })
+          .filter(
+            (image): image is { imgId: number; url: string } => image !== null,
+          ) ?? [];
+
+      return {
+        ...rest,
+        images: mappedImages,
+      };
+    });
 
     return useResponseSuccess({
       items,
