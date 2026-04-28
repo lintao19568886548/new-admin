@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { normalizeTenantIdentityProfile } from '~/utils/customer-identity';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   badRequestResponse,
@@ -10,6 +11,8 @@ import {
 import { issueVipCheckoutFlowToken } from '~/utils/vip-checkout-flow-token';
 import {
   buildVipMembershipAttach,
+  getTenantProvisioningPaymentBlockedMessage,
+  getTenantProvisioningProfileState,
   isVipMembershipAttach,
   recordVipMembershipPaymentPending,
   VIP_MEMBERSHIP_AMOUNT_TOTAL,
@@ -27,6 +30,34 @@ function normalizeAmount(value: unknown) {
 function normalizeOptionalString(value: unknown) {
   const normalized = String(value || '').trim();
   return normalized || undefined;
+}
+
+function normalizeTenantIdentityInput(body: Record<string, unknown>) {
+  const nested =
+    body.tenantIdentity &&
+    typeof body.tenantIdentity === 'object' &&
+    !Array.isArray(body.tenantIdentity)
+      ? (body.tenantIdentity as Record<string, unknown>)
+      : {};
+
+  return {
+    city: nested.city ?? body.tenantCity,
+    companyShortName:
+      nested.companyShortName ??
+      nested.companyName ??
+      body.tenantCompanyShortName ??
+      body.tenantCompanyName,
+  };
+}
+
+function hasTenantIdentityInput(input: {
+  city?: unknown;
+  companyShortName?: unknown;
+}) {
+  return (
+    Boolean(String(input.city ?? '').trim()) ||
+    Boolean(String(input.companyShortName ?? '').trim())
+  );
 }
 
 export default eventHandler(async (event) => {
@@ -66,6 +97,38 @@ export default eventHandler(async (event) => {
       const customerId = String(
         userinfo.customerId || process.env.DEFAULT_CUSTOMER_ID || 'default',
       );
+      let tenantIdentity:
+        | ReturnType<typeof normalizeTenantIdentityProfile>
+        | undefined;
+      if (customerId === 'public') {
+        const tenantIdentityInput = normalizeTenantIdentityInput(body);
+        const existingProvisioningState =
+          await getTenantProvisioningProfileState(centerUserId);
+        const provisioningBlockedMessage =
+          getTenantProvisioningPaymentBlockedMessage(
+            existingProvisioningState.tenantProvisioningStatus,
+          );
+        if (provisioningBlockedMessage) {
+          return badRequestResponse(provisioningBlockedMessage, event);
+        }
+        const canReuseExistingIdentity = Boolean(
+          existingProvisioningState.targetCity &&
+          existingProvisioningState.targetCompanyShortName,
+        );
+
+        try {
+          tenantIdentity =
+            hasTenantIdentityInput(tenantIdentityInput) ||
+            !canReuseExistingIdentity
+              ? normalizeTenantIdentityProfile(tenantIdentityInput)
+              : undefined;
+        } catch (error) {
+          return badRequestResponse(
+            error instanceof Error ? error.message : '专属空间信息不完整',
+            event,
+          );
+        }
+      }
       attach = buildVipMembershipAttach({
         centerUserId,
         customerId,
@@ -78,6 +141,7 @@ export default eventHandler(async (event) => {
         outTradeNo,
         rawAttach: attach,
         sourceCustomerId: customerId,
+        tenantIdentity,
         username: userinfo.username,
       });
 

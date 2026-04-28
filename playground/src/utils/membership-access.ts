@@ -20,6 +20,7 @@ export const MEMBERSHIP_ALLOWED_ROUTE_PATHS = new Set([
   '/home',
   '/hrm/information',
   '/hrm/information/mobile',
+  '/hrm/mobile-information',
   '/profile',
   '/profile/vip-membership',
   '/rental/manage',

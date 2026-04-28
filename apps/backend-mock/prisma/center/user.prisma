@@ -1,20 +1,19 @@
 model User {
-  id           Int       @id @default(autoincrement())
-  realName     String    @map("real_name") @db.VarChar(30)
-  username     String    @unique @db.VarChar(50)
-  password     String    @db.VarChar(100)
-  customerType String?   @map("customer_type") @db.VarChar(50)
-  status       Int?      @default(1) @db.TinyInt
-  tokenVersion Int       @default(1) @map("token_version")
-  phone        String?   @db.VarChar(20)
-  homePath     String?   @map("home_path") @db.VarChar(100)
-  customerMappings UserCustomerMapping[] @relation("UserToCustomerMapping")
-  refreshTokens RefreshToken[] @relation("UserToRefreshToken")
-  vipMembership VipMembership? @relation("CenterUserToVipMembership")
-  vipMembershipPayments VipMembershipPayment[] @relation("CenterUserToVipMembershipPayment")
-  tenantProvisioningJob TenantProvisioningJob? @relation("CenterUserToTenantProvisioningJob")
-  createTime   DateTime? @default(now()) @map("create_time")
-  updateTime   DateTime? @updatedAt @map("update_time")
+  id                     Int                    @id @default(autoincrement())
+  realName               String                 @map("real_name") @db.VarChar(30)
+  username               String                 @unique @db.VarChar(50)
+  password               String                 @db.VarChar(100)
+  customerType           String?                @map("customer_type") @db.VarChar(50)
+  status                 Int?                   @default(1) @db.TinyInt
+  tokenVersion           Int                    @default(1) @map("token_version")
+  phone                  String?                @db.VarChar(20)
+  homePath               String?                @map("home_path") @db.VarChar(100)
+  membershipTrialStartAt DateTime?              @map("membership_trial_start_at")
+  customerMappings       UserCustomerMapping[]  @relation("UserToCustomerMapping")
+  refreshTokens          RefreshToken[]         @relation("UserToRefreshToken")
+  vipMembershipPayments  VipMembershipPayment[] @relation("CenterUserToVipMembershipPayment")
+  createTime             DateTime?              @default(now()) @map("create_time")
+  updateTime             DateTime?              @updatedAt @map("update_time")
 
   @@map("user")
 }
@@ -36,13 +35,15 @@ model UserCustomerMapping {
 }
 
 model Customer {
-  customerId String   @id @map("customer_id") @db.VarChar(50)
-  name       String   @db.VarChar(100)
-  code       String?  @unique @db.VarChar(50)
-  status     Int      @default(1) @db.TinyInt
-  dbName     String?  @map("db_name") @db.VarChar(100)
-  createTime DateTime @default(now()) @map("create_time")
-  updateTime DateTime? @updatedAt @map("update_time")
+  customerId       String    @id @map("customer_id") @db.VarChar(50)
+  name             String    @db.VarChar(100)
+  city             String?   @db.VarChar(30)
+  companyShortName String?   @map("company_short_name") @db.VarChar(50)
+  code             String?   @unique @db.VarChar(50)
+  status           Int       @default(1) @db.TinyInt
+  dbName           String?   @map("db_name") @db.VarChar(100)
+  createTime       DateTime  @default(now()) @map("create_time")
+  updateTime       DateTime? @updatedAt @map("update_time")
 
   @@index([status])
   @@map("customer")

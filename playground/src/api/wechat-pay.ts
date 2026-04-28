@@ -18,6 +18,10 @@ export interface CreateWechatAppPrepayParams {
   description: string;
   deviceId?: string;
   outTradeNo?: string;
+  tenantIdentity?: {
+    city: string;
+    companyShortName: string;
+  };
 }
 
 export interface CreateWechatAppPrepayResponse {
@@ -44,10 +48,21 @@ export interface TenantProvisioningStatus {
   isTenantProvisioning: boolean;
   requiresRelogin?: boolean;
   sourceCustomerId?: string;
+  targetCity?: string;
+  targetCompanyShortName?: string;
   targetCustomerId?: string;
   tenantProvisioningMessage?: string;
   tenantProvisioningStatus: TenantProvisioningStatusValue;
 }
+
+export type VipMembershipWechatOrderReason =
+  | 'amount-mismatch'
+  | 'missing-center-user'
+  | 'missing-out-trade-no'
+  | 'missing-user-context'
+  | 'not-vip-membership'
+  | 'stale-payment'
+  | 'trade-not-success';
 
 export interface WechatPayOrderStatus {
   amount: {
@@ -66,6 +81,14 @@ export interface WechatPayOrderStatus {
   tradeState: string;
   tradeStateDesc: string;
   transactionId: string;
+  vipMembershipResult?: {
+    alreadyApplied: boolean;
+    applied: boolean;
+    matched: boolean;
+    provisioningStatus?: TenantProvisioningStatusValue;
+    reason?: VipMembershipWechatOrderReason;
+    vipExpireAt?: string;
+  };
 }
 
 interface VipCheckoutFlowRequestOptions {

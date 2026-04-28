@@ -23,12 +23,14 @@ const WORKER_ID = `${hostname()}:${process.pid}:${randomUUID()}`;
 type DbConnection = Awaited<ReturnType<typeof mariadb.createConnection>>;
 
 interface TenantProvisioningJobRecord {
-  centerUserId: number;
   id: number;
+  initiatorCenterUserId: number;
   lockOwner: string;
   retryCount: number;
   sourceCustomerId: string;
   status: string;
+  targetCity: null | string;
+  targetCompanyShortName: null | string;
   targetCustomerId: null | string;
   targetDbName: null | string;
 }
@@ -1188,21 +1190,14 @@ async function migrateUserScopedData(params: {
   };
 }
 
-function buildTargetCustomerId(centerUserId: number) {
-  const prefix = normalizeCustomerId(
-    process.env.TENANT_PROVISIONING_CUSTOMER_ID_PREFIX || 'vip_u_',
-  );
-  const customerId = normalizeCustomerId(`${prefix}${centerUserId}`);
-  if (customerId.length > 50) {
-    throw new Error(`自动生成的 customerId 超过 50 字符: ${customerId}`);
-  }
-  return customerId;
-}
-
 async function ensureJobTargetIdentity(job: TenantProvisioningJobRecord) {
-  const targetCustomerId = job.targetCustomerId
-    ? normalizeCustomerId(job.targetCustomerId)
-    : buildTargetCustomerId(job.centerUserId);
+  if (!job.targetCustomerId) {
+    throw new Error(
+      `租户开通任务缺少 targetCustomerId，无法建库 jobId=${job.id}`,
+    );
+  }
+
+  const targetCustomerId = normalizeCustomerId(job.targetCustomerId);
   const targetDbName = job.targetDbName
     ? normalizeDatabaseName(job.targetDbName)
     : getDatabaseNameFromUrl(resolveCustomerDbUrl(targetCustomerId));
@@ -1257,6 +1252,8 @@ async function markJobFailed(job: TenantProvisioningJobRecord, error: unknown) {
 
 async function switchCenterUserToTarget(params: {
   centerUserId: number;
+  city?: null | string;
+  companyShortName?: null | string;
   customerName: string;
   jobId: number;
   lockOwner: string;
@@ -1290,12 +1287,16 @@ async function switchCenterUserToTarget(params: {
     await tx.customer.upsert({
       create: {
         code: params.targetCustomerId,
+        city: params.city || null,
+        companyShortName: params.companyShortName || null,
         customerId: params.targetCustomerId,
         dbName: params.targetDbName,
         name: params.customerName,
         status: 1,
       },
       update: {
+        city: params.city || null,
+        companyShortName: params.companyShortName || null,
         dbName: params.targetDbName,
         name: params.customerName,
         status: 1,
@@ -1567,13 +1568,13 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
       tokenVersion: true,
       username: true,
     },
-    where: { id: job.centerUserId },
+    where: { id: job.initiatorCenterUserId },
   });
   if (!centerUser) {
-    throw new Error(`中心用户不存在: ${job.centerUserId}`);
+    throw new Error(`中心用户不存在: ${job.initiatorCenterUserId}`);
   }
   if (Number(centerUser.status ?? 1) !== 1) {
-    throw new Error(`中心用户已禁用: ${job.centerUserId}`);
+    throw new Error(`中心用户已禁用: ${job.initiatorCenterUserId}`);
   }
 
   const sourceCustomerId = normalizeCustomerId(job.sourceCustomerId);
@@ -1636,7 +1637,7 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
 
       const sourceUser = await resolveSourceTenantUser({
         centerUser,
-        centerUserId: job.centerUserId,
+        centerUserId: job.initiatorCenterUserId,
         sourceConnection,
         sourceCustomerId,
       });
@@ -1653,7 +1654,7 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
 
         const context: UserMigrationContext = {
           centerUser,
-          centerUserId: job.centerUserId,
+          centerUserId: job.initiatorCenterUserId,
           sourceCustomerId,
           sourceUserId: Number(sourceUser.id),
           targetCustomerId,
@@ -1708,8 +1709,12 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
 
   await updateJobStep(job, 'switching_customer');
   await switchCenterUserToTarget({
-    customerName: `${centerUser.realName || centerUser.username}的专属空间`,
-    centerUserId: job.centerUserId,
+    centerUserId: job.initiatorCenterUserId,
+    city: job.targetCity,
+    companyShortName: job.targetCompanyShortName,
+    customerName:
+      job.targetCompanyShortName ||
+      `${centerUser.realName || centerUser.username}的专属空间`,
     jobId: job.id,
     lockOwner: job.lockOwner,
     targetCustomerId,
@@ -1728,12 +1733,16 @@ export async function runTenantProvisioningWorkerOnce() {
       break;
     }
     const job = {
-      centerUserId: Number(claimed.centerUserId),
       id: Number(claimed.id),
+      initiatorCenterUserId: Number(claimed.initiatorCenterUserId),
       lockOwner: String(claimed.lockOwner || WORKER_ID),
       retryCount: Number(claimed.retryCount || 0),
       sourceCustomerId: String(claimed.sourceCustomerId),
       status: String(claimed.status),
+      targetCity: claimed.targetCity ? String(claimed.targetCity) : null,
+      targetCompanyShortName: claimed.targetCompanyShortName
+        ? String(claimed.targetCompanyShortName)
+        : null,
       targetCustomerId: claimed.targetCustomerId
         ? String(claimed.targetCustomerId)
         : null,

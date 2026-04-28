@@ -1,6 +1,11 @@
 import type { PrismaClient } from '@prisma/.prisma/center-client/index.js';
 
 import { Prisma } from '@prisma/.prisma/center-client/index.js';
+import {
+  buildTenantCustomerIdBase,
+  buildTenantCustomerIdCandidate,
+  normalizeTenantIdentityProfile,
+} from '~/utils/customer-identity';
 import { systemDbClient } from '~/utils/db';
 
 const VIP_MEMBERSHIP_ACTIVE_STATUS = 'active';
@@ -13,6 +18,17 @@ const PROVISIONING_BLOCKING_STATUSES = new Set([
   'pending',
   'provisioning',
 ]);
+const TENANT_PROVISIONING_MANUAL_FAILURE_MESSAGE =
+  '专属空间开通失败，请联系客服处理后再重新开通';
+const TENANT_PROVISIONING_PAYMENT_BLOCKED_STATUS_MESSAGES: Record<
+  string,
+  string
+> = {
+  failed_manual: TENANT_PROVISIONING_MANUAL_FAILURE_MESSAGE,
+  failed_retryable: '专属空间开通失败，系统正在自动重试，请勿重复支付',
+  pending: '专属空间等待开通中，请勿重复支付',
+  provisioning: '专属空间正在开通中，请勿重复支付',
+};
 export const VIP_MEMBERSHIP_AMOUNT_TOTAL = 98_000;
 
 type VipMembershipDbClient = Prisma.TransactionClient | PrismaClient;
@@ -22,6 +38,20 @@ interface VipMembershipAttachPayload {
   sourceCustomerId?: string;
   tag: 'vip';
   tenantUserId?: number;
+}
+
+export interface VipTenantIdentityInput {
+  city?: unknown;
+  companyShortName?: unknown;
+}
+
+interface TenantProvisioningDraft {
+  companyShortName: string;
+  city: string;
+}
+
+interface TenantProvisioningTargetIdentity extends TenantProvisioningDraft {
+  customerId: string;
 }
 
 export interface VipMembershipProfileState {
@@ -42,6 +72,8 @@ export interface VipMembershipProfileState {
   membershipExpireAt?: string;
   membershipStatus: 'active' | 'expired' | 'inactive';
   sourceCustomerId?: string;
+  targetCity?: string;
+  targetCompanyShortName?: string;
   targetCustomerId?: string;
   tenantProvisioningMessage?: string;
   tenantProvisioningStatus:
@@ -52,6 +84,7 @@ export interface VipMembershipProfileState {
     | 'pending'
     | 'provisioning';
   trialExpireAt?: string;
+  trialStartAt?: string;
   trialStatus: 'active' | 'expired' | 'inactive';
   vipExpireAt?: string;
   vipStatus: 'active' | 'expired' | 'inactive';
@@ -78,6 +111,7 @@ export interface VipMembershipWechatOrderResult {
     | 'missing-out-trade-no'
     | 'missing-user-context'
     | 'not-vip-membership'
+    | 'stale-payment'
     | 'trade-not-success';
   vipExpireAt?: string;
 }
@@ -180,6 +214,10 @@ function resolveCenterUserId(userInfo: Record<string, any>) {
   );
 }
 
+function resolveCustomerId(userInfo: Record<string, any>) {
+  return normalizeString(userInfo.customerId || userInfo.customerType);
+}
+
 function toVipMembershipCoreState(
   membership: null | {
     expireAt: Date;
@@ -218,22 +256,24 @@ function toVipMembershipCoreState(
   };
 }
 
-function toTrialState(centerUserCreateTime: Date | null | undefined) {
-  const createTime = parseDateValue(centerUserCreateTime);
-  if (!createTime) {
+function toTrialState(trialStartTime: Date | null | undefined) {
+  const trialStartAt = parseDateValue(trialStartTime);
+  if (!trialStartAt) {
     return {
       isTrialActive: false,
       trialExpireAt: undefined,
+      trialStartAt: undefined,
       trialStatus: 'inactive' as const,
     };
   }
 
-  const trialExpireAt = addMonths(createTime, VIP_TRIAL_DURATION_MONTHS);
+  const trialExpireAt = addMonths(trialStartAt, VIP_TRIAL_DURATION_MONTHS);
   const isTrialActive = trialExpireAt.getTime() > Date.now();
 
   return {
     isTrialActive,
     trialExpireAt: trialExpireAt.toISOString(),
+    trialStartAt: trialStartAt.toISOString(),
     trialStatus: isTrialActive ? ('active' as const) : ('expired' as const),
   };
 }
@@ -310,8 +350,8 @@ async function withVipMembershipDb<T>(task: () => Promise<T>) {
   }
 }
 
-async function getVipMembershipByCenterUserId(
-  centerUserId: number,
+async function getVipMembershipByCustomerId(
+  customerId: string,
   prisma: VipMembershipDbClient = systemDbClient,
 ) {
   return prisma.vipMembership.findUnique({
@@ -320,13 +360,13 @@ async function getVipMembershipByCenterUserId(
       status: true,
     },
     where: {
-      centerUserId,
+      customerId,
     },
   });
 }
 
-async function getVipMembershipByCenterUserIdForUpdate(
-  centerUserId: number,
+async function getVipMembershipByCustomerIdForUpdate(
+  customerId: string,
   prisma: VipMembershipDbClient,
 ) {
   const rows = await prisma.$queryRaw<
@@ -335,32 +375,31 @@ async function getVipMembershipByCenterUserIdForUpdate(
       status: string;
     }>
   >(
-    Prisma.sql`SELECT expire_at AS expireAt, status FROM vip_membership WHERE center_user_id = ${centerUserId} FOR UPDATE`,
+    Prisma.sql`SELECT expire_at AS expireAt, status FROM vip_membership WHERE customer_id = ${customerId} FOR UPDATE`,
   );
 
   return rows[0] || null;
 }
 
-async function lockCenterUserForVipMembership(
-  centerUserId: number,
+async function lockCustomerForVipMembership(
+  customerId: string,
   prisma: VipMembershipDbClient,
 ) {
-  const rows = await prisma.$queryRaw<Array<{ id: number }>>(
-    Prisma.sql`SELECT id FROM \`user\` WHERE id = ${centerUserId} FOR UPDATE`,
+  await prisma.$queryRaw<Array<{ customerId: string }>>(
+    Prisma.sql`SELECT customer_id AS customerId FROM customer WHERE customer_id = ${customerId} FOR UPDATE`,
   );
-
-  if (rows.length === 0) {
-    throw new Error('中心用户不存在，无法开通会员');
-  }
 }
 
-async function getTenantProvisioningJobByCenterUserId(
-  centerUserId: number,
+async function getTenantProvisioningJobByInitiatorCenterUserId(
+  initiatorCenterUserId: number,
   prisma: VipMembershipDbClient = systemDbClient,
 ) {
-  return prisma.tenantProvisioningJob.findUnique({
+  return prisma.tenantProvisioningJob.findFirst({
+    orderBy: {
+      id: 'desc',
+    },
     where: {
-      centerUserId,
+      initiatorCenterUserId,
     },
   });
 }
@@ -372,6 +411,8 @@ async function getCenterUserMembershipTrialProfile(
   return prisma.user.findUnique({
     select: {
       createTime: true,
+      customerType: true,
+      membershipTrialStartAt: true,
     },
     where: {
       id: centerUserId,
@@ -390,6 +431,210 @@ async function getVipMembershipPaymentByOutTradeNo(
   });
 }
 
+async function getStaleTenantProvisioningPaymentState(
+  params: {
+    centerUserId: number;
+    outTradeNo: string;
+    sourceCustomerId: string;
+  },
+  prisma: VipMembershipDbClient,
+) {
+  if (params.sourceCustomerId !== 'public') {
+    return null;
+  }
+
+  const job = await getTenantProvisioningJobByInitiatorCenterUserId(
+    params.centerUserId,
+    prisma,
+  );
+  const latestOutTradeNo = normalizeString(job?.lastPaymentOutTradeNo);
+  if (!latestOutTradeNo || latestOutTradeNo === params.outTradeNo) {
+    return null;
+  }
+
+  const provisioningStatus =
+    job?.status === 'reserved' ? 'none' : job?.status || 'none';
+
+  return {
+    provisioningStatus:
+      provisioningStatus as VipMembershipProfileState['tenantProvisioningStatus'],
+  };
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  );
+}
+
+async function isTenantCustomerIdTaken(
+  params: {
+    customerId: string;
+  },
+  prisma: VipMembershipDbClient,
+) {
+  const [customerById, customerByCode, job] = await Promise.all([
+    prisma.customer.findUnique({
+      select: { customerId: true },
+      where: { customerId: params.customerId },
+    }),
+    prisma.customer.findFirst({
+      select: { customerId: true },
+      where: { code: params.customerId },
+    }),
+    prisma.tenantProvisioningJob.findFirst({
+      select: { id: true },
+      where: {
+        targetCustomerId: params.customerId,
+      },
+    }),
+  ]);
+
+  return Boolean(customerById || customerByCode || job);
+}
+
+async function buildTenantProvisioningTargetIdentity(
+  params: {
+    targetCity?: null | string;
+    targetCompanyShortName?: null | string;
+  },
+  prisma: VipMembershipDbClient,
+): Promise<TenantProvisioningTargetIdentity> {
+  const profile = normalizeTenantIdentityProfile({
+    city: params.targetCity,
+    companyShortName: params.targetCompanyShortName,
+  });
+  const baseCustomerId = buildTenantCustomerIdBase(profile);
+
+  for (let ordinal = 1; ordinal <= 100; ordinal += 1) {
+    const customerId = buildTenantCustomerIdCandidate(baseCustomerId, ordinal);
+    const customerIdTaken = await isTenantCustomerIdTaken(
+      {
+        customerId,
+      },
+      prisma,
+    );
+    if (customerIdTaken) {
+      continue;
+    }
+
+    return {
+      city: profile.city,
+      companyShortName: profile.companyShortName,
+      customerId,
+    };
+  }
+
+  throw new Error('无法生成不冲突的专属空间标识，请调整城市或公司简称');
+}
+
+function hasTenantIdentityInput(input: undefined | VipTenantIdentityInput) {
+  return (
+    Boolean(normalizeString(input?.city)) ||
+    Boolean(normalizeString(input?.companyShortName))
+  );
+}
+
+function toTenantProvisioningDraft(input: {
+  targetCity?: null | string;
+  targetCompanyShortName?: null | string;
+}): null | TenantProvisioningDraft {
+  const city = normalizeString(input.targetCity);
+  const companyShortName = normalizeString(input.targetCompanyShortName);
+  if (!city || !companyShortName) {
+    return null;
+  }
+
+  return {
+    city,
+    companyShortName,
+  };
+}
+
+export function getTenantProvisioningPaymentBlockedMessage(status: unknown) {
+  return (
+    TENANT_PROVISIONING_PAYMENT_BLOCKED_STATUS_MESSAGES[
+      normalizeString(status)
+    ] || ''
+  );
+}
+
+function assertTenantProvisioningJobAcceptsNewPayment(
+  job: null | { status?: string },
+) {
+  const message = getTenantProvisioningPaymentBlockedMessage(job?.status);
+  if (message) {
+    throw new Error(message);
+  }
+}
+
+async function saveTenantProvisioningDraft(
+  params: {
+    initiatorCenterUserId: number;
+    outTradeNo: string;
+    sourceCustomerId: string;
+    tenantIdentity?: VipTenantIdentityInput;
+  },
+  prisma: VipMembershipDbClient,
+): Promise<null | TenantProvisioningDraft> {
+  if (params.sourceCustomerId !== 'public') {
+    return null;
+  }
+
+  const existingJob = await getTenantProvisioningJobByInitiatorCenterUserId(
+    params.initiatorCenterUserId,
+    prisma,
+  );
+  const existingDraft = existingJob
+    ? toTenantProvisioningDraft(existingJob)
+    : null;
+  assertTenantProvisioningJobAcceptsNewPayment(existingJob);
+  const profile = hasTenantIdentityInput(params.tenantIdentity)
+    ? normalizeTenantIdentityProfile(params.tenantIdentity || {})
+    : existingDraft ||
+      normalizeTenantIdentityProfile(params.tenantIdentity || {});
+
+  if (existingJob?.status && existingJob.status !== 'reserved') {
+    await prisma.tenantProvisioningJob.update({
+      data: {
+        lastPaymentOutTradeNo: params.outTradeNo,
+        ...(existingDraft
+          ? {}
+          : {
+              targetCity: profile.city,
+              targetCompanyShortName: profile.companyShortName,
+            }),
+      },
+      where: { id: existingJob.id },
+    });
+    return existingDraft || profile;
+  }
+
+  const data = {
+    lastPaymentOutTradeNo: params.outTradeNo,
+    sourceCustomerId: params.sourceCustomerId,
+    status: 'reserved',
+    targetCity: profile.city,
+    targetCompanyShortName: profile.companyShortName,
+    targetCustomerId: null,
+  };
+
+  await (existingJob
+    ? prisma.tenantProvisioningJob.update({
+        data,
+        where: { id: existingJob.id },
+      })
+    : prisma.tenantProvisioningJob.create({
+        data: {
+          ...data,
+          initiatorCenterUserId: params.initiatorCenterUserId,
+        },
+      }));
+
+  return profile;
+}
+
 async function upsertVipMembershipPaymentSnapshot(
   params: {
     amountTotal: number;
@@ -398,6 +643,8 @@ async function upsertVipMembershipPaymentSnapshot(
     paidAt?: Date | null;
     rawAttach?: null | string;
     sourceCustomerId: string;
+    targetCity?: null | string;
+    targetCompanyShortName?: null | string;
     targetCustomerId?: null | string;
     tradeState: string;
     transactionId?: null | string;
@@ -413,6 +660,8 @@ async function upsertVipMembershipPaymentSnapshot(
       paidAt: params.paidAt || null,
       rawAttach: params.rawAttach || null,
       sourceCustomerId: params.sourceCustomerId,
+      targetCity: params.targetCity || null,
+      targetCompanyShortName: params.targetCompanyShortName || null,
       targetCustomerId: params.targetCustomerId || null,
       tradeState: params.tradeState,
       transactionId: params.transactionId || null,
@@ -422,7 +671,15 @@ async function upsertVipMembershipPaymentSnapshot(
       amountTotal: params.amountTotal,
       paidAt: params.paidAt || null,
       rawAttach: params.rawAttach || null,
-      targetCustomerId: params.targetCustomerId || null,
+      ...(params.targetCity === undefined
+        ? {}
+        : { targetCity: params.targetCity || null }),
+      ...(params.targetCompanyShortName === undefined
+        ? {}
+        : { targetCompanyShortName: params.targetCompanyShortName || null }),
+      ...(params.targetCustomerId === undefined
+        ? {}
+        : { targetCustomerId: params.targetCustomerId || null }),
       tradeState: params.tradeState,
       transactionId: params.transactionId || null,
       username: params.username || null,
@@ -440,6 +697,9 @@ async function createVipMembershipPaymentPendingSnapshot(
     outTradeNo: string;
     rawAttach: string;
     sourceCustomerId: string;
+    targetCity?: null | string;
+    targetCompanyShortName?: null | string;
+    targetCustomerId?: null | string;
     username?: string;
   },
   prisma: VipMembershipDbClient = systemDbClient,
@@ -451,6 +711,9 @@ async function createVipMembershipPaymentPendingSnapshot(
       outTradeNo: params.outTradeNo,
       rawAttach: params.rawAttach,
       sourceCustomerId: params.sourceCustomerId,
+      targetCity: params.targetCity || null,
+      targetCompanyShortName: params.targetCompanyShortName || null,
+      targetCustomerId: params.targetCustomerId || null,
       tradeState: 'NOTPAY',
       username: params.username || null,
     },
@@ -459,10 +722,11 @@ async function createVipMembershipPaymentPendingSnapshot(
 
 async function ensureTenantProvisioningJob(
   params: {
-    centerUserId: number;
+    initiatorCenterUserId: number;
     outTradeNo: string;
     sourceCustomerId: string;
-    targetCustomerId?: null | string;
+    targetCity?: null | string;
+    targetCompanyShortName?: null | string;
   },
   prisma: VipMembershipDbClient = systemDbClient,
 ) {
@@ -470,21 +734,72 @@ async function ensureTenantProvisioningJob(
     return null;
   }
 
-  return prisma.tenantProvisioningJob.upsert({
-    create: {
-      centerUserId: params.centerUserId,
+  const existingJob = await getTenantProvisioningJobByInitiatorCenterUserId(
+    params.initiatorCenterUserId,
+    prisma,
+  );
+  assertTenantProvisioningJobAcceptsNewPayment(existingJob);
+  if (existingJob?.targetCustomerId && existingJob.status !== 'reserved') {
+    return prisma.tenantProvisioningJob.update({
+      data: {
+        lastPaymentOutTradeNo: params.outTradeNo,
+      },
+      where: {
+        id: existingJob.id,
+      },
+    });
+  }
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const targetIdentity = await buildTenantProvisioningTargetIdentity(
+      {
+        targetCity: params.targetCity || existingJob?.targetCity || null,
+        targetCompanyShortName:
+          params.targetCompanyShortName ||
+          existingJob?.targetCompanyShortName ||
+          null,
+      },
+      prisma,
+    );
+    const pendingData = {
+      errorMessage: null,
+      heartbeatAt: null,
       lastPaymentOutTradeNo: params.outTradeNo,
+      lockedAt: null,
+      lockOwner: null,
+      retryCount: 0,
       sourceCustomerId: params.sourceCustomerId,
+      startedAt: null,
       status: 'pending',
-      targetCustomerId: params.targetCustomerId || null,
-    },
-    update: {
-      lastPaymentOutTradeNo: params.outTradeNo,
-    },
-    where: {
-      centerUserId: params.centerUserId,
-    },
-  });
+      step: null,
+      targetCity: targetIdentity.city,
+      targetCompanyShortName: targetIdentity.companyShortName,
+      targetCustomerId: targetIdentity.customerId,
+    };
+
+    try {
+      if (!existingJob) {
+        return await prisma.tenantProvisioningJob.create({
+          data: {
+            ...pendingData,
+            initiatorCenterUserId: params.initiatorCenterUserId,
+          },
+        });
+      }
+
+      return await prisma.tenantProvisioningJob.update({
+        data: pendingData,
+        where: { id: existingJob.id },
+      });
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error('专属空间标识冲突，请稍后重试');
 }
 
 export function buildVipMembershipAttach(input: {
@@ -528,16 +843,37 @@ export async function recordVipMembershipPaymentPending(params: {
   outTradeNo: string;
   rawAttach: string;
   sourceCustomerId: string;
+  tenantIdentity?: VipTenantIdentityInput;
   username?: string;
 }) {
-  await withVipMembershipDb(() =>
-    createVipMembershipPaymentPendingSnapshot({
-      amountTotal: params.amountTotal,
-      centerUserId: params.centerUserId,
-      outTradeNo: params.outTradeNo,
-      rawAttach: params.rawAttach,
-      sourceCustomerId: params.sourceCustomerId,
-      username: params.username,
+  return withVipMembershipDb(() =>
+    systemDbClient.$transaction(async (tx) => {
+      const targetDraft = await saveTenantProvisioningDraft(
+        {
+          initiatorCenterUserId: params.centerUserId,
+          outTradeNo: params.outTradeNo,
+          sourceCustomerId: params.sourceCustomerId,
+          tenantIdentity: params.tenantIdentity,
+        },
+        tx,
+      );
+
+      await createVipMembershipPaymentPendingSnapshot(
+        {
+          amountTotal: params.amountTotal,
+          centerUserId: params.centerUserId,
+          outTradeNo: params.outTradeNo,
+          rawAttach: params.rawAttach,
+          sourceCustomerId: params.sourceCustomerId,
+          targetCity: targetDraft?.city,
+          targetCompanyShortName: targetDraft?.companyShortName,
+          targetCustomerId: null,
+          username: params.username,
+        },
+        tx,
+      );
+
+      return targetDraft;
     }),
   );
 }
@@ -561,25 +897,37 @@ export async function getTenantProvisioningProfileState(
   prisma: VipMembershipDbClient = systemDbClient,
 ) {
   const job = await withVipMembershipDb(() =>
-    getTenantProvisioningJobByCenterUserId(centerUserId, prisma),
+    getTenantProvisioningJobByInitiatorCenterUserId(centerUserId, prisma),
   );
-  const status =
-    (job?.status as VipMembershipProfileState['tenantProvisioningStatus']) ||
-    'none';
+  const rawStatus = job?.status || 'none';
+  const status = (
+    rawStatus === 'reserved' ? 'none' : rawStatus
+  ) as VipMembershipProfileState['tenantProvisioningStatus'];
+  const exposeProvisioningJob = rawStatus !== 'reserved';
 
   return {
     isTenantProvisioning: ['pending', 'provisioning'].includes(status),
-    sourceCustomerId: job?.sourceCustomerId || undefined,
-    targetCustomerId: job?.targetCustomerId || undefined,
+    sourceCustomerId: exposeProvisioningJob
+      ? job?.sourceCustomerId || undefined
+      : undefined,
+    targetCity: job?.targetCity || undefined,
+    targetCompanyShortName: job?.targetCompanyShortName || undefined,
+    targetCustomerId: exposeProvisioningJob
+      ? job?.targetCustomerId || undefined
+      : undefined,
     tenantProvisioningMessage: resolveProvisioningMessage(status),
     tenantProvisioningStatus: status,
   };
 }
 
-export async function getVipMembershipProfileState(centerUserId: number) {
-  const membershipState = await getVipMembershipAccessState(centerUserId);
-  const provisioningState =
-    await getTenantProvisioningProfileState(centerUserId);
+export async function getVipMembershipProfileState(input: {
+  centerUserId: number;
+  customerId: string;
+}) {
+  const membershipState = await getVipMembershipAccessState(input);
+  const provisioningState = await getTenantProvisioningProfileState(
+    input.centerUserId,
+  );
 
   return {
     ...membershipState,
@@ -587,28 +935,47 @@ export async function getVipMembershipProfileState(centerUserId: number) {
   } satisfies VipMembershipProfileState;
 }
 
-export async function getVipMembershipAccessState(
-  centerUserId: number,
-  options: {
-    centerUserCreateTime?: Date | null;
-    prisma?: VipMembershipDbClient;
-  } = {},
-) {
-  const prisma = options.prisma ?? systemDbClient;
-  const providedCreateTime = options.centerUserCreateTime;
-  const [membership, centerUser] = await withVipMembershipDb(() =>
-    Promise.all([
-      getVipMembershipByCenterUserId(centerUserId, prisma),
-      providedCreateTime === undefined
-        ? getCenterUserMembershipTrialProfile(centerUserId, prisma)
-        : Promise.resolve({
-            createTime: providedCreateTime,
-          }),
-    ]),
-  );
+export async function getVipMembershipAccessState(input: {
+  centerUserCreateTime?: Date | null;
+  centerUserId?: unknown;
+  centerUserTrialStartAt?: Date | null;
+  customerId?: unknown;
+  prisma?: VipMembershipDbClient;
+}) {
+  const prisma = input.prisma ?? systemDbClient;
+  const centerUserId = normalizePositiveInteger(input.centerUserId);
+  const providedCreateTime = input.centerUserCreateTime;
+  const providedTrialStartAt = input.centerUserTrialStartAt;
+  const inputCustomerId = normalizeString(input.customerId);
+  const centerUser =
+    providedCreateTime === undefined ||
+    providedTrialStartAt === undefined ||
+    !inputCustomerId
+      ? await withVipMembershipDb(() =>
+          centerUserId
+            ? getCenterUserMembershipTrialProfile(centerUserId, prisma)
+            : Promise.resolve(null),
+        )
+      : {
+          createTime: providedCreateTime,
+          customerType: inputCustomerId,
+          membershipTrialStartAt: providedTrialStartAt,
+        };
+  const customerId =
+    inputCustomerId || normalizeString(centerUser?.customerType);
+  const membership = customerId
+    ? await withVipMembershipDb(() =>
+        getVipMembershipByCustomerId(customerId, prisma),
+      )
+    : null;
 
   const coreState = toVipMembershipCoreState(membership);
-  const trialState = toTrialState(centerUser?.createTime);
+  const trialState =
+    customerId === 'public'
+      ? toTrialState(
+          centerUser?.membershipTrialStartAt || centerUser?.createTime,
+        )
+      : toTrialState(null);
   const accessState = toVipMembershipAccessState(coreState, trialState);
 
   return {
@@ -627,11 +994,14 @@ export async function appendVipMembershipInfo<T extends Record<string, any>>(
   }
 
   try {
-    const membershipState = await getVipMembershipProfileState(centerUserId);
     const defaultCustomerId = String(
       process.env.DEFAULT_CUSTOMER_ID || 'default',
     );
-    const currentCustomerId = normalizeString(userInfo.customerId);
+    const currentCustomerId = resolveCustomerId(userInfo);
+    const membershipState = await getVipMembershipProfileState({
+      centerUserId,
+      customerId: currentCustomerId,
+    });
     const resolvedMembershipState =
       currentCustomerId === defaultCustomerId
         ? {
@@ -767,11 +1137,47 @@ export async function handleVipMembershipWechatOrder(
         };
       }
 
-      if (payment.appliedAt) {
-        const currentMembership = await getVipMembershipByCenterUserId(
-          payment.centerUserId,
+      if (
+        payment.sourceCustomerId === 'public' &&
+        (!normalizeString(payment.targetCity) ||
+          !normalizeString(payment.targetCompanyShortName))
+      ) {
+        return {
+          alreadyApplied: false,
+          applied: false,
+          matched: true,
+          outTradeNo,
+          reason: 'missing-user-context',
+        };
+      }
+
+      const staleProvisioningPayment =
+        await getStaleTenantProvisioningPaymentState(
+          {
+            centerUserId: payment.centerUserId,
+            outTradeNo,
+            sourceCustomerId: payment.sourceCustomerId,
+          },
           tx,
         );
+      if (staleProvisioningPayment) {
+        return {
+          alreadyApplied: false,
+          applied: false,
+          matched: true,
+          outTradeNo,
+          provisioningStatus: staleProvisioningPayment.provisioningStatus,
+          reason: 'stale-payment',
+        };
+      }
+
+      if (payment.appliedAt) {
+        const membershipCustomerId = normalizeString(
+          payment.targetCustomerId || payment.sourceCustomerId,
+        );
+        const currentMembership = membershipCustomerId
+          ? await getVipMembershipByCustomerId(membershipCustomerId, tx)
+          : null;
         const provisioningState = await getTenantProvisioningProfileState(
           payment.centerUserId,
           tx,
@@ -797,10 +1203,12 @@ export async function handleVipMembershipWechatOrder(
       });
 
       if (claimResult.count === 0) {
-        const currentMembership = await getVipMembershipByCenterUserId(
-          payment.centerUserId,
-          tx,
+        const membershipCustomerId = normalizeString(
+          payment.targetCustomerId || payment.sourceCustomerId,
         );
+        const currentMembership = membershipCustomerId
+          ? await getVipMembershipByCustomerId(membershipCustomerId, tx)
+          : null;
         const provisioningState = await getTenantProvisioningProfileState(
           payment.centerUserId,
           tx,
@@ -815,9 +1223,34 @@ export async function handleVipMembershipWechatOrder(
         };
       }
 
-      await lockCenterUserForVipMembership(payment.centerUserId, tx);
-      const currentMembership = await getVipMembershipByCenterUserIdForUpdate(
-        payment.centerUserId,
+      const provisioningJob = await ensureTenantProvisioningJob(
+        {
+          initiatorCenterUserId: payment.centerUserId,
+          outTradeNo,
+          sourceCustomerId: payment.sourceCustomerId,
+          targetCity: payment.targetCity,
+          targetCompanyShortName: payment.targetCompanyShortName,
+        },
+        tx,
+      );
+      const membershipCustomerId = normalizeString(
+        provisioningJob?.targetCustomerId ||
+          payment.targetCustomerId ||
+          payment.sourceCustomerId,
+      );
+      if (!membershipCustomerId || membershipCustomerId === 'public') {
+        return {
+          alreadyApplied: false,
+          applied: false,
+          matched: true,
+          outTradeNo,
+          reason: 'missing-user-context',
+        };
+      }
+
+      await lockCustomerForVipMembership(membershipCustomerId, tx);
+      const currentMembership = await getVipMembershipByCustomerIdForUpdate(
+        membershipCustomerId,
         tx,
       );
       const membershipExpireAt = currentMembership?.expireAt || null;
@@ -830,32 +1263,35 @@ export async function handleVipMembershipWechatOrder(
 
       await tx.vipMembership.upsert({
         create: {
-          centerUserId: payment.centerUserId,
+          customerId: membershipCustomerId,
           expireAt: nextExpireAt,
+          lastPayerCenterUserId: payment.centerUserId,
           lastOutTradeNo: outTradeNo,
           lastTransactionId: resolvedTransactionId || null,
           status: VIP_MEMBERSHIP_ACTIVE_STATUS,
         },
         update: {
           expireAt: nextExpireAt,
+          lastPayerCenterUserId: payment.centerUserId,
           lastOutTradeNo: outTradeNo,
           lastTransactionId: resolvedTransactionId || null,
           status: VIP_MEMBERSHIP_ACTIVE_STATUS,
         },
         where: {
-          centerUserId: payment.centerUserId,
+          customerId: membershipCustomerId,
         },
       });
 
-      const provisioningJob = await ensureTenantProvisioningJob(
-        {
-          centerUserId: payment.centerUserId,
-          outTradeNo,
-          sourceCustomerId: payment.sourceCustomerId,
-          targetCustomerId: payment.targetCustomerId,
-        },
-        tx,
-      );
+      if (provisioningJob?.targetCustomerId && !payment.targetCustomerId) {
+        await tx.vipMembershipPayment.update({
+          data: {
+            targetCity: provisioningJob.targetCity,
+            targetCompanyShortName: provisioningJob.targetCompanyShortName,
+            targetCustomerId: provisioningJob.targetCustomerId,
+          },
+          where: { outTradeNo },
+        });
+      }
 
       return {
         alreadyApplied: false,

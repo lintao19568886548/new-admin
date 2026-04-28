@@ -61,7 +61,10 @@ export default eventHandler(async (event) => {
 
     console.info('微信支付查单同步会员状态:', vipMembershipResult);
 
-    return useResponseSuccess(result);
+    return useResponseSuccess({
+      ...result,
+      vipMembershipResult,
+    });
   } catch (error) {
     console.error('查询微信支付订单失败:', error);
     return serverErrorResponse(

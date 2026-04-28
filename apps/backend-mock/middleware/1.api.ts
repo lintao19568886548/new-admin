@@ -23,6 +23,7 @@ function isMembershipAllowedApiRequest(method: string, requestPath: string) {
       '/api/access/visitor/list',
       '/api/hrm/attendance/today',
       '/api/hrm/employee/accounts',
+      '/api/menu/all',
       '/api/reimbursement/summary',
       '/api/system/version',
       '/api/tenant/provisioning/status',
@@ -190,6 +191,7 @@ export default defineEventHandler(async (event) => {
       select: {
         createTime: true,
         customerType: true,
+        membershipTrialStartAt: true,
         status: true,
         tokenVersion: true,
       },
@@ -215,12 +217,12 @@ export default defineEventHandler(async (event) => {
     }
 
     if (!isDefaultCustomer) {
-      const membershipAccessState = await getVipMembershipAccessState(
+      const membershipAccessState = await getVipMembershipAccessState({
         centerUserId,
-        {
-          centerUserCreateTime: current.createTime || null,
-        },
-      );
+        centerUserCreateTime: current.createTime || null,
+        centerUserTrialStartAt: current.membershipTrialStartAt || null,
+        customerId: currentCustomerId,
+      });
       if (
         membershipAccessState.accessRestricted &&
         !isMembershipAllowedApiRequest(event.method, requestPath)

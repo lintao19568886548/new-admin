@@ -11,4 +11,3 @@ model ApiLog {
 
   @@map("api_log")
 }
-

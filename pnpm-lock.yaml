@@ -665,6 +665,9 @@ importers:
       nzh:
         specifier: ^1.0.14
         version: 1.0.14
+      pinyin-pro:
+        specifier: ^3.28.1
+        version: 3.28.1
       redis:
         specifier: ^4.7.0
         version: 4.7.1
@@ -10629,6 +10632,9 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  pinyin-pro@3.28.1:
+    resolution: {integrity: sha512-oqz8ulwRgtUXRi0vbqEfGNly19zpyCxYrjhkk5TibGcgSW6eNwS5woajCXRwqURi8Ehc2yOFTiB4uNoZ+NJOnA==}
 
   pirates@4.0.7:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
@@ -24434,6 +24440,8 @@ snapshots:
       typescript: 5.9.3
     transitivePeerDependencies:
       - '@vue/composition-api'
+
+  pinyin-pro@3.28.1: {}
 
   pirates@4.0.7: {}
 

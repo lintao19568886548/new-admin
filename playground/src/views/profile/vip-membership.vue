@@ -4,13 +4,13 @@ import type {
   WechatPayOrderStatus,
 } from '#/api/wechat-pay';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { VbenIcon } from '@vben/common-ui';
 import { useUserStore } from '@vben/stores';
 
-import { Button, Checkbox, message, Modal, Tag } from 'ant-design-vue';
+import { Button, Checkbox, Input, message, Modal, Tag } from 'ant-design-vue';
 
 import { getTenantProvisioningStatus } from '#/api/wechat-pay';
 import { useAuthStore } from '#/store';
@@ -32,6 +32,12 @@ const MEMBERSHIP_AMOUNT_FEN = 98_000;
 const PAY_MESSAGE_KEY = 'vip-membership-pay';
 const ORDER_PENDING_STATES = new Set(['NOTPAY', 'USERPAYING']);
 const TENANT_PROVISIONING_PENDING_STATES = new Set(['pending', 'provisioning']);
+const TENANT_PROVISIONING_PAYMENT_BLOCKED_STATES = new Set([
+  'failed_manual',
+  'failed_retryable',
+  'pending',
+  'provisioning',
+]);
 
 const membershipPlan = {
   name: 'VIP 月度会员',
@@ -40,7 +46,7 @@ const membershipPlan = {
   price: MEMBERSHIP_AMOUNT_FEN / 100,
   savings: 300,
 };
-const RESTRICTED_PAGE_LABEL = '租赁管理、人事信息';
+const RESTRICTED_PAGE_LABEL = '租赁管理、人员信息';
 
 const benefitItems = [
   {
@@ -93,6 +99,9 @@ const userStore = useUserStore();
 
 const agreedToTerms = ref(false);
 const agreementModalOpen = ref(false);
+const tenantCity = ref('');
+const tenantCompanyShortName = ref('');
+const tenantIdentityTouched = ref(false);
 const payLoading = ref(false);
 const wechatConfigLoading = ref(false);
 const latestPaymentState = ref<MembershipPaymentState | null>(null);
@@ -111,44 +120,15 @@ const membershipAccessState = computed(() =>
 const displayName = computed(
   () => userInfo.value?.realName || userInfo.value?.username || '当前账号',
 );
+const currentCustomerId = computed(() =>
+  typeof userInfo.value?.customerId === 'string'
+    ? userInfo.value.customerId.trim()
+    : '',
+);
 const backButtonLabel = computed(() =>
   membershipAccessState.value.accessRestricted
     ? '前往租赁管理'
     : '返回个人中心',
-);
-const appPaySupported = computed(
-  () => !!wechatOpenAppId.value && canUseNativeWechatPay(),
-);
-const payButtonText = computed(() => {
-  if (payLoading.value) {
-    return '正在处理支付...';
-  }
-
-  if (wechatConfigLoading.value) {
-    return '正在读取支付配置...';
-  }
-
-  if (!wechatOpenAppId.value) {
-    return '未配置微信支付';
-  }
-
-  if (!appPaySupported.value) {
-    return '仅支持 Android App';
-  }
-
-  return `确认支付 ¥${membershipPlan.price}`;
-});
-const payButtonDisabled = computed(
-  () =>
-    payLoading.value ||
-    wechatConfigLoading.value ||
-    !wechatOpenAppId.value ||
-    !appPaySupported.value,
-);
-const paymentAgreementHint = computed(() =>
-  agreedToTerms.value
-    ? '已同意《会员服务协议》和《隐私政策》。'
-    : '支付前请先阅读并勾选相关协议。',
 );
 const latestPaymentStatusLabel = computed(() => {
   if (!latestPaymentState.value) {
@@ -173,6 +153,98 @@ const profileTenantProvisioningState =
       latestTenantProvisioningStatus.value || userInfo.value,
     ),
   );
+const requiresTenantIdentity = computed(
+  () =>
+    currentCustomerId.value === 'public' &&
+    !profileTenantProvisioningState.value,
+);
+const tenantIdentityError = computed(() => {
+  if (!requiresTenantIdentity.value) {
+    return '';
+  }
+
+  if (!tenantCity.value.trim()) {
+    return '请填写租户公司所在城市';
+  }
+
+  if (!tenantCompanyShortName.value.trim()) {
+    return '请填写租户公司简称';
+  }
+
+  return '';
+});
+const tenantIdentityReady = computed(() => !tenantIdentityError.value);
+const tenantProvisioningPaymentBlocked = computed(() => {
+  const status = profileTenantProvisioningState.value?.status;
+  return Boolean(
+    status && TENANT_PROVISIONING_PAYMENT_BLOCKED_STATES.has(status),
+  );
+});
+const appPaySupported = computed(
+  () => !!wechatOpenAppId.value && canUseNativeWechatPay(),
+);
+const payButtonText = computed(() => {
+  if (payLoading.value) {
+    return '正在处理支付...';
+  }
+
+  if (wechatConfigLoading.value) {
+    return '正在读取支付配置...';
+  }
+
+  if (!wechatOpenAppId.value) {
+    return '未配置微信支付';
+  }
+
+  if (!appPaySupported.value) {
+    return '仅支持 Android App';
+  }
+
+  if (tenantProvisioningPaymentBlocked.value) {
+    return profileTenantProvisioningState.value?.label || '专属空间开通中';
+  }
+
+  if (!tenantIdentityReady.value) {
+    return '填写专属空间信息';
+  }
+
+  return `确认支付 ¥${membershipPlan.price}`;
+});
+const payButtonDisabled = computed(
+  () =>
+    payLoading.value ||
+    wechatConfigLoading.value ||
+    tenantProvisioningPaymentBlocked.value ||
+    !wechatOpenAppId.value ||
+    !appPaySupported.value,
+);
+const paymentAgreementHint = computed(() => {
+  if (tenantProvisioningPaymentBlocked.value) {
+    return (
+      profileTenantProvisioningState.value?.label ||
+      '专属空间正在开通中，请勿重复支付。'
+    );
+  }
+
+  if (agreedToTerms.value) {
+    return '已同意《会员服务协议》和《隐私政策》。';
+  }
+
+  if (requiresTenantIdentity.value) {
+    return '支付前请填写专属空间信息，并阅读勾选相关协议。';
+  }
+
+  return '支付前请先阅读并勾选相关协议。';
+});
+
+watch(
+  [userInfo, latestTenantProvisioningStatus],
+  ([currentUserInfo, currentProvisioningStatus]) => {
+    applyTenantIdentityDraft(currentProvisioningStatus || currentUserInfo);
+  },
+  { immediate: true },
+);
+
 const membershipGateNotice = computed(() => {
   const accessState = membershipAccessState.value;
   const queryReason =
@@ -199,7 +271,7 @@ const membershipGateNotice = computed(() => {
   if (reason === 'membership_expired') {
     return {
       description:
-        '当前账号仍保留在所属租户空间，但除租赁管理和人事信息外的页面已限制访问。续费后恢复全部功能。',
+        '当前账号仍保留在所属租户空间，但除租赁管理和人员信息外的页面已限制访问。续费后恢复全部功能。',
       eyebrow: 'Membership Expired',
       title: '会员已过期',
     };
@@ -207,15 +279,16 @@ const membershipGateNotice = computed(() => {
 
   return {
     description:
-      '免费试用期已结束，目前仅保留租赁管理和人事信息两个页面可用。开通会员后恢复全部功能。',
+      '免费试用期已结束，目前仅保留租赁管理和人员信息两个页面可用。开通会员后恢复全部功能。',
     eyebrow: 'Trial Ended',
     title: '试用已到期',
   };
 });
 const orderStatusTag = computed(() => {
   if (profileTenantProvisioningState.value) {
+    const status = profileTenantProvisioningState.value.status;
     return {
-      color: 'processing',
+      color: resolveTenantProvisioningTagColor(status),
       text: profileTenantProvisioningState.value.label,
     };
   }
@@ -301,6 +374,18 @@ function formatMembershipExpireAt(value: string) {
   }
 
   return date.toLocaleDateString('zh-CN');
+}
+
+function resolveTenantProvisioningTagColor(status: string) {
+  if (status === 'failed_manual') {
+    return 'error';
+  }
+
+  if (status === 'failed_retryable') {
+    return 'warning';
+  }
+
+  return 'processing';
 }
 
 function resolveMembershipActiveByStatus(status: string) {
@@ -458,6 +543,68 @@ function normalizeMembershipPaymentState(
   };
 }
 
+function normalizeStalePaymentState(
+  orderStatus: WechatPayOrderStatus,
+): MembershipPaymentState {
+  return {
+    outTradeNo: orderStatus.outTradeNo,
+    success: false,
+    tradeState: 'STALE_PAYMENT',
+    tradeStateDesc: '该支付订单已不是当前开通订单，请联系客服处理退款或对账',
+    transactionId: orderStatus.transactionId,
+  };
+}
+
+function resolveVipMembershipApplyFailureMessage(
+  orderStatus: WechatPayOrderStatus,
+) {
+  const result = orderStatus.vipMembershipResult;
+  if (!orderStatus.success || result?.applied || result?.alreadyApplied) {
+    return '';
+  }
+
+  if (!result) {
+    return '支付已完成，但会员开通状态未确认，请稍后刷新或联系客服处理。';
+  }
+
+  if (result.reason === 'amount-mismatch') {
+    return '支付金额异常，会员未开通，请联系客服处理退款或对账。';
+  }
+
+  if (
+    [
+      'missing-center-user',
+      'missing-out-trade-no',
+      'missing-user-context',
+      'not-vip-membership',
+    ].includes(result.reason || '')
+  ) {
+    return '支付订单归属信息异常，会员未开通，请联系客服处理。';
+  }
+
+  return '支付已完成，但会员开通未生效，请联系客服处理。';
+}
+
+function normalizeVipMembershipApplyFailureState(
+  orderStatus: WechatPayOrderStatus,
+): MembershipPaymentState | null {
+  const failureMessage = resolveVipMembershipApplyFailureMessage(orderStatus);
+  if (!failureMessage) {
+    return null;
+  }
+
+  const reason = orderStatus.vipMembershipResult?.reason;
+  return {
+    outTradeNo: orderStatus.outTradeNo,
+    success: false,
+    tradeState: reason
+      ? `VIP_${reason.toUpperCase().replaceAll('-', '_')}`
+      : 'VIP_APPLY_UNCONFIRMED',
+    tradeStateDesc: failureMessage,
+    transactionId: orderStatus.transactionId,
+  };
+}
+
 async function pollWechatOrderStatus(
   queryOrderStatus: () => Promise<WechatPayOrderStatus>,
 ) {
@@ -506,6 +653,47 @@ function handleMobileCheckoutNavigate() {
   paymentSection.scrollIntoView({ behavior, block: 'start' });
 }
 
+function applyTenantIdentityDraft(value: null | object | undefined) {
+  if (!value || tenantIdentityTouched.value) {
+    return;
+  }
+
+  const record = value as Record<string, unknown>;
+  const draftCity = readStringField(record, ['targetCity'])?.value;
+  const draftCompanyShortName = readStringField(record, [
+    'targetCompanyShortName',
+  ])?.value;
+
+  if (draftCity && !tenantCity.value.trim()) {
+    tenantCity.value = draftCity;
+  }
+
+  if (draftCompanyShortName && !tenantCompanyShortName.value.trim()) {
+    tenantCompanyShortName.value = draftCompanyShortName;
+  }
+}
+
+function resolveTenantIdentityPayload() {
+  if (!requiresTenantIdentity.value) {
+    return undefined;
+  }
+
+  return {
+    city: tenantCity.value.trim(),
+    companyShortName: tenantCompanyShortName.value.trim(),
+  };
+}
+
+function validateTenantIdentity() {
+  tenantIdentityTouched.value = true;
+  if (!tenantIdentityError.value) {
+    return true;
+  }
+
+  handleMobileCheckoutNavigate();
+  return false;
+}
+
 async function refreshWechatPayAppConfig(options: { silent?: boolean } = {}) {
   if (wechatOpenAppId.value) {
     return wechatOpenAppId.value;
@@ -538,6 +726,14 @@ async function requestWechatPay(options: { scrollToPayment?: boolean } = {}) {
     handleMobileCheckoutNavigate();
   }
 
+  if (tenantProvisioningPaymentBlocked.value) {
+    return;
+  }
+
+  if (!validateTenantIdentity()) {
+    return;
+  }
+
   const currentWechatOpenAppId = await refreshWechatPayAppConfig();
   if (!currentWechatOpenAppId) {
     message.error('未获取到微信开放平台移动应用 AppID');
@@ -557,9 +753,18 @@ async function handleAgreementModalConfirm() {
     return;
   }
 
+  if (tenantProvisioningPaymentBlocked.value) {
+    agreementModalOpen.value = false;
+    return;
+  }
+
   const currentWechatOpenAppId = await refreshWechatPayAppConfig();
   if (!currentWechatOpenAppId) {
     message.error('未获取到微信开放平台移动应用 AppID');
+    return;
+  }
+
+  if (!validateTenantIdentity()) {
     return;
   }
 
@@ -643,6 +848,14 @@ async function handleWechatPay() {
     return;
   }
 
+  if (tenantProvisioningPaymentBlocked.value) {
+    return;
+  }
+
+  if (!validateTenantIdentity()) {
+    return;
+  }
+
   const currentWechatOpenAppId = await refreshWechatPayAppConfig();
   if (!currentWechatOpenAppId) {
     message.error('未配置微信开放平台移动应用 AppID');
@@ -674,6 +887,7 @@ async function handleWechatPay() {
       attach: 'vip-membership',
       description: `${displayName.value} VIP 月度会员`,
       deviceId: 'vip-membership-page',
+      tenantIdentity: resolveTenantIdentityPayload(),
     });
 
     currentOutTradeNo = execution.launchParams.outTradeNo;
@@ -724,6 +938,33 @@ async function handleWechatPay() {
     }
 
     latestPaymentState.value = normalizeMembershipPaymentState(orderStatus);
+
+    if (orderStatus.vipMembershipResult?.reason === 'stale-payment') {
+      latestPaymentState.value = normalizeStalePaymentState(orderStatus);
+      await refreshTenantProvisioningStatus(execution.checkoutFlowToken).catch(
+        (error) => {
+          console.warn('旧支付订单同步后刷新专属空间状态失败:', error);
+        },
+      );
+      message.warning({
+        content: '该支付订单已不是当前开通订单，请联系客服处理退款或对账。',
+        duration: 6,
+        key: PAY_MESSAGE_KEY,
+      });
+      return;
+    }
+
+    const membershipApplyFailureState =
+      normalizeVipMembershipApplyFailureState(orderStatus);
+    if (membershipApplyFailureState) {
+      latestPaymentState.value = membershipApplyFailureState;
+      message.error({
+        content: membershipApplyFailureState.tradeStateDesc,
+        duration: 6,
+        key: PAY_MESSAGE_KEY,
+      });
+      return;
+    }
 
     if (orderStatus.success) {
       let provisioningStatus: null | TenantProvisioningStatus = null;
@@ -777,6 +1018,9 @@ async function handleWechatPay() {
 
 onMounted(() => {
   void refreshWechatPayAppConfig({ silent: true });
+  void refreshTenantProvisioningStatus().catch((error) => {
+    console.warn('读取专属空间草稿失败:', error);
+  });
 });
 </script>
 
@@ -933,6 +1177,38 @@ onMounted(() => {
                 <span>微信流水号</span>
                 <span>{{ latestPaymentState.transactionId }}</span>
               </div>
+            </div>
+
+            <div v-if="requiresTenantIdentity" class="tenant-identity-card">
+              <div>
+                <h3>租户公司信息</h3>
+                <p>
+                  用于生成独立数据库标识，如
+                  深圳市腾讯计算机系统有限公司，填深圳市、腾讯
+                </p>
+              </div>
+              <label class="tenant-identity-field">
+                <span>所在城市</span>
+                <Input
+                  v-model:value="tenantCity"
+                  placeholder="如 深圳市"
+                  @blur="tenantIdentityTouched = true"
+                />
+              </label>
+              <label class="tenant-identity-field">
+                <span>公司简称</span>
+                <Input
+                  v-model:value="tenantCompanyShortName"
+                  placeholder="如 腾讯"
+                  @blur="tenantIdentityTouched = true"
+                />
+              </label>
+              <p
+                v-if="tenantIdentityTouched && tenantIdentityError"
+                class="tenant-identity-card__error"
+              >
+                {{ tenantIdentityError }}
+              </p>
             </div>
 
             <div class="order-card__agreement">
@@ -1353,6 +1629,45 @@ onMounted(() => {
 .order-card__total strong {
   font-size: 32px;
   line-height: 1;
+}
+
+.tenant-identity-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  margin-top: 20px;
+  background:
+    linear-gradient(135deg, rgb(23 100 255 / 6%), rgb(255 255 255 / 96%)), #fff;
+  border: 1px solid rgb(23 100 255 / 14%);
+  border-radius: 20px;
+}
+
+.tenant-identity-card h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--vip-text);
+}
+
+.tenant-identity-card p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--vip-text-soft);
+}
+
+.tenant-identity-field {
+  display: grid;
+  gap: 8px;
+}
+
+.tenant-identity-field span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vip-text);
+}
+
+.tenant-identity-card__error {
+  color: #d4380d !important;
 }
 
 .order-card__agreement {
