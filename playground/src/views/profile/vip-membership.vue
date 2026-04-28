@@ -12,6 +12,7 @@ import { useUserStore } from '@vben/stores';
 
 import { Button, Checkbox, Input, message, Modal, Tag } from 'ant-design-vue';
 
+import { joinTenantByInvitationCodeApi } from '#/api/tenant-invitation';
 import { getTenantProvisioningStatus } from '#/api/wechat-pay';
 import { useAuthStore } from '#/store';
 import { resolveMembershipAccessState } from '#/utils/membership-access';
@@ -102,6 +103,9 @@ const agreementModalOpen = ref(false);
 const tenantCity = ref('');
 const tenantCompanyShortName = ref('');
 const tenantIdentityTouched = ref(false);
+const tenantInvitationCode = ref('');
+const tenantInvitationTouched = ref(false);
+const tenantJoinLoading = ref(false);
 const payLoading = ref(false);
 const wechatConfigLoading = ref(false);
 const latestPaymentState = ref<MembershipPaymentState | null>(null);
@@ -158,6 +162,22 @@ const requiresTenantIdentity = computed(
     currentCustomerId.value === 'public' &&
     !profileTenantProvisioningState.value,
 );
+const canJoinExistingTenant = computed(
+  () =>
+    currentCustomerId.value === 'public' &&
+    !profileTenantProvisioningState.value,
+);
+const tenantInvitationError = computed(() => {
+  if (!canJoinExistingTenant.value) {
+    return '';
+  }
+
+  if (!tenantInvitationCode.value.trim()) {
+    return '请输入企业邀请码';
+  }
+
+  return '';
+});
 const tenantIdentityError = computed(() => {
   if (!requiresTenantIdentity.value) {
     return '';
@@ -694,6 +714,36 @@ function validateTenantIdentity() {
   return false;
 }
 
+async function handleJoinExistingTenant() {
+  if (tenantJoinLoading.value) {
+    return;
+  }
+
+  tenantInvitationTouched.value = true;
+  if (tenantInvitationError.value) {
+    return;
+  }
+
+  tenantJoinLoading.value = true;
+  try {
+    const result = await joinTenantByInvitationCodeApi(
+      tenantInvitationCode.value.trim(),
+    );
+    if (result.requiresRelogin) {
+      message.success(
+        `已加入 ${result.customerName || '目标租户'}，请重新登录进入企业空间。`,
+      );
+      await authStore.logout(false, false);
+      return;
+    }
+
+    message.success('当前账号已在该企业空间。');
+    await authStore.fetchUserInfo();
+  } finally {
+    tenantJoinLoading.value = false;
+  }
+}
+
 async function refreshWechatPayAppConfig(options: { silent?: boolean } = {}) {
   if (wechatOpenAppId.value) {
     return wechatOpenAppId.value;
@@ -1045,6 +1095,38 @@ onMounted(() => {
           <strong>{{ RESTRICTED_PAGE_LABEL }}</strong>
         </div>
       </section>
+
+      <div v-if="canJoinExistingTenant" class="tenant-invitation-card">
+        <div>
+          <h3>已有企业邀请码？</h3>
+          <p>
+            如果公司已经开通专属空间，可输入管理员提供的邀请码加入。
+            加入成功后需要重新登录。
+          </p>
+        </div>
+        <label class="tenant-identity-field">
+          <span>企业邀请码</span>
+          <Input
+            v-model:value="tenantInvitationCode"
+            placeholder="输入企业邀请码"
+            @blur="tenantInvitationTouched = true"
+            @press-enter="handleJoinExistingTenant"
+          />
+        </label>
+        <p
+          v-if="tenantInvitationTouched && tenantInvitationError"
+          class="tenant-identity-card__error"
+        >
+          {{ tenantInvitationError }}
+        </p>
+        <Button
+          block
+          :loading="tenantJoinLoading"
+          @click="handleJoinExistingTenant"
+        >
+          加入已有租户
+        </Button>
+      </div>
 
       <section class="pay-head">
         <div class="pay-head__intro">
@@ -1640,6 +1722,30 @@ onMounted(() => {
     linear-gradient(135deg, rgb(23 100 255 / 6%), rgb(255 255 255 / 96%)), #fff;
   border: 1px solid rgb(23 100 255 / 14%);
   border-radius: 20px;
+}
+
+.tenant-invitation-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  margin-top: 20px;
+  background:
+    linear-gradient(135deg, rgb(20 184 166 / 7%), rgb(255 255 255 / 96%)), #fff;
+  border: 1px solid rgb(20 184 166 / 18%);
+  border-radius: 20px;
+}
+
+.tenant-invitation-card h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--vip-text);
+}
+
+.tenant-invitation-card p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--vip-text-soft);
 }
 
 .tenant-identity-card h3 {

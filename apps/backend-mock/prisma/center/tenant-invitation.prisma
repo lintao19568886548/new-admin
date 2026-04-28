@@ -1,0 +1,40 @@
+model TenantInvitation {
+  id                    Int       @id @default(autoincrement())
+  code                  String    @unique @db.VarChar(32)
+  customerId            String    @map("customer_id") @db.VarChar(50)
+  createdByCenterUserId Int       @map("created_by_center_user_id")
+  roleIds               String    @map("role_ids") @db.VarChar(255)
+  maxUses               Int?      @map("max_uses")
+  usedCount             Int       @default(0) @map("used_count")
+  expiresAt             DateTime? @map("expires_at")
+  status                String    @default("active") @db.VarChar(20)
+  remark                String?   @db.VarChar(200)
+  createTime            DateTime? @default(now()) @map("create_time")
+  updateTime            DateTime? @updatedAt @map("update_time")
+
+  @@index([customerId, status])
+  @@index([createdByCenterUserId])
+  @@index([expiresAt])
+  @@map("tenant_invitation")
+}
+
+model TenantInvitationJoinLog {
+  id                 Int       @id @default(autoincrement())
+  invitationId       Int       @map("invitation_id")
+  code               String    @db.VarChar(32)
+  customerId         String    @map("customer_id") @db.VarChar(50)
+  centerUserId       Int       @map("center_user_id")
+  customerUserId     Int?      @map("customer_user_id")
+  previousCustomerId String?   @map("previous_customer_id") @db.VarChar(50)
+  status             String    @default("joined") @db.VarChar(20)
+  errorMessage       String?   @map("error_message") @db.LongText
+  joinedAt           DateTime? @map("joined_at")
+  createTime         DateTime? @default(now()) @map("create_time")
+  updateTime         DateTime? @updatedAt @map("update_time")
+
+  @@unique([invitationId, centerUserId])
+  @@index([centerUserId])
+  @@index([customerId])
+  @@index([status])
+  @@map("tenant_invitation_join_log")
+}

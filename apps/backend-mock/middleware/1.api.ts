@@ -17,6 +17,10 @@ function isMembershipAllowedApiRequest(method: string, requestPath: string) {
     return true;
   }
 
+  if (requestPath.startsWith('/api/tenant/invitation')) {
+    return true;
+  }
+
   if (
     method === 'GET' &&
     [
