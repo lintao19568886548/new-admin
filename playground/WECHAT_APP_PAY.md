@@ -37,6 +37,7 @@
 - 原租户库里的 `vip_membership`、`vip_membership_payment` 表已废弃；该功能尚未进入生产，因此当前不做兼容迁移。
 - 微信支付成功后只会写中心库会员状态，并为 `public` 用户创建 `tenant_provisioning_job`，状态为 `pending`。
 - 后端内置租户开通 worker 会异步消费 `tenant_provisioning_job`：基于 `lockOwner` / `heartbeatAt` 租约认领任务，先固化 `target_customer_id` + `target_db_name`，再重建目标租户库、从 `public` 复制表结构和基础权限、迁移可明确归属到当前用户的数据、校验通过后再写入中心库映射并把中心用户 `customerType` 切到新租户。
+- `target_customer_id` 由支付前填写的城市和公司简称生成：先去掉城市常见后缀，再把城市和公司简称转拼音 slug，例如 `深圳市` + `腾讯` 会生成 `shenzhen_tengxun`；如冲突则追加序号。
 - 用户处于 `pending` / `provisioning` 开通状态且仍在 `public` 库时，后端会拦截业务写入，避免继续在公开库产生需要迁移的新业务数据。
 - App 支付成功后，前端使用 `prepay` 返回的 `checkoutFlowToken` 轮询 `GET /api/tenant/provisioning/status`，用于展示专属空间开通进度；异步建库任务完成并把状态改为 `active` 后，旧 access token 会失效，前端提示用户重新登录进入专属空间。
 - worker 不会盲目迁移无法确认归属的 public 公共业务数据，避免把其他 public 用户的数据带入新租户；当前迁移范围包括账号权限、定位/考勤/请假/报销/反馈，以及手机号匹配的招商记录与相关图片。
@@ -57,8 +58,19 @@
 - `TENANT_PROVISIONING_BATCH_SIZE` 控制单轮最多处理任务数，默认 `1`。
 - `TENANT_PROVISIONING_MAX_RETRY` 控制自动重试次数，默认 `5`。
 - `TENANT_PROVISIONING_STALE_AFTER_MS` 控制 worker 租约 heartbeat 超时时间，默认 `600000`。
-- `TENANT_PROVISIONING_CUSTOMER_ID_PREFIX` 控制自动生成租户 ID 前缀，默认 `vip_u_`。
 - 租户开通 worker 当前只支持 `public -> 专属租户`，新租户库表结构、基础权限、用户权限关系都统一从 `public` 复制。
+- worker 不会自动创建邀请码；支付和建库只负责创建租户、迁移付款用户并切换其 `customerType`。
+
+## 邀请码加入已有租户
+
+邀请码是已有租户邀请其他用户加入的独立能力，不属于支付成功后的自动步骤。
+
+- 购买会员并完成专属租户建库后，系统不会自动后台生成邀请码，也不会把邀请码展示给付款用户。
+- 邀请码由租户内已登录用户通过后端接口创建，创建时必须指定目标租户角色；`maxUses` 为空表示不限次数。
+- 其他 `public` 用户可以在会员页填写邀请码加入已有租户。加入成功后，中心库会写入 `user_customer_mapping`，目标租户库会创建或复用同名租户用户，并按邀请码配置写入角色。
+- 加入成功后中心用户 `customerType` 会切到目标租户，同时递增 `tokenVersion` 并吊销旧 refresh token，前端需要重新登录进入新租户。
+- 已属于其他专属租户的用户不能直接通过邀请码加入新租户；`default` 库账号也不能通过邀请码加入租户。
+- 当前前端已有“填写邀请码加入”入口；创建、列表、吊销邀请码目前有后端接口和前端 API client，但尚未做租户管理员管理页面。
 
 ## 会员访问控制
 
@@ -79,6 +91,10 @@
 - `GET /api/wechat/pay/query?outTradeNo=...`
 - `POST /api/wechat/pay/notify`
 - `GET /api/tenant/provisioning/status`
+- `POST /api/tenant/invitation/create`
+- `GET /api/tenant/invitation/list`
+- `POST /api/tenant/invitation/revoke`
+- `POST /api/tenant/invitation/join`
 
 `prepay` 请求体示例：
 
