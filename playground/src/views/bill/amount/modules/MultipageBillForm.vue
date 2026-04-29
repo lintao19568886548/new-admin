@@ -61,6 +61,15 @@ const modalProps = ref({
   title: config.value.modalTitle || '账单详情',
 });
 
+function shouldKeepCurrentMonthValuesForNextMonth(
+  item: Record<string, { originalText: string; value: any }>,
+) {
+  const meterName = String(
+    item.meterName?.originalText ?? item.meterName?.value ?? '',
+  );
+  return ['公共', '公摊'].some((keyword) => meterName.includes(keyword));
+}
+
 /**
  * 转换水电费项目为下个月的数据格式
  * @param itemsJson - 包含项目数组的JSON字符串
@@ -80,6 +89,10 @@ function transformItemsForNextMonth(itemsJson: string | undefined): string {
       return '[]';
     }
     const newItems = items.map((item) => {
+      if (shouldKeepCurrentMonthValuesForNextMonth(item)) {
+        return { ...item };
+      }
+
       // 只保留生成新账单所需的基础数据，并重置计算值
       const newItem: Record<string, any> = {
         meterName: item.meterName,
