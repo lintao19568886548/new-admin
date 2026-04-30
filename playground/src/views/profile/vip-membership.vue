@@ -41,7 +41,7 @@ const TENANT_PROVISIONING_PAYMENT_BLOCKED_STATES = new Set([
 ]);
 
 const membershipPlan = {
-  name: 'VIP 月度会员',
+  name: '企业 VIP 月度会员',
   originalPrice: 1280,
   period: '月',
   price: MEMBERSHIP_AMOUNT_FEN / 100,
@@ -51,12 +51,12 @@ const RESTRICTED_PAGE_LABEL = '租赁管理、人员信息';
 
 const benefitItems = [
   {
-    description: '开通后可使用对应定位能力。',
+    description: '企业会员有效期内，企业空间成员可使用对应定位能力。',
     icon: 'mdi:map-marker-radius-outline',
     title: '定位服务',
   },
   {
-    description: '开放招商相关能力入口。',
+    description: '开放企业招商相关能力入口。',
     icon: 'mdi:radar',
     title: '招商雷达',
   },
@@ -121,14 +121,22 @@ const membershipAccessState = computed(() =>
     userInfo.value as null | Record<string, unknown> | undefined,
   ),
 );
-const displayName = computed(
-  () => userInfo.value?.realName || userInfo.value?.username || '当前账号',
-);
 const currentCustomerId = computed(() =>
   typeof userInfo.value?.customerId === 'string'
     ? userInfo.value.customerId.trim()
     : '',
 );
+const customerCompanyShortName = computed(() => {
+  const record = userInfo.value as Record<string, unknown> | undefined;
+  return record
+    ? readStringField(record, ['customerCompanyShortName', 'companyShortName'])
+        ?.value || ''
+    : '';
+});
+const customerName = computed(() => {
+  const record = userInfo.value as Record<string, unknown> | undefined;
+  return record ? readStringField(record, ['customerName'])?.value || '' : '';
+});
 const backButtonLabel = computed(() =>
   membershipAccessState.value.accessRestricted
     ? '前往租赁管理'
@@ -151,6 +159,20 @@ const latestPaymentStatusLabel = computed(() => {
 const profileMembershipState = computed<null | ProfileMembershipState>(() =>
   resolveProfileMembershipState(userInfo.value),
 );
+const postPaymentMembershipExpireLabel = computed(() => {
+  const currentExpireAt = profileMembershipState.value?.expireAt
+    ? new Date(profileMembershipState.value.expireAt)
+    : null;
+  const now = new Date();
+  const baseTime =
+    currentExpireAt &&
+    !Number.isNaN(currentExpireAt.getTime()) &&
+    currentExpireAt.getTime() > now.getTime()
+      ? currentExpireAt
+      : now;
+
+  return `预计至 ${formatMembershipExpireAt(addMonths(baseTime, 1).toISOString())}`;
+});
 const profileTenantProvisioningState =
   computed<null | ProfileTenantProvisioningState>(() =>
     resolveProfileTenantProvisioningState(
@@ -162,6 +184,36 @@ const requiresTenantIdentity = computed(
     currentCustomerId.value === 'public' &&
     !profileTenantProvisioningState.value,
 );
+const membershipScopeName = computed(() => {
+  const companyShortName = (
+    requiresTenantIdentity.value
+      ? tenantCompanyShortName.value
+      : customerCompanyShortName.value || tenantCompanyShortName.value
+  ).trim();
+  if (requiresTenantIdentity.value) {
+    return companyShortName
+      ? `${companyShortName} 企业专属空间`
+      : '待开通企业专属空间';
+  }
+
+  if (currentCustomerId.value === 'public') {
+    return '公共试用空间';
+  }
+
+  if (currentCustomerId.value === 'default') {
+    return '默认空间';
+  }
+
+  if (companyShortName) {
+    return `${companyShortName} 企业空间`;
+  }
+
+  if (customerName.value) {
+    return `${customerName.value} 企业空间`;
+  }
+
+  return '当前企业空间';
+});
 const canJoinExistingTenant = computed(
   () =>
     currentCustomerId.value === 'public' &&
@@ -291,15 +343,15 @@ const membershipGateNotice = computed(() => {
   if (reason === 'membership_expired') {
     return {
       description:
-        '当前账号仍保留在所属租户空间，但除租赁管理和人员信息外的页面已限制访问。续费后恢复全部功能。',
+        '当前企业空间仍保留数据和成员关系，但除租赁管理和人员信息外的页面已限制访问。续费企业会员后恢复全部功能。',
       eyebrow: 'Membership Expired',
-      title: '会员已过期',
+      title: '企业会员已过期',
     };
   }
 
   return {
     description:
-      '免费试用期已结束，目前仅保留租赁管理和人员信息两个页面可用。开通会员后恢复全部功能。',
+      '免费试用期已结束，目前仅保留租赁管理和人员信息两个页面可用。开通企业会员后恢复全部功能。',
     eyebrow: 'Trial Ended',
     title: '试用已到期',
   };
@@ -396,6 +448,12 @@ function formatMembershipExpireAt(value: string) {
   return date.toLocaleDateString('zh-CN');
 }
 
+function addMonths(source: Date, months: number) {
+  const date = new Date(source);
+  date.setMonth(date.getMonth() + months);
+  return date;
+}
+
 function resolveTenantProvisioningTagColor(status: string) {
   if (status === 'failed_manual') {
     return 'error';
@@ -460,9 +518,9 @@ function resolveProfileMembershipState(
     if (active !== null) {
       let label = statusField.value;
       if (active && expireAtField?.value) {
-        label = `会员有效至 ${formatMembershipExpireAt(expireAtField.value)}`;
+        label = `当前会员有效至 ${formatMembershipExpireAt(expireAtField.value)}`;
       } else if (active) {
-        label = '会员已开通';
+        label = '企业会员已开通';
       }
 
       return {
@@ -475,11 +533,11 @@ function resolveProfileMembershipState(
   }
 
   if (booleanField) {
-    let label = '未开通';
+    let label = '未开通企业会员';
     if (booleanField.value && expireAtField?.value) {
-      label = `会员有效至 ${formatMembershipExpireAt(expireAtField.value)}`;
+      label = `企业会员有效至 ${formatMembershipExpireAt(expireAtField.value)}`;
     } else if (booleanField.value) {
-      label = '会员已开通';
+      label = '企业会员已开通';
     }
 
     return {
@@ -498,8 +556,8 @@ function resolveProfileMembershipState(
         active,
         expireAt: expireAtField.value,
         label: active
-          ? `会员有效至 ${formatMembershipExpireAt(expireAtField.value)}`
-          : '会员已过期',
+          ? `企业会员有效至 ${formatMembershipExpireAt(expireAtField.value)}`
+          : '企业会员已过期',
         sourceField: expireAtField.field,
       };
     }
@@ -584,11 +642,11 @@ function resolveVipMembershipApplyFailureMessage(
   }
 
   if (!result) {
-    return '支付已完成，但会员开通状态未确认，请稍后刷新或联系客服处理。';
+    return '支付已完成，但企业会员开通状态未确认，请稍后刷新或联系客服处理。';
   }
 
   if (result.reason === 'amount-mismatch') {
-    return '支付金额异常，会员未开通，请联系客服处理退款或对账。';
+    return '支付金额异常，企业会员未开通，请联系客服处理退款或对账。';
   }
 
   if (
@@ -599,10 +657,10 @@ function resolveVipMembershipApplyFailureMessage(
       'not-vip-membership',
     ].includes(result.reason || '')
   ) {
-    return '支付订单归属信息异常，会员未开通，请联系客服处理。';
+    return '支付订单归属信息异常，企业会员未开通，请联系客服处理。';
   }
 
-  return '支付已完成，但会员开通未生效，请联系客服处理。';
+  return '支付已完成，但企业会员开通未生效，请联系客服处理。';
 }
 
 function normalizeVipMembershipApplyFailureState(
@@ -654,7 +712,7 @@ function handleContactSupport() {
     return;
   }
 
-  message.info('如支付遇到问题，请联系客服处理；会员开通以订单状态为准。');
+  message.info('如支付遇到问题，请联系客服处理；企业会员开通以订单状态为准。');
 }
 
 function handleMobileCheckoutNavigate() {
@@ -935,7 +993,7 @@ async function handleWechatPay() {
     const execution = await payWithWechatApp({
       amount: MEMBERSHIP_AMOUNT_FEN,
       attach: 'vip-membership',
-      description: `${displayName.value} VIP 月度会员`,
+      description: `${membershipScopeName.value} 企业月度会员`,
       deviceId: 'vip-membership-page',
       tenantIdentity: resolveTenantIdentityPayload(),
     });
@@ -1131,11 +1189,11 @@ onMounted(() => {
       <section class="pay-head">
         <div class="pay-head__intro">
           <p class="pay-head__eyebrow">Membership Checkout</p>
-          <h1>开通会员服务</h1>
+          <h1>开通企业会员服务</h1>
           <p class="pay-head__description">
             为
-            {{ displayName }}
-            开通月度会员后，可使用定位服务、招商雷达等会员专属能力。
+            {{ membershipScopeName }}
+            开通月度企业会员后，企业空间成员可使用定位服务、招商雷达等会员专属能力。
           </p>
         </div>
 
@@ -1163,7 +1221,7 @@ onMounted(() => {
             <div class="pay-card__head">
               <div>
                 <p class="pay-card__eyebrow">Benefits</p>
-                <h2>会员权益</h2>
+                <h2>企业会员权益</h2>
               </div>
               <span class="pay-card__hint">支付前可查看</span>
             </div>
@@ -1198,8 +1256,8 @@ onMounted(() => {
             </div>
 
             <div class="order-card__account">
-              <span>开通账号</span>
-              <strong>{{ displayName }}</strong>
+              <span>开通主体</span>
+              <strong>{{ membershipScopeName }}</strong>
             </div>
 
             <div class="order-card__rows">
@@ -1215,12 +1273,9 @@ onMounted(() => {
                 <span>支付方式</span>
                 <span>微信 App 支付</span>
               </div>
-              <div
-                v-if="profileMembershipState?.active"
-                class="order-card__row order-card__row--wrap"
-              >
-                <span>账号会员状态</span>
-                <span>{{ profileMembershipState.label }}</span>
+              <div class="order-card__row order-card__row--wrap">
+                <span>支付后有效期</span>
+                <span>{{ postPaymentMembershipExpireLabel }}</span>
               </div>
               <div
                 v-if="profileTenantProvisioningState"
@@ -1360,7 +1415,7 @@ onMounted(() => {
     >
       <div class="agreement-confirm">
         <p>
-          开通会员前，请先阅读并同意《会员服务协议》和《隐私政策》。确认后将直接发起微信支付。
+          开通企业会员前，请先阅读并同意《会员服务协议》和《隐私政策》。确认后将直接发起微信支付。
         </p>
         <div class="agreement-confirm__links">
           <button type="button" @click="openServiceAgreementDialog">

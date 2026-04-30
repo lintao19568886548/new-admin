@@ -61,6 +61,9 @@ export interface VipMembershipProfileState {
     | 'member_active'
     | 'restricted'
     | 'trial_active';
+  customerCity?: string;
+  customerCompanyShortName?: string;
+  customerName?: string;
   isMember: boolean;
   isMembership: boolean;
   isTrialActive: boolean;
@@ -216,6 +219,35 @@ function resolveCenterUserId(userInfo: Record<string, any>) {
 
 function resolveCustomerId(userInfo: Record<string, any>) {
   return normalizeString(userInfo.customerId || userInfo.customerType);
+}
+
+async function getCustomerProfileByCustomerId(
+  customerId: string,
+  prisma: VipMembershipDbClient = systemDbClient,
+) {
+  const normalizedCustomerId = normalizeString(customerId);
+  if (!normalizedCustomerId) {
+    return null;
+  }
+
+  const customer = await prisma.customer.findUnique({
+    where: { customerId: normalizedCustomerId },
+    select: {
+      city: true,
+      companyShortName: true,
+      name: true,
+    },
+  });
+  if (!customer) {
+    return null;
+  }
+
+  return {
+    customerCity: normalizeString(customer.city) || undefined,
+    customerCompanyShortName:
+      normalizeString(customer.companyShortName) || undefined,
+    customerName: normalizeString(customer.name) || undefined,
+  };
 }
 
 function toVipMembershipCoreState(
@@ -998,10 +1030,13 @@ export async function appendVipMembershipInfo<T extends Record<string, any>>(
       process.env.DEFAULT_CUSTOMER_ID || 'default',
     );
     const currentCustomerId = resolveCustomerId(userInfo);
-    const membershipState = await getVipMembershipProfileState({
-      centerUserId,
-      customerId: currentCustomerId,
-    });
+    const [membershipState, customerProfile] = await Promise.all([
+      getVipMembershipProfileState({
+        centerUserId,
+        customerId: currentCustomerId,
+      }),
+      getCustomerProfileByCustomerId(currentCustomerId),
+    ]);
     const resolvedMembershipState =
       currentCustomerId === defaultCustomerId
         ? {
@@ -1011,10 +1046,13 @@ export async function appendVipMembershipInfo<T extends Record<string, any>>(
             membershipGateReason: 'none' as const,
           }
         : membershipState;
-    return {
+    const resolvedUserInfo = {
       ...userInfo,
       ...resolvedMembershipState,
     };
+    return customerProfile
+      ? { ...resolvedUserInfo, ...customerProfile }
+      : resolvedUserInfo;
   } catch (error) {
     console.warn('补充会员信息失败，已忽略:', error);
     return userInfo as T & VipMembershipProfileState;
