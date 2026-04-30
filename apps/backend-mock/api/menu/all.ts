@@ -1,24 +1,9 @@
 import { prismaClient, systemDbClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
+import { appendProfileAuxiliaryRouteMenus } from '~/utils/profile-route-menus';
 import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
 import { processMenuData } from '~/utils/tools';
 import { getVipMembershipAccessState } from '~/utils/vip-membership';
-
-const MEMBERSHIP_BASE_ROUTE_MENUS = [
-  {
-    authCode: 'profile:vip-membership',
-    component: '/profile/vip-membership',
-    meta: {
-      activePath: '/profile',
-      hideInMenu: true,
-      icon: 'mdi:crown-outline',
-      title: '会员服务',
-    },
-    name: 'ProfileVipMembership',
-    path: '/profile/vip-membership',
-    type: 'menu',
-  },
-];
 
 const MEMBERSHIP_RESTRICTED_ROUTE_MENUS = [
   {
@@ -199,7 +184,7 @@ async function isMembershipRestrictedUser(userinfo: {
 }
 
 async function appendMembershipRouteMenus(menus: any[], userinfo: any) {
-  const baseMenus = appendRouteMenus(menus, MEMBERSHIP_BASE_ROUTE_MENUS);
+  const baseMenus = appendProfileAuxiliaryRouteMenus(menus);
   if (!(await isMembershipRestrictedUser(userinfo))) {
     return baseMenus;
   }

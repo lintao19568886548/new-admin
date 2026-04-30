@@ -35,6 +35,19 @@ const router = useRouter();
 const userInfo = computed(() => userStore.userInfo);
 const showPasswordModal = ref(false);
 const showFeedbackModal = ref(false);
+const currentCustomerId = computed(() =>
+  String((userInfo.value as any)?.customerId || ''),
+);
+const currentUserRoles = computed(() => {
+  const roles = (userInfo.value as any)?.roles;
+  return Array.isArray(roles) ? roles.map(String) : [];
+});
+const canManageTenantInvitations = computed(
+  () =>
+    currentUserRoles.value.includes('Super') &&
+    Boolean(currentCustomerId.value) &&
+    !['default', 'public'].includes(currentCustomerId.value),
+);
 
 /**
  * 初始化通知功能（包括本地通知和推送通知）
@@ -183,6 +196,10 @@ function handleOpenVipMembership() {
   void router.push({ name: 'ProfileVipMembership' });
 }
 
+function handleOpenTenantInvitations() {
+  void router.push({ name: 'ProfileTenantInvitations' });
+}
+
 function handleOpenPrivacyPolicy() {
   openPrivacyPolicyDialog();
 }
@@ -222,6 +239,15 @@ const actions = computed(() => {
       icon: 'mdi:crown-outline',
       title: '会员服务',
     },
+    ...(canManageTenantInvitations.value
+      ? [
+          {
+            handler: handleOpenTenantInvitations,
+            icon: 'mdi:ticket-confirmation-outline',
+            title: '企业邀请码',
+          },
+        ]
+      : []),
     {
       handler: handleChangePassword,
       icon: LockKeyhole,

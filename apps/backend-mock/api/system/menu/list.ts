@@ -1,42 +1,4 @@
-function hasVipMembershipMenu(menus: any[]) {
-  const queue = [...menus];
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current || typeof current !== 'object') {
-      continue;
-    }
-
-    if (
-      current.name === 'ProfileVipMembership' ||
-      current.path === '/profile/vip-membership'
-    ) {
-      return true;
-    }
-
-    if (Array.isArray(current.children) && current.children.length > 0) {
-      queue.push(...current.children);
-    }
-  }
-
-  return false;
-}
-
-function createVipMembershipMenu() {
-  return {
-    authCode: 'profile:vip-membership',
-    component: '/profile/vip-membership',
-    meta: {
-      activePath: '/profile',
-      hideInMenu: true,
-      icon: 'mdi:crown-outline',
-      title: '会员服务',
-    },
-    name: 'ProfileVipMembership',
-    path: '/profile/vip-membership',
-    type: 'menu',
-  };
-}
+import { appendProfileAuxiliaryRouteMenus } from '~/utils/profile-route-menus';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -78,9 +40,7 @@ export default eventHandler(async (event) => {
     removeEmptyChildren: true,
   });
 
-  const normalizedMenus = hasVipMembershipMenu(processedMenus)
-    ? processedMenus
-    : [...processedMenus, createVipMembershipMenu()];
+  const normalizedMenus = appendProfileAuxiliaryRouteMenus(processedMenus);
 
   return useResponseSuccess(normalizedMenus);
 });

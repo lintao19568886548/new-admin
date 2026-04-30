@@ -18,6 +18,15 @@ const routes: RouteRecordRaw[] = [
     name: 'ProfileVipMembership',
     path: '/profile/vip-membership',
   },
+  {
+    component: () => import('#/views/profile/tenant-invitations.vue'),
+    meta: {
+      hideMenu: true,
+      title: '企业邀请码',
+    },
+    name: 'ProfileTenantInvitations',
+    path: '/profile/tenant-invitations',
+  },
 ];
 
 export default routes;
