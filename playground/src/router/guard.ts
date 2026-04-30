@@ -123,9 +123,19 @@ function setupAccessGuard(router: Router) {
       (to.path === DEFAULT_HOME_PATH
         ? resolveUserHomePath(userInfo.homePath)
         : to.fullPath)) as string;
+    const resolvedRedirectPath = router.resolve(
+      decodeURIComponent(redirectPath),
+    );
+
+    if (
+      resolvedRedirectPath.fullPath === to.fullPath &&
+      resolvedRedirectPath.name === to.name
+    ) {
+      return true;
+    }
 
     return {
-      ...router.resolve(decodeURIComponent(redirectPath)),
+      ...resolvedRedirectPath,
       replace: true,
     };
   });

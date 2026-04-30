@@ -12,6 +12,7 @@ const routes: RouteRecordRaw[] = [
       ignoreAccess: true,
       title: $t('page.rental.factory'),
     },
+    name: 'RentalFactoryPublic',
     path: '/rental/factory',
     children: [
       {
@@ -34,6 +35,7 @@ const routes: RouteRecordRaw[] = [
       ignoreAccess: true,
       title: $t('page.rental.factoryDetail'),
     },
+    name: 'RentalFactoryDetailPublic',
     path: '/rental/factory/detail/:id',
     children: [
       {
