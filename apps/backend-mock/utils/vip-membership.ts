@@ -7,6 +7,7 @@ import {
   normalizeTenantIdentityProfile,
 } from '~/utils/customer-identity';
 import { systemDbClient } from '~/utils/db';
+import { queryWechatPayOrder } from '~/utils/wechat-pay';
 
 const VIP_MEMBERSHIP_ACTIVE_STATUS = 'active';
 const VIP_MEMBERSHIP_ATTACH_TAG = 'vip-membership';
@@ -30,6 +31,10 @@ const TENANT_PROVISIONING_PAYMENT_BLOCKED_STATUS_MESSAGES: Record<
   provisioning: '专属空间正在开通中，请勿重复支付',
 };
 export const VIP_MEMBERSHIP_AMOUNT_TOTAL = 98_000;
+
+const VIP_MEMBERSHIP_ORDER_SYNC_CACHE_TTL_MS = 60_000;
+
+const vipMembershipOrderSyncCache = new Map<string, number>();
 
 type VipMembershipDbClient = Prisma.TransactionClient | PrismaClient;
 
@@ -114,6 +119,7 @@ export interface VipMembershipWechatOrderResult {
     | 'missing-out-trade-no'
     | 'missing-user-context'
     | 'not-vip-membership'
+    | 'refunded'
     | 'stale-payment'
     | 'trade-not-success';
   vipExpireAt?: string;
@@ -208,6 +214,109 @@ function resolveOrderAmountTotal(amount: unknown) {
 
   const payload = amount as Record<string, unknown>;
   return normalizePositiveInteger(payload.total);
+}
+
+function isWechatOrderRefundedOrClosed(tradeState: unknown) {
+  return ['CLOSED', 'PAYERROR', 'REFUND', 'REVOKED'].includes(
+    normalizeString(tradeState),
+  );
+}
+
+export function resolveVipMembershipAmountTotal() {
+  return VIP_MEMBERSHIP_AMOUNT_TOTAL;
+}
+
+async function markVipMembershipPaymentRefundedWithClient(
+  params: {
+    outTradeNo: string;
+    tradeState?: string;
+    transactionId?: string;
+  },
+  prisma: VipMembershipDbClient,
+) {
+  const outTradeNo = normalizeString(params.outTradeNo);
+  if (!outTradeNo) {
+    return;
+  }
+
+  const payment = await getVipMembershipPaymentByOutTradeNo(outTradeNo, prisma);
+  if (!payment) {
+    return;
+  }
+
+  const membershipCustomerId = normalizeString(
+    payment.targetCustomerId || payment.sourceCustomerId,
+  );
+  if (!membershipCustomerId) {
+    return;
+  }
+
+  await prisma.vipMembershipPayment.update({
+    data: {
+      tradeState: params.tradeState || 'REFUND',
+      transactionId:
+        normalizeString(params.transactionId) || payment.transactionId || null,
+    },
+    where: { outTradeNo },
+  });
+
+  await prisma.vipMembership.updateMany({
+    data: {
+      expireAt: new Date(),
+      status: 'inactive',
+    },
+    where: {
+      customerId: membershipCustomerId,
+      lastOutTradeNo: outTradeNo,
+    },
+  });
+}
+
+async function markVipMembershipPaymentRefunded(params: {
+  outTradeNo: string;
+  tradeState?: string;
+  transactionId?: string;
+}) {
+  await withVipMembershipDb(() =>
+    systemDbClient.$transaction(async (tx) => {
+      await markVipMembershipPaymentRefundedWithClient(params, tx);
+    }),
+  );
+}
+
+async function syncVipMembershipLastOrderRefundState(
+  membership: null | {
+    lastOutTradeNo?: null | string;
+  },
+) {
+  const outTradeNo = normalizeString(membership?.lastOutTradeNo);
+  if (!outTradeNo) {
+    return;
+  }
+
+  const lastSyncedAt = vipMembershipOrderSyncCache.get(outTradeNo) || 0;
+  if (Date.now() - lastSyncedAt < VIP_MEMBERSHIP_ORDER_SYNC_CACHE_TTL_MS) {
+    return;
+  }
+  vipMembershipOrderSyncCache.set(outTradeNo, Date.now());
+
+  try {
+    const orderStatus = await queryWechatPayOrder(outTradeNo);
+    if (!isWechatOrderRefundedOrClosed(orderStatus.tradeState)) {
+      return;
+    }
+
+    await markVipMembershipPaymentRefunded({
+      outTradeNo,
+      tradeState: orderStatus.tradeState,
+      transactionId: orderStatus.transactionId,
+    });
+  } catch (error) {
+    console.warn('同步会员微信订单退款状态失败，保留当前会员状态:', {
+      error: error instanceof Error ? error.message : String(error),
+      outTradeNo,
+    });
+  }
 }
 
 function resolveCenterUserId(userInfo: Record<string, any>) {
@@ -389,6 +498,7 @@ async function getVipMembershipByCustomerId(
   return prisma.vipMembership.findUnique({
     select: {
       expireAt: true,
+      lastOutTradeNo: true,
       status: true,
     },
     where: {
@@ -1000,8 +1110,15 @@ export async function getVipMembershipAccessState(input: {
         getVipMembershipByCustomerId(customerId, prisma),
       )
     : null;
+  await syncVipMembershipLastOrderRefundState(membership);
+  const resolvedMembership =
+    membership?.lastOutTradeNo && customerId
+      ? await withVipMembershipDb(() =>
+          getVipMembershipByCustomerId(customerId, prisma),
+        )
+      : membership;
 
-  const coreState = toVipMembershipCoreState(membership);
+  const coreState = toVipMembershipCoreState(resolvedMembership);
   const trialState =
     customerId === 'public'
       ? toTrialState(
@@ -1107,7 +1224,7 @@ export async function handleVipMembershipWechatOrder(
       if (attachPayload?.centerUserId && attachPayload.sourceCustomerId) {
         await upsertVipMembershipPaymentSnapshot(
           {
-            amountTotal: amountTotal || VIP_MEMBERSHIP_AMOUNT_TOTAL,
+            amountTotal: amountTotal || resolveVipMembershipAmountTotal(),
             centerUserId: attachPayload.centerUserId,
             outTradeNo,
             paidAt,
@@ -1156,16 +1273,30 @@ export async function handleVipMembershipWechatOrder(
       });
 
       if (resolvedTradeState !== 'SUCCESS') {
+        if (isWechatOrderRefundedOrClosed(resolvedTradeState)) {
+          await markVipMembershipPaymentRefundedWithClient(
+            {
+              outTradeNo,
+              tradeState: resolvedTradeState,
+              transactionId: resolvedTransactionId,
+            },
+            tx,
+          );
+        }
+
         return {
           alreadyApplied: false,
           applied: false,
           matched: true,
           outTradeNo,
-          reason: 'trade-not-success',
+          reason: isWechatOrderRefundedOrClosed(resolvedTradeState)
+            ? 'refunded'
+            : 'trade-not-success',
         };
       }
 
-      if (resolvedAmountTotal !== VIP_MEMBERSHIP_AMOUNT_TOTAL) {
+      const expectedAmountTotal = resolveVipMembershipAmountTotal();
+      if (resolvedAmountTotal !== expectedAmountTotal) {
         return {
           alreadyApplied: false,
           applied: false,

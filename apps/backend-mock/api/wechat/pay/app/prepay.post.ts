@@ -15,7 +15,7 @@ import {
   getTenantProvisioningProfileState,
   isVipMembershipAttach,
   recordVipMembershipPaymentPending,
-  VIP_MEMBERSHIP_AMOUNT_TOTAL,
+  resolveVipMembershipAmountTotal,
 } from '~/utils/vip-membership';
 import { createWechatAppPrepay } from '~/utils/wechat-pay';
 
@@ -85,10 +85,6 @@ export default eventHandler(async (event) => {
         return unAuthorizedResponse(event);
       }
 
-      if (amount !== VIP_MEMBERSHIP_AMOUNT_TOTAL) {
-        return badRequestResponse('会员支付金额不正确', event);
-      }
-
       const centerUserId = Number(userinfo.centerUserId ?? userinfo.id);
       if (!Number.isFinite(centerUserId) || centerUserId <= 0) {
         return badRequestResponse('缺少中心用户信息，无法创建会员订单', event);
@@ -97,6 +93,11 @@ export default eventHandler(async (event) => {
       const customerId = String(
         userinfo.customerId || process.env.DEFAULT_CUSTOMER_ID || 'default',
       );
+      const expectedAmount = resolveVipMembershipAmountTotal();
+      if (amount !== expectedAmount) {
+        return badRequestResponse('会员支付金额不正确', event);
+      }
+
       let tenantIdentity:
         | ReturnType<typeof normalizeTenantIdentityProfile>
         | undefined;

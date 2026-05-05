@@ -33,11 +33,14 @@ const MEMBERSHIP_AMOUNT_FEN = 98_000;
 const PAY_MESSAGE_KEY = 'vip-membership-pay';
 const ORDER_PENDING_STATES = new Set(['NOTPAY', 'USERPAYING']);
 const TENANT_PROVISIONING_PENDING_STATES = new Set(['pending', 'provisioning']);
-const TENANT_PROVISIONING_PAYMENT_BLOCKED_STATES = new Set([
+const TENANT_PROVISIONING_FAILED_STATES = new Set([
   'failed_manual',
   'failed_retryable',
+]);
+const TENANT_PROVISIONING_PAYMENT_BLOCKED_STATES = new Set([
   'pending',
   'provisioning',
+  ...TENANT_PROVISIONING_FAILED_STATES,
 ]);
 
 const membershipPlan = {
@@ -93,6 +96,58 @@ interface ProfileTenantProvisioningState {
   targetCustomerId?: string;
 }
 
+type MembershipCheckoutResult = 'failed' | 'ready' | 'syncing' | 'unknown';
+
+interface CheckoutResultModalView {
+  description: string;
+  heading: string;
+  icon: string;
+  okText: string;
+  title: string;
+  tone: 'pending' | 'success' | 'warning';
+}
+
+const CHECKOUT_RESULT_MODAL_VIEW_MAP: Record<
+  MembershipCheckoutResult,
+  CheckoutResultModalView
+> = {
+  failed: {
+    description: '专属空间开通未完成。请联系客服处理。',
+    heading: '专属空间暂未开通',
+    icon: 'mdi:alert-circle-outline',
+    okText: '重新登录查看',
+    title: '支付成功，开通异常',
+    tone: 'warning',
+  },
+  ready: {
+    description:
+      '企业会员与专属空间已完成开通。重新登录后会进入新的企业空间，并加载最新权限与菜单。',
+    heading: '专属空间开通成功',
+    icon: 'mdi:check-decagram',
+    okText: '重新登录',
+    title: '企业会员已开通',
+    tone: 'success',
+  },
+  syncing: {
+    description:
+      '微信支付已完成，后台正在完成企业专属空间开通。稍后可重新登录查看最新状态。',
+    heading: '专属空间正在完成开通',
+    icon: 'mdi:progress-clock',
+    okText: '重新登录查看',
+    title: '支付成功',
+    tone: 'pending',
+  },
+  unknown: {
+    description:
+      '微信支付已完成，会员状态正在同步。稍后可重新登录或刷新查看最新状态。',
+    heading: '支付结果已确认',
+    icon: 'mdi:check-circle-outline',
+    okText: '重新登录查看',
+    title: '支付成功',
+    tone: 'success',
+  },
+};
+
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
@@ -100,6 +155,8 @@ const userStore = useUserStore();
 
 const agreedToTerms = ref(false);
 const agreementModalOpen = ref(false);
+const checkoutResultModalOpen = ref(false);
+const membershipCheckoutResult = ref<MembershipCheckoutResult>('unknown');
 const tenantCity = ref('');
 const tenantCompanyShortName = ref('');
 const tenantIdentityTouched = ref(false);
@@ -120,6 +177,9 @@ const membershipAccessState = computed(() =>
   resolveMembershipAccessState(
     userInfo.value as null | Record<string, unknown> | undefined,
   ),
+);
+const checkoutResultModalView = computed(
+  () => CHECKOUT_RESULT_MODAL_VIEW_MAP[membershipCheckoutResult.value],
 );
 const currentCustomerId = computed(() =>
   typeof userInfo.value?.customerId === 'string'
@@ -464,6 +524,25 @@ function resolveTenantProvisioningTagColor(status: string) {
   }
 
   return 'processing';
+}
+
+function resolveCheckoutResultFromProvisioningStatus(
+  status: null | TenantProvisioningStatus,
+): MembershipCheckoutResult {
+  const provisioningStatus = status?.tenantProvisioningStatus;
+  if (!provisioningStatus) {
+    return 'ready';
+  }
+
+  if (TENANT_PROVISIONING_FAILED_STATES.has(provisioningStatus)) {
+    return 'failed';
+  }
+
+  if (TENANT_PROVISIONING_PENDING_STATES.has(provisioningStatus)) {
+    return 'syncing';
+  }
+
+  return 'ready';
 }
 
 function resolveMembershipActiveByStatus(status: string) {
@@ -881,37 +960,9 @@ async function handleAgreementModalConfirm() {
   await handleWechatPay();
 }
 
-async function refreshUserProfileAfterPaid() {
-  try {
-    const refreshedUserInfo = await authStore.fetchUserInfo();
-    if (
-      refreshedUserInfo &&
-      !resolveMembershipAccessState(
-        refreshedUserInfo as unknown as Record<string, unknown>,
-      ).accessRestricted
-    ) {
-      const nextQuery = { ...route.query };
-      let queryChanged = false;
-
-      for (const key of ['from', 'reason', 'source'] as const) {
-        if (!(key in nextQuery)) {
-          continue;
-        }
-        delete nextQuery[key];
-        queryChanged = true;
-      }
-
-      if (queryChanged) {
-        await router.replace({
-          hash: route.hash,
-          path: route.path,
-          query: nextQuery,
-        });
-      }
-    }
-  } catch (error) {
-    console.warn('支付成功后刷新用户资料失败:', error);
-  }
+async function handleCheckoutResultLogout() {
+  checkoutResultModalOpen.value = false;
+  await authStore.logout(false);
 }
 
 async function refreshTenantProvisioningStatus(checkoutFlowToken?: string) {
@@ -944,6 +995,28 @@ async function pollTenantProvisioningStatusAfterPaid(
   }
 
   return lastStatus;
+}
+
+async function showCheckoutResultAfterPaid(checkoutFlowToken?: string) {
+  membershipCheckoutResult.value = 'ready';
+  message.loading({
+    content: '支付成功，正在完成企业专属空间开通...',
+    duration: 0,
+    key: PAY_MESSAGE_KEY,
+  });
+
+  try {
+    const provisioningStatus =
+      await pollTenantProvisioningStatusAfterPaid(checkoutFlowToken);
+    membershipCheckoutResult.value =
+      resolveCheckoutResultFromProvisioningStatus(provisioningStatus);
+  } catch (error) {
+    console.warn('支付成功后刷新专属空间状态失败:', error);
+    membershipCheckoutResult.value = 'ready';
+  }
+
+  message.destroy(PAY_MESSAGE_KEY);
+  checkoutResultModalOpen.value = true;
 }
 
 async function handleWechatPay() {
@@ -982,6 +1055,7 @@ async function handleWechatPay() {
 
   payLoading.value = true;
   let currentOutTradeNo = '';
+  membershipCheckoutResult.value = 'unknown';
 
   message.loading({
     content: '正在创建微信支付订单...',
@@ -1075,26 +1149,7 @@ async function handleWechatPay() {
     }
 
     if (orderStatus.success) {
-      let provisioningStatus: null | TenantProvisioningStatus = null;
-      try {
-        provisioningStatus = await pollTenantProvisioningStatusAfterPaid(
-          execution.checkoutFlowToken,
-        );
-      } catch (error) {
-        console.warn('支付成功后刷新专属空间状态失败:', error);
-      }
-
-      if (!provisioningStatus?.requiresRelogin) {
-        await refreshUserProfileAfterPaid();
-      }
-      message.success({
-        content: provisioningStatus?.requiresRelogin
-          ? '专属空间已开通，请重新登录进入专属空间。'
-          : provisioningStatus?.tenantProvisioningMessage ||
-            '支付成功，专属空间状态同步中，请稍后刷新。',
-        duration: 4,
-        key: PAY_MESSAGE_KEY,
-      });
+      await showCheckoutResultAfterPaid(execution.checkoutFlowToken);
       return;
     }
 
@@ -1424,6 +1479,30 @@ onMounted(() => {
           <button type="button" @click="openPrivacyPolicyDialog">
             查看《隐私政策》
           </button>
+        </div>
+      </div>
+    </Modal>
+
+    <Modal
+      v-model:open="checkoutResultModalOpen"
+      centered
+      cancel-text="稍后处理"
+      :mask-closable="false"
+      :ok-text="checkoutResultModalView.okText"
+      :title="checkoutResultModalView.title"
+      @ok="handleCheckoutResultLogout"
+    >
+      <div
+        class="membership-success"
+        :class="`membership-success--${checkoutResultModalView.tone}`"
+      >
+        <VbenIcon
+          :icon="checkoutResultModalView.icon"
+          class="membership-success__icon"
+        />
+        <div>
+          <h3>{{ checkoutResultModalView.heading }}</h3>
+          <p>{{ checkoutResultModalView.description }}</p>
         </div>
       </div>
     </Modal>
@@ -1905,6 +1984,41 @@ onMounted(() => {
   cursor: pointer;
   background: transparent;
   border: 0;
+}
+
+.membership-success {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.membership-success__icon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  font-size: 34px;
+}
+
+.membership-success--success .membership-success__icon {
+  color: #16a34a;
+}
+
+.membership-success--pending .membership-success__icon {
+  color: #0ea5e9;
+}
+
+.membership-success--warning .membership-success__icon {
+  color: #d97706;
+}
+
+.membership-success h3 {
+  margin: 0;
+  color: var(--vip-text);
+}
+
+.membership-success p {
+  margin: 8px 0 0;
+  line-height: 1.8;
+  color: var(--vip-text-soft);
 }
 
 @media (max-width: 1100px) {
