@@ -1,8 +1,128 @@
 <script lang="ts" setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import type { PropType } from 'vue';
 
-import BaseChart from './BaseChart.vue';
+import type { EchartsUIType } from '@vben/plugins/echarts';
+
+import {
+  computed,
+  defineComponent,
+  h,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue';
+
+import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
+
 import { getEnergyConsumptionChartConfig } from './chartConfigs';
+
+const DashboardChart = defineComponent({
+  name: 'DashboardChart',
+  props: {
+    chartConfigFn: {
+      required: true,
+      type: Function as PropType<(data: any) => any>,
+    },
+    chartData: {
+      default: null,
+      type: null as unknown as PropType<any>,
+    },
+    processDataFn: {
+      default: (data: any) => data,
+      type: Function as PropType<(data: any) => any>,
+    },
+    showLoading: {
+      default: true,
+      type: Boolean,
+    },
+  },
+  setup(props) {
+    const chartRef = ref<EchartsUIType>();
+    const loading = ref(false);
+    const error = ref('');
+    const isDataEmpty = ref(false);
+    const { renderEcharts } = useEcharts(chartRef);
+
+    const renderChart = async (data: any) => {
+      try {
+        loading.value = props.showLoading;
+        error.value = '';
+        isDataEmpty.value = false;
+
+        const processedData = props.processDataFn(data);
+        if (
+          processedData === null ||
+          processedData === undefined ||
+          (Array.isArray(processedData) && processedData.length === 0) ||
+          (typeof processedData === 'object' &&
+            Object.keys(processedData).length === 0)
+        ) {
+          isDataEmpty.value = true;
+          return;
+        }
+
+        await renderEcharts(props.chartConfigFn(processedData));
+      } catch (error_) {
+        console.error('图表渲染失败:', error_);
+        error.value = error_ instanceof Error ? error_.message : '加载失败';
+      } finally {
+        loading.value = false;
+      }
+    };
+
+    onMounted(() => {
+      if (props.chartData) {
+        renderChart(props.chartData);
+      }
+    });
+
+    watch(
+      () => [props.chartData, props.chartConfigFn],
+      () => {
+        if (props.chartData) {
+          renderChart(props.chartData);
+        }
+      },
+      { deep: true },
+    );
+
+    return () =>
+      h('div', { class: 'relative h-full w-full' }, [
+        loading.value
+          ? h(
+              'div',
+              {
+                class:
+                  'absolute inset-0 flex items-center justify-center bg-white bg-opacity-60',
+              },
+              '加载中...',
+            )
+          : null,
+        error.value
+          ? h(
+              'div',
+              {
+                class:
+                  'absolute inset-0 flex items-center justify-center bg-white bg-opacity-60',
+              },
+              error.value,
+            )
+          : null,
+        isDataEmpty.value
+          ? h(
+              'div',
+              {
+                class:
+                  'absolute inset-0 flex items-center justify-center bg-white bg-opacity-60',
+              },
+              '暂无数据',
+            )
+          : null,
+        h(EchartsUI, { ref: chartRef }),
+      ]);
+  },
+});
 
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 768);
@@ -28,43 +148,13 @@ const labelFontSize = computed(() => {
   return 'text-sm';
 });
 
-const selectedLocation = ref('all');
-const locations = [
-  { label: '全部', value: 'all' },
-  { label: '园区A', value: 'factory1' },
-  { label: '园区B', value: 'factory2' },
-  { label: '园区C', value: 'factory3' },
-];
-
-const mockData = {
-  electricity: [
-    12_500, 11_800, 13_200, 14_500, 13_800, 12_900, 14_100, 15_200, 14_800,
-    13_500, 14_200, 15_500,
-  ],
-  monthOnMonth: [
-    5.2, -3.8, 2.5, 8.3, -2.1, -4.5, 3.2, 6.8, -1.5, -3.1, 4.2, 6.1,
-  ],
-  months: [
-    '2025-11',
-    '2025-12',
-    '2026-01',
-    '2026-02',
-    '2026-03',
-    '2026-04',
-    '2026-05',
-    '2026-06',
-    '2026-07',
-    '2026-08',
-    '2026-09',
-    '2026-10',
-  ],
-  water: [
-    4200, 3800, 4500, 5100, 4800, 4400, 4900, 5400, 5100, 4700, 4900, 5500,
-  ],
-  yearOnYear: [
-    8.5, 7.2, 9.1, 10.5, 9.8, 8.9, 10.2, 11.3, 10.7, 9.5, 10.1, 11.8,
-  ],
-};
+const chartData = ref({
+  electricity: [2800, 3200, 3000, 3600, 3900, 4100],
+  monthOnMonth: [8, 12, -6, 20, 8, 5],
+  months: ['1月', '2月', '3月', '4月', '5月', '6月'],
+  water: [1200, 1350, 1280, 1420, 1500, 1580],
+  yearOnYear: [15, 18, 10, 22, 19, 16],
+});
 </script>
 
 <template>
@@ -73,21 +163,13 @@ const mockData = {
       <div class="font-medium text-gray-600" :class="[labelFontSize]">
         水电消耗
       </div>
-      <select
-        v-model="selectedLocation"
-        class="rounded border border-gray-300 px-2 py-1 text-xs outline-none focus:border-blue-500"
-      >
-        <option v-for="loc in locations" :key="loc.value" :value="loc.value">
-          {{ loc.label }}
-        </option>
-      </select>
     </div>
     <div class="min-h-0 flex-1">
-      <BaseChart
+      <DashboardChart
         :chart-config-fn="
           (data: any) => getEnergyConsumptionChartConfig(data, isMobile)
         "
-        :chart-data="mockData"
+        :chart-data="chartData"
       />
     </div>
   </div>

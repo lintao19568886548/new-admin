@@ -18,6 +18,19 @@ const ACCESS_TOKEN_EXPIRES_IN: number | StringValue =
 const REFRESH_TOKEN_EXPIRES_IN: number | StringValue =
   (process.env.REFRESH_TOKEN_EXPIRES_IN as StringValue | undefined) || '7d';
 
+const EXPECTED_JWT_VERIFICATION_ERROR_NAMES = new Set([
+  'JsonWebTokenError',
+  'NotBeforeError',
+  'TokenExpiredError',
+]);
+
+function isExpectedJwtVerificationError(error: unknown) {
+  return (
+    error instanceof Error &&
+    EXPECTED_JWT_VERIFICATION_ERROR_NAMES.has(error.name)
+  );
+}
+
 /**
  * 生成 Access Token
  * @param userinfo 用户信息
@@ -89,7 +102,9 @@ export function verifyAccessToken(event: H3Event): null | UserInfoForToken {
     // 在此场景下，我们期望 userPayload 符合 UserInfoForToken
     return decoded as UserInfoForToken; // 或者根据严格程度返回 null
   } catch (error) {
-    console.error('Access token verification failed:', error);
+    if (!isExpectedJwtVerificationError(error)) {
+      console.error('Access token verification failed:', error);
+    }
     return null;
   }
 }
@@ -139,7 +154,9 @@ export function verifyRefreshToken(token: string): null | UserInfoForToken {
     // 同上，处理非预期结构的情况
     return decoded as UserInfoForToken; // 或者根据严格程度返回 null
   } catch (error) {
-    console.error('Refresh token verification failed:', error);
+    if (!isExpectedJwtVerificationError(error)) {
+      console.error('Refresh token verification failed:', error);
+    }
     return null;
   }
 }

@@ -8,6 +8,12 @@
       }
     }
   },
+  "authentication": {
+    "agreementRequired": "请先阅读并同意服务协议和隐私协议"
+  },
+  "common": {
+    "and": "和"
+  },
   "dept": {
     "createTime": "创建时间",
     "deptName": "部门名称",

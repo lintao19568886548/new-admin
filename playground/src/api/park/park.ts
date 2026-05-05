@@ -23,3 +23,8 @@ export async function updatePark(id: number, data: any) {
 export async function deletePark(id: number) {
   return requestClient.delete(`/park/${id}`);
 }
+
+// 获取园区租赁统计数据
+export async function getParkDashboardStats() {
+  return requestClient.get('/park/dashboard-stats');
+}

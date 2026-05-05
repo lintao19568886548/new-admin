@@ -15,10 +15,7 @@ import {
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
-import {
-  getCustomerTrendChartConfig,
-  getNegotiationProgressChartConfig,
-} from './chartConfigs';
+import { getContractTrendChartConfig } from './chartConfigs';
 
 const DashboardChart = defineComponent({
   name: 'DashboardChart',
@@ -155,9 +152,9 @@ const labelFontSize = computed(() => {
 });
 
 const valueFontSize = computed(() => {
-  if (isMobile.value) return 'text-xs';
-  if (isTablet.value) return 'text-sm';
-  return 'text-base';
+  if (isMobile.value) return 'text-sm';
+  if (isTablet.value) return 'text-base';
+  return 'text-lg';
 });
 
 const iconSize = computed(() => {
@@ -170,9 +167,7 @@ const innerIconSize = computed(() => {
   return 'w-2 h-2';
 });
 
-// 客户趋势数据（折线图）
-const customerTrendData = {
-  activeCustomers: [185, 192, 205, 210, 215, 220, 228, 235, 242, 250, 258, 265],
+const mockData = {
   dates: [
     '2025-11',
     '2025-12',
@@ -187,39 +182,15 @@ const customerTrendData = {
     '2026-09',
     '2026-10',
   ],
-  lostCustomers: [5, 4, 6, 3, 5, 4, 5, 3, 4, 5, 3, 4],
-  negotiatingCustomers: [
-    98, 102, 108, 112, 115, 118, 122, 125, 128, 132, 135, 140,
-  ],
-  newCustomers: [28, 32, 35, 38, 40, 42, 45, 48, 52, 55, 58, 62],
-  totalCustomers: [380, 405, 420, 435, 448, 462, 475, 488, 502, 515, 528, 545],
+  expiring: [9, 10, 8, 11, 9, 12, 10, 8, 11, 9, 12, 10],
+  normal: [42, 43, 45, 44, 46, 45, 47, 48, 46, 47, 48, 47],
+  retreated: [3, 2, 4, 3, 2, 3, 4, 2, 3, 4, 2, 3],
 };
-
-// 洽谈进度数据（饼状图）
-const negotiationProgressData = [
-  { name: '初步接洽', value: 35 },
-  { name: '深入沟通', value: 28 },
-  { name: '合同准备', value: 22 },
-  { name: '签约完成', value: 15 },
-];
 </script>
 
 <template>
   <div class="flex h-full flex-col">
-    <div class="mb-3 grid flex-initial grid-cols-5 gap-2">
-      <div class="rounded-lg bg-gray-50 p-2 text-center">
-        <div
-          class="mx-auto mb-1 flex items-center justify-center rounded-full bg-purple-100"
-          :class="[iconSize]"
-        >
-          <div
-            class="rounded-full bg-purple-500"
-            :class="[innerIconSize]"
-          ></div>
-        </div>
-        <div class="font-bold text-gray-800" :class="[valueFontSize]">465</div>
-        <div class="text-gray-400" :class="[labelFontSize]">总客户数</div>
-      </div>
+    <div class="mb-3 grid flex-initial grid-cols-3 gap-2 md:grid-cols-3">
       <div class="rounded-lg bg-gray-50 p-2 text-center">
         <div
           class="mx-auto mb-1 flex items-center justify-center rounded-full bg-blue-100"
@@ -227,8 +198,8 @@ const negotiationProgressData = [
         >
           <div class="rounded-full bg-blue-500" :class="[innerIconSize]"></div>
         </div>
-        <div class="font-bold text-gray-800" :class="[valueFontSize]">220</div>
-        <div class="text-gray-400" :class="[labelFontSize]">意向客户</div>
+        <div class="font-bold text-gray-800" :class="[valueFontSize]">47</div>
+        <div class="text-gray-400" :class="[labelFontSize]">正常合同</div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2 text-center">
         <div
@@ -237,21 +208,8 @@ const negotiationProgressData = [
         >
           <div class="rounded-full bg-green-500" :class="[innerIconSize]"></div>
         </div>
-        <div class="font-bold text-gray-800" :class="[valueFontSize]">45</div>
-        <div class="text-gray-400" :class="[labelFontSize]">本月新增</div>
-      </div>
-      <div class="rounded-lg bg-gray-50 p-2 text-center">
-        <div
-          class="mx-auto mb-1 flex items-center justify-center rounded-full bg-orange-100"
-          :class="[iconSize]"
-        >
-          <div
-            class="rounded-full bg-orange-500"
-            :class="[innerIconSize]"
-          ></div>
-        </div>
-        <div class="font-bold text-gray-800" :class="[valueFontSize]">100</div>
-        <div class="text-gray-400" :class="[labelFontSize]">洽谈中</div>
+        <div class="font-bold text-gray-800" :class="[valueFontSize]">8</div>
+        <div class="text-gray-400" :class="[labelFontSize]">即将到期</div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2 text-center">
         <div
@@ -260,44 +218,17 @@ const negotiationProgressData = [
         >
           <div class="rounded-full bg-red-500" :class="[innerIconSize]"></div>
         </div>
-        <div class="font-bold text-gray-800" :class="[valueFontSize]">3</div>
-        <div class="text-gray-400" :class="[labelFontSize]">本月流失</div>
+        <div class="font-bold text-gray-800" :class="[valueFontSize]">4</div>
+        <div class="text-gray-400" :class="[labelFontSize]">已退租</div>
       </div>
     </div>
-    <div class="grid min-h-0 flex-1 grid-cols-1 gap-2 md:grid-cols-2">
-      <div class="flex flex-col rounded-lg bg-gray-50 p-2 md:p-3">
-        <div
-          class="mb-2 flex-initial font-medium text-gray-600"
-          :class="[labelFontSize]"
-        >
-          客户趋势
-        </div>
-        <div class="min-h-0 flex-1">
-          <DashboardChart
-            :chart-config-fn="
-              (data: any) => getCustomerTrendChartConfig(data, isMobile)
-            "
-            :chart-data="customerTrendData"
-          />
-        </div>
-      </div>
-      <div class="flex flex-col rounded-lg bg-gray-50 p-2 md:p-3">
-        <div
-          class="mb-2 flex-initial font-medium text-gray-600"
-          :class="[labelFontSize]"
-        >
-          洽谈进度
-        </div>
-        <div class="min-h-0 flex-1">
-          <DashboardChart
-            :chart-config-fn="
-              (data: any) =>
-                getNegotiationProgressChartConfig(data, screenWidth)
-            "
-            :chart-data="negotiationProgressData"
-          />
-        </div>
-      </div>
+    <div class="min-h-0 flex-1">
+      <DashboardChart
+        :chart-config-fn="
+          (data: any) => getContractTrendChartConfig(data, isMobile)
+        "
+        :chart-data="mockData"
+      />
     </div>
   </div>
 </template>
