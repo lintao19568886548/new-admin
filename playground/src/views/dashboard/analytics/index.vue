@@ -1,22 +1,8 @@
 <script lang="ts" setup>
-import type { AnalysisOverviewItem } from '@vben/common-ui';
-import type { TabOption } from '@vben/types';
-
-import { computed, h, onMounted, onUnmounted, ref } from 'vue';
+import { h, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
-// UI 组件
-import {
-  AnalysisChartCard,
-  AnalysisChartsTabs,
-  AnalysisOverview,
-} from '@vben/common-ui';
-import {
-  SvgBellIcon,
-  SvgCakeIcon,
-  SvgCardIcon,
-  SvgDownloadIcon,
-} from '@vben/icons';
+import { AnalysisChartCard } from '@vben/common-ui';
 import { useUserStore } from '@vben/stores';
 
 import { notification } from 'ant-design-vue';
@@ -33,17 +19,14 @@ import {
   getReimbursementList,
 } from '#/api/reimbursement';
 
-// 导入重构后的业务组件
 import {
-  AnalyticsExpenseData,
-  AnalyticsExpenseSales,
-  AnalyticsExpenseSource,
-  AnalyticsIncomeData,
-  AnalyticsIncomeSales,
-  AnalyticsIncomeSource,
-  AnalyticsMonthly,
-  AnalyticsParkElectricity,
-  AnalyticsTrends,
+  AnalyticsContract,
+  AnalyticsCount,
+  AnalyticsCustomer,
+  AnalyticsEnergy,
+  AnalyticsInvestment,
+  AnalyticsRevenue,
+  AnalyticsWorkOrder,
 } from './components';
 
 const userStore = useUserStore();
@@ -55,7 +38,6 @@ const handleResize = () => {
   isMobile.value = window.innerWidth < 768;
 };
 
-// 数据初始化
 const analyticsData = ref({
   monthData: {
     expenseData: [],
@@ -72,10 +54,6 @@ const totalData = ref({});
 const parkElectricityData = ref([]);
 const REIMBURSEMENT_NOTIFY_THRESHOLD = 50_000;
 const REIMBURSEMENT_PENDING_PAGE_SIZE = 200;
-
-// 求和辅助函数
-const sumData = (data: number[] = []) =>
-  data.reduce((sum, curr) => sum + Number(curr), 0);
 
 async function getOverThresholdPendingCount() {
   const first = await getReimbursementList({
@@ -103,7 +81,6 @@ async function getOverThresholdPendingCount() {
   return count;
 }
 
-// 获取数据
 onMounted(async () => {
   handleResize();
   window.addEventListener('resize', handleResize);
@@ -131,7 +108,6 @@ onMounted(async () => {
     totalData.value = totalResult;
     parkElectricityData.value = parkElectricityResult;
 
-    // 检查用户是否有报销审核权限
     if ((userStore.userInfo?.reimbursementAuth || 0) > 0) {
       const pending = await getPendingReimbursementCount();
       const rates = userStore.userInfo?.rates;
@@ -179,107 +155,32 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
 });
-
-// 计算环比增长率
-
-const overviewItems = computed<AnalysisOverviewItem[]>(() => [
-  {
-    icon: SvgCardIcon,
-    title: '收入总额',
-    totalTitle: '年度收入',
-    totalValue: sumData(analyticsData.value.yearData.incomeDatamonths),
-    value: sumData(analyticsData.value.yearData.incomeDatamonths),
-  },
-  {
-    icon: SvgCakeIcon,
-    title: '支出总额',
-    totalTitle: '年度支出',
-    totalValue: sumData(analyticsData.value.yearData.expenseDatamonths),
-    value: sumData(analyticsData.value.yearData.expenseDatamonths),
-  },
-  {
-    icon: SvgDownloadIcon,
-    title: '收入月环比',
-    totalTitle: '本月总收入',
-    totalValue: sumData(analyticsData.value.monthData.incomeData),
-    value: sumData(analyticsData.value.monthData.incomeData),
-  },
-  {
-    icon: SvgBellIcon,
-    title: '支出月环比',
-    totalTitle: '本月总支出',
-    totalValue: sumData(analyticsData.value.monthData.expenseData),
-    value: sumData(analyticsData.value.monthData.expenseData),
-  },
-]);
-
-const chartTabs: TabOption[] = [
-  {
-    label: '日收支情况',
-    value: 'trends',
-  },
-  {
-    label: '月收支情况', // 更新标签文案
-    value: 'monthly', // 更新值
-  },
-];
 </script>
 
 <template>
   <div class="p-5">
-    <AnalysisOverview :items="overviewItems" />
-    <AnalysisChartsTabs :tabs="chartTabs" class="mt-5">
-      <template #trends>
-        <AnalyticsTrends :data="analyticsData.monthData" />
-      </template>
-      <template #monthly>
-        <!-- 更新插槽名 -->
-        <AnalyticsMonthly :data="analyticsData.yearData" />
-      </template>
-    </AnalysisChartsTabs>
-
-    <div class="mt-5 w-full md:flex md:flex-wrap">
-      <AnalysisChartCard
-        class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
-        title="支出趋势"
-      >
-        <AnalyticsExpenseData :data="trendData" />
+    <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+      <AnalysisChartCard title="厂房租赁">
+        <AnalyticsInvestment />
       </AnalysisChartCard>
-      <AnalysisChartCard
-        class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
-        title="支出环比"
-      >
-        <AnalyticsExpenseSource :data="monthCompareData" />
+      <AnalysisChartCard title="合同总览">
+        <AnalyticsContract />
       </AnalysisChartCard>
-      <AnalysisChartCard
-        class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
-        title="支出占比"
-      >
-        <AnalyticsExpenseSales :data="totalData" />
+      <AnalysisChartCard title="客户总览">
+        <AnalyticsCustomer />
       </AnalysisChartCard>
-
-      <AnalysisChartCard
-        class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
-        title="收入趋势"
-      >
-        <AnalyticsIncomeData :data="trendData" />
+      <AnalysisChartCard title="营收统计">
+        <AnalyticsRevenue />
       </AnalysisChartCard>
-      <AnalysisChartCard
-        class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
-        title="收入环比"
-      >
-        <AnalyticsIncomeSource :data="monthCompareData" />
+      <AnalysisChartCard title="能源消耗">
+        <AnalyticsEnergy />
       </AnalysisChartCard>
-      <AnalysisChartCard
-        class="mt-5 md:mr-4 md:mt-0 md:w-[32%]"
-        title="收入占比"
-      >
-        <AnalyticsIncomeSales :data="totalData" />
+      <AnalysisChartCard title="维修工单">
+        <AnalyticsWorkOrder />
+      </AnalysisChartCard>
+      <AnalysisChartCard title="表计数量统计">
+        <AnalyticsCount />
       </AnalysisChartCard>
     </div>
-
-    <AnalysisChartCard class="mt-5 w-full" title="各园区实收电度数和电费金额">
-      <AnalyticsParkElectricity :data="parkElectricityData" />
-    </AnalysisChartCard>
   </div>
 </template>
