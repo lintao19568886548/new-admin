@@ -4,20 +4,13 @@ import { hostname } from 'node:os';
 import mariadb from 'mariadb';
 import { systemDbClient } from '~/utils/db';
 
-const BASE_TABLES = [
-  'menu',
-  'menu_meta',
-  'role',
-  'code',
-  'role_menu',
-  'role_code',
-  'app_versions',
-];
+const BASE_DATA_TABLES = ['app_versions'];
 const COPY_ROWS_CHUNK_SIZE = 100;
 const COPY_ROWS_PAGE_SIZE = 500;
 const DEFAULT_WORKER_INTERVAL_MS = 5000;
 const DEFAULT_WORKER_STALE_AFTER_MS = 10 * 60 * 1000;
 const DEFAULT_WORKER_MAX_RETRY = 5;
+const TENANT_CREATOR_ROLE_NAME = 'Super';
 const WORKER_ID = `${hostname()}:${process.pid}:${randomUUID()}`;
 
 type DbConnection = Awaited<ReturnType<typeof mariadb.createConnection>>;
@@ -96,6 +89,13 @@ interface UserMigrationContext {
   targetCustomerId: string;
   targetUserId: number;
   username: string;
+}
+
+interface SuperPermissionClosure {
+  codeIds: number[];
+  roleCodeCount: number;
+  roleId: number;
+  roleMenuCount: number;
 }
 
 const globalForTenantProvisioning = globalThis as typeof globalThis & {
@@ -863,13 +863,143 @@ function buildInvestmentPhones(context: UserMigrationContext) {
     .filter((value, index, values) => value && values.indexOf(value) === index);
 }
 
-async function copyBaseTables(params: {
+async function getRoleIdByName(
+  connection: DbConnection,
+  roleName = TENANT_CREATOR_ROLE_NAME,
+) {
+  const rows = (await connection.query(
+    'SELECT role_id AS roleId FROM `role` WHERE name = ? LIMIT 1',
+    [roleName],
+  )) as Array<{ roleId: bigint | number | string }>;
+  const roleId = Number(rows[0]?.roleId || 0);
+  if (!roleId) {
+    throw new Error(`目标权限角色不存在: ${roleName}`);
+  }
+  return roleId;
+}
+
+async function copyRowsByIdsOrdered(params: {
+  heartbeat?: () => Promise<void>;
+  idColumn: string;
+  ids: number[];
+  orderColumn?: string;
+  sourceConnection: DbConnection;
+  tableName: string;
+  targetConnection: DbConnection;
+  targetTransforms?: CopyRowsOptions['targetTransforms'];
+}) {
+  const ids = uniquePositiveNumbers(params.ids);
+  if (ids.length === 0) {
+    return 0;
+  }
+  const where = buildInWhere(params.idColumn, ids);
+  return copyRows({
+    ...where,
+    heartbeat: params.heartbeat,
+    sourceConnection: params.sourceConnection,
+    tableName: params.tableName,
+    targetConnection: params.targetConnection,
+    targetTransforms: params.targetTransforms,
+    whereSql: `${where.whereSql} ORDER BY ${quoteIdentifier(
+      params.orderColumn || params.idColumn,
+    )} ASC`,
+  });
+}
+
+async function resolveSuperPermissionClosure(
+  connection: DbConnection,
+): Promise<SuperPermissionClosure> {
+  const roleId = await getRoleIdByName(connection);
+  const roleMenuRows = (await connection.query(
+    'SELECT id FROM `role_menu` WHERE role_id = ?',
+    [roleId],
+  )) as Array<Record<string, unknown>>;
+  const roleCodeRows = (await connection.query(
+    'SELECT code_id AS codeId FROM `role_code` WHERE role_id = ?',
+    [roleId],
+  )) as Array<Record<string, unknown>>;
+  const codeIds = uniquePositiveNumbers(roleCodeRows.map((row) => row.codeId));
+
+  return {
+    codeIds,
+    roleCodeCount: roleCodeRows.length,
+    roleId,
+    roleMenuCount: roleMenuRows.length,
+  };
+}
+
+async function copySuperPermissionClosure(params: {
+  heartbeat?: () => Promise<void>;
+  sourceConnection: DbConnection;
+  targetConnection: DbConnection;
+}) {
+  const closure = await resolveSuperPermissionClosure(params.sourceConnection);
+
+  await params.targetConnection.query('SET FOREIGN_KEY_CHECKS = 0');
+  try {
+    await copyRows({
+      heartbeat: params.heartbeat,
+      sourceConnection: params.sourceConnection,
+      tableName: 'menu',
+      targetConnection: params.targetConnection,
+    });
+    await copyRows({
+      heartbeat: params.heartbeat,
+      sourceConnection: params.sourceConnection,
+      tableName: 'menu_meta',
+      targetConnection: params.targetConnection,
+    });
+    await copyRows({
+      heartbeat: params.heartbeat,
+      params: [closure.roleId],
+      sourceConnection: params.sourceConnection,
+      tableName: 'role',
+      targetConnection: params.targetConnection,
+      targetTransforms: {
+        parent_id: () => null,
+      },
+      whereSql: 'WHERE role_id = ?',
+    });
+    await copyRowsByIdsOrdered({
+      heartbeat: params.heartbeat,
+      idColumn: 'code_id',
+      ids: closure.codeIds,
+      sourceConnection: params.sourceConnection,
+      tableName: 'code',
+      targetConnection: params.targetConnection,
+    });
+    await copyRows({
+      heartbeat: params.heartbeat,
+      params: [closure.roleId],
+      sourceConnection: params.sourceConnection,
+      tableName: 'role_menu',
+      targetConnection: params.targetConnection,
+      whereSql: 'WHERE role_id = ?',
+    });
+    await copyRows({
+      heartbeat: params.heartbeat,
+      params: [closure.roleId],
+      sourceConnection: params.sourceConnection,
+      tableName: 'role_code',
+      targetConnection: params.targetConnection,
+      whereSql: 'WHERE role_id = ?',
+    });
+  } finally {
+    await params.targetConnection
+      .query('SET FOREIGN_KEY_CHECKS = 1')
+      .catch(() => undefined);
+  }
+
+  return closure.roleId;
+}
+
+async function copyBaseDataTables(params: {
   heartbeat?: () => Promise<void>;
   sourceConnection: DbConnection;
   targetConnection: DbConnection;
 }) {
   let copied = 0;
-  for (const tableName of BASE_TABLES) {
+  for (const tableName of BASE_DATA_TABLES) {
     copied += await copyRows({
       sourceConnection: params.sourceConnection,
       tableName,
@@ -967,10 +1097,9 @@ function userIdTransforms(context: UserMigrationContext) {
   };
 }
 
-async function migrateUserRoleAndCodes(params: {
+async function assignTenantCreatorSuperRole(params: {
   context: UserMigrationContext;
   heartbeat?: () => Promise<void>;
-  sourceConnection: DbConnection;
   targetConnection: DbConnection;
 }) {
   await params.targetConnection.query(
@@ -982,24 +1111,12 @@ async function migrateUserRoleAndCodes(params: {
     [params.context.targetUserId],
   );
 
-  await copyRows({
-    params: [params.context.sourceUserId],
-    sourceConnection: params.sourceConnection,
-    tableName: 'user_role',
-    targetConnection: params.targetConnection,
-    targetTransforms: userIdTransforms(params.context),
-    whereSql: 'WHERE user_id = ?',
-    heartbeat: params.heartbeat,
-  });
-  await copyRows({
-    params: [params.context.sourceUserId],
-    sourceConnection: params.sourceConnection,
-    tableName: 'user_code',
-    targetConnection: params.targetConnection,
-    targetTransforms: userIdTransforms(params.context),
-    whereSql: 'WHERE user_id = ?',
-    heartbeat: params.heartbeat,
-  });
+  const roleId = await getRoleIdByName(params.targetConnection);
+  await params.targetConnection.query(
+    'INSERT INTO user_role (user_id, role_id, create_time, update_time) VALUES (?, ?, NOW(), NOW())',
+    [params.context.targetUserId, roleId],
+  );
+  await params.heartbeat?.();
 }
 
 async function migrateUserScopedData(params: {
@@ -1441,7 +1558,7 @@ async function validateProvisionedTenant(params: {
   targetUserId: number;
   templateConnection: DbConnection;
 }) {
-  for (const tableName of BASE_TABLES) {
+  for (const tableName of BASE_DATA_TABLES) {
     await assertTableCountMatches({
       label: `基础表 ${tableName}`,
       sourceConnection: params.templateConnection,
@@ -1449,6 +1566,72 @@ async function validateProvisionedTenant(params: {
       targetConnection: params.targetConnection,
       targetTableName: tableName,
     });
+  }
+  for (const tableName of ['menu', 'menu_meta']) {
+    await assertTableCountMatches({
+      label: `菜单基础表 ${tableName}`,
+      sourceConnection: params.sourceConnection,
+      sourceTableName: tableName,
+      targetConnection: params.targetConnection,
+      targetTableName: tableName,
+    });
+  }
+
+  const sourceClosure = await resolveSuperPermissionClosure(
+    params.sourceConnection,
+  );
+  const superRoleId = await getRoleIdByName(params.targetConnection);
+  if (superRoleId !== sourceClosure.roleId) {
+    throw new Error(
+      `Super 角色 ID 校验失败，期望 ${sourceClosure.roleId}，实际 ${superRoleId}`,
+    );
+  }
+
+  await assertTableCountMatches({
+    label: 'Super 菜单权限',
+    sourceConnection: params.sourceConnection,
+    sourceParams: [sourceClosure.roleId],
+    sourceTableName: 'role_menu',
+    sourceWhereSql: 'WHERE role_id = ?',
+    targetConnection: params.targetConnection,
+    targetParams: [sourceClosure.roleId],
+    targetTableName: 'role_menu',
+    targetWhereSql: 'WHERE role_id = ?',
+  });
+  await assertTableCountMatches({
+    label: 'Super 权限码',
+    sourceConnection: params.sourceConnection,
+    sourceParams: [sourceClosure.roleId],
+    sourceTableName: 'role_code',
+    sourceWhereSql: 'WHERE role_id = ?',
+    targetConnection: params.targetConnection,
+    targetParams: [sourceClosure.roleId],
+    targetTableName: 'role_code',
+    targetWhereSql: 'WHERE role_id = ?',
+  });
+
+  const superRoleCount = await getTableCount(
+    params.targetConnection,
+    'user_role',
+    'WHERE user_id = ? AND role_id = ?',
+    [params.targetUserId, superRoleId],
+  );
+  if (superRoleCount !== 1) {
+    throw new Error(
+      `创建者 Super 角色校验失败，targetUserId=${params.targetUserId}`,
+    );
+  }
+
+  const userCodeCount = await getTableCount(
+    params.targetConnection,
+    'user_code',
+    'WHERE user_id = ?',
+    [params.targetUserId],
+  );
+  if (userCodeCount !== 0) {
+    throw new Error(
+      `创建者直绑权限码校验失败，期望 0 条，实际 ${userCodeCount} 条`,
+    );
   }
 
   const targetUserCount = await getTableCount(
@@ -1463,28 +1646,6 @@ async function validateProvisionedTenant(params: {
     );
   }
 
-  await assertTableCountMatches({
-    label: '用户角色',
-    sourceConnection: params.sourceConnection,
-    sourceParams: [params.context.sourceUserId],
-    sourceTableName: 'user_role',
-    sourceWhereSql: 'WHERE user_id = ?',
-    targetConnection: params.targetConnection,
-    targetParams: [params.targetUserId],
-    targetTableName: 'user_role',
-    targetWhereSql: 'WHERE user_id = ?',
-  });
-  await assertTableCountMatches({
-    label: '用户权限码',
-    sourceConnection: params.sourceConnection,
-    sourceParams: [params.context.sourceUserId],
-    sourceTableName: 'user_code',
-    sourceWhereSql: 'WHERE user_id = ?',
-    targetConnection: params.targetConnection,
-    targetParams: [params.targetUserId],
-    targetTableName: 'user_code',
-    targetWhereSql: 'WHERE user_id = ?',
-  });
   await assertTableCountMatches({
     label: '定位记录',
     sourceConnection: params.sourceConnection,
@@ -1699,7 +1860,12 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
       });
 
       await updateJobStep(job, 'seeding_base_data');
-      await copyBaseTables({
+      await copySuperPermissionClosure({
+        heartbeat: () => updateJobHeartbeat(job),
+        sourceConnection: templateConnection,
+        targetConnection,
+      });
+      await copyBaseDataTables({
         heartbeat: () => updateJobHeartbeat(job),
         sourceConnection: templateConnection,
         targetConnection,
@@ -1732,10 +1898,9 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
           username: String(centerUser.username),
         };
 
-        await migrateUserRoleAndCodes({
+        await assignTenantCreatorSuperRole({
           context,
           heartbeat: () => updateJobHeartbeat(job),
-          sourceConnection,
           targetConnection,
         });
 
