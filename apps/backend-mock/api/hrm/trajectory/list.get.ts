@@ -10,6 +10,8 @@ export default eventHandler(async (event) => {
     const pageSize = Number.parseInt((query.pageSize as string) || '10');
     const employeeName =
       typeof query.employeeName === 'string' ? query.employeeName.trim() : '';
+    const parkId =
+      typeof query.parkId === 'string' ? Number.parseInt(query.parkId) : null;
 
     // 如果未提供日期范围，则默认为所有历史数据
     const startDate = query.startDate
@@ -56,6 +58,14 @@ export default eventHandler(async (event) => {
           },
         },
       ];
+    }
+
+    if (parkId && !Number.isNaN(parkId)) {
+      where.user = {
+        is: {
+          parkId,
+        },
+      };
     }
 
     const total = await prismaClient.attendance.count({ where });

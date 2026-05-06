@@ -13,6 +13,7 @@ import {
   Pagination,
   RangePicker,
   Segmented,
+  Select,
   Spin,
   Tag,
   Tooltip,
@@ -21,6 +22,7 @@ import dayjs from 'dayjs';
 import ExcelJS from 'exceljs';
 
 import { exportTrajectoryData, getTrajectoryList } from '#/api/hrm/trajectory';
+import { getParkList } from '#/api/park';
 import { getBaiduMapAk, loadBaiduMapScript } from '#/utils/map';
 
 // ================================= 考勤状态 =================================
@@ -110,6 +112,8 @@ const createDefaultDateRange = (): [dayjs.Dayjs, dayjs.Dayjs] => [
 ];
 const dateRange = ref<[dayjs.Dayjs, dayjs.Dayjs]>(createDefaultDateRange());
 const employeeName = ref('');
+const selectedParkId = ref<number | undefined>(undefined);
+const parkOptions = ref<{ label: string; value: number }[]>([]);
 const pagination = reactive({
   current: 1,
   pageSize: 12,
@@ -133,7 +137,7 @@ const checkIsMobile = () => {
 const buildBaseQueryParams = () => {
   const params: Pick<
     TrajectoryApi.TrajectoryExportParams,
-    'employeeName' | 'endDate' | 'startDate'
+    'employeeName' | 'endDate' | 'parkId' | 'startDate'
   > = {
     endDate: dateRange.value[1].format('YYYY-MM-DD'),
     startDate: dateRange.value[0].format('YYYY-MM-DD'),
@@ -141,6 +145,9 @@ const buildBaseQueryParams = () => {
   const trimmedEmployeeName = employeeName.value.trim();
   if (trimmedEmployeeName) {
     params.employeeName = trimmedEmployeeName;
+  }
+  if (selectedParkId.value !== undefined) {
+    params.parkId = selectedParkId.value;
   }
   return params;
 };
@@ -377,9 +384,23 @@ const handleSearch = () => {
 
 const handleResetFilters = () => {
   employeeName.value = '';
+  selectedParkId.value = undefined;
   dateRange.value = createDefaultDateRange();
   pagination.current = 1;
   fetchData();
+};
+
+const loadParkOptions = async () => {
+  try {
+    const result = await getParkList();
+    const list = Array.isArray(result) ? result : (result?.items ?? []);
+    parkOptions.value = list.map((item: any) => ({
+      label: String(item.parkName ?? ''),
+      value: Number(item.parkId ?? 0),
+    }));
+  } catch (error: any) {
+    console.error('加载园区列表失败:', error.message);
+  }
 };
 
 const handleExport = async () => {
@@ -413,6 +434,7 @@ const handleExport = async () => {
       worksheet.columns = [
         { header: '用户名', key: 'username', width: 15 },
         { header: '日期', key: 'date', width: 15 },
+        { header: '星期', key: 'weekday', width: 10 },
         { header: '上班打卡', key: 'punchIn', width: 15 },
         { header: '下班打卡', key: 'punchOut', width: 15 },
         { header: '状态', key: 'status', width: 20 },
@@ -437,15 +459,19 @@ const handleExport = async () => {
         ),
       );
 
+      const weekdayMap = ['日', '一', '二', '三', '四', '五', '六'];
+
       const rows = parkData.map(
         (row: TrajectoryApi.TrajectoryRecord, index) => {
           const status =
             statusMap[row.status as keyof typeof statusMap] || '未知';
+          const weekday = `星期${weekdayMap[dayjs(row.date).day()]}`;
           return {
             ...row,
             address: locationAddresses[index],
             locationStatus: getLocationStatusText(row),
             status,
+            weekday,
           };
         },
       );
@@ -512,6 +538,7 @@ watch([activeView, isMobile], ([newView, mobile]) => {
 
 onMounted(async () => {
   await initMap();
+  await loadParkOptions();
   fetchData();
   checkIsMobile();
   window.addEventListener('resize', checkIsMobile);
@@ -540,6 +567,14 @@ onUnmounted(() => {
             class="filter-input"
             placeholder="输入员工姓名"
             @press-enter="handleSearch"
+          />
+          <Select
+            v-model:value="selectedParkId"
+            :options="parkOptions"
+            allow-clear
+            class="filter-input"
+            placeholder="选择园区"
+            @change="handleSearch"
           />
           <RangePicker
             v-model:value="dateRange"

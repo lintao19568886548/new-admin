@@ -22,6 +22,7 @@ export namespace TrajectoryApi {
     endDate?: string;
     page: number;
     pageSize: number;
+    parkId?: number;
     startDate?: string;
   }
 
@@ -33,6 +34,7 @@ export namespace TrajectoryApi {
   export interface TrajectoryExportParams {
     employeeName?: string;
     endDate?: string;
+    parkId?: number;
     startDate?: string;
   }
 
@@ -45,6 +47,7 @@ export namespace TrajectoryApi {
  * @param params.employeeName - 员工姓名关键字
  * @param params.page - 页码
  * @param params.pageSize - 每页条数
+ * @param params.parkId - 园区ID
  * @param params.startDate - 开始日期
  * @param params.endDate - 结束日期
  */
@@ -53,6 +56,7 @@ export function getTrajectoryList(params: {
   endDate?: string;
   page: number;
   pageSize: number;
+  parkId?: number;
   startDate?: string;
 }) {
   return requestClient.get<TrajectoryApi.TrajectoryListResult>(
@@ -65,12 +69,14 @@ export function getTrajectoryList(params: {
  * 导出所有员工的考勤轨迹
  * @param params - 查询参数，包括日期范围
  * @param params.employeeName - 员工姓名关键字
+ * @param params.parkId - 园区ID
  * @param params.startDate - 开始日期
  * @param params.endDate - 结束日期
  */
 export function exportTrajectoryData(params: {
   employeeName?: string;
   endDate?: string;
+  parkId?: number;
   startDate?: string;
 }) {
   return requestClient.get<TrajectoryApi.TrajectoryExportResult>(

@@ -8,6 +8,8 @@ export default eventHandler(async (event) => {
     const query = getQuery(event);
     const employeeName =
       typeof query.employeeName === 'string' ? query.employeeName.trim() : '';
+    const parkId =
+      typeof query.parkId === 'string' ? Number.parseInt(query.parkId) : null;
 
     const startDate = query.startDate
       ? dayjs(query.startDate as string)
@@ -53,6 +55,14 @@ export default eventHandler(async (event) => {
           },
         },
       ];
+    }
+
+    if (parkId && !Number.isNaN(parkId)) {
+      where.user = {
+        is: {
+          parkId,
+        },
+      };
     }
 
     // 获取所有符合条件的记录，并包含用户信息和园区信息
