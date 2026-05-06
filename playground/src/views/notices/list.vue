@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { VbenFormSchema } from '#/adapter/form';
+import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 
 import { Page } from '@vben/common-ui';
 
@@ -65,9 +66,9 @@ const columns = [
     title: '分类',
   },
   {
-    field: 'site_code',
+    field: 'siteCode',
     minWidth: 160,
-    slots: { default: 'site_code_cell' },
+    slots: { default: 'siteCode_cell' },
     title: '所属区域',
   },
   {
@@ -84,7 +85,7 @@ const columns = [
   },
   {
     field: 'date',
-    formatter: ({ cellValue }: any) =>
+    formatter: ({ cellValue }: { cellValue: string }) =>
       formatPublishDate(String(cellValue ?? '')),
     minWidth: 180,
     title: '发布时间',
@@ -103,7 +104,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridOptions: {
     border: true,
-    columns: columns as any,
+    columns: columns as VxeTableGridOptions['columns'],
     height: 'auto',
     keepSource: true,
     pagerConfig: {
@@ -113,13 +114,18 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     proxyConfig: {
       ajax: {
-        query: async ({ page }: any) => {
+        query: async ({
+          page,
+        }: {
+          page: { currentPage: number; pageSize: number };
+        }) => {
           const formValues = (await gridApi.formApi?.getValues?.()) || {};
           const params = {
             currentPage: page?.currentPage || 1,
             keyword: String(formValues.keyword ?? '').trim() || undefined,
             pageSize: page?.pageSize || 20,
             regionCode: String(formValues.regionCode ?? '').trim() || undefined,
+            validOnly: true,
           };
           return await getNoticeList(params);
         },
@@ -148,6 +154,7 @@ function refreshGrid() {
     <Grid table-title="招标信息">
       <template #title_cell="{ row }">
         <TypographyLink
+          v-if="row.link"
           :href="row.link"
           rel="noopener noreferrer"
           target="_blank"
@@ -155,15 +162,16 @@ function refreshGrid() {
         >
           {{ row.title }}
         </TypographyLink>
+        <span v-else :title="row.title">{{ row.title }}</span>
       </template>
 
       <template #category_cell="{ row }">
         <Tag color="geekblue">{{ row.category }}</Tag>
       </template>
 
-      <template #site_code_cell="{ row }">
+      <template #siteCode_cell="{ row }">
         <Tag color="cyan">
-          {{ getCityNameByCode(row.site_code || row.siteCode) }}
+          {{ getCityNameByCode(row.siteCode) }}
         </Tag>
       </template>
 

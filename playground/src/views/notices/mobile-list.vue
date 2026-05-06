@@ -55,7 +55,7 @@ function formatPublishDate(value: string) {
   return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : s;
 }
 
-function openNoticeLink(link?: string) {
+function openNoticeLink(link?: null | string) {
   const href = String(link ?? '').trim();
   if (!href) {
     message.warning('暂无可跳转链接');
@@ -75,6 +75,7 @@ async function fetchList() {
       keyword: keywordText.value || undefined,
       pageSize: pagination.pageSize,
       regionCode: String(searchForm.regionCode ?? '').trim() || undefined,
+      validOnly: true,
     })) as NoticeListResponse;
 
     list.value = Array.isArray(result?.items) ? result.items : [];
@@ -89,8 +90,8 @@ async function fetchList() {
   }
 }
 
-function resolveCityName(it: any) {
-  const code = String(it?.site_code ?? it?.siteCode ?? '').trim();
+function resolveCityName(it: NoticeItem | null | undefined) {
+  const code = it?.siteCode ?? '';
   return getCityNameByCode(code);
 }
 
@@ -189,14 +190,15 @@ onMounted(() => {
 
             <div class="card-actions">
               <Button
+                v-if="item.link"
                 size="middle"
                 type="primary"
                 class="jump-button"
-                :disabled="!item.link"
                 @click="openNoticeLink(item.link)"
               >
                 查看详情
               </Button>
+              <span v-else class="link-invalid-tip">链接已失效</span>
             </div>
           </div>
         </Card>
@@ -215,7 +217,7 @@ onMounted(() => {
       <Empty
         v-if="listIsEmpty"
         class="py-10"
-        :description="$t('page.finance.noData')"
+        :description="$t('common.noData')"
       />
     </Spin>
   </div>
@@ -344,6 +346,11 @@ onMounted(() => {
 .link-tip {
   display: inline-block;
   margin-top: 10px;
+}
+
+.link-invalid-tip {
+  font-size: 14px;
+  color: #969799;
 }
 
 .list-pagination {

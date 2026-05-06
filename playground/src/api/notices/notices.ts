@@ -1,16 +1,17 @@
 import { requestClient } from '#/api/request';
 
 export interface NoticeItem {
-  category: string;
+  category?: null | string;
   createdAt: string;
   date: string;
-  link: string;
+  link?: null | string;
   noticeId: string;
-  owner: string;
-  platform: string;
-  projectType: string;
+  owner?: null | string;
+  platform?: null | string;
+  projectType?: null | string;
+  siteCode?: null | string;
   title: string;
-  type: string;
+  type?: null | string;
   updatedAt: string;
 }
 
@@ -26,6 +27,7 @@ export interface GetNoticeListParams {
   keyword?: string;
   pageSize?: number;
   regionCode?: string;
+  validOnly?: boolean;
 }
 
 export async function getNoticeList(params: GetNoticeListParams = {}) {
