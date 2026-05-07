@@ -576,7 +576,7 @@ export function getContractTrendChartConfig(
     },
     legend: {
       bottom: 0,
-      data: ['正常合同', '即将到期', '已退租'],
+      data: ['正常合同', '即将到期', '已过期'],
       itemGap: isMobile ? 8 : 12,
       textStyle: {
         fontSize: legendFontSize,
@@ -619,7 +619,7 @@ export function getContractTrendChartConfig(
         lineStyle: {
           width: 2,
         },
-        name: '已退租',
+        name: '已过期',
         smooth: true,
         symbol: 'circle',
         symbolSize: 6,
@@ -662,10 +662,10 @@ export function getContractTrendChartConfig(
 
 export function getRevenueChartConfig(
   data: {
-    actual: number[];
+    expense: number[];
+    income: number[];
     months: string[];
-    pending: number[];
-    received: number[];
+    net: number[];
   },
   isMobile = false,
 ): EChartsOption {
@@ -681,7 +681,7 @@ export function getRevenueChartConfig(
     },
     legend: {
       bottom: 0,
-      data: ['实收总额', '已收总额', '待收总额'],
+      data: ['收入总额', '支出总额', '净收入'],
       textStyle: {
         fontSize: legendFontSize,
       },
@@ -691,24 +691,24 @@ export function getRevenueChartConfig(
         barGap: 0.1,
         barMaxWidth: 30,
         color: COLORS.green,
-        data: data.actual,
-        name: '实收总额',
+        data: data.income,
+        name: '收入总额',
         type: 'bar',
       },
       {
         barGap: 0.1,
         barMaxWidth: 30,
         color: COLORS.blue,
-        data: data.received,
-        name: '已收总额',
+        data: data.expense,
+        name: '支出总额',
         type: 'bar',
       },
       {
         barGap: 0.1,
         barMaxWidth: 30,
         color: COLORS.orange,
-        data: data.pending,
-        name: '待收总额',
+        data: data.net,
+        name: '净收入',
         type: 'bar',
       },
     ],

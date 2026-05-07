@@ -18,3 +18,21 @@ export async function getAnalyticsTotal() {
 export async function getAnalyticsParkElectricity() {
   return requestClient.get(`/analytics/park-electricity`);
 }
+
+export async function getAnalyticsContractOverview(params?: {
+  parkId?: number;
+}) {
+  return requestClient.get(`/analytics/contract-overview`, { params });
+}
+
+export async function getAnalyticsRevenueOverview(params?: {
+  parkId?: number;
+}) {
+  return requestClient.get(`/analytics/revenue-overview`, { params });
+}
+
+export async function getAnalyticsParkDashboardStats(params?: {
+  parkId?: number;
+}) {
+  return requestClient.get(`/analytics/park-dashboard-stats`, { params });
+}

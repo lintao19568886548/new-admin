@@ -14,8 +14,13 @@ withDefaults(defineProps<Props>(), {});
 
 <template>
   <Card>
-    <CardHeader>
+    <CardHeader
+      class="gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+    >
       <CardTitle class="text-xl">{{ title }}</CardTitle>
+      <div v-if="$slots.extra" class="w-full sm:w-auto">
+        <slot name="extra"></slot>
+      </div>
     </CardHeader>
     <CardContent>
       <slot></slot>

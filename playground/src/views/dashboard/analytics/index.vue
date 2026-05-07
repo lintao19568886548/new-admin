@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router';
 import { AnalysisChartCard } from '@vben/common-ui';
 import { useUserStore } from '@vben/stores';
 
-import { notification } from 'ant-design-vue';
+import { notification, Select } from 'ant-design-vue';
 
 import {
   getAnalyticsData,
@@ -14,6 +14,7 @@ import {
   getAnalyticsTotal,
   getAnalyticsTrend,
 } from '#/api/analytics';
+import { getParkList } from '#/api/park';
 import {
   getPendingReimbursementCount,
   getReimbursementList,
@@ -33,6 +34,12 @@ const userStore = useUserStore();
 const router = useRouter();
 
 const isMobile = ref(false);
+const investmentSelectedParkId = ref(-1);
+const contractSelectedParkId = ref(-1);
+const revenueSelectedParkId = ref(-1);
+const parkOptions = ref<Array<{ label: string; value: number }>>([
+  { label: '全部', value: -1 },
+]);
 
 const handleResize = () => {
   isMobile.value = window.innerWidth < 768;
@@ -54,6 +61,23 @@ const totalData = ref({});
 const parkElectricityData = ref([]);
 const REIMBURSEMENT_NOTIFY_THRESHOLD = 50_000;
 const REIMBURSEMENT_PENDING_PAGE_SIZE = 200;
+
+async function fetchParkOptions() {
+  try {
+    const parks = await getParkList();
+    parkOptions.value = [
+      { label: '全部', value: -1 },
+      ...(Array.isArray(parks)
+        ? parks.map((park: { parkId: number; parkName: string }) => ({
+            label: park.parkName,
+            value: park.parkId,
+          }))
+        : []),
+    ];
+  } catch (error) {
+    console.error('获取营收统计园区列表失败:', error);
+  }
+}
 
 async function getOverThresholdPendingCount() {
   const first = await getReimbursementList({
@@ -84,6 +108,7 @@ async function getOverThresholdPendingCount() {
 onMounted(async () => {
   handleResize();
   window.addEventListener('resize', handleResize);
+  fetchParkOptions();
   try {
     const [
       yearResult,
@@ -161,16 +186,46 @@ onUnmounted(() => {
   <div class="p-5">
     <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
       <AnalysisChartCard title="厂房租赁">
-        <AnalyticsInvestment />
+        <template #extra>
+          <div class="w-full sm:w-auto">
+            <Select
+              v-model:value="investmentSelectedParkId"
+              :options="parkOptions"
+              class="w-full sm:w-[220px]"
+              size="middle"
+            />
+          </div>
+        </template>
+        <AnalyticsInvestment :park-id="investmentSelectedParkId" />
       </AnalysisChartCard>
       <AnalysisChartCard title="合同总览">
-        <AnalyticsContract />
+        <template #extra>
+          <div class="w-full sm:w-auto">
+            <Select
+              v-model:value="contractSelectedParkId"
+              :options="parkOptions"
+              class="w-full sm:w-[220px]"
+              size="middle"
+            />
+          </div>
+        </template>
+        <AnalyticsContract :park-id="contractSelectedParkId" />
       </AnalysisChartCard>
       <AnalysisChartCard title="客户总览">
         <AnalyticsCustomer />
       </AnalysisChartCard>
       <AnalysisChartCard title="营收统计">
-        <AnalyticsRevenue />
+        <template #extra>
+          <div class="w-full sm:w-auto">
+            <Select
+              v-model:value="revenueSelectedParkId"
+              :options="parkOptions"
+              class="w-full sm:w-[220px]"
+              size="middle"
+            />
+          </div>
+        </template>
+        <AnalyticsRevenue :park-id="revenueSelectedParkId" />
       </AnalysisChartCard>
       <AnalysisChartCard title="能源消耗">
         <AnalyticsEnergy />

@@ -15,7 +15,24 @@ import {
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
+import { getAnalyticsRevenueOverview } from '#/api/analytics';
+
 import { getRevenueChartConfig } from './chartConfigs';
+
+interface Props {
+  parkId?: number;
+}
+
+interface RevenueTrendData {
+  expense: number[];
+  income: number[];
+  months: string[];
+  net: number[];
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  parkId: -1,
+});
 
 const DashboardChart = defineComponent({
   name: 'DashboardChart',
@@ -162,42 +179,58 @@ const dotSize = computed(() => {
   return 'w-2.5 h-2.5';
 });
 
-const selectedLocation = ref('all');
-const locations = [
-  { label: '全部', value: 'all' },
-  { label: '园区A', value: 'factory1' },
-  { label: '园区B', value: 'factory2' },
-  { label: '园区C', value: 'factory3' },
-];
+const revenueSummary = ref({
+  expenseTotal: 0,
+  incomeTotal: 0,
+  netTotal: 0,
+  yearLabel: `${new Date().getFullYear()}年度`,
+});
+const revenueTrendData = ref<null | RevenueTrendData>(null);
 
-const mockData = {
-  actual: [
-    1_100_000, 950_000, 880_000, 1_200_000, 1_350_000, 1_420_000, 1_580_000,
-    1_650_000, 1_520_000, 1_480_000, 1_720_000, 1_850_000,
-  ],
-  months: [
-    '2025-11',
-    '2025-12',
-    '2026-01',
-    '2026-02',
-    '2026-03',
-    '2026-04',
-    '2026-05',
-    '2026-06',
-    '2026-07',
-    '2026-08',
-    '2026-09',
-    '2026-10',
-  ],
-  pending: [
-    140_000, 130_000, 120_000, 150_000, 180_000, 240_000, 240_000, 230_000,
-    210_000, 200_000, 240_000, 260_000,
-  ],
-  received: [
-    960_000, 820_000, 760_000, 1_050_000, 1_170_000, 1_180_000, 1_310_000,
-    1_420_000, 1_310_000, 1_280_000, 1_480_000, 1_590_000,
-  ],
+const formatAmount = (value: number) =>
+  `${Number(value || 0).toLocaleString('zh-CN', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  })}元`;
+
+const fetchRevenueOverview = async () => {
+  try {
+    const res = await getAnalyticsRevenueOverview(
+      props.parkId === -1 ? undefined : { parkId: props.parkId },
+    );
+
+    if (!res) {
+      return;
+    }
+
+    revenueSummary.value = {
+      expenseTotal: Number(res.summary?.expenseTotal) || 0,
+      incomeTotal: Number(res.summary?.incomeTotal) || 0,
+      netTotal: Number(res.summary?.netTotal) || 0,
+      yearLabel:
+        typeof res.summary?.yearLabel === 'string' && res.summary.yearLabel
+          ? res.summary.yearLabel
+          : `${new Date().getFullYear()}年度`,
+    };
+
+    revenueTrendData.value = {
+      expense: Array.isArray(res.trend?.expense) ? res.trend.expense : [],
+      income: Array.isArray(res.trend?.income) ? res.trend.income : [],
+      months: Array.isArray(res.trend?.months) ? res.trend.months : [],
+      net: Array.isArray(res.trend?.net) ? res.trend.net : [],
+    };
+  } catch (error) {
+    console.error('获取营收统计失败:', error);
+  }
 };
+
+watch(
+  () => props.parkId,
+  () => {
+    fetchRevenueOverview();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -206,63 +239,53 @@ const mockData = {
       <div class="rounded-lg bg-gray-50 p-2">
         <div class="flex items-center gap-1.5">
           <div class="rounded-full bg-green-500" :class="[dotSize]"></div>
-          <span class="text-gray-500" :class="[labelFontSize]">实收总额</span>
+          <span class="text-gray-500" :class="[labelFontSize]">收入总额</span>
         </div>
         <div
           class="mt-1 whitespace-nowrap font-bold text-gray-800"
           :class="[valueFontSize]"
         >
-          2364340.16元
+          {{ formatAmount(revenueSummary.incomeTotal) }}
         </div>
         <div class="mt-0.5 text-gray-400" :class="[labelFontSize]">
-          2026年度
+          {{ revenueSummary.yearLabel }}
         </div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2">
         <div class="flex items-center gap-1.5">
           <div class="rounded-full bg-blue-500" :class="[dotSize]"></div>
-          <span class="text-gray-500" :class="[labelFontSize]">已收总额</span>
+          <span class="text-gray-500" :class="[labelFontSize]">支出总额</span>
         </div>
         <div
           class="mt-1 whitespace-nowrap font-bold text-gray-800"
           :class="[valueFontSize]"
         >
-          1485001.04元
+          {{ formatAmount(revenueSummary.expenseTotal) }}
         </div>
         <div class="mt-0.5 text-gray-400" :class="[labelFontSize]">
-          2026年度
+          {{ revenueSummary.yearLabel }}
         </div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2">
         <div class="flex items-center gap-1.5">
           <div class="rounded-full bg-orange-500" :class="[dotSize]"></div>
-          <span class="text-gray-500" :class="[labelFontSize]">待收总额</span>
+          <span class="text-gray-500" :class="[labelFontSize]">净收入</span>
         </div>
         <div
           class="mt-1 whitespace-nowrap font-bold text-gray-800"
           :class="[valueFontSize]"
         >
-          879339.12元
+          {{ formatAmount(revenueSummary.netTotal) }}
         </div>
         <div class="mt-0.5 text-gray-400" :class="[labelFontSize]">
-          2026年度
+          {{ revenueSummary.yearLabel }}
         </div>
       </div>
-    </div>
-    <div class="mb-2">
-      <select
-        v-model="selectedLocation"
-        class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm outline-none focus:border-blue-500"
-      >
-        <option v-for="loc in locations" :key="loc.value" :value="loc.value">
-          {{ loc.label }}
-        </option>
-      </select>
     </div>
     <div class="min-h-0 flex-1">
       <DashboardChart
         :chart-config-fn="(data: any) => getRevenueChartConfig(data, isMobile)"
-        :chart-data="mockData"
+        :chart-data="revenueTrendData"
       />
     </div>
   </div>

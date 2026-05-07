@@ -15,7 +15,24 @@ import {
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
+import { getAnalyticsContractOverview } from '#/api/analytics';
+
 import { getContractTrendChartConfig } from './chartConfigs';
+
+interface Props {
+  parkId?: number;
+}
+
+interface ContractTrendData {
+  dates: string[];
+  expiring: number[];
+  normal: number[];
+  retreated: number[];
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  parkId: -1,
+});
 
 const DashboardChart = defineComponent({
   name: 'DashboardChart',
@@ -167,25 +184,47 @@ const innerIconSize = computed(() => {
   return 'w-2 h-2';
 });
 
-const mockData = {
-  dates: [
-    '2025-11',
-    '2025-12',
-    '2026-01',
-    '2026-02',
-    '2026-03',
-    '2026-04',
-    '2026-05',
-    '2026-06',
-    '2026-07',
-    '2026-08',
-    '2026-09',
-    '2026-10',
-  ],
-  expiring: [9, 10, 8, 11, 9, 12, 10, 8, 11, 9, 12, 10],
-  normal: [42, 43, 45, 44, 46, 45, 47, 48, 46, 47, 48, 47],
-  retreated: [3, 2, 4, 3, 2, 3, 4, 2, 3, 4, 2, 3],
+const contractSummary = ref({
+  expiring: 0,
+  normal: 0,
+  retreated: 0,
+});
+
+const contractTrendData = ref<ContractTrendData | null>(null);
+
+const fetchContractOverview = async () => {
+  try {
+    const res = await getAnalyticsContractOverview(
+      props.parkId === -1 ? undefined : { parkId: props.parkId },
+    );
+    if (!res) {
+      return;
+    }
+
+    contractSummary.value = {
+      expiring: Number(res.summary?.expiring) || 0,
+      normal: Number(res.summary?.normal) || 0,
+      retreated: Number(res.summary?.retreated) || 0,
+    };
+
+    contractTrendData.value = {
+      dates: Array.isArray(res.trend?.dates) ? res.trend.dates : [],
+      expiring: Array.isArray(res.trend?.expiring) ? res.trend.expiring : [],
+      normal: Array.isArray(res.trend?.normal) ? res.trend.normal : [],
+      retreated: Array.isArray(res.trend?.retreated) ? res.trend.retreated : [],
+    };
+  } catch (error) {
+    console.error('获取合同总览失败:', error);
+  }
 };
+
+watch(
+  () => props.parkId,
+  () => {
+    fetchContractOverview();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -198,7 +237,9 @@ const mockData = {
         >
           <div class="rounded-full bg-blue-500" :class="[innerIconSize]"></div>
         </div>
-        <div class="font-bold text-gray-800" :class="[valueFontSize]">47</div>
+        <div class="font-bold text-gray-800" :class="[valueFontSize]">
+          {{ contractSummary.normal }}
+        </div>
         <div class="text-gray-400" :class="[labelFontSize]">正常合同</div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2 text-center">
@@ -208,7 +249,9 @@ const mockData = {
         >
           <div class="rounded-full bg-green-500" :class="[innerIconSize]"></div>
         </div>
-        <div class="font-bold text-gray-800" :class="[valueFontSize]">8</div>
+        <div class="font-bold text-gray-800" :class="[valueFontSize]">
+          {{ contractSummary.expiring }}
+        </div>
         <div class="text-gray-400" :class="[labelFontSize]">即将到期</div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2 text-center">
@@ -218,8 +261,10 @@ const mockData = {
         >
           <div class="rounded-full bg-red-500" :class="[innerIconSize]"></div>
         </div>
-        <div class="font-bold text-gray-800" :class="[valueFontSize]">4</div>
-        <div class="text-gray-400" :class="[labelFontSize]">已退租</div>
+        <div class="font-bold text-gray-800" :class="[valueFontSize]">
+          {{ contractSummary.retreated }}
+        </div>
+        <div class="text-gray-400" :class="[labelFontSize]">已过期</div>
       </div>
     </div>
     <div class="min-h-0 flex-1">
@@ -227,7 +272,7 @@ const mockData = {
         :chart-config-fn="
           (data: any) => getContractTrendChartConfig(data, isMobile)
         "
-        :chart-data="mockData"
+        :chart-data="contractTrendData"
       />
     </div>
   </div>

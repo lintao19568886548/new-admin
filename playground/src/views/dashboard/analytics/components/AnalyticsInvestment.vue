@@ -15,9 +15,17 @@ import {
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
-import { getParkDashboardStats } from '#/api/park/park';
+import { getAnalyticsParkDashboardStats } from '#/api/analytics';
 
 import { getSemiPieChartConfig } from './chartConfigs';
+
+interface Props {
+  parkId?: number;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  parkId: -1,
+});
 
 const DashboardChart = defineComponent({
   name: 'DashboardChart',
@@ -167,24 +175,28 @@ const chartHeight = computed(() => {
 
 // 租赁统计数据
 const rentalStats = ref({
-  rentalRate: '82.10',
-  rentedArea: '36657.00',
-  rentedCount: 175,
-  totalArea: '44660.00',
-  vacantArea: '8003.00',
-  vacantCount: 11,
+  rentalRate: '0.00',
+  rentedArea: '0.00',
+  rentedCount: 0,
+  totalArea: '0.00',
+  totalCount: 0,
+  vacantArea: '0.00',
+  vacantCount: 0,
 });
 
 // 获取统计数据
 const fetchRentalStats = async () => {
   try {
-    const res: any = await getParkDashboardStats();
+    const res: any = await getAnalyticsParkDashboardStats(
+      props.parkId === -1 ? undefined : { parkId: props.parkId },
+    );
     if (res) {
       rentalStats.value = {
         rentalRate: res.rentalRate || '0.00',
         rentedArea: res.rentedArea || '0.00',
         rentedCount: res.rentedCount || 0,
         totalArea: res.totalArea || '0.00',
+        totalCount: res.totalCount || 0,
         vacantArea: res.vacantArea || '0.00',
         vacantCount: res.vacantCount || 0,
       };
@@ -194,9 +206,13 @@ const fetchRentalStats = async () => {
   }
 };
 
-onMounted(() => {
-  fetchRentalStats();
-});
+watch(
+  () => props.parkId,
+  () => {
+    fetchRentalStats();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -211,7 +227,7 @@ onMounted(() => {
           {{ rentalStats.totalArea }} 平方米
         </div>
         <div class="mt-1 text-gray-400" :class="[titleFontSize]">
-          数量: {{ rentalStats.rentedCount + rentalStats.vacantCount }}
+          厂房数: {{ rentalStats.totalCount }}
         </div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2 md:p-2.5">
@@ -223,7 +239,7 @@ onMounted(() => {
           {{ rentalStats.rentedArea }} 平方米
         </div>
         <div class="mt-1 text-gray-400" :class="[titleFontSize]">
-          数量: {{ rentalStats.rentedCount }}
+          厂房数: {{ rentalStats.rentedCount }}
         </div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2 md:p-2.5">
@@ -235,7 +251,7 @@ onMounted(() => {
           {{ rentalStats.vacantArea }} 平方米
         </div>
         <div class="mt-1 text-gray-400" :class="[titleFontSize]">
-          数量: {{ rentalStats.vacantCount }}
+          厂房数: {{ rentalStats.vacantCount }}
         </div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2 md:p-2.5">
