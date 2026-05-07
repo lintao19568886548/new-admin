@@ -14,6 +14,7 @@ import {
   getTenantProvisioningPaymentBlockedMessage,
   getTenantProvisioningProfileState,
   isVipMembershipAttach,
+  isVipMembershipTestPayment,
   recordVipMembershipPaymentPending,
   resolveVipMembershipAmountTotal,
 } from '~/utils/vip-membership';
@@ -64,7 +65,7 @@ export default eventHandler(async (event) => {
   const body = (await readBody(event)) as Record<string, unknown>;
   const description = String(body.description || '').trim();
   const outTradeNo = `wxapp_${Date.now()}_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
-  const amount = normalizeAmount(body.amount);
+  let amount = normalizeAmount(body.amount);
   const currency = normalizeOptionalString(body.currency) || 'CNY';
   const rawAttach = normalizeOptionalString(body.attach);
 
@@ -93,9 +94,17 @@ export default eventHandler(async (event) => {
       const customerId = String(
         userinfo.customerId || process.env.DEFAULT_CUSTOMER_ID || 'default',
       );
-      const expectedAmount = resolveVipMembershipAmountTotal();
+      const amountContext = {
+        centerUserId,
+        sourceCustomerId: customerId,
+        tenantUserId: userinfo.id,
+      };
+      const expectedAmount = resolveVipMembershipAmountTotal(amountContext);
       if (amount !== expectedAmount) {
-        return badRequestResponse('会员支付金额不正确', event);
+        if (!isVipMembershipTestPayment(amountContext)) {
+          return badRequestResponse('会员支付金额不正确', event);
+        }
+        amount = expectedAmount;
       }
 
       let tenantIdentity:

@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/.prisma/center-client/index.js';
+import type { VipMembershipTestPaymentContext } from '~/utils/vip-membership-test-payment';
 
 import { Prisma } from '@prisma/.prisma/center-client/index.js';
 import {
@@ -7,6 +8,10 @@ import {
   normalizeTenantIdentityProfile,
 } from '~/utils/customer-identity';
 import { systemDbClient } from '~/utils/db';
+import {
+  isVipMembershipTestPayment,
+  resolveVipMembershipTestPaymentAmountTotal,
+} from '~/utils/vip-membership-test-payment';
 import { queryWechatPayOrder } from '~/utils/wechat-pay';
 
 const VIP_MEMBERSHIP_ACTIVE_STATUS = 'active';
@@ -222,9 +227,18 @@ function isWechatOrderRefundedOrClosed(tradeState: unknown) {
   );
 }
 
-export function resolveVipMembershipAmountTotal() {
+export function resolveVipMembershipAmountTotal(
+  context?: VipMembershipTestPaymentContext,
+) {
+  const testAmountTotal = resolveVipMembershipTestPaymentAmountTotal(context);
+  if (testAmountTotal) {
+    return testAmountTotal;
+  }
+
   return VIP_MEMBERSHIP_AMOUNT_TOTAL;
 }
+
+export { isVipMembershipTestPayment };
 
 async function markVipMembershipPaymentRefundedWithClient(
   params: {
@@ -1224,7 +1238,13 @@ export async function handleVipMembershipWechatOrder(
       if (attachPayload?.centerUserId && attachPayload.sourceCustomerId) {
         await upsertVipMembershipPaymentSnapshot(
           {
-            amountTotal: amountTotal || resolveVipMembershipAmountTotal(),
+            amountTotal:
+              amountTotal ||
+              resolveVipMembershipAmountTotal({
+                centerUserId: attachPayload.centerUserId,
+                sourceCustomerId: attachPayload.sourceCustomerId,
+                tenantUserId: attachPayload.tenantUserId,
+              }),
             centerUserId: attachPayload.centerUserId,
             outTradeNo,
             paidAt,
@@ -1250,6 +1270,12 @@ export async function handleVipMembershipWechatOrder(
         };
       }
 
+      const amountContext = {
+        centerUserId: payment.centerUserId || attachPayload?.centerUserId,
+        sourceCustomerId:
+          payment.sourceCustomerId || attachPayload?.sourceCustomerId,
+        tenantUserId: attachPayload?.tenantUserId,
+      };
       const resolvedAmountTotal =
         amountTotal || Number(payment.amountTotal || 0);
       const resolvedTradeState =
@@ -1295,7 +1321,8 @@ export async function handleVipMembershipWechatOrder(
         };
       }
 
-      const expectedAmountTotal = resolveVipMembershipAmountTotal();
+      const expectedAmountTotal =
+        resolveVipMembershipAmountTotal(amountContext);
       if (resolvedAmountTotal !== expectedAmountTotal) {
         return {
           alreadyApplied: false,
