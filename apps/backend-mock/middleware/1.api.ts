@@ -137,6 +137,8 @@ export default defineEventHandler(async (event) => {
     event.method === 'GET' && requestPath === '/api/wechat/pay/app/config';
   const isPublicWechatPayNotifyApi =
     event.method === 'POST' && requestPath === '/api/wechat/pay/notify';
+  const isPublicWechatPayRefundNotifyApi =
+    event.method === 'POST' && requestPath === '/api/wechat/pay/refund-notify';
   const isWechatPayOrderQueryApi =
     event.method === 'GET' && requestPath === '/api/wechat/pay/query';
   const isTenantProvisioningStatusApi =
@@ -155,6 +157,7 @@ export default defineEventHandler(async (event) => {
     isPublicWechatApi ||
     isPublicWechatPayConfigApi ||
     isPublicWechatPayNotifyApi ||
+    isPublicWechatPayRefundNotifyApi ||
     isPublicAppVersionApi ||
     Boolean(vipCheckoutFlow);
   let currentCustomerDbName: null | string = null;

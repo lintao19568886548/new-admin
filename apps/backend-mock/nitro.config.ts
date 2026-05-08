@@ -5,7 +5,10 @@ export default defineNitroConfig({
   devErrorHandler: errorHandler,
   errorHandler: '~/error',
   node: true,
-  plugins: ['~/plugins/tenant-provisioning-worker'],
+  plugins: [
+    '~/plugins/tenant-provisioning-worker',
+    '~/plugins/vip-membership-refund-worker',
+  ],
   routeRules: {
     '/api/**': {
       cors: true,

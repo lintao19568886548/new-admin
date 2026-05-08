@@ -28,13 +28,43 @@ model VipMembershipPayment {
   transactionId          String?   @map("transaction_id") @db.VarChar(64)
   paidAt                 DateTime? @map("paid_at")
   appliedAt              DateTime? @map("applied_at")
+  refundCheckedAt        DateTime? @map("refund_checked_at")
   rawAttach              String?   @map("raw_attach") @db.LongText
   createTime             DateTime? @default(now()) @map("create_time")
   updateTime             DateTime? @updatedAt @map("update_time")
 
   @@index([centerUserId])
   @@index([sourceCustomerId])
+  @@index([tradeState, refundCheckedAt])
   @@map("vip_membership_payment")
+}
+
+model VipMembershipRefund {
+  id                Int       @id @default(autoincrement())
+  outRefundNo       String    @unique @map("out_refund_no") @db.VarChar(64)
+  refundId          String?   @map("refund_id") @db.VarChar(64)
+  outTradeNo        String    @map("out_trade_no") @db.VarChar(64)
+  transactionId     String?   @map("transaction_id") @db.VarChar(64)
+  centerUserId      Int       @map("center_user_id")
+  customerId        String    @map("customer_id") @db.VarChar(50)
+  amountTotal       Int       @map("amount_total")
+  refundAmount      Int       @map("refund_amount")
+  status            String    @default("PENDING") @db.VarChar(32)
+  reason            String?   @db.VarChar(255)
+  channel           String    @default("system") @db.VarChar(32)
+  notifyEventId     String?   @unique @map("notify_event_id") @db.VarChar(64)
+  providerRaw       String?   @map("provider_raw") @db.LongText
+  requestedAt       DateTime? @default(now()) @map("requested_at")
+  successAt         DateTime? @map("success_at")
+  lastCheckedAt     DateTime? @map("last_checked_at")
+  nextCheckAt       DateTime? @map("next_check_at")
+  createTime        DateTime? @default(now()) @map("create_time")
+  updateTime        DateTime? @updatedAt @map("update_time")
+
+  @@index([outTradeNo])
+  @@index([customerId])
+  @@index([status, nextCheckAt])
+  @@map("vip_membership_refund")
 }
 
 model TenantProvisioningJob {

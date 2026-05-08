@@ -91,6 +91,16 @@ export interface WechatPayOrderStatus {
   };
 }
 
+export interface VipMembershipRefundResult {
+  amountTotal: number;
+  customerId: string;
+  outRefundNo: string;
+  outTradeNo: string;
+  refundAmount: number;
+  refundId?: string;
+  status: string;
+}
+
 interface VipCheckoutFlowRequestOptions {
   checkoutFlowToken?: string;
 }
@@ -128,6 +138,16 @@ export async function queryWechatPayOrder(
       outTradeNo,
     },
   });
+}
+
+export async function refundVipMembershipWechatOrder(data: {
+  outTradeNo: string;
+  reason?: string;
+}) {
+  return requestClient.post<VipMembershipRefundResult>(
+    '/wechat/pay/refund',
+    data,
+  );
 }
 
 export async function getTenantProvisioningStatus(
