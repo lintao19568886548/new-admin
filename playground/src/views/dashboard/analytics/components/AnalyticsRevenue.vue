@@ -3,6 +3,8 @@ import type { PropType } from 'vue';
 
 import type { EchartsUIType } from '@vben/plugins/echarts';
 
+import type { ParkOptionValue } from './parkOptions';
+
 import {
   computed,
   defineComponent,
@@ -15,23 +17,23 @@ import {
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
-import { getAnalyticsRevenueOverview } from '#/api/analytics';
+import { getDashboardRevenueStats } from '#/api/dashboard';
 
 import { getRevenueChartConfig } from './chartConfigs';
 
 interface Props {
-  parkId?: number;
+  parkId?: ParkOptionValue;
 }
 
 interface RevenueTrendData {
   expense: number[];
   income: number[];
   months: string[];
-  net: number[];
+  profit: number[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  parkId: -1,
+  parkId: 'all',
 });
 
 const DashboardChart = defineComponent({
@@ -182,10 +184,13 @@ const dotSize = computed(() => {
 const revenueSummary = ref({
   expenseTotal: 0,
   incomeTotal: 0,
-  netTotal: 0,
-  yearLabel: `${new Date().getFullYear()}年度`,
+  periodLabel: '过去一年',
+  profit: 0,
 });
 const revenueTrendData = ref<null | RevenueTrendData>(null);
+const revenueProfitLabel = computed(() =>
+  revenueSummary.value.profit < 0 ? '净支出' : '净收入',
+);
 
 const formatAmount = (value: number) =>
   `${Number(value || 0).toLocaleString('zh-CN', {
@@ -195,9 +200,9 @@ const formatAmount = (value: number) =>
 
 const fetchRevenueOverview = async () => {
   try {
-    const res = await getAnalyticsRevenueOverview(
-      props.parkId === -1 ? undefined : { parkId: props.parkId },
-    );
+    const res = await getDashboardRevenueStats({
+      parkId: props.parkId,
+    });
 
     if (!res) {
       return;
@@ -206,18 +211,15 @@ const fetchRevenueOverview = async () => {
     revenueSummary.value = {
       expenseTotal: Number(res.summary?.expenseTotal) || 0,
       incomeTotal: Number(res.summary?.incomeTotal) || 0,
-      netTotal: Number(res.summary?.netTotal) || 0,
-      yearLabel:
-        typeof res.summary?.yearLabel === 'string' && res.summary.yearLabel
-          ? res.summary.yearLabel
-          : `${new Date().getFullYear()}年度`,
+      periodLabel: res.periodLabel || '过去一年',
+      profit: Number(res.summary?.profit) || 0,
     };
 
     revenueTrendData.value = {
       expense: Array.isArray(res.trend?.expense) ? res.trend.expense : [],
       income: Array.isArray(res.trend?.income) ? res.trend.income : [],
       months: Array.isArray(res.trend?.months) ? res.trend.months : [],
-      net: Array.isArray(res.trend?.net) ? res.trend.net : [],
+      profit: Array.isArray(res.trend?.profit) ? res.trend.profit : [],
     };
   } catch (error) {
     console.error('获取营收统计失败:', error);
@@ -248,7 +250,7 @@ watch(
           {{ formatAmount(revenueSummary.incomeTotal) }}
         </div>
         <div class="mt-0.5 text-gray-400" :class="[labelFontSize]">
-          {{ revenueSummary.yearLabel }}
+          {{ revenueSummary.periodLabel }}
         </div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2">
@@ -263,22 +265,24 @@ watch(
           {{ formatAmount(revenueSummary.expenseTotal) }}
         </div>
         <div class="mt-0.5 text-gray-400" :class="[labelFontSize]">
-          {{ revenueSummary.yearLabel }}
+          {{ revenueSummary.periodLabel }}
         </div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2">
         <div class="flex items-center gap-1.5">
           <div class="rounded-full bg-orange-500" :class="[dotSize]"></div>
-          <span class="text-gray-500" :class="[labelFontSize]">净收入</span>
+          <span class="text-gray-500" :class="[labelFontSize]">
+            {{ revenueProfitLabel }}
+          </span>
         </div>
         <div
           class="mt-1 whitespace-nowrap font-bold text-gray-800"
           :class="[valueFontSize]"
         >
-          {{ formatAmount(revenueSummary.netTotal) }}
+          {{ formatAmount(Math.abs(revenueSummary.profit)) }}
         </div>
         <div class="mt-0.5 text-gray-400" :class="[labelFontSize]">
-          {{ revenueSummary.yearLabel }}
+          {{ revenueSummary.periodLabel }}
         </div>
       </div>
     </div>

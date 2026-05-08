@@ -5,5 +5,4 @@ export { default as AnalyticsEnergy } from './AnalyticsEnergy.vue';
 export { default as AnalyticsInvestment } from './AnalyticsInvestment.vue';
 export { default as AnalyticsRevenue } from './AnalyticsRevenue.vue';
 export { default as AnalyticsWorkOrder } from './AnalyticsWorkOrder.vue';
-
 export * from './chartConfigs';

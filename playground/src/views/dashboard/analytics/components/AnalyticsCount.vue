@@ -1,7 +1,17 @@
 <script lang="ts" setup>
+import type { Dayjs } from 'dayjs';
+
 import type { PropType } from 'vue';
 
 import type { EchartsUIType } from '@vben/plugins/echarts';
+
+import type { ParkOptionValue } from './parkOptions';
+
+import type {
+  DashboardMeterStatisticsDateType,
+  DashboardMeterStatisticsStats,
+  DashboardMeterStatisticsType,
+} from '#/api/dashboard';
 
 import {
   computed,
@@ -15,10 +25,24 @@ import {
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
+import { DatePicker, message } from 'ant-design-vue';
+import dayjs from 'dayjs';
+
+import { getDashboardMeterStatistics } from '#/api/dashboard';
+
 import {
-  getDailyElectricityTrendChartConfig,
+  getCountStatisticsChartConfig,
+  getDailyWaterTrendChartConfig,
   getElectricityPieChartConfig,
 } from './chartConfigs';
+
+interface Props {
+  parkId?: ParkOptionValue;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  parkId: 'all',
+});
 
 const DashboardChart = defineComponent({
   name: 'DashboardChart',
@@ -130,9 +154,6 @@ const DashboardChart = defineComponent({
 // 响应式屏幕尺寸
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 768);
-const isTablet = computed(
-  () => screenWidth.value >= 768 && screenWidth.value < 1024,
-);
 
 // 监听窗口大小变化
 const handleResize = () => {
@@ -147,73 +168,227 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
 });
 
-// 响应式字体大小
-const titleFontSize = computed(() => {
-  if (isMobile.value) return 'text-[10px]';
-  if (isTablet.value) return 'text-xs';
-  return 'text-sm';
-});
-
-const sectionTitleFontSize = computed(() => {
-  if (isMobile.value) return 'text-xs';
-  if (isTablet.value) return 'text-sm';
-  return 'text-base';
-});
-
-const selectedLocation = ref('all');
-const locations = [
-  { label: '全部', value: 'all' },
-  { label: '园区A', value: 'factory1' },
-  { label: '园区B', value: 'factory2' },
-  { label: '园区C', value: 'factory3' },
-];
-
-// 尖峰平谷用电量数据（扇形图）
-// 每天8次切换：尖→峰→平→谷→尖→峰→平→谷
-const peakValleyData = [
-  { itemStyle: { color: '#EF4444' }, name: '尖', value: 1250 },
-  { itemStyle: { color: '#F97316' }, name: '峰', value: 2100 },
-  { itemStyle: { color: '#3B82F6' }, name: '平', value: 1800 },
-  { itemStyle: { color: '#10B981' }, name: '谷', value: 950 },
-];
-
-// 每日用电变化数据（折线图）
-const dailyTrendData = {
-  periods: ['谷', '谷', '峰', '尖', '峰', '平', '峰', '谷'],
-  times: [
-    '00:00-03:00',
-    '03:00-06:00',
-    '06:00-09:00',
-    '09:00-12:00',
-    '12:00-15:00',
-    '15:00-18:00',
-    '18:00-21:00',
-    '21:00-24:00',
+const activeStatisticsType = ref<DashboardMeterStatisticsType>('electricity');
+const dateType = ref<DashboardMeterStatisticsDateType>('month');
+const selectedDate = ref<Dayjs>(dayjs());
+const meterStatistics = ref<DashboardMeterStatisticsStats>({
+  dateType: 'month',
+  dayNight: [
+    { name: '白天', value: 0 },
+    { name: '夜晚', value: 0 },
   ],
-  values: [320, 280, 720, 850, 700, 580, 680, 350],
+  hasData: false,
+  peakValley: [
+    { name: '尖', value: 0 },
+    { name: '峰', value: 0 },
+    { name: '平', value: 0 },
+    { name: '谷', value: 0 },
+  ],
+  selectedDate: dayjs().format('YYYY-MM'),
+  statisticsType: 'electricity',
+  summary: {
+    deviceCount: 0,
+    recordCount: 0,
+    total: 0,
+  },
+  waterTrend: {
+    times: [],
+    values: [],
+  },
+});
+
+const datePickerMode = computed(() =>
+  dateType.value === 'month' ? 'month' : 'date',
+);
+const dateValueFormat = computed(() =>
+  dateType.value === 'month' ? 'YYYY-MM' : 'YYYY-MM-DD',
+);
+const datePickerPlaceholder = computed(() =>
+  dateType.value === 'month' ? '选择月份' : '选择日期',
+);
+const getPeakValleyColor = (name: string) => {
+  const colors: Record<string, string> = {
+    尖: '#EF4444',
+    峰: '#F97316',
+    平: '#3B82F6',
+    谷: '#10B981',
+  };
+
+  return colors[name] || '#6B7280';
 };
+const getDayNightColor = (name: string) =>
+  name === '白天' ? '#5ab1ef' : '#91cc75';
+
+const peakValleyData = computed(() =>
+  meterStatistics.value.peakValley.map((item) => ({
+    ...item,
+    itemStyle: { color: getPeakValleyColor(item.name) },
+  })),
+);
+const dayNightData = computed(() =>
+  meterStatistics.value.dayNight.map((item) => ({
+    ...item,
+    itemStyle: { color: getDayNightColor(item.name) },
+  })),
+);
+const emptyWaterTrendData = computed(() => {
+  if (dateType.value === 'month') {
+    const daysInMonth = selectedDate.value.daysInMonth();
+
+    return {
+      times: Array.from({ length: daysInMonth }).map(
+        (_item, index) => `${index + 1}日`,
+      ),
+      values: Array.from({ length: daysInMonth }, () => 0),
+    };
+  }
+
+  return {
+    times: Array.from({ length: 24 }).map((_item, index) => `${index}时`),
+    values: Array.from({ length: 24 }, () => 0),
+  };
+});
+const waterTrendData = computed(() => {
+  const times = meterStatistics.value.waterTrend.times;
+  const values = meterStatistics.value.waterTrend.values;
+
+  return times.length > 0 && values.length > 0
+    ? meterStatistics.value.waterTrend
+    : emptyWaterTrendData.value;
+});
+
+const electricityGridClass = computed(() =>
+  isMobile.value ? 'grid-cols-1' : 'grid-cols-2',
+);
+
+const waterChartClass = computed(() => (isMobile.value ? 'min-h-[220px]' : ''));
+
+const fetchMeterStatistics = async () => {
+  try {
+    const res = await getDashboardMeterStatistics({
+      date: selectedDate.value.format(dateValueFormat.value),
+      dateType: dateType.value,
+      parkId: props.parkId,
+      type: activeStatisticsType.value,
+    });
+
+    if (!res) return;
+
+    meterStatistics.value = {
+      dateType: res.dateType || dateType.value,
+      dayNight: Array.isArray(res.dayNight) ? res.dayNight : [],
+      hasData: Boolean(res.hasData),
+      message: res.message,
+      peakValley: Array.isArray(res.peakValley) ? res.peakValley : [],
+      selectedDate:
+        res.selectedDate || selectedDate.value.format(dateValueFormat.value),
+      statisticsType: res.statisticsType || activeStatisticsType.value,
+      summary: {
+        deviceCount: Number(res.summary?.deviceCount || 0),
+        recordCount: Number(res.summary?.recordCount || 0),
+        total: Number(res.summary?.total || 0),
+      },
+      waterTrend: {
+        times: Array.isArray(res.waterTrend?.times) ? res.waterTrend.times : [],
+        values: Array.isArray(res.waterTrend?.values)
+          ? res.waterTrend.values.map(Number)
+          : [],
+      },
+    };
+
+    if (!res.hasData && res.message) {
+      message.info(res.message);
+    }
+  } catch (error) {
+    console.error('获取表计数量统计数据失败:', error);
+    message.error('获取表计数量统计数据失败');
+  }
+};
+
+watch(
+  [activeStatisticsType, dateType, selectedDate, () => props.parkId],
+  () => {
+    fetchMeterStatistics();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
   <div class="flex h-full flex-col">
-    <div class="mb-2 flex flex-initial items-center justify-between">
-      <div class="font-medium text-gray-600" :class="[sectionTitleFontSize]">
-        用电统计
-      </div>
-      <select
-        v-model="selectedLocation"
-        class="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs outline-none focus:border-blue-500"
+    <div class="meter-statistics-toolbar mb-2 flex-initial">
+      <div
+        class="meter-statistics-switch meter-statistics-type-switch rounded-md bg-gray-100 p-0.5"
       >
-        <option v-for="loc in locations" :key="loc.value" :value="loc.value">
-          {{ loc.label }}
-        </option>
-      </select>
+        <button
+          class="rounded px-3 py-1 text-xs transition-colors"
+          :class="
+            activeStatisticsType === 'electricity'
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          "
+          type="button"
+          @click="activeStatisticsType = 'electricity'"
+        >
+          用电统计
+        </button>
+        <button
+          class="rounded px-3 py-1 text-xs transition-colors"
+          :class="
+            activeStatisticsType === 'water'
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          "
+          type="button"
+          @click="activeStatisticsType = 'water'"
+        >
+          用水统计
+        </button>
+      </div>
+      <div
+        class="meter-statistics-switch meter-statistics-date-switch rounded-md bg-gray-100 p-0.5"
+      >
+        <button
+          class="rounded px-3 py-1 text-xs transition-colors"
+          :class="
+            dateType === 'month'
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          "
+          type="button"
+          @click="dateType = 'month'"
+        >
+          按月
+        </button>
+        <button
+          class="rounded px-3 py-1 text-xs transition-colors"
+          :class="
+            dateType === 'day'
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          "
+          type="button"
+          @click="dateType = 'day'"
+        >
+          按日
+        </button>
+      </div>
+      <DatePicker
+        v-model:value="selectedDate"
+        :picker="datePickerMode"
+        :placeholder="datePickerPlaceholder"
+        :format="dateValueFormat"
+        size="small"
+        class="meter-statistics-date-picker"
+        :allow-clear="false"
+      />
     </div>
-    <div class="grid min-h-0 flex-1 grid-cols-1 gap-2 md:grid-cols-2">
+    <div
+      v-if="activeStatisticsType === 'electricity'"
+      class="grid min-h-0 flex-1 gap-2"
+      :class="electricityGridClass"
+    >
       <div class="flex flex-col rounded-lg bg-gray-50 p-2">
-        <div class="mb-1 text-center text-gray-500" :class="[titleFontSize]">
-          尖峰平谷用电分布
-        </div>
         <div class="flex-1">
           <DashboardChart
             :chart-config-fn="
@@ -224,18 +399,74 @@ const dailyTrendData = {
         </div>
       </div>
       <div class="flex flex-col rounded-lg bg-gray-50 p-2">
-        <div class="mb-1 text-center text-gray-500" :class="[titleFontSize]">
-          每日用电变化
-        </div>
         <div class="flex-1">
           <DashboardChart
             :chart-config-fn="
-              (data: any) => getDailyElectricityTrendChartConfig(data, isMobile)
+              (data: any) => getCountStatisticsChartConfig(data, screenWidth)
             "
-            :chart-data="dailyTrendData"
+            :chart-data="dayNightData"
           />
         </div>
       </div>
     </div>
+    <div
+      v-else
+      class="min-h-0 flex-1 rounded-lg bg-gray-50 p-2"
+      :class="waterChartClass"
+    >
+      <DashboardChart
+        :chart-config-fn="
+          (data: any) => getDailyWaterTrendChartConfig(data, isMobile)
+        "
+        :chart-data="waterTrendData"
+      />
+    </div>
   </div>
 </template>
+
+<style scoped>
+.meter-statistics-toolbar {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.meter-statistics-switch {
+  display: inline-flex;
+  width: max-content;
+  white-space: nowrap;
+}
+
+.meter-statistics-type-switch {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.meter-statistics-date-switch {
+  grid-row: 2;
+  grid-column: 1;
+}
+
+.meter-statistics-date-picker {
+  grid-row: 2;
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .meter-statistics-toolbar {
+    display: flex;
+    gap: 8px;
+  }
+
+  .meter-statistics-date-switch {
+    margin-left: auto;
+  }
+
+  .meter-statistics-date-picker {
+    width: 128px;
+  }
+}
+</style>

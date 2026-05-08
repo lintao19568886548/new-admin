@@ -3,6 +3,14 @@ import type { PropType } from 'vue';
 
 import type { EchartsUIType } from '@vben/plugins/echarts';
 
+import type { EnergyConsumptionType } from './chartConfigs';
+import type { ParkOptionValue } from './parkOptions';
+
+import type {
+  DashboardEnergyElectricityStats,
+  DashboardEnergyWaterStats,
+} from '#/api/dashboard';
+
 import {
   computed,
   defineComponent,
@@ -15,7 +23,22 @@ import {
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
+import { message } from 'ant-design-vue';
+
+import {
+  getDashboardEnergyElectricityConsumption,
+  getDashboardEnergyWaterConsumption,
+} from '#/api/dashboard';
+
 import { getEnergyConsumptionChartConfig } from './chartConfigs';
+
+interface Props {
+  parkId?: ParkOptionValue;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  parkId: 'all',
+});
 
 const DashboardChart = defineComponent({
   name: 'DashboardChart',
@@ -126,9 +149,6 @@ const DashboardChart = defineComponent({
 
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 768);
-const isTablet = computed(
-  () => screenWidth.value >= 768 && screenWidth.value < 1024,
-);
 
 const handleResize = () => {
   screenWidth.value = window.innerWidth;
@@ -142,32 +162,167 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
 });
 
-const labelFontSize = computed(() => {
-  if (isMobile.value) return 'text-[10px]';
-  if (isTablet.value) return 'text-xs';
-  return 'text-sm';
-});
+const activeConsumptionType = ref<EnergyConsumptionType>('water');
 
-const chartData = ref({
-  electricity: [2800, 3200, 3000, 3600, 3900, 4100],
-  monthOnMonth: [8, 12, -6, 20, 8, 5],
-  months: ['1月', '2月', '3月', '4月', '5月', '6月'],
-  water: [1200, 1350, 1280, 1420, 1500, 1580],
-  yearOnYear: [15, 18, 10, 22, 19, 16],
-});
+const currentYear = new Date().getFullYear();
+const defaultElectricityStats: DashboardEnergyElectricityStats = {
+  electricity: {
+    consumption: Array.from({ length: 12 }, () => 0),
+    monthOnMonth: Array.from({ length: 12 }, () => 0),
+    yearOnYear: Array.from({ length: 12 }, () => 0),
+  },
+  hasData: false,
+  months: Array.from({ length: 12 }).map((_item, index) => `${index + 1}月`),
+  year: currentYear,
+};
+const defaultWaterStats: DashboardEnergyWaterStats = {
+  hasData: false,
+  months: Array.from({ length: 12 }).map((_item, index) => `${index + 1}月`),
+  water: {
+    consumption: Array.from({ length: 12 }, () => 0),
+    monthOnMonth: Array.from({ length: 12 }, () => 0),
+    yearOnYear: Array.from({ length: 12 }, () => 0),
+  },
+  year: currentYear,
+};
+
+const electricityStats = ref<DashboardEnergyElectricityStats>(
+  defaultElectricityStats,
+);
+const waterStats = ref<DashboardEnergyWaterStats>(defaultWaterStats);
+
+const chartData = computed(() => ({
+  electricity: electricityStats.value.electricity,
+  months:
+    activeConsumptionType.value === 'water'
+      ? waterStats.value.months
+      : electricityStats.value.months,
+  water: waterStats.value.water,
+}));
+
+const fetchElectricityStats = async () => {
+  try {
+    const res = await getDashboardEnergyElectricityConsumption({
+      parkId: props.parkId,
+      year: currentYear,
+    });
+
+    if (!res) return;
+
+    electricityStats.value = {
+      electricity: {
+        consumption: Array.isArray(res.electricity?.consumption)
+          ? res.electricity.consumption.map(Number)
+          : defaultElectricityStats.electricity.consumption,
+        monthOnMonth: Array.isArray(res.electricity?.monthOnMonth)
+          ? res.electricity.monthOnMonth.map(Number)
+          : defaultElectricityStats.electricity.monthOnMonth,
+        yearOnYear: Array.isArray(res.electricity?.yearOnYear)
+          ? res.electricity.yearOnYear.map(Number)
+          : defaultElectricityStats.electricity.yearOnYear,
+      },
+      hasData: Boolean(res.hasData),
+      message: res.message,
+      months: Array.isArray(res.months)
+        ? res.months
+        : defaultElectricityStats.months,
+      year: Number(res.year || currentYear),
+    };
+
+    if (!res.hasData && res.message) {
+      message.info(res.message);
+    }
+  } catch (error) {
+    console.error('获取电消耗数据失败:', error);
+    message.error('获取电消耗数据失败');
+  }
+};
+
+const fetchWaterStats = async () => {
+  try {
+    const res = await getDashboardEnergyWaterConsumption({
+      parkId: props.parkId,
+      year: currentYear,
+    });
+
+    if (!res) return;
+
+    waterStats.value = {
+      hasData: Boolean(res.hasData),
+      message: res.message,
+      months: Array.isArray(res.months) ? res.months : defaultWaterStats.months,
+      water: {
+        consumption: Array.isArray(res.water?.consumption)
+          ? res.water.consumption.map(Number)
+          : defaultWaterStats.water.consumption,
+        monthOnMonth: Array.isArray(res.water?.monthOnMonth)
+          ? res.water.monthOnMonth.map(Number)
+          : defaultWaterStats.water.monthOnMonth,
+        yearOnYear: Array.isArray(res.water?.yearOnYear)
+          ? res.water.yearOnYear.map(Number)
+          : defaultWaterStats.water.yearOnYear,
+      },
+      year: Number(res.year || currentYear),
+    };
+
+    if (!res.hasData && res.message) {
+      message.info(res.message);
+    }
+  } catch (error) {
+    console.error('获取水消耗数据失败:', error);
+    message.error('获取水消耗数据失败');
+  }
+};
+
+watch(
+  () => props.parkId,
+  () => {
+    fetchElectricityStats();
+    fetchWaterStats();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
   <div class="flex h-full flex-col">
-    <div class="mb-2 flex flex-initial items-center justify-between">
-      <div class="font-medium text-gray-600" :class="[labelFontSize]">
-        水电消耗
+    <div class="mb-2 flex flex-initial items-center justify-between gap-2">
+      <div class="flex rounded-md bg-gray-100 p-0.5">
+        <button
+          class="rounded px-3 py-1 text-xs transition-colors"
+          :class="
+            activeConsumptionType === 'water'
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          "
+          type="button"
+          @click="activeConsumptionType = 'water'"
+        >
+          水
+        </button>
+        <button
+          class="rounded px-3 py-1 text-xs transition-colors"
+          :class="
+            activeConsumptionType === 'electricity'
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          "
+          type="button"
+          @click="activeConsumptionType = 'electricity'"
+        >
+          电
+        </button>
       </div>
     </div>
     <div class="min-h-0 flex-1">
       <DashboardChart
         :chart-config-fn="
-          (data: any) => getEnergyConsumptionChartConfig(data, isMobile)
+          (data: any) =>
+            getEnergyConsumptionChartConfig(
+              data,
+              activeConsumptionType,
+              isMobile,
+            )
         "
         :chart-data="chartData"
       />

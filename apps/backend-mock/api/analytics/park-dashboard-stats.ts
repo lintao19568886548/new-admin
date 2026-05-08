@@ -48,17 +48,21 @@ export default eventHandler(async (event) => {
       });
     }
 
-    const factories = await prismaClient.factory.findMany({
-      include: {
-        floors: {
-          where: { isDeleted: false },
-        },
+    const floors = await prismaClient.factoryFloor.findMany({
+      select: {
+        totalArea: true,
+        usedArea: true,
       },
       where: {
         isDeleted: false,
-        isOwn: true,
-        parkId: {
-          in: targetParkIds,
+        factory: {
+          isDeleted: false,
+          park: {
+            isDeleted: false,
+            parkId: {
+              in: targetParkIds,
+            },
+          },
         },
       },
     });
@@ -70,21 +74,20 @@ export default eventHandler(async (event) => {
     let vacantCount = 0;
     let totalCount = 0;
 
-    for (const factory of factories) {
-      for (const floor of factory.floors) {
-        const floorTotalArea = Number(floor.totalArea) || 0;
-        const floorUsedArea = Number(floor.usedArea) || 0;
+    for (const floor of floors) {
+      const floorTotalArea = Math.max(Number(floor.totalArea) || 0, 0);
+      const floorUsedArea = Math.max(Number(floor.usedArea) || 0, 0);
+      const floorVacantArea = Math.max(floorTotalArea - floorUsedArea, 0);
 
-        totalArea += floorTotalArea;
-        rentedArea += Math.min(floorUsedArea, floorTotalArea);
-        vacantArea += Math.max(floorTotalArea - floorUsedArea, 0);
-        totalCount += 1;
+      totalArea += floorTotalArea;
+      rentedArea += floorUsedArea;
+      vacantArea += floorVacantArea;
+      totalCount += 1;
 
-        if (floorUsedArea > 0) {
-          rentedCount += 1;
-        } else {
-          vacantCount += 1;
-        }
+      if (floorVacantArea <= 0) {
+        rentedCount += 1;
+      } else {
+        vacantCount += 1;
       }
     }
 

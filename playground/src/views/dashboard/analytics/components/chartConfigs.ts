@@ -28,13 +28,100 @@ function getSizeValue<T>(screenWidth: number, values: [T, T, T]) {
 
 function getCompactPieLayout(screenWidth: number) {
   return {
-    centerY: getSizeValue(screenWidth, ['40%', '42%', '44%']),
-    gridInset: screenWidth < 768 ? '3%' : '5%',
-    itemGap: getSizeValue(screenWidth, [4, 6, 12]),
-    itemSize: getSizeValue(screenWidth, [6, 8, 14]),
-    legendBottom: getSizeValue(screenWidth, [4, 6, 10]),
-    legendFontSize: getSizeValue(screenWidth, [6, 7, 10]),
+    centerX: '50%',
+    centerY: getSizeValue(screenWidth, ['41%', '42%', '43%']),
+    gridInset: screenWidth < 768 ? '3%' : '4%',
+    itemGap: getSizeValue(screenWidth, [4, 6, 10]),
+    itemSize: getSizeValue(screenWidth, [6, 8, 12]),
+    labelBleedMargin: getSizeValue(screenWidth, [0, 4, 6]),
+    labelDistance: getSizeValue(screenWidth, [0, 8, 10]),
+    labelEdgeDistance: getSizeValue(screenWidth, [0, 10, 14]),
+    labelFontSize: getSizeValue(screenWidth, [0, 9, 11]),
+    labelLineLength: getSizeValue(screenWidth, [0, 8, 10]),
+    labelLineLength2: getSizeValue(screenWidth, [0, 10, 14]),
+    labelWidth: getSizeValue(screenWidth, [0, 48, 64]),
+    legendBottom: getSizeValue(screenWidth, [2, 4, 6]),
+    legendFontSize: getSizeValue(screenWidth, [6, 7, 9]),
   };
+}
+
+function getCompactPieRadius(screenWidth: number): [string, string] {
+  if (screenWidth < 768) {
+    return ['30%', '52%'];
+  }
+
+  if (screenWidth < 1024) {
+    return ['32%', '54%'];
+  }
+
+  return ['34%', '56%'];
+}
+
+function getCustomerPieLayout(screenWidth: number) {
+  return {
+    ...getCompactPieLayout(screenWidth),
+    centerY: getSizeValue(screenWidth, ['41%', '42%', '43%']),
+    labelDistance: getSizeValue(screenWidth, [0, 8, 10]),
+    labelLineLength: getSizeValue(screenWidth, [0, 6, 8]),
+    labelLineLength2: getSizeValue(screenWidth, [0, 8, 10]),
+    labelWidth: getSizeValue(screenWidth, [0, 54, 64]),
+    legendBottom: getSizeValue(screenWidth, [10, 12, 14]),
+  };
+}
+
+function getCustomerPieRadius(screenWidth: number): [string, string] {
+  if (screenWidth < 768) {
+    return ['30%', '50%'];
+  }
+
+  if (screenWidth < 1024) {
+    return ['32%', '52%'];
+  }
+
+  return ['34%', '54%'];
+}
+
+function formatCompactPiePercent(percent: number) {
+  const percentText = Number(percent.toFixed(2)).toLocaleString('zh-CN');
+
+  return `${percentText}%`;
+}
+
+function getCompactPieLabel(params: any, unit = '') {
+  const percent = Number(params?.percent || 0);
+  const value = Number(params?.value || 0);
+
+  if (value <= 0 || percent <= 0) {
+    return '';
+  }
+
+  if (unit) {
+    return `${params.name} ${value.toLocaleString('zh-CN')}${unit}\n${formatCompactPiePercent(
+      percent,
+    )}`;
+  }
+
+  return `${params.name}\n${formatCompactPiePercent(percent)}`;
+}
+
+function getCompactPieSeriesData<T extends { name: string; value: number }>(
+  data: T[],
+) {
+  return data.map((item) => {
+    if (Number(item.value || 0) > 0) {
+      return item;
+    }
+
+    return {
+      ...item,
+      label: {
+        show: false,
+      },
+      labelLine: {
+        show: false,
+      },
+    };
+  });
 }
 
 /**
@@ -170,7 +257,7 @@ export function getTrendsChartConfig(data: {
         itemStyle: {
           color: COLORS.income,
         },
-        name: '收入',
+        name: '收入总额',
         smooth: true,
         type: 'line',
       },
@@ -438,7 +525,7 @@ export function getMonthlyChartConfig(data: {
         barMaxWidth: 80,
         color: COLORS.income,
         data: incomeData,
-        name: '收入',
+        name: '收入总额',
         type: 'bar',
       },
     ],
@@ -559,6 +646,7 @@ export function getContractTrendChartConfig(
   data: {
     dates: string[];
     expiring: number[];
+    newThisMonth: number[];
     normal: number[];
     retreated: number[];
   },
@@ -576,7 +664,7 @@ export function getContractTrendChartConfig(
     },
     legend: {
       bottom: 0,
-      data: ['正常合同', '即将到期', '已过期'],
+      data: ['正常合同', '本月新增', '即将到期', '已到期'],
       itemGap: isMobile ? 8 : 12,
       textStyle: {
         fontSize: legendFontSize,
@@ -592,6 +680,20 @@ export function getContractTrendChartConfig(
           width: 2,
         },
         name: '正常合同',
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        type: 'line',
+      },
+      {
+        data: data.newThisMonth,
+        itemStyle: {
+          color: COLORS.orange,
+        },
+        lineStyle: {
+          width: 2,
+        },
+        name: '本月新增',
         smooth: true,
         symbol: 'circle',
         symbolSize: 6,
@@ -619,7 +721,7 @@ export function getContractTrendChartConfig(
         lineStyle: {
           width: 2,
         },
-        name: '已过期',
+        name: '已到期',
         smooth: true,
         symbol: 'circle',
         symbolSize: 6,
@@ -665,11 +767,19 @@ export function getRevenueChartConfig(
     expense: number[];
     income: number[];
     months: string[];
-    net: number[];
+    profit: number[];
   },
   isMobile = false,
 ): EChartsOption {
   const legendFontSize = isMobile ? 9 : 11;
+  const profitValues = data.profit.map((item) => Number(item || 0));
+  const hasNetExpense = profitValues.some((item) => item < 0);
+  const profitSeriesName = hasNetExpense ? '净收入/净支出' : '净收入';
+  const valueFormatter = (value: number) =>
+    Math.abs(value).toLocaleString('zh-CN', {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2,
+    });
 
   return {
     grid: {
@@ -681,7 +791,7 @@ export function getRevenueChartConfig(
     },
     legend: {
       bottom: 0,
-      data: ['收入总额', '支出总额', '净收入'],
+      data: ['收入总额', '支出总额', profitSeriesName],
       textStyle: {
         fontSize: legendFontSize,
       },
@@ -706,9 +816,12 @@ export function getRevenueChartConfig(
       {
         barGap: 0.1,
         barMaxWidth: 30,
-        color: COLORS.orange,
-        data: data.net,
-        name: '净收入',
+        data: profitValues,
+        itemStyle: {
+          color: (params: any) =>
+            Number(params.value || 0) < 0 ? COLORS.red : COLORS.orange,
+        },
+        name: profitSeriesName,
         type: 'bar',
       },
     ],
@@ -719,8 +832,14 @@ export function getRevenueChartConfig(
         const month = items[0]?.name || '';
         let result = `${month}<br/>`;
         for (const item of items) {
-          const value = Number(item.value || 0).toLocaleString();
-          result += `${item.marker}${item.seriesName}: ${value}元<br/>`;
+          const itemValue = Number(item.value || 0);
+          const isProfitSeries = item.seriesName === profitSeriesName;
+          let label = item.seriesName;
+          if (isProfitSeries) {
+            label = itemValue < 0 ? '净支出' : '净收入';
+          }
+          const value = valueFormatter(itemValue);
+          result += `${item.marker}${label}: ${value}元<br/>`;
         }
         return result;
       },
@@ -734,11 +853,15 @@ export function getRevenueChartConfig(
       type: 'category',
     },
     yAxis: {
+      axisLabel: {
+        formatter: (value: number) => valueFormatter(value),
+      },
       axisLine: {
         show: false,
       },
       splitLine: {
         lineStyle: {
+          color: '#E5E7EB',
           type: 'dashed',
         },
       },
@@ -747,53 +870,66 @@ export function getRevenueChartConfig(
   };
 }
 
+export type EnergyConsumptionType = 'electricity' | 'water';
+
 export function getEnergyConsumptionChartConfig(
   data: {
-    electricity: number[];
-    monthOnMonth: number[];
+    electricity: {
+      consumption: number[];
+      monthOnMonth: number[];
+      yearOnYear: number[];
+    };
     months: string[];
-    water: number[];
-    yearOnYear: number[];
+    water: {
+      consumption: number[];
+      monthOnMonth: number[];
+      yearOnYear: number[];
+    };
   },
+  type: EnergyConsumptionType,
   isMobile = false,
 ): EChartsOption {
   const legendFontSize = isMobile ? 9 : 11;
+  const activeData = data[type];
+  const isWater = type === 'water';
+  const consumptionName = isWater ? '水消耗' : '电消耗';
+  const consumptionUnit = isWater ? '吨' : 'kWh';
+  const consumptionSeries: Record<string, any> = {
+    data: activeData.consumption,
+    name: consumptionName,
+    type: 'bar',
+  };
+
+  if (isWater) {
+    consumptionSeries.barGap = 0.1;
+    consumptionSeries.barMaxWidth = 40;
+    consumptionSeries.color = COLORS.blue;
+  } else {
+    consumptionSeries.barGap = 0.1;
+    consumptionSeries.barMaxWidth = 40;
+    consumptionSeries.color = COLORS.green;
+  }
 
   return {
     grid: {
-      bottom: isMobile ? '18%' : '12%',
+      bottom: isMobile ? '20%' : '14%',
       containLabel: true,
-      left: '3%',
-      right: '3%',
-      top: '8%',
+      left: isMobile ? '8%' : '5%',
+      right: isMobile ? '8%' : '5%',
+      top: isMobile ? '16%' : '14%',
     },
     legend: {
       bottom: 0,
-      data: ['水', '电', '月环比', '月同比'],
+      data: [consumptionName, '月环比', '月同比'],
       itemGap: isMobile ? 6 : 10,
       textStyle: {
         fontSize: legendFontSize,
       },
     },
     series: [
+      consumptionSeries,
       {
-        barGap: 0.1,
-        barMaxWidth: 40,
-        color: COLORS.blue,
-        data: data.water,
-        name: '水',
-        type: 'bar',
-      },
-      {
-        barGap: 0.1,
-        barMaxWidth: 40,
-        color: COLORS.green,
-        data: data.electricity,
-        name: '电',
-        type: 'bar',
-      },
-      {
-        data: data.monthOnMonth,
+        data: activeData.monthOnMonth,
         lineStyle: {
           color: COLORS.orange,
           width: 2,
@@ -806,7 +942,7 @@ export function getEnergyConsumptionChartConfig(
         yAxisIndex: 1,
       },
       {
-        data: data.yearOnYear,
+        data: activeData.yearOnYear,
         lineStyle: {
           color: COLORS.purple,
           width: 2,
@@ -826,11 +962,12 @@ export function getEnergyConsumptionChartConfig(
         const month = items[0]?.name || '';
         let result = `${month}<br/>`;
         for (const item of items) {
+          const seriesName = String(item.seriesName || '');
           const value =
-            item.seriesName.includes('环比') || item.seriesName.includes('同比')
+            seriesName.includes('环比') || seriesName.includes('同比')
               ? `${item.value}%`
-              : item.value;
-          result += `${item.marker}${item.seriesName}: ${value}<br/>`;
+              : `${item.value}${consumptionUnit}`;
+          result += `${item.marker}${seriesName}: ${value}<br/>`;
         }
         return result;
       },
@@ -847,6 +984,12 @@ export function getEnergyConsumptionChartConfig(
       {
         axisLine: {
           show: false,
+        },
+        name: consumptionUnit,
+        nameGap: 10,
+        nameTextStyle: {
+          fontSize: isMobile ? 9 : 11,
+          padding: [0, 0, 4, 0],
         },
         splitLine: {
           lineStyle: {
@@ -877,7 +1020,7 @@ export function getWorkOrderChartConfig(
 ): EChartsOption {
   const shouldShowLabel = screenWidth >= 1024;
   const layout = getCompactPieLayout(screenWidth);
-  const fontSize = shouldShowLabel ? 11 : 0;
+  const fontSize = shouldShowLabel ? layout.labelFontSize : 0;
   const showLabel = shouldShowLabel;
   const showLabelLine = shouldShowLabel;
 
@@ -895,13 +1038,16 @@ export function getWorkOrderChartConfig(
       itemGap: layout.itemGap,
       itemHeight: layout.itemSize,
       itemWidth: layout.itemSize,
+      left: 'center',
       textStyle: {
         fontSize: layout.legendFontSize,
       },
+      type: 'scroll',
+      width: '92%',
     },
     series: [
       {
-        center: ['50%', layout.centerY],
+        center: [layout.centerX, layout.centerY],
         color: [
           COLORS.blue,
           COLORS.green,
@@ -909,37 +1055,32 @@ export function getWorkOrderChartConfig(
           COLORS.red,
           '#9C88FF',
         ],
-        data,
+        data: getCompactPieSeriesData(data),
         label: {
           align: 'center',
-          distance: shouldShowLabel ? 22 : 0,
+          bleedMargin: layout.labelBleedMargin,
+          distance: shouldShowLabel ? layout.labelDistance : 0,
           fontSize,
-          formatter: '{b}\n{d}%',
-          lineHeight: shouldShowLabel ? 14 : 0,
-          overflow: 'none',
-          padding: [2, 4],
+          formatter: getCompactPieLabel,
+          lineHeight: shouldShowLabel ? 13 : 0,
+          overflow: 'truncate',
+          padding: [1, 2],
           show: showLabel,
+          width: layout.labelWidth,
         },
         labelLayout: {
-          hideOverlap: false,
-          moveOverlap: 'shiftX',
+          hideOverlap: true,
+          moveOverlap: 'shiftY',
         },
         labelLine: {
-          length: shouldShowLabel ? 10 : 0,
-          length2: shouldShowLabel ? 12 : 0,
+          length: shouldShowLabel ? layout.labelLineLength : 0,
+          length2: shouldShowLabel ? layout.labelLineLength2 : 0,
           minTurnAngle: 30,
           show: showLabelLine,
           smooth: false,
         },
         name: '工单状态',
-        radius:
-          screenWidth < 768
-            ? ['30%', '52%']
-            : getSizeValue(screenWidth, [
-                ['30%', '52%'],
-                ['32%', '55%'],
-                ['40%', '68%'],
-              ]),
+        radius: getCompactPieRadius(screenWidth),
         type: 'pie',
       },
     ],
@@ -956,7 +1097,7 @@ export function getCountStatisticsChartConfig(
 ): EChartsOption {
   const shouldShowLabel = screenWidth >= 1024;
   const layout = getCompactPieLayout(screenWidth);
-  const fontSize = shouldShowLabel ? 11 : 0;
+  const fontSize = shouldShowLabel ? layout.labelFontSize : 0;
   const showLabel = shouldShowLabel;
   const showLabelLine = shouldShowLabel;
 
@@ -974,45 +1115,44 @@ export function getCountStatisticsChartConfig(
       itemGap: layout.itemGap,
       itemHeight: layout.itemSize,
       itemWidth: layout.itemSize,
+      left: 'center',
       textStyle: {
         fontSize: layout.legendFontSize,
       },
+      type: 'scroll',
+      width: '92%',
     },
     series: [
       {
-        center: ['50%', layout.centerY],
+        center: [layout.centerX, layout.centerY],
         color: [COLORS.blue, COLORS.green],
-        data,
+        data: getCompactPieSeriesData(data),
         label: {
           align: 'center',
-          distance: shouldShowLabel ? 20 : 0,
+          bleedMargin: layout.labelBleedMargin,
+          distance: shouldShowLabel ? layout.labelDistance : 0,
+          edgeDistance: layout.labelEdgeDistance,
           fontSize,
-          formatter: '{b}\n{d}%',
-          lineHeight: shouldShowLabel ? 14 : 0,
-          overflow: 'none',
-          padding: [2, 4],
+          formatter: getCompactPieLabel,
+          lineHeight: shouldShowLabel ? 13 : 0,
+          overflow: 'break',
+          padding: [1, 2],
           show: showLabel,
+          width: layout.labelWidth,
         },
         labelLayout: {
-          hideOverlap: false,
-          moveOverlap: 'shiftX',
+          hideOverlap: true,
+          moveOverlap: 'shiftY',
         },
         labelLine: {
-          length: shouldShowLabel ? 8 : 0,
-          length2: shouldShowLabel ? 10 : 0,
+          length: shouldShowLabel ? layout.labelLineLength : 0,
+          length2: shouldShowLabel ? layout.labelLineLength2 : 0,
           minTurnAngle: 30,
           show: showLabelLine,
           smooth: false,
         },
         name: '统计',
-        radius:
-          screenWidth < 768
-            ? ['30%', '52%']
-            : getSizeValue(screenWidth, [
-                ['30%', '52%'],
-                ['32%', '55%'],
-                ['38%', '62%'],
-              ]),
+        radius: getCompactPieRadius(screenWidth),
         type: 'pie',
       },
     ],
@@ -1158,13 +1298,13 @@ export function getCustomerTrendChartConfig(
   };
 }
 
-export function getNegotiationProgressChartConfig(
+export function getCustomerIntentLevelChartConfig(
   data: { name: string; value: number }[],
   screenWidth = window.innerWidth,
 ): EChartsOption {
   const shouldShowLabel = screenWidth >= 1024;
-  const layout = getCompactPieLayout(screenWidth);
-  const fontSize = shouldShowLabel ? 11 : 0;
+  const layout = getCustomerPieLayout(screenWidth);
+  const fontSize = shouldShowLabel ? layout.labelFontSize : 0;
   const showLabel = shouldShowLabel;
   const showLabelLine = shouldShowLabel;
 
@@ -1182,45 +1322,123 @@ export function getNegotiationProgressChartConfig(
       itemGap: layout.itemGap,
       itemHeight: layout.itemSize,
       itemWidth: layout.itemSize,
+      left: 'center',
       textStyle: {
         fontSize: layout.legendFontSize,
       },
+      type: 'scroll',
+      width: '92%',
     },
     series: [
       {
-        center: ['50%', layout.centerY],
-        color: [COLORS.blue, COLORS.green, COLORS.orange, COLORS.red],
-        data,
+        center: [layout.centerX, layout.centerY],
+        color: [
+          COLORS.red,
+          COLORS.orange,
+          COLORS.blue,
+          COLORS.green,
+          COLORS.cyan,
+        ],
+        data: getCompactPieSeriesData(data),
         label: {
           align: 'center',
-          distance: shouldShowLabel ? 20 : 0,
+          bleedMargin: layout.labelBleedMargin,
+          distance: shouldShowLabel ? layout.labelDistance : 0,
+          edgeDistance: layout.labelEdgeDistance,
           fontSize,
-          formatter: '{b}\n{d}%',
-          lineHeight: shouldShowLabel ? 14 : 0,
-          overflow: 'none',
-          padding: [2, 4],
+          formatter: getCompactPieLabel,
+          lineHeight: shouldShowLabel ? 13 : 0,
+          overflow: 'break',
+          padding: [1, 2],
           show: showLabel,
+          width: layout.labelWidth,
         },
         labelLayout: {
-          hideOverlap: false,
-          moveOverlap: 'shiftX',
+          hideOverlap: true,
+          moveOverlap: 'shiftY',
         },
         labelLine: {
-          length: shouldShowLabel ? 8 : 0,
-          length2: shouldShowLabel ? 10 : 0,
+          length: shouldShowLabel ? layout.labelLineLength : 0,
+          length2: shouldShowLabel ? layout.labelLineLength2 : 0,
           minTurnAngle: 30,
           show: showLabelLine,
           smooth: false,
         },
+        minShowLabelAngle: 3,
+        name: '意向程度',
+        radius: getCustomerPieRadius(screenWidth),
+        type: 'pie',
+      },
+    ],
+    tooltip: {
+      formatter: '{b}: {c} ({d}%)',
+      trigger: 'item',
+    },
+  };
+}
+
+export function getNegotiationProgressChartConfig(
+  data: { name: string; value: number }[],
+  screenWidth = window.innerWidth,
+): EChartsOption {
+  const shouldShowLabel = screenWidth >= 1024;
+  const layout = getCustomerPieLayout(screenWidth);
+  const fontSize = shouldShowLabel ? layout.labelFontSize : 0;
+  const showLabel = shouldShowLabel;
+  const showLabelLine = shouldShowLabel;
+
+  return {
+    grid: {
+      bottom: screenWidth < 768 ? '6%' : '8%',
+      containLabel: true,
+      left: layout.gridInset,
+      right: layout.gridInset,
+      top: layout.gridInset,
+    },
+    legend: {
+      bottom: layout.legendBottom,
+      data: data.map((item) => item.name),
+      itemGap: layout.itemGap,
+      itemHeight: layout.itemSize,
+      itemWidth: layout.itemSize,
+      left: 'center',
+      textStyle: {
+        fontSize: layout.legendFontSize,
+      },
+      type: 'scroll',
+      width: '92%',
+    },
+    series: [
+      {
+        center: [layout.centerX, layout.centerY],
+        color: [COLORS.blue, COLORS.green, COLORS.orange, COLORS.red],
+        data: getCompactPieSeriesData(data),
+        label: {
+          align: 'center',
+          bleedMargin: layout.labelBleedMargin,
+          distance: shouldShowLabel ? layout.labelDistance : 0,
+          fontSize,
+          formatter: getCompactPieLabel,
+          lineHeight: shouldShowLabel ? 13 : 0,
+          overflow: 'truncate',
+          padding: [1, 2],
+          show: showLabel,
+          width: layout.labelWidth,
+        },
+        labelLayout: {
+          hideOverlap: true,
+          moveOverlap: 'shiftY',
+        },
+        labelLine: {
+          length: shouldShowLabel ? layout.labelLineLength : 0,
+          length2: shouldShowLabel ? layout.labelLineLength2 : 0,
+          minTurnAngle: 30,
+          show: showLabelLine,
+          smooth: false,
+        },
+        minShowLabelAngle: 3,
         name: '洽谈进度',
-        radius:
-          screenWidth < 768
-            ? ['30%', '52%']
-            : getSizeValue(screenWidth, [
-                ['30%', '52%'],
-                ['32%', '55%'],
-                ['40%', '68%'],
-              ]),
+        radius: getCustomerPieRadius(screenWidth),
         type: 'pie',
       },
     ],
@@ -1237,7 +1455,7 @@ export function getElectricityPieChartConfig(
 ): EChartsOption {
   const shouldShowLabel = screenWidth >= 1024;
   const layout = getCompactPieLayout(screenWidth);
-  const fontSize = shouldShowLabel ? 11 : 0;
+  const fontSize = shouldShowLabel ? layout.labelFontSize : 0;
   const showLabel = shouldShowLabel;
   const showLabelLine = shouldShowLabel;
 
@@ -1255,44 +1473,43 @@ export function getElectricityPieChartConfig(
       itemGap: layout.itemGap,
       itemHeight: layout.itemSize,
       itemWidth: layout.itemSize,
+      left: 'center',
       textStyle: {
         fontSize: layout.legendFontSize,
       },
+      type: 'scroll',
+      width: '92%',
     },
     series: [
       {
-        center: ['50%', layout.centerY],
-        data,
+        center: [layout.centerX, layout.centerY],
+        data: getCompactPieSeriesData(data),
         label: {
           align: 'center',
-          distance: shouldShowLabel ? 20 : 0,
+          bleedMargin: layout.labelBleedMargin,
+          distance: shouldShowLabel ? layout.labelDistance : 0,
+          edgeDistance: layout.labelEdgeDistance,
           fontSize,
-          formatter: '{b}: {c}kWh\n({d}%)',
-          lineHeight: shouldShowLabel ? 14 : 0,
-          overflow: 'none',
-          padding: [2, 4],
+          formatter: (params: any) => getCompactPieLabel(params, 'kWh'),
+          lineHeight: shouldShowLabel ? 13 : 0,
+          overflow: 'break',
+          padding: [1, 2],
           show: showLabel,
+          width: layout.labelWidth,
         },
         labelLayout: {
-          hideOverlap: false,
-          moveOverlap: 'shiftX',
+          hideOverlap: true,
+          moveOverlap: 'shiftY',
         },
         labelLine: {
-          length: shouldShowLabel ? 8 : 0,
-          length2: shouldShowLabel ? 10 : 0,
+          length: shouldShowLabel ? layout.labelLineLength : 0,
+          length2: shouldShowLabel ? layout.labelLineLength2 : 0,
           minTurnAngle: 30,
           show: showLabelLine,
           smooth: false,
         },
         name: '用电分布',
-        radius:
-          screenWidth < 768
-            ? ['30%', '52%']
-            : getSizeValue(screenWidth, [
-                ['30%', '52%'],
-                ['32%', '55%'],
-                ['40%', '68%'],
-              ]),
+        radius: getCompactPieRadius(screenWidth),
         type: 'pie',
       },
     ],
@@ -1382,6 +1599,70 @@ export function getDailyElectricityTrendChartConfig(
         show: false,
       },
       name: '用电量(kWh)',
+      nameTextStyle: {
+        fontSize: isMobile ? 8 : 10,
+      },
+      splitLine: {
+        lineStyle: {
+          type: 'dashed',
+        },
+      },
+      type: 'value',
+    },
+  };
+}
+
+export function getDailyWaterTrendChartConfig(
+  data: {
+    times: string[];
+    values: number[];
+  },
+  isMobile = false,
+): EChartsOption {
+  return {
+    grid: {
+      bottom: isMobile ? '18%' : '12%',
+      containLabel: true,
+      left: '3%',
+      right: '3%',
+      top: '10%',
+    },
+    series: [
+      {
+        data: data.values,
+        itemStyle: {
+          color: COLORS.blue,
+        },
+        lineStyle: {
+          width: 2,
+        },
+        name: '用水量',
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        type: 'line',
+      },
+    ],
+    tooltip: {
+      formatter: (params: any) => {
+        if (!params) return '';
+        return `${params.name}<br/>用水量: ${params.value}吨`;
+      },
+      trigger: 'axis',
+    },
+    xAxis: {
+      axisLabel: {
+        fontSize: isMobile ? 8 : 10,
+        rotate: 30,
+      },
+      data: data.times,
+      type: 'category',
+    },
+    yAxis: {
+      axisLine: {
+        show: false,
+      },
+      name: '用水量(吨)',
       nameTextStyle: {
         fontSize: isMobile ? 8 : 10,
       },

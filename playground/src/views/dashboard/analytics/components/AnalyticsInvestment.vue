@@ -3,6 +3,8 @@ import type { PropType } from 'vue';
 
 import type { EchartsUIType } from '@vben/plugins/echarts';
 
+import type { ParkOptionValue } from './parkOptions';
+
 import {
   computed,
   defineComponent,
@@ -15,16 +17,16 @@ import {
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
-import { getAnalyticsParkDashboardStats } from '#/api/analytics';
+import { getDashboardFactoryRentalStats } from '#/api/dashboard';
 
 import { getSemiPieChartConfig } from './chartConfigs';
 
 interface Props {
-  parkId?: number;
+  parkId?: ParkOptionValue;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  parkId: -1,
+  parkId: 'all',
 });
 
 const DashboardChart = defineComponent({
@@ -187,9 +189,9 @@ const rentalStats = ref({
 // 获取统计数据
 const fetchRentalStats = async () => {
   try {
-    const res: any = await getAnalyticsParkDashboardStats(
-      props.parkId === -1 ? undefined : { parkId: props.parkId },
-    );
+    const res = await getDashboardFactoryRentalStats({
+      parkId: props.parkId,
+    });
     if (res) {
       rentalStats.value = {
         rentalRate: res.rentalRate || '0.00',
@@ -202,7 +204,7 @@ const fetchRentalStats = async () => {
       };
     }
   } catch (error) {
-    console.error('获取园区租赁统计数据失败:', error);
+    console.error('获取厂房租赁统计数据失败:', error);
   }
 };
 
@@ -227,7 +229,7 @@ watch(
           {{ rentalStats.totalArea }} 平方米
         </div>
         <div class="mt-1 text-gray-400" :class="[titleFontSize]">
-          厂房数: {{ rentalStats.totalCount }}
+          总数: {{ rentalStats.totalCount }}
         </div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2 md:p-2.5">
@@ -239,11 +241,11 @@ watch(
           {{ rentalStats.rentedArea }} 平方米
         </div>
         <div class="mt-1 text-gray-400" :class="[titleFontSize]">
-          厂房数: {{ rentalStats.rentedCount }}
+          已租数: {{ rentalStats.rentedCount }}
         </div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2 md:p-2.5">
-        <div class="mb-1 text-gray-500" :class="[titleFontSize]">空置面积</div>
+        <div class="mb-1 text-gray-500" :class="[titleFontSize]">待租面积</div>
         <div
           class="whitespace-nowrap font-bold text-green-500"
           :class="[valueFontSize]"
@@ -251,7 +253,7 @@ watch(
           {{ rentalStats.vacantArea }} 平方米
         </div>
         <div class="mt-1 text-gray-400" :class="[titleFontSize]">
-          厂房数: {{ rentalStats.vacantCount }}
+          待租数: {{ rentalStats.vacantCount }}
         </div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2 md:p-2.5">
@@ -282,7 +284,7 @@ watch(
             "
             :chart-data="[
               { name: '已租', value: Number(rentalStats.rentedArea) },
-              { name: '未租', value: Number(rentalStats.vacantArea) },
+              { name: '待租', value: Number(rentalStats.vacantArea) },
             ]"
           />
         </div>
@@ -304,7 +306,7 @@ watch(
             "
             :chart-data="[
               { name: '已租', value: rentalStats.rentedCount },
-              { name: '未租', value: rentalStats.vacantCount },
+              { name: '待租', value: rentalStats.vacantCount },
             ]"
           />
         </div>

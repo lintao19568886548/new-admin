@@ -3,6 +3,8 @@ import type { PropType } from 'vue';
 
 import type { EchartsUIType } from '@vben/plugins/echarts';
 
+import type { ParkOptionValue } from './parkOptions';
+
 import {
   computed,
   defineComponent,
@@ -15,23 +17,24 @@ import {
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
-import { getAnalyticsContractOverview } from '#/api/analytics';
+import { getDashboardContractStats } from '#/api/dashboard';
 
 import { getContractTrendChartConfig } from './chartConfigs';
 
 interface Props {
-  parkId?: number;
+  parkId?: ParkOptionValue;
 }
 
 interface ContractTrendData {
   dates: string[];
   expiring: number[];
+  newThisMonth: number[];
   normal: number[];
   retreated: number[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  parkId: -1,
+  parkId: 'all',
 });
 
 const DashboardChart = defineComponent({
@@ -186,6 +189,7 @@ const innerIconSize = computed(() => {
 
 const contractSummary = ref({
   expiring: 0,
+  newThisMonth: 0,
   normal: 0,
   retreated: 0,
 });
@@ -194,15 +198,16 @@ const contractTrendData = ref<ContractTrendData | null>(null);
 
 const fetchContractOverview = async () => {
   try {
-    const res = await getAnalyticsContractOverview(
-      props.parkId === -1 ? undefined : { parkId: props.parkId },
-    );
+    const res = await getDashboardContractStats({
+      parkId: props.parkId,
+    });
     if (!res) {
       return;
     }
 
     contractSummary.value = {
       expiring: Number(res.summary?.expiring) || 0,
+      newThisMonth: Number(res.summary?.newThisMonth) || 0,
       normal: Number(res.summary?.normal) || 0,
       retreated: Number(res.summary?.retreated) || 0,
     };
@@ -210,6 +215,9 @@ const fetchContractOverview = async () => {
     contractTrendData.value = {
       dates: Array.isArray(res.trend?.dates) ? res.trend.dates : [],
       expiring: Array.isArray(res.trend?.expiring) ? res.trend.expiring : [],
+      newThisMonth: Array.isArray(res.trend?.newThisMonth)
+        ? res.trend.newThisMonth
+        : [],
       normal: Array.isArray(res.trend?.normal) ? res.trend.normal : [],
       retreated: Array.isArray(res.trend?.retreated) ? res.trend.retreated : [],
     };
@@ -229,7 +237,7 @@ watch(
 
 <template>
   <div class="flex h-full flex-col">
-    <div class="mb-3 grid flex-initial grid-cols-3 gap-2 md:grid-cols-3">
+    <div class="mb-3 grid flex-initial grid-cols-2 gap-2 md:grid-cols-4">
       <div class="rounded-lg bg-gray-50 p-2 text-center">
         <div
           class="mx-auto mb-1 flex items-center justify-center rounded-full bg-blue-100"
@@ -241,6 +249,21 @@ watch(
           {{ contractSummary.normal }}
         </div>
         <div class="text-gray-400" :class="[labelFontSize]">正常合同</div>
+      </div>
+      <div class="rounded-lg bg-gray-50 p-2 text-center">
+        <div
+          class="mx-auto mb-1 flex items-center justify-center rounded-full bg-orange-100"
+          :class="[iconSize]"
+        >
+          <div
+            class="rounded-full bg-orange-500"
+            :class="[innerIconSize]"
+          ></div>
+        </div>
+        <div class="font-bold text-gray-800" :class="[valueFontSize]">
+          {{ contractSummary.newThisMonth }}
+        </div>
+        <div class="text-gray-400" :class="[labelFontSize]">本月新增</div>
       </div>
       <div class="rounded-lg bg-gray-50 p-2 text-center">
         <div
@@ -264,7 +287,7 @@ watch(
         <div class="font-bold text-gray-800" :class="[valueFontSize]">
           {{ contractSummary.retreated }}
         </div>
-        <div class="text-gray-400" :class="[labelFontSize]">已过期</div>
+        <div class="text-gray-400" :class="[labelFontSize]">已到期</div>
       </div>
     </div>
     <div class="min-h-0 flex-1">
