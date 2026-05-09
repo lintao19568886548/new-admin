@@ -1,33 +1,23 @@
+import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   serverErrorResponse,
   unAuthorizedResponse,
   useResponseSuccess,
 } from '~/utils/response';
-import { getDevice, getHDMData } from '~/utils/thirdparty/hezhong';
 
-const ELECTRICITY_COM_TYPE = 'D.ZDG.FIWBM-GD04';
-const DEFAULT_PROJ_CODE = '241';
 const MONTH_COUNT = 12;
 
-interface AuthorizedPark {
-  parkId: number;
-  parkName: string;
+interface ElectricityBillItem {
+  meterName: string;
+  totalUsage: unknown;
 }
 
-interface ElectricityDevice {
-  address: string;
-  comAddress: string;
-  piplineName: string;
-}
+function createEmptyStats(referenceDate: Date, message?: string) {
+  const months = getPastYearMonths(referenceDate).map((month) =>
+    formatMonth(month),
+  );
 
-interface ElectricityReading {
-  comAddress: string;
-  dataValue: unknown;
-  freezeTime: unknown;
-}
-
-function createEmptyStats(year: number, message?: string) {
   return {
     electricity: {
       consumption: Array.from({ length: MONTH_COUNT }, () => 0),
@@ -36,21 +26,13 @@ function createEmptyStats(year: number, message?: string) {
     },
     hasData: false,
     message,
-    months: Array.from({ length: MONTH_COUNT }).map(
-      (_item, index) => `${index + 1}月`,
-    ),
-    year,
+    months,
+    year: referenceDate.getFullYear(),
   };
 }
 
-function formatDateTime(date: Date) {
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  const hours = `${date.getHours()}`.padStart(2, '0');
-  const minutes = `${date.getMinutes()}`.padStart(2, '0');
-  const seconds = `${date.getSeconds()}`.padStart(2, '0');
-
-  return `${date.getFullYear()}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+function addMonths(date: Date, months: number) {
+  return new Date(date.getFullYear(), date.getMonth() + months, 1);
 }
 
 function formatMonth(date: Date) {
@@ -60,17 +42,16 @@ function formatMonth(date: Date) {
   )}`;
 }
 
-function parseMonth(value: unknown): null | string {
-  if (value === null || value === undefined || value === '') {
-    return null;
-  }
+function getPastYearMonths(referenceDate: Date) {
+  const currentMonth = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    1,
+  );
 
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return formatMonth(date);
+  return Array.from({ length: MONTH_COUNT }).map((_item, index) =>
+    addMonths(currentMonth, index - (MONTH_COUNT - 1)),
+  );
 }
 
 function toNumber(value: unknown) {
@@ -98,131 +79,58 @@ function calcPercentChange(current: number, previous: number) {
   return roundPercent(((current - previous) / previous) * 100);
 }
 
-function normalizeText(value: unknown) {
-  return String(value ?? '')
-    .replaceAll(/\s+/g, '')
-    .toLowerCase();
-}
-
-function normalizeDevices(res: any): ElectricityDevice[] {
-  const list = res?.data?.records ?? res?.records ?? [];
-  const records = Array.isArray(list) ? list : [list];
-
-  return records
-    .map((item: any) => ({
-      address: String(item?.address ?? ''),
-      comAddress: String(item?.comAddress ?? ''),
-      piplineName: String(item?.piplineName ?? ''),
-    }))
-    .filter((item) => item.comAddress);
-}
-
-function normalizeReadings(res: any): ElectricityReading[] {
-  const list =
-    (res?.data?.records ??
-      res?.records ??
-      res?.data?.items ??
-      res?.items ??
-      []) ||
-    [];
-  const records = Array.isArray(list) ? list : [list];
-
-  return records
-    .map((item: any) => ({
-      comAddress: String(item?.comAddress ?? ''),
-      dataValue: item?.dataValue,
-      freezeTime: item?.freezeTime,
-    }))
-    .filter((item) => item.comAddress);
-}
-
-function getTotal(res: any, fallback: number) {
-  const total = Number(res?.data?.total ?? res?.total ?? fallback);
-
-  return Number.isFinite(total) ? total : fallback;
-}
-
-function resolveParks(
+function resolveParkIds(
   queryParkId: unknown,
-  authorizedParks: AuthorizedPark[],
-): AuthorizedPark[] | null {
+  authorizedParkIds: number[],
+): null | number[] {
   if (queryParkId === undefined || queryParkId === 'all') {
-    return authorizedParks;
+    return authorizedParkIds;
   }
 
   const parkId = Number(queryParkId);
-  if (!Number.isFinite(parkId)) {
+  if (!Number.isFinite(parkId) || !authorizedParkIds.includes(parkId)) {
     return null;
   }
 
-  const park = authorizedParks.find((item) => item.parkId === parkId);
-
-  return park ? [park] : null;
+  return [parkId];
 }
 
-function isDeviceInParks(device: ElectricityDevice, parks: AuthorizedPark[]) {
-  const haystack = normalizeText(
-    `${device.address} ${device.piplineName} ${device.comAddress}`,
-  );
+function getBillCreateTimeRange(months: Date[]) {
+  const firstMonth = months[0];
+  const lastMonth = months[months.length - 1];
 
-  return parks.some((park) => {
-    const parkName = normalizeText(park.parkName);
-
-    return parkName && haystack.includes(parkName);
-  });
-}
-
-async function fetchAllElectricityDevices(projCode: string) {
-  const pageSize = 1000;
-  const devices: ElectricityDevice[] = [];
-
-  for (let page = 1; page <= 50; page++) {
-    const res = await getDevice({
-      comtype: ELECTRICITY_COM_TYPE,
-      page: String(page),
-      pageSize: String(pageSize),
-      projCode,
-    });
-    const pageDevices = normalizeDevices(res);
-    devices.push(...pageDevices);
-
-    const total = getTotal(res, devices.length);
-    if (devices.length >= total || pageDevices.length === 0) {
-      break;
-    }
+  if (!firstMonth || !lastMonth) {
+    throw new Error('月份范围不能为空');
   }
 
-  return devices;
+  const firstComparisonMonth = addMonths(firstMonth, -12);
+
+  return {
+    createTimeEnd: addMonths(lastMonth, 2),
+    createTimeStart: addMonths(firstComparisonMonth, 1),
+  };
 }
 
-async function fetchElectricityReadings(params: {
-  projCode: string;
-  timeFrom: string;
-  timeTo: string;
-}) {
-  const pageSize = 1000;
-  const readings: ElectricityReading[] = [];
-
-  for (let page = 1; page <= 100; page++) {
-    const res = await getHDMData({
-      comType: ELECTRICITY_COM_TYPE,
-      page: String(page),
-      pageSize: String(pageSize),
-      projCode: params.projCode,
-      timeFrom: params.timeFrom,
-      timeTo: params.timeTo,
-      type: '3',
-    });
-    const pageReadings = normalizeReadings(res);
-    readings.push(...pageReadings);
-
-    const total = getTotal(res, readings.length);
-    if (readings.length >= total || pageReadings.length === 0) {
-      break;
-    }
+function getDataMonth(createTime: Date | null) {
+  if (!createTime) {
+    return null;
   }
 
-  return readings;
+  // 总账单通常在次月创建，例如 2026-04 的账单记录 2026-03 的用量。
+  return formatMonth(addMonths(createTime, -1));
+}
+
+function isTotalRow(item: ElectricityBillItem) {
+  return String(item.meterName || '').includes('合计');
+}
+
+function sumBillUsage(items: ElectricityBillItem[]) {
+  const totalRows = items.filter((item) => isTotalRow(item));
+  const rows = totalRows.length > 0 ? totalRows : items;
+
+  return rows
+    .filter((item) => totalRows.length > 0 || !isTotalRow(item))
+    .reduce((sum, item) => sum + toNumber(item.totalUsage), 0);
 }
 
 export default eventHandler(async (event) => {
@@ -232,113 +140,90 @@ export default eventHandler(async (event) => {
   }
 
   const query = getQuery(event);
-  const now = new Date();
-  const year = Number(query.year || now.getFullYear());
-  const normalizedYear = Number.isFinite(year) ? year : now.getFullYear();
-  const projCode = String(query.projCode || DEFAULT_PROJ_CODE);
+  const referenceDate = new Date();
 
   try {
-    const authorizedParks =
-      userinfo.parks
-        ?.map((park) => ({
-          parkId: Number(park.parkId),
-          parkName: String(park.parkName || ''),
-        }))
-        .filter((park) => Number.isFinite(park.parkId) && park.parkName) ?? [];
+    const authorizedParkIds =
+      userinfo.parks?.map((park) => Number(park.parkId)).filter(Boolean) ?? [];
 
-    if (authorizedParks.length === 0) {
+    if (authorizedParkIds.length === 0) {
       return useResponseSuccess(
-        createEmptyStats(
-          normalizedYear,
-          '当前用户没有可查看园区，暂无电耗数据',
-        ),
+        createEmptyStats(referenceDate, '当前用户没有可查看园区，暂无电耗数据'),
       );
     }
 
-    const parks = resolveParks(query.parkId, authorizedParks);
-    if (!parks) {
+    const parkIds = resolveParkIds(query.parkId, authorizedParkIds);
+    if (!parkIds) {
       return useResponseSuccess(
-        createEmptyStats(
-          normalizedYear,
-          '当前用户没有该园区权限，暂无电耗数据',
-        ),
+        createEmptyStats(referenceDate, '当前用户没有该园区权限，暂无电耗数据'),
       );
     }
 
-    const devices = await fetchAllElectricityDevices(projCode);
-    const permittedDevices = devices.filter((device) =>
-      isDeviceInParks(device, parks),
-    );
-
-    if (permittedDevices.length === 0) {
-      return useResponseSuccess(
-        createEmptyStats(
-          normalizedYear,
-          '当前权限范围内未匹配到电表设备，暂无电耗数据',
-        ),
-      );
-    }
-
-    const permittedAddressSet = new Set(
-      permittedDevices.map((device) => device.comAddress),
-    );
-    const timeFrom = formatDateTime(new Date(normalizedYear - 1, 0, 1));
-    const timeTo = formatDateTime(
-      new Date(normalizedYear, MONTH_COUNT, 0, 23, 59, 59, 999),
-    );
-    const readings = await fetchElectricityReadings({
-      projCode,
-      timeFrom,
-      timeTo,
+    const months = getPastYearMonths(referenceDate);
+    const monthLabels = months.map((month) => formatMonth(month));
+    const monthLabelSet = new Set(monthLabels);
+    const { createTimeEnd, createTimeStart } = getBillCreateTimeRange(months);
+    const bills = await prismaClient.amountBill.findMany({
+      select: {
+        createTime: true,
+        eleBills: {
+          select: {
+            meterName: true,
+            totalUsage: true,
+          },
+        },
+      },
+      where: {
+        createTime: {
+          gte: createTimeStart,
+          lt: createTimeEnd,
+        },
+        parkId: {
+          in: parkIds,
+        },
+      },
     });
     const monthTotals = new Map<string, number>();
-    let currentYearRecordCount = 0;
+    let rangeBillCount = 0;
 
-    for (const reading of readings) {
-      if (!permittedAddressSet.has(reading.comAddress)) {
+    for (const bill of bills) {
+      if (bill.eleBills.length === 0) {
         continue;
       }
 
-      const month = parseMonth(reading.freezeTime);
-      if (!month) {
+      const dataMonth = getDataMonth(bill.createTime);
+      if (!dataMonth) {
         continue;
       }
 
-      if (month.startsWith(`${normalizedYear}-`)) {
-        currentYearRecordCount++;
+      if (monthLabelSet.has(dataMonth)) {
+        rangeBillCount++;
       }
 
       monthTotals.set(
-        month,
-        (monthTotals.get(month) || 0) + toNumber(reading.dataValue),
+        dataMonth,
+        (monthTotals.get(dataMonth) || 0) + sumBillUsage(bill.eleBills),
       );
     }
 
-    const consumption = Array.from({ length: MONTH_COUNT }).map(
-      (_item, index) =>
-        roundConsumption(
-          monthTotals.get(
-            `${normalizedYear}-${String(index + 1).padStart(2, '0')}`,
-          ) || 0,
-        ),
+    const consumption = monthLabels.map((month) =>
+      roundConsumption(monthTotals.get(month) || 0),
     );
     const monthOnMonth = consumption.map((value, index) => {
       const previous =
         index === 0
-          ? monthTotals.get(`${normalizedYear - 1}-12`) || 0
+          ? monthTotals.get(formatMonth(addMonths(months[0], -1))) || 0
           : consumption[index - 1] || 0;
 
       return calcPercentChange(value, previous);
     });
     const yearOnYear = consumption.map((value, index) => {
       const previous =
-        monthTotals.get(
-          `${normalizedYear - 1}-${String(index + 1).padStart(2, '0')}`,
-        ) || 0;
+        monthTotals.get(formatMonth(addMonths(months[index], -12))) || 0;
 
       return calcPercentChange(value, previous);
     });
-    const hasData = currentYearRecordCount > 0;
+    const hasData = rangeBillCount > 0;
 
     return useResponseSuccess({
       electricity: {
@@ -349,11 +234,9 @@ export default eventHandler(async (event) => {
       hasData,
       message: hasData
         ? undefined
-        : '当前年份未查询到电表抄录数据，暂无电耗数据',
-      months: Array.from({ length: MONTH_COUNT }).map(
-        (_item, index) => `${index + 1}月`,
-      ),
-      year: normalizedYear,
+        : '过去一年未查询到账单电耗明细，暂无电耗数据',
+      months: monthLabels,
+      year: referenceDate.getFullYear(),
     });
   } catch (error) {
     console.error('获取能源电耗数据失败:', error);
