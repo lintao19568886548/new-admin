@@ -1,4 +1,5 @@
 import { prismaClient } from '~/utils/db';
+import { syncRentalExpenseFinanceRecords } from '~/utils/rental-expense-finance';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
@@ -22,6 +23,15 @@ export default eventHandler(async (event) => {
         ...body,
       },
     });
+
+    try {
+      await syncRentalExpenseFinanceRecords({
+        tenantIds: [tenant.rentalTenantId],
+      });
+    } catch (syncError) {
+      console.error('同步租户月度支出失败:', syncError);
+    }
+
     return useResponseSuccess(tenant);
   } catch (error) {
     console.error('更新租户失败:', error);

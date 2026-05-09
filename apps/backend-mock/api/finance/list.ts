@@ -1,6 +1,7 @@
 import Nzh from 'nzh';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
+import { syncRentalExpenseFinanceRecords } from '~/utils/rental-expense-finance';
 import {
   unAuthorizedResponse,
   useResponseError,
@@ -140,6 +141,8 @@ export default eventHandler(async (event) => {
       };
     }
 
+    const accessibleParkIds = userinfo.parks?.map((park) => park.parkId) ?? [];
+
     // 区域查询
     if (query.parkId) {
       if (Number(query.parkId) === -1) {
@@ -147,7 +150,7 @@ export default eventHandler(async (event) => {
         console.log('查询所有区域数据');
       } else if (
         userinfo.parks &&
-        userinfo.parks.map((park) => park.parkId).includes(Number(query.parkId))
+        accessibleParkIds.includes(Number(query.parkId))
       ) {
         // 当用户有权限查看特定园区时
         const park = await prismaClient.park.findFirst({
@@ -172,6 +175,17 @@ export default eventHandler(async (event) => {
     } else {
       console.log('未指定查询区域，查询所有数据');
     }
+
+    let syncParkIds: number[] | undefined;
+    if (query.parkId && Number(query.parkId) !== -1) {
+      syncParkIds = [Number(query.parkId)];
+    } else if (accessibleParkIds.length > 0) {
+      syncParkIds = accessibleParkIds;
+    }
+
+    await syncRentalExpenseFinanceRecords({
+      parkIds: syncParkIds,
+    });
 
     console.log('构建的查询条件:', where);
 

@@ -5,7 +5,10 @@ export default defineNitroConfig({
   devErrorHandler: errorHandler,
   errorHandler: '~/error',
   node: true,
-  plugins: ['~/plugins/tenant-provisioning-worker'],
+  plugins: [
+    '~/plugins/tenant-provisioning-worker',
+    '~/plugins/rental-expense-finance-worker',
+  ],
   routeRules: {
     '/api/**': {
       cors: true,

@@ -1,0 +1,384 @@
+import { prismaClient } from '~/utils/db';
+
+const AUTO_RENTAL_EXPENSE_MARKER = '[AUTO_RENTAL_EXPENSE]';
+const DEFAULT_BILL_CATEGORY = '其他费用';
+const DEFAULT_BILL_NAME = '租金支出';
+const DEFAULT_WORKER_INTERVAL_MS = 60 * 60 * 1000;
+
+const globalForRentalExpenseFinance = globalThis as typeof globalThis & {
+  __rentalExpenseFinanceWorker?: {
+    intervalId: ReturnType<typeof setInterval>;
+    running: boolean;
+  };
+};
+
+interface SyncRentalExpenseFinanceRecordsOptions {
+  now?: Date;
+  parkIds?: number[];
+  tenantIds?: number[];
+}
+
+interface SyncRentalExpenseFinanceRecordsResult {
+  created: number;
+  dueRecords: number;
+  skipped: number;
+  tenants: number;
+}
+
+interface AutoFinanceCreateInput {
+  amount: number;
+  billCategory: string;
+  billName: string;
+  parkId: null | number;
+  remark: string;
+  transactionTime: Date;
+  transactionType: string;
+}
+
+function isValidDate(value: Date | null | undefined): value is Date {
+  return value instanceof Date && !Number.isNaN(value.getTime());
+}
+
+function normalizeIdList(values?: number[]) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return undefined;
+  }
+
+  const normalized = [...new Set(values)]
+    .map(Number)
+    .filter((value) => Number.isInteger(value) && value > 0);
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function getWorkerIntervalMs() {
+  const value = Number(process.env.RENTAL_EXPENSE_FINANCE_WORKER_INTERVAL_MS);
+  return Number.isFinite(value) && value > 0
+    ? Math.floor(value)
+    : DEFAULT_WORKER_INTERVAL_MS;
+}
+
+function isWorkerEnabled() {
+  return (
+    String(process.env.RENTAL_EXPENSE_FINANCE_WORKER_ENABLED ?? 'true')
+      .trim()
+      .toLowerCase() !== 'false'
+  );
+}
+
+function getMonthKey(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${date.getFullYear()}-${month}`;
+}
+
+function getMonthNumber(date: Date) {
+  return date.getMonth() + 1;
+}
+
+function getDaysInMonth(year: number, monthIndex: number) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+function buildMonthlyDueDate(
+  anchorDate: Date,
+  year: number,
+  monthIndex: number,
+) {
+  const day = Math.min(anchorDate.getDate(), getDaysInMonth(year, monthIndex));
+
+  return new Date(
+    year,
+    monthIndex,
+    day,
+    anchorDate.getHours(),
+    anchorDate.getMinutes(),
+    anchorDate.getSeconds(),
+    anchorDate.getMilliseconds(),
+  );
+}
+
+function getMonthlyDueDates(
+  anchorDate: Date,
+  now: Date,
+  contractEnd?: Date | null,
+) {
+  if (!isValidDate(anchorDate) || anchorDate > now) {
+    return [] as Date[];
+  }
+
+  const endLimit =
+    isValidDate(contractEnd) && contractEnd < now ? contractEnd : now;
+
+  if (endLimit < anchorDate) {
+    return [] as Date[];
+  }
+
+  const dueDates: Date[] = [];
+  let year = anchorDate.getFullYear();
+  let monthIndex = anchorDate.getMonth();
+
+  while (true) {
+    const dueDate = buildMonthlyDueDate(anchorDate, year, monthIndex);
+
+    if (dueDate > endLimit) {
+      break;
+    }
+
+    if (dueDate >= anchorDate) {
+      dueDates.push(dueDate);
+    }
+
+    monthIndex += 1;
+    if (monthIndex > 11) {
+      monthIndex = 0;
+      year += 1;
+    }
+  }
+
+  return dueDates;
+}
+
+function buildDisplayRemark(tenantName: string, dueDate: Date) {
+  return `${tenantName} ${getMonthNumber(dueDate)}月租金`;
+}
+
+function buildDisplayRecordSignature(input: {
+  amount: number;
+  billName: string;
+  parkId: null | number;
+  remark: string;
+  transactionTime: Date;
+  transactionType: string;
+}) {
+  return [
+    input.billName,
+    input.remark,
+    String(input.parkId ?? ''),
+    input.transactionType,
+    input.transactionTime.toISOString(),
+    String(input.amount),
+  ].join('|');
+}
+
+function parseAutoRemark(remark?: null | string) {
+  const match = String(remark || '').match(
+    /\[AUTO_RENTAL_EXPENSE\]\s+tenantId=(\d+);period=(\d{4}-\d{2})/,
+  );
+
+  if (!match?.[1] || !match?.[2]) {
+    return null;
+  }
+
+  return {
+    period: match[2],
+    tenantId: Number(match[1]),
+  };
+}
+
+export async function syncRentalExpenseFinanceRecords(
+  options: SyncRentalExpenseFinanceRecordsOptions = {},
+): Promise<SyncRentalExpenseFinanceRecordsResult> {
+  const now = isValidDate(options.now) ? options.now : new Date();
+  const parkIds = normalizeIdList(options.parkIds);
+  const tenantIds = normalizeIdList(options.tenantIds);
+
+  const tenantWhere: Record<string, any> = {
+    isDeleted: false,
+    rent: {
+      gt: 0,
+    },
+    transactionType: false,
+  };
+
+  if (parkIds) {
+    tenantWhere.parkId = {
+      in: parkIds,
+    };
+  }
+
+  if (tenantIds) {
+    tenantWhere.rentalTenantId = {
+      in: tenantIds,
+    };
+  }
+
+  const tenants = await prismaClient.rentalTenant.findMany({
+    where: tenantWhere,
+    select: {
+      contractEnd: true,
+      contractStart: true,
+      createTime: true,
+      parkId: true,
+      rentalTenantId: true,
+      rent: true,
+      tenantName: true,
+    },
+  });
+
+  if (tenants.length === 0) {
+    return {
+      created: 0,
+      dueRecords: 0,
+      skipped: 0,
+      tenants: 0,
+    };
+  }
+
+  const existingFinanceWhere: Record<string, any> = {
+    transactionType: '支出',
+    OR: [
+      {
+        remark: {
+          contains: AUTO_RENTAL_EXPENSE_MARKER,
+        },
+      },
+      {
+        billName: DEFAULT_BILL_NAME,
+      },
+    ],
+  };
+
+  if (parkIds) {
+    existingFinanceWhere.parkId = {
+      in: parkIds,
+    };
+  }
+
+  const existingRecords = await prismaClient.finance.findMany({
+    where: existingFinanceWhere,
+    select: {
+      amount: true,
+      billName: true,
+      parkId: true,
+      remark: true,
+      transactionTime: true,
+    },
+  });
+
+  const existingPeriods = new Set<string>();
+  const existingDisplayRecords = new Set<string>();
+  for (const record of existingRecords) {
+    const parsed = parseAutoRemark(record.remark);
+    if (parsed) {
+      existingPeriods.add(`${parsed.tenantId}:${parsed.period}`);
+    }
+
+    if (
+      record.billName === DEFAULT_BILL_NAME &&
+      isValidDate(record.transactionTime)
+    ) {
+      existingDisplayRecords.add(
+        buildDisplayRecordSignature({
+          amount: Number(record.amount),
+          billName: record.billName,
+          parkId: record.parkId ?? null,
+          remark: String(record.remark || ''),
+          transactionTime: record.transactionTime,
+          transactionType: '支出',
+        }),
+      );
+    }
+  }
+
+  const recordsToCreate: AutoFinanceCreateInput[] = [];
+  let dueRecords = 0;
+
+  for (const tenant of tenants) {
+    const anchorDate =
+      tenant.contractStart && isValidDate(tenant.contractStart)
+        ? tenant.contractStart
+        : tenant.createTime;
+
+    const dueDates = getMonthlyDueDates(anchorDate, now, tenant.contractEnd);
+    if (dueDates.length === 0) {
+      continue;
+    }
+
+    const amount = Number(tenant.rent);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      continue;
+    }
+
+    for (const dueDate of dueDates) {
+      const period = getMonthKey(dueDate);
+      const recordKey = `${tenant.rentalTenantId}:${period}`;
+      const displayRemark = buildDisplayRemark(tenant.tenantName, dueDate);
+      const displayRecordSignature = buildDisplayRecordSignature({
+        amount,
+        billName: DEFAULT_BILL_NAME,
+        parkId: tenant.parkId ?? null,
+        remark: displayRemark,
+        transactionTime: dueDate,
+        transactionType: '支出',
+      });
+      dueRecords += 1;
+
+      if (
+        existingPeriods.has(recordKey) ||
+        existingDisplayRecords.has(displayRecordSignature)
+      ) {
+        continue;
+      }
+
+      existingPeriods.add(recordKey);
+      existingDisplayRecords.add(displayRecordSignature);
+      recordsToCreate.push({
+        amount,
+        billCategory: DEFAULT_BILL_CATEGORY,
+        billName: DEFAULT_BILL_NAME,
+        parkId: tenant.parkId ?? null,
+        remark: displayRemark,
+        transactionTime: dueDate,
+        transactionType: '支出',
+      });
+    }
+  }
+
+  if (recordsToCreate.length > 0) {
+    await prismaClient.finance.createMany({
+      data: recordsToCreate,
+    });
+  }
+
+  return {
+    created: recordsToCreate.length,
+    dueRecords,
+    skipped: Math.max(dueRecords - recordsToCreate.length, 0),
+    tenants: tenants.length,
+  };
+}
+
+async function runRentalExpenseFinanceWorkerTick() {
+  const worker = globalForRentalExpenseFinance.__rentalExpenseFinanceWorker;
+  if (!worker || worker.running) {
+    return;
+  }
+
+  worker.running = true;
+  try {
+    await syncRentalExpenseFinanceRecords();
+  } catch (error) {
+    console.error('同步租户月度支出失败:', error);
+  } finally {
+    worker.running = false;
+  }
+}
+
+export function startRentalExpenseFinanceWorker() {
+  if (!isWorkerEnabled()) {
+    return;
+  }
+
+  if (globalForRentalExpenseFinance.__rentalExpenseFinanceWorker?.intervalId) {
+    return;
+  }
+
+  globalForRentalExpenseFinance.__rentalExpenseFinanceWorker = {
+    intervalId: setInterval(() => {
+      void runRentalExpenseFinanceWorkerTick();
+    }, getWorkerIntervalMs()),
+    running: false,
+  };
+
+  void runRentalExpenseFinanceWorkerTick();
+}
