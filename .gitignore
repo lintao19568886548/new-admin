@@ -66,3 +66,4 @@ git_log.txt
 apps/backend-mock/public/uploads
 playground/.env.llmkey
 tmp
+apps/backend-mock/.wechat
