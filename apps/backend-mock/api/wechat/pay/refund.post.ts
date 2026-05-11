@@ -6,7 +6,10 @@ import {
   unAuthorizedResponse,
   useResponseSuccess,
 } from '~/utils/response';
-import { createVipMembershipRefund } from '~/utils/vip-membership';
+import {
+  createVipMembershipRefund,
+  createVipMembershipRefundBatch,
+} from '~/utils/vip-membership';
 
 export default eventHandler(async (event) => {
   const userinfo = verifyAccessToken(event);
@@ -20,7 +23,12 @@ export default eventHandler(async (event) => {
 
   const body = (await readBody(event)) as Record<string, unknown>;
   const outTradeNo = String(body.outTradeNo || '').trim();
-  if (!outTradeNo) {
+  const outTradeNos = Array.isArray(body.outTradeNos)
+    ? body.outTradeNos
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    : [];
+  if (!outTradeNo && outTradeNos.length === 0) {
     return badRequestResponse('缺少 outTradeNo 参数', event);
   }
 
@@ -29,15 +37,24 @@ export default eventHandler(async (event) => {
     const defaultCustomerId = String(
       process.env.DEFAULT_CUSTOMER_ID || 'default',
     );
-    const result = await createVipMembershipRefund({
+    const commonParams = {
       allowCrossCustomerRefund: requesterCustomerId === defaultCustomerId,
-      outTradeNo,
       reason:
         typeof body.reason === 'string' && body.reason.trim()
           ? body.reason.trim()
           : undefined,
       requesterCustomerId,
-    });
+    };
+    const result =
+      outTradeNos.length > 0
+        ? await createVipMembershipRefundBatch({
+            ...commonParams,
+            outTradeNos,
+          })
+        : await createVipMembershipRefund({
+            ...commonParams,
+            outTradeNo,
+          });
     return useResponseSuccess(result);
   } catch (error) {
     console.error('发起会员微信退款失败:', error);

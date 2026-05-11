@@ -39,6 +39,29 @@ model VipMembershipPayment {
   @@map("vip_membership_payment")
 }
 
+model VipMembershipEntitlement {
+  id                  Int       @id @default(autoincrement())
+  customerId          String    @map("customer_id") @db.VarChar(50)
+  centerUserId        Int       @map("center_user_id")
+  outTradeNo          String    @unique @map("out_trade_no") @db.VarChar(64)
+  transactionId       String?   @map("transaction_id") @db.VarChar(64)
+  amountTotal         Int       @map("amount_total")
+  durationMonths      Int       @default(1) @map("duration_months")
+  startAt             DateTime  @map("start_at")
+  endAt               DateTime  @map("end_at")
+  status              String    @default("active") @db.VarChar(32)
+  refundedAt          DateTime? @map("refunded_at")
+  refundedOutRefundNo String?   @map("refunded_out_refund_no") @db.VarChar(64)
+  createTime          DateTime? @default(now()) @map("create_time")
+  updateTime          DateTime? @updatedAt @map("update_time")
+
+  @@index([customerId, status, startAt])
+  @@index([customerId, status, endAt])
+  @@index([centerUserId])
+  @@index([status, startAt])
+  @@map("vip_membership_entitlement")
+}
+
 model VipMembershipRefund {
   id                Int       @id @default(autoincrement())
   outRefundNo       String    @unique @map("out_refund_no") @db.VarChar(64)

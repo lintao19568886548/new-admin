@@ -150,6 +150,16 @@ export async function refundVipMembershipWechatOrder(data: {
   );
 }
 
+export async function refundVipMembershipWechatOrders(data: {
+  outTradeNos: string[];
+  reason?: string;
+}) {
+  return requestClient.post<VipMembershipRefundResult[]>(
+    '/wechat/pay/refund',
+    data,
+  );
+}
+
 export async function getTenantProvisioningStatus(
   options?: VipCheckoutFlowRequestOptions,
 ) {

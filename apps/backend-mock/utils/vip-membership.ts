@@ -46,6 +46,18 @@ export const VIP_MEMBERSHIP_AMOUNT_TOTAL = 98_000;
 const VIP_MEMBERSHIP_REFUND_RECONCILE_LIMIT = 20;
 const VIP_MEMBERSHIP_REFUND_RECHECK_DELAY_MS = 60_000;
 const VIP_MEMBERSHIP_MANUAL_REFUND_RECHECK_DELAY_MS = 12 * 60 * 60 * 1000;
+const VIP_MEMBERSHIP_ENTITLEMENT_ACTIVE_STATUS = 'active';
+const VIP_MEMBERSHIP_ENTITLEMENT_REFUNDED_STATUS = 'refunded';
+const VIP_MEMBERSHIP_REFUND_BUSINESS_TIME_ZONE = 'Asia/Shanghai';
+const VIP_MEMBERSHIP_REFUND_REUSABLE_STATUSES = [
+  'ABNORMAL',
+  'CLOSED',
+  'CREATE_FAILED',
+  'CREATE_PENDING',
+  'PENDING',
+  'PROCESSING',
+  'SUCCESS',
+];
 
 type VipMembershipDbClient = Prisma.TransactionClient | PrismaClient;
 
@@ -157,6 +169,19 @@ interface VipMembershipRefundRecord {
   transactionId?: null | string;
 }
 
+interface VipMembershipEntitlementRecord {
+  amountTotal: number;
+  centerUserId: number;
+  customerId: string;
+  durationMonths: number;
+  endAt: Date;
+  id: number;
+  outTradeNo: string;
+  startAt: Date;
+  status: string;
+  transactionId?: null | string;
+}
+
 function addMonths(source: Date, months: number) {
   const date = new Date(source);
   date.setMonth(date.getMonth() + months);
@@ -192,6 +217,26 @@ function parseDateValue(value: unknown) {
 
   const parsed = new Date(String(value));
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getBusinessDateKey(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: VIP_MEMBERSHIP_REFUND_BUSINESS_TIME_ZONE,
+    year: 'numeric',
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  );
+
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function isRefundableFutureEntitlementStart(startAt: Date, now = new Date()) {
+  return getBusinessDateKey(startAt) > getBusinessDateKey(now);
 }
 
 function parseVipMembershipAttach(
@@ -264,6 +309,7 @@ export { isVipMembershipTestPayment };
 async function revokeVipMembershipForRefundWithClient(
   inputOutTradeNo: string,
   prisma: VipMembershipDbClient,
+  inputOutRefundNo?: string,
 ) {
   const outTradeNo = normalizeString(inputOutTradeNo);
   if (!outTradeNo) {
@@ -282,6 +328,14 @@ async function revokeVipMembershipForRefundWithClient(
     return;
   }
 
+  await lockCustomerForVipMembership(membershipCustomerId, prisma);
+  const entitlement = await prisma.vipMembershipEntitlement.findUnique({
+    where: { outTradeNo },
+  });
+  if (!entitlement || entitlement.customerId !== membershipCustomerId) {
+    throw new Error('会员退款缺少对应权益流水，请先人工核对订单数据');
+  }
+
   await prisma.vipMembershipPayment.update({
     data: {
       tradeState: 'REFUND',
@@ -289,16 +343,18 @@ async function revokeVipMembershipForRefundWithClient(
     where: { outTradeNo },
   });
 
-  await prisma.vipMembership.updateMany({
+  await prisma.vipMembershipEntitlement.update({
     data: {
-      expireAt: new Date(),
-      status: 'inactive',
+      refundedAt: new Date(),
+      refundedOutRefundNo: normalizeString(inputOutRefundNo) || null,
+      status: VIP_MEMBERSHIP_ENTITLEMENT_REFUNDED_STATUS,
     },
-    where: {
-      customerId: membershipCustomerId,
-      lastOutTradeNo: outTradeNo,
-    },
+    where: { outTradeNo },
   });
+  await syncVipMembershipSummaryFromEntitlementsWithClient(
+    membershipCustomerId,
+    prisma,
+  );
 }
 
 async function applyVipMembershipRefundWithClient(
@@ -350,7 +406,11 @@ async function applyVipMembershipRefundWithClient(
   });
 
   if (isWechatRefundSuccess(status)) {
-    await revokeVipMembershipForRefundWithClient(refund.outTradeNo, prisma);
+    await revokeVipMembershipForRefundWithClient(
+      refund.outTradeNo,
+      prisma,
+      refund.outRefundNo,
+    );
   }
 
   return refund;
@@ -621,6 +681,88 @@ async function getVipMembershipRefundByOutRefundNo(
   });
 }
 
+async function getLatestActiveVipMembershipEntitlement(
+  customerId: string,
+  prisma: VipMembershipDbClient,
+) {
+  return prisma.vipMembershipEntitlement.findFirst({
+    orderBy: [{ endAt: 'desc' }, { id: 'desc' }],
+    where: {
+      customerId,
+      status: VIP_MEMBERSHIP_ENTITLEMENT_ACTIVE_STATUS,
+    },
+  });
+}
+
+async function getActiveVipMembershipEntitlementStack(
+  customerId: string,
+  prisma: VipMembershipDbClient,
+) {
+  return prisma.vipMembershipEntitlement.findMany({
+    orderBy: [{ startAt: 'desc' }, { id: 'desc' }],
+    where: {
+      customerId,
+      status: VIP_MEMBERSHIP_ENTITLEMENT_ACTIVE_STATUS,
+    },
+  });
+}
+
+async function syncVipMembershipSummaryFromEntitlementsWithClient(
+  customerId: string,
+  prisma: VipMembershipDbClient,
+) {
+  const latestEntitlement = await getLatestActiveVipMembershipEntitlement(
+    customerId,
+    prisma,
+  );
+  const now = new Date();
+
+  if (!latestEntitlement) {
+    return prisma.vipMembership.upsert({
+      create: {
+        customerId,
+        expireAt: now,
+        lastOutTradeNo: null,
+        lastPayerCenterUserId: null,
+        lastTransactionId: null,
+        status: 'inactive',
+      },
+      update: {
+        expireAt: now,
+        lastOutTradeNo: null,
+        lastPayerCenterUserId: null,
+        lastTransactionId: null,
+        status: 'inactive',
+      },
+      where: { customerId },
+    });
+  }
+
+  const status =
+    latestEntitlement.endAt.getTime() > now.getTime()
+      ? VIP_MEMBERSHIP_ACTIVE_STATUS
+      : 'inactive';
+
+  return prisma.vipMembership.upsert({
+    create: {
+      customerId,
+      expireAt: latestEntitlement.endAt,
+      lastOutTradeNo: latestEntitlement.outTradeNo,
+      lastPayerCenterUserId: latestEntitlement.centerUserId,
+      lastTransactionId: latestEntitlement.transactionId || null,
+      status,
+    },
+    update: {
+      expireAt: latestEntitlement.endAt,
+      lastOutTradeNo: latestEntitlement.outTradeNo,
+      lastPayerCenterUserId: latestEntitlement.centerUserId,
+      lastTransactionId: latestEntitlement.transactionId || null,
+      status,
+    },
+    where: { customerId },
+  });
+}
+
 async function getStaleTenantProvisioningPaymentState(
   params: {
     centerUserId: number;
@@ -722,6 +864,71 @@ function toVipMembershipRefundResult(
   };
 }
 
+function assertVipMembershipRefundStackSelection(params: {
+  entitlements: VipMembershipEntitlementRecord[];
+  now?: Date;
+  outTradeNos: string[];
+}) {
+  const requestedOutTradeNos = params.outTradeNos.map((outTradeNo) =>
+    normalizeString(outTradeNo),
+  );
+  const requestedSet = new Set(requestedOutTradeNos);
+  if (requestedSet.size !== requestedOutTradeNos.length) {
+    throw new Error('批量退款订单号不能重复');
+  }
+
+  const stackPrefix = params.entitlements.slice(0, requestedOutTradeNos.length);
+  const stackPrefixSet = new Set(
+    stackPrefix.map((entitlement) => entitlement.outTradeNo),
+  );
+  const isNewestPrefix =
+    stackPrefix.length === requestedOutTradeNos.length &&
+    requestedOutTradeNos.every((outTradeNo) => stackPrefixSet.has(outTradeNo));
+
+  if (!isNewestPrefix) {
+    throw new Error('会员退款只能按权益生效顺序从新往旧退，不能跳过更新的订单');
+  }
+
+  const now = params.now || new Date();
+  const invalidEntitlement = stackPrefix.find(
+    (entitlement) =>
+      !isRefundableFutureEntitlementStart(entitlement.startAt, now),
+  );
+  if (invalidEntitlement) {
+    throw new Error('仅支持退款权益开始日期在今天之后的会员订单');
+  }
+
+  return stackPrefix;
+}
+
+async function assertVipMembershipRefundableEntitlementsWithClient(
+  params: {
+    customerId: string;
+    outTradeNos: string[];
+  },
+  prisma: VipMembershipDbClient,
+) {
+  const entitlements = await getActiveVipMembershipEntitlementStack(
+    params.customerId,
+    prisma,
+  );
+  const requestedSet = new Set(params.outTradeNos);
+  const missingOutTradeNo = params.outTradeNos.find(
+    (outTradeNo) =>
+      !entitlements.some(
+        (entitlement) => entitlement.outTradeNo === outTradeNo,
+      ),
+  );
+  if (missingOutTradeNo) {
+    throw new Error('会员订单没有可退款的有效权益流水');
+  }
+
+  return assertVipMembershipRefundStackSelection({
+    entitlements,
+    outTradeNos: [...requestedSet],
+  });
+}
+
 async function resolveWechatRefundStatusForLocalRefund(
   refund: VipMembershipRefundRecord,
   reason?: string,
@@ -754,6 +961,234 @@ async function resolveWechatRefundStatusForLocalRefund(
       }
     }
   }
+}
+
+async function submitVipMembershipRefundRecord(
+  pendingRefund: VipMembershipRefundRecord,
+  reason?: string,
+  options?: {
+    throwOnCreateFailure?: boolean;
+  },
+) {
+  if (isWechatRefundTerminal(pendingRefund.status)) {
+    return toVipMembershipRefundResult(pendingRefund);
+  }
+
+  let refundStatus;
+  let createRefundError: unknown;
+  try {
+    refundStatus = await resolveWechatRefundStatusForLocalRefund(
+      pendingRefund,
+      reason,
+    );
+  } catch (error) {
+    createRefundError = error;
+  }
+
+  if (!refundStatus) {
+    const pendingRefundStatus = normalizeWechatRefundStatus(
+      pendingRefund.status,
+    );
+    const shouldMarkCreateFailed = ['CREATE_FAILED', 'CREATE_PENDING'].includes(
+      pendingRefundStatus,
+    );
+    const failedRefund = await withVipMembershipDb(() =>
+      systemDbClient.vipMembershipRefund.update({
+        data: {
+          lastCheckedAt: new Date(),
+          nextCheckAt: getRefundRecheckDate(),
+          providerRaw: JSON.stringify({
+            error:
+              createRefundError instanceof Error
+                ? createRefundError.message
+                : String(createRefundError || 'unknown'),
+          }),
+          status: shouldMarkCreateFailed
+            ? 'CREATE_FAILED'
+            : pendingRefundStatus,
+        },
+        where: { outRefundNo: pendingRefund.outRefundNo },
+      }),
+    );
+    if (options?.throwOnCreateFailure ?? true) {
+      throw new Error('微信退款创建失败，已记录为可重试状态');
+    }
+
+    return toVipMembershipRefundResult(failedRefund);
+  }
+
+  const refund = await withVipMembershipDb(() =>
+    systemDbClient.$transaction((tx) =>
+      applyVipMembershipRefundWithClient(
+        {
+          outRefundNo: refundStatus.outRefundNo,
+          providerRaw: refundStatus,
+          refundId: refundStatus.refundId,
+          status: refundStatus.status,
+          successTime: refundStatus.successTime,
+        },
+        tx,
+      ),
+    ),
+  );
+
+  return toVipMembershipRefundResult(refund || pendingRefund);
+}
+
+async function resolveVipMembershipRefundStackOrderWithClient(
+  params: {
+    allowCrossCustomerRefund?: boolean;
+    outTradeNos: string[];
+    requesterCustomerId?: unknown;
+  },
+  prisma: VipMembershipDbClient,
+) {
+  const payments = await prisma.vipMembershipPayment.findMany({
+    where: {
+      outTradeNo: { in: params.outTradeNos },
+    },
+  });
+  const paymentMap = new Map(
+    payments.map((payment) => [payment.outTradeNo, payment]),
+  );
+  const missingOutTradeNo = params.outTradeNos.find(
+    (outTradeNo) => !paymentMap.has(outTradeNo),
+  );
+  if (missingOutTradeNo) {
+    throw new Error('会员支付订单不存在');
+  }
+
+  const membershipCustomerIds = new Set(
+    payments.map((payment) =>
+      normalizeString(payment.targetCustomerId || payment.sourceCustomerId),
+    ),
+  );
+  if (membershipCustomerIds.size !== 1) {
+    throw new Error('批量退款只支持同一租户的会员订单');
+  }
+  const [membershipCustomerId] = [...membershipCustomerIds];
+  if (!membershipCustomerId) {
+    throw new Error('会员订单缺少租户归属，无法退款');
+  }
+
+  const requesterCustomerId = normalizeString(params.requesterCustomerId);
+  if (
+    !params.allowCrossCustomerRefund &&
+    requesterCustomerId &&
+    requesterCustomerId !== membershipCustomerId
+  ) {
+    throw new Error('无权退款其他租户的会员订单');
+  }
+
+  await lockCustomerForVipMembership(membershipCustomerId, prisma);
+  const entitlements =
+    await assertVipMembershipRefundableEntitlementsWithClient(
+      {
+        customerId: membershipCustomerId,
+        outTradeNos: params.outTradeNos,
+      },
+      prisma,
+    );
+
+  return entitlements.map((entitlement) => entitlement.outTradeNo);
+}
+
+async function createVipMembershipRefundRecord(params: {
+  allowCrossCustomerRefund?: boolean;
+  outTradeNo: string;
+  reason?: string;
+  requesterCustomerId?: unknown;
+}) {
+  const outTradeNo = normalizeString(params.outTradeNo);
+  if (!outTradeNo) {
+    throw new Error('缺少会员支付订单号');
+  }
+
+  return withVipMembershipDb(() =>
+    systemDbClient.$transaction(async (tx) => {
+      const payment = await getVipMembershipPaymentByOutTradeNo(outTradeNo, tx);
+      if (!payment) {
+        throw new Error('会员支付订单不存在');
+      }
+
+      const membershipCustomerId = normalizeString(
+        payment.targetCustomerId || payment.sourceCustomerId,
+      );
+      if (!membershipCustomerId) {
+        throw new Error('会员订单缺少租户归属，无法退款');
+      }
+
+      const requesterCustomerId = normalizeString(params.requesterCustomerId);
+      if (
+        !params.allowCrossCustomerRefund &&
+        requesterCustomerId &&
+        requesterCustomerId !== membershipCustomerId
+      ) {
+        throw new Error('无权退款其他租户的会员订单');
+      }
+
+      await lockCustomerForVipMembership(membershipCustomerId, tx);
+      const existingRefund = await tx.vipMembershipRefund.findFirst({
+        where: {
+          outTradeNo,
+          status: {
+            in: VIP_MEMBERSHIP_REFUND_REUSABLE_STATUSES,
+          },
+        },
+      });
+
+      if (
+        existingRefund &&
+        normalizeWechatRefundStatus(existingRefund.status) !== 'CREATE_FAILED'
+      ) {
+        return existingRefund;
+      }
+
+      if (normalizeString(payment.tradeState) !== 'SUCCESS') {
+        throw new Error('仅已支付成功的会员订单可以退款');
+      }
+      if (!payment.transactionId) {
+        throw new Error('会员订单缺少微信支付交易号，无法退款');
+      }
+
+      await assertVipMembershipRefundableEntitlementsWithClient(
+        {
+          customerId: membershipCustomerId,
+          outTradeNos: [outTradeNo],
+        },
+        tx,
+      );
+
+      if (existingRefund) {
+        return tx.vipMembershipRefund.update({
+          data: {
+            lastCheckedAt: new Date(),
+            nextCheckAt: getRefundRecheckDate(),
+            reason: normalizeString(params.reason) || existingRefund.reason,
+            status: 'CREATE_PENDING',
+          },
+          where: { outRefundNo: existingRefund.outRefundNo },
+        });
+      }
+
+      const outRefundNo = buildSystemRefundOutRefundNo(outTradeNo);
+
+      return tx.vipMembershipRefund.create({
+        data: {
+          amountTotal: Number(payment.amountTotal || 0),
+          centerUserId: payment.centerUserId,
+          customerId: membershipCustomerId,
+          nextCheckAt: getRefundRecheckDate(),
+          outRefundNo,
+          outTradeNo,
+          reason: normalizeString(params.reason) || null,
+          refundAmount: Number(payment.amountTotal || 0),
+          status: 'CREATE_PENDING',
+          transactionId: payment.transactionId,
+        },
+      });
+    }),
+  );
 }
 
 async function isTenantCustomerIdTaken(
@@ -1557,11 +1992,12 @@ export async function handleVipMembershipWechatOrder(
       }
 
       await lockCustomerForVipMembership(membershipCustomerId, tx);
-      const currentMembership = await getVipMembershipByCustomerIdForUpdate(
+      await getVipMembershipByCustomerIdForUpdate(membershipCustomerId, tx);
+      const latestEntitlement = await getLatestActiveVipMembershipEntitlement(
         membershipCustomerId,
         tx,
       );
-      const membershipExpireAt = currentMembership?.expireAt || null;
+      const membershipExpireAt = latestEntitlement?.endAt || null;
       const now = new Date();
       const baseTime =
         membershipExpireAt && membershipExpireAt.getTime() > now.getTime()
@@ -1569,26 +2005,23 @@ export async function handleVipMembershipWechatOrder(
           : resolvedPaidAt || now;
       const nextExpireAt = addMonths(baseTime, VIP_MEMBERSHIP_DURATION_MONTHS);
 
-      await tx.vipMembership.upsert({
-        create: {
+      const entitlement = await tx.vipMembershipEntitlement.create({
+        data: {
+          amountTotal: Number(payment.amountTotal || resolvedAmountTotal || 0),
+          centerUserId: payment.centerUserId,
           customerId: membershipCustomerId,
-          expireAt: nextExpireAt,
-          lastPayerCenterUserId: payment.centerUserId,
-          lastOutTradeNo: outTradeNo,
-          lastTransactionId: resolvedTransactionId || null,
-          status: VIP_MEMBERSHIP_ACTIVE_STATUS,
-        },
-        update: {
-          expireAt: nextExpireAt,
-          lastPayerCenterUserId: payment.centerUserId,
-          lastOutTradeNo: outTradeNo,
-          lastTransactionId: resolvedTransactionId || null,
-          status: VIP_MEMBERSHIP_ACTIVE_STATUS,
-        },
-        where: {
-          customerId: membershipCustomerId,
+          durationMonths: VIP_MEMBERSHIP_DURATION_MONTHS,
+          endAt: nextExpireAt,
+          outTradeNo,
+          startAt: baseTime,
+          transactionId: resolvedTransactionId || null,
         },
       });
+      const currentMembership =
+        await syncVipMembershipSummaryFromEntitlementsWithClient(
+          membershipCustomerId,
+          tx,
+        );
 
       if (provisioningJob?.targetCustomerId && !payment.targetCustomerId) {
         await tx.vipMembershipPayment.update({
@@ -1610,7 +2043,9 @@ export async function handleVipMembershipWechatOrder(
           (provisioningJob?.status as
             | undefined
             | VipMembershipProfileState['tenantProvisioningStatus']) || 'none',
-        vipExpireAt: nextExpireAt.toISOString(),
+        vipExpireAt:
+          currentMembership.expireAt?.toISOString() ||
+          entitlement.endAt.toISOString(),
       };
     }),
   );
@@ -1627,148 +2062,58 @@ export async function createVipMembershipRefund(params: {
     throw new Error('缺少会员支付订单号');
   }
 
-  const pendingRefund = await withVipMembershipDb(() =>
-    systemDbClient.$transaction(async (tx) => {
-      const payment = await getVipMembershipPaymentByOutTradeNo(outTradeNo, tx);
-      if (!payment) {
-        throw new Error('会员支付订单不存在');
-      }
+  const pendingRefund = await createVipMembershipRefundRecord(params);
+  return submitVipMembershipRefundRecord(pendingRefund, params.reason);
+}
 
-      const membershipCustomerId = normalizeString(
-        payment.targetCustomerId || payment.sourceCustomerId,
-      );
-      if (!membershipCustomerId) {
-        throw new Error('会员订单缺少租户归属，无法退款');
-      }
-
-      const requesterCustomerId = normalizeString(params.requesterCustomerId);
-      if (
-        !params.allowCrossCustomerRefund &&
-        requesterCustomerId &&
-        requesterCustomerId !== membershipCustomerId
-      ) {
-        throw new Error('无权退款其他租户的会员订单');
-      }
-
-      const existingRefund = await tx.vipMembershipRefund.findFirst({
-        where: {
-          outTradeNo,
-          status: {
-            in: [
-              'ABNORMAL',
-              'CLOSED',
-              'CREATE_FAILED',
-              'CREATE_PENDING',
-              'PENDING',
-              'PROCESSING',
-              'SUCCESS',
-            ],
-          },
-        },
-      });
-      if (
-        normalizeWechatRefundStatus(existingRefund?.status) === 'CREATE_FAILED'
-      ) {
-        return tx.vipMembershipRefund.update({
-          data: {
-            lastCheckedAt: new Date(),
-            nextCheckAt: getRefundRecheckDate(),
-            reason: normalizeString(params.reason) || existingRefund.reason,
-            status: 'CREATE_PENDING',
-          },
-          where: { outRefundNo: existingRefund.outRefundNo },
-        });
-      }
-
-      if (existingRefund) {
-        return existingRefund;
-      }
-
-      if (normalizeString(payment.tradeState) !== 'SUCCESS') {
-        throw new Error('仅已支付成功的会员订单可以退款');
-      }
-      if (!payment.transactionId) {
-        throw new Error('会员订单缺少微信支付交易号，无法退款');
-      }
-
-      const outRefundNo = buildSystemRefundOutRefundNo(outTradeNo);
-
-      return tx.vipMembershipRefund.create({
-        data: {
-          amountTotal: Number(payment.amountTotal || 0),
-          centerUserId: payment.centerUserId,
-          customerId: membershipCustomerId,
-          nextCheckAt: getRefundRecheckDate(),
-          outRefundNo,
-          outTradeNo,
-          reason: normalizeString(params.reason) || null,
-          refundAmount: Number(payment.amountTotal || 0),
-          status: 'CREATE_PENDING',
-          transactionId: payment.transactionId,
-        },
-      });
-    }),
-  );
-
-  if (isWechatRefundTerminal(pendingRefund.status)) {
-    return toVipMembershipRefundResult(pendingRefund);
+export async function createVipMembershipRefundBatch(params: {
+  allowCrossCustomerRefund?: boolean;
+  outTradeNos: string[];
+  reason?: string;
+  requesterCustomerId?: unknown;
+}) {
+  const outTradeNos = params.outTradeNos
+    .map((outTradeNo) => normalizeString(outTradeNo))
+    .filter(Boolean);
+  if (outTradeNos.length === 0) {
+    throw new Error('缺少会员支付订单号');
+  }
+  if (new Set(outTradeNos).size !== outTradeNos.length) {
+    throw new Error('批量退款订单号不能重复');
   }
 
-  let refundStatus;
-  let createRefundError: unknown;
-  try {
-    refundStatus = await resolveWechatRefundStatusForLocalRefund(
-      pendingRefund,
-      params.reason,
-    );
-  } catch (error) {
-    createRefundError = error;
-  }
-
-  if (!refundStatus) {
-    const pendingRefundStatus = normalizeWechatRefundStatus(
-      pendingRefund.status,
-    );
-    const shouldMarkCreateFailed = ['CREATE_FAILED', 'CREATE_PENDING'].includes(
-      pendingRefundStatus,
-    );
-    await withVipMembershipDb(() =>
-      systemDbClient.vipMembershipRefund.update({
-        data: {
-          lastCheckedAt: new Date(),
-          nextCheckAt: getRefundRecheckDate(),
-          providerRaw: JSON.stringify({
-            error:
-              createRefundError instanceof Error
-                ? createRefundError.message
-                : String(createRefundError || 'unknown'),
-          }),
-          status: shouldMarkCreateFailed
-            ? 'CREATE_FAILED'
-            : pendingRefundStatus,
-        },
-        where: { outRefundNo: pendingRefund.outRefundNo },
-      }),
-    );
-    throw new Error('微信退款创建失败，已记录为可重试状态');
-  }
-
-  const refund = await withVipMembershipDb(() =>
+  const stackOrderedOutTradeNos = await withVipMembershipDb(() =>
     systemDbClient.$transaction((tx) =>
-      applyVipMembershipRefundWithClient(
+      resolveVipMembershipRefundStackOrderWithClient(
         {
-          outRefundNo: refundStatus.outRefundNo,
-          providerRaw: refundStatus,
-          refundId: refundStatus.refundId,
-          status: refundStatus.status,
-          successTime: refundStatus.successTime,
+          allowCrossCustomerRefund: params.allowCrossCustomerRefund,
+          outTradeNos,
+          requesterCustomerId: params.requesterCustomerId,
         },
         tx,
       ),
     ),
   );
 
-  return toVipMembershipRefundResult(refund || pendingRefund);
+  const results: VipMembershipRefundResult[] = [];
+  for (const outTradeNo of stackOrderedOutTradeNos) {
+    const pendingRefund = await createVipMembershipRefundRecord({
+      ...params,
+      outTradeNo,
+    });
+    const result = await submitVipMembershipRefundRecord(
+      pendingRefund,
+      params.reason,
+      {
+        throwOnCreateFailure: false,
+      },
+    );
+    results.push(result);
+    if (normalizeWechatRefundStatus(result.status) !== 'SUCCESS') {
+      break;
+    }
+  }
+  return results;
 }
 
 export async function handleVipMembershipWechatRefundNotification(params: {
