@@ -13,10 +13,7 @@ import { useUserStore } from '@vben/stores';
 import { Button, Checkbox, Input, message, Modal, Tag } from 'ant-design-vue';
 
 import { joinTenantByInvitationCodeApi } from '#/api/tenant-invitation';
-import {
-  getTenantProvisioningStatus,
-  refundVipMembershipWechatOrder,
-} from '#/api/wechat-pay';
+import { getTenantProvisioningStatus } from '#/api/wechat-pay';
 import { useAuthStore } from '#/store';
 import { resolveMembershipAccessState } from '#/utils/membership-access';
 import {
@@ -160,7 +157,6 @@ const agreedToTerms = ref(false);
 const agreementModalOpen = ref(false);
 const checkoutResultModalOpen = ref(false);
 const membershipCheckoutResult = ref<MembershipCheckoutResult>('unknown');
-const refundConfirmModalOpen = ref(false);
 const tenantCity = ref('');
 const tenantCompanyShortName = ref('');
 const tenantIdentityTouched = ref(false);
@@ -168,8 +164,6 @@ const tenantInvitationCode = ref('');
 const tenantInvitationTouched = ref(false);
 const tenantJoinLoading = ref(false);
 const payLoading = ref(false);
-const refundOutTradeNo = ref('');
-const refundLoading = ref(false);
 const wechatConfigLoading = ref(false);
 const latestPaymentState = ref<MembershipPaymentState | null>(null);
 const latestTenantProvisioningStatus = ref<null | TenantProvisioningStatus>(
@@ -224,20 +218,6 @@ const latestPaymentStatusLabel = computed(() => {
 });
 const isSuperUser = computed(() =>
   (userInfo.value?.roles || []).some((role) => String(role) === 'Super'),
-);
-const latestRefundableOutTradeNo = computed(() =>
-  latestPaymentState.value?.success && latestPaymentState.value.outTradeNo
-    ? latestPaymentState.value.outTradeNo
-    : '',
-);
-const refundTargetOutTradeNo = computed(
-  () => latestRefundableOutTradeNo.value || refundOutTradeNo.value.trim(),
-);
-const canOpenRefundConfirmModal = computed(
-  () =>
-    isSuperUser.value &&
-    Boolean(refundTargetOutTradeNo.value) &&
-    !refundLoading.value,
 );
 const profileMembershipState = computed<null | ProfileMembershipState>(() =>
   resolveProfileMembershipState(userInfo.value),
@@ -988,67 +968,8 @@ async function handleCheckoutResultLogout() {
   await authStore.logout(false);
 }
 
-function openRefundConfirmModal() {
-  if (!canOpenRefundConfirmModal.value) {
-    return;
-  }
-
-  refundConfirmModalOpen.value = true;
-}
-
-async function handleRefundLatestPayment() {
-  const outTradeNo = refundTargetOutTradeNo.value;
-
-  if (refundLoading.value || !outTradeNo) {
-    return;
-  }
-
-  refundLoading.value = true;
-  try {
-    const result = await refundVipMembershipWechatOrder({
-      outTradeNo,
-      reason: '后台发起会员退款',
-    });
-    const refundStatusDescription =
-      result.status === 'SUCCESS'
-        ? '会员退款已成功，会员状态已同步'
-        : `会员退款已提交，当前状态：${result.status}`;
-
-    refundConfirmModalOpen.value = false;
-
-    latestPaymentState.value =
-      latestPaymentState.value?.outTradeNo === outTradeNo
-        ? {
-            ...latestPaymentState.value,
-            success: false,
-            tradeState: 'REFUND_PROCESSING',
-            tradeStateDesc: refundStatusDescription,
-          }
-        : {
-            outTradeNo,
-            success: false,
-            tradeState: 'REFUND_PROCESSING',
-            tradeStateDesc: refundStatusDescription,
-            transactionId: '',
-          };
-
-    refundOutTradeNo.value = '';
-
-    if (result.status === 'SUCCESS') {
-      await authStore.fetchUserInfo();
-    }
-
-    message.success(
-      result.status === 'SUCCESS'
-        ? '会员退款已成功'
-        : '会员退款已提交，系统会自动对账',
-    );
-  } catch (error) {
-    console.error('发起会员退款失败:', error);
-    message.error(error instanceof Error ? error.message : '发起会员退款失败');
-  } finally {
-    refundLoading.value = false;
-  }
+function handleOpenRefundOrders() {
+  void router.push('/profile/vip-refunds');
 }
 
 async function refreshTenantProvisioningStatus(checkoutFlowToken?: string) {
@@ -1457,35 +1378,6 @@ onMounted(() => {
               </div>
             </div>
 
-            <div v-if="isSuperUser" class="order-card__refund">
-              <div>
-                <strong>后台退款</strong>
-                <p>
-                  仅 Super 可见。退款成功后会撤销当前订单对应的企业会员权益。
-                </p>
-              </div>
-              <p
-                v-if="latestRefundableOutTradeNo"
-                class="order-card__refund-no"
-              >
-                最近可退款订单：{{ latestRefundableOutTradeNo }}
-              </p>
-              <Input
-                v-else
-                v-model:value="refundOutTradeNo"
-                :disabled="refundLoading"
-                placeholder="输入会员支付订单号"
-              />
-              <Button
-                danger
-                :disabled="!canOpenRefundConfirmModal"
-                :loading="refundLoading"
-                @click="openRefundConfirmModal"
-              >
-                发起退款
-              </Button>
-            </div>
-
             <div v-if="requiresTenantIdentity" class="tenant-identity-card">
               <div>
                 <h3>租户公司信息</h3>
@@ -1552,6 +1444,13 @@ onMounted(() => {
             </div>
           </section>
         </aside>
+        <div v-if="isSuperUser" class="order-card__management">
+          <div>
+            <strong>订单管理</strong>
+            <p>可查看当前企业的所有会员支付订单并按规则退款。</p>
+          </div>
+          <Button @click="handleOpenRefundOrders"> 管理企业订单 </Button>
+        </div>
       </div>
     </div>
 
@@ -1618,27 +1517,6 @@ onMounted(() => {
         <div>
           <h3>{{ checkoutResultModalView.heading }}</h3>
           <p>{{ checkoutResultModalView.description }}</p>
-        </div>
-      </div>
-    </Modal>
-
-    <Modal
-      v-model:open="refundConfirmModalOpen"
-      centered
-      cancel-text="取消"
-      ok-text="确认退款"
-      title="确认发起会员退款"
-      :confirm-loading="refundLoading"
-      :mask-closable="!refundLoading"
-      @ok="handleRefundLatestPayment"
-    >
-      <div class="refund-confirm">
-        <p>
-          将对会员支付订单发起微信退款。退款成功后，系统会撤销该订单对应的企业会员权益。
-        </p>
-        <div v-if="refundTargetOutTradeNo" class="refund-confirm__no">
-          <span>订单号</span>
-          <strong>{{ refundTargetOutTradeNo }}</strong>
         </div>
       </div>
     </Modal>
@@ -1939,7 +1817,7 @@ onMounted(() => {
 
 .order-card__rows,
 .order-card__payment-result,
-.order-card__refund {
+.order-card__management {
   display: grid;
   gap: 12px;
   margin-top: 20px;
@@ -1968,29 +1846,31 @@ onMounted(() => {
   word-break: break-all;
 }
 
-.order-card__refund {
-  padding: 14px;
-  background: rgb(220 38 38 / 6%);
-  border: 1px solid rgb(220 38 38 / 12%);
+.order-card__management {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: rgb(23 100 255 / 6%);
+  border: 1px solid rgb(23 100 255 / 12%);
   border-radius: 16px;
 }
 
-.order-card__refund strong {
-  color: #991b1b;
+.order-card__management > div {
+  flex: 1;
+  min-width: 0;
 }
 
-.order-card__refund p {
+.order-card__management strong {
+  color: var(--vip-accent);
+}
+
+.order-card__management p {
   margin: 6px 0 0;
   font-size: 13px;
   line-height: 1.7;
   color: var(--vip-text-soft);
-}
-
-.order-card__refund-no {
-  padding: 10px 12px;
-  word-break: break-all;
-  background: rgb(255 255 255 / 72%);
-  border-radius: 12px;
 }
 
 .order-card__divider {
@@ -2148,31 +2028,6 @@ onMounted(() => {
   border: 0;
 }
 
-.refund-confirm p {
-  margin: 0;
-  line-height: 1.8;
-  color: var(--vip-text);
-}
-
-.refund-confirm__no {
-  display: grid;
-  gap: 6px;
-  padding: 12px;
-  margin-top: 14px;
-  background: rgb(15 23 42 / 4%);
-  border-radius: 12px;
-}
-
-.refund-confirm__no span {
-  font-size: 12px;
-  color: var(--vip-text-soft);
-}
-
-.refund-confirm__no strong {
-  color: var(--vip-text);
-  word-break: break-all;
-}
-
 .membership-success {
   display: flex;
   gap: 16px;
@@ -2240,6 +2095,16 @@ onMounted(() => {
   .pay-card,
   .order-card {
     padding: 20px;
+  }
+
+  .order-card__management {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .order-card__management > div {
+    margin-right: 0;
+    margin-bottom: 12px;
   }
 
   .pay-card h2 {

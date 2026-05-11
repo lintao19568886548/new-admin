@@ -27,6 +27,15 @@ const routes: RouteRecordRaw[] = [
     name: 'ProfileTenantInvitations',
     path: '/profile/tenant-invitations',
   },
+  {
+    component: () => import('#/views/profile/vip-refunds.vue'),
+    meta: {
+      hideMenu: true,
+      title: '会员退款订单',
+    },
+    name: 'ProfileVipRefunds',
+    path: '/profile/vip-refunds',
+  },
 ];
 
 export default routes;
