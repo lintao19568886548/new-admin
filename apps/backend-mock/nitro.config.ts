@@ -8,6 +8,7 @@ export default defineNitroConfig({
   plugins: [
     '~/plugins/tenant-provisioning-worker',
     '~/plugins/rental-expense-finance-worker',
+    '~/plugins/vip-membership-refund-worker',
   ],
   routeRules: {
     '/api/**': {

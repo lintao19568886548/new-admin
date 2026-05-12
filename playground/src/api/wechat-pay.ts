@@ -91,6 +91,43 @@ export interface WechatPayOrderStatus {
   };
 }
 
+export interface VipMembershipRefundResult {
+  amountTotal: number;
+  customerId: string;
+  outRefundNo: string;
+  outTradeNo: string;
+  refundAmount: number;
+  refundId?: string;
+  status: string;
+}
+
+export interface VipMembershipRefundOrder {
+  amountTotal: number;
+  entitlement?: {
+    durationMonths: number;
+    endAt: string;
+    startAt: string;
+    status: string;
+  };
+  latestRefund?: {
+    outRefundNo: string;
+    refundAmount: number;
+    status: string;
+    successAt?: string;
+  };
+  outTradeNo: string;
+  paidAt?: string;
+  refundable: boolean;
+  refundDisabledReason?: string;
+  targetCustomerId?: string;
+  tradeState: string;
+  transactionId?: string;
+}
+
+export interface VipMembershipRefundOrderList {
+  items: VipMembershipRefundOrder[];
+}
+
 interface VipCheckoutFlowRequestOptions {
   checkoutFlowToken?: string;
 }
@@ -128,6 +165,32 @@ export async function queryWechatPayOrder(
       outTradeNo,
     },
   });
+}
+
+export async function refundVipMembershipWechatOrder(data: {
+  outTradeNo: string;
+  reason?: string;
+}) {
+  return requestClient.post<VipMembershipRefundResult>(
+    '/wechat/pay/refund',
+    data,
+  );
+}
+
+export async function refundVipMembershipWechatOrders(data: {
+  outTradeNos: string[];
+  reason?: string;
+}) {
+  return requestClient.post<VipMembershipRefundResult[]>(
+    '/wechat/pay/refund',
+    data,
+  );
+}
+
+export async function listVipMembershipRefundOrders() {
+  return requestClient.get<VipMembershipRefundOrderList>(
+    '/wechat/pay/refund/orders',
+  );
 }
 
 export async function getTenantProvisioningStatus(

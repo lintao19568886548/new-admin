@@ -216,6 +216,9 @@ const latestPaymentStatusLabel = computed(() => {
     latestPaymentState.value.tradeState
   );
 });
+const isSuperUser = computed(() =>
+  (userInfo.value?.roles || []).some((role) => String(role) === 'Super'),
+);
 const profileMembershipState = computed<null | ProfileMembershipState>(() =>
   resolveProfileMembershipState(userInfo.value),
 );
@@ -965,6 +968,10 @@ async function handleCheckoutResultLogout() {
   await authStore.logout(false);
 }
 
+function handleOpenRefundOrders() {
+  void router.push('/profile/vip-refunds');
+}
+
 async function refreshTenantProvisioningStatus(checkoutFlowToken?: string) {
   const state = await getTenantProvisioningStatus({
     checkoutFlowToken,
@@ -1437,6 +1444,13 @@ onMounted(() => {
             </div>
           </section>
         </aside>
+        <div v-if="isSuperUser" class="order-card__management">
+          <div>
+            <strong>订单管理</strong>
+            <p>可查看当前企业的所有会员支付订单并按规则退款。</p>
+          </div>
+          <Button @click="handleOpenRefundOrders"> 管理企业订单 </Button>
+        </div>
       </div>
     </div>
 
@@ -1802,7 +1816,8 @@ onMounted(() => {
 }
 
 .order-card__rows,
-.order-card__payment-result {
+.order-card__payment-result,
+.order-card__management {
   display: grid;
   gap: 12px;
   margin-top: 20px;
@@ -1829,6 +1844,33 @@ onMounted(() => {
 .order-card__row--wrap span:last-child {
   text-align: right;
   word-break: break-all;
+}
+
+.order-card__management {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: rgb(23 100 255 / 6%);
+  border: 1px solid rgb(23 100 255 / 12%);
+  border-radius: 16px;
+}
+
+.order-card__management > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.order-card__management strong {
+  color: var(--vip-accent);
+}
+
+.order-card__management p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--vip-text-soft);
 }
 
 .order-card__divider {
@@ -2053,6 +2095,16 @@ onMounted(() => {
   .pay-card,
   .order-card {
     padding: 20px;
+  }
+
+  .order-card__management {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .order-card__management > div {
+    margin-right: 0;
+    margin-bottom: 12px;
   }
 
   .pay-card h2 {

@@ -25,6 +25,19 @@ const PROFILE_AUXILIARY_ROUTE_MENUS = [
     path: '/profile/tenant-invitations',
     type: 'menu',
   },
+  {
+    authCode: 'profile:vip-refunds',
+    component: '/profile/vip-refunds',
+    meta: {
+      activePath: '/profile',
+      hideInMenu: true,
+      icon: 'mdi:cash-refund',
+      title: '会员退款订单',
+    },
+    name: 'ProfileVipRefunds',
+    path: '/profile/vip-refunds',
+    type: 'menu',
+  },
 ] as const;
 
 function hasRouteMenu(

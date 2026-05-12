@@ -128,6 +128,38 @@ export interface WechatPayNotificationResult {
   resource: Record<string, any>;
 }
 
+export interface WechatPayRefundInput {
+  amount: {
+    currency?: string;
+    refund: number;
+    total: number;
+  };
+  notifyUrl?: string;
+  outRefundNo: string;
+  outTradeNo?: string;
+  reason?: string;
+  transactionId?: string;
+}
+
+export interface WechatPayRefundStatus {
+  amount: {
+    currency: string;
+    payerRefund: number;
+    payerTotal: number;
+    refund: number;
+    total: number;
+  };
+  channel: string;
+  createTime: string;
+  outRefundNo: string;
+  outTradeNo: string;
+  refundId: string;
+  status: string;
+  successTime: string;
+  transactionId: string;
+  userReceivedAccount: string;
+}
+
 const platformCertificateCache: WechatPayPlatformCertificateCache = {
   certificates: new Map<string, string>(),
   expiresAt: 0,
@@ -647,6 +679,78 @@ export async function queryWechatPayOrder(outTradeNo: string) {
     tradeStateDesc: String(response.data.trade_state_desc || ''),
     transactionId: String(response.data.transaction_id || ''),
   } satisfies WechatPayOrderStatus;
+}
+
+function normalizeWechatRefundStatus(
+  payload: Record<string, any>,
+  fallbackOutRefundNo: string,
+): WechatPayRefundStatus {
+  const amount = payload.amount || {};
+  return {
+    amount: {
+      currency: String(amount.currency || 'CNY'),
+      payerRefund: Number(amount.payer_refund || 0),
+      payerTotal: Number(amount.payer_total || 0),
+      refund: Number(amount.refund || 0),
+      total: Number(amount.total || 0),
+    },
+    channel: String(payload.channel || ''),
+    createTime: String(payload.create_time || ''),
+    outRefundNo: String(payload.out_refund_no || fallbackOutRefundNo),
+    outTradeNo: String(payload.out_trade_no || ''),
+    refundId: String(payload.refund_id || ''),
+    status: String(payload.status || ''),
+    successTime: String(payload.success_time || ''),
+    transactionId: String(payload.transaction_id || ''),
+    userReceivedAccount: String(payload.user_received_account || ''),
+  };
+}
+
+export async function createWechatPayRefund(input: WechatPayRefundInput) {
+  const config = await getWechatPayConfig();
+  const requestBody: Record<string, any> = {
+    amount: {
+      currency: input.amount.currency || 'CNY',
+      refund: input.amount.refund,
+      total: input.amount.total,
+    },
+    notify_url: input.notifyUrl || config.notifyUrl,
+    out_refund_no: input.outRefundNo,
+    out_trade_no: input.transactionId ? undefined : input.outTradeNo,
+    reason: input.reason || undefined,
+    transaction_id: input.transactionId || undefined,
+  };
+
+  if (!requestBody.out_trade_no) {
+    delete requestBody.out_trade_no;
+  }
+  if (!requestBody.transaction_id) {
+    delete requestBody.transaction_id;
+  }
+  if (!requestBody.reason) {
+    delete requestBody.reason;
+  }
+
+  const response = await signedWechatPayRequest<Record<string, any>>(
+    '/v3/refund/domestic/refunds',
+    {
+      body: requestBody,
+      method: 'POST',
+    },
+  );
+
+  return normalizeWechatRefundStatus(response.data, input.outRefundNo);
+}
+
+export async function queryWechatPayRefund(outRefundNo: string) {
+  const response = await signedWechatPayRequest<Record<string, any>>(
+    `/v3/refund/domestic/refunds/${encodeURIComponent(outRefundNo)}`,
+    {
+      method: 'GET',
+    },
+  );
+
+  return normalizeWechatRefundStatus(response.data, outRefundNo);
 }
 
 export async function verifyAndDecryptWechatPayNotification(params: {
