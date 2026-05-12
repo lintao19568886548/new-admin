@@ -7,7 +7,7 @@ export interface VipMembershipTestPaymentContext {
 // 临时联调开关集中放这里；测试完把 enabled 改回 false，避免生产误用。
 export const VIP_MEMBERSHIP_TEST_PAYMENT_OVERRIDE = {
   amountTotal: 1,
-  enabled: true,
+  enabled: false,
   sourceCustomerId: 'public',
   tenantUserId: 68,
 } as const;
