@@ -261,8 +261,11 @@ function getBusinessDateKey(date: Date) {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-function isRefundableFutureEntitlementStart(startAt: Date, now = new Date()) {
-  return getBusinessDateKey(startAt) > getBusinessDateKey(now);
+function isRefundableEntitlementStartNotBeforeToday(
+  startAt: Date,
+  now = new Date(),
+) {
+  return getBusinessDateKey(startAt) >= getBusinessDateKey(now);
 }
 
 function parseVipMembershipAttach(
@@ -997,10 +1000,10 @@ function assertVipMembershipRefundStackSelection(params: {
   const now = params.now || new Date();
   const invalidEntitlement = stackPrefix.find(
     (entitlement) =>
-      !isRefundableFutureEntitlementStart(entitlement.startAt, now),
+      !isRefundableEntitlementStartNotBeforeToday(entitlement.startAt, now),
   );
   if (invalidEntitlement) {
-    throw new Error('仅支持退款权益开始日期在今天之后的会员订单');
+    throw new Error('仅支持退款权益开始日期不早于今天的会员订单');
   }
 
   return stackPrefix;
@@ -1039,7 +1042,7 @@ function resolveVipMembershipRefundableOutTradeNos(
 ) {
   const refundable = new Set<string>();
   for (const entitlement of entitlements) {
-    if (!isRefundableFutureEntitlementStart(entitlement.startAt)) {
+    if (!isRefundableEntitlementStartNotBeforeToday(entitlement.startAt)) {
       break;
     }
     refundable.add(entitlement.outTradeNo);
@@ -2265,7 +2268,9 @@ export async function listVipMembershipRefundOrders(params: {
           entitlement.status !== VIP_MEMBERSHIP_ENTITLEMENT_ACTIVE_STATUS
         ) {
           refundDisabledReason = '该订单权益已失效';
-        } else if (isRefundableFutureEntitlementStart(entitlement.startAt)) {
+        } else if (
+          isRefundableEntitlementStartNotBeforeToday(entitlement.startAt)
+        ) {
           refundDisabledReason = '需先退款更新的会员订单';
         } else {
           refundDisabledReason = '权益已开始，不能退款';
