@@ -4,6 +4,20 @@ import { PrismaClient as CenterPrismaClient } from '@prisma/.prisma/center-clien
 import { PrismaClient as CustomerPrismaClient } from '@prisma/.prisma/client/index.js';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
+const DEFAULT_CUSTOMER_PRISMA_POOL_MAX = 30;
+const DEFAULT_CUSTOMER_PRISMA_POOL_SWEEP_INTERVAL_SECONDS = 60;
+const DEFAULT_CUSTOMER_PRISMA_POOL_TTL_SECONDS = 1800;
+
+type CustomerPrismaCacheEntry = {
+  client: CustomerPrismaClient;
+  disconnectAfterInFlight: boolean;
+  disconnectClient: CustomerPrismaClient;
+  disconnected: boolean;
+  expiresAt: number;
+  inFlight: number;
+  lastUsedAt: number;
+};
+
 function decodeBase64Utf8(varName: string, rawValue: string | undefined) {
   if (!rawValue) {
     return undefined;
@@ -100,11 +114,9 @@ if (process.env.NODE_ENV === 'production' && !cachingRsaPublicKey) {
 }
 
 const globalForPrisma = globalThis as unknown as {
-  prismaCenter: CenterPrismaClient;
-  prismaCustomers?: Map<
-    string,
-    { client: CustomerPrismaClient; expiresAt: number; lastUsedAt: number }
-  >;
+  customerPrismaPoolSweepInterval?: ReturnType<typeof setInterval>;
+  prismaCenter?: CenterPrismaClient;
+  prismaCustomers?: Map<string, CustomerPrismaCacheEntry>;
 };
 
 export const systemDbClient =
@@ -124,6 +136,169 @@ type PrismaScope = {
 };
 
 export const prismaScopeStorage = new AsyncLocalStorage<PrismaScope>();
+
+function getPositiveNumberEnv(name: string, fallback: number) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function getCustomerPrismaPoolTtlMs() {
+  return Math.floor(
+    getPositiveNumberEnv(
+      'CUSTOMER_PRISMA_POOL_TTL_SECONDS',
+      DEFAULT_CUSTOMER_PRISMA_POOL_TTL_SECONDS,
+    ) * 1000,
+  );
+}
+
+function getCustomerPrismaPoolMax() {
+  return Math.floor(
+    getPositiveNumberEnv(
+      'CUSTOMER_PRISMA_POOL_MAX',
+      DEFAULT_CUSTOMER_PRISMA_POOL_MAX,
+    ),
+  );
+}
+
+function touchCustomerPrismaCacheEntry(
+  entry: CustomerPrismaCacheEntry,
+  now = Date.now(),
+) {
+  entry.expiresAt = now + getCustomerPrismaPoolTtlMs();
+  entry.lastUsedAt = now;
+}
+
+function disconnectCustomerPrismaEntry(entry: CustomerPrismaCacheEntry) {
+  if (entry.disconnected) {
+    return;
+  }
+
+  entry.disconnected = true;
+  entry.disconnectClient.$disconnect().catch(() => undefined);
+}
+
+function retireCustomerPrismaEntry(entry: CustomerPrismaCacheEntry) {
+  entry.disconnectAfterInFlight = true;
+  if (entry.inFlight === 0) {
+    disconnectCustomerPrismaEntry(entry);
+  }
+}
+
+function releaseCustomerPrismaEntry(entry: CustomerPrismaCacheEntry) {
+  entry.inFlight = Math.max(entry.inFlight - 1, 0);
+  entry.lastUsedAt = Date.now();
+
+  if (entry.inFlight === 0 && entry.disconnectAfterInFlight) {
+    disconnectCustomerPrismaEntry(entry);
+  }
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return (
+    Boolean(value) &&
+    (typeof value === 'function' || typeof value === 'object') &&
+    typeof (value as PromiseLike<unknown>).then === 'function'
+  );
+}
+
+function trackCustomerPrismaOperation<T>(
+  entry: CustomerPrismaCacheEntry,
+  operation: () => T,
+): T {
+  entry.inFlight += 1;
+  touchCustomerPrismaCacheEntry(entry);
+
+  try {
+    const result = operation();
+    if (isPromiseLike(result)) {
+      return Promise.resolve(result).finally(() =>
+        releaseCustomerPrismaEntry(entry),
+      ) as T;
+    }
+
+    releaseCustomerPrismaEntry(entry);
+    return result;
+  } catch (error) {
+    releaseCustomerPrismaEntry(entry);
+    throw error;
+  }
+}
+
+function evictCustomerPrismaClient(
+  cache: Map<string, CustomerPrismaCacheEntry>,
+  cacheKey: string,
+) {
+  const cached = cache.get(cacheKey);
+  if (!cached) {
+    return;
+  }
+
+  cache.delete(cacheKey);
+  retireCustomerPrismaEntry(cached);
+}
+
+function enforceCustomerPrismaPoolMax(
+  cache: Map<string, CustomerPrismaCacheEntry>,
+) {
+  const max = getCustomerPrismaPoolMax();
+
+  while (cache.size > max) {
+    let oldestKey: null | string = null;
+    let oldestAt = Number.POSITIVE_INFINITY;
+    for (const [key, value] of cache.entries()) {
+      if (value.lastUsedAt < oldestAt) {
+        oldestAt = value.lastUsedAt;
+        oldestKey = key;
+      }
+    }
+    if (!oldestKey) {
+      break;
+    }
+    evictCustomerPrismaClient(cache, oldestKey);
+  }
+}
+
+function sweepExpiredCustomerPrismaClients() {
+  const cache = globalForPrisma.prismaCustomers;
+  if (!cache?.size) {
+    return;
+  }
+
+  const now = Date.now();
+  for (const [cacheKey, cached] of cache.entries()) {
+    if (cached.expiresAt <= now) {
+      evictCustomerPrismaClient(cache, cacheKey);
+    }
+  }
+}
+
+function startCustomerPrismaPoolSweeper() {
+  if (globalForPrisma.customerPrismaPoolSweepInterval) {
+    return;
+  }
+
+  const intervalMs = Math.floor(
+    getPositiveNumberEnv(
+      'CUSTOMER_PRISMA_POOL_SWEEP_INTERVAL_SECONDS',
+      DEFAULT_CUSTOMER_PRISMA_POOL_SWEEP_INTERVAL_SECONDS,
+    ) * 1000,
+  );
+
+  const intervalId = setInterval(() => {
+    try {
+      sweepExpiredCustomerPrismaClients();
+    } catch (error) {
+      console.error(
+        '[backend-mock][db] customer Prisma pool sweep failed:',
+        error,
+      );
+    }
+  }, intervalMs);
+  intervalId.unref?.();
+  globalForPrisma.customerPrismaPoolSweepInterval = intervalId;
+}
+
+startCustomerPrismaPoolSweeper();
 
 function getDefaultCustomerId() {
   return String(process.env.DEFAULT_CUSTOMER_ID || 'default');
@@ -200,7 +375,7 @@ function getCustomerPrismaClient(customerId: string, dbName?: null | string) {
   if (!globalForPrisma.prismaCustomers) {
     globalForPrisma.prismaCustomers = new Map<
       string,
-      { client: CustomerPrismaClient; expiresAt: number; lastUsedAt: number }
+      CustomerPrismaCacheEntry
     >();
   }
 
@@ -211,79 +386,83 @@ function getCustomerPrismaClient(customerId: string, dbName?: null | string) {
     : normalizedCustomerId;
   const cache = globalForPrisma.prismaCustomers;
   const now = Date.now();
-  const ttlSeconds = Number(
-    process.env.CUSTOMER_PRISMA_POOL_TTL_SECONDS || 1800,
-  );
-  const ttlMs =
-    Number.isFinite(ttlSeconds) && ttlSeconds > 0
-      ? Math.floor(ttlSeconds * 1000)
-      : 1800 * 1000;
-
-  const maxSize = Number(process.env.CUSTOMER_PRISMA_POOL_MAX || 30);
-  const max =
-    Number.isFinite(maxSize) && maxSize > 0 ? Math.floor(maxSize) : 30;
+  const ttlMs = getCustomerPrismaPoolTtlMs();
 
   const cached = cache.get(cacheKey);
   if (cached) {
     if (cached.expiresAt > now) {
-      cached.lastUsedAt = now;
+      touchCustomerPrismaCacheEntry(cached, now);
       return cached.client;
     }
-    cache.delete(cacheKey);
-    cached.client.$disconnect().catch(() => undefined);
+    evictCustomerPrismaClient(cache, cacheKey);
   }
 
-  const client = new CustomerPrismaClient({
+  let entry: CustomerPrismaCacheEntry | undefined;
+  const disconnectClient = new CustomerPrismaClient({
     adapter: createMariaDbAdapter(
       buildCustomerDatabaseUrl(normalizedCustomerId, normalizedDbName),
       cachingRsaPublicKey,
     ),
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
+  const client = disconnectClient.$extends({
+    query: {
+      async $allOperations({ args, query }) {
+        return entry
+          ? trackCustomerPrismaOperation(entry, () => query(args))
+          : query(args);
+      },
+    },
+  }) as unknown as CustomerPrismaClient;
 
-  cache.set(cacheKey, {
+  entry = {
     client,
+    disconnectAfterInFlight: false,
+    disconnectClient,
+    disconnected: false,
     expiresAt: now + ttlMs,
+    inFlight: 0,
     lastUsedAt: now,
-  });
+  };
+  cache.set(cacheKey, entry);
 
-  if (cache.size > max) {
-    while (cache.size > max) {
-      let oldestKey: null | string = null;
-      let oldestAt = Number.POSITIVE_INFINITY;
-      for (const [key, value] of cache.entries()) {
-        if (value.lastUsedAt < oldestAt) {
-          oldestAt = value.lastUsedAt;
-          oldestKey = key;
-        }
-      }
-      if (!oldestKey) {
-        break;
-      }
-      const evicted = cache.get(oldestKey);
-      cache.delete(oldestKey);
-      evicted?.client.$disconnect().catch(() => undefined);
-    }
-  }
+  enforceCustomerPrismaPoolMax(cache);
 
   return client;
 }
 
-function getRequestScopedPrismaClient() {
+function getRequestScopedPrismaClientEntry() {
   const scope = prismaScopeStorage.getStore();
   if (!scope?.customerId) {
     throw new Error('Missing customer scope');
   }
-  return getCustomerPrismaClient(scope.customerId, scope.dbName);
+  const client = getCustomerPrismaClient(scope.customerId, scope.dbName);
+  const cache = globalForPrisma.prismaCustomers;
+  const cacheKey = scope.dbName
+    ? `${scope.customerId}:${normalizeDatabaseName(scope.dbName)}`
+    : scope.customerId;
+  const entry = cache?.get(cacheKey);
+  if (!entry || entry.client !== client) {
+    throw new Error('Missing customer Prisma cache entry');
+  }
+  return entry;
 }
 
 export const prismaClient: CustomerPrismaClient = new Proxy(
   systemDbClient as any,
   {
     get(_target, prop) {
-      const client = getRequestScopedPrismaClient() as any;
+      const entry = getRequestScopedPrismaClientEntry();
+      const client = entry.client as any;
       const value = client[prop];
-      return typeof value === 'function' ? value.bind(client) : value;
+      if (typeof value !== 'function') {
+        return value;
+      }
+      if (prop === '$transaction') {
+        return (...args: unknown[]) =>
+          trackCustomerPrismaOperation(entry, () => value.apply(client, args));
+      }
+      return value.bind(client);
     },
   },
 ) as any;
