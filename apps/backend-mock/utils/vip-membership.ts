@@ -49,6 +49,9 @@ const VIP_MEMBERSHIP_MANUAL_REFUND_RECHECK_DELAY_MS = 12 * 60 * 60 * 1000;
 const VIP_MEMBERSHIP_ENTITLEMENT_ACTIVE_STATUS = 'active';
 const VIP_MEMBERSHIP_ENTITLEMENT_REFUNDED_STATUS = 'refunded';
 const VIP_MEMBERSHIP_REFUND_BUSINESS_TIME_ZONE = 'Asia/Shanghai';
+const VIP_MEMBERSHIP_REFUND_IGNORED_NO_ENTITLEMENT_STATUS =
+  'IGNORED_NO_ENTITLEMENT';
+const VIP_MEMBERSHIP_REFUND_MANUAL_REVIEW_STATUS = 'MANUAL_REVIEW';
 const VIP_MEMBERSHIP_REFUND_REUSABLE_STATUSES = [
   'ABNORMAL',
   'CLOSED',
@@ -378,6 +381,64 @@ async function revokeVipMembershipForRefundWithClient(
     membershipCustomerId,
     prisma,
   );
+}
+
+async function upsertManualReconciledVipMembershipRefundWithClient(
+  params: {
+    channel?: string;
+    customerId: string;
+    payment: {
+      amountTotal: number;
+      centerUserId: number;
+      outTradeNo: string;
+      transactionId?: null | string;
+    };
+    providerRaw: unknown;
+    status: string;
+    successAt?: Date | null;
+  },
+  prisma: VipMembershipDbClient,
+) {
+  const outRefundNo = buildManualRefundOutRefundNo(params.payment.outTradeNo);
+  const existingRefund = await prisma.vipMembershipRefund.findFirst({
+    where: { outTradeNo: params.payment.outTradeNo },
+  });
+  const providerRaw = JSON.stringify(params.providerRaw);
+  const refundAmount = Number(params.payment.amountTotal || 0);
+  const successAt =
+    params.successAt === undefined ? new Date() : params.successAt;
+
+  return existingRefund
+    ? prisma.vipMembershipRefund.update({
+        data: {
+          channel:
+            existingRefund.channel || params.channel || 'manual_reconcile',
+          lastCheckedAt: new Date(),
+          nextCheckAt: null,
+          providerRaw,
+          refundAmount: existingRefund.refundAmount || refundAmount,
+          status: params.status,
+          successAt,
+        },
+        where: { outRefundNo: existingRefund.outRefundNo },
+      })
+    : prisma.vipMembershipRefund.create({
+        data: {
+          amountTotal: refundAmount,
+          centerUserId: params.payment.centerUserId,
+          channel: params.channel || 'manual_reconcile',
+          customerId: params.customerId,
+          lastCheckedAt: new Date(),
+          nextCheckAt: null,
+          outRefundNo,
+          outTradeNo: params.payment.outTradeNo,
+          providerRaw,
+          refundAmount,
+          status: params.status,
+          successAt,
+          transactionId: params.payment.transactionId,
+        },
+      });
 }
 
 async function applyVipMembershipRefundWithClient(
@@ -2431,41 +2492,61 @@ export async function reconcileVipMembershipManualRefundsOnce(
 
       await withVipMembershipDb(() =>
         systemDbClient.$transaction(async (tx) => {
-          const outRefundNo = buildManualRefundOutRefundNo(payment.outTradeNo);
-          const existingRefund = await tx.vipMembershipRefund.findFirst({
+          const entitlement = await tx.vipMembershipEntitlement.findUnique({
             where: { outTradeNo: payment.outTradeNo },
           });
-          await (existingRefund
-            ? tx.vipMembershipRefund.update({
-                data: {
-                  channel: existingRefund.channel || 'manual_reconcile',
-                  lastCheckedAt: new Date(),
-                  nextCheckAt: null,
-                  providerRaw: JSON.stringify(orderStatus),
-                  refundAmount:
-                    existingRefund.refundAmount || payment.amountTotal,
-                  status: 'SUCCESS',
-                  successAt: new Date(),
-                },
-                where: { outRefundNo: existingRefund.outRefundNo },
-              })
-            : tx.vipMembershipRefund.create({
-                data: {
-                  amountTotal: Number(payment.amountTotal || 0),
-                  centerUserId: payment.centerUserId,
-                  channel: 'manual_reconcile',
-                  customerId: membershipCustomerId,
-                  lastCheckedAt: new Date(),
-                  nextCheckAt: null,
-                  outRefundNo,
-                  outTradeNo: payment.outTradeNo,
-                  providerRaw: JSON.stringify(orderStatus),
-                  refundAmount: Number(payment.amountTotal || 0),
-                  status: 'SUCCESS',
-                  successAt: new Date(),
-                  transactionId: payment.transactionId,
-                },
-              }));
+          if (!entitlement) {
+            await upsertManualReconciledVipMembershipRefundWithClient(
+              {
+                channel: 'manual_reconcile_ignored',
+                customerId: membershipCustomerId,
+                payment,
+                providerRaw: orderStatus,
+                status: VIP_MEMBERSHIP_REFUND_IGNORED_NO_ENTITLEMENT_STATUS,
+              },
+              tx,
+            );
+            await tx.vipMembershipPayment.update({
+              data: {
+                refundCheckedAt: getManualRefundRecheckDate(),
+                tradeState: 'REFUND',
+              },
+              where: { outTradeNo: payment.outTradeNo },
+            });
+            return;
+          }
+
+          if (entitlement.customerId !== membershipCustomerId) {
+            await upsertManualReconciledVipMembershipRefundWithClient(
+              {
+                channel: 'manual_reconcile_review',
+                customerId: membershipCustomerId,
+                payment,
+                providerRaw: orderStatus,
+                status: VIP_MEMBERSHIP_REFUND_MANUAL_REVIEW_STATUS,
+                successAt: null,
+              },
+              tx,
+            );
+            await tx.vipMembershipPayment.update({
+              data: {
+                refundCheckedAt: getManualRefundRecheckDate(),
+                tradeState: 'REFUND',
+              },
+              where: { outTradeNo: payment.outTradeNo },
+            });
+            return;
+          }
+
+          await upsertManualReconciledVipMembershipRefundWithClient(
+            {
+              customerId: membershipCustomerId,
+              payment,
+              providerRaw: orderStatus,
+              status: 'SUCCESS',
+            },
+            tx,
+          );
           await tx.vipMembershipPayment.update({
             data: {
               refundCheckedAt: getManualRefundRecheckDate(),
