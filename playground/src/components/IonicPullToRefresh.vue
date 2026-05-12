@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { RefresherCustomEvent } from '@ionic/vue';
 
+import { nextTick, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
+
 import { IonContent, IonRefresher, IonRefresherContent } from '@ionic/vue';
 
 /**
@@ -60,6 +63,17 @@ withDefaults(defineProps<Props>(), {
 
 // 定义组件事件
 const emit = defineEmits<Emits>();
+const route = useRoute();
+const ionContentRef = ref<null | {
+  $el?: {
+    scrollToTop?: (duration?: number) => Promise<void>;
+  };
+}>(null);
+
+async function scrollContentToTop() {
+  await nextTick();
+  await ionContentRef.value?.$el?.scrollToTop?.(0);
+}
 
 /**
  * 处理下拉刷新事件
@@ -74,10 +88,17 @@ function handleRefresh(event: RefresherCustomEvent) {
   // 触发父组件的刷新事件
   emit('refresh', complete);
 }
+
+watch(
+  () => route.fullPath,
+  () => {
+    void scrollContentToTop();
+  },
+);
 </script>
 
 <template>
-  <IonContent class="ion-padding">
+  <IonContent ref="ionContentRef" class="ion-padding">
     <!-- eslint-disable vue/no-deprecated-slot-attribute -->
     <IonRefresher
       slot="fixed"
