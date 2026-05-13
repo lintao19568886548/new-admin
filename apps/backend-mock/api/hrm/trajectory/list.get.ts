@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import { getQuery } from 'h3';
+import { getAttendanceDeviceRecordInfoMap } from '~/utils/attendance-device';
 import { prismaClient } from '~/utils/db';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
@@ -85,6 +86,9 @@ export default eventHandler(async (event) => {
         punchIn: 'desc',
       },
     });
+    const deviceInfoMap = await getAttendanceDeviceRecordInfoMap(
+      records.map((record) => record.attendanceId),
+    );
 
     const formattedItems = records.map((record) => {
       let workHours = 0;
@@ -98,6 +102,7 @@ export default eventHandler(async (event) => {
       }
 
       return {
+        attendanceId: record.attendanceId,
         key: record.attendanceId,
         username:
           record.user?.realName ||
@@ -105,6 +110,10 @@ export default eventHandler(async (event) => {
           record.username ||
           '未知用户',
         date: dayjs(record.punchIn).format('YYYY-MM-DD'),
+        deviceAbnormalTypes:
+          deviceInfoMap.get(record.attendanceId)?.abnormalTypes ?? [],
+        deviceStatus:
+          deviceInfoMap.get(record.attendanceId)?.status ?? 'normal',
         punchIn: dayjs(record.punchIn).format('HH:mm:ss'),
         punchOut: record.punchOut
           ? dayjs(record.punchOut).format('HH:mm:ss')

@@ -4,6 +4,11 @@ import {
   getApprovedLeaveRangesByUserIds,
   resolveAttendanceState,
 } from '~/utils/attendance';
+import {
+  AttendanceDeviceError,
+  prepareAttendanceDeviceForPunch,
+  recordAttendanceDeviceAbnormal,
+} from '~/utils/attendance-device';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import { useResponseError, useResponseSuccess } from '~/utils/response';
@@ -20,7 +25,14 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const { punchTime, longitude, latitude } = await readBody(event);
+    const {
+      punchTime,
+      longitude,
+      latitude,
+      device,
+      bindCurrentDevice,
+      allowDeviceAbnormal,
+    } = await readBody(event);
 
     const existingAttendance = await prismaClient.attendance.findUnique({
       where: { attendanceId: id },
@@ -35,6 +47,13 @@ export default eventHandler(async (event) => {
     if (!isSuper && existingAttendance.userId !== userinfo.id) {
       return useResponseError('没有权限修改他人考勤记录', { statusCode: 403 });
     }
+
+    const deviceDecision = await prepareAttendanceDeviceForPunch({
+      allowDeviceAbnormal,
+      bindCurrentDevice,
+      deviceInput: device,
+      user: userinfo,
+    });
 
     const punchOutMoment = dayjs(punchTime);
     const leaveMap = await getApprovedLeaveRangesByUserIds(
@@ -92,8 +111,28 @@ export default eventHandler(async (event) => {
       },
     });
 
-    return useResponseSuccess(updatedAttendance, '更新成功');
+    await recordAttendanceDeviceAbnormal({
+      action: 'punch_out',
+      attendanceId: updatedAttendance.attendanceId,
+      decision: deviceDecision,
+      punchTime: new Date(punchTime),
+      user: userinfo,
+    });
+
+    return useResponseSuccess(
+      {
+        ...updatedAttendance,
+        deviceBindToken: deviceDecision.deviceBindToken,
+      },
+      '更新成功',
+    );
   } catch (error: any) {
+    if (error instanceof AttendanceDeviceError) {
+      return useResponseError(error.message, {
+        deviceStatus: error.deviceStatus,
+        errorCode: error.errorCode,
+      });
+    }
     console.error('更新打卡记录失败:', error);
     return useResponseError(error.message || '更新失败');
   }

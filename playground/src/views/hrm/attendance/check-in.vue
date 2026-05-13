@@ -1,25 +1,44 @@
 <script setup lang="ts">
 import type {
   AttendanceConfig,
+  AttendanceDeviceAbnormalLog,
+  AttendanceDeviceAbnormalType,
+  AttendanceDeviceAction,
+  AttendanceDeviceDecision,
+  AttendanceDeviceInfo,
   AttendanceLeaveScope,
   TodayAttendanceRecord,
 } from '#/api/hrm/attendance';
 
-import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { useUserStore } from '@vben/stores';
 
+import { Capacitor } from '@capacitor/core';
+import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { Icon } from '@iconify/vue';
-import { Button, message, Modal, Tag } from 'ant-design-vue';
+import {
+  Button,
+  Input,
+  List,
+  message,
+  Modal,
+  Space,
+  Tag,
+} from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import {
+  changeAttendanceDevice,
   getAttendanceConfig,
+  getAttendanceDeviceAbnormalList,
+  getAttendanceDeviceStatus,
   getOfficeLocations,
   getTodayRecord,
   punchIn,
   punchOut,
+  sendAttendanceDeviceChangeCode,
 } from '#/api/hrm/attendance';
 import { useLayoutStore } from '#/store/layout';
 import { getBaiduMapAk, loadBaiduMapScript } from '#/utils/map';
@@ -63,10 +82,49 @@ const leaveScopeMeta: Record<
   partial: { color: 'cyan', text: '部分请假' },
 };
 
+const deviceRecordStatusMeta: Record<
+  'abnormal' | 'normal',
+  { color: string; text: string }
+> = {
+  abnormal: { color: 'red', text: '设备异常' },
+  normal: { color: 'green', text: '考勤设备正常' },
+};
+
 const defaultAttendanceConfig: AttendanceConfig = {
   scheduledCheckIn: '09:00:00',
   scheduledCheckOut: '18:00:00',
   source: 'default',
+};
+
+const deviceAbnormalTypePriority = [
+  'device_credential_mismatch',
+  'device_changed',
+  'same_device_multi_account',
+];
+
+const deviceAbnormalTypeMeta: Record<
+  string,
+  { reason: string; reminder: string; text: string }
+> = {
+  device_changed: {
+    reason:
+      '当前设备标识与账号已绑定设备不一致，可能是更换手机，或 App 数据清理、卸载重装、WebView 存储丢失后重新生成了设备标识',
+    reminder:
+      '更换设备打卡：当前设备与账号已绑定设备不一致，可能是更换手机，也可能是清除 App 数据、卸载重装或 WebView 存储丢失导致设备标识重新生成。请核实设备归属，确认本人设备后点击考勤设备更换，进行手机号短信验证。',
+    text: '更换设备打卡',
+  },
+  device_credential_mismatch: {
+    reason: '网页缓存、小程序本地缓存被清理，或退出后重新生成了设备凭证',
+    reminder:
+      '设备凭证异常：设备标识一致但本地凭证不一致，常见于网页缓存或小程序本地缓存被清理。',
+    text: '设备凭证异常',
+  },
+  same_device_multi_account: {
+    reason: '当前设备已被多个账号用于打卡',
+    reminder:
+      '同设备多账号：当前设备已被其他账号绑定或使用，存在代打卡风险，请核实设备归属。',
+    text: '同设备多账号',
+  },
 };
 
 // ================================= 响应式数据 =================================
@@ -77,6 +135,30 @@ const isInRange = ref(false);
 const locationLoading = ref(true);
 const punchLoading = ref(false);
 const mapInitialized = ref(false);
+const deviceInfo = ref<AttendanceDeviceInfo | null>(null);
+const attendanceDeviceDecision = ref<AttendanceDeviceDecision | null>(null);
+const deviceChanging = ref(false);
+const deviceAbnormalLogs = ref<AttendanceDeviceAbnormalLog[]>([]);
+const deviceAbnormalLoading = ref(false);
+const deviceDecisionModalVisible = ref(false);
+const deviceSmsCode = ref('');
+const deviceSmsCountdown = ref(0);
+const deviceSmsError = ref('');
+const deviceSmsModalVisible = ref(false);
+const deviceSmsSending = ref(false);
+const deviceSmsSubmitting = ref(false);
+const deviceSmsTargetDevice = ref<AttendanceDeviceInfo | null>(null);
+const deviceSmsVerificationMode = ref<'credential' | 'device_change'>(
+  'device_change',
+);
+const deviceSmsVerifyPhone = ref('');
+const deviceIdStorageKey = 'attendance_device_id';
+const nativeDeviceIdFilePath = 'attendance/device-id.txt';
+const deviceBindTokenStorageKey = 'attendance_device_bind_token';
+const pendingDeviceDecision = ref<AttendanceDeviceDecision | null>(null);
+let deviceSmsCountdownTimer: number | undefined;
+let deviceSmsResolver: ((value: boolean) => void) | null = null;
+let deviceDecisionResolver: ((value: boolean) => void) | null = null;
 
 // Pinia Store
 const userStore = useUserStore();
@@ -127,6 +209,7 @@ onUnmounted(() => {
   }
   locateFn.value = null;
   geolocation = null;
+  clearDeviceSmsCountdownTimer();
 });
 
 const getUsername = () => {
@@ -135,6 +218,27 @@ const getUsername = () => {
     throw new Error('未获取到用户信息，请重新登录');
   }
   return username;
+};
+
+const getCurrentAccountPhone = () => {
+  const accountInfo = userStore.userInfo as
+    | null
+    | (Record<string, unknown> & {
+        mobile?: unknown;
+        phone?: unknown;
+        phoneNumber?: unknown;
+        username?: unknown;
+      })
+    | undefined;
+  const phone = String(
+    accountInfo?.phone ?? accountInfo?.phoneNumber ?? accountInfo?.mobile ?? '',
+  ).trim();
+  if (/^\d{11}$/.test(phone)) {
+    return phone;
+  }
+
+  const username = String(accountInfo?.username ?? '').trim();
+  return /^\d{11}$/.test(username) ? username : '';
 };
 
 const confirmModal = (options: {
@@ -152,6 +256,590 @@ const confirmModal = (options: {
       title: options.title,
     });
   });
+};
+
+const createRandomHex = () => {
+  const bytes = new Uint8Array(16);
+  window.crypto.getRandomValues(bytes);
+  return [...bytes].map((item) => item.toString(16).padStart(2, '0')).join('');
+};
+
+const readNativeDeviceId = async () => {
+  try {
+    const result = await Filesystem.readFile({
+      directory: Directory.Data,
+      encoding: Encoding.UTF8,
+      path: nativeDeviceIdFilePath,
+    });
+    return typeof result.data === 'string' ? result.data.trim() : '';
+  } catch {
+    return '';
+  }
+};
+
+const writeNativeDeviceId = async (deviceId: string) => {
+  await Filesystem.writeFile({
+    data: deviceId,
+    directory: Directory.Data,
+    encoding: Encoding.UTF8,
+    path: nativeDeviceIdFilePath,
+    recursive: true,
+  });
+};
+
+const createStableDeviceId = async () => {
+  const isNativeApp = Capacitor.isNativePlatform();
+  if (isNativeApp) {
+    const nativeStored = await readNativeDeviceId();
+    if (nativeStored) {
+      return nativeStored;
+    }
+
+    const legacyStored = window.localStorage.getItem(deviceIdStorageKey);
+    const deviceId = legacyStored || `app-${createRandomHex()}`;
+    try {
+      await writeNativeDeviceId(deviceId);
+    } catch {
+      window.localStorage.setItem(deviceIdStorageKey, deviceId);
+      return deviceId;
+    }
+    window.localStorage.setItem(deviceIdStorageKey, deviceId);
+    return deviceId;
+  }
+
+  const stored = window.localStorage.getItem(deviceIdStorageKey);
+  if (stored) {
+    return stored;
+  }
+
+  const deviceId = `web-${createRandomHex()}`;
+  window.localStorage.setItem(deviceIdStorageKey, deviceId);
+  return deviceId;
+};
+
+const getDeviceBindTokenStorageKey = (deviceId: string) => {
+  return `${deviceBindTokenStorageKey}:${deviceId}`;
+};
+
+const getStoredDeviceBindToken = (deviceId: string) => {
+  return window.localStorage.getItem(getDeviceBindTokenStorageKey(deviceId));
+};
+
+const saveDeviceBindToken = (deviceId: string, deviceBindToken?: string) => {
+  if (!deviceBindToken) {
+    return;
+  }
+  window.localStorage.setItem(
+    getDeviceBindTokenStorageKey(deviceId),
+    deviceBindToken,
+  );
+};
+
+const loadCurrentDeviceInfo = async () => {
+  const platform = Capacitor.getPlatform();
+  const userAgent = window.navigator.userAgent;
+  const stableDeviceId = await createStableDeviceId();
+  const deviceSystem = [
+    platform,
+    window.navigator.platform,
+    window.navigator.language,
+  ]
+    .filter(Boolean)
+    .join(' / ');
+
+  deviceInfo.value = {
+    deviceId: stableDeviceId,
+    deviceLabel: `${platform || 'web'} ${window.navigator.platform}`,
+    deviceModel: window.navigator.platform || userAgent.slice(0, 80),
+    deviceSystem,
+    platform,
+    userAgent,
+  };
+  deviceInfo.value.deviceBindToken = getStoredDeviceBindToken(
+    deviceInfo.value.deviceId,
+  );
+
+  return deviceInfo.value;
+};
+
+const getCurrentDeviceInfo = async () => {
+  return deviceInfo.value ?? (await loadCurrentDeviceInfo());
+};
+
+const formatDeviceDisplay = (
+  device?: null | Pick<AttendanceDeviceInfo, 'deviceId'>,
+) => {
+  if (!device) {
+    return '-';
+  }
+  const deviceId = String(device.deviceId || '').trim();
+  return deviceId || '-';
+};
+
+const normalizeDeviceAbnormalTypes = (
+  abnormalTypes?: AttendanceDeviceAbnormalType[],
+) => {
+  const normalizedTypes = [
+    ...new Set(
+      (abnormalTypes ?? [])
+        .flatMap((type) => String(type || '').split(','))
+        .map((type) => type.trim())
+        .filter(Boolean),
+    ),
+  ];
+
+  return [
+    ...deviceAbnormalTypePriority.filter((type) =>
+      normalizedTypes.includes(type),
+    ),
+    ...normalizedTypes.filter(
+      (type) => !deviceAbnormalTypePriority.includes(type),
+    ),
+  ];
+};
+
+const getDeviceAbnormalTypeSet = (
+  abnormalTypes?: AttendanceDeviceAbnormalType[],
+) => {
+  return new Set(normalizeDeviceAbnormalTypes(abnormalTypes));
+};
+
+const getDeviceAbnormalTypeNames = (
+  abnormalTypes?: AttendanceDeviceAbnormalType[],
+) => {
+  return normalizeDeviceAbnormalTypes(abnormalTypes).map(
+    (type) => deviceAbnormalTypeMeta[type]?.text || '设备异常',
+  );
+};
+
+const getDeviceDecisionReminderText = (
+  abnormalTypes?: AttendanceDeviceAbnormalType[],
+) => {
+  const types = normalizeDeviceAbnormalTypes(abnormalTypes);
+  const reminders = types.map(
+    (type) =>
+      deviceAbnormalTypeMeta[type]?.reminder ||
+      '设备异常：当前设备校验异常，请核实后再继续打卡。',
+  );
+  if (types.length > 1) {
+    reminders.unshift(
+      `检测到${getDeviceAbnormalTypeNames(types).join('、')}：`,
+    );
+  }
+  return reminders.join('\n');
+};
+
+const pendingDeviceDecisionTitle = computed(() => {
+  const names = getDeviceAbnormalTypeNames(
+    pendingDeviceDecision.value?.abnormalTypes,
+  );
+  if (names.length > 0) {
+    return `${names.join('、')}提醒`;
+  }
+  return '设备异常提示';
+});
+
+const canChangeDeviceFromDecision = computed(() => {
+  const types = getDeviceAbnormalTypeSet(
+    pendingDeviceDecision.value?.abnormalTypes,
+  );
+  return types.has('device_changed') || types.has('device_credential_mismatch');
+});
+
+const isOnlyDeviceCredentialMismatch = computed(() => {
+  const types = getDeviceAbnormalTypeSet(
+    pendingDeviceDecision.value?.abnormalTypes,
+  );
+  return types.size === 1 && types.has('device_credential_mismatch');
+});
+
+const pendingDeviceDecisionActionText = computed(() => {
+  const types = getDeviceAbnormalTypeSet(
+    pendingDeviceDecision.value?.abnormalTypes,
+  );
+  return types.has('device_changed') ? '考勤设备更换' : '重新绑定设备凭证';
+});
+
+const getDeviceCredentialText = (fingerprint?: null | string) => {
+  return fingerprint || '未获取到凭证';
+};
+
+const formatDuplicateUserNames = (decision: AttendanceDeviceDecision) => {
+  return decision.duplicateUsers
+    .map((item) => item.realName || item.username || `用户${item.userId}`)
+    .filter(Boolean)
+    .join('、');
+};
+
+const getDeviceDecisionDetailLines = (
+  decision: AttendanceDeviceDecision,
+  abnormalType: string,
+) => {
+  if (abnormalType === 'device_credential_mismatch') {
+    return [
+      `绑定设备凭证：${getDeviceCredentialText(
+        decision.binding?.deviceCredentialFingerprint,
+      )}`,
+      `当前设备凭证：${getDeviceCredentialText(
+        decision.currentDeviceCredentialFingerprint,
+      )}`,
+    ];
+  }
+
+  if (abnormalType === 'device_changed') {
+    return [
+      `已绑定设备：${formatDeviceDisplay(decision.binding)}`,
+      `当前设备：${formatDeviceDisplay(decision.device)}`,
+    ];
+  }
+
+  if (abnormalType === 'same_device_multi_account') {
+    return [
+      `当前设备已绑定账号：${formatDuplicateUserNames(decision) || '-'}`,
+      `当前账号已绑定设备：${formatDeviceDisplay(decision.binding)}`,
+    ];
+  }
+
+  return [];
+};
+
+const pendingDeviceDecisionContent = computed(() => {
+  const decision = pendingDeviceDecision.value;
+  if (!decision) {
+    return '';
+  }
+  const types = normalizeDeviceAbnormalTypes(decision.abnormalTypes);
+  const detailLines = types.flatMap((type) =>
+    getDeviceDecisionDetailLines(decision, type),
+  );
+  const reminderText = getDeviceDecisionReminderText(decision.abnormalTypes);
+  return [reminderText || decision.message, ...detailLines]
+    .filter(Boolean)
+    .join('\n');
+});
+
+const deviceSmsSendText = computed(() => {
+  if (deviceSmsSending.value) {
+    return '发送中...';
+  }
+  return deviceSmsCountdown.value > 0
+    ? `${deviceSmsCountdown.value}秒后重发`
+    : '发送验证码';
+});
+
+const deviceSmsSubmitDisabled = computed(() => {
+  return deviceSmsCode.value.trim().length !== 6 || deviceSmsSubmitting.value;
+});
+
+const deviceSmsSubmitText = computed(() => {
+  return deviceSmsVerificationMode.value === 'credential'
+    ? '确认重新绑定'
+    : '确认更换';
+});
+
+const deviceSmsVerificationTip = computed(() => {
+  if (deviceSmsError.value) {
+    return deviceSmsError.value;
+  }
+  return deviceSmsVerificationMode.value === 'credential'
+    ? '验证通过后将重新绑定当前设备凭证'
+    : `验证通过后将把考勤设备更换为 ${formatDeviceDisplay(
+        deviceSmsTargetDevice.value,
+      )}`;
+});
+
+const clearDeviceSmsCountdownTimer = () => {
+  if (deviceSmsCountdownTimer) {
+    window.clearTimeout(deviceSmsCountdownTimer);
+    deviceSmsCountdownTimer = undefined;
+  }
+};
+
+const startDeviceSmsCountdown = () => {
+  clearDeviceSmsCountdownTimer();
+  if (deviceSmsCountdown.value <= 0) {
+    return;
+  }
+
+  deviceSmsCountdownTimer = window.setTimeout(() => {
+    deviceSmsCountdown.value -= 1;
+    startDeviceSmsCountdown();
+  }, 1000);
+};
+
+const resolveDeviceSmsModal = (value: boolean) => {
+  deviceSmsModalVisible.value = false;
+  deviceSmsTargetDevice.value = null;
+  deviceSmsCode.value = '';
+  deviceSmsError.value = '';
+  deviceSmsSubmitting.value = false;
+  deviceSmsSending.value = false;
+  deviceSmsVerificationMode.value = 'device_change';
+  clearDeviceSmsCountdownTimer();
+  deviceSmsResolver?.(value);
+  deviceSmsResolver = null;
+};
+
+const updateDeviceSmsCode = (value: string) => {
+  deviceSmsCode.value = value.replaceAll(/\D/g, '').slice(0, 6);
+  deviceSmsError.value = '';
+};
+
+const sendDeviceSmsCode = async () => {
+  if (deviceSmsSending.value || deviceSmsCountdown.value > 0) return;
+
+  deviceSmsSending.value = true;
+  try {
+    const data = await sendAttendanceDeviceChangeCode();
+    deviceSmsVerifyPhone.value = data.phoneNumber;
+    deviceSmsCountdown.value = 60;
+    startDeviceSmsCountdown();
+    message.success(`验证码已发送至 ${data.phoneNumber}`);
+  } catch (error: any) {
+    deviceSmsError.value = error?.message || '验证码发送失败，请稍后重试';
+  } finally {
+    deviceSmsSending.value = false;
+  }
+};
+
+const submitDeviceSmsVerification = async () => {
+  const device = deviceSmsTargetDevice.value;
+  if (!device) {
+    deviceSmsError.value = '未获取到当前设备信息，请重新操作';
+    return;
+  }
+  if (deviceSmsCode.value.length !== 6) {
+    deviceSmsError.value = '请输入6位短信验证码';
+    return;
+  }
+
+  deviceSmsSubmitting.value = true;
+  try {
+    attendanceDeviceDecision.value = await changeAttendanceDevice({
+      device,
+      smsCode: deviceSmsCode.value,
+    });
+    saveDeviceBindToken(
+      device.deviceId,
+      attendanceDeviceDecision.value.deviceBindToken,
+    );
+    deviceInfo.value = {
+      ...device,
+      deviceBindToken:
+        attendanceDeviceDecision.value.deviceBindToken ??
+        device.deviceBindToken,
+    };
+    await loadAttendanceDeviceDecision();
+    resolveDeviceSmsModal(true);
+  } catch (error: any) {
+    deviceSmsError.value = error?.message || '验证码校验失败，请重试';
+  } finally {
+    deviceSmsSubmitting.value = false;
+  }
+};
+
+const openDeviceSmsVerification = async (
+  device: AttendanceDeviceInfo,
+  mode: 'credential' | 'device_change' = 'device_change',
+) => {
+  deviceSmsTargetDevice.value = device;
+  deviceSmsVerificationMode.value = mode;
+  deviceSmsCode.value = '';
+  deviceSmsError.value = '';
+  deviceSmsVerifyPhone.value = getCurrentAccountPhone();
+  deviceSmsCountdown.value = 0;
+  deviceSmsModalVisible.value = true;
+
+  const promise = new Promise<boolean>((resolve) => {
+    deviceSmsResolver = resolve;
+  });
+  return promise;
+};
+
+const loadAttendanceDeviceDecision = async () => {
+  try {
+    const device = await getCurrentDeviceInfo();
+    attendanceDeviceDecision.value = await getAttendanceDeviceStatus({
+      device,
+    });
+    saveDeviceBindToken(
+      device.deviceId,
+      attendanceDeviceDecision.value.deviceBindToken,
+    );
+  } catch (error) {
+    console.error('加载打卡设备信息失败:', error);
+    attendanceDeviceDecision.value = null;
+  }
+};
+
+const replaceCurrentAttendanceDevice = async () => {
+  const device = await loadCurrentDeviceInfo();
+  const decision = await getAttendanceDeviceStatus({ device });
+  const secondOk = await confirmModal({
+    content: `是否更换为当前设备？\n绑定设备：${formatDeviceDisplay(decision.binding)}\n当前设备：${formatDeviceDisplay(decision.device)}${formatDuplicateUsers(decision)}`,
+    okText: '确认更换',
+    title: '确认更换设备',
+  });
+  if (!secondOk) return false;
+
+  return openDeviceSmsVerification(device);
+};
+
+const openDeviceCredentialVerification = async () => {
+  const device = await getCurrentDeviceInfo();
+  return openDeviceSmsVerification(device, 'credential');
+};
+
+const getDeviceErrorStatus = (error: any) => {
+  return error?.response?.data?.error?.deviceStatus as
+    | AttendanceDeviceDecision
+    | undefined;
+};
+
+const formatDuplicateUsers = (decision: AttendanceDeviceDecision) => {
+  const names = formatDuplicateUserNames(decision);
+  return names.length > 0 ? `\n已绑定账号：${names}` : '';
+};
+
+const closeDeviceDecisionModal = (value: boolean) => {
+  deviceDecisionModalVisible.value = false;
+  pendingDeviceDecision.value = null;
+  deviceDecisionResolver?.(value);
+  deviceDecisionResolver = null;
+};
+
+const handleCancelDeviceDecision = () => {
+  closeDeviceDecisionModal(false);
+};
+
+const handleContinueDeviceDecision = () => {
+  closeDeviceDecisionModal(true);
+};
+
+const handleChangeDeviceFromDecision = async () => {
+  if (deviceChanging.value) return;
+
+  const isCredentialOnly = isOnlyDeviceCredentialMismatch.value;
+  deviceChanging.value = true;
+  try {
+    const changed = isCredentialOnly
+      ? await openDeviceCredentialVerification()
+      : await replaceCurrentAttendanceDevice();
+    if (changed) {
+      message.success(
+        isCredentialOnly
+          ? '设备凭证重新绑定成功，请重新点击打卡'
+          : '考勤设备更换成功，请重新点击打卡',
+      );
+      closeDeviceDecisionModal(false);
+    }
+  } catch (error: any) {
+    console.error(
+      isCredentialOnly ? '重新绑定设备凭证失败:' : '更换考勤设备失败:',
+      error,
+    );
+    message.error(
+      `${isCredentialOnly ? '重新绑定设备凭证' : '更换考勤设备'}失败: ${
+        error?.message || '请重试'
+      }`,
+    );
+  } finally {
+    deviceChanging.value = false;
+  }
+};
+
+const confirmDeviceAbnormalDecision = (decision: AttendanceDeviceDecision) => {
+  pendingDeviceDecision.value = decision;
+  deviceDecisionModalVisible.value = true;
+  return new Promise<boolean>((resolve) => {
+    deviceDecisionResolver = resolve;
+  });
+};
+
+const confirmDeviceDecision = async (decision: AttendanceDeviceDecision) => {
+  const boundDeviceText = decision.binding
+    ? `\n已绑定设备：${formatDeviceDisplay(decision.binding)}`
+    : '';
+  const currentDeviceText = `\n当前设备：${formatDeviceDisplay(
+    decision.device,
+  )}`;
+
+  if (decision.status !== 'abnormal') {
+    return confirmModal({
+      content: `${decision.message}${boundDeviceText}${currentDeviceText}${formatDuplicateUsers(decision)}`,
+      okText: decision.status === 'bind_required' ? '绑定并打卡' : '继续打卡',
+      title:
+        decision.status === 'bind_required' ? '绑定打卡设备' : '设备异常提示',
+    });
+  }
+
+  return confirmDeviceAbnormalDecision(decision);
+};
+
+const resolveDevicePunchOptions = async () => {
+  const device = await getCurrentDeviceInfo();
+  const decision = await getAttendanceDeviceStatus({ device });
+  saveDeviceBindToken(device.deviceId, decision.deviceBindToken);
+
+  if (decision.status === 'normal') {
+    return {
+      allowDeviceAbnormal: false,
+      bindCurrentDevice: false,
+      device,
+    };
+  }
+
+  const ok = await confirmDeviceDecision(decision);
+  if (!ok) {
+    return null;
+  }
+
+  return {
+    allowDeviceAbnormal: decision.status === 'abnormal',
+    bindCurrentDevice:
+      decision.status === 'bind_required' ||
+      decision.status === 'credential_required',
+    device,
+  };
+};
+
+const syncDeviceBindTokenFromPunchResult = async (result: any) => {
+  const device = await getCurrentDeviceInfo();
+  const deviceBindToken = result?.deviceBindToken;
+  saveDeviceBindToken(device.deviceId, deviceBindToken);
+  if (deviceBindToken) {
+    deviceInfo.value = {
+      ...device,
+      deviceBindToken,
+    };
+  }
+};
+
+const loadDeviceAbnormalLogs = async () => {
+  deviceAbnormalLoading.value = true;
+  try {
+    const data = await getAttendanceDeviceAbnormalList({
+      date: dayjs().format('YYYY-MM-DD'),
+      limit: 10,
+    });
+    deviceAbnormalLogs.value = data.items;
+  } catch (error) {
+    console.error('加载设备异常记录失败:', error);
+  } finally {
+    deviceAbnormalLoading.value = false;
+  }
+};
+
+const handleDevicePunchError = async (error: any) => {
+  const decision = getDeviceErrorStatus(error);
+  if (!decision) {
+    message.error(`打卡失败: ${error?.message || '请重试'}`);
+    return;
+  }
+
+  const ok = await confirmDeviceDecision(decision);
+  if (!ok) return;
+  message.warning('设备状态已变化，请重新点击打卡');
 };
 
 const confirmOutsideRange = async () => {
@@ -402,13 +1090,22 @@ const handlePunchIn = async () => {
     if (!ok) return;
   }
 
+  const deviceOptions = await resolveDevicePunchOptions();
+  if (!deviceOptions) return;
+
   punchLoading.value = true;
   try {
-    await punchIn(getPunchPayload());
+    const result = await punchIn({
+      ...getPunchPayload(),
+      ...deviceOptions,
+    });
+    await syncDeviceBindTokenFromPunchResult(result);
     await loadTodayRecord();
+    await loadAttendanceDeviceDecision();
+    await loadDeviceAbnormalLogs();
     message.success('上班打卡成功');
   } catch (error: any) {
-    message.error(`打卡失败: ${error?.message || '请重试'}`);
+    await handleDevicePunchError(error);
   } finally {
     punchLoading.value = false;
   }
@@ -434,13 +1131,22 @@ const handlePunchOut = async () => {
   const okEarlyLeave = await confirmEarlyLeave();
   if (!okEarlyLeave) return;
 
+  const deviceOptions = await resolveDevicePunchOptions();
+  if (!deviceOptions) return;
+
   punchLoading.value = true;
   try {
-    await punchOut(todayRecord.value.attendanceId, getPunchPayload());
+    const result = await punchOut(todayRecord.value.attendanceId, {
+      ...getPunchPayload(),
+      ...deviceOptions,
+    });
+    await syncDeviceBindTokenFromPunchResult(result);
     await loadTodayRecord();
+    await loadAttendanceDeviceDecision();
+    await loadDeviceAbnormalLogs();
     message.success('下班打卡成功');
   } catch (error: any) {
-    message.error(`打卡失败: ${error?.message || '请重试'}`);
+    await handleDevicePunchError(error);
   } finally {
     punchLoading.value = false;
   }
@@ -461,6 +1167,51 @@ const getLeaveScopeInfo = (leaveScope: AttendanceLeaveScope) => {
     return null;
   }
   return leaveScopeMeta[leaveScope];
+};
+
+const getDeviceRecordStatusInfo = (
+  record?: Pick<TodayAttendanceRecord, 'deviceAbnormalTypes' | 'deviceStatus'>,
+) => {
+  if (record?.deviceStatus !== 'abnormal') {
+    return deviceRecordStatusMeta.normal;
+  }
+  const abnormalText = getDeviceAbnormalTypesText(record.deviceAbnormalTypes);
+  return {
+    color: deviceRecordStatusMeta.abnormal.color,
+    text: abnormalText || deviceRecordStatusMeta.abnormal.text,
+  };
+};
+
+const shouldShowDeviceStatusInPunchIn = (record: TodayRecord) => {
+  return Boolean(record.punchIn && !record.punchOut);
+};
+
+const shouldShowDeviceStatusInPunchOut = (record: TodayRecord) => {
+  return Boolean(record.punchOut);
+};
+
+const getDeviceAbnormalTypesText = (
+  abnormalTypes?: AttendanceDeviceAbnormalType[],
+) => {
+  const names = getDeviceAbnormalTypeNames(abnormalTypes);
+  return names.length > 0 ? names.join('、') : '';
+};
+
+const getDeviceAbnormalReasonText = (
+  abnormalTypes?: AttendanceDeviceAbnormalType[],
+) => {
+  const reasons = normalizeDeviceAbnormalTypes(abnormalTypes).map(
+    (type) => deviceAbnormalTypeMeta[type]?.reason || '当前设备校验异常',
+  );
+  return reasons.join('；');
+};
+
+const getActionText = (action: AttendanceDeviceAction | string) => {
+  return action === 'punch_out' ? '下班打卡' : '上班打卡';
+};
+
+const formatLogTime = (value: null | string) => {
+  return value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-';
 };
 
 const loadAttendanceConfig = async () => {
@@ -521,9 +1272,19 @@ watch(
     }
     if (newUsername && !isTodayRecordLoaded.value) {
       loadTodayRecord();
+      loadDeviceAbnormalLogs();
     }
   },
   { immediate: true }, // 立即执行一次，以处理 username 已存在的情况
+);
+
+watch(
+  () => userInfo?.id,
+  (newUserId) => {
+    if (!newUserId) return;
+    loadAttendanceDeviceDecision();
+  },
+  { immediate: true },
 );
 </script>
 
@@ -586,7 +1347,10 @@ watch(
 
       <!-- 今日打卡记录 -->
       <div v-if="todayRecord" class="border-t border-[#f0f0f0] pt-4">
-        <div v-if="todayRecord.punchIn" class="mb-2 flex items-center gap-3">
+        <div
+          v-if="todayRecord.punchIn"
+          class="mb-2 flex flex-wrap items-start gap-x-3 gap-y-2"
+        >
           <span class="min-w-20 font-medium text-[#333]">上班时间:</span>
           <span
             class="font-[Monaco,Menlo,monospace] font-medium text-[#1890ff]"
@@ -602,14 +1366,31 @@ watch(
           >
             {{ getLeaveScopeInfo(todayRecord.leaveScope)?.text }}
           </Tag>
+          <Tag
+            v-if="shouldShowDeviceStatusInPunchIn(todayRecord)"
+            class="punch-device-status-tag"
+            :color="getDeviceRecordStatusInfo(todayRecord).color"
+          >
+            {{ getDeviceRecordStatusInfo(todayRecord).text }}
+          </Tag>
         </div>
-        <div v-if="todayRecord.punchOut" class="mb-2 flex items-center gap-3">
+        <div
+          v-if="todayRecord.punchOut"
+          class="mb-2 flex flex-wrap items-start gap-x-3 gap-y-2"
+        >
           <span class="min-w-20 font-medium text-[#333]">下班时间:</span>
           <span
             class="font-[Monaco,Menlo,monospace] font-medium text-[#1890ff]"
           >
             {{ todayRecord.punchOut }}
           </span>
+          <Tag
+            v-if="shouldShowDeviceStatusInPunchOut(todayRecord)"
+            class="punch-device-status-tag"
+            :color="getDeviceRecordStatusInfo(todayRecord).color"
+          >
+            {{ getDeviceRecordStatusInfo(todayRecord).text }}
+          </Tag>
         </div>
         <div v-if="todayRecord.workHours" class="mb-2 flex items-center gap-3">
           <span class="min-w-20 font-medium text-[#333]">工作时长:</span>
@@ -621,5 +1402,183 @@ watch(
         </div>
       </div>
     </div>
+
+    <div
+      v-if="deviceAbnormalLogs.length > 0"
+      class="mt-4 rounded-lg bg-white p-6 shadow-[0_2px_8px_rgb(0_0_0_/_10%)]"
+    >
+      <div class="mb-4 flex items-center justify-between">
+        <div class="text-base font-medium text-[#333]">设备异常信息</div>
+        <Button
+          size="small"
+          :loading="deviceAbnormalLoading"
+          @click="loadDeviceAbnormalLogs"
+        >
+          刷新
+        </Button>
+      </div>
+      <List
+        :data-source="deviceAbnormalLogs"
+        :loading="deviceAbnormalLoading"
+        item-layout="vertical"
+      >
+        <template #renderItem="{ item }">
+          <List.Item>
+            <div class="flex flex-col gap-2">
+              <div class="flex flex-wrap items-center gap-2">
+                <Tag color="orange">
+                  {{
+                    getDeviceAbnormalTypesText(
+                      item.abnormalTypes || [item.abnormalType],
+                    )
+                  }}
+                </Tag>
+                <span class="font-medium text-[#333]">
+                  {{ getActionText(item.action) }}
+                </span>
+                <span class="text-sm text-[#999]">
+                  {{ formatLogTime(item.createTime) }}
+                </span>
+              </div>
+              <div class="grid gap-1 text-xs text-[#999] sm:grid-cols-2">
+                <div>绑定设备：{{ item.boundDeviceId || '-' }}</div>
+                <div>当前设备：{{ item.currentDeviceId }}</div>
+                <div v-if="item.duplicateUserNames">
+                  关联账号：{{ item.duplicateUserNames }}
+                </div>
+                <div
+                  v-if="
+                    getDeviceAbnormalReasonText(
+                      item.abnormalTypes || [item.abnormalType],
+                    )
+                  "
+                  class="sm:col-span-2"
+                >
+                  异常原因：{{
+                    getDeviceAbnormalReasonText(
+                      item.abnormalTypes || [item.abnormalType],
+                    )
+                  }}
+                </div>
+              </div>
+            </div>
+          </List.Item>
+        </template>
+      </List>
+    </div>
+
+    <Modal
+      v-model:open="deviceDecisionModalVisible"
+      centered
+      :title="pendingDeviceDecisionTitle"
+      :closable="false"
+      :mask-closable="false"
+      @cancel="handleCancelDeviceDecision"
+    >
+      <div class="whitespace-pre-line text-sm leading-6 text-[#333]">
+        {{ pendingDeviceDecisionContent }}
+      </div>
+      <template #footer>
+        <Space>
+          <Button @click="handleCancelDeviceDecision">取消</Button>
+          <Button
+            v-if="canChangeDeviceFromDecision"
+            :loading="deviceChanging"
+            @click="handleChangeDeviceFromDecision"
+          >
+            {{ pendingDeviceDecisionActionText }}
+          </Button>
+          <Button type="primary" @click="handleContinueDeviceDecision">
+            继续打卡
+          </Button>
+        </Space>
+      </template>
+    </Modal>
+
+    <Modal
+      v-model:open="deviceSmsModalVisible"
+      centered
+      title="短信验证"
+      :closable="false"
+      :mask-closable="false"
+      wrap-class-name="attendance-device-sms-modal"
+      @cancel="resolveDeviceSmsModal(false)"
+    >
+      <div class="space-y-4">
+        <div class="rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-4 py-3">
+          <div class="text-xs text-[#64748b]">当前账号手机号</div>
+          <div class="mt-1 text-base font-semibold text-[#111827]">
+            {{ deviceSmsVerifyPhone || '未获取到手机号' }}
+          </div>
+        </div>
+
+        <div>
+          <div class="mb-2 text-sm font-medium text-[#333]">验证码</div>
+          <div class="flex gap-2">
+            <Input
+              :value="deviceSmsCode"
+              inputmode="numeric"
+              :maxlength="6"
+              placeholder="请输入6位验证码"
+              @change="
+                updateDeviceSmsCode(($event.target as HTMLInputElement).value)
+              "
+              @input="
+                updateDeviceSmsCode(($event.target as HTMLInputElement).value)
+              "
+              @press-enter="submitDeviceSmsVerification"
+            />
+            <Button
+              class="shrink-0"
+              :disabled="deviceSmsCountdown > 0"
+              :loading="deviceSmsSending"
+              @click="sendDeviceSmsCode"
+            >
+              {{ deviceSmsSendText }}
+            </Button>
+          </div>
+          <div
+            class="mt-2 min-h-5 text-xs"
+            :class="deviceSmsError ? 'text-[#dc2626]' : 'text-[#64748b]'"
+          >
+            {{ deviceSmsVerificationTip }}
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex gap-3">
+          <Button class="flex-1" @click="resolveDeviceSmsModal(false)">
+            取消
+          </Button>
+          <Button
+            type="primary"
+            class="flex-1"
+            :disabled="deviceSmsSubmitDisabled"
+            :loading="deviceSmsSubmitting"
+            @click="submitDeviceSmsVerification"
+          >
+            {{ deviceSmsSubmitText }}
+          </Button>
+        </div>
+      </template>
+    </Modal>
   </div>
 </template>
+
+<style scoped>
+.punch-device-status-tag {
+  max-width: 100%;
+  word-break: break-all;
+  white-space: normal;
+}
+
+:deep(.attendance-device-sms-modal .ant-modal-content) {
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+:deep(.attendance-device-sms-modal .ant-modal-footer) {
+  margin-top: 18px;
+}
+</style>

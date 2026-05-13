@@ -4,6 +4,11 @@ import {
   getApprovedLeaveRangesByUserIds,
   resolveAttendanceState,
 } from '~/utils/attendance';
+import {
+  AttendanceDeviceError,
+  prepareAttendanceDeviceForPunch,
+  recordAttendanceDeviceAbnormal,
+} from '~/utils/attendance-device';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
@@ -20,10 +25,14 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const { punchTime, longitude, latitude } = await readBody(event);
-    console.log('punchTime', punchTime);
-    console.log('longitude', longitude);
-    console.log('latitude', latitude);
+    const {
+      punchTime,
+      longitude,
+      latitude,
+      device,
+      bindCurrentDevice,
+      allowDeviceAbnormal,
+    } = await readBody(event);
 
     if (!punchTime || longitude === undefined || latitude === undefined) {
       return useResponseError('缺少必要的参数');
@@ -45,6 +54,13 @@ export default eventHandler(async (event) => {
     if (existingRecord) {
       return useResponseError('今天已经打过上班卡了');
     }
+
+    const deviceDecision = await prepareAttendanceDeviceForPunch({
+      allowDeviceAbnormal,
+      bindCurrentDevice,
+      deviceInput: device,
+      user: userinfo,
+    });
 
     const punchInMoment = dayjs(punchTime);
     const leaveMap = await getApprovedLeaveRangesByUserIds(
@@ -71,10 +87,28 @@ export default eventHandler(async (event) => {
         userId: userinfo.id,
       },
     });
-    console.log('newAttendance', newAttendance);
+    await recordAttendanceDeviceAbnormal({
+      action: 'punch_in',
+      attendanceId: newAttendance.attendanceId,
+      decision: deviceDecision,
+      punchTime: new Date(punchTime),
+      user: userinfo,
+    });
 
-    return useResponseSuccess(newAttendance, '打卡成功');
+    return useResponseSuccess(
+      {
+        ...newAttendance,
+        deviceBindToken: deviceDecision.deviceBindToken,
+      },
+      '打卡成功',
+    );
   } catch (error: any) {
+    if (error instanceof AttendanceDeviceError) {
+      return useResponseError(error.message, {
+        deviceStatus: error.deviceStatus,
+        errorCode: error.errorCode,
+      });
+    }
     console.error('创建打卡记录失败:', error);
     return useResponseError(error.message || '创建失败');
   }

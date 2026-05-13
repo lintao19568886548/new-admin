@@ -4,6 +4,7 @@ import {
   getApprovedLeaveRangesByUserIds,
   resolveAttendanceState,
 } from '~/utils/attendance';
+import { getAttendanceDeviceRecordInfoMap } from '~/utils/attendance-device';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
@@ -74,9 +75,15 @@ export default eventHandler(async (event) => {
           ? userinfo.username
           : todayRecord.username,
     });
+    const deviceInfoMap = await getAttendanceDeviceRecordInfoMap([
+      todayRecord.attendanceId,
+    ]);
+    const deviceInfo = deviceInfoMap.get(todayRecord.attendanceId);
 
     return useResponseSuccess({
       ...todayRecord,
+      deviceAbnormalTypes: deviceInfo?.abnormalTypes ?? [],
+      deviceStatus: deviceInfo?.status ?? 'normal',
       leaveMinutes: attendanceState.leaveMinutes,
       leaveScope: attendanceState.leaveScope,
       status: attendanceState.status,

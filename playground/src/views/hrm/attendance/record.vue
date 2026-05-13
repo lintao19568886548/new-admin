@@ -49,6 +49,14 @@ const leaveScopeMeta: Record<
   partial: { color: 'cyan', text: '部分请假' },
 };
 
+const deviceStatusMeta: Record<
+  'abnormal' | 'normal',
+  { color: string; text: string }
+> = {
+  abnormal: { color: 'red', text: '设备异常' },
+  normal: { color: 'green', text: '考勤设备正常' },
+};
+
 // ================================= 响应式数据 =================================
 const listLoading = ref(false);
 const dateRange = ref<[dayjs.Dayjs, dayjs.Dayjs]>([
@@ -101,6 +109,39 @@ const getLeaveScopeInfo = (leaveScope: AttendanceLeaveScope) => {
     return null;
   }
   return leaveScopeMeta[leaveScope];
+};
+
+const getDeviceStatusInfo = (
+  record?: Pick<AttendanceListItem, 'deviceAbnormalTypes' | 'deviceStatus'>,
+) => {
+  if (record?.deviceStatus !== 'abnormal') {
+    return deviceStatusMeta.normal;
+  }
+  const abnormalText = getDeviceAbnormalTypesText(record.deviceAbnormalTypes);
+  return {
+    color: deviceStatusMeta.abnormal.color,
+    text: abnormalText || deviceStatusMeta.abnormal.text,
+  };
+};
+
+const getDeviceAbnormalTypesText = (
+  abnormalTypes?: AttendanceListItem['deviceAbnormalTypes'],
+) => {
+  const names = [...new Set(abnormalTypes ?? [])]
+    .map((type) => {
+      if (type === 'device_changed') {
+        return '更换设备打卡';
+      }
+      if (type === 'same_device_multi_account') {
+        return '同设备多账号';
+      }
+      if (type === 'device_credential_mismatch') {
+        return '设备凭证异常';
+      }
+      return '设备异常';
+    })
+    .filter(Boolean);
+  return names.length > 0 ? names.join('、') : '';
 };
 
 const formatToLocalTime = (dateStr: string, timeStr: string) => {
@@ -349,6 +390,12 @@ watch(dateRange, (newRange) => {
                 :color="getLeaveScopeInfo(record.leaveScope)?.color"
               >
                 {{ getLeaveScopeInfo(record.leaveScope)?.text }}
+              </Tag>
+              <Tag
+                class="max-w-full whitespace-normal break-all leading-[1.5]"
+                :color="getDeviceStatusInfo(record).color"
+              >
+                {{ getDeviceStatusInfo(record).text }}
               </Tag>
             </div>
           </div>

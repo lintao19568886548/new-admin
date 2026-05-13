@@ -5,8 +5,18 @@ const API = {
 };
 
 export namespace TrajectoryApi {
+  export type AttendanceDeviceAbnormalType =
+    | 'device_changed'
+    | 'device_credential_mismatch'
+    | 'same_device_multi_account'
+    | string;
+  export type AttendanceDeviceRecordStatus = 'abnormal' | 'normal';
+
   export interface TrajectoryRecord {
+    attendanceId: number;
     date: string;
+    deviceAbnormalTypes: AttendanceDeviceAbnormalType[];
+    deviceStatus: AttendanceDeviceRecordStatus;
     key: number;
     latitude: number | string;
     longitude: number | string;

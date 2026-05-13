@@ -52,6 +52,56 @@ const getStatusInfo = (status: null | number) => {
   return attendanceStatusMeta[status as keyof typeof attendanceStatusMeta];
 };
 
+const deviceStatusMeta: Record<
+  'abnormal' | 'normal',
+  { color: string; text: string }
+> = {
+  abnormal: { color: 'red', text: '设备异常' },
+  normal: { color: 'green', text: '考勤设备正常' },
+};
+
+const deviceAbnormalTypeOrder = [
+  'same_device_multi_account',
+  'device_changed',
+  'device_credential_mismatch',
+];
+
+const deviceAbnormalTypeTextMap: Record<string, string> = {
+  device_changed: '更换设备打卡',
+  device_credential_mismatch: '设备凭证异常',
+  same_device_multi_account: '同设备多账号',
+};
+
+const getDeviceStatusInfo = (
+  record?: Pick<
+    TrajectoryApi.TrajectoryRecord,
+    'deviceAbnormalTypes' | 'deviceStatus'
+  >,
+) => {
+  if (record?.deviceStatus !== 'abnormal') {
+    return deviceStatusMeta.normal;
+  }
+  const abnormalText = getDeviceAbnormalTypesText(record.deviceAbnormalTypes);
+  return {
+    color: deviceStatusMeta.abnormal.color,
+    text: abnormalText || deviceStatusMeta.abnormal.text,
+  };
+};
+
+const getDeviceAbnormalTypesText = (
+  abnormalTypes?: TrajectoryApi.AttendanceDeviceAbnormalType[],
+) => {
+  const typeSet = new Set(abnormalTypes ?? []);
+  const orderedTypes = [
+    ...deviceAbnormalTypeOrder.filter((type) => typeSet.has(type)),
+    ...[...typeSet].filter((type) => !deviceAbnormalTypeOrder.includes(type)),
+  ];
+  const names = orderedTypes
+    .map((type) => deviceAbnormalTypeTextMap[type] || '设备异常')
+    .filter(Boolean);
+  return names.join('、');
+};
+
 const locationAddressText = {
   abnormal: '定位异常',
   failed: '地址解析失败',
@@ -350,6 +400,7 @@ const updateMapMarkers = () => {
       <div style="font-size: 12px; line-height: 1.5;">
         <p style="margin: 0;"><b>用户:</b> ${record.username}</p>
         <p style="margin: 0;"><b>时间:</b> ${record.date} ${record.punchIn}</p>
+        <p style="margin: 0;"><b>设备:</b> ${getDeviceStatusInfo(record).text}</p>
       </div>`;
     const infoWindow = new BMap.InfoWindow(infoContent);
     marker.addEventListener('click', () => {
@@ -438,6 +489,7 @@ const handleExport = async () => {
         { header: '上班打卡', key: 'punchIn', width: 15 },
         { header: '下班打卡', key: 'punchOut', width: 15 },
         { header: '状态', key: 'status', width: 20 },
+        { header: '设备状态', key: 'deviceStatusText', width: 18 },
         { header: '工时(h)', key: 'workHours', width: 10 },
         { header: '定位状态', key: 'locationStatus', width: 15 },
         { header: '地址', key: 'address', width: 40 },
@@ -469,6 +521,7 @@ const handleExport = async () => {
           return {
             ...row,
             address: locationAddresses[index],
+            deviceStatusText: getDeviceStatusInfo(row).text,
             locationStatus: getLocationStatusText(row),
             status,
             weekday,
@@ -640,6 +693,16 @@ onUnmounted(() => {
                       <span>定位状态:</span>
                       <Tag :color="isLocationAbnormal(item) ? 'red' : 'green'">
                         {{ isLocationAbnormal(item) ? '异常' : '正常' }}
+                      </Tag>
+                    </div>
+                    <div class="device-status-row">
+                      <Icon icon="mdi:cellphone-check" />
+                      <span class="device-status-label">设备状态:</span>
+                      <Tag
+                        class="device-status-tag"
+                        :color="getDeviceStatusInfo(item).color"
+                      >
+                        {{ getDeviceStatusInfo(item).text }}
                       </Tag>
                     </div>
                     <div class="address-row">
@@ -993,6 +1056,21 @@ onUnmounted(() => {
   gap: 8px;
   align-items: center;
   padding: 4px 0;
+}
+
+.device-status-row {
+  align-items: flex-start !important;
+}
+
+.device-status-label {
+  flex-shrink: 0;
+}
+
+.device-status-tag {
+  max-width: calc(100% - 84px);
+  min-height: 22px;
+  word-break: break-all;
+  white-space: normal;
 }
 
 .address-row {

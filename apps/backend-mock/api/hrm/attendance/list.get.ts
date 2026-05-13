@@ -4,6 +4,7 @@ import {
   getApprovedLeaveRangesByUserIds,
   resolveAttendanceState,
 } from '~/utils/attendance';
+import { getAttendanceDeviceRecordInfoMap } from '~/utils/attendance-device';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
@@ -83,6 +84,9 @@ export default eventHandler(async (event) => {
             rangeEnd,
           )
         : new Map<number, { end: Date; start: Date }[]>();
+    const deviceInfoMap = await getAttendanceDeviceRecordInfoMap(
+      records.map((record) => record.attendanceId),
+    );
 
     const formattedItems = await Promise.all(
       records.map(async (record) => {
@@ -110,6 +114,10 @@ export default eventHandler(async (event) => {
           id: record.attendanceId,
           key: record.attendanceId,
           date: dayjs(record.punchIn).format('YYYY-MM-DD'),
+          deviceAbnormalTypes:
+            deviceInfoMap.get(record.attendanceId)?.abnormalTypes ?? [],
+          deviceStatus:
+            deviceInfoMap.get(record.attendanceId)?.status ?? 'normal',
           leaveMinutes: attendanceState.leaveMinutes,
           leaveScope: attendanceState.leaveScope,
           punchIn: dayjs(record.punchIn).format('HH:mm:ss'),

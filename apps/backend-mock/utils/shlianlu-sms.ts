@@ -38,7 +38,7 @@ function loadConfig(): SmsConfig {
     throw new Error('缺少联麓短信 MchId：SMS_MCH_ID');
   }
   if (!apiKey) {
-    throw new Error('缺少联麓短信密钥：SMS_API_KEY');
+    throw new Error('缺少联麓短信密钥：SMS_SECRET_KEY');
   }
   if (!templateId) {
     throw new Error('缺少联麓短信模板 ID：SMS_TEMPLATE_ID');
@@ -60,34 +60,37 @@ function loadConfig(): SmsConfig {
   };
 }
 
-function buildSignatureString({
-  appId,
-  mchId,
-  signType,
-  templateId,
-  timeStamp,
-  type,
-  version,
-  apiKey,
-}: {
-  apiKey: string;
-  appId: string;
-  mchId: string;
-  signType: string;
-  templateId: string;
-  timeStamp: string;
-  type: string;
-  version: string;
-}) {
-  return `AppId=${appId}&MchId=${mchId}&SignType=${signType}&TemplateId=${templateId}&TimeStamp=${timeStamp}&Type=${type}&Version=${version}&key=${apiKey}`;
+const SIGNATURE_EXCLUDED_KEYS = new Set([
+  'ContextParamSet',
+  'PhoneList',
+  'PhoneNumberSet',
+  'phoneSet',
+  'SessionContext',
+  'SessionContextSet',
+  'Signature',
+  'TemplateParamSet',
+]);
+
+function buildSignatureString(
+  payload: Record<string, unknown>,
+  apiKey: string,
+) {
+  const sortedParams = Object.keys(payload)
+    .filter((key) => !SIGNATURE_EXCLUDED_KEYS.has(key))
+    .sort()
+    .map((key) => `${key}=${String(payload[key])}`)
+    .join('&');
+
+  return `${sortedParams}&key=${apiKey}`;
 }
 
 function generateSignature(
-  options: Parameters<typeof buildSignatureString>[0],
+  payload: Record<string, unknown>,
+  config: Pick<SmsConfig, 'apiKey' | 'signType'>,
 ) {
-  const raw = buildSignatureString(options);
-  if (options.signType === 'HMACSHA256') {
-    return createHmac('sha256', options.apiKey)
+  const raw = buildSignatureString(payload, config.apiKey);
+  if (config.signType === 'HMACSHA256') {
+    return createHmac('sha256', config.apiKey)
       .update(raw, 'utf8')
       .digest('hex')
       .toUpperCase();
@@ -115,18 +118,12 @@ export async function sendLoginVerificationCode({
     TemplateParamSet: templateParamSet ?? [code],
     TimeStamp: timeStamp,
     SignType: config.signType,
-    Signature: generateSignature({
-      appId: config.appId,
-      mchId: config.mchId,
-      signType: config.signType,
-      templateId: config.templateId,
-      timeStamp,
-      type: config.type,
-      version: config.version,
-      apiKey: config.apiKey,
-    }),
     ...(taskTime ? { TaskTime: taskTime } : {}),
     ...(tag ? { Tag: tag } : {}),
+  };
+  const signedPayload = {
+    ...payload,
+    Signature: generateSignature(payload, config),
   };
 
   const response = await fetch(config.apiHost, {
@@ -135,7 +132,7 @@ export async function sendLoginVerificationCode({
       Accept: 'application/json',
       'Content-Type': 'application/json;charset=utf-8',
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(signedPayload),
   });
 
   if (!response.ok) {
