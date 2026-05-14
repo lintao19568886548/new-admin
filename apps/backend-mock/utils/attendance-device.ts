@@ -97,6 +97,7 @@ export interface AttendanceDeviceDuplicateUser {
 export interface AttendanceDeviceDecision {
   abnormalTypes: string[];
   binding: null | SerializedAttendanceDeviceBinding;
+  compatibilityMode?: 'legacy_app';
   currentDeviceCredentialFingerprint: null | string;
   device: AttendanceDevicePublicInfo;
   deviceBindToken?: string;
@@ -212,6 +213,28 @@ async function ensureAttendanceDeviceSchema() {
 function normalizeString(value: unknown, maxLength: number) {
   const text = String(value ?? '').trim();
   return text ? text.slice(0, maxLength) : null;
+}
+
+function hasDeviceIdentity(input: AttendanceDeviceInput | null | undefined) {
+  return Boolean(normalizeString(input?.deviceId, 128));
+}
+
+function buildLegacyAppDeviceDecision(): AttendanceDeviceDecision {
+  return {
+    abnormalTypes: [],
+    binding: null,
+    compatibilityMode: 'legacy_app',
+    currentDeviceCredentialFingerprint: null,
+    device: {
+      deviceId: 'legacy-app-compatible',
+      deviceLabel: '旧版本App兼容模式',
+      deviceModel: '旧版本App',
+      deviceSystem: null,
+    },
+    duplicateUsers: [],
+    message: '旧版本App未上报设备标识，已按兼容模式允许打卡',
+    status: 'normal',
+  };
 }
 
 function serializeDate(value: Date | null | string) {
@@ -427,6 +450,10 @@ export async function getAttendanceDeviceStatus(params: {
   deviceInput: AttendanceDeviceInput;
   user: AttendanceUserSnapshot;
 }): Promise<AttendanceDeviceDecision> {
+  if (!hasDeviceIdentity(params.deviceInput)) {
+    return buildLegacyAppDeviceDecision();
+  }
+
   const device = normalizeAttendanceDevice(params.deviceInput);
   const [binding, duplicateUsers] = await Promise.all([
     getActiveBinding(params.user.id),
@@ -562,6 +589,10 @@ export async function prepareAttendanceDeviceForPunch(params: {
   deviceInput: AttendanceDeviceInput;
   user: AttendanceUserSnapshot;
 }) {
+  if (!hasDeviceIdentity(params.deviceInput)) {
+    return buildLegacyAppDeviceDecision();
+  }
+
   const decision = await getAttendanceDeviceStatus({
     deviceInput: params.deviceInput,
     user: params.user,

@@ -33,52 +33,80 @@ function getCompactPieLayout(screenWidth: number) {
     gridInset: screenWidth < 768 ? '3%' : '4%',
     itemGap: getSizeValue(screenWidth, [4, 6, 10]),
     itemSize: getSizeValue(screenWidth, [6, 8, 12]),
-    labelBleedMargin: getSizeValue(screenWidth, [0, 4, 6]),
-    labelDistance: getSizeValue(screenWidth, [0, 8, 10]),
-    labelEdgeDistance: getSizeValue(screenWidth, [0, 10, 14]),
+    labelBleedMargin: getSizeValue(screenWidth, [0, 12, 16]),
+    labelDistance: getSizeValue(screenWidth, [0, 10, 12]),
+    labelEdgeDistance: getSizeValue(screenWidth, [0, 18, 24]),
     labelFontSize: getSizeValue(screenWidth, [0, 9, 11]),
     labelLineLength: getSizeValue(screenWidth, [0, 8, 10]),
-    labelLineLength2: getSizeValue(screenWidth, [0, 10, 14]),
-    labelWidth: getSizeValue(screenWidth, [0, 48, 64]),
+    labelLineLength2: getSizeValue(screenWidth, [0, 8, 10]),
+    labelWidth: getSizeValue(screenWidth, [0, 64, 76]),
     legendBottom: getSizeValue(screenWidth, [2, 4, 6]),
     legendFontSize: getSizeValue(screenWidth, [6, 7, 9]),
   };
 }
 
+function getDashboardPieOuterRadius(screenWidth: number) {
+  return getSizeValue(screenWidth, ['52%', '54%', '56%']);
+}
+
 function getCompactPieRadius(screenWidth: number): [string, string] {
-  if (screenWidth < 768) {
-    return ['30%', '52%'];
+  return [
+    getSizeValue(screenWidth, ['30%', '32%', '34%']),
+    getDashboardPieOuterRadius(screenWidth),
+  ];
+}
+
+function getCompactPieTooltipStyle(screenWidth: number) {
+  const maxWidth =
+    screenWidth < 768 ? 'min(220px, calc(100vw - 24px))' : '280px';
+
+  return [
+    `max-width:${maxWidth}`,
+    'white-space:normal',
+    'overflow-wrap:anywhere',
+    'word-break:break-word',
+  ].join(';');
+}
+
+function getCompactPieTooltipPosition(screenWidth: number) {
+  if (screenWidth >= 768) {
+    return undefined;
   }
 
-  if (screenWidth < 1024) {
-    return ['32%', '54%'];
-  }
+  return (
+    point: [number, number],
+    _params: unknown,
+    _dom: unknown,
+    _rect: unknown,
+    size: { contentSize: [number, number]; viewSize: [number, number] },
+  ) => {
+    const gap = 8;
+    const [contentWidth, contentHeight] = size.contentSize;
+    const [viewWidth, viewHeight] = size.viewSize;
+    const maxX = Math.max(gap, viewWidth - contentWidth - gap);
+    const maxY = Math.max(gap, viewHeight - contentHeight - gap);
 
-  return ['34%', '56%'];
+    return [
+      Math.min(Math.max(point[0] + gap, gap), maxX),
+      Math.min(Math.max(point[1] + gap, gap), maxY),
+    ];
+  };
 }
 
 function getCustomerPieLayout(screenWidth: number) {
   return {
     ...getCompactPieLayout(screenWidth),
     centerY: getSizeValue(screenWidth, ['41%', '42%', '43%']),
-    labelDistance: getSizeValue(screenWidth, [0, 8, 10]),
+    labelDistance: getSizeValue(screenWidth, [0, 10, 12]),
     labelLineLength: getSizeValue(screenWidth, [0, 6, 8]),
     labelLineLength2: getSizeValue(screenWidth, [0, 8, 10]),
-    labelWidth: getSizeValue(screenWidth, [0, 54, 64]),
+    labelWidth: getSizeValue(screenWidth, [0, 64, 76]),
     legendBottom: getSizeValue(screenWidth, [10, 12, 14]),
   };
 }
 
 function getCustomerPieRadius(screenWidth: number): [string, string] {
-  if (screenWidth < 768) {
-    return ['30%', '50%'];
-  }
-
-  if (screenWidth < 1024) {
-    return ['32%', '52%'];
-  }
-
-  return ['34%', '54%'];
+  return getCompactPieRadius(screenWidth);
 }
 
 function formatCompactPiePercent(percent: number) {
@@ -102,6 +130,40 @@ function getCompactPieLabel(params: any, unit = '') {
   }
 
   return `${params.name}\n${formatCompactPiePercent(percent)}`;
+}
+
+function getDayNightPieLabel(params: any) {
+  const percent = Number(params?.percent || 0);
+  const value = Number(params?.value || 0);
+
+  if (value <= 0 || percent <= 0) {
+    return '';
+  }
+
+  return `${params.name}\n${formatCompactPiePercent(percent)}`;
+}
+
+function getNameValuePieLabel(params: any) {
+  const value = Number(params?.value || 0);
+
+  if (value <= 0) {
+    return '';
+  }
+
+  return `${params.name}: ${value.toLocaleString('zh-CN')}`;
+}
+
+function getElectricityPeakValleyLabel(params: any) {
+  const percent = Number(params?.percent || 0);
+  const value = Number(params?.value || 0);
+
+  if (value <= 0 || percent <= 0) {
+    return '';
+  }
+
+  return `${params.name}\n${value.toLocaleString(
+    'zh-CN',
+  )}kWh\n${formatCompactPiePercent(percent)}`;
 }
 
 function getCompactPieSeriesData<T extends { name: string; value: number }>(
@@ -581,13 +643,13 @@ export function getSemiPieChartConfig(
 ): EChartsOption {
   const shouldShowLabel = screenWidth >= 1024;
   const fontSize = screenWidth < 768 ? 0 : 12;
-  const labelDistance = shouldShowLabel ? 40 : 0;
-  const lineLength1 = shouldShowLabel ? 10 : 0;
-  const lineLength2 = shouldShowLabel ? 12 : 0;
+  const labelDistance = getSizeValue(screenWidth, [0, 2, 3]);
+  const lineLength1 = getSizeValue(screenWidth, [0, 8, 10]);
+  const lineLength2 = getSizeValue(screenWidth, [0, 4, 6]);
   const mobileGridInset = screenWidth < 768 ? '5%' : '8%';
   const showLabel = shouldShowLabel;
   const showLabelLine = shouldShowLabel;
-  const pieRadius = screenWidth < 768 ? '65%' : '55%';
+  const pieRadius = getDashboardPieOuterRadius(screenWidth);
 
   return {
     grid: {
@@ -609,23 +671,22 @@ export function getSemiPieChartConfig(
           },
         },
         label: {
-          align: 'center',
           alignTo: 'labelLine',
-          distance: labelDistance,
+          distance: shouldShowLabel ? labelDistance : 0,
           fontSize,
-          formatter: '{b}: {c}',
+          formatter: getNameValuePieLabel,
           lineHeight: getSizeValue(screenWidth, [0, 13, 15]),
-          overflow: 'none',
-          padding: [2, 6],
+          overflow: 'break',
+          padding: [1, 0],
           show: showLabel,
+          verticalAlign: 'middle',
         },
         labelLayout: {
           hideOverlap: false,
-          moveOverlap: 'shiftX',
         },
         labelLine: {
-          length: lineLength1,
-          length2: lineLength2,
+          length: showLabelLine ? lineLength1 : 0,
+          length2: showLabelLine ? lineLength2 : 0,
           minTurnAngle: 30,
           show: showLabelLine,
           smooth: false,
@@ -636,6 +697,8 @@ export function getSemiPieChartConfig(
       },
     ],
     tooltip: {
+      confine: true,
+      extraCssText: getCompactPieTooltipStyle(screenWidth),
       formatter: '{b}: {c} ({d}%)',
       trigger: 'item',
     },
@@ -780,6 +843,26 @@ export function getRevenueChartConfig(
       maximumFractionDigits: 2,
       minimumFractionDigits: 2,
     });
+  const tooltipMaxWidth = isMobile ? 'min(220px, calc(100vw - 24px))' : '320px';
+  const tooltipContentStyle = [
+    `max-width:${tooltipMaxWidth}`,
+    'white-space:normal',
+    'word-break:break-word',
+    'overflow-wrap:anywhere',
+    'line-height:1.5',
+  ].join(';');
+  const tooltipRowStyle = [
+    'display:flex',
+    'align-items:flex-start',
+    'gap:4px',
+    'min-width:0',
+  ].join(';');
+  const tooltipTextStyle = [
+    'display:block',
+    'min-width:0',
+    'overflow-wrap:anywhere',
+    'word-break:break-word',
+  ].join(';');
 
   return {
     grid: {
@@ -826,11 +909,18 @@ export function getRevenueChartConfig(
       },
     ],
     tooltip: {
+      confine: true,
+      extraCssText: [
+        `max-width:${tooltipMaxWidth}`,
+        'white-space:normal',
+        'overflow-wrap:anywhere',
+        'word-break:break-word',
+      ].join(';'),
       formatter: (params: any) => {
         if (!params) return '';
         const items = Array.isArray(params) ? params : [params];
         const month = items[0]?.name || '';
-        let result = `${month}<br/>`;
+        let result = `<div style="${tooltipContentStyle}"><div>${month}</div>`;
         for (const item of items) {
           const itemValue = Number(item.value || 0);
           const isProfitSeries = item.seriesName === profitSeriesName;
@@ -839,9 +929,9 @@ export function getRevenueChartConfig(
             label = itemValue < 0 ? '净支出' : '净收入';
           }
           const value = valueFormatter(itemValue);
-          result += `${item.marker}${label}: ${value}元<br/>`;
+          result += `<div style="${tooltipRowStyle}">${item.marker}<span style="${tooltipTextStyle}">${label}: ${value}元</span></div>`;
         }
-        return result;
+        return `${result}</div>`;
       },
       trigger: 'axis',
     },
@@ -1085,7 +1175,10 @@ export function getWorkOrderChartConfig(
       },
     ],
     tooltip: {
+      confine: true,
+      extraCssText: getCompactPieTooltipStyle(screenWidth),
       formatter: '{b}: {c} ({d}%)',
+      position: getCompactPieTooltipPosition(screenWidth),
       trigger: 'item',
     },
   };
@@ -1098,6 +1191,9 @@ export function getCountStatisticsChartConfig(
   const shouldShowLabel = screenWidth >= 1024;
   const layout = getCompactPieLayout(screenWidth);
   const fontSize = shouldShowLabel ? layout.labelFontSize : 0;
+  const labelDistance = getSizeValue(screenWidth, [0, 0, 1]);
+  const labelLineLength = getSizeValue(screenWidth, [0, 8, 10]);
+  const labelLineLength2 = getSizeValue(screenWidth, [0, 4, 6]);
   const showLabel = shouldShowLabel;
   const showLabelLine = shouldShowLabel;
 
@@ -1128,25 +1224,23 @@ export function getCountStatisticsChartConfig(
         color: [COLORS.blue, COLORS.green],
         data: getCompactPieSeriesData(data),
         label: {
-          align: 'center',
+          alignTo: 'labelLine',
           bleedMargin: layout.labelBleedMargin,
-          distance: shouldShowLabel ? layout.labelDistance : 0,
-          edgeDistance: layout.labelEdgeDistance,
+          distance: shouldShowLabel ? labelDistance : 0,
           fontSize,
-          formatter: getCompactPieLabel,
+          formatter: getDayNightPieLabel,
           lineHeight: shouldShowLabel ? 13 : 0,
           overflow: 'break',
-          padding: [1, 2],
+          padding: [1, 0],
           show: showLabel,
-          width: layout.labelWidth,
+          verticalAlign: 'middle',
         },
         labelLayout: {
-          hideOverlap: true,
-          moveOverlap: 'shiftY',
+          hideOverlap: false,
         },
         labelLine: {
-          length: shouldShowLabel ? layout.labelLineLength : 0,
-          length2: shouldShowLabel ? layout.labelLineLength2 : 0,
+          length: shouldShowLabel ? labelLineLength : 0,
+          length2: shouldShowLabel ? labelLineLength2 : 0,
           minTurnAngle: 30,
           show: showLabelLine,
           smooth: false,
@@ -1157,7 +1251,10 @@ export function getCountStatisticsChartConfig(
       },
     ],
     tooltip: {
+      confine: true,
+      extraCssText: getCompactPieTooltipStyle(screenWidth),
       formatter: '{b}: {c} ({d}%)',
+      position: getCompactPieTooltipPosition(screenWidth),
       trigger: 'item',
     },
   };
@@ -1305,6 +1402,9 @@ export function getCustomerIntentLevelChartConfig(
   const shouldShowLabel = screenWidth >= 1024;
   const layout = getCustomerPieLayout(screenWidth);
   const fontSize = shouldShowLabel ? layout.labelFontSize : 0;
+  const labelDistance = getSizeValue(screenWidth, [0, 2, 3]);
+  const labelLineLength = getSizeValue(screenWidth, [0, 8, 10]);
+  const labelLineLength2 = getSizeValue(screenWidth, [0, 4, 6]);
   const showLabel = shouldShowLabel;
   const showLabelLine = shouldShowLabel;
 
@@ -1341,25 +1441,23 @@ export function getCustomerIntentLevelChartConfig(
         ],
         data: getCompactPieSeriesData(data),
         label: {
-          align: 'center',
+          alignTo: 'labelLine',
           bleedMargin: layout.labelBleedMargin,
-          distance: shouldShowLabel ? layout.labelDistance : 0,
-          edgeDistance: layout.labelEdgeDistance,
+          distance: shouldShowLabel ? labelDistance : 0,
           fontSize,
           formatter: getCompactPieLabel,
           lineHeight: shouldShowLabel ? 13 : 0,
           overflow: 'break',
-          padding: [1, 2],
+          padding: [1, 0],
           show: showLabel,
-          width: layout.labelWidth,
+          verticalAlign: 'middle',
         },
         labelLayout: {
-          hideOverlap: true,
-          moveOverlap: 'shiftY',
+          hideOverlap: false,
         },
         labelLine: {
-          length: shouldShowLabel ? layout.labelLineLength : 0,
-          length2: shouldShowLabel ? layout.labelLineLength2 : 0,
+          length: shouldShowLabel ? labelLineLength : 0,
+          length2: shouldShowLabel ? labelLineLength2 : 0,
           minTurnAngle: 30,
           show: showLabelLine,
           smooth: false,
@@ -1371,7 +1469,10 @@ export function getCustomerIntentLevelChartConfig(
       },
     ],
     tooltip: {
+      confine: true,
+      extraCssText: getCompactPieTooltipStyle(screenWidth),
       formatter: '{b}: {c} ({d}%)',
+      position: getCompactPieTooltipPosition(screenWidth),
       trigger: 'item',
     },
   };
@@ -1384,6 +1485,9 @@ export function getNegotiationProgressChartConfig(
   const shouldShowLabel = screenWidth >= 1024;
   const layout = getCustomerPieLayout(screenWidth);
   const fontSize = shouldShowLabel ? layout.labelFontSize : 0;
+  const labelDistance = getSizeValue(screenWidth, [0, 2, 3]);
+  const labelLineLength = getSizeValue(screenWidth, [0, 8, 10]);
+  const labelLineLength2 = getSizeValue(screenWidth, [0, 4, 6]);
   const showLabel = shouldShowLabel;
   const showLabelLine = shouldShowLabel;
 
@@ -1414,24 +1518,23 @@ export function getNegotiationProgressChartConfig(
         color: [COLORS.blue, COLORS.green, COLORS.orange, COLORS.red],
         data: getCompactPieSeriesData(data),
         label: {
-          align: 'center',
+          alignTo: 'labelLine',
           bleedMargin: layout.labelBleedMargin,
-          distance: shouldShowLabel ? layout.labelDistance : 0,
+          distance: shouldShowLabel ? labelDistance : 0,
           fontSize,
           formatter: getCompactPieLabel,
           lineHeight: shouldShowLabel ? 13 : 0,
-          overflow: 'truncate',
-          padding: [1, 2],
+          overflow: 'break',
+          padding: [1, 0],
           show: showLabel,
-          width: layout.labelWidth,
+          verticalAlign: 'middle',
         },
         labelLayout: {
-          hideOverlap: true,
-          moveOverlap: 'shiftY',
+          hideOverlap: false,
         },
         labelLine: {
-          length: shouldShowLabel ? layout.labelLineLength : 0,
-          length2: shouldShowLabel ? layout.labelLineLength2 : 0,
+          length: shouldShowLabel ? labelLineLength : 0,
+          length2: shouldShowLabel ? labelLineLength2 : 0,
           minTurnAngle: 30,
           show: showLabelLine,
           smooth: false,
@@ -1443,7 +1546,10 @@ export function getNegotiationProgressChartConfig(
       },
     ],
     tooltip: {
+      confine: true,
+      extraCssText: getCompactPieTooltipStyle(screenWidth),
       formatter: '{b}: {c} ({d}%)',
+      position: getCompactPieTooltipPosition(screenWidth),
       trigger: 'item',
     },
   };
@@ -1456,6 +1562,10 @@ export function getElectricityPieChartConfig(
   const shouldShowLabel = screenWidth >= 1024;
   const layout = getCompactPieLayout(screenWidth);
   const fontSize = shouldShowLabel ? layout.labelFontSize : 0;
+  const labelDistance = getSizeValue(screenWidth, [0, 2, 3]);
+  const labelLineLength = getSizeValue(screenWidth, [0, 8, 10]);
+  const labelLineLength2 = getSizeValue(screenWidth, [0, 4, 6]);
+  const labelWidth = getSizeValue(screenWidth, [0, 72, 90]);
   const showLabel = shouldShowLabel;
   const showLabelLine = shouldShowLabel;
 
@@ -1486,24 +1596,24 @@ export function getElectricityPieChartConfig(
         data: getCompactPieSeriesData(data),
         label: {
           align: 'center',
+          alignTo: 'labelLine',
           bleedMargin: layout.labelBleedMargin,
-          distance: shouldShowLabel ? layout.labelDistance : 0,
-          edgeDistance: layout.labelEdgeDistance,
+          distance: shouldShowLabel ? labelDistance : 0,
           fontSize,
-          formatter: (params: any) => getCompactPieLabel(params, 'kWh'),
+          formatter: getElectricityPeakValleyLabel,
           lineHeight: shouldShowLabel ? 13 : 0,
           overflow: 'break',
           padding: [1, 2],
           show: showLabel,
-          width: layout.labelWidth,
+          width: labelWidth,
         },
         labelLayout: {
           hideOverlap: true,
           moveOverlap: 'shiftY',
         },
         labelLine: {
-          length: shouldShowLabel ? layout.labelLineLength : 0,
-          length2: shouldShowLabel ? layout.labelLineLength2 : 0,
+          length: shouldShowLabel ? labelLineLength : 0,
+          length2: shouldShowLabel ? labelLineLength2 : 0,
           minTurnAngle: 30,
           show: showLabelLine,
           smooth: false,
@@ -1514,7 +1624,10 @@ export function getElectricityPieChartConfig(
       },
     ],
     tooltip: {
+      confine: true,
+      extraCssText: getCompactPieTooltipStyle(screenWidth),
       formatter: '{b}: {c}kWh ({d}%)',
+      position: getCompactPieTooltipPosition(screenWidth),
       trigger: 'item',
     },
   };
@@ -1573,8 +1686,12 @@ export function getDailyElectricityTrendChartConfig(
     ],
     tooltip: {
       formatter: (params: any) => {
-        if (!params) return '';
-        const period = data.periods[params.dataIndex] || '';
+        const item = Array.isArray(params) ? params[0] : params;
+        if (!item) return '';
+        const dataIndex = Number(item.dataIndex ?? 0);
+        const period = data.periods[dataIndex] || '';
+        const name = item.name || data.times[dataIndex] || '';
+        const value = item.value ?? item.data ?? 0;
         const periodColors: Record<string, string> = {
           尖: '#EF4444',
           峰: '#F97316',
@@ -1582,7 +1699,9 @@ export function getDailyElectricityTrendChartConfig(
           谷: '#10B981',
         };
         const color = periodColors[period] || '#6B7280';
-        return `${params.name}<br/>时间段: <span style="color: ${color}">${period}</span><br/>用电量: ${params.value}kWh`;
+        return `${name}<br/>时间段: <span style="color: ${color}">${
+          period || '-'
+        }</span><br/>用电量: ${value}kWh`;
       },
       trigger: 'axis',
     },
@@ -1645,8 +1764,13 @@ export function getDailyWaterTrendChartConfig(
     ],
     tooltip: {
       formatter: (params: any) => {
-        if (!params) return '';
-        return `${params.name}<br/>用水量: ${params.value}吨`;
+        const item = Array.isArray(params) ? params[0] : params;
+        if (!item) return '';
+        const dataIndex = Number(item.dataIndex ?? 0);
+        const name = item.name || data.times[dataIndex] || '';
+        const value = item.value ?? item.data ?? 0;
+
+        return `${name}<br/>用水量: ${value}吨`;
       },
       trigger: 'axis',
     },

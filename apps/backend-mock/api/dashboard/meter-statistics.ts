@@ -264,6 +264,33 @@ function filterPermittedReadings(
   );
 }
 
+function filterReadingsByDateRange(
+  readings: MeterReading[],
+  dateRange: { timeFrom: string; timeTo: string },
+) {
+  const start = dayjs(dateRange.timeFrom);
+  const end = dayjs(dateRange.timeTo);
+
+  if (!start.isValid() || !end.isValid()) {
+    return readings;
+  }
+
+  const startTime = start.valueOf();
+  const endTime = end.valueOf();
+
+  return readings.filter((reading) => {
+    const freezeDate = dayjs(String(reading.freezeTime || ''));
+
+    if (!freezeDate.isValid()) {
+      return false;
+    }
+
+    const freezeTime = freezeDate.valueOf();
+
+    return freezeTime >= startTime && freezeTime <= endTime;
+  });
+}
+
 function buildPeakValleyData(readings: MeterReading[]) {
   const totals = {
     flat: 0,
@@ -451,55 +478,65 @@ export default eventHandler(async (event) => {
     const permittedAddressSet = new Set(
       permittedDevices.map((device) => device.comAddress),
     );
-    const aggregateType = dateType === 'month' ? '3' : '2';
+    const peakValleyType = dateType === 'month' ? '2' : '1';
     const waterTrendType = dateType === 'month' ? '2' : '1';
-    const [aggregateReadings, hourlyReadings, waterTrendReadings] =
-      statisticsType === 'electricity'
-        ? [
-            ...(await Promise.all([
-              fetchReadings({
-                comType,
-                projCode,
-                timeFrom: dateRange.timeFrom,
-                timeTo: dateRange.timeTo,
-                type: aggregateType,
-              }),
-              fetchReadings({
-                comType,
-                projCode,
-                timeFrom: dateRange.timeFrom,
-                timeTo: dateRange.timeTo,
-                type: '1',
-              }),
-            ])),
-            [],
-          ]
-        : [
-            [],
-            [],
-            await fetchReadings({
-              comType,
-              projCode,
-              timeFrom: dateRange.timeFrom,
-              timeTo: dateRange.timeTo,
-              type: waterTrendType,
-            }),
-          ];
-    const permittedAggregateReadings = filterPermittedReadings(
-      aggregateReadings,
+    let hourlyReadings: MeterReading[] = [];
+    let peakValleyReadings: MeterReading[] = [];
+    let waterTrendReadings: MeterReading[] = [];
+
+    if (statisticsType === 'electricity') {
+      if (dateType === 'day') {
+        hourlyReadings = await fetchReadings({
+          comType,
+          projCode,
+          timeFrom: dateRange.timeFrom,
+          timeTo: dateRange.timeTo,
+          type: '1',
+        });
+        peakValleyReadings = hourlyReadings;
+      } else {
+        [peakValleyReadings, hourlyReadings] = await Promise.all([
+          fetchReadings({
+            comType,
+            projCode,
+            timeFrom: dateRange.timeFrom,
+            timeTo: dateRange.timeTo,
+            type: peakValleyType,
+          }),
+          fetchReadings({
+            comType,
+            projCode,
+            timeFrom: dateRange.timeFrom,
+            timeTo: dateRange.timeTo,
+            type: '1',
+          }),
+        ]);
+      }
+    } else {
+      waterTrendReadings = await fetchReadings({
+        comType,
+        projCode,
+        timeFrom: dateRange.timeFrom,
+        timeTo: dateRange.timeTo,
+        type: waterTrendType,
+      });
+    }
+
+    const permittedPeakValleyReadings = filterPermittedReadings(
+      filterReadingsByDateRange(peakValleyReadings, dateRange),
       permittedAddressSet,
     );
     const permittedHourlyReadings = filterPermittedReadings(
-      hourlyReadings,
+      filterReadingsByDateRange(hourlyReadings, dateRange),
       permittedAddressSet,
     );
     const permittedWaterTrendReadings = filterPermittedReadings(
-      waterTrendReadings,
+      filterReadingsByDateRange(waterTrendReadings, dateRange),
       permittedAddressSet,
     );
     const peakValley =
       statisticsType === 'electricity'
-        ? buildPeakValleyData(permittedAggregateReadings)
+        ? buildPeakValleyData(permittedPeakValleyReadings)
         : [];
     const dayNight =
       statisticsType === 'electricity'
@@ -516,10 +553,13 @@ export default eventHandler(async (event) => {
             times: [],
             values: [],
           };
-    const recordCount =
-      statisticsType === 'electricity'
-        ? permittedAggregateReadings.length + permittedHourlyReadings.length
-        : permittedWaterTrendReadings.length;
+    let recordCount = permittedWaterTrendReadings.length;
+    if (statisticsType === 'electricity') {
+      recordCount =
+        dateType === 'day'
+          ? permittedHourlyReadings.length
+          : permittedPeakValleyReadings.length + permittedHourlyReadings.length;
+    }
     const total =
       statisticsType === 'electricity'
         ? Math.max(sumChartData(peakValley), sumChartData(dayNight))

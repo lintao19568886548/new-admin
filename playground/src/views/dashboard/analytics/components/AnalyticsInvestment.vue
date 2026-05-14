@@ -266,7 +266,7 @@ watch(
         </div>
       </div>
     </div>
-    <div class="grid min-h-0 flex-1 grid-cols-2 gap-2">
+    <div class="grid min-h-0 flex-1 grid-cols-1 gap-2 md:grid-cols-2">
       <div
         class="flex flex-col rounded-lg bg-gray-50 p-2 md:p-4"
         :class="[chartHeight]"
