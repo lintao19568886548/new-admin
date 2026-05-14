@@ -13,13 +13,22 @@ export default eventHandler(async (event) => {
     return useResponseError('investmentId error');
   }
 
-  const investment = await runWithRadarSharedScope(() =>
-    prismaClient.investment.findUnique({
-      where: {
-        investmentId,
-      },
-    }),
-  );
+  const body = await readBody(event);
+  delete body.investmentId;
 
-  return useResponseSuccess(investment);
+  try {
+    const result = await runWithRadarSharedScope(() =>
+      prismaClient.investment.update({
+        data: body,
+        where: {
+          investmentId,
+        },
+      }),
+    );
+
+    return useResponseSuccess(result);
+  } catch (error) {
+    console.error('update investment failed:', error);
+    return serverErrorResponse('update investment failed', event);
+  }
 });

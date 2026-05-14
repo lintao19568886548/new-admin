@@ -35,8 +35,11 @@ import {
   Tag,
 } from 'ant-design-vue';
 
-import { deleteInvestment, getInvestmentList } from '#/api/investment';
-import { getParkList } from '#/api/park';
+import {
+  deleteInvestment,
+  getInvestmentList,
+  getInvestmentParkList,
+} from '#/api/investment';
 import MobileDateRange from '#/components/MobileDateRange.vue';
 import { $t } from '#/locales';
 
@@ -249,7 +252,7 @@ function onParkChange(value: any) {
 
 onMounted(() => {
   fetchList();
-  getParkList()
+  getInvestmentParkList()
     .then((list: any[]) => {
       const options = Array.isArray(list)
         ? list.map((p: any) => ({ label: p.parkName, value: p.parkId }))
@@ -318,7 +321,7 @@ function waitForSafeAreaBottomStable(
   });
 }
 
-function resolveParkName(id?: number, name?: string) {
+function resolveParkName(id?: null | number, name?: string) {
   const n = (name || '').trim();
   if (n) return n;
   if (typeof id === 'number') {

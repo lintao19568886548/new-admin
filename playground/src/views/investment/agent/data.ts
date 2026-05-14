@@ -5,7 +5,7 @@ import { h, markRaw } from 'vue'; // 导入 markRaw
 
 import { formatDateTime } from '@vben/utils';
 
-import { getParkList } from '#/api/park';
+import { getInvestmentParkList } from '#/api/investment';
 // 确保导入路径正确，如果 ParkLabel 移动到了 playground/src/components
 import ParkLabel from '#/components/LabelRouter.vue';
 import MultiSelect from '#/components/MultiSelect.vue'; // 导入 MultiSelect 组件
@@ -23,7 +23,7 @@ export interface InvestmentAgent {
   investmentId?: number; // 项目ID
   meetingTime: string; // 会谈时间 (ISO 格式字符串)
   operator?: string; // 操作人
-  parkId: number; // 工厂ID
+  parkId?: null | number; // 工厂ID
   parkName?: string; // 工厂名称 (可能由parkId解析)
   phoneNumber: string; // 电话号码
   progress: string; // 进展阶段 (e.g., '初步接洽', '深入沟通')
@@ -147,7 +147,7 @@ export function useFormSchema(closeModal: () => void): VbenFormSchema[] {
       component: 'ApiSelect',
       componentProps: {
         allowClear: true,
-        api: getParkList,
+        api: getInvestmentParkList,
         class: 'w-full',
         labelField: 'parkName',
         valueField: 'parkId',
@@ -163,7 +163,6 @@ export function useFormSchema(closeModal: () => void): VbenFormSchema[] {
           label: $t('page.common.park'),
           path: '/rental/manage/', // 传递跳转路径
         }),
-      rules: 'required',
     },
     {
       component: 'Input',
@@ -180,7 +179,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
       component: 'ApiSelect',
       componentProps: {
         allowClear: true,
-        api: getParkList,
+        api: getInvestmentParkList,
         class: 'w-full',
         labelField: 'parkName',
         valueField: 'parkId',

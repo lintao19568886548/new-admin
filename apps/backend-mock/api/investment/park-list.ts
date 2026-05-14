@@ -8,18 +8,20 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
-  const investmentId = Number.parseInt(event.context.params.id);
-  if (!investmentId) {
-    return useResponseError('investmentId error');
-  }
-
-  const investment = await runWithRadarSharedScope(() =>
-    prismaClient.investment.findUnique({
+  const parks = await runWithRadarSharedScope(() =>
+    prismaClient.park.findMany({
+      orderBy: {
+        parkId: 'asc',
+      },
+      select: {
+        parkId: true,
+        parkName: true,
+      },
       where: {
-        investmentId,
+        isDeleted: false,
       },
     }),
   );
 
-  return useResponseSuccess(investment);
+  return useResponseSuccess(parks);
 });

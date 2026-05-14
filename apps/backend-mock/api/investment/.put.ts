@@ -1,4 +1,5 @@
 import { prismaClient } from '~/utils/db';
+import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import { useResponseSuccess } from '~/utils/response';
 
 export default eventHandler(async (event) => {
@@ -6,20 +7,24 @@ export default eventHandler(async (event) => {
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
+
   const body = await readBody(event);
+
   try {
-    // 使用事务处理创建操作
-    const result = await prismaClient.investment.update({
-      where: {
-        investmentId: Number(body.investmentId),
-      },
-      data: {
-        ...body,
-      },
-    });
+    const result = await runWithRadarSharedScope(() =>
+      prismaClient.investment.update({
+        data: {
+          ...body,
+        },
+        where: {
+          investmentId: Number(body.investmentId),
+        },
+      }),
+    );
+
     return useResponseSuccess(result);
   } catch (error) {
-    console.error('插入数据失败:', error);
-    return serverErrorResponse(`插入数据失败`, event);
+    console.error('update investment failed:', error);
+    return serverErrorResponse('update investment failed', event);
   }
 });

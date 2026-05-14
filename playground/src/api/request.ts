@@ -52,6 +52,19 @@ function shouldForceLogoutForAuthError(error: unknown) {
   );
 }
 
+function shouldSilenceErrorMessage(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const config =
+    (error as any).config ??
+    (error as any).response?.config ??
+    (error as any).response?.request?.config;
+
+  return Boolean(config?.silentError);
+}
+
 function createRequestClient(baseURL: string, options?: RequestClientOptions) {
   const client = new RequestClient({
     ...options,
@@ -202,6 +215,9 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       // 这里可以根据业务进行定制,你可以拿到 error 内的信息进行定制化处理，根据不同的 code 做不同的提示，而不是直接使用 message.error 提示 msg
       // 当前mock接口返回的错误字段是 error 或者 message
       const responseData = resolveResponseData(error);
+      if (shouldSilenceErrorMessage(error)) {
+        return;
+      }
       if (responseData?.errorCode === 'MEMBERSHIP_REQUIRED') {
         redirectToMembershipPage(responseData?.restrictionReason);
         return;

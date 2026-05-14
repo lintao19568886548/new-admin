@@ -16,8 +16,11 @@ import { BulbOutlined, EnvironmentOutlined } from '@ant-design/icons-vue';
 import { Button, Input, message, Modal, Space, Table } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { deleteInvestment, getInvestmentList } from '#/api/investment';
-import { getParkList } from '#/api/park';
+import {
+  deleteInvestment,
+  getInvestmentList,
+  getInvestmentParkList,
+} from '#/api/investment';
 import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
@@ -250,7 +253,7 @@ function refreshGrid() {
 }
 
 onMounted(() => {
-  getParkList()
+  getInvestmentParkList()
     .then((list: any[]) => {
       if (!Array.isArray(list)) return;
       parkNameMap.value = Object.fromEntries(
