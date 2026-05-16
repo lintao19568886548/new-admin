@@ -116,16 +116,37 @@ function shouldIncludeAsApp(route: RouteRecordStringComponent) {
   return true;
 }
 
+function isRouteInGroupDomain(
+  route: RouteRecordStringComponent,
+  parentRoute: RouteRecordStringComponent,
+) {
+  const parentPath =
+    typeof parentRoute.path === 'string' ? parentRoute.path : '';
+  const routePath = typeof route.path === 'string' ? route.path : '';
+
+  if (!parentPath || !routePath || parentPath === '/') {
+    return true;
+  }
+
+  return routePath === parentPath || routePath.startsWith(`${parentPath}/`);
+}
+
 function collectAppRoutes(
   routes: RouteRecordStringComponent[],
+  parentRoute?: RouteRecordStringComponent,
   result: RouteRecordStringComponent[] = [],
 ) {
   for (const route of routes) {
     if (hasChildren(route)) {
-      collectAppRoutes(route.children ?? [], result);
+      collectAppRoutes(route.children ?? [], parentRoute ?? route, result);
       continue;
     }
-    if (shouldIncludeAsApp(route)) result.push(route);
+    if (
+      shouldIncludeAsApp(route) &&
+      (!parentRoute || isRouteInGroupDomain(route, parentRoute))
+    ) {
+      result.push(route);
+    }
   }
   return result;
 }
@@ -162,7 +183,7 @@ function buildGroups(menuRoutes: RouteRecordStringComponent[]) {
 
   for (const route of menuRoutes) {
     if (hasChildren(route)) {
-      const appRoutes = collectAppRoutes(route.children ?? []);
+      const appRoutes = collectAppRoutes(route.children ?? [], route);
       if (appRoutes.length === 0) continue;
       seeds.push({
         icon: normalizeIcon(route.meta?.icon, DEFAULT_GROUP_ICON),

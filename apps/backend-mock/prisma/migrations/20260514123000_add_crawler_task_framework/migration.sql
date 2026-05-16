@@ -1,0 +1,63 @@
+CREATE TABLE IF NOT EXISTS `crawler_source` (
+  `source_id` bigint NOT NULL AUTO_INCREMENT,
+  `source_code` varchar(100) NOT NULL,
+  `source_name` varchar(100) NOT NULL,
+  `source_type` varchar(50) NOT NULL,
+  `base_url` varchar(500) NOT NULL,
+  `robots_url` varchar(500) NULL DEFAULT NULL,
+  `enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `crawl_interval_minutes` int NOT NULL DEFAULT 1440,
+  `rate_limit_per_minute` int NOT NULL DEFAULT 30,
+  `allowed_paths_json` text NULL,
+  `blocked_paths_json` text NULL,
+  `keyword_include_json` text NULL,
+  `keyword_exclude_json` text NULL,
+  `region_scope_json` text NULL,
+  `last_crawled_at` datetime(3) NULL DEFAULT NULL,
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`source_id`),
+  UNIQUE KEY `crawler_source_source_code_uq` (`source_code`),
+  KEY `crawler_source_enabled_idx` (`enabled`),
+  KEY `crawler_source_source_type_idx` (`source_type`)
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `crawler_task` (
+  `task_id` bigint NOT NULL AUTO_INCREMENT,
+  `source_id` bigint NOT NULL,
+  `task_type` varchar(50) NOT NULL,
+  `status` varchar(30) NOT NULL DEFAULT 'PENDING',
+  `started_at` datetime(3) NULL DEFAULT NULL,
+  `finished_at` datetime(3) NULL DEFAULT NULL,
+  `crawl_started_at` datetime(3) NULL DEFAULT NULL,
+  `crawl_ended_at` datetime(3) NULL DEFAULT NULL,
+  `fetched_count` int NOT NULL DEFAULT 0,
+  `created_lead_count` int NOT NULL DEFAULT 0,
+  `updated_lead_count` int NOT NULL DEFAULT 0,
+  `skipped_count` int NOT NULL DEFAULT 0,
+  `error_message` text NULL,
+  `retry_count` int NOT NULL DEFAULT 0,
+  `max_retry_count` int NOT NULL DEFAULT 0,
+  `next_retry_at` datetime(3) NULL DEFAULT NULL,
+  `skip_reason` varchar(255) NULL DEFAULT NULL,
+  `request_config_json` text NULL,
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`task_id`),
+  KEY `crawler_task_source_id_idx` (`source_id`),
+  KEY `crawler_task_status_idx` (`status`),
+  KEY `crawler_task_create_time_idx` (`create_time`)
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `crawler_task_log` (
+  `log_id` bigint NOT NULL AUTO_INCREMENT,
+  `task_id` bigint NOT NULL,
+  `level` varchar(20) NOT NULL,
+  `stage` varchar(50) NOT NULL,
+  `message` varchar(500) NOT NULL,
+  `detail_json` text NULL,
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`log_id`),
+  KEY `crawler_task_log_task_id_idx` (`task_id`),
+  KEY `crawler_task_log_stage_idx` (`stage`)
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

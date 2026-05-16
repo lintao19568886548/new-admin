@@ -9,11 +9,12 @@ import type {
 } from '#/api/investment';
 
 import { h, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
 
+import { useMediaQuery } from '@vueuse/core';
 import {
   Alert,
   Button,
@@ -43,6 +44,8 @@ import { RADAR_STAGE_LABEL_MAP, RADAR_STAGE_OPTIONS } from './data';
 defineOptions({ name: 'InvestmentRadarTasks' });
 
 const router = useRouter();
+const route = useRoute();
+const isMobile = useMediaQuery('(max-width: 767px)');
 const loadError = ref('');
 const tableLoading = ref(false);
 const detailDrawerOpen = ref(false);
@@ -360,6 +363,16 @@ function renderStatusTag(
   return h(Tag, { color: meta.color }, () => meta.label);
 }
 
+function getStatusMeta(
+  status: null | string | undefined,
+  metaMap: Record<string, { color: string; label: string }>,
+) {
+  if (!status) {
+    return { color: 'default', label: '-' };
+  }
+  return metaMap[status] || { color: 'default', label: status };
+}
+
 function renderTaskInfo(record: RadarOutreachTaskListItem) {
   return h(Space, { size: 4, wrap: true }, () => [
     renderChannel(record.channel),
@@ -453,11 +466,18 @@ function handleTableChange(page: { current?: number; pageSize?: number }) {
 }
 
 function goToLeadDetail(leadId: number) {
-  router.push(`/investment/radar/${leadId}`);
+  const detailBasePath = route.path.includes('/mobile-tasks')
+    ? '/investment/radar/mobile'
+    : '/investment/radar';
+  router.push(`${detailBasePath}/${leadId}`);
 }
 
 function goToRadarList() {
-  router.push('/investment/radar');
+  router.push(
+    route.path.includes('/mobile-tasks')
+      ? '/investment/radar/mobile'
+      : '/investment/radar',
+  );
 }
 
 onMounted(() => {
@@ -483,7 +503,26 @@ onMounted(() => {
 
       <Alert v-if="loadError" :message="loadError" show-icon type="warning" />
 
-      <Row :gutter="[16, 16]">
+      <div v-if="isMobile" class="radar-task-mobile-summary">
+        <div>
+          <span>任务总数</span>
+          <strong>{{ summary.totalTasks }}</strong>
+        </div>
+        <div>
+          <span>待执行</span>
+          <strong>{{ summary.pendingTasks }}</strong>
+        </div>
+        <div>
+          <span>已回复</span>
+          <strong>{{ summary.repliedTasks }}</strong>
+        </div>
+        <div>
+          <span>正向</span>
+          <strong>{{ summary.positiveReplies }}</strong>
+        </div>
+      </div>
+
+      <Row v-else :gutter="[16, 16]">
         <Col :lg="6" :md="12" :sm="12" :xs="24">
           <Card>
             <Statistic title="触达任务总数" :value="summary.totalTasks" />
@@ -506,13 +545,13 @@ onMounted(() => {
         </Col>
       </Row>
 
-      <Card title="查询条件">
-        <Form class="radar-task-filter" layout="inline">
+      <Card v-if="!isMobile" title="查询条件">
+        <Form class="radar-task-filter radar-search-form" layout="inline">
           <Form.Item label="关键字">
             <Input
               v-model:value="searchForm.keyword"
               allow-clear
-              class="w-60"
+              class="radar-filter-keyword"
               placeholder="企业 / 电话 / 园区 / 模板"
               @press-enter="handleSearch"
             />
@@ -521,7 +560,7 @@ onMounted(() => {
             <Select
               v-model:value="searchForm.status"
               allow-clear
-              class="w-36"
+              class="radar-filter-control"
               :options="statusOptions"
             />
           </Form.Item>
@@ -529,7 +568,7 @@ onMounted(() => {
             <Select
               v-model:value="searchForm.replyStatus"
               allow-clear
-              class="w-36"
+              class="radar-filter-control"
               :options="replyStatusOptions"
             />
           </Form.Item>
@@ -537,7 +576,7 @@ onMounted(() => {
             <Select
               v-model:value="searchForm.channel"
               allow-clear
-              class="w-32"
+              class="radar-filter-control"
               :options="channelOptions"
             />
           </Form.Item>
@@ -545,7 +584,7 @@ onMounted(() => {
             <Select
               v-model:value="searchForm.taskType"
               allow-clear
-              class="w-36"
+              class="radar-filter-control"
               :options="taskTypeOptions"
             />
           </Form.Item>
@@ -553,7 +592,7 @@ onMounted(() => {
             <Select
               v-model:value="searchForm.stage"
               allow-clear
-              class="w-36"
+              class="radar-filter-control"
               :options="RADAR_STAGE_OPTIONS"
             />
           </Form.Item>
@@ -561,7 +600,7 @@ onMounted(() => {
             <Select
               v-model:value="searchForm.priorityLevel"
               allow-clear
-              class="w-28"
+              class="radar-filter-control"
               :options="priorityOptions"
             />
           </Form.Item>
@@ -574,7 +613,147 @@ onMounted(() => {
         </Form>
       </Card>
 
-      <Card title="触达任务列表">
+      <div v-if="isMobile" class="radar-task-mobile">
+        <div class="radar-task-mobile-filter">
+          <Input
+            v-model:value="searchForm.keyword"
+            allow-clear
+            placeholder="企业 / 电话 / 园区 / 模板"
+            @press-enter="handleSearch"
+          />
+          <div class="radar-task-mobile-grid">
+            <Select
+              v-model:value="searchForm.status"
+              allow-clear
+              placeholder="任务状态"
+              :options="statusOptions"
+            />
+            <Select
+              v-model:value="searchForm.replyStatus"
+              allow-clear
+              placeholder="回复状态"
+              :options="replyStatusOptions"
+            />
+            <Select
+              v-model:value="searchForm.channel"
+              allow-clear
+              placeholder="渠道"
+              :options="channelOptions"
+            />
+            <Select
+              v-model:value="searchForm.taskType"
+              allow-clear
+              placeholder="触达类型"
+              :options="taskTypeOptions"
+            />
+            <Select
+              v-model:value="searchForm.stage"
+              allow-clear
+              placeholder="线索阶段"
+              :options="RADAR_STAGE_OPTIONS"
+            />
+            <Select
+              v-model:value="searchForm.priorityLevel"
+              allow-clear
+              placeholder="优先级"
+              :options="priorityOptions"
+            />
+          </div>
+          <div class="radar-task-mobile-actions">
+            <Button block type="primary" @click="handleSearch">查询</Button>
+            <Button block @click="handleReset">重置</Button>
+          </div>
+        </div>
+
+        <Skeleton v-if="tableLoading" active :paragraph="{ rows: 8 }" />
+        <div v-else-if="items.length > 0" class="radar-task-mobile-list">
+          <div
+            v-for="item in items"
+            :key="item.taskId"
+            class="radar-task-mobile-card"
+          >
+            <div class="radar-task-mobile-head">
+              <div>
+                <div class="radar-task-mobile-title">
+                  {{ item.enterpriseName || '-' }}
+                </div>
+                <div class="radar-task-mobile-subtitle">
+                  {{ item.parkName || '-' }} ·
+                  {{ item.latestSignalType || '-' }}
+                </div>
+              </div>
+              <Tag :color="getPriorityColor(item.priorityLevel)">
+                {{ item.priorityLevel || '-' }} 级
+              </Tag>
+            </div>
+
+            <div class="radar-task-mobile-tags">
+              <Tag :color="getStatusMeta(item.status, taskStatusMetaMap).color">
+                {{ getStatusMeta(item.status, taskStatusMetaMap).label }}
+              </Tag>
+              <Tag
+                :color="
+                  getStatusMeta(item.replyStatus, replyStatusMetaMap).color
+                "
+              >
+                {{ getStatusMeta(item.replyStatus, replyStatusMetaMap).label }}
+              </Tag>
+              <Tag :color="channelColorMap[item.channel] || 'default'">
+                {{ mapChannel(item.channel) }}
+              </Tag>
+              <Tag color="blue">
+                {{ RADAR_STAGE_LABEL_MAP[item.stage] || item.stage || '-' }}
+              </Tag>
+            </div>
+
+            <div class="radar-task-mobile-info">
+              <span>联系人：{{ item.contactName || '-' }}</span>
+              <span>电话：{{ item.phoneNumber || '-' }}</span>
+              <span>类型：{{ mapTaskType(item.taskType) }}</span>
+              <span>计划：{{ formatTime(item.scheduledAt) }}</span>
+              <span>发送：{{ formatTime(item.sentAt) }}</span>
+              <span>回复：{{ formatTime(item.replyTime) }}</span>
+            </div>
+
+            <p v-if="renderResult(item) !== '-'">
+              {{ renderResult(item) }}
+            </p>
+
+            <div class="radar-task-mobile-card-actions">
+              <Button size="small" @click="openTaskDetail(item.taskId)">
+                任务详情
+              </Button>
+              <Button
+                size="small"
+                type="primary"
+                @click="goToLeadDetail(item.leadId)"
+              >
+                查看线索
+              </Button>
+            </div>
+          </div>
+          <div class="radar-task-mobile-pagination">
+            <Button
+              :disabled="currentPage <= 1"
+              @click="handleTableChange({ current: currentPage - 1, pageSize })"
+            >
+              上一页
+            </Button>
+            <span>
+              {{ currentPage }} / {{ Math.max(1, Math.ceil(total / pageSize)) }}
+            </span>
+            <Button
+              :disabled="currentPage >= Math.ceil(total / pageSize)"
+              @click="handleTableChange({ current: currentPage + 1, pageSize })"
+            >
+              下一页
+            </Button>
+          </div>
+        </div>
+        <Empty v-else description="暂无触达任务" />
+      </div>
+
+      <Card v-else title="触达任务列表">
         <Table
           :columns="columns"
           :data-source="items"
@@ -606,7 +785,7 @@ onMounted(() => {
         destroy-on-close
         placement="right"
         title="触达任务详情"
-        width="720"
+        :width="isMobile ? '100%' : 720"
       >
         <Skeleton v-if="detailLoading" active :paragraph="{ rows: 8 }" />
         <template v-else-if="taskDetail">
@@ -645,7 +824,7 @@ onMounted(() => {
             </Card>
 
             <Card title="执行信息">
-              <Descriptions :column="2" bordered size="small">
+              <Descriptions :column="isMobile ? 1 : 2" bordered size="small">
                 <Descriptions.Item label="任务编号">
                   {{ taskDetail.taskId }}
                 </Descriptions.Item>
@@ -691,14 +870,14 @@ onMounted(() => {
                 <Descriptions.Item label="更新时间">
                   {{ formatTime(taskDetail.updateTime) }}
                 </Descriptions.Item>
-                <Descriptions.Item label="执行结果" :span="2">
+                <Descriptions.Item label="执行结果" :span="isMobile ? 1 : 2">
                   {{ renderResult(taskDetail) }}
                 </Descriptions.Item>
               </Descriptions>
             </Card>
 
             <Card title="线索与企业">
-              <Descriptions :column="2" bordered size="small">
+              <Descriptions :column="isMobile ? 1 : 2" bordered size="small">
                 <Descriptions.Item label="线索编号">
                   {{ taskDetail.leadId }}
                 </Descriptions.Item>
@@ -722,14 +901,20 @@ onMounted(() => {
                       : `${formatNumber(taskDetail.intentArea)} ㎡`
                   }}
                 </Descriptions.Item>
-                <Descriptions.Item label="意图 / 匹配 / 可触达" :span="2">
+                <Descriptions.Item
+                  label="意图 / 匹配 / 可触达"
+                  :span="isMobile ? 1 : 2"
+                >
                   {{ taskDetail.intentScore }} / {{ taskDetail.matchScore }} /
                   {{ taskDetail.reachableScore }}
                 </Descriptions.Item>
-                <Descriptions.Item label="统一社会信用代码" :span="2">
+                <Descriptions.Item
+                  label="统一社会信用代码"
+                  :span="isMobile ? 1 : 2"
+                >
                   {{ taskDetail.unifiedSocialCreditCode || '-' }}
                 </Descriptions.Item>
-                <Descriptions.Item label="企业地址" :span="2">
+                <Descriptions.Item label="企业地址" :span="isMobile ? 1 : 2">
                   {{ taskDetail.address || '-' }}
                 </Descriptions.Item>
                 <Descriptions.Item label="最近信号">
@@ -745,7 +930,7 @@ onMounted(() => {
               </Descriptions>
             </Card>
 
-            <div class="flex justify-end">
+            <div class="radar-task-detail-actions">
               <Space>
                 <Button @click="detailDrawerOpen = false">关闭</Button>
                 <Button
@@ -767,5 +952,213 @@ onMounted(() => {
 <style scoped>
 .radar-task-filter {
   row-gap: 12px;
+}
+
+.radar-search-form {
+  row-gap: 12px;
+}
+
+.radar-filter-control {
+  width: 180px;
+  min-width: 180px;
+}
+
+.radar-filter-keyword {
+  width: 180px;
+  max-width: 100%;
+  min-width: 180px;
+}
+
+.radar-search-form :deep(.ant-input),
+.radar-search-form :deep(.ant-input-affix-wrapper),
+.radar-search-form :deep(.ant-select-selection-item),
+.radar-search-form :deep(.ant-select-selection-placeholder) {
+  font-size: 14px;
+}
+
+.radar-search-form :deep(.ant-input),
+.radar-search-form :deep(.ant-input-affix-wrapper),
+.radar-search-form :deep(.ant-select-single .ant-select-selector) {
+  height: 34px;
+  min-height: 34px;
+}
+
+.radar-search-form :deep(.ant-input-affix-wrapper) {
+  align-items: center;
+  display: inline-flex;
+  padding-block: 0;
+}
+
+.radar-search-form :deep(.ant-input-affix-wrapper > input.ant-input) {
+  height: 32px;
+  min-height: 32px;
+  line-height: 32px;
+}
+
+.radar-search-form :deep(.ant-form-item-label > label) {
+  color: var(--ant-color-text);
+  font-size: 14px;
+}
+
+:deep(.ant-table-thead > tr > th) {
+  color: var(--ant-color-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+:deep(.ant-table-tbody > tr > td) {
+  color: var(--ant-color-text);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.radar-task-mobile-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.radar-task-mobile-summary > div,
+.radar-task-mobile-filter,
+.radar-task-mobile-card {
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  background: var(--ant-color-bg-container);
+  box-shadow: 0 4px 14px rgb(15 23 42 / 6%);
+}
+
+.radar-task-mobile-summary > div {
+  padding: 10px 4px;
+  text-align: center;
+}
+
+.radar-task-mobile-summary span {
+  display: block;
+  color: var(--ant-color-text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.radar-task-mobile-summary strong {
+  display: block;
+  color: var(--ant-color-text);
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.radar-task-mobile {
+  padding-bottom: calc(var(--app-safe-area-bottom) + 16px);
+}
+
+.radar-task-mobile-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.radar-task-mobile-grid,
+.radar-task-mobile-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.radar-task-mobile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.radar-task-mobile-card {
+  padding: 13px;
+}
+
+.radar-task-mobile-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.radar-task-mobile-title {
+  color: var(--ant-color-text);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+  word-break: break-word;
+}
+
+.radar-task-mobile-subtitle {
+  margin-top: 2px;
+  color: var(--ant-color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.radar-task-mobile-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.radar-task-mobile-info {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  margin-top: 10px;
+  color: var(--ant-color-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.radar-task-mobile-card p {
+  margin: 8px 0 0;
+  color: var(--ant-color-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  word-break: break-word;
+}
+
+.radar-task-mobile-card-actions,
+.radar-task-mobile-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.radar-task-mobile-pagination {
+  color: var(--ant-color-text-secondary);
+  font-size: 13px;
+}
+
+@media (max-width: 767px) {
+  :deep(.ant-page) {
+    overflow-y: auto;
+  }
+
+  .radar-task-detail-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .radar-task-detail-actions :deep(.ant-space),
+  .radar-task-detail-actions :deep(.ant-space-item),
+  .radar-task-detail-actions :deep(.ant-btn) {
+    display: block;
+    width: 100%;
+  }
+}
+
+@media (min-width: 768px) {
+  .radar-task-detail-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
 }
 </style>

@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { computed, onMounted, onUnmounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { useAntdDesignTokens } from '@vben/hooks';
 import { preferences, usePreferences } from '@vben/preferences';
@@ -18,6 +19,7 @@ import PrivacyPolicyModal from './components/PrivacyPolicyModal.vue';
 defineOptions({ name: 'App' });
 
 const { isDark } = usePreferences();
+const route = useRoute();
 const { tokens } = useAntdDesignTokens();
 let appUrlOpenListener: null | { remove: () => Promise<void> } = null;
 let stopWechatRuntimeDetection: (() => void) | null = null;
@@ -188,6 +190,17 @@ watch(isDark, () => {
     console.warn('同步状态栏样式失败:', error);
   });
 });
+
+watch(
+  () => route.path,
+  (path) => {
+    document.body.classList.toggle(
+      'is-investment-route',
+      path.startsWith('/investment'),
+    );
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -218,5 +231,73 @@ watch(isDark, () => {
 
 .ant-app {
   box-sizing: border-box;
+}
+
+body.is-investment-route .ant-btn {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  text-align: center;
+}
+
+body.is-investment-route .ant-btn > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  text-align: center;
+}
+
+body.is-investment-route .ant-btn-block > span {
+  width: 100%;
+}
+
+body.is-investment-route .radar-search-form {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+body.is-investment-route .radar-search-form .ant-form-item {
+  align-items: center;
+}
+
+body.is-investment-route .radar-search-form .ant-input,
+body.is-investment-route .radar-search-form .ant-input::placeholder,
+body.is-investment-route
+  .radar-search-form
+  .ant-input-affix-wrapper
+  input.ant-input,
+body.is-investment-route
+  .radar-search-form
+  .ant-input-affix-wrapper
+  input.ant-input::placeholder,
+body.is-investment-route .radar-search-form .ant-select-selection-item,
+body.is-investment-route .radar-search-form .ant-select-selection-placeholder,
+body.is-investment-route .radar-search-form .ant-select-selection-search-input {
+  text-align: left;
+}
+
+body.is-investment-route .ant-form:not(.radar-search-form) .ant-input,
+body.is-investment-route
+  .ant-form:not(.radar-search-form)
+  .ant-input::placeholder,
+body.is-investment-route
+  .ant-form:not(.radar-search-form)
+  .ant-input-affix-wrapper
+  input.ant-input,
+body.is-investment-route
+  .ant-form:not(.radar-search-form)
+  .ant-input-affix-wrapper
+  input.ant-input::placeholder,
+body.is-investment-route
+  .ant-form:not(.radar-search-form)
+  .ant-select-selection-item,
+body.is-investment-route
+  .ant-form:not(.radar-search-form)
+  .ant-select-selection-placeholder,
+body.is-investment-route
+  .ant-form:not(.radar-search-form)
+  .ant-select-selection-search-input {
+  text-align: left;
 }
 </style>

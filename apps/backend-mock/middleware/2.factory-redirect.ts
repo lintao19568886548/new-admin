@@ -31,7 +31,11 @@ async function handleFactoryRequest(
 
   try {
     // 使用 $fetch 进行内部 API 调用
-    const result = await $fetch('/api/factory', {
+    const internalFetch = $fetch as unknown as (
+      request: string,
+      options: any,
+    ) => Promise<any>;
+    const result = await internalFetch('/api/factory', {
       method: 'POST',
       body: modifiedBody,
       headers: {

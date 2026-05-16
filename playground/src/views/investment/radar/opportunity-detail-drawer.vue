@@ -5,6 +5,7 @@ import { computed } from 'vue';
 
 import { formatDateTime } from '@vben/utils';
 
+import { useMediaQuery } from '@vueuse/core';
 import {
   Button,
   Descriptions,
@@ -33,6 +34,9 @@ const emit = defineEmits<{
   'update:open': [value: boolean];
 }>();
 
+const isMobile = useMediaQuery('(max-width: 767px)');
+const drawerWidth = computed(() => (isMobile.value ? '100%' : 720));
+
 const shanghaiDateFormatter = new Intl.DateTimeFormat('en-US', {
   day: '2-digit',
   month: '2-digit',
@@ -54,6 +58,28 @@ const opportunityMeta = computed(() => {
 const regionText = computed(
   () =>
     [props.item?.city, props.item?.district].filter(Boolean).join(' / ') || '-',
+);
+
+const mobileMainDescription = computed(() =>
+  extractPrimaryDescription(props.item?.description),
+);
+
+const mobileRawDescription = computed(() =>
+  compactText(props.item?.description),
+);
+
+const showRawDescription = computed(() => {
+  const raw = mobileRawDescription.value;
+  const main = mobileMainDescription.value;
+  return Boolean(raw && raw !== main && raw.length > main.length + 80);
+});
+
+const descriptionFactEntries = computed(() =>
+  extractDescriptionFacts(props.item?.description),
+);
+
+const mobileDetailEntries = computed(() =>
+  flattenJsonEntries(props.item?.detailJson),
 );
 
 function formatArea(record: PublicOpportunityItem) {
@@ -107,6 +133,192 @@ function getTags(value: unknown) {
   return value.map(String).filter(Boolean);
 }
 
+function compactText(value?: null | string) {
+  return String(value || '')
+    .replaceAll(/\s+/g, ' ')
+    .replaceAll(/\s+([，。；：、])/g, '$1')
+    .trim();
+}
+
+function escapeRegExp(value: string) {
+  return value.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`);
+}
+
+function findFirstMarker(text: string, markers: string[]) {
+  let matchedIndex = -1;
+  let matchedMarker = '';
+  for (const marker of markers) {
+    const index = text.indexOf(marker);
+    if (index !== -1 && (matchedIndex === -1 || index < matchedIndex)) {
+      matchedIndex = index;
+      matchedMarker = marker;
+    }
+  }
+  return { index: matchedIndex, marker: matchedMarker };
+}
+
+function extractPrimaryDescription(value?: null | string) {
+  const raw = compactText(value);
+  if (!raw) {
+    return '-';
+  }
+
+  let text = raw;
+  const start = findFirstMarker(text, [
+    '房源详情>>',
+    '需求详情>>',
+    '详情>>',
+    '房源详情',
+    '需求详情',
+  ]);
+  if (start.index !== -1) {
+    text = text.slice(start.index + start.marker.length);
+  }
+
+  const end = findFirstMarker(text, [
+    '上一篇：',
+    '下一篇：',
+    '相关推荐',
+    '网站首页 |',
+    '服务热线：',
+    '快速导航',
+  ]);
+  if (end.index > 0) {
+    text = text.slice(0, end.index);
+  }
+
+  text = compactText(text)
+    .replaceAll(/^[-:：>\s]+/g, '')
+    .replaceAll(/本网站信息全部真实有效.*?现场实拍！\s*/g, '')
+    .trim();
+
+  if (!text) {
+    text = raw;
+  }
+
+  return text.length > 520 ? `${text.slice(0, 520)}...` : text;
+}
+
+function getRelevantDescriptionSegment(value?: null | string) {
+  const raw = compactText(value);
+  if (!raw) {
+    return '';
+  }
+
+  const start = findFirstMarker(raw, ['有效期', '所在区域', '发布时间：']);
+  const endMarkers = ['房源详情>>', '需求详情>>', '上一篇：', '下一篇：'];
+  const end = findFirstMarker(raw, endMarkers);
+  if (start.index !== -1) {
+    const endIndex = end.index > start.index ? end.index : raw.length;
+    return raw.slice(start.index, endIndex);
+  }
+  return raw;
+}
+
+function extractDescriptionFacts(value?: null | string) {
+  const segment = getRelevantDescriptionSegment(value);
+  if (!segment) {
+    return [];
+  }
+
+  const labels = [
+    '有效期',
+    '所在区域',
+    '面积',
+    '租金',
+    '价格',
+    '预算',
+    '楼层',
+    '结构',
+    '供电',
+    '新旧',
+    '办公室',
+    '电费',
+    '食堂',
+    '宿舍',
+    '电梯',
+    '行业',
+    '用途',
+  ];
+  const labelPattern = labels.map((label) => escapeRegExp(label)).join('|');
+
+  return labels
+    .map((label) => {
+      const matcher = new RegExp(
+        `${escapeRegExp(label)}\\s*[:：]\\s*([\\s\\S]*?)(?=\\s+(?:${labelPattern})\\s*[:：]|\\s+房源详情|\\s+需求详情|$)`,
+      );
+      const match = segment.match(matcher);
+      const normalized = compactText(match?.[1]).replaceAll(/^[-:：>\s]+/g, '');
+      return normalized ? { label, value: normalized } : null;
+    })
+    .filter(
+      (entry): entry is { label: string; value: string } => entry !== null,
+    );
+}
+
+function stringifyJsonDisplay(value: unknown) {
+  if (value === null || value === undefined || value === '') {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return compactText(value);
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  try {
+    return compactText(JSON.stringify(value));
+  } catch {
+    return String(value);
+  }
+}
+
+function resolveJsonLabel(key: string) {
+  const labelMap: Record<string, string> = {
+    areaText: '面积',
+    city: '城市',
+    companyName: '公司',
+    contactName: '联系人',
+    crawledFrom: '采集方式',
+    district: '区域',
+    industryText: '行业',
+    parseMeta: '解析信息',
+    phoneNumber: '电话',
+    priceText: '价格',
+    publishedAt: '发布时间',
+    responseHash: '响应指纹',
+    sourceUrl: '来源链接',
+    title: '标题',
+  };
+  return labelMap[key] || key;
+}
+
+function flattenJsonEntries(
+  value: unknown,
+  parentLabel = '',
+): Array<{ label: string; value: string }> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return [];
+  }
+
+  return Object.entries(value as Record<string, unknown>)
+    .flatMap(([key, entryValue]) => {
+      const label = [parentLabel, resolveJsonLabel(key)]
+        .filter(Boolean)
+        .join(' / ');
+      if (
+        entryValue &&
+        typeof entryValue === 'object' &&
+        !Array.isArray(entryValue)
+      ) {
+        return flattenJsonEntries(entryValue, label);
+      }
+      const normalized = stringifyJsonDisplay(entryValue);
+      return normalized ? [{ label, value: normalized }] : [];
+    })
+    .slice(0, 12);
+}
+
 function closeDrawer() {
   emit('update:open', false);
 }
@@ -119,7 +331,7 @@ function handleOpenSource() {
 </script>
 
 <template>
-  <Drawer :open="open" :title="title" width="720" @close="closeDrawer">
+  <Drawer :open="open" :title="title" :width="drawerWidth" @close="closeDrawer">
     <template #extra>
       <Button v-if="item?.sourceUrl" type="link" @click="handleOpenSource">
         原网页
@@ -128,6 +340,165 @@ function handleOpenSource() {
 
     <div v-if="loading" class="text-text-secondary py-10 text-center">
       加载中...
+    </div>
+
+    <div v-else-if="item && isMobile" class="opportunity-detail-mobile">
+      <section class="opportunity-mobile-hero">
+        <div class="opportunity-mobile-title">
+          {{ item.title || '-' }}
+        </div>
+        <div class="opportunity-mobile-tags">
+          <Tag :color="opportunityMeta.color">
+            {{ opportunityMeta.label }}
+          </Tag>
+          <Tag>{{ item.opportunityStatus || '-' }}</Tag>
+          <Tag v-if="item.publishedAgeLabel">
+            {{ item.publishedAgeLabel }}
+          </Tag>
+        </div>
+      </section>
+
+      <section class="opportunity-mobile-section">
+        <div class="opportunity-mobile-section-title">核心信息</div>
+        <div class="opportunity-mobile-summary-grid">
+          <div class="opportunity-mobile-summary-item">
+            <span>面积</span>
+            <strong>{{ formatArea(item) }}</strong>
+          </div>
+          <div class="opportunity-mobile-summary-item">
+            <span>价格 / 预算</span>
+            <strong>{{ item.priceText || '-' }}</strong>
+          </div>
+          <div class="opportunity-mobile-summary-item">
+            <span>联系人</span>
+            <strong>{{ item.contactName || '-' }}</strong>
+          </div>
+          <div class="opportunity-mobile-summary-item">
+            <span>电话</span>
+            <strong>{{ item.phoneNumber || '-' }}</strong>
+          </div>
+          <div class="opportunity-mobile-summary-item">
+            <span>区域</span>
+            <strong>{{ regionText }}</strong>
+          </div>
+          <div class="opportunity-mobile-summary-item">
+            <span>分数</span>
+            <strong>{{ item.score ?? '-' }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section
+        v-if="descriptionFactEntries.length > 0"
+        class="opportunity-mobile-section"
+      >
+        <div class="opportunity-mobile-section-title">参数信息</div>
+        <div
+          v-for="entry in descriptionFactEntries"
+          :key="entry.label"
+          class="opportunity-mobile-row"
+        >
+          <span>{{ entry.label }}</span>
+          <strong>{{ entry.value }}</strong>
+        </div>
+      </section>
+
+      <section class="opportunity-mobile-section">
+        <div class="opportunity-mobile-section-title">时间信息</div>
+        <div class="opportunity-mobile-row">
+          <span>发布日期</span>
+          <strong>{{ formatPublishedDate(item.publishedAt) }}</strong>
+        </div>
+        <div class="opportunity-mobile-row">
+          <span>原始发布时间</span>
+          <strong>{{ item.publishedDateText || '-' }}</strong>
+        </div>
+        <div class="opportunity-mobile-row">
+          <span>有效至</span>
+          <strong>
+            {{
+              item.effectiveUntil ? formatDateTime(item.effectiveUntil) : '-'
+            }}
+          </strong>
+        </div>
+      </section>
+
+      <section class="opportunity-mobile-section">
+        <div class="opportunity-mobile-section-title">正文描述</div>
+        <div class="opportunity-mobile-block">
+          <p class="opportunity-mobile-description">
+            {{ mobileMainDescription }}
+          </p>
+        </div>
+      </section>
+
+      <section class="opportunity-mobile-section">
+        <div class="opportunity-mobile-section-title">来源信息</div>
+        <div class="opportunity-mobile-row">
+          <span>来源网站</span>
+          <strong>{{ item.sourceSite || '-' }}</strong>
+        </div>
+        <div class="opportunity-mobile-row">
+          <span>来源表</span>
+          <strong>{{ item.sourceTable || '-' }}</strong>
+        </div>
+        <div class="opportunity-mobile-row">
+          <span>来源 ID</span>
+          <strong>{{ item.sourceId ?? '-' }}</strong>
+        </div>
+        <div class="opportunity-mobile-block">
+          <span>来源链接</span>
+          <Button
+            v-if="item.sourceUrl"
+            type="link"
+            class="opportunity-mobile-link"
+            @click="handleOpenSource"
+          >
+            {{ item.sourceUrl }}
+          </Button>
+          <strong v-else>-</strong>
+        </div>
+      </section>
+
+      <section class="opportunity-mobile-section">
+        <div class="opportunity-mobile-section-title">采集信息</div>
+        <div class="opportunity-mobile-block">
+          <span>标签</span>
+          <div class="opportunity-mobile-wrap">
+            <Tag v-for="tag in getTags(item.tagsJson)" :key="tag" color="blue">
+              {{ tag }}
+            </Tag>
+            <strong v-if="getTags(item.tagsJson).length === 0">-</strong>
+          </div>
+        </div>
+        <div class="opportunity-mobile-block">
+          <span>扩展信息</span>
+          <div class="opportunity-mobile-detail-list">
+            <div
+              v-for="entry in mobileDetailEntries"
+              :key="entry.label"
+              class="opportunity-mobile-detail-item"
+            >
+              <span>{{ entry.label }}</span>
+              <strong>{{ entry.value }}</strong>
+            </div>
+            <strong v-if="mobileDetailEntries.length === 0">-</strong>
+          </div>
+        </div>
+        <div class="opportunity-mobile-row">
+          <span>最后同步时间</span>
+          <strong>
+            {{ item.lastSyncedAt ? formatDateTime(item.lastSyncedAt) : '-' }}
+          </strong>
+        </div>
+      </section>
+
+      <section v-if="showRawDescription" class="opportunity-mobile-section">
+        <details class="opportunity-mobile-raw">
+          <summary>原始抓取文本</summary>
+          <p>{{ mobileRawDescription }}</p>
+        </details>
+      </section>
     </div>
 
     <Descriptions
@@ -230,6 +601,269 @@ function handleOpenSource() {
 .opportunity-detail {
   :deep(.ant-descriptions-item-label) {
     width: 120px;
+  }
+}
+
+.opportunity-detail-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+  padding: 10px 8px 22px;
+  background: #f6f7f9;
+}
+
+.opportunity-mobile-hero,
+.opportunity-mobile-section {
+  background: #fff;
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+}
+
+.opportunity-mobile-hero {
+  padding: 12px;
+}
+
+.opportunity-mobile-title {
+  min-width: 0;
+  color: #1f2937;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.opportunity-mobile-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.opportunity-mobile-section {
+  overflow: hidden;
+}
+
+.opportunity-mobile-section-title {
+  padding: 11px 12px 0;
+  color: #101828;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.opportunity-mobile-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+}
+
+.opportunity-mobile-summary-item {
+  min-width: 0;
+  padding: 10px;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+}
+
+.opportunity-mobile-summary-item > span {
+  display: block;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.opportunity-mobile-summary-item > strong {
+  display: block;
+  min-width: 0;
+  margin-top: 5px;
+  color: #1d2939;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.opportunity-mobile-row,
+.opportunity-mobile-block {
+  min-width: 0;
+  padding: 11px 12px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.opportunity-mobile-row:last-child,
+.opportunity-mobile-block:last-child {
+  border-bottom: 0;
+}
+
+.opportunity-mobile-row {
+  display: grid;
+  grid-template-columns: minmax(72px, 34%) minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: start;
+}
+
+.opportunity-mobile-row > span,
+.opportunity-mobile-block > span {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.opportunity-mobile-row > strong,
+.opportunity-mobile-block > strong,
+.opportunity-mobile-block > p {
+  min-width: 0;
+  margin: 0;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.opportunity-mobile-description {
+  color: #1f2937 !important;
+  font-size: 14px !important;
+  line-height: 1.75 !important;
+}
+
+.opportunity-mobile-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.opportunity-mobile-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.opportunity-mobile-wrap :deep(.ant-tag) {
+  max-width: 100%;
+  height: auto;
+  margin-inline-end: 0;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.opportunity-mobile-link {
+  height: auto;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.opportunity-mobile-detail-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.opportunity-mobile-detail-item {
+  min-width: 0;
+  padding: 9px 10px;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+}
+
+.opportunity-mobile-detail-item > span {
+  display: block;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.opportunity-mobile-detail-item > strong {
+  display: block;
+  min-width: 0;
+  margin-top: 4px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.opportunity-mobile-raw {
+  padding: 12px;
+}
+
+.opportunity-mobile-raw > summary {
+  color: #475467;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.opportunity-mobile-raw > p {
+  max-height: 260px;
+  padding: 10px;
+  margin: 10px 0 0;
+  overflow: auto;
+  color: #475467;
+  font-size: 12px;
+  line-height: 1.65;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.dark {
+  .opportunity-detail-mobile {
+    background: #111827;
+  }
+
+  .opportunity-mobile-hero,
+  .opportunity-mobile-section {
+    background: #1f2937;
+    border-color: #374151;
+  }
+
+  .opportunity-mobile-title,
+  .opportunity-mobile-section-title,
+  .opportunity-mobile-summary-item > strong,
+  .opportunity-mobile-detail-item > strong,
+  .opportunity-mobile-row > strong,
+  .opportunity-mobile-block > strong,
+  .opportunity-mobile-block > p {
+    color: #f3f4f6;
+  }
+
+  .opportunity-mobile-summary-item,
+  .opportunity-mobile-detail-item,
+  .opportunity-mobile-raw > p {
+    background: #111827;
+    border-color: #374151;
+  }
+
+  .opportunity-mobile-row,
+  .opportunity-mobile-block {
+    border-color: #374151;
+  }
+
+  .opportunity-mobile-summary-item > span,
+  .opportunity-mobile-detail-item > span,
+  .opportunity-mobile-raw > summary,
+  .opportunity-mobile-row > span,
+  .opportunity-mobile-block > span {
+    color: #9ca3af;
   }
 }
 </style>

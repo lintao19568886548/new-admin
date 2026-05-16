@@ -336,8 +336,8 @@ function resolveParkName(id?: null | number, name?: string) {
     <FormModal @success="handleSearch" />
 
     <div class="mb-2 rounded bg-white p-3 shadow-sm dark:bg-neutral-800">
-      <Form layout="vertical">
-        <Row :gutter="16">
+      <Form class="investment-mobile-filter-form" layout="vertical">
+        <Row :gutter="[12, 0]">
           <Col :span="24">
             <Form.Item label="会谈日期">
               <MobileDateRange v-model:value="meetingRange" />
@@ -558,3 +558,19 @@ function resolveParkName(id?: null | number, name?: string) {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+.investment-mobile-filter-form {
+  overflow-x: hidden;
+}
+
+.investment-mobile-filter-form :deep(.ant-form-item) {
+  min-width: 0;
+}
+
+.investment-mobile-filter-form :deep(.ant-picker),
+.investment-mobile-filter-form :deep(.ant-select),
+.investment-mobile-filter-form :deep(.ant-input-affix-wrapper) {
+  max-width: 100%;
+}
+</style>

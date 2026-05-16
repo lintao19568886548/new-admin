@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type {
+  LeadScoreBreakdown,
   RadarLeadDetail,
   RadarLeadNavigationItem,
   RadarOutreachTaskItem,
@@ -11,6 +12,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Page } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
 
+import { useMediaQuery } from '@vueuse/core';
 import {
   Alert,
   Button,
@@ -21,12 +23,17 @@ import {
   Row,
   Skeleton,
   Space,
+  Spin,
   Statistic,
   Table,
   Tag,
 } from 'ant-design-vue';
 
-import { getRadarLeadDetail } from '#/api/investment';
+import {
+  getRadarLeadDetail,
+  getRadarLeadScoreBreakdown,
+  recalculateRadarLeadScore,
+} from '#/api/investment';
 
 import { RADAR_STAGE_LABEL_MAP } from './data';
 
@@ -34,9 +41,13 @@ defineOptions({ name: 'InvestmentRadarDetail' });
 
 const route = useRoute();
 const router = useRouter();
+const isMobile = useMediaQuery('(max-width: 767px)');
 const loading = ref(true);
 const loadError = ref('');
 const detail = ref<null | RadarLeadDetail>(null);
+const scoreBreakdownLoading = ref(false);
+const scoreRecalculating = ref(false);
+const scoreBreakdownItems = ref<LeadScoreBreakdown[]>([]);
 
 const leadId = computed(() => Number(route.params.id));
 
@@ -146,6 +157,55 @@ const outreachColumns = [
   },
 ];
 
+const scoreBreakdownColumns = [
+  {
+    customRender: ({ record }: { record: LeadScoreBreakdown }) =>
+      h('div', [
+        h('div', { class: 'font-medium' }, record.ruleName),
+        h('div', { class: 'text-xs text-gray-500' }, record.ruleCode),
+      ]),
+    dataIndex: 'ruleName',
+    key: 'ruleName',
+    title: '规则',
+    width: 220,
+  },
+  {
+    customRender: ({ record }: { record: LeadScoreBreakdown }) =>
+      record.eventTitle || (record.eventId ? `#${record.eventId}` : '-'),
+    dataIndex: 'eventTitle',
+    key: 'eventTitle',
+    title: '命中信号',
+    width: 260,
+  },
+  {
+    customRender: ({ record }: { record: LeadScoreBreakdown }) =>
+      record.eventType || '-',
+    dataIndex: 'eventType',
+    key: 'eventType',
+    title: '事件类型',
+    width: 140,
+  },
+  {
+    dataIndex: 'scoreDelta',
+    key: 'scoreDelta',
+    title: '加分',
+    width: 90,
+  },
+  {
+    dataIndex: 'reason',
+    key: 'reason',
+    title: '原因',
+    width: 360,
+  },
+  {
+    customRender: ({ text }: { text?: null | string }) => formatTime(text),
+    dataIndex: 'createTime',
+    key: 'createTime',
+    title: '生成时间',
+    width: 170,
+  },
+];
+
 function formatTime(value?: null | string) {
   return value ? formatDateTime(value) : '-';
 }
@@ -206,6 +266,20 @@ function renderReplyStatus(replyStatus?: null | string) {
   return h(Tag, { color: meta.color }, () => meta.label);
 }
 
+function getTaskStatusMeta(status?: null | string) {
+  if (!status) {
+    return { color: 'default', label: '-' };
+  }
+  return taskStatusMetaMap[status] || { color: 'default', label: status };
+}
+
+function getReplyStatusMeta(status?: null | string) {
+  if (!status) {
+    return { color: 'default', label: '-' };
+  }
+  return replyStatusMetaMap[status] || { color: 'default', label: status };
+}
+
 function renderStatusGroup(record: RadarOutreachTaskItem) {
   return h(Space, { size: 4, wrap: true }, () =>
     [
@@ -252,12 +326,52 @@ async function loadDetail() {
 
   try {
     detail.value = await getRadarLeadDetail(leadId.value);
+    await loadScoreBreakdown();
   } catch (error) {
     console.error('加载雷达线索详情失败:', error);
     detail.value = null;
     loadError.value = '线索详情加载失败，请检查详情接口是否可用。';
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadScoreBreakdown() {
+  if (!Number.isFinite(leadId.value) || leadId.value <= 0) {
+    return;
+  }
+  scoreBreakdownLoading.value = true;
+  try {
+    const result = await getRadarLeadScoreBreakdown(leadId.value);
+    scoreBreakdownItems.value = result.items;
+  } catch (error) {
+    console.error('鍔犺浇璇勫垎鎷嗚В澶辫触:', error);
+    scoreBreakdownItems.value = [];
+  } finally {
+    scoreBreakdownLoading.value = false;
+  }
+}
+
+async function recalculateScore() {
+  if (scoreRecalculating.value) {
+    return;
+  }
+  scoreRecalculating.value = true;
+  try {
+    const result = await recalculateRadarLeadScore(leadId.value);
+    detail.value = detail.value
+      ? {
+          ...detail.value,
+          intentScore: result.intentScore,
+          priorityLevel: result.priorityLevel,
+          totalScore: result.totalScore,
+        }
+      : detail.value;
+    await loadScoreBreakdown();
+  } catch (error) {
+    console.error('閲嶇畻闆疯揪绾跨储璇勫垎澶辫触:', error);
+  } finally {
+    scoreRecalculating.value = false;
   }
 }
 
@@ -286,7 +400,238 @@ onMounted(() => {
 
 <template>
   <Page auto-content-height>
-    <div class="space-y-4">
+    <div v-if="isMobile" class="radar-detail-mobile">
+      <div class="radar-mobile-topbar">
+        <Button size="small" @click="goBack">返回</Button>
+        <Button
+          size="small"
+          type="primary"
+          :loading="loading"
+          @click="loadDetail"
+        >
+          刷新
+        </Button>
+      </div>
+
+      <Alert v-if="loadError" :message="loadError" show-icon type="warning" />
+
+      <template v-if="loading">
+        <Card>
+          <Skeleton active :paragraph="{ rows: 6 }" />
+        </Card>
+      </template>
+
+      <template v-else-if="detail">
+        <section class="radar-mobile-hero">
+          <div class="radar-mobile-hero-head">
+            <div>
+              <div class="radar-mobile-hero-title">
+                {{ detail.enterpriseName || `线索 #${detail.leadId}` }}
+              </div>
+              <div class="radar-mobile-hero-subtitle">
+                {{ detail.parkName || '未分配园区' }} ·
+                {{ detail.ownerName || '未分配负责人' }}
+              </div>
+            </div>
+            <Tag :color="renderPriority(detail.priorityLevel).color">
+              {{ renderPriority(detail.priorityLevel).text }}
+            </Tag>
+          </div>
+          <div class="radar-mobile-tag-row">
+            <Tag color="blue">
+              {{ RADAR_STAGE_LABEL_MAP[detail.stage] || detail.stage || '-' }}
+            </Tag>
+            <span>{{ detail.leadSource || '-' }}</span>
+            <span>{{ detail.phoneNumber || '暂无电话' }}</span>
+          </div>
+        </section>
+
+        <div class="radar-mobile-score-grid">
+          <div>
+            <span>总分</span>
+            <strong>{{ summary.totalScore }}</strong>
+          </div>
+          <div>
+            <span>意图</span>
+            <strong>{{ summary.intentScore }}</strong>
+          </div>
+          <div>
+            <span>匹配</span>
+            <strong>{{ summary.matchScore }}</strong>
+          </div>
+          <div>
+            <span>触达</span>
+            <strong>{{ summary.reachableScore }}</strong>
+          </div>
+        </div>
+
+        <section class="radar-mobile-section">
+          <div class="radar-mobile-section-head">
+            <h3>线索信息</h3>
+          </div>
+          <div class="radar-mobile-info-list">
+            <div>
+              <span>联系人</span>
+              <strong>{{ detail.contactName || '-' }}</strong>
+            </div>
+            <div>
+              <span>意向面积</span>
+              <strong>
+                {{
+                  detail.intentArea === null || detail.intentArea === undefined
+                    ? '-'
+                    : `${formatNumber(detail.intentArea)}㎡`
+                }}
+              </strong>
+            </div>
+            <div>
+              <span>最近信号</span>
+              <strong>{{ detail.latestSignalType || '-' }}</strong>
+            </div>
+            <div>
+              <span>信号时间</span>
+              <strong>{{ formatTime(detail.latestSignalTime) }}</strong>
+            </div>
+            <div>
+              <span>最近联系</span>
+              <strong>{{ formatTime(detail.latestContactTime) }}</strong>
+            </div>
+            <div>
+              <span>失效原因</span>
+              <strong>{{ detail.invalidReason || '-' }}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="radar-mobile-section">
+          <div class="radar-mobile-section-head">
+            <h3>企业信息</h3>
+          </div>
+          <div class="radar-mobile-info-list">
+            <div>
+              <span>行业</span>
+              <strong>{{ detail.industryName || '-' }}</strong>
+            </div>
+            <div>
+              <span>城市</span>
+              <strong>{{ detail.city || '-' }}</strong>
+            </div>
+            <div>
+              <span>注册资本</span>
+              <strong>{{ formatNumber(detail.registerCapital) }}</strong>
+            </div>
+            <div>
+              <span>信用代码</span>
+              <strong>{{ detail.unifiedSocialCreditCode || '-' }}</strong>
+            </div>
+            <div class="radar-mobile-info-wide">
+              <span>地址</span>
+              <strong>{{ detail.address || '-' }}</strong>
+            </div>
+            <div class="radar-mobile-info-wide">
+              <span>来源</span>
+              <strong>
+                {{ detail.sourceFirst || '-' }} /
+                {{ detail.sourceLatest || '-' }}
+              </strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="radar-mobile-section">
+          <div class="radar-mobile-section-head">
+            <h3>评分拆解</h3>
+            <Button
+              size="small"
+              type="primary"
+              :loading="scoreRecalculating"
+              @click="recalculateScore"
+            >
+              重算
+            </Button>
+          </div>
+          <Spin :spinning="scoreBreakdownLoading">
+            <div
+              v-if="scoreBreakdownItems.length > 0"
+              class="radar-mobile-list"
+            >
+              <div
+                v-for="item in scoreBreakdownItems"
+                :key="item.breakdownId"
+                class="radar-mobile-mini-card"
+              >
+                <div class="radar-mobile-mini-head">
+                  <strong>{{ item.ruleName }}</strong>
+                  <Tag color="green">+{{ item.scoreDelta }}</Tag>
+                </div>
+                <div class="radar-mobile-mini-meta">
+                  {{ item.ruleCode }} · {{ item.eventType || '-' }}
+                </div>
+                <p>{{ item.reason || '-' }}</p>
+              </div>
+            </div>
+            <Empty v-else description="暂无评分拆解" />
+          </Spin>
+        </section>
+
+        <section class="radar-mobile-section">
+          <div class="radar-mobile-section-head">
+            <h3>触达记录</h3>
+            <span>{{ detail.outreachSummary?.count || 0 }} 条</span>
+          </div>
+          <div v-if="detail.outreachTasks.length > 0" class="radar-mobile-list">
+            <div
+              v-for="task in detail.outreachTasks"
+              :key="task.taskId"
+              class="radar-mobile-mini-card"
+            >
+              <div class="radar-mobile-mini-head">
+                <strong>{{ mapTaskType(task.taskType) }}</strong>
+                <Tag :color="getTaskStatusMeta(task.status).color">
+                  {{ getTaskStatusMeta(task.status).label }}
+                </Tag>
+              </div>
+              <div class="radar-mobile-tag-row">
+                <Tag color="blue">{{ mapChannel(task.channel) }}</Tag>
+                <Tag :color="getReplyStatusMeta(task.replyStatus).color">
+                  {{ getReplyStatusMeta(task.replyStatus).label }}
+                </Tag>
+              </div>
+              <div class="radar-mobile-card-meta">
+                <span>号码：{{ task.phoneNumber || '-' }}</span>
+                <span>发送：{{ formatTime(task.sentAt) }}</span>
+                <span>回复：{{ formatTime(task.replyTime) }}</span>
+                <span>操作人：{{ task.sentByName || '-' }}</span>
+              </div>
+              <p v-if="renderResult(task) !== '-'">{{ renderResult(task) }}</p>
+            </div>
+          </div>
+          <Empty v-else description="暂无触达记录" />
+        </section>
+
+        <div class="radar-mobile-bottom-actions">
+          <Button
+            block
+            :disabled="!detail.navigation?.previousLead"
+            @click="navigateLead(detail.navigation?.previousLead?.leadId)"
+          >
+            上一条
+          </Button>
+          <Button
+            block
+            type="primary"
+            :disabled="!detail.navigation?.nextLead"
+            @click="navigateLead(detail.navigation?.nextLead?.leadId)"
+          >
+            下一条
+          </Button>
+        </div>
+      </template>
+
+      <Empty v-else description="未找到对应线索" />
+    </div>
+
+    <div v-else class="space-y-4">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div class="text-lg font-semibold">雷达线索详情</div>
@@ -386,6 +731,40 @@ onMounted(() => {
           </Col>
         </Row>
 
+        <Card title="评分拆解">
+          <template #extra>
+            <Space>
+              <Button
+                :loading="scoreBreakdownLoading"
+                @click="loadScoreBreakdown"
+              >
+                刷新拆解
+              </Button>
+              <Button
+                type="primary"
+                :loading="scoreRecalculating"
+                @click="recalculateScore"
+              >
+                重算当前评分
+              </Button>
+            </Space>
+          </template>
+          <Table
+            :columns="scoreBreakdownColumns"
+            :data-source="scoreBreakdownItems"
+            :loading="scoreBreakdownLoading"
+            :pagination="false"
+            row-key="breakdownId"
+            :scroll="{ x: 1240 }"
+            size="small"
+          />
+          <Empty
+            v-if="scoreBreakdownItems.length === 0 && !scoreBreakdownLoading"
+            class="py-6"
+            description="暂无评分拆解，请先重算当前评分"
+          />
+        </Card>
+
         <Row :gutter="[16, 16]">
           <Col :lg="14" :md="24" :sm="24" :xs="24">
             <Card title="线索信息">
@@ -432,7 +811,7 @@ onMounted(() => {
                 <Descriptions.Item label="最近信号时间">
                   {{ formatTime(detail.latestSignalTime) }}
                 </Descriptions.Item>
-                <Descriptions.Item label="最近联系时间">
+                <Descriptions.Item label="最近联系时间" :span="2">
                   {{ formatTime(detail.latestContactTime) }}
                 </Descriptions.Item>
                 <Descriptions.Item label="失效原因" :span="2">
@@ -529,3 +908,196 @@ onMounted(() => {
     </div>
   </Page>
 </template>
+
+<style scoped>
+.radar-detail-mobile {
+  min-height: 100%;
+  padding: 12px 12px calc(var(--app-safe-area-bottom) + 24px);
+  overflow-y: auto;
+  background: #f6f7f9;
+}
+
+.dark .radar-detail-mobile {
+  background: #111315;
+}
+
+.radar-mobile-topbar,
+.radar-mobile-hero-head,
+.radar-mobile-section-head,
+.radar-mobile-mini-head,
+.radar-mobile-bottom-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.radar-mobile-topbar {
+  margin-bottom: 12px;
+}
+
+.radar-mobile-hero,
+.radar-mobile-section,
+.radar-mobile-mini-card {
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  background: var(--ant-color-bg-container);
+  box-shadow: 0 4px 14px rgb(15 23 42 / 6%);
+}
+
+.radar-mobile-hero {
+  margin-bottom: 12px;
+  padding: 14px;
+}
+
+.radar-mobile-hero-title {
+  color: var(--ant-color-text);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 24px;
+  word-break: break-word;
+}
+
+.radar-mobile-hero-subtitle,
+.radar-mobile-mini-meta,
+.radar-mobile-card-meta,
+.radar-mobile-tag-row {
+  color: var(--ant-color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.radar-mobile-hero-subtitle {
+  margin-top: 3px;
+}
+
+.radar-mobile-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.radar-mobile-score-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.radar-mobile-score-grid > div {
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  padding: 10px 4px;
+  background: var(--ant-color-bg-container);
+  text-align: center;
+}
+
+.radar-mobile-score-grid span {
+  display: block;
+  color: var(--ant-color-text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.radar-mobile-score-grid strong {
+  display: block;
+  color: var(--ant-color-text);
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.radar-mobile-section {
+  margin-bottom: 12px;
+  padding: 14px;
+}
+
+.radar-mobile-section-head {
+  margin-bottom: 10px;
+}
+
+.radar-mobile-section-head h3 {
+  margin: 0;
+  color: var(--ant-color-text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.radar-mobile-section-head span {
+  color: var(--ant-color-text-secondary);
+  font-size: 12px;
+}
+
+.radar-mobile-info-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.radar-mobile-info-list > div {
+  min-width: 0;
+}
+
+.radar-mobile-info-list span {
+  display: block;
+  color: var(--ant-color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.radar-mobile-info-list strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--ant-color-text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  word-break: break-word;
+}
+
+.radar-mobile-info-wide {
+  grid-column: 1 / -1;
+}
+
+.radar-mobile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.radar-mobile-mini-card {
+  padding: 12px;
+}
+
+.radar-mobile-mini-card strong {
+  color: var(--ant-color-text);
+}
+
+.radar-mobile-mini-card p {
+  margin: 8px 0 0;
+  color: var(--ant-color-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  word-break: break-word;
+}
+
+.radar-mobile-card-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.radar-mobile-bottom-actions {
+  position: sticky;
+  bottom: 0;
+  padding-top: 8px;
+  padding-bottom: var(--app-safe-area-bottom);
+  background: linear-gradient(to top, #f6f7f9 74%, rgb(246 247 249 / 0%));
+}
+
+.dark .radar-mobile-bottom-actions {
+  background: linear-gradient(to top, #111315 74%, rgb(17 19 21 / 0%));
+}
+</style>

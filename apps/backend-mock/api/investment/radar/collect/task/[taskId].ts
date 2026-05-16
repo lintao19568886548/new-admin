@@ -1,4 +1,5 @@
 import { prismaClient } from '~/utils/db';
+import { ensureRadarCollectTaskStorage } from '~/utils/investment-radar/public-opportunity-repository';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   badRequestResponse,
@@ -19,8 +20,10 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const rows = await runWithRadarSharedScope(() =>
-      prismaClient.$queryRawUnsafe<any[]>(
+    const rows = await runWithRadarSharedScope(async () => {
+      await ensureRadarCollectTaskStorage();
+
+      return prismaClient.$queryRawUnsafe<any[]>(
         `
           SELECT
             task_id AS taskId,
@@ -35,8 +38,8 @@ export default eventHandler(async (event) => {
           LIMIT 1
         `,
         taskId,
-      ),
-    );
+      );
+    });
 
     const task = rows[0] || null;
     if (!task) {

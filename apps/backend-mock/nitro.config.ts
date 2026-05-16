@@ -9,6 +9,7 @@ export default defineNitroConfig({
     '~/plugins/tenant-provisioning-worker',
     '~/plugins/rental-expense-finance-worker',
     '~/plugins/vip-membership-refund-worker',
+    '~/plugins/investment-radar-public-crawler',
   ],
   routeRules: {
     '/api/**': {

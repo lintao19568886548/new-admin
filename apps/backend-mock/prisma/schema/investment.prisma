@@ -33,3 +33,301 @@ model InvestmentTenant {
 
   @@map("investment_tenant")
 }
+
+model CompanyLead {
+  leadId                 BigInt    @id @default(autoincrement()) @map("lead_id")
+  sourceId               BigInt?   @map("source_id")
+  sourceName             String    @map("source_name") @db.VarChar(100)
+  sourceUrl              String    @map("source_url") @db.VarChar(500)
+  sourceTitle            String?   @map("source_title") @db.VarChar(255)
+  sourceType             String    @default("PUBLIC") @map("source_type") @db.VarChar(50)
+  companyName            String    @map("company_name") @db.VarChar(200)
+  leadTitle              String    @map("lead_title") @db.VarChar(255)
+  summary                String?   @db.Text
+  demandType             String    @default("UNKNOWN") @map("demand_type") @db.VarChar(50)
+  confidenceScore        Int       @default(0) @map("confidence_score")
+  confidenceLevel        String    @default("LOW") @map("confidence_level") @db.VarChar(20)
+  industryName           String?   @map("industry_name") @db.VarChar(100)
+  regionProvince         String?   @map("region_province") @db.VarChar(100)
+  regionCity             String?   @map("region_city") @db.VarChar(100)
+  regionDistrict         String?   @map("region_district") @db.VarChar(100)
+  hitKeywords            String?   @map("hit_keywords") @db.Text
+  evidenceCount          Int       @default(0) @map("evidence_count")
+  status                 String    @default("NEW") @db.VarChar(30)
+  ownerUserId            Int?      @map("owner_user_id")
+  invalidReason          String?   @map("invalid_reason") @db.VarChar(255)
+  remark                 String?   @db.Text
+  dedupeKey              String    @map("dedupe_key") @db.VarChar(191)
+  convertedRadarLeadId   BigInt?   @map("converted_radar_lead_id")
+  convertedAt            DateTime? @map("converted_at")
+  firstSeenAt            DateTime? @map("first_seen_at")
+  lastSeenAt             DateTime? @map("last_seen_at")
+  crawledAt              DateTime? @map("crawled_at")
+  createTime             DateTime  @default(now()) @map("create_time")
+  updateTime             DateTime  @updatedAt @map("update_time")
+  isDeleted              Int       @default(0) @map("is_deleted")
+
+  @@unique([dedupeKey])
+  @@index([companyName])
+  @@index([status])
+  @@index([sourceName])
+  @@index([convertedRadarLeadId])
+  @@map("company_lead")
+}
+
+model LeadEvidence {
+  evidenceId       BigInt    @id @default(autoincrement()) @map("evidence_id")
+  leadId           BigInt    @map("lead_id")
+  evidenceType     String    @map("evidence_type") @db.VarChar(50)
+  sourceTitle      String?   @map("source_title") @db.VarChar(255)
+  sourceLink       String    @map("source_link") @db.VarChar(500)
+  rawText          String?   @map("raw_text") @db.Text
+  matchedKeywords  String?   @map("matched_keywords") @db.Text
+  matchedSentences String?   @map("matched_sentences") @db.Text
+  scoreDelta       Int       @default(0) @map("score_delta")
+  contentHash      String    @map("content_hash") @db.VarChar(80)
+  publishedAt      DateTime? @map("published_at")
+  crawledAt        DateTime? @map("crawled_at")
+  createTime       DateTime  @default(now()) @map("create_time")
+  updateTime       DateTime  @updatedAt @map("update_time")
+  isDeleted        Int       @default(0) @map("is_deleted")
+
+  @@unique([leadId, contentHash])
+  @@index([leadId])
+  @@index([evidenceType])
+  @@map("lead_evidence")
+}
+
+model CrawlerSource {
+  sourceId             BigInt    @id @default(autoincrement()) @map("source_id")
+  sourceCode           String    @unique @map("source_code") @db.VarChar(100)
+  sourceName           String    @map("source_name") @db.VarChar(100)
+  sourceType           String    @map("source_type") @db.VarChar(50)
+  baseUrl              String    @map("base_url") @db.VarChar(500)
+  robotsUrl            String?   @map("robots_url") @db.VarChar(500)
+  enabled              Boolean   @default(true)
+  crawlIntervalMinutes Int       @default(1440) @map("crawl_interval_minutes")
+  rateLimitPerMinute   Int       @default(30) @map("rate_limit_per_minute")
+  allowedPathsJson     String?   @map("allowed_paths_json") @db.Text
+  blockedPathsJson     String?   @map("blocked_paths_json") @db.Text
+  keywordIncludeJson   String?   @map("keyword_include_json") @db.Text
+  keywordExcludeJson   String?   @map("keyword_exclude_json") @db.Text
+  regionScopeJson      String?   @map("region_scope_json") @db.Text
+  lastCrawledAt        DateTime? @map("last_crawled_at")
+  createTime           DateTime  @default(now()) @map("create_time")
+  updateTime           DateTime  @updatedAt @map("update_time")
+
+  @@index([enabled])
+  @@index([sourceType])
+  @@map("crawler_source")
+}
+
+model CrawlerTask {
+  taskId             BigInt    @id @default(autoincrement()) @map("task_id")
+  sourceId           BigInt    @map("source_id")
+  taskType           String    @map("task_type") @db.VarChar(50)
+  status             String    @default("PENDING") @db.VarChar(30)
+  startedAt          DateTime? @map("started_at")
+  finishedAt         DateTime? @map("finished_at")
+  crawlStartedAt     DateTime? @map("crawl_started_at")
+  crawlEndedAt       DateTime? @map("crawl_ended_at")
+  fetchedCount       Int       @default(0) @map("fetched_count")
+  createdLeadCount   Int       @default(0) @map("created_lead_count")
+  updatedLeadCount   Int       @default(0) @map("updated_lead_count")
+  skippedCount       Int       @default(0) @map("skipped_count")
+  errorMessage       String?   @map("error_message") @db.Text
+  retryCount         Int       @default(0) @map("retry_count")
+  maxRetryCount      Int       @default(0) @map("max_retry_count")
+  nextRetryAt        DateTime? @map("next_retry_at")
+  skipReason         String?   @map("skip_reason") @db.VarChar(255)
+  requestConfigJson  String?   @map("request_config_json") @db.Text
+  createTime         DateTime  @default(now()) @map("create_time")
+  updateTime         DateTime  @updatedAt @map("update_time")
+
+  @@index([sourceId])
+  @@index([status])
+  @@index([createTime])
+  @@map("crawler_task")
+}
+
+model CrawlerTaskLog {
+  logId      BigInt   @id @default(autoincrement()) @map("log_id")
+  taskId     BigInt   @map("task_id")
+  level      String   @db.VarChar(20)
+  stage      String   @db.VarChar(50)
+  message    String   @db.VarChar(500)
+  detailJson String?  @map("detail_json") @db.Text
+  createTime DateTime @default(now()) @map("create_time")
+
+  @@index([taskId])
+  @@index([stage])
+  @@map("crawler_task_log")
+}
+
+model CrawlerTaskItem {
+  itemId            BigInt    @id @default(autoincrement()) @map("item_id")
+  sourceId          BigInt    @map("source_id")
+  lastTaskId        BigInt?   @map("last_task_id")
+  sourceRefType     String?   @map("source_ref_type") @db.VarChar(50)
+  sourceRefId       BigInt?   @map("source_ref_id")
+  sourceUrl         String    @map("source_url") @db.VarChar(800)
+  urlHash           String    @map("url_hash") @db.VarChar(80)
+  status            String    @default("PENDING") @db.VarChar(30)
+  retryCount        Int       @default(0) @map("retry_count")
+  maxRetryCount     Int       @default(3) @map("max_retry_count")
+  nextRetryAt       DateTime? @map("next_retry_at")
+  lastHttpStatus    Int?      @map("last_http_status")
+  lastError         String?   @map("last_error") @db.Text
+  skipReason        String?   @map("skip_reason") @db.VarChar(255)
+  publishedAt       DateTime? @map("published_at")
+  lastStartedAt     DateTime? @map("last_started_at")
+  lastFinishedAt    DateTime? @map("last_finished_at")
+  lastSuccessAt     DateTime? @map("last_success_at")
+  responseHash      String?   @map("response_hash") @db.VarChar(80)
+  parsedPayloadJson String?   @map("parsed_payload_json") @db.Text
+  createTime        DateTime  @default(now()) @map("create_time")
+  updateTime        DateTime  @updatedAt @map("update_time")
+
+  @@unique([sourceId, urlHash])
+  @@index([lastTaskId])
+  @@index([sourceId, status])
+  @@index([nextRetryAt])
+  @@index([sourceRefType, sourceRefId])
+  @@map("crawler_task_item")
+}
+
+model SignalEvent {
+  eventId               BigInt    @id @default(autoincrement()) @map("event_id")
+  enterpriseId          BigInt?   @map("enterprise_id")
+  companyName           String    @map("company_name") @db.VarChar(200)
+  eventType             String    @map("event_type") @db.VarChar(50)
+  eventTitle            String    @map("event_title") @db.VarChar(255)
+  eventSummary          String?   @map("event_summary") @db.Text
+  eventTime             DateTime? @map("event_time")
+  sourceType            String    @map("source_type") @db.VarChar(50)
+  sourceName            String    @map("source_name") @db.VarChar(100)
+  sourceUrl             String    @map("source_url") @db.VarChar(500)
+  confidenceScore       Int       @default(0) @map("confidence_score")
+  status                String    @default("NEW") @db.VarChar(30)
+  relatedExternalLeadId BigInt?   @map("related_external_lead_id")
+  relatedRadarLeadId    BigInt?   @map("related_radar_lead_id")
+  contentHash           String    @map("content_hash") @db.VarChar(80)
+  rawPayloadJson        String?   @map("raw_payload_json") @db.Text
+  createTime            DateTime  @default(now()) @map("create_time")
+  updateTime            DateTime  @updatedAt @map("update_time")
+  isDeleted             Int       @default(0) @map("is_deleted")
+
+  @@unique([contentHash])
+  @@index([companyName])
+  @@index([eventType])
+  @@index([status])
+  @@index([sourceType])
+  @@index([relatedExternalLeadId])
+  @@index([relatedRadarLeadId])
+  @@map("signal_event")
+}
+
+model SignalEvidence {
+  evidenceId           BigInt    @id @default(autoincrement()) @map("evidence_id")
+  eventId              BigInt    @map("event_id")
+  evidenceType         String    @map("evidence_type") @db.VarChar(50)
+  sourceTitle          String?   @map("source_title") @db.VarChar(255)
+  sourceLink           String    @map("source_link") @db.VarChar(500)
+  rawText              String?   @map("raw_text") @db.Text
+  matchedKeywordsJson  String?   @map("matched_keywords_json") @db.Text
+  matchedSentencesJson String?   @map("matched_sentences_json") @db.Text
+  scoreDelta           Int       @default(0) @map("score_delta")
+  contentHash          String    @map("content_hash") @db.VarChar(80)
+  publishedAt          DateTime? @map("published_at")
+  crawledAt            DateTime? @map("crawled_at")
+  createTime           DateTime  @default(now()) @map("create_time")
+  updateTime           DateTime  @updatedAt @map("update_time")
+  isDeleted            Int       @default(0) @map("is_deleted")
+
+  @@unique([eventId, contentHash])
+  @@index([eventId])
+  @@index([contentHash])
+  @@map("signal_evidence")
+}
+
+model EnterpriseProfile {
+  profileId               BigInt    @id @default(autoincrement()) @map("profile_id")
+  enterpriseId            BigInt?   @map("enterprise_id")
+  companyName             String    @unique @map("company_name") @db.VarChar(200)
+  unifiedSocialCreditCode String?   @map("unified_social_credit_code") @db.VarChar(100)
+  industryName            String?   @map("industry_name") @db.VarChar(100)
+  industryTagsJson        String?   @map("industry_tags_json") @db.Text
+  regionProvince          String?   @map("region_province") @db.VarChar(100)
+  regionCity              String?   @map("region_city") @db.VarChar(100)
+  regionDistrict          String?   @map("region_district") @db.VarChar(100)
+  registeredCapital       Decimal?  @map("registered_capital") @db.Decimal(18, 2)
+  employeeScale           String?   @map("employee_scale") @db.VarChar(100)
+  businessScope           String?   @map("business_scope") @db.Text
+  address                 String?   @db.VarChar(255)
+  lastSignalTime          DateTime? @map("last_signal_time")
+  signalCount             Int       @default(0) @map("signal_count")
+  latestIntentType        String?   @map("latest_intent_type") @db.VarChar(50)
+  profileCompleteness     Int       @default(0) @map("profile_completeness")
+  createTime              DateTime  @default(now()) @map("create_time")
+  updateTime              DateTime  @updatedAt @map("update_time")
+  isDeleted               Int       @default(0) @map("is_deleted")
+
+  @@index([enterpriseId])
+  @@index([companyName])
+  @@index([industryName])
+  @@index([regionCity])
+  @@map("enterprise_profile")
+}
+
+model EnterpriseTag {
+  tagId           BigInt   @id @default(autoincrement()) @map("tag_id")
+  enterpriseId    BigInt?  @map("enterprise_id")
+  companyName     String   @map("company_name") @db.VarChar(200)
+  tagType         String   @map("tag_type") @db.VarChar(50)
+  tagName         String   @map("tag_name") @db.VarChar(100)
+  tagSource       String   @map("tag_source") @db.VarChar(100)
+  confidenceScore Int      @default(0) @map("confidence_score")
+  createTime      DateTime @default(now()) @map("create_time")
+  updateTime      DateTime @updatedAt @map("update_time")
+  isDeleted       Int      @default(0) @map("is_deleted")
+
+  @@unique([companyName, tagType, tagName])
+  @@index([enterpriseId])
+  @@index([companyName])
+  @@index([tagType])
+  @@index([tagName])
+  @@map("enterprise_tag")
+}
+
+model LeadScoreRule {
+  ruleId          BigInt   @id @default(autoincrement()) @map("rule_id")
+  ruleCode        String   @unique @map("rule_code") @db.VarChar(100)
+  ruleName        String   @map("rule_name") @db.VarChar(100)
+  eventType       String?  @map("event_type") @db.VarChar(50)
+  keywordJson     String?  @map("keyword_json") @db.Text
+  scoreDelta      Int      @default(0) @map("score_delta")
+  enabled         Boolean  @default(true)
+  ruleDescription String?  @map("rule_description") @db.Text
+  createTime      DateTime @default(now()) @map("create_time")
+  updateTime      DateTime @updatedAt @map("update_time")
+
+  @@index([ruleCode])
+  @@index([eventType])
+  @@map("lead_score_rule")
+}
+
+model LeadScoreBreakdown {
+  breakdownId BigInt   @id @default(autoincrement()) @map("breakdown_id")
+  leadId      BigInt   @map("lead_id")
+  eventId     BigInt?  @map("event_id")
+  ruleId      BigInt   @map("rule_id")
+  ruleCode    String   @map("rule_code") @db.VarChar(100)
+  ruleName    String   @map("rule_name") @db.VarChar(100)
+  scoreDelta  Int      @default(0) @map("score_delta")
+  reason      String   @db.VarChar(500)
+  createTime  DateTime @default(now()) @map("create_time")
+
+  @@index([leadId])
+  @@index([eventId])
+  @@map("lead_score_breakdown")
+}

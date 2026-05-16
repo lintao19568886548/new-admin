@@ -1,4 +1,5 @@
 import { prismaClient } from '~/utils/db';
+import { ensurePublicOpportunityStorage } from '~/utils/investment-radar/public-opportunity-repository';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   serverErrorResponse,
@@ -23,6 +24,8 @@ export default eventHandler(async (event) => {
     const opportunityType = String(query.opportunityType || '').trim();
 
     const result = await runWithRadarSharedScope(async () => {
+      await ensurePublicOpportunityStorage();
+
       const publishedAgeLabelSql = `
         CASE
           WHEN published_at IS NULL THEN NULL
@@ -59,6 +62,20 @@ export default eventHandler(async (event) => {
       }
 
       const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
+      const dedupedSql = `
+        SELECT *
+        FROM (
+          SELECT
+            opo.*,
+            ROW_NUMBER() OVER (
+              PARTITION BY opportunity_type, COALESCE(NULLIF(source_url, ''), CONCAT('id:', opportunity_id))
+              ORDER BY last_synced_at DESC, opportunity_id DESC
+            ) AS dedupe_rank
+          FROM investment_public_opportunity opo
+          ${whereSql}
+        ) deduped
+        WHERE dedupe_rank = 1
+      `;
       const offset = (currentPage - 1) * pageSize;
 
       const [countRows, rows, sourceSiteOptionRows, publishedAgeOptionRows] =
@@ -66,8 +83,7 @@ export default eventHandler(async (event) => {
           prismaClient.$queryRawUnsafe<Array<{ total: bigint | number }>>(
             `
             SELECT COUNT(*) AS total
-            FROM investment_public_opportunity
-            ${whereSql}
+            FROM (${dedupedSql}) count_scope
           `,
             ...whereParams,
           ),
@@ -104,8 +120,7 @@ export default eventHandler(async (event) => {
                   THEN CONCAT(TIMESTAMPDIFF(HOUR, published_at, NOW()), ' 小时前')
                 ELSE CONCAT(TIMESTAMPDIFF(DAY, published_at, NOW()), ' 天前')
               END AS publishedAgeLabel
-            FROM investment_public_opportunity
-            ${whereSql}
+            FROM (${dedupedSql}) list_scope
             ORDER BY last_synced_at DESC, opportunity_id DESC
             LIMIT ? OFFSET ?
           `,
@@ -116,8 +131,8 @@ export default eventHandler(async (event) => {
           prismaClient.$queryRawUnsafe<Array<{ value?: null | string }>>(
             `
             SELECT DISTINCT source_site AS value
-            FROM investment_public_opportunity
-            ${whereSql}
+            FROM (${dedupedSql}) source_scope
+            WHERE 1 = 1
               AND source_site IS NOT NULL
               AND source_site <> ''
             ORDER BY source_site ASC
@@ -132,8 +147,8 @@ export default eventHandler(async (event) => {
             SELECT
               ${publishedAgeLabelSql} AS value,
               MIN(TIMESTAMPDIFF(HOUR, published_at, NOW())) AS sortValue
-            FROM investment_public_opportunity
-            ${whereSql}
+            FROM (${dedupedSql}) age_scope
+            WHERE 1 = 1
               AND published_at IS NOT NULL
             GROUP BY value
             HAVING value IS NOT NULL AND value <> ''

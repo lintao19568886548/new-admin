@@ -1,4 +1,5 @@
 import { prismaClient } from '~/utils/db';
+import { ensurePublicOpportunityStorage } from '~/utils/investment-radar/public-opportunity-repository';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   badRequestResponse,
@@ -19,8 +20,10 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const rows = await runWithRadarSharedScope(() =>
-      prismaClient.$queryRawUnsafe<any[]>(
+    const rows = await runWithRadarSharedScope(async () => {
+      await ensurePublicOpportunityStorage();
+
+      return prismaClient.$queryRawUnsafe<any[]>(
         `
           SELECT
             opportunity_id AS opportunityId,
@@ -58,8 +61,8 @@ export default eventHandler(async (event) => {
           LIMIT 1
         `,
         opportunityId,
-      ),
-    );
+      );
+    });
 
     const item = rows[0] || null;
     if (!item) {

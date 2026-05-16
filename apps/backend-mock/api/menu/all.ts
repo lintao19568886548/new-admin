@@ -186,10 +186,54 @@ async function isMembershipRestrictedUser(userinfo: {
 async function appendMembershipRouteMenus(menus: any[], userinfo: any) {
   const baseMenus = appendProfileAuxiliaryRouteMenus(menus);
   if (!(await isMembershipRestrictedUser(userinfo))) {
-    return baseMenus;
+    return normalizeMenuGroupDomains(baseMenus);
   }
 
-  return appendRouteMenus(baseMenus, MEMBERSHIP_RESTRICTED_ROUTE_MENUS);
+  return normalizeMenuGroupDomains(
+    appendRouteMenus(baseMenus, MEMBERSHIP_RESTRICTED_ROUTE_MENUS),
+  );
+}
+
+function isRouteInMenuGroupDomain(route: any, parentRoute: any) {
+  const parentPath =
+    typeof parentRoute?.path === 'string' ? parentRoute.path : '';
+  const routePath = typeof route?.path === 'string' ? route.path : '';
+
+  if (!parentPath || !routePath || parentPath === '/') {
+    return true;
+  }
+
+  return routePath === parentPath || routePath.startsWith(`${parentPath}/`);
+}
+
+function normalizeMenuGroupDomains(menus: any[]) {
+  const visit = (items: any[], parentRoute?: any): any[] =>
+    items
+      .map((item) => {
+        if (!item || typeof item !== 'object') {
+          return item;
+        }
+
+        if (
+          parentRoute &&
+          item.meta?.isApp &&
+          !isRouteInMenuGroupDomain(item, parentRoute)
+        ) {
+          return null;
+        }
+
+        if (Array.isArray(item.children) && item.children.length > 0) {
+          return {
+            ...item,
+            children: visit(item.children, parentRoute ?? item),
+          };
+        }
+
+        return item;
+      })
+      .filter((item) => item !== null);
+
+  return visit(menus);
 }
 
 export default eventHandler(async (event) => {

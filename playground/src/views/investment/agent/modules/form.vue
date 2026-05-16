@@ -98,7 +98,7 @@ const [Form, formApi] = useVbenForm({
   layout: 'vertical',
   schema: useFormSchema(closeModal), // 传递 closeModal 函数
   showDefaultActions: false,
-  wrapperClass: 'grid-cols-2 gap-4',
+  wrapperClass: 'grid-cols-1 md:grid-cols-2 gap-4',
 });
 
 function resetForm() {
