@@ -22,6 +22,10 @@ export default eventHandler(async (event) => {
     const publishedAgeLabel = String(query.publishedAgeLabel || '').trim();
     const sourceSite = String(query.sourceSite || '').trim();
     const opportunityType = String(query.opportunityType || '').trim();
+    const publishedAgeValue = Number.parseInt(
+      publishedAgeLabel.replaceAll(/\D/g, ''),
+      10,
+    );
 
     const result = await runWithRadarSharedScope(async () => {
       await ensurePublicOpportunityStorage();
@@ -42,12 +46,30 @@ export default eventHandler(async (event) => {
         whereParams.push(`%${city}%`);
       }
       if (sourceSite) {
-        whereClauses.push('source_site LIKE ?');
-        whereParams.push(`%${sourceSite}%`);
+        whereClauses.push('source_site = ?');
+        whereParams.push(sourceSite);
       }
       if (publishedAgeLabel) {
-        whereClauses.push(`${publishedAgeLabelSql} LIKE ?`);
-        whereParams.push(`%${publishedAgeLabel}%`);
+        if (Number.isFinite(publishedAgeValue)) {
+          if (/小时|hour/i.test(publishedAgeLabel)) {
+            whereClauses.push(
+              `published_at IS NOT NULL
+                AND TIMESTAMPDIFF(HOUR, published_at, NOW()) = ?
+                AND TIMESTAMPDIFF(HOUR, published_at, NOW()) < 24`,
+            );
+            whereParams.push(publishedAgeValue);
+          } else {
+            whereClauses.push(
+              `published_at IS NOT NULL
+                AND TIMESTAMPDIFF(DAY, published_at, NOW()) = ?
+                AND TIMESTAMPDIFF(HOUR, published_at, NOW()) >= 24`,
+            );
+            whereParams.push(publishedAgeValue);
+          }
+        } else {
+          whereClauses.push(`${publishedAgeLabelSql} = ?`);
+          whereParams.push(publishedAgeLabel);
+        }
       }
       if (opportunityType) {
         whereClauses.push('opportunity_type = ?');
@@ -62,6 +84,15 @@ export default eventHandler(async (event) => {
       }
 
       const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
+      const optionWhereClauses = ['1 = 1'];
+      const optionWhereParams: any[] = [];
+
+      if (opportunityType) {
+        optionWhereClauses.push('opportunity_type = ?');
+        optionWhereParams.push(opportunityType);
+      }
+
+      const optionWhereSql = `WHERE ${optionWhereClauses.join(' AND ')}`;
       const dedupedSql = `
         SELECT *
         FROM (
@@ -73,6 +104,20 @@ export default eventHandler(async (event) => {
             ) AS dedupe_rank
           FROM investment_public_opportunity opo
           ${whereSql}
+        ) deduped
+        WHERE dedupe_rank = 1
+      `;
+      const optionDedupedSql = `
+        SELECT *
+        FROM (
+          SELECT
+            opo.*,
+            ROW_NUMBER() OVER (
+              PARTITION BY opportunity_type, COALESCE(NULLIF(source_url, ''), CONCAT('id:', opportunity_id))
+              ORDER BY last_synced_at DESC, opportunity_id DESC
+            ) AS dedupe_rank
+          FROM investment_public_opportunity opo
+          ${optionWhereSql}
         ) deduped
         WHERE dedupe_rank = 1
       `;
@@ -131,14 +176,14 @@ export default eventHandler(async (event) => {
           prismaClient.$queryRawUnsafe<Array<{ value?: null | string }>>(
             `
             SELECT DISTINCT source_site AS value
-            FROM (${dedupedSql}) source_scope
+            FROM (${optionDedupedSql}) source_scope
             WHERE 1 = 1
               AND source_site IS NOT NULL
               AND source_site <> ''
             ORDER BY source_site ASC
             LIMIT 100
           `,
-            ...whereParams,
+            ...optionWhereParams,
           ),
           prismaClient.$queryRawUnsafe<
             Array<{ sortValue: bigint | number; value?: null | string }>
@@ -147,7 +192,7 @@ export default eventHandler(async (event) => {
             SELECT
               ${publishedAgeLabelSql} AS value,
               MIN(TIMESTAMPDIFF(HOUR, published_at, NOW())) AS sortValue
-            FROM (${dedupedSql}) age_scope
+            FROM (${optionDedupedSql}) age_scope
             WHERE 1 = 1
               AND published_at IS NOT NULL
             GROUP BY value
@@ -155,7 +200,7 @@ export default eventHandler(async (event) => {
             ORDER BY sortValue ASC
             LIMIT 100
           `,
-            ...whereParams,
+            ...optionWhereParams,
           ),
         ]);
 

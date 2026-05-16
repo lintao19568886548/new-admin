@@ -35,6 +35,9 @@ import {
   recalculateRadarLeadScore,
 } from '#/api/investment';
 
+import OutreachSuggestionPanel from './components/OutreachSuggestionPanel.vue';
+import PropertyMatchPanel from './components/PropertyMatchPanel.vue';
+import SopVisitPanel from './components/SopVisitPanel.vue';
 import { RADAR_STAGE_LABEL_MAP } from './data';
 
 defineOptions({ name: 'InvestmentRadarDetail' });
@@ -882,6 +885,21 @@ onMounted(() => {
             </Card>
           </Col>
         </Row>
+
+        <Row :gutter="[16, 16]">
+          <Col :lg="14" :md="24" :sm="24" :xs="24">
+            <PropertyMatchPanel :lead-id="leadId" />
+          </Col>
+          <Col :lg="10" :md="24" :sm="24" :xs="24">
+            <OutreachSuggestionPanel
+              :lead-id="leadId"
+              visible
+              @task-created="loadDetail"
+            />
+          </Col>
+        </Row>
+
+        <SopVisitPanel :lead-id="leadId" />
 
         <Card title="触达记录">
           <Table

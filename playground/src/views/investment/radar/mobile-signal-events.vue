@@ -112,6 +112,13 @@ const statusOptions: Array<{ label: string; value: '' | SignalEventStatus }> = [
   { label: '已忽略', value: 'IGNORED' },
 ];
 
+const sourceTypeOptions = [
+  { label: '全部来源类型', value: '' },
+  { label: '内部合同', value: 'INTERNAL_CONTRACT' },
+  { label: '公开机会', value: 'PUBLIC_OPPORTUNITY' },
+  { label: 'Demo', value: 'DEMO' },
+];
+
 const editableStatusOptions = statusOptions.filter((item) => item.value);
 
 const eventTypeMeta: Record<SignalEventType, { color: string; label: string }> =
@@ -362,6 +369,11 @@ onMounted(() => {
           allow-clear
           placeholder="来源"
           @press-enter="searchEvents"
+        />
+        <Select
+          v-model:value="searchForm.sourceType"
+          :options="sourceTypeOptions"
+          @change="searchEvents"
         />
       </div>
       <div class="filter-actions">

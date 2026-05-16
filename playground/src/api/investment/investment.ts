@@ -124,6 +124,157 @@ export interface RadarOutreachTaskSummary {
   totalTasks: number;
 }
 
+export interface RadarFollowRecord {
+  content?: null | string;
+  createTime?: null | string;
+  followResult: string;
+  followType: string;
+  nextAction?: null | string;
+  nextFollowTime?: null | string;
+  operatorName?: null | string;
+  recordId: number;
+}
+
+export interface RadarLeadSop {
+  followRecords: RadarFollowRecord[];
+  reminders: RadarSopReminder[];
+  visitRecords: RadarVisitRecord[];
+}
+
+export interface RadarSopReminder {
+  createTime?: null | string;
+  description?: null | string;
+  dueTime?: null | string;
+  handledTime?: null | string;
+  reminderId: number;
+  reminderStatus: string;
+  reminderType: string;
+  title: string;
+}
+
+export interface RadarVisitRecord {
+  actualTime?: null | string;
+  createTime?: null | string;
+  factoryFloorId?: null | number;
+  feedback?: null | string;
+  operatorName?: null | string;
+  scheduledTime?: null | string;
+  visitId: number;
+  visitorName?: null | string;
+  visitorPhone?: null | string;
+  visitStatus: string;
+}
+
+export interface RadarAnalysisFunnel {
+  activeLeads: number;
+  contactedLeads: number;
+  contactRate: number;
+  dealLeads: number;
+  dealRate: number;
+  highPriorityLeads: number;
+  repliedLeads: number;
+  replyRate: number;
+  totalLeads: number;
+  visitLeads: number;
+  visitRate: number;
+}
+
+export interface RadarAnalysisChannelStat {
+  channel: string;
+  positiveRate: number;
+  positiveReplies: number;
+  repliedTasks: number;
+  replyRate: number;
+  sentTasks: number;
+  totalTasks: number;
+}
+
+export interface RadarAnalysisTemplateStat {
+  positiveRate: number;
+  positiveReplies: number;
+  repliedTasks: number;
+  replyRate: number;
+  templateCode: string;
+  templateName: string;
+  totalTasks: number;
+}
+
+export interface RadarAnalysisSopStats {
+  followCount: number;
+  overdueReminders: number;
+  pendingReminders: number;
+  visitCount: number;
+}
+
+export interface RadarAnalysisSourceStat {
+  conversionRate: number;
+  convertedLeads: number;
+  evidenceCount: number;
+  highConfidenceLeads: number;
+  sourceName: string;
+  sourceType: string;
+  totalLeads: number;
+}
+
+export interface RadarAnalysisSignalTypeStat {
+  contactRate: number;
+  convertedEvents: number;
+  dealLeads: number;
+  dealRate: number;
+  eventType: string;
+  radarLeads: number;
+  totalEvents: number;
+  visitLeads: number;
+  visitRate: number;
+}
+
+export interface RadarAnalysisOwnerStat {
+  contactedLeads: number;
+  contactRate: number;
+  dealLeads: number;
+  dealRate: number;
+  firstContactAvgHours: number;
+  followCount: number;
+  ownerName: string;
+  ownerUserId?: null | number;
+  totalLeads: number;
+  visitCount: number;
+}
+
+export interface RadarAnalysisSuggestion {
+  content: string;
+  level: 'danger' | 'success' | 'warning' | string;
+  title: string;
+}
+
+export interface RadarAnalysisSummary {
+  channelStats: RadarAnalysisChannelStat[];
+  funnel: RadarAnalysisFunnel;
+  generatedAt?: string;
+  ownerStats: RadarAnalysisOwnerStat[];
+  signalTypeStats: RadarAnalysisSignalTypeStat[];
+  sopStats: RadarAnalysisSopStats;
+  sourceStats: RadarAnalysisSourceStat[];
+  suggestions: RadarAnalysisSuggestion[];
+  templateStats: RadarAnalysisTemplateStat[];
+}
+
+export interface CreateRadarFollowPayload {
+  content?: string;
+  followResult?: string;
+  followType?: string;
+  nextAction?: string;
+  nextFollowTime?: string;
+}
+
+export interface CreateRadarVisitPayload {
+  factoryFloorId?: number;
+  feedback?: string;
+  scheduledTime: string;
+  visitorName?: string;
+  visitorPhone?: string;
+}
+
 export interface RadarLeadNavigationItem {
   enterpriseName: string;
   leadId: number;
@@ -314,6 +465,7 @@ export interface ExternalLeadListParams {
   pageSize?: number;
   regionCity?: string;
   sourceName?: string;
+  sourceType?: string;
   status?: string;
 }
 
@@ -356,6 +508,7 @@ export type CrawlerTaskItemStatus =
   | 'SUCCESS';
 
 export interface CrawlerSource {
+  adapterStatus?: 'CANDIDATE' | 'READY';
   allowedPathsJson?: null | string[];
   baseUrl: string;
   blockedPathsJson?: null | string[];
@@ -746,6 +899,99 @@ export interface DemoLeadScoreRecalculateResponse {
   totalLeadCount: number;
 }
 
+export interface OutreachTemplate {
+  channel: string;
+  content: string;
+  createTime?: string;
+  enabled: boolean;
+  placeholderJson?: string;
+  priorityLevel: string;
+  taskType: string;
+  templateCode: string;
+  templateId: number;
+  templateName: string;
+  updateTime?: string;
+}
+
+export interface OutreachTemplateListResponse {
+  items: OutreachTemplate[];
+  page?: {
+    currentPage: number;
+    pageSize: number;
+    total: number;
+  };
+  total: number;
+}
+
+export interface OutreachSuggestionItem {
+  channel: string;
+  priorityLevel: string;
+  suggestedContent: string;
+  taskType: string;
+  templateCode: string;
+  templateId: number;
+  templateName: string;
+}
+
+export interface OutreachSuggestion {
+  canContact: boolean;
+  city: string;
+  companyName: string;
+  contactName: string;
+  contactRestrictionReason: string;
+  industryName: string;
+  intentArea: string;
+  leadId: number;
+  parkName: string;
+  phoneNumber: string;
+  priorityLevel: string;
+  stage: string;
+  suggestions: OutreachSuggestionItem[];
+  totalScore: number;
+}
+
+export interface CreateOutreachTaskPayload {
+  channel: string;
+  content?: string;
+  leadId: number;
+  phoneNumber: string;
+  taskType: string;
+  templateCode?: string;
+}
+
+export interface OutreachTask {
+  channel: string;
+  content?: string;
+  createTime?: string;
+  leadId: number;
+  phoneNumber: string;
+  status: string;
+  taskId: number;
+  taskType: string;
+  templateCode?: string;
+}
+
+export interface MockSendOutreachTaskResponse {
+  resultCode?: string;
+  resultMessage?: string;
+  sentAt?: string;
+  sentBy?: number;
+  status: string;
+  taskId: number;
+}
+
+export interface ReplyOutreachTaskPayload {
+  replyContent?: string;
+  replyStatus: 'NEGATIVE' | 'POSITIVE' | 'REPLIED';
+}
+
+export interface ReplyOutreachTaskResponse {
+  replyContent?: string;
+  replyStatus: string;
+  replyTime?: string;
+  taskId: number;
+}
+
 export async function getInvestmentList(params: any) {
   return requestClient.get('/investment/list', { params });
 }
@@ -1012,6 +1258,29 @@ export async function runCrawlerTask() {
   );
 }
 
+export async function runInternalContractExpiryTask() {
+  return requestClient.post<CrawlerTask>(
+    '/investment/radar/crawler-task/run-internal-contract-expiry',
+    {},
+  );
+}
+
+export async function syncInternalContractExpiryToRadar() {
+  return requestClient.post<{
+    convertedCount: number;
+    radarLeadIds: number[];
+    reusedCount: number;
+    signalSummary: {
+      createdEventCount: number;
+      createdEvidenceCount: number;
+      deletedDirtyEventCount: number;
+      updatedEventCount: number;
+      updatedEvidenceCount: number;
+    };
+    task: CrawlerTask;
+  }>('/investment/radar/crawler-task/sync-internal-contract-expiry', {});
+}
+
 export async function runPublicOpportunityCrawlerTask(
   data: PublicOpportunityCrawlerRunPayload = {},
 ) {
@@ -1208,5 +1477,92 @@ export async function recalculateDemoLeadScores() {
   return requestClient.post<DemoLeadScoreRecalculateResponse>(
     '/investment/radar/lead/recalculate-demo-scores',
     {},
+  );
+}
+
+export async function getOutreachTemplateList(params?: {
+  channel?: string;
+  currentPage?: number;
+  keyword?: string;
+  pageSize?: number;
+  taskType?: string;
+}) {
+  return requestClient.get<OutreachTemplateListResponse>(
+    '/investment/radar/outreach-template/list',
+    {
+      params,
+      silentError: true,
+    },
+  );
+}
+
+export async function getOutreachSuggestion(leadId: number | string) {
+  return requestClient.get<OutreachSuggestion>(
+    `/investment/radar/lead/${leadId}/outreach-suggestion`,
+    {
+      silentError: true,
+    },
+  );
+}
+
+export async function getRadarLeadSop(leadId: number | string) {
+  return requestClient.get<RadarLeadSop>(
+    `/investment/radar/lead/${leadId}/sop`,
+    {
+      silentError: true,
+    },
+  );
+}
+
+export async function getRadarAnalysisSummary() {
+  return requestClient.get<RadarAnalysisSummary>(
+    '/investment/radar/analysis/summary',
+    {
+      silentError: true,
+    },
+  );
+}
+
+export async function createRadarFollowRecord(
+  leadId: number | string,
+  data: CreateRadarFollowPayload,
+) {
+  return requestClient.post<{ recordId: number }>(
+    `/investment/radar/lead/${leadId}/follow`,
+    data,
+  );
+}
+
+export async function createRadarVisitRecord(
+  leadId: number | string,
+  data: CreateRadarVisitPayload,
+) {
+  return requestClient.post<{ visitId: number }>(
+    `/investment/radar/lead/${leadId}/visit`,
+    data,
+  );
+}
+
+export async function createOutreachTask(data: CreateOutreachTaskPayload) {
+  return requestClient.post<OutreachTask>(
+    '/investment/radar/outreach-task',
+    data,
+  );
+}
+
+export async function mockSendOutreachTask(taskId: number | string) {
+  return requestClient.post<MockSendOutreachTaskResponse>(
+    `/investment/radar/outreach-task/${taskId}/mock-send`,
+    {},
+  );
+}
+
+export async function replyOutreachTask(
+  taskId: number | string,
+  data: ReplyOutreachTaskPayload,
+) {
+  return requestClient.post<ReplyOutreachTaskResponse>(
+    `/investment/radar/outreach-task/${taskId}/reply`,
+    data,
   );
 }

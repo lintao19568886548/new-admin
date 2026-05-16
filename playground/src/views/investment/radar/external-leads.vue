@@ -64,6 +64,7 @@ const searchForm = ref({
   keyword: '',
   regionCity: '',
   sourceName: '',
+  sourceType: '',
   status: '',
 });
 const editForm = ref<{
@@ -109,6 +110,13 @@ const demandTypeOptions: Array<{
   { label: '求租厂房', value: 'RENT_FACTORY' },
   { label: '未知', value: 'UNKNOWN' },
 ];
+const sourceTypeOptions = [
+  { label: '全部来源类型', value: '' },
+  { label: '内部合同', value: 'INTERNAL_CONTRACT' },
+  { label: '公开机会', value: 'PUBLIC_OPPORTUNITY' },
+  { label: 'Demo', value: 'DEMO' },
+];
+
 const statusMeta: Record<ExternalLeadStatus, { color: string; label: string }> =
   {
     ASSIGNED: { color: 'blue', label: '已分配' },
@@ -160,6 +168,7 @@ function buildQuery() {
     pageSize: pagination.value.pageSize,
     regionCity: searchForm.value.regionCity || undefined,
     sourceName: searchForm.value.sourceName || undefined,
+    sourceType: searchForm.value.sourceType || undefined,
     status: searchForm.value.status || undefined,
   };
 }
@@ -191,6 +200,7 @@ function resetSearch() {
     keyword: '',
     regionCity: '',
     sourceName: '',
+    sourceType: '',
     status: '',
   };
   searchLeads();
@@ -541,6 +551,13 @@ onMounted(() => {
             @press-enter="searchLeads"
           />
         </Form.Item>
+        <Form.Item label="来源类型">
+          <Select
+            v-model:value="searchForm.sourceType"
+            class="radar-filter-control"
+            :options="sourceTypeOptions"
+          />
+        </Form.Item>
         <Form.Item>
           <Space>
             <Button type="primary" @click="searchLeads">查询</Button>
@@ -573,7 +590,12 @@ onMounted(() => {
     >
       <div v-if="detailLoading" class="py-8 text-center">加载中...</div>
       <template v-else-if="currentLead">
-        <Descriptions bordered :column="2" size="small">
+        <Descriptions
+          bordered
+          :column="2"
+          class="external-lead-detail"
+          size="small"
+        >
           <Descriptions.Item label="企业">
             {{ currentLead.companyName }}
           </Descriptions.Item>
@@ -697,7 +719,17 @@ onMounted(() => {
 
 .evidence-text {
   margin: 0;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.external-lead-detail {
+  :deep(.ant-descriptions-item-content) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
 }
 
 .radar-search-form {

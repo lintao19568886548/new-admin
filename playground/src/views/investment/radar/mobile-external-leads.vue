@@ -64,6 +64,7 @@ const searchForm = reactive({
   keyword: '',
   regionCity: '',
   sourceName: '',
+  sourceType: '',
   status: '',
 });
 
@@ -119,6 +120,13 @@ const demandTypeOptions: Array<{
   { label: '未知', value: 'UNKNOWN' },
 ];
 
+const sourceTypeOptions = [
+  { label: '全部来源类型', value: '' },
+  { label: '内部合同', value: 'INTERNAL_CONTRACT' },
+  { label: '公开机会', value: 'PUBLIC_OPPORTUNITY' },
+  { label: 'Demo', value: 'DEMO' },
+];
+
 const editableStatusOptions = statusOptions.filter((item) => item.value);
 
 const statusMeta: Record<ExternalLeadStatus, { color: string; label: string }> =
@@ -166,6 +174,7 @@ function buildQuery() {
     pageSize: pagination.pageSize,
     regionCity: searchForm.regionCity || undefined,
     sourceName: searchForm.sourceName || undefined,
+    sourceType: searchForm.sourceType || undefined,
     status: searchForm.status || undefined,
   };
 }
@@ -184,6 +193,7 @@ function resetSearchForm() {
   searchForm.keyword = '';
   searchForm.regionCity = '';
   searchForm.sourceName = '';
+  searchForm.sourceType = '';
   searchForm.status = '';
 }
 
@@ -380,6 +390,13 @@ onMounted(() => {
           allow-clear
           placeholder="来源"
           @press-enter="searchLeads"
+        />
+      </div>
+      <div class="filter-grid">
+        <Select
+          v-model:value="searchForm.sourceType"
+          :options="sourceTypeOptions"
+          @change="searchLeads"
         />
       </div>
       <div class="filter-actions">

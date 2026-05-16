@@ -562,15 +562,21 @@ function handleOpenSource() {
         {{ item.sourceId ?? '-' }}
       </Descriptions.Item>
       <Descriptions.Item label="来源链接">
-        <Button type="link" class="px-0" @click="handleOpenSource">
+        <Button
+          type="link"
+          class="opportunity-detail-link px-0"
+          @click="handleOpenSource"
+        >
           {{ item.sourceUrl || '-' }}
         </Button>
       </Descriptions.Item>
       <Descriptions.Item label="描述">
-        {{ item.description || '-' }}
+        <div class="opportunity-detail-text">
+          {{ item.description || '-' }}
+        </div>
       </Descriptions.Item>
       <Descriptions.Item label="标签">
-        <Space wrap>
+        <Space class="opportunity-detail-tags" wrap>
           <Tag v-for="tag in getTags(item.tagsJson)" :key="tag" color="blue">
             {{ tag }}
           </Tag>
@@ -578,15 +584,17 @@ function handleOpenSource() {
         </Space>
       </Descriptions.Item>
       <Descriptions.Item label="扩展信息">
-        <Space wrap>
-          <Tag
+        <div class="opportunity-detail-meta-list">
+          <div
             v-for="[key, value] in getJsonEntries(item.detailJson)"
             :key="key"
+            class="opportunity-detail-meta-item"
           >
-            {{ key }}: {{ value }}
-          </Tag>
+            <span>{{ key }}:</span>
+            <strong>{{ value }}</strong>
+          </div>
           <span v-if="getJsonEntries(item.detailJson).length === 0">-</span>
-        </Space>
+        </div>
       </Descriptions.Item>
       <Descriptions.Item label="最后同步时间">
         {{ item.lastSyncedAt ? formatDateTime(item.lastSyncedAt) : '-' }}
@@ -602,6 +610,83 @@ function handleOpenSource() {
   :deep(.ant-descriptions-item-label) {
     width: 120px;
   }
+
+  :deep(.ant-descriptions-item-content) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
+
+.opportunity-detail-link {
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  max-width: 100%;
+  height: auto;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.opportunity-detail-text {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.opportunity-detail-tags {
+  max-width: 100%;
+}
+
+.opportunity-detail-tags :deep(.ant-tag) {
+  max-width: 100%;
+  height: auto;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.opportunity-detail-meta-list {
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  gap: 8px;
+}
+
+.opportunity-detail-meta-item {
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  background: var(--ant-color-fill-tertiary);
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 6px;
+}
+
+.opportunity-detail-meta-item > span {
+  color: var(--ant-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.opportunity-detail-meta-item > strong {
+  min-width: 0;
+  color: var(--ant-color-text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .opportunity-detail-mobile {

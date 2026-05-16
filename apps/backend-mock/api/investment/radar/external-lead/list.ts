@@ -26,6 +26,7 @@ export default eventHandler(async (event) => {
         pageSize,
         regionCity: String(query.regionCity || '').trim(),
         sourceName: String(query.sourceName || '').trim(),
+        sourceType: String(query.sourceType || '').trim(),
         status: String(query.status || '').trim(),
       }),
     );

@@ -35,6 +35,7 @@ export interface ExternalLeadListParams {
   pageSize: number;
   regionCity?: string;
   sourceName?: string;
+  sourceType?: string;
   status?: string;
 }
 
@@ -761,6 +762,10 @@ export async function listExternalLeads(params: ExternalLeadListParams) {
   appendLike('l.region_city LIKE ?', params.regionCity);
   appendLike('l.industry_name LIKE ?', params.industryName);
   appendLike('l.source_name LIKE ?', params.sourceName);
+  if (params.sourceType) {
+    whereClauses.push('l.source_type = ?');
+    whereParams.push(params.sourceType);
+  }
   if (params.keyword) {
     whereClauses.push(
       '(l.company_name LIKE ? OR l.lead_title LIKE ? OR l.summary LIKE ? OR l.source_url LIKE ?)',

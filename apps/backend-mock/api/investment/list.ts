@@ -66,7 +66,7 @@ export default eventHandler(async (event) => {
 
   if (progress) {
     where.progress = {
-      contains: progress,
+      equals: progress,
     };
   }
 

@@ -24,6 +24,9 @@ import {
   recalculateRadarLeadScore,
 } from '#/api/investment';
 
+import OutreachSuggestionPanel from './components/OutreachSuggestionPanel.vue';
+import PropertyMatchPanel from './components/PropertyMatchPanel.vue';
+import SopVisitPanel from './components/SopVisitPanel.vue';
 import {
   formatCollectTaskStatus,
   formatNumber,
@@ -387,6 +390,22 @@ onMounted(() => {
           </div>
         </div>
         <Empty v-else class="radar-mobile-empty" description="暂无触达记录" />
+      </section>
+
+      <section class="radar-mobile-section">
+        <PropertyMatchPanel :lead-id="leadId" />
+      </section>
+
+      <section class="radar-mobile-section">
+        <OutreachSuggestionPanel
+          :lead-id="leadId"
+          visible
+          @task-created="loadDetail"
+        />
+      </section>
+
+      <section class="radar-mobile-section">
+        <SopVisitPanel :lead-id="leadId" />
       </section>
 
       <div class="radar-bottom-actions">

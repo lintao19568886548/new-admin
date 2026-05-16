@@ -16,8 +16,14 @@ import {
 } from './crawler-policy';
 import {
   DEMO_CRAWLER_SOURCE_CODE,
+  INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE,
+  PUBLIC_BUSINESS_CHANGE_SOURCE_CODE,
+  PUBLIC_EIA_NOTICE_SOURCE_CODE,
   PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE,
+  PUBLIC_MAP_POI_SOURCE_CODE,
   PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE,
+  PUBLIC_RECRUITMENT_SOURCE_CODE,
+  PUBLIC_TENDER_SOURCE_CODE,
 } from './crawler-types';
 
 export class CrawlerSourceValidationError extends Error {
@@ -36,6 +42,99 @@ const jsonArrayFieldNames = [
 ] as const;
 
 type JsonArrayFieldName = (typeof jsonArrayFieldNames)[number];
+
+interface CandidateCrawlerSourceSeed {
+  allowedPathsJson: string[];
+  baseUrl: string;
+  blockedPathsJson: string[];
+  crawlIntervalMinutes: number;
+  keywordExcludeJson: string[];
+  keywordIncludeJson: string[];
+  rateLimitPerMinute: number;
+  regionScopeJson: string[];
+  robotsUrl: null | string;
+  sourceCode: string;
+  sourceName: string;
+  sourceType: string;
+}
+
+const phase9CandidateCrawlerSources: CandidateCrawlerSourceSeed[] = [
+  {
+    allowedPathsJson: ['/'],
+    baseUrl: 'https://www.mee.gov.cn',
+    blockedPathsJson: ['/ywgz/fgbz/'],
+    crawlIntervalMinutes: 1440,
+    keywordExcludeJson: ['个人', '培训', '会议'],
+    keywordIncludeJson: ['环评', '公示', '建设项目', '扩建', '迁建', '技改'],
+    rateLimitPerMinute: 3,
+    regionScopeJson: ['惠州', '东莞', '广州', '深圳', '佛山'],
+    robotsUrl: 'https://www.mee.gov.cn/robots.txt',
+    sourceCode: PUBLIC_EIA_NOTICE_SOURCE_CODE,
+    sourceName: '生态环境公开公示候选源',
+    sourceType: 'PUBLIC_EIA_NOTICE',
+  },
+  {
+    allowedPathsJson: ['/'],
+    baseUrl: 'https://www.51job.com',
+    blockedPathsJson: ['/login', '/register'],
+    crawlIntervalMinutes: 1440,
+    keywordExcludeJson: ['门店', '导购', '兼职', '培训'],
+    keywordIncludeJson: ['厂长', '生产经理', '设备工程师', '新产线', '扩产'],
+    rateLimitPerMinute: 3,
+    regionScopeJson: ['惠州', '东莞', '广州', '深圳', '佛山'],
+    robotsUrl: 'https://www.51job.com/robots.txt',
+    sourceCode: PUBLIC_RECRUITMENT_SOURCE_CODE,
+    sourceName: '公开招聘扩产信号候选源',
+    sourceType: 'PUBLIC_RECRUITMENT',
+  },
+  {
+    allowedPathsJson: ['/'],
+    baseUrl: 'https://www.ccgp.gov.cn',
+    blockedPathsJson: ['/login', '/user'],
+    crawlIntervalMinutes: 1440,
+    keywordExcludeJson: ['物业服务', '办公用品', '培训服务'],
+    keywordIncludeJson: ['厂房', '生产线', '设备采购', '建设工程', '产业园'],
+    rateLimitPerMinute: 3,
+    regionScopeJson: ['广东', '惠州', '东莞', '广州', '深圳', '佛山'],
+    robotsUrl: 'https://www.ccgp.gov.cn/robots.txt',
+    sourceCode: PUBLIC_TENDER_SOURCE_CODE,
+    sourceName: '招投标公开信息候选源',
+    sourceType: 'PUBLIC_TENDER',
+  },
+  {
+    allowedPathsJson: ['/'],
+    baseUrl: 'api://business-change',
+    blockedPathsJson: [],
+    crawlIntervalMinutes: 1440,
+    keywordExcludeJson: ['注销', '吊销'],
+    keywordIncludeJson: [
+      '注册资本增加',
+      '经营范围新增',
+      '地址变更',
+      '分支机构',
+    ],
+    rateLimitPerMinute: 10,
+    regionScopeJson: ['惠州', '东莞', '广州', '深圳', '佛山'],
+    robotsUrl: null,
+    sourceCode: PUBLIC_BUSINESS_CHANGE_SOURCE_CODE,
+    sourceName: '工商变更 API 候选源',
+    sourceType: 'BUSINESS_CHANGE_API',
+  },
+  {
+    allowedPathsJson: ['/'],
+    baseUrl: 'api://map-poi',
+    blockedPathsJson: [],
+    crawlIntervalMinutes: 1440,
+    keywordExcludeJson: ['住宅', '商铺', '酒店'],
+    keywordIncludeJson: ['工厂', '制造', '产业园', '仓储', '物流'],
+    rateLimitPerMinute: 10,
+    regionScopeJson: ['惠州', '东莞', '广州', '深圳', '佛山'],
+    robotsUrl: null,
+    sourceCode: PUBLIC_MAP_POI_SOURCE_CODE,
+    sourceName: '地图 POI 企业画像候选源',
+    sourceType: 'MAP_POI_API',
+  },
+];
 
 function parseJsonArray(value: unknown): null | string[] {
   if (value === null || value === undefined) {
@@ -84,6 +183,13 @@ function toNullableString(value: unknown) {
 function mapSourceRow(row: any): CrawlerSource {
   const sourceCode = row.sourceCode || '';
   const storedAllowedPaths = parseStoredJsonArray(row.allowedPathsJson);
+  const adapterStatus =
+    sourceCode === DEMO_CRAWLER_SOURCE_CODE ||
+    sourceCode === INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE ||
+    sourceCode === PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE ||
+    sourceCode === PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE
+      ? 'READY'
+      : 'CANDIDATE';
   let allowedPathsJson = storedAllowedPaths;
   if (sourceCode === PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE) {
     allowedPathsJson = [...PUBLIC_OPPORTUNITY_99CFW_ALLOWED_PATHS];
@@ -92,6 +198,7 @@ function mapSourceRow(row: any): CrawlerSource {
   }
 
   return {
+    adapterStatus,
     allowedPathsJson,
     baseUrl: row.baseUrl || '',
     blockedPathsJson: parseStoredJsonArray(row.blockedPathsJson),
@@ -284,6 +391,32 @@ export async function ensureDemoCrawlerSource() {
         keyword_include_json, keyword_exclude_json, region_scope_json,
         create_time, update_time
       )
+      VALUES (?, 'Internal contract expiry signal', 'INTERNAL_CONTRACT',
+        'internal://rental-tenant/contract-expiry', NULL, 1,
+        1440, 60, ?, ?, ?, ?, NULL, NOW(3), NOW(3))
+      ON DUPLICATE KEY UPDATE
+        source_name = VALUES(source_name),
+        source_type = VALUES(source_type),
+        base_url = VALUES(base_url),
+        robots_url = VALUES(robots_url),
+        update_time = update_time
+    `,
+    INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE,
+    JSON.stringify(['/rental-tenant/contract-expiry']),
+    JSON.stringify([]),
+    JSON.stringify(['合同到期', '续租', '退租', '搬迁', '扩租']),
+    JSON.stringify(['已删除']),
+  );
+
+  await prismaClient.$executeRawUnsafe(
+    `
+      INSERT INTO crawler_source (
+        source_code, source_name, source_type, base_url, robots_url, enabled,
+        crawl_interval_minutes, rate_limit_per_minute,
+        allowed_paths_json, blocked_paths_json,
+        keyword_include_json, keyword_exclude_json, region_scope_json,
+        create_time, update_time
+      )
       VALUES (?, '99cfw public opportunity URL pilot', 'PUBLIC_OPPORTUNITY',
         ?, NULL, 1,
         5, 10, ?, ?, ?, ?, NULL, NOW(3), NOW(3))
@@ -353,6 +486,45 @@ export async function ensureDemoCrawlerSource() {
     JSON.stringify(['求租', '出售', '写字楼', '住宅', '商铺']),
     JSON.stringify(['深圳']),
   );
+  for (const source of phase9CandidateCrawlerSources) {
+    await prismaClient.$executeRawUnsafe(
+      `
+        INSERT INTO crawler_source (
+          source_code, source_name, source_type, base_url, robots_url, enabled,
+          crawl_interval_minutes, rate_limit_per_minute,
+          allowed_paths_json, blocked_paths_json,
+          keyword_include_json, keyword_exclude_json, region_scope_json,
+          create_time, update_time
+        )
+        VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, NOW(3), NOW(3))
+        ON DUPLICATE KEY UPDATE
+          source_name = VALUES(source_name),
+          source_type = VALUES(source_type),
+          base_url = VALUES(base_url),
+          robots_url = VALUES(robots_url),
+          crawl_interval_minutes = VALUES(crawl_interval_minutes),
+          rate_limit_per_minute = VALUES(rate_limit_per_minute),
+          allowed_paths_json = VALUES(allowed_paths_json),
+          blocked_paths_json = VALUES(blocked_paths_json),
+          keyword_include_json = VALUES(keyword_include_json),
+          keyword_exclude_json = VALUES(keyword_exclude_json),
+          region_scope_json = VALUES(region_scope_json),
+          update_time = update_time
+      `,
+      source.sourceCode,
+      source.sourceName,
+      source.sourceType,
+      source.baseUrl,
+      source.robotsUrl,
+      source.crawlIntervalMinutes,
+      source.rateLimitPerMinute,
+      JSON.stringify(source.allowedPathsJson),
+      JSON.stringify(source.blockedPathsJson),
+      JSON.stringify(source.keywordIncludeJson),
+      JSON.stringify(source.keywordExcludeJson),
+      JSON.stringify(source.regionScopeJson),
+    );
+  }
 }
 
 export async function listCrawlerSources(): Promise<CrawlerSourceListResult> {
@@ -444,6 +616,10 @@ export function getPublicCrawlerSourceByCode(sourceCode: string) {
 
 export function getDemoCrawlerSource() {
   return getCrawlerSourceByCode(DEMO_CRAWLER_SOURCE_CODE);
+}
+
+export function getInternalContractExpiryCrawlerSource() {
+  return getCrawlerSourceByCode(INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE);
 }
 
 export function getPublicOpportunityCrawlerSource() {

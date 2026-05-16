@@ -1,10 +1,26 @@
 export const DEMO_CRAWLER_SOURCE_CODE = 'DEMO_EXTERNAL_LEAD';
+export const INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE = 'INTERNAL_CONTRACT_EXPIRY';
 export const PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE =
   'PUBLIC_FACTORY_LISTING_CFZSW68';
 export const PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE =
   'PUBLIC_OPPORTUNITY_99CFW';
+export const PUBLIC_BUSINESS_CHANGE_SOURCE_CODE =
+  'PUBLIC_BUSINESS_CHANGE_API_CANDIDATE';
+export const PUBLIC_EIA_NOTICE_SOURCE_CODE = 'PUBLIC_EIA_NOTICE_MEE_CANDIDATE';
+export const PUBLIC_RECRUITMENT_SOURCE_CODE =
+  'PUBLIC_RECRUITMENT_51JOB_CANDIDATE';
+export const PUBLIC_TENDER_SOURCE_CODE = 'PUBLIC_TENDER_CCGP_CANDIDATE';
+export const PUBLIC_MAP_POI_SOURCE_CODE = 'PUBLIC_MAP_POI_API_CANDIDATE';
 
-export type CrawlerSourceType = 'DEMO' | 'PUBLIC_OPPORTUNITY';
+export type CrawlerSourceType =
+  | 'BUSINESS_CHANGE_API'
+  | 'DEMO'
+  | 'INTERNAL_CONTRACT'
+  | 'MAP_POI_API'
+  | 'PUBLIC_EIA_NOTICE'
+  | 'PUBLIC_OPPORTUNITY'
+  | 'PUBLIC_RECRUITMENT'
+  | 'PUBLIC_TENDER';
 export type CrawlerTaskItemStatus =
   | 'FAILED'
   | 'PENDING'
@@ -19,6 +35,7 @@ export type CrawlerTaskStatus =
   | 'RUNNING'
   | 'SUCCESS';
 export type CrawlerTaskType =
+  | 'INTERNAL_CONTRACT_EXPIRY'
   | 'MANUAL_DEMO'
   | 'PUBLIC_OPPORTUNITY_DISCOVER'
   | 'PUBLIC_OPPORTUNITY_URL_BATCH';
@@ -38,6 +55,7 @@ export type CrawlerTaskLogStage =
   | 'UPSERT_LEAD';
 
 export interface CrawlerSource {
+  adapterStatus?: 'CANDIDATE' | 'READY';
   allowedPathsJson: null | string[];
   baseUrl: string;
   blockedPathsJson: null | string[];

@@ -1,7 +1,11 @@
 <script lang="ts" setup>
 import type { RadarLead } from './data';
 
-import type { PublicOpportunityItem, RadarCollectTask } from '#/api/investment';
+import type {
+  PublicOpportunityItem,
+  RadarAnalysisSummary,
+  RadarCollectTask,
+} from '#/api/investment';
 
 import { computed, h, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -25,6 +29,7 @@ import {
 
 import {
   getEffectivePublicOpportunityList,
+  getRadarAnalysisSummary,
   getRadarCollectTask,
   getRadarLeadList,
 } from '#/api/investment';
@@ -38,6 +43,7 @@ const route = useRoute();
 const isMobile = useMediaQuery('(max-width: 767px)');
 const loading = ref(true);
 const loadError = ref('');
+const analysis = ref<null | RadarAnalysisSummary>(null);
 const leads = ref<RadarLead[]>([]);
 const opportunities = ref<PublicOpportunityItem[]>([]);
 const latestTask = ref<null | RadarCollectTask>(null);
@@ -102,6 +108,147 @@ const leadColumns = [
     dataIndex: 'totalScore',
     key: 'totalScore',
     title: '总分',
+  },
+];
+
+const channelColumns = [
+  {
+    dataIndex: 'channel',
+    key: 'channel',
+    title: '渠道',
+  },
+  {
+    dataIndex: 'totalTasks',
+    key: 'totalTasks',
+    title: '任务数',
+  },
+  {
+    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
+    dataIndex: 'replyRate',
+    key: 'replyRate',
+    title: '回复率',
+  },
+  {
+    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
+    dataIndex: 'positiveRate',
+    key: 'positiveRate',
+    title: '正向率',
+  },
+];
+
+const templateColumns = [
+  {
+    dataIndex: 'templateName',
+    ellipsis: true,
+    key: 'templateName',
+    title: '话术',
+  },
+  {
+    dataIndex: 'totalTasks',
+    key: 'totalTasks',
+    title: '任务数',
+  },
+  {
+    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
+    dataIndex: 'replyRate',
+    key: 'replyRate',
+    title: '回复率',
+  },
+  {
+    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
+    dataIndex: 'positiveRate',
+    key: 'positiveRate',
+    title: '正向率',
+  },
+];
+
+const sourceColumns = [
+  {
+    dataIndex: 'sourceName',
+    ellipsis: true,
+    key: 'sourceName',
+    title: '来源',
+  },
+  {
+    dataIndex: 'sourceType',
+    key: 'sourceType',
+    title: '类型',
+  },
+  {
+    dataIndex: 'totalLeads',
+    key: 'totalLeads',
+    title: '线索数',
+  },
+  {
+    dataIndex: 'convertedLeads',
+    key: 'convertedLeads',
+    title: '转雷达',
+  },
+  {
+    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
+    dataIndex: 'conversionRate',
+    key: 'conversionRate',
+    title: '转化率',
+  },
+];
+
+const signalTypeColumns = [
+  {
+    dataIndex: 'eventType',
+    key: 'eventType',
+    title: '信号类型',
+  },
+  {
+    dataIndex: 'totalEvents',
+    key: 'totalEvents',
+    title: '事件数',
+  },
+  {
+    dataIndex: 'radarLeads',
+    key: 'radarLeads',
+    title: '雷达线索',
+  },
+  {
+    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
+    dataIndex: 'visitRate',
+    key: 'visitRate',
+    title: '带看率',
+  },
+  {
+    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
+    dataIndex: 'dealRate',
+    key: 'dealRate',
+    title: '成交率',
+  },
+];
+
+const ownerColumns = [
+  {
+    dataIndex: 'ownerName',
+    key: 'ownerName',
+    title: '负责人',
+  },
+  {
+    dataIndex: 'totalLeads',
+    key: 'totalLeads',
+    title: '线索数',
+  },
+  {
+    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
+    dataIndex: 'contactRate',
+    key: 'contactRate',
+    title: '联系率',
+  },
+  {
+    dataIndex: 'followCount',
+    key: 'followCount',
+    title: '跟进数',
+  },
+  {
+    customRender: ({ text }: { text?: number }) => `${text ?? 0}h`,
+    dataIndex: 'firstContactAvgHours',
+    key: 'firstContactAvgHours',
+    title: '首联均时',
   },
 ];
 
@@ -190,6 +337,16 @@ function getOpportunityArea(record: PublicOpportunityItem) {
   return record.areaText || (record.areaSqm ? `${record.areaSqm}㎡` : '-');
 }
 
+function getSuggestionColor(level: string) {
+  if (level === 'danger') {
+    return 'red';
+  }
+  if (level === 'success') {
+    return 'green';
+  }
+  return 'orange';
+}
+
 function goToLeadDetail(leadId: number) {
   const detailBasePath = route.path.includes('/mobile-dashboard')
     ? '/investment/radar/mobile'
@@ -207,7 +364,7 @@ async function loadDashboard() {
   loading.value = true;
   loadError.value = '';
   try {
-    const [leadResult, opportunityResult] = await Promise.all([
+    const [leadResult, opportunityResult, analysisResult] = await Promise.all([
       getRadarLeadList({
         currentPage: 1,
         pageSize: 8,
@@ -216,12 +373,14 @@ async function loadDashboard() {
         currentPage: 1,
         pageSize: 6,
       }),
+      getRadarAnalysisSummary(),
     ]);
 
     leads.value = Array.isArray(leadResult.items) ? leadResult.items : [];
     opportunities.value = Array.isArray(opportunityResult.items)
       ? opportunityResult.items
       : [];
+    analysis.value = analysisResult;
 
     const possibleTaskId = window.sessionStorage.getItem(
       'latest_radar_task_id',
@@ -308,6 +467,99 @@ onMounted(() => {
           </div>
         </section>
 
+        <section
+          v-if="analysis && analysis.sourceStats.length > 0"
+          class="radar-mobile-panel"
+        >
+          <div class="radar-mobile-section-title">来源线索贡献</div>
+          <div class="radar-mobile-list">
+            <article
+              v-for="item in analysis.sourceStats.slice(0, 3)"
+              :key="`${item.sourceType}-${item.sourceName}`"
+              class="radar-mobile-card"
+            >
+              <div class="radar-mobile-card-head">
+                <div>
+                  <div class="radar-mobile-card-title">
+                    {{ item.sourceName }}
+                  </div>
+                  <div class="radar-mobile-card-subtitle">
+                    {{ item.sourceType }}
+                  </div>
+                </div>
+                <Tag color="green">{{ item.conversionRate }}%</Tag>
+              </div>
+              <div class="radar-mobile-card-meta">
+                <span>线索数：{{ item.totalLeads }}</span>
+                <span>高可信：{{ item.highConfidenceLeads }}</span>
+                <span>转雷达：{{ item.convertedLeads }}</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section
+          v-if="analysis && analysis.signalTypeStats.length > 0"
+          class="radar-mobile-panel"
+        >
+          <div class="radar-mobile-section-title">信号类型转化</div>
+          <div class="radar-mobile-list">
+            <article
+              v-for="item in analysis.signalTypeStats.slice(0, 3)"
+              :key="item.eventType"
+              class="radar-mobile-card"
+            >
+              <div class="radar-mobile-card-head">
+                <div>
+                  <div class="radar-mobile-card-title">
+                    {{ item.eventType }}
+                  </div>
+                  <div class="radar-mobile-card-subtitle">
+                    事件 {{ item.totalEvents }} / 雷达 {{ item.radarLeads }}
+                  </div>
+                </div>
+                <Tag color="blue">带看 {{ item.visitRate }}%</Tag>
+              </div>
+              <div class="radar-mobile-card-meta">
+                <span>转线索：{{ item.convertedEvents }}</span>
+                <span>带看：{{ item.visitLeads }}</span>
+                <span>成交：{{ item.dealLeads }}</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section
+          v-if="analysis && analysis.ownerStats.length > 0"
+          class="radar-mobile-panel"
+        >
+          <div class="radar-mobile-section-title">销售跟进效率</div>
+          <div class="radar-mobile-list">
+            <article
+              v-for="item in analysis.ownerStats.slice(0, 3)"
+              :key="item.ownerUserId ?? item.ownerName"
+              class="radar-mobile-card"
+            >
+              <div class="radar-mobile-card-head">
+                <div>
+                  <div class="radar-mobile-card-title">
+                    {{ item.ownerName }}
+                  </div>
+                  <div class="radar-mobile-card-subtitle">
+                    线索 {{ item.totalLeads }} / 跟进 {{ item.followCount }}
+                  </div>
+                </div>
+                <Tag color="purple">{{ item.contactRate }}%</Tag>
+              </div>
+              <div class="radar-mobile-card-meta">
+                <span>已联系：{{ item.contactedLeads }}</span>
+                <span>首联：{{ item.firstContactAvgHours }}h</span>
+                <span>成交：{{ item.dealLeads }}</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
         <section class="radar-mobile-panel">
           <div class="radar-mobile-section-title">最近同步状态</div>
           <div class="radar-mobile-status">
@@ -333,6 +585,43 @@ onMounted(() => {
           <p v-if="latestTask?.errorReason" class="radar-mobile-error">
             {{ latestTask.errorReason }}
           </p>
+        </section>
+
+        <section v-if="analysis" class="radar-mobile-panel">
+          <div class="radar-mobile-section-title">效果分析</div>
+          <div class="radar-mobile-status">
+            <div>
+              <span>触达率</span>
+              <strong>{{ analysis.funnel.contactRate }}%</strong>
+            </div>
+            <div>
+              <span>回复率</span>
+              <strong>{{ analysis.funnel.replyRate }}%</strong>
+            </div>
+            <div>
+              <span>带看率</span>
+              <strong>{{ analysis.funnel.visitRate }}%</strong>
+            </div>
+            <div>
+              <span>成交率</span>
+              <strong>{{ analysis.funnel.dealRate }}%</strong>
+            </div>
+          </div>
+          <div
+            v-if="analysis.suggestions.length > 0"
+            class="radar-mobile-suggestions"
+          >
+            <div
+              v-for="item in analysis.suggestions"
+              :key="item.title"
+              class="radar-mobile-suggestion"
+            >
+              <Tag :color="getSuggestionColor(item.level)">
+                {{ item.title }}
+              </Tag>
+              <p>{{ item.content }}</p>
+            </div>
+          </div>
         </section>
 
         <section class="radar-mobile-panel">
@@ -419,6 +708,16 @@ onMounted(() => {
       <Alert v-if="loadError" :message="loadError" show-icon type="warning" />
 
       <template v-if="loading">
+        <Card v-if="analysis" title="来源线索贡献">
+          <Table
+            :columns="sourceColumns"
+            :data-source="analysis.sourceStats"
+            :pagination="false"
+            row-key="sourceName"
+            size="small"
+          />
+        </Card>
+
         <Row :gutter="[16, 16]">
           <Col v-for="item in 4" :key="item" :lg="6" :md="12" :sm="12" :xs="24">
             <Card>
@@ -451,6 +750,114 @@ onMounted(() => {
             </Card>
           </Col>
         </Row>
+
+        <Row v-if="analysis" :gutter="[16, 16]">
+          <Col :lg="6" :md="12" :sm="12" :xs="24">
+            <Card>
+              <Statistic
+                suffix="%"
+                title="触达率"
+                :value="analysis.funnel.contactRate"
+              />
+            </Card>
+          </Col>
+          <Col :lg="6" :md="12" :sm="12" :xs="24">
+            <Card>
+              <Statistic
+                suffix="%"
+                title="回复率"
+                :value="analysis.funnel.replyRate"
+              />
+            </Card>
+          </Col>
+          <Col :lg="6" :md="12" :sm="12" :xs="24">
+            <Card>
+              <Statistic
+                suffix="%"
+                title="带看率"
+                :value="analysis.funnel.visitRate"
+              />
+            </Card>
+          </Col>
+          <Col :lg="6" :md="12" :sm="12" :xs="24">
+            <Card>
+              <Statistic
+                suffix="%"
+                title="成交率"
+                :value="analysis.funnel.dealRate"
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        <Row v-if="analysis" :gutter="[16, 16]">
+          <Col :lg="12" :md="24" :sm="24" :xs="24">
+            <Card title="渠道转化排行">
+              <Table
+                :columns="channelColumns"
+                :data-source="analysis.channelStats"
+                :pagination="false"
+                row-key="channel"
+                size="small"
+              />
+            </Card>
+          </Col>
+          <Col :lg="12" :md="24" :sm="24" :xs="24">
+            <Card title="话术效果排行">
+              <Table
+                :columns="templateColumns"
+                :data-source="analysis.templateStats"
+                :pagination="false"
+                row-key="templateCode"
+                size="small"
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        <Row v-if="analysis" :gutter="[16, 16]">
+          <Col :lg="12" :md="24" :sm="24" :xs="24">
+            <Card title="信号类型转化">
+              <Table
+                :columns="signalTypeColumns"
+                :data-source="analysis.signalTypeStats"
+                :pagination="false"
+                row-key="eventType"
+                size="small"
+              />
+            </Card>
+          </Col>
+          <Col :lg="12" :md="24" :sm="24" :xs="24">
+            <Card title="销售跟进效率">
+              <Table
+                :columns="ownerColumns"
+                :data-source="analysis.ownerStats"
+                :pagination="false"
+                row-key="ownerName"
+                size="small"
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        <Card v-if="analysis" title="策略建议">
+          <div
+            v-if="analysis.suggestions.length > 0"
+            class="radar-suggestion-list"
+          >
+            <div
+              v-for="item in analysis.suggestions"
+              :key="item.title"
+              class="radar-suggestion-item"
+            >
+              <Tag :color="getSuggestionColor(item.level)">
+                {{ item.title }}
+              </Tag>
+              <span>{{ item.content }}</span>
+            </div>
+          </div>
+          <Empty v-else description="暂无策略建议" />
+        </Card>
 
         <Row :gutter="[16, 16]">
           <Col :lg="14" :md="24" :sm="24" :xs="24">
@@ -684,5 +1091,34 @@ button.radar-mobile-card {
   color: var(--ant-color-text-secondary);
   font-size: 13px;
   line-height: 20px;
+}
+
+.radar-mobile-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.radar-mobile-suggestion p {
+  margin: 6px 0 0;
+  color: var(--ant-color-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.radar-suggestion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.radar-suggestion-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  color: var(--ant-color-text);
+  font-size: 14px;
+  line-height: 22px;
 }
 </style>

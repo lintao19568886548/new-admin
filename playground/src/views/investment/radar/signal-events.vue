@@ -102,6 +102,12 @@ const statusOptions: Array<{ label: string; value: '' | SignalEventStatus }> = [
   { label: '已转潜客', value: 'CONVERTED' },
   { label: '已忽略', value: 'IGNORED' },
 ];
+const sourceTypeOptions = [
+  { label: '全部来源类型', value: '' },
+  { label: '内部合同', value: 'INTERNAL_CONTRACT' },
+  { label: '公开机会', value: 'PUBLIC_OPPORTUNITY' },
+  { label: 'Demo', value: 'DEMO' },
+];
 const eventTypeMeta: Record<SignalEventType, { color: string; label: string }> =
   {
     EIA_EXPAND: { color: 'red', label: '环评扩产' },
@@ -500,6 +506,13 @@ onMounted(() => {
             @press-enter="searchEvents"
           />
         </Form.Item>
+        <Form.Item label="来源类型">
+          <Select
+            v-model:value="searchForm.sourceType"
+            class="radar-filter-control"
+            :options="sourceTypeOptions"
+          />
+        </Form.Item>
         <Form.Item>
           <Space>
             <Button type="primary" @click="searchEvents">查询</Button>
@@ -546,7 +559,12 @@ onMounted(() => {
     >
       <div v-if="detailLoading" class="py-8 text-center">加载中...</div>
       <template v-else-if="currentEvent">
-        <Descriptions bordered :column="2" size="small">
+        <Descriptions
+          bordered
+          :column="2"
+          class="signal-event-detail"
+          size="small"
+        >
           <Descriptions.Item label="企业">
             {{ currentEvent.companyName }}
           </Descriptions.Item>
@@ -684,7 +702,17 @@ onMounted(() => {
 
 .evidence-text {
   margin: 0;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.signal-event-detail {
+  :deep(.ant-descriptions-item-content) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
 }
 
 .radar-search-form {

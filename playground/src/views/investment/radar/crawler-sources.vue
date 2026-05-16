@@ -30,26 +30,33 @@ import {
   enableCrawlerSource,
   getCrawlerSourceList,
   runCrawlerTask,
+  runInternalContractExpiryTask,
   runPublicOpportunityCrawlerTask,
+  syncInternalContractExpiryToRadar,
   updateCrawlerSource,
 } from '#/api/investment';
 
 defineOptions({ name: 'InvestmentRadarCrawlerSources' });
 
 const DEMO_SOURCE_CODE = 'DEMO_EXTERNAL_LEAD';
+const INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE = 'INTERNAL_CONTRACT_EXPIRY';
 const PUBLIC_FACTORY_LISTING_SOURCE_CODE = 'PUBLIC_FACTORY_LISTING_CFZSW68';
 const PUBLIC_OPPORTUNITY_SOURCE_CODE = 'PUBLIC_OPPORTUNITY_99CFW';
 
 const loading = ref(false);
 const saving = ref(false);
 const runningDemo = ref(false);
+const runningInternalContract = ref(false);
+const syncingInternalContract = ref(false);
 const runningPilot = ref(false);
 const editOpen = ref(false);
 const items = ref<CrawlerSource[]>([]);
 const currentSource = ref<CrawlerSource | null>(null);
 const lastRunResult = ref<null | {
+  convertedCount?: number;
   createdLeadCount: number;
   fetchedCount: number;
+  reusedCount?: number;
   skippedCount: number;
   status: string;
   taskId: number;
@@ -252,6 +259,49 @@ async function runDemoTask() {
   }
 }
 
+async function runInternalContractTask() {
+  if (runningInternalContract.value) {
+    return;
+  }
+  runningInternalContract.value = true;
+  try {
+    const task = await runInternalContractExpiryTask();
+    rememberRunResult(task);
+    message.success(`内部合同到期任务已结束：#${task.taskId} / ${task.status}`);
+    await loadSources();
+  } catch (error) {
+    console.error('run internal contract expiry task failed:', error);
+    message.error('运行内部合同到期任务失败');
+  } finally {
+    runningInternalContract.value = false;
+  }
+}
+
+async function syncInternalContractTask() {
+  if (syncingInternalContract.value) {
+    return;
+  }
+  syncingInternalContract.value = true;
+  try {
+    const result = await syncInternalContractExpiryToRadar();
+    rememberRunResult(result.task);
+    lastRunResult.value = {
+      ...lastRunResult.value!,
+      convertedCount: result.convertedCount,
+      reusedCount: result.reusedCount,
+    };
+    message.success(
+      `内部合同已同步：转雷达 ${result.convertedCount} 条，复用 ${result.reusedCount} 条`,
+    );
+    await loadSources();
+  } catch (error) {
+    console.error('sync internal contract expiry failed:', error);
+    message.error('同步内部合同到雷达失败');
+  } finally {
+    syncingInternalContract.value = false;
+  }
+}
+
 async function runPublicOpportunityPilot(
   sourceCode = PUBLIC_OPPORTUNITY_SOURCE_CODE,
 ) {
@@ -281,6 +331,14 @@ function renderSourceType(record: CrawlerSource) {
   return h(Tag, { color }, () => record.sourceType);
 }
 
+function renderAdapterStatus(record: CrawlerSource) {
+  return h(
+    Tag,
+    { color: record.adapterStatus === 'READY' ? 'green' : 'orange' },
+    () => (record.adapterStatus === 'READY' ? '已接适配器' : '候选源'),
+  );
+}
+
 const columns: TableColumnsType<CrawlerSource> = [
   {
     dataIndex: 'sourceCode',
@@ -300,6 +358,13 @@ const columns: TableColumnsType<CrawlerSource> = [
     key: 'sourceType',
     title: 'sourceType',
     width: 150,
+  },
+  {
+    customRender: ({ record }) => renderAdapterStatus(record),
+    dataIndex: 'adapterStatus',
+    key: 'adapterStatus',
+    title: 'adapter',
+    width: 120,
   },
   {
     customRender: ({ record }) =>
@@ -378,7 +443,33 @@ const columns: TableColumnsType<CrawlerSource> = [
         h(
           Button,
           {
-            disabled: !isPublicOpportunitySourceCode(record.sourceCode),
+            disabled:
+              record.sourceCode !== INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE,
+            loading: runningInternalContract.value,
+            onClick: () => void runInternalContractTask(),
+            size: 'small',
+            type: 'link',
+          },
+          () => '运行内部合同',
+        ),
+        h(
+          Button,
+          {
+            disabled:
+              record.sourceCode !== INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE,
+            loading: syncingInternalContract.value,
+            onClick: () => void syncInternalContractTask(),
+            size: 'small',
+            type: 'link',
+          },
+          () => '同步雷达',
+        ),
+        h(
+          Button,
+          {
+            disabled:
+              record.adapterStatus !== 'READY' ||
+              !isPublicOpportunitySourceCode(record.sourceCode),
             loading: runningPilot.value,
             onClick: () => void runPublicOpportunityPilot(record.sourceCode),
             size: 'small',
@@ -421,12 +512,30 @@ onMounted(() => {
         >
           运行 99cfw 试点采集
         </Button>
+        <Button
+          :loading="runningInternalContract"
+          type="primary"
+          @click="runInternalContractTask"
+        >
+          运行内部合同到期
+        </Button>
+        <Button
+          :loading="syncingInternalContract"
+          type="primary"
+          @click="syncInternalContractTask"
+        >
+          同步内部合同到雷达
+        </Button>
         <span v-if="lastRunResult" class="text-text-secondary text-sm">
           最近任务 #{{ lastRunResult.taskId }} / {{ lastRunResult.taskType }}：
           {{ lastRunResult.status }}，抓取 {{ lastRunResult.fetchedCount }}，
           新增 {{ lastRunResult.createdLeadCount }}，更新
           {{ lastRunResult.updatedLeadCount }}，跳过
           {{ lastRunResult.skippedCount }}
+          <template v-if="lastRunResult.convertedCount !== undefined">
+            ，转雷达 {{ lastRunResult.convertedCount }}，复用
+            {{ lastRunResult.reusedCount || 0 }}
+          </template>
         </span>
       </Space>
     </Card>

@@ -33,7 +33,9 @@ import {
   enableCrawlerSource,
   getCrawlerSourceList,
   runCrawlerTask,
+  runInternalContractExpiryTask,
   runPublicOpportunityCrawlerTask,
+  syncInternalContractExpiryToRadar,
   updateCrawlerSource,
 } from '#/api/investment';
 
@@ -42,19 +44,24 @@ import { formatDateOnly } from './mobile-utils';
 defineOptions({ name: 'InvestmentRadarMobileCrawlerSources' });
 
 const DEMO_SOURCE_CODE = 'DEMO_EXTERNAL_LEAD';
+const INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE = 'INTERNAL_CONTRACT_EXPIRY';
 const PUBLIC_FACTORY_LISTING_SOURCE_CODE = 'PUBLIC_FACTORY_LISTING_CFZSW68';
 const PUBLIC_OPPORTUNITY_SOURCE_CODE = 'PUBLIC_OPPORTUNITY_99CFW';
 
 const loading = ref(false);
 const saving = ref(false);
 const runningDemo = ref(false);
+const runningInternalContract = ref(false);
 const runningPilot = ref(false);
+const syncingInternalContract = ref(false);
 const editOpen = ref(false);
 const items = ref<CrawlerSource[]>([]);
 const currentSource = ref<CrawlerSource | null>(null);
 const lastRunResult = ref<null | {
+  convertedCount?: number;
   createdLeadCount: number;
   fetchedCount: number;
+  reusedCount?: number;
   skippedCount: number;
   status: string;
   taskId: number;
@@ -250,6 +257,49 @@ async function runDemoTask() {
   }
 }
 
+async function runInternalContractTask() {
+  if (runningInternalContract.value) {
+    return;
+  }
+  runningInternalContract.value = true;
+  try {
+    const task = await runInternalContractExpiryTask();
+    rememberRunResult(task);
+    message.success(`内部合同到期任务已结束：#${task.taskId} / ${task.status}`);
+    await loadSources();
+  } catch (error) {
+    console.error('运行内部合同到期任务失败:', error);
+    message.error('运行内部合同到期任务失败');
+  } finally {
+    runningInternalContract.value = false;
+  }
+}
+
+async function syncInternalContractTask() {
+  if (syncingInternalContract.value) {
+    return;
+  }
+  syncingInternalContract.value = true;
+  try {
+    const result = await syncInternalContractExpiryToRadar();
+    rememberRunResult(result.task);
+    lastRunResult.value = {
+      ...lastRunResult.value!,
+      convertedCount: result.convertedCount,
+      reusedCount: result.reusedCount,
+    };
+    message.success(
+      `内部合同已同步：转雷达 ${result.convertedCount} 条，复用 ${result.reusedCount} 条`,
+    );
+    await loadSources();
+  } catch (error) {
+    console.error('同步内部合同到雷达失败:', error);
+    message.error('同步内部合同到雷达失败');
+  } finally {
+    syncingInternalContract.value = false;
+  }
+}
+
 async function runPublicOpportunityPilot(
   sourceCode = PUBLIC_OPPORTUNITY_SOURCE_CODE,
 ) {
@@ -279,6 +329,13 @@ function renderSourceType(source: CrawlerSource) {
   return { color, label: source.sourceType };
 }
 
+function renderAdapterStatus(source: CrawlerSource) {
+  return {
+    color: source.adapterStatus === 'READY' ? 'green' : 'orange',
+    label: source.adapterStatus === 'READY' ? '已接适配器' : '候选源',
+  };
+}
+
 onMounted(() => {
   void loadSources();
 });
@@ -291,11 +348,31 @@ onMounted(() => {
         <ReloadOutlined class="mr-1 h-4 w-4" />
         刷新
       </Button>
+      <Button
+        :loading="runningInternalContract"
+        type="primary"
+        @click="runInternalContractTask"
+      >
+        <ThunderboltOutlined class="mr-1 h-4 w-4" />
+        运行内部合同
+      </Button>
+      <Button
+        :loading="syncingInternalContract"
+        type="primary"
+        @click="syncInternalContractTask"
+      >
+        <ThunderboltOutlined class="mr-1 h-4 w-4" />
+        同步雷达
+      </Button>
     </div>
 
     <Alert
       v-if="lastRunResult"
-      message="最近任务 #{{ lastRunResult.taskId }} / {{ lastRunResult.taskType }}：{{ lastRunResult.status }}，抓取 {{ lastRunResult.fetchedCount }}，新增 {{ lastRunResult.createdLeadCount }}，更新 {{ lastRunResult.updatedLeadCount }}，跳过 {{ lastRunResult.skippedCount }}"
+      :message="`最近任务 #${lastRunResult.taskId} / ${lastRunResult.taskType}：${lastRunResult.status}，抓取 ${lastRunResult.fetchedCount}，新增 ${lastRunResult.createdLeadCount}，更新 ${lastRunResult.updatedLeadCount}，跳过 ${lastRunResult.skippedCount}${
+        lastRunResult.convertedCount === undefined
+          ? ''
+          : `，转雷达 ${lastRunResult.convertedCount}，复用 ${lastRunResult.reusedCount || 0}`
+      }`"
       show-icon
       type="info"
     />
@@ -331,6 +408,9 @@ onMounted(() => {
             <div class="radar-card-tags-row">
               <Tag :color="renderSourceType(item).color">
                 {{ renderSourceType(item).label }}
+              </Tag>
+              <Tag :color="renderAdapterStatus(item).color">
+                {{ renderAdapterStatus(item).label }}
               </Tag>
               <Tag :color="item.enabled ? 'green' : 'red'">
                 {{ item.enabled ? '启用' : '停用' }}
@@ -437,6 +517,41 @@ onMounted(() => {
               size="small"
               class="radar-action-btn"
               :type="
+                item.sourceCode === INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE
+                  ? 'primary'
+                  : 'default'
+              "
+              :loading="
+                runningInternalContract &&
+                item.sourceCode === INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE
+              "
+              :disabled="
+                item.sourceCode !== INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE
+              "
+              @click="runInternalContractTask"
+            >
+              <ThunderboltOutlined class="mr-1 h-4 w-4" />
+              运行内部合同
+            </Button>
+            <Button
+              size="small"
+              class="radar-action-btn"
+              :loading="
+                syncingInternalContract &&
+                item.sourceCode === INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE
+              "
+              :disabled="
+                item.sourceCode !== INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE
+              "
+              @click="syncInternalContractTask"
+            >
+              <ThunderboltOutlined class="mr-1 h-4 w-4" />
+              同步雷达
+            </Button>
+            <Button
+              size="small"
+              class="radar-action-btn"
+              :type="
                 isPublicOpportunitySourceCode(item.sourceCode)
                   ? 'primary'
                   : 'default'
@@ -444,7 +559,10 @@ onMounted(() => {
               :loading="
                 runningPilot && isPublicOpportunitySourceCode(item.sourceCode)
               "
-              :disabled="!isPublicOpportunitySourceCode(item.sourceCode)"
+              :disabled="
+                item.adapterStatus !== 'READY' ||
+                !isPublicOpportunitySourceCode(item.sourceCode)
+              "
               @click="runPublicOpportunityPilot(item.sourceCode)"
             >
               <ThunderboltOutlined class="mr-1 h-4 w-4" />
