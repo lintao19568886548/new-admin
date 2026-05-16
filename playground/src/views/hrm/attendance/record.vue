@@ -135,9 +135,6 @@ const getDeviceAbnormalTypesText = (
       if (type === 'same_device_multi_account') {
         return '同设备多账号';
       }
-      if (type === 'device_credential_mismatch') {
-        return '设备凭证异常';
-      }
       return '设备异常';
     })
     .filter(Boolean);

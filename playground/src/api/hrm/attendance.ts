@@ -9,7 +9,6 @@ const ATTENDANCE_DEVICE_API = `${API.ATTENDANCE}/device`;
 export type AttendanceLeaveScope = 'full' | 'none' | 'partial';
 export type AttendanceDeviceAbnormalType =
   | 'device_changed'
-  | 'device_credential_mismatch'
   | 'same_device_multi_account'
   | string;
 export type AttendanceDeviceRecordStatus = 'abnormal' | 'normal';
@@ -63,14 +62,9 @@ export interface AttendanceConfig {
 }
 
 export type AttendanceDeviceAction = 'punch_in' | 'punch_out';
-export type AttendanceDeviceStatus =
-  | 'abnormal'
-  | 'bind_required'
-  | 'credential_required'
-  | 'normal';
+export type AttendanceDeviceStatus = 'abnormal' | 'bind_required' | 'normal';
 
 export interface AttendanceDeviceInfo {
-  deviceBindToken?: null | string;
   deviceId: string;
   deviceLabel?: null | string;
   deviceModel?: null | string;
@@ -80,9 +74,7 @@ export interface AttendanceDeviceInfo {
 }
 
 export interface AttendanceDeviceBinding extends AttendanceDeviceInfo {
-  deviceCredentialFingerprint?: null | string;
   firstBindTime?: null | string;
-  hasDeviceCredential: boolean;
   id: number;
   userId: number;
 }
@@ -96,9 +88,7 @@ export interface AttendanceDeviceDuplicateUser {
 export interface AttendanceDeviceDecision {
   abnormalTypes: string[];
   binding: AttendanceDeviceBinding | null;
-  currentDeviceCredentialFingerprint?: null | string;
   device: AttendanceDeviceInfo;
-  deviceBindToken?: string;
   duplicateUsers: AttendanceDeviceDuplicateUser[];
   message: string;
   status: AttendanceDeviceStatus;

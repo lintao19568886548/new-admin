@@ -7,7 +7,6 @@ const API = {
 export namespace TrajectoryApi {
   export type AttendanceDeviceAbnormalType =
     | 'device_changed'
-    | 'device_credential_mismatch'
     | 'same_device_multi_account'
     | string;
   export type AttendanceDeviceRecordStatus = 'abnormal' | 'normal';

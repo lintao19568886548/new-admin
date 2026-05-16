@@ -95,13 +95,7 @@ export default eventHandler(async (event) => {
       user: userinfo,
     });
 
-    return useResponseSuccess(
-      {
-        ...newAttendance,
-        deviceBindToken: deviceDecision.deviceBindToken,
-      },
-      '打卡成功',
-    );
+    return useResponseSuccess(newAttendance, '打卡成功');
   } catch (error: any) {
     if (error instanceof AttendanceDeviceError) {
       return useResponseError(error.message, {

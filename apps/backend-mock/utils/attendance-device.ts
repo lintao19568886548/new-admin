@@ -1,25 +1,17 @@
-import { createHash, randomBytes } from 'node:crypto';
-
 import { Prisma } from '@prisma/.prisma/client/index.js';
 import { prismaClient } from '~/utils/db';
 
 export type AttendanceDeviceAction = 'punch_in' | 'punch_out';
 export type AttendanceDeviceAbnormalType =
   | 'device_changed'
-  | 'device_credential_mismatch'
   | 'same_device_multi_account'
   | string;
 export type AttendanceDeviceRecordStatus = 'abnormal' | 'normal';
-export type AttendanceDeviceStatus =
-  | 'abnormal'
-  | 'bind_required'
-  | 'credential_required'
-  | 'normal';
+export type AttendanceDeviceStatus = 'abnormal' | 'bind_required' | 'normal';
 
 const schemaReadyDatabases = new Set<string>();
 
 export interface AttendanceDeviceInput {
-  deviceBindToken?: unknown;
   deviceId?: unknown;
   deviceLabel?: unknown;
   deviceModel?: unknown;
@@ -38,7 +30,6 @@ interface BindingRow {
   deviceId: string;
   deviceModel: null | string;
   deviceSystem: null | string;
-  deviceTokenHash: null | string;
   firstBindTime: Date | null | string;
   id: bigint | number;
   userId: number;
@@ -68,22 +59,16 @@ export interface AttendanceDevicePublicInfo {
   deviceSystem: null | string;
 }
 
-export interface NormalizedAttendanceDevice extends AttendanceDevicePublicInfo {
-  deviceBindToken: null | string;
-}
+export type NormalizedAttendanceDevice = AttendanceDevicePublicInfo;
 
 export interface SerializedAttendanceDeviceBinding extends AttendanceDevicePublicInfo {
-  deviceCredentialFingerprint: null | string;
   firstBindTime: null | string;
-  hasDeviceCredential: boolean;
   id: number;
   userId: number;
 }
 
 interface ActiveAttendanceDeviceBinding extends AttendanceDevicePublicInfo {
-  deviceTokenHash: null | string;
   firstBindTime: null | string;
-  hasDeviceCredential: boolean;
   id: number;
   userId: number;
 }
@@ -98,9 +83,7 @@ export interface AttendanceDeviceDecision {
   abnormalTypes: string[];
   binding: null | SerializedAttendanceDeviceBinding;
   compatibilityMode?: 'legacy_app';
-  currentDeviceCredentialFingerprint: null | string;
   device: AttendanceDevicePublicInfo;
-  deviceBindToken?: string;
   duplicateUsers: AttendanceDeviceDuplicateUser[];
   message: string;
   status: AttendanceDeviceStatus;
@@ -130,25 +113,6 @@ export class AttendanceDeviceError extends Error {
   }
 }
 
-function createDeviceBindToken() {
-  return `adb_${randomBytes(32).toString('base64url')}`;
-}
-
-function hashDeviceBindToken(token: null | string | undefined) {
-  const normalizedToken = String(token ?? '').trim();
-  if (!normalizedToken) {
-    return null;
-  }
-  return createHash('sha256').update(normalizedToken).digest('hex');
-}
-
-function buildDeviceCredentialFingerprint(tokenHash: null | string) {
-  if (!tokenHash) {
-    return null;
-  }
-  return `${tokenHash.slice(0, 8)}...${tokenHash.slice(-6)}`;
-}
-
 async function ensureAttendanceDeviceSchema() {
   const databaseRows = await prismaClient.$queryRaw<
     Array<{ databaseName: null | string }>
@@ -158,26 +122,6 @@ async function ensureAttendanceDeviceSchema() {
   const databaseName = databaseRows[0]?.databaseName || 'default';
   if (schemaReadyDatabases.has(databaseName)) {
     return;
-  }
-
-  const columnRows = await prismaClient.$queryRaw<
-    Array<{ columnName: string }>
-  >(
-    Prisma.sql`
-      SELECT COLUMN_NAME AS columnName
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'attendance_device_binding'
-        AND COLUMN_NAME = 'device_token_hash'
-      LIMIT 1
-    `,
-  );
-
-  if (columnRows.length === 0) {
-    await prismaClient.$executeRaw(Prisma.sql`
-      ALTER TABLE attendance_device_binding
-      ADD COLUMN device_token_hash varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '设备绑定凭证哈希，后端不保存明文凭证' AFTER device_id
-    `);
   }
 
   const abnormalTypeRows = await prismaClient.$queryRaw<
@@ -197,13 +141,15 @@ async function ensureAttendanceDeviceSchema() {
   `);
   const abnormalTypeLength = abnormalTypeRows[0]?.characterMaximumLength ?? 191;
   const abnormalTypeComment = abnormalTypeRows[0]?.columnComment ?? '';
+  const abnormalTypeTargetComment =
+    '异常类型：device_changed更换设备，same_device_multi_account同设备多账号，多个类型用逗号分隔';
   if (
     abnormalTypeLength < 191 ||
-    !abnormalTypeComment.includes('device_credential_mismatch')
+    abnormalTypeComment !== abnormalTypeTargetComment
   ) {
     await prismaClient.$executeRaw(Prisma.sql`
       ALTER TABLE attendance_device_abnormal_log
-      MODIFY COLUMN abnormal_type varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '异常类型：device_changed更换设备，device_credential_mismatch设备凭证异常，same_device_multi_account同设备多账号，多个类型用逗号分隔'
+      MODIFY COLUMN abnormal_type varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '异常类型：device_changed更换设备，same_device_multi_account同设备多账号，多个类型用逗号分隔'
     `);
   }
 
@@ -224,7 +170,6 @@ function buildLegacyAppDeviceDecision(): AttendanceDeviceDecision {
     abnormalTypes: [],
     binding: null,
     compatibilityMode: 'legacy_app',
-    currentDeviceCredentialFingerprint: null,
     device: {
       deviceId: 'legacy-app-compatible',
       deviceLabel: '旧版本App兼容模式',
@@ -267,9 +212,7 @@ function serializeBinding(row: BindingRow): ActiveAttendanceDeviceBinding {
   return {
     ...device,
     deviceLabel: buildDeviceLabel(device),
-    deviceTokenHash: row.deviceTokenHash,
     firstBindTime: serializeDate(row.firstBindTime),
-    hasDeviceCredential: Boolean(row.deviceTokenHash),
     id: Number(row.id),
     userId: Number(row.userId),
   };
@@ -284,14 +227,10 @@ function toPublicBinding(
 
   return {
     deviceId: binding.deviceId,
-    deviceCredentialFingerprint: buildDeviceCredentialFingerprint(
-      binding.deviceTokenHash,
-    ),
     deviceLabel: binding.deviceLabel,
     deviceModel: binding.deviceModel,
     deviceSystem: binding.deviceSystem,
     firstBindTime: binding.firstBindTime,
-    hasDeviceCredential: binding.hasDeviceCredential,
     id: binding.id,
     userId: binding.userId,
   };
@@ -345,7 +284,6 @@ export function normalizeAttendanceDevice(
     null;
 
   return {
-    deviceBindToken: normalizeString(input.deviceBindToken, 256),
     deviceId,
     deviceLabel: normalizeString(input.deviceLabel, 191),
     deviceModel: normalizeString(input.deviceModel, 191),
@@ -363,7 +301,6 @@ async function getActiveBinding(userId: number) {
       device_id AS deviceId,
       device_model AS deviceModel,
       device_system AS deviceSystem,
-      device_token_hash AS deviceTokenHash,
       first_bind_time AS firstBindTime
     FROM attendance_device_binding
     WHERE user_id = ${userId}
@@ -429,18 +366,9 @@ function buildDeviceDecisionMessage(params: {
         '更换设备打卡：当前设备与账号已绑定设备不一致，如确需换机请发起考勤设备更换',
       );
     }
-    if (params.abnormalTypes.includes('device_credential_mismatch')) {
-      messages.push(
-        '设备凭证异常：当前设备凭证不一致，可能是网页缓存、小程序本地缓存被清理，或退出后重新生成了设备凭证',
-      );
-    }
     const prefix =
       params.abnormalTypes.length > 1 ? '检测到多项设备异常：\n' : '';
     return `${prefix}${messages.join('\n')}\n是否继续打卡？`;
-  }
-
-  if (params.status === 'credential_required') {
-    return '当前设备缺少打卡凭证，可能是首次启用设备凭证校验，或网页/小程序本地凭证丢失，是否获取设备凭证并继续打卡？';
   }
 
   return '当前设备校验通过';
@@ -467,37 +395,19 @@ export async function getAttendanceDeviceStatus(params: {
   if (isDeviceChanged) {
     abnormalTypes.push('device_changed');
   }
-  if (
-    !isDeviceChanged &&
-    binding?.deviceTokenHash &&
-    hashDeviceBindToken(device.deviceBindToken) !== binding.deviceTokenHash
-  ) {
-    abnormalTypes.push('device_credential_mismatch');
-  }
   if (duplicateUsers.length > 0) {
     abnormalTypes.push('same_device_multi_account');
   }
 
   let status: AttendanceDeviceStatus = 'bind_required';
   if (binding) {
-    const shouldIssueCredential =
-      !binding.deviceTokenHash &&
-      binding.deviceId === device.deviceId &&
-      !abnormalTypes.includes('device_changed');
-    if (shouldIssueCredential) {
-      status = 'credential_required';
-    } else {
-      status = abnormalTypes.length > 0 ? 'abnormal' : 'normal';
-    }
+    status = abnormalTypes.length > 0 ? 'abnormal' : 'normal';
   }
   const publicBinding = toPublicBinding(binding);
 
   return {
     abnormalTypes,
     binding: publicBinding,
-    currentDeviceCredentialFingerprint: buildDeviceCredentialFingerprint(
-      hashDeviceBindToken(device.deviceBindToken),
-    ),
     device: toPublicDevice(device),
     duplicateUsers,
     message: buildDeviceDecisionMessage({
@@ -512,7 +422,6 @@ export async function getAttendanceDeviceStatus(params: {
 
 async function createDeviceBinding(params: {
   device: AttendanceDevicePublicInfo;
-  deviceBindToken: string;
   user: AttendanceUserSnapshot;
 }) {
   await ensureAttendanceDeviceSchema();
@@ -521,14 +430,12 @@ async function createDeviceBinding(params: {
     INSERT INTO attendance_device_binding (
       user_id,
       device_id,
-      device_token_hash,
       device_model,
       device_system,
       first_bind_time
     ) VALUES (
       ${params.user.id},
       ${params.device.deviceId},
-      ${hashDeviceBindToken(params.deviceBindToken)},
       ${params.device.deviceModel},
       ${params.device.deviceSystem},
       NOW(3)
@@ -546,27 +453,23 @@ async function bindAttendanceDevice(params: {
 }) {
   await ensureAttendanceDeviceSchema();
 
-  const deviceBindToken = createDeviceBindToken();
   await (params.binding
     ? prismaClient.$executeRaw(Prisma.sql`
       UPDATE attendance_device_binding
       SET
         device_id = ${params.device.deviceId},
-        device_token_hash = ${hashDeviceBindToken(deviceBindToken)},
         device_model = ${params.device.deviceModel},
         device_system = ${params.device.deviceSystem},
         first_bind_time = NOW(3)
       WHERE user_id = ${params.user.id}
-    `)
+      `)
     : createDeviceBinding({
         device: params.device,
-        deviceBindToken,
         user: params.user,
       }));
 
   return {
     binding: toPublicBinding(await getActiveBinding(params.user.id)),
-    deviceBindToken,
   };
 }
 
@@ -598,20 +501,15 @@ export async function prepareAttendanceDeviceForPunch(params: {
     user: params.user,
   });
 
-  if (
-    decision.status === 'bind_required' ||
-    decision.status === 'credential_required'
-  ) {
+  if (decision.status === 'bind_required') {
     if (!params.bindCurrentDevice) {
       throw new AttendanceDeviceError(
         decision.message,
-        decision.status === 'bind_required'
-          ? 'DEVICE_BIND_REQUIRED'
-          : 'DEVICE_CREDENTIAL_REQUIRED',
+        'DEVICE_BIND_REQUIRED',
         decision,
       );
     }
-    const { binding, deviceBindToken } = await bindAttendanceDevice({
+    const { binding } = await bindAttendanceDevice({
       binding: decision.binding,
       device: decision.device,
       user: params.user,
@@ -619,7 +517,6 @@ export async function prepareAttendanceDeviceForPunch(params: {
     return {
       ...decision,
       binding,
-      deviceBindToken,
     };
   }
 
@@ -647,23 +544,17 @@ export async function replaceAttendanceDeviceBinding(params: {
   const device = normalizeAttendanceDevice(params.deviceInput);
   const binding = await getActiveBinding(params.user.id);
 
-  const { deviceBindToken } = await bindAttendanceDevice({
+  await bindAttendanceDevice({
     binding,
     device,
     user: params.user,
   });
   const decision = await getAttendanceDeviceStatus({
-    deviceInput: {
-      ...device,
-      deviceBindToken,
-    },
+    deviceInput: device,
     user: params.user,
   });
 
-  return {
-    ...decision,
-    deviceBindToken,
-  };
+  return decision;
 }
 
 export async function recordAttendanceDeviceAbnormal(params: {

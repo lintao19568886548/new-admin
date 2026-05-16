@@ -16,6 +16,13 @@ const COLORS = {
   usage: '#5ab1ef',
 };
 
+export const REVENUE_COLORS = {
+  expense: COLORS.blue,
+  income: COLORS.green,
+  netExpense: COLORS.red,
+  netIncome: COLORS.orange,
+} as const;
+
 function getSizeValue<T>(screenWidth: number, values: [T, T, T]) {
   if (screenWidth < 768) {
     return values[0];
@@ -836,8 +843,8 @@ export function getRevenueChartConfig(
 ): EChartsOption {
   const legendFontSize = isMobile ? 9 : 11;
   const profitValues = data.profit.map((item) => Number(item || 0));
-  const hasNetExpense = profitValues.some((item) => item < 0);
-  const profitSeriesName = hasNetExpense ? '净收入/净支出' : '净收入';
+  const netIncomeValues = profitValues.map((item) => (item > 0 ? item : null));
+  const netExpenseValues = profitValues.map((item) => (item < 0 ? item : null));
   const valueFormatter = (value: number) =>
     Math.abs(value).toLocaleString('zh-CN', {
       maximumFractionDigits: 2,
@@ -874,7 +881,7 @@ export function getRevenueChartConfig(
     },
     legend: {
       bottom: 0,
-      data: ['收入总额', '支出总额', profitSeriesName],
+      data: ['收入总额', '支出总额', '净收入', '净支出'],
       textStyle: {
         fontSize: legendFontSize,
       },
@@ -883,7 +890,7 @@ export function getRevenueChartConfig(
       {
         barGap: 0.1,
         barMaxWidth: 30,
-        color: COLORS.green,
+        color: REVENUE_COLORS.income,
         data: data.income,
         name: '收入总额',
         type: 'bar',
@@ -891,7 +898,7 @@ export function getRevenueChartConfig(
       {
         barGap: 0.1,
         barMaxWidth: 30,
-        color: COLORS.blue,
+        color: REVENUE_COLORS.expense,
         data: data.expense,
         name: '支出总额',
         type: 'bar',
@@ -899,12 +906,19 @@ export function getRevenueChartConfig(
       {
         barGap: 0.1,
         barMaxWidth: 30,
-        data: profitValues,
-        itemStyle: {
-          color: (params: any) =>
-            Number(params.value || 0) < 0 ? COLORS.red : COLORS.orange,
-        },
-        name: profitSeriesName,
+        color: REVENUE_COLORS.netIncome,
+        data: netIncomeValues,
+        name: '净收入',
+        stack: 'netProfit',
+        type: 'bar',
+      },
+      {
+        barGap: 0.1,
+        barMaxWidth: 30,
+        color: REVENUE_COLORS.netExpense,
+        data: netExpenseValues,
+        name: '净支出',
+        stack: 'netProfit',
         type: 'bar',
       },
     ],
@@ -922,14 +936,12 @@ export function getRevenueChartConfig(
         const month = items[0]?.name || '';
         let result = `<div style="${tooltipContentStyle}"><div>${month}</div>`;
         for (const item of items) {
-          const itemValue = Number(item.value || 0);
-          const isProfitSeries = item.seriesName === profitSeriesName;
-          let label = item.seriesName;
-          if (isProfitSeries) {
-            label = itemValue < 0 ? '净支出' : '净收入';
+          if (item.value === null || item.value === undefined) {
+            continue;
           }
+          const itemValue = Number(item.value || 0);
           const value = valueFormatter(itemValue);
-          result += `<div style="${tooltipRowStyle}">${item.marker}<span style="${tooltipTextStyle}">${label}: ${value}元</span></div>`;
+          result += `<div style="${tooltipRowStyle}">${item.marker}<span style="${tooltipTextStyle}">${item.seriesName}: ${value}元</span></div>`;
         }
         return `${result}</div>`;
       },

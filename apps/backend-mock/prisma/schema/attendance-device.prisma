@@ -6,8 +6,6 @@ model AttendanceDeviceBinding {
   userId        Int      @map("user_id")
   /// 设备唯一标识
   deviceId      String   @map("device_id") @db.VarChar(128)
-  /// 设备绑定凭证哈希，后端不保存明文凭证
-  deviceTokenHash String? @map("device_token_hash") @db.VarChar(64)
   /// 设备型号或浏览器平台信息
   deviceModel   String?  @map("device_model") @db.VarChar(191)
   /// 设备系统信息
@@ -30,7 +28,7 @@ model AttendanceDeviceAbnormalLog {
   attendanceId       Int?      @map("attendance_id")
   /// 打卡动作：punch_in上班，punch_out下班
   action             String    @db.VarChar(30)
-  /// 异常类型：device_changed更换设备，device_credential_mismatch设备凭证异常，same_device_multi_account同设备多账号，多个类型用逗号分隔
+  /// 异常类型：device_changed更换设备，same_device_multi_account同设备多账号，多个类型用逗号分隔
   abnormalType       String    @map("abnormal_type") @db.VarChar(191)
   /// 用户已绑定设备标识
   boundDeviceId      String?   @map("bound_device_id") @db.VarChar(128)
