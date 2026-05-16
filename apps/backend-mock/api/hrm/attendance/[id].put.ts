@@ -119,13 +119,7 @@ export default eventHandler(async (event) => {
       user: userinfo,
     });
 
-    return useResponseSuccess(
-      {
-        ...updatedAttendance,
-        deviceBindToken: deviceDecision.deviceBindToken,
-      },
-      '更新成功',
-    );
+    return useResponseSuccess(updatedAttendance, '更新成功');
   } catch (error: any) {
     if (error instanceof AttendanceDeviceError) {
       return useResponseError(error.message, {

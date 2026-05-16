@@ -60,15 +60,10 @@ const deviceStatusMeta: Record<
   normal: { color: 'green', text: '考勤设备正常' },
 };
 
-const deviceAbnormalTypeOrder = [
-  'same_device_multi_account',
-  'device_changed',
-  'device_credential_mismatch',
-];
+const deviceAbnormalTypeOrder = ['same_device_multi_account', 'device_changed'];
 
 const deviceAbnormalTypeTextMap: Record<string, string> = {
   device_changed: '更换设备打卡',
-  device_credential_mismatch: '设备凭证异常',
   same_device_multi_account: '同设备多账号',
 };
 

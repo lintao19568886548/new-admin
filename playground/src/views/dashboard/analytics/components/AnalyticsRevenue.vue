@@ -19,7 +19,7 @@ import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 import { getDashboardRevenueStats } from '#/api/dashboard';
 
-import { getRevenueChartConfig } from './chartConfigs';
+import { getRevenueChartConfig, REVENUE_COLORS } from './chartConfigs';
 
 interface Props {
   parkId?: ParkOptionValue;
@@ -191,6 +191,11 @@ const revenueTrendData = ref<null | RevenueTrendData>(null);
 const revenueProfitLabel = computed(() =>
   revenueSummary.value.profit < 0 ? '净支出' : '净收入',
 );
+const revenueProfitColor = computed(() =>
+  revenueSummary.value.profit < 0
+    ? REVENUE_COLORS.netExpense
+    : REVENUE_COLORS.netIncome,
+);
 
 const formatAmount = (value: number) =>
   `${Number(value || 0).toLocaleString('zh-CN', {
@@ -240,7 +245,11 @@ watch(
     <div class="mb-3 grid flex-initial grid-cols-3 gap-2">
       <div class="rounded-lg bg-gray-50 p-2">
         <div class="flex items-center gap-1.5">
-          <div class="rounded-full bg-green-500" :class="[dotSize]"></div>
+          <div
+            class="rounded-full"
+            :class="[dotSize]"
+            :style="{ backgroundColor: REVENUE_COLORS.income }"
+          ></div>
           <span class="text-gray-500" :class="[labelFontSize]">收入总额</span>
         </div>
         <div
@@ -255,7 +264,11 @@ watch(
       </div>
       <div class="rounded-lg bg-gray-50 p-2">
         <div class="flex items-center gap-1.5">
-          <div class="rounded-full bg-blue-500" :class="[dotSize]"></div>
+          <div
+            class="rounded-full"
+            :class="[dotSize]"
+            :style="{ backgroundColor: REVENUE_COLORS.expense }"
+          ></div>
           <span class="text-gray-500" :class="[labelFontSize]">支出总额</span>
         </div>
         <div
@@ -270,7 +283,11 @@ watch(
       </div>
       <div class="rounded-lg bg-gray-50 p-2">
         <div class="flex items-center gap-1.5">
-          <div class="rounded-full bg-orange-500" :class="[dotSize]"></div>
+          <div
+            class="rounded-full"
+            :class="[dotSize]"
+            :style="{ backgroundColor: revenueProfitColor }"
+          ></div>
           <span class="text-gray-500" :class="[labelFontSize]">
             {{ revenueProfitLabel }}
           </span>

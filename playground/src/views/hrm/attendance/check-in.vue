@@ -97,7 +97,6 @@ const defaultAttendanceConfig: AttendanceConfig = {
 };
 
 const deviceAbnormalTypePriority = [
-  'device_credential_mismatch',
   'device_changed',
   'same_device_multi_account',
 ];
@@ -112,12 +111,6 @@ const deviceAbnormalTypeMeta: Record<
     reminder:
       '更换设备打卡：当前设备与账号已绑定设备不一致，可能是更换手机，也可能是清除 App 数据、卸载重装或 WebView 存储丢失导致设备标识重新生成。请核实设备归属，确认本人设备后点击考勤设备更换，进行手机号短信验证。',
     text: '更换设备打卡',
-  },
-  device_credential_mismatch: {
-    reason: '网页缓存、小程序本地缓存被清理，或退出后重新生成了设备凭证',
-    reminder:
-      '设备凭证异常：设备标识一致但本地凭证不一致，常见于网页缓存或小程序本地缓存被清理。',
-    text: '设备凭证异常',
   },
   same_device_multi_account: {
     reason: '当前设备已被多个账号用于打卡',
@@ -148,13 +141,9 @@ const deviceSmsModalVisible = ref(false);
 const deviceSmsSending = ref(false);
 const deviceSmsSubmitting = ref(false);
 const deviceSmsTargetDevice = ref<AttendanceDeviceInfo | null>(null);
-const deviceSmsVerificationMode = ref<'credential' | 'device_change'>(
-  'device_change',
-);
 const deviceSmsVerifyPhone = ref('');
 const deviceIdStorageKey = 'attendance_device_id';
 const nativeDeviceIdFilePath = 'attendance/device-id.txt';
-const deviceBindTokenStorageKey = 'attendance_device_bind_token';
 const pendingDeviceDecision = ref<AttendanceDeviceDecision | null>(null);
 let deviceSmsCountdownTimer: number | undefined;
 let deviceSmsResolver: ((value: boolean) => void) | null = null;
@@ -317,24 +306,6 @@ const createStableDeviceId = async () => {
   return deviceId;
 };
 
-const getDeviceBindTokenStorageKey = (deviceId: string) => {
-  return `${deviceBindTokenStorageKey}:${deviceId}`;
-};
-
-const getStoredDeviceBindToken = (deviceId: string) => {
-  return window.localStorage.getItem(getDeviceBindTokenStorageKey(deviceId));
-};
-
-const saveDeviceBindToken = (deviceId: string, deviceBindToken?: string) => {
-  if (!deviceBindToken) {
-    return;
-  }
-  window.localStorage.setItem(
-    getDeviceBindTokenStorageKey(deviceId),
-    deviceBindToken,
-  );
-};
-
 const loadCurrentDeviceInfo = async () => {
   const platform = Capacitor.getPlatform();
   const userAgent = window.navigator.userAgent;
@@ -355,9 +326,6 @@ const loadCurrentDeviceInfo = async () => {
     platform,
     userAgent,
   };
-  deviceInfo.value.deviceBindToken = getStoredDeviceBindToken(
-    deviceInfo.value.deviceId,
-  );
 
   return deviceInfo.value;
 };
@@ -443,26 +411,12 @@ const canChangeDeviceFromDecision = computed(() => {
   const types = getDeviceAbnormalTypeSet(
     pendingDeviceDecision.value?.abnormalTypes,
   );
-  return types.has('device_changed') || types.has('device_credential_mismatch');
-});
-
-const isOnlyDeviceCredentialMismatch = computed(() => {
-  const types = getDeviceAbnormalTypeSet(
-    pendingDeviceDecision.value?.abnormalTypes,
-  );
-  return types.size === 1 && types.has('device_credential_mismatch');
+  return types.has('device_changed');
 });
 
 const pendingDeviceDecisionActionText = computed(() => {
-  const types = getDeviceAbnormalTypeSet(
-    pendingDeviceDecision.value?.abnormalTypes,
-  );
-  return types.has('device_changed') ? '考勤设备更换' : '重新绑定设备凭证';
+  return '考勤设备更换';
 });
-
-const getDeviceCredentialText = (fingerprint?: null | string) => {
-  return fingerprint || '未获取到凭证';
-};
 
 const formatDuplicateUserNames = (decision: AttendanceDeviceDecision) => {
   return decision.duplicateUsers
@@ -475,17 +429,6 @@ const getDeviceDecisionDetailLines = (
   decision: AttendanceDeviceDecision,
   abnormalType: string,
 ) => {
-  if (abnormalType === 'device_credential_mismatch') {
-    return [
-      `绑定设备凭证：${getDeviceCredentialText(
-        decision.binding?.deviceCredentialFingerprint,
-      )}`,
-      `当前设备凭证：${getDeviceCredentialText(
-        decision.currentDeviceCredentialFingerprint,
-      )}`,
-    ];
-  }
-
   if (abnormalType === 'device_changed') {
     return [
       `已绑定设备：${formatDeviceDisplay(decision.binding)}`,
@@ -532,20 +475,16 @@ const deviceSmsSubmitDisabled = computed(() => {
 });
 
 const deviceSmsSubmitText = computed(() => {
-  return deviceSmsVerificationMode.value === 'credential'
-    ? '确认重新绑定'
-    : '确认更换';
+  return '确认更换';
 });
 
 const deviceSmsVerificationTip = computed(() => {
   if (deviceSmsError.value) {
     return deviceSmsError.value;
   }
-  return deviceSmsVerificationMode.value === 'credential'
-    ? '验证通过后将重新绑定当前设备凭证'
-    : `验证通过后将把考勤设备更换为 ${formatDeviceDisplay(
-        deviceSmsTargetDevice.value,
-      )}`;
+  return `验证通过后将把考勤设备更换为 ${formatDeviceDisplay(
+    deviceSmsTargetDevice.value,
+  )}`;
 });
 
 const clearDeviceSmsCountdownTimer = () => {
@@ -574,7 +513,6 @@ const resolveDeviceSmsModal = (value: boolean) => {
   deviceSmsError.value = '';
   deviceSmsSubmitting.value = false;
   deviceSmsSending.value = false;
-  deviceSmsVerificationMode.value = 'device_change';
   clearDeviceSmsCountdownTimer();
   deviceSmsResolver?.(value);
   deviceSmsResolver = null;
@@ -619,16 +557,7 @@ const submitDeviceSmsVerification = async () => {
       device,
       smsCode: deviceSmsCode.value,
     });
-    saveDeviceBindToken(
-      device.deviceId,
-      attendanceDeviceDecision.value.deviceBindToken,
-    );
-    deviceInfo.value = {
-      ...device,
-      deviceBindToken:
-        attendanceDeviceDecision.value.deviceBindToken ??
-        device.deviceBindToken,
-    };
+    deviceInfo.value = device;
     await loadAttendanceDeviceDecision();
     resolveDeviceSmsModal(true);
   } catch (error: any) {
@@ -638,12 +567,8 @@ const submitDeviceSmsVerification = async () => {
   }
 };
 
-const openDeviceSmsVerification = async (
-  device: AttendanceDeviceInfo,
-  mode: 'credential' | 'device_change' = 'device_change',
-) => {
+const openDeviceSmsVerification = async (device: AttendanceDeviceInfo) => {
   deviceSmsTargetDevice.value = device;
-  deviceSmsVerificationMode.value = mode;
   deviceSmsCode.value = '';
   deviceSmsError.value = '';
   deviceSmsVerifyPhone.value = getCurrentAccountPhone();
@@ -662,10 +587,6 @@ const loadAttendanceDeviceDecision = async () => {
     attendanceDeviceDecision.value = await getAttendanceDeviceStatus({
       device,
     });
-    saveDeviceBindToken(
-      device.deviceId,
-      attendanceDeviceDecision.value.deviceBindToken,
-    );
   } catch (error) {
     console.error('加载打卡设备信息失败:', error);
     attendanceDeviceDecision.value = null;
@@ -683,11 +604,6 @@ const replaceCurrentAttendanceDevice = async () => {
   if (!secondOk) return false;
 
   return openDeviceSmsVerification(device);
-};
-
-const openDeviceCredentialVerification = async () => {
-  const device = await getCurrentDeviceInfo();
-  return openDeviceSmsVerification(device, 'credential');
 };
 
 const getDeviceErrorStatus = (error: any) => {
@@ -719,30 +635,16 @@ const handleContinueDeviceDecision = () => {
 const handleChangeDeviceFromDecision = async () => {
   if (deviceChanging.value) return;
 
-  const isCredentialOnly = isOnlyDeviceCredentialMismatch.value;
   deviceChanging.value = true;
   try {
-    const changed = isCredentialOnly
-      ? await openDeviceCredentialVerification()
-      : await replaceCurrentAttendanceDevice();
+    const changed = await replaceCurrentAttendanceDevice();
     if (changed) {
-      message.success(
-        isCredentialOnly
-          ? '设备凭证重新绑定成功，请重新点击打卡'
-          : '考勤设备更换成功，请重新点击打卡',
-      );
+      message.success('考勤设备更换成功，请重新点击打卡');
       closeDeviceDecisionModal(false);
     }
   } catch (error: any) {
-    console.error(
-      isCredentialOnly ? '重新绑定设备凭证失败:' : '更换考勤设备失败:',
-      error,
-    );
-    message.error(
-      `${isCredentialOnly ? '重新绑定设备凭证' : '更换考勤设备'}失败: ${
-        error?.message || '请重试'
-      }`,
-    );
+    console.error('更换考勤设备失败:', error);
+    message.error(`更换考勤设备失败: ${error?.message || '请重试'}`);
   } finally {
     deviceChanging.value = false;
   }
@@ -779,7 +681,6 @@ const confirmDeviceDecision = async (decision: AttendanceDeviceDecision) => {
 const resolveDevicePunchOptions = async () => {
   const device = await getCurrentDeviceInfo();
   const decision = await getAttendanceDeviceStatus({ device });
-  saveDeviceBindToken(device.deviceId, decision.deviceBindToken);
 
   if (decision.status === 'normal') {
     return {
@@ -796,23 +697,9 @@ const resolveDevicePunchOptions = async () => {
 
   return {
     allowDeviceAbnormal: decision.status === 'abnormal',
-    bindCurrentDevice:
-      decision.status === 'bind_required' ||
-      decision.status === 'credential_required',
+    bindCurrentDevice: decision.status === 'bind_required',
     device,
   };
-};
-
-const syncDeviceBindTokenFromPunchResult = async (result: any) => {
-  const device = await getCurrentDeviceInfo();
-  const deviceBindToken = result?.deviceBindToken;
-  saveDeviceBindToken(device.deviceId, deviceBindToken);
-  if (deviceBindToken) {
-    deviceInfo.value = {
-      ...device,
-      deviceBindToken,
-    };
-  }
 };
 
 const loadDeviceAbnormalLogs = async () => {
@@ -1095,11 +982,10 @@ const handlePunchIn = async () => {
 
   punchLoading.value = true;
   try {
-    const result = await punchIn({
+    await punchIn({
       ...getPunchPayload(),
       ...deviceOptions,
     });
-    await syncDeviceBindTokenFromPunchResult(result);
     await loadTodayRecord();
     await loadAttendanceDeviceDecision();
     await loadDeviceAbnormalLogs();
@@ -1136,11 +1022,10 @@ const handlePunchOut = async () => {
 
   punchLoading.value = true;
   try {
-    const result = await punchOut(todayRecord.value.attendanceId, {
+    await punchOut(todayRecord.value.attendanceId, {
       ...getPunchPayload(),
       ...deviceOptions,
     });
-    await syncDeviceBindTokenFromPunchResult(result);
     await loadTodayRecord();
     await loadAttendanceDeviceDecision();
     await loadDeviceAbnormalLogs();
