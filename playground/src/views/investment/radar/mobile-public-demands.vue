@@ -26,7 +26,7 @@ import {
   getPublicOpportunityDetail,
 } from '#/api/investment';
 
-import { formatArea, formatDateOnly } from './mobile-utils';
+import { formatArea, formatDateOnly, formatTime } from './mobile-utils';
 import OpportunityDetailDrawer from './opportunity-detail-drawer.vue';
 
 defineOptions({ name: 'InvestmentRadarMobilePublicDemands' });
@@ -314,6 +314,7 @@ onMounted(() => {
               <span>联系人：{{ item.contactName || '-' }}</span>
               <span>电话：{{ item.phoneNumber || '-' }}</span>
               <span>发布：{{ formatDateOnly(item.publishedAt) }}</span>
+              <span>采集：{{ formatTime(item.lastSyncedAt) }}</span>
               <span>分数：{{ item.score ?? '-' }}</span>
             </div>
             <div v-if="item.description" class="radar-card-desc">

@@ -145,6 +145,13 @@ const columns: TableColumnsType<PublicOpportunityItem> = [
   },
   {
     align: 'center',
+    customRender: ({ text }) => formatSyncedTime(text),
+    dataIndex: 'lastSyncedAt',
+    key: 'lastSyncedAt',
+    title: '采集时间',
+  },
+  {
+    align: 'center',
     customRender: ({ text }) => text ?? '-',
     dataIndex: 'score',
     key: 'score',
@@ -181,6 +188,16 @@ const columns: TableColumnsType<PublicOpportunityItem> = [
 
 const shanghaiDateFormatter = new Intl.DateTimeFormat('en-US', {
   day: '2-digit',
+  month: '2-digit',
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+});
+
+const shanghaiTimeFormatter = new Intl.DateTimeFormat('en-US', {
+  day: '2-digit',
+  hour: '2-digit',
+  hour12: false,
+  minute: '2-digit',
   month: '2-digit',
   timeZone: 'Asia/Shanghai',
   year: 'numeric',
@@ -227,6 +244,26 @@ function formatPublishedDate(value?: null | string) {
   }
 
   return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function formatSyncedTime(value?: null | string) {
+  if (!value) {
+    return '-';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '-';
+  }
+
+  const parts: Record<string, string> = {};
+  for (const part of shanghaiTimeFormatter.formatToParts(date)) {
+    if (part.type !== 'literal') {
+      parts[part.type] = part.value;
+    }
+  }
+
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
 }
 
 function renderSourceSite(record: PublicOpportunityItem) {
