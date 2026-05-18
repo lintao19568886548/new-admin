@@ -116,21 +116,6 @@ function shouldIncludeAsApp(route: RouteRecordStringComponent) {
   return true;
 }
 
-function isRouteInGroupDomain(
-  route: RouteRecordStringComponent,
-  parentRoute: RouteRecordStringComponent,
-) {
-  const parentPath =
-    typeof parentRoute.path === 'string' ? parentRoute.path : '';
-  const routePath = typeof route.path === 'string' ? route.path : '';
-
-  if (!parentPath || !routePath || parentPath === '/') {
-    return true;
-  }
-
-  return routePath === parentPath || routePath.startsWith(`${parentPath}/`);
-}
-
 function collectAppRoutes(
   routes: RouteRecordStringComponent[],
   parentRoute?: RouteRecordStringComponent,
@@ -141,10 +126,7 @@ function collectAppRoutes(
       collectAppRoutes(route.children ?? [], parentRoute ?? route, result);
       continue;
     }
-    if (
-      shouldIncludeAsApp(route) &&
-      (!parentRoute || isRouteInGroupDomain(route, parentRoute))
-    ) {
+    if (shouldIncludeAsApp(route)) {
       result.push(route);
     }
   }
