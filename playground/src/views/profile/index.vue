@@ -14,7 +14,15 @@ import { useUserStore } from '@vben/stores';
 
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { Avatar, Card, List, ListItem, message, Modal } from 'ant-design-vue';
+import {
+  Avatar,
+  Card,
+  List,
+  ListItem,
+  message,
+  Modal,
+  Tag,
+} from 'ant-design-vue';
 
 import { cancelCurrentUserApi } from '#/api';
 import BusinessCard from '#/components/Businesscard.vue';
@@ -48,6 +56,111 @@ const canManageTenantInvitations = computed(
     Boolean(currentCustomerId.value) &&
     !['default', 'public'].includes(currentCustomerId.value),
 );
+const trialStatusBar = computed(() => {
+  const record = userInfo.value as Record<string, unknown> | undefined;
+  if (!record) {
+    return null;
+  }
+
+  const customerId = currentCustomerId.value;
+  if (customerId !== 'public') {
+    return null;
+  }
+
+  const accessScopeStatus = readStringField(record, 'accessScopeStatus');
+  const membershipGateReason = readStringField(record, 'membershipGateReason');
+  const trialStatus = readStringField(record, 'trialStatus');
+  const trialExpireAt = readStringField(record, 'trialExpireAt');
+  const isTrialActive = readBooleanField(record, 'isTrialActive');
+  const shouldShow =
+    accessScopeStatus === 'trial_active' ||
+    membershipGateReason === 'trial_expired' ||
+    Boolean(trialStatus || trialExpireAt);
+
+  if (!shouldShow) {
+    return null;
+  }
+
+  const expireLabel = trialExpireAt ? formatDateLabel(trialExpireAt) : '待同步';
+  const remainingLabel = trialExpireAt
+    ? formatTrialRemainingTime(trialExpireAt)
+    : '';
+  const active =
+    isTrialActive === true ||
+    accessScopeStatus === 'trial_active' ||
+    trialStatus === 'active';
+  const expired =
+    trialStatus === 'expired' ||
+    membershipGateReason === 'trial_expired' ||
+    isTrialActive === false;
+
+  if (active) {
+    return {
+      description: remainingLabel
+        ? `有效至 ${expireLabel}，${remainingLabel}`
+        : `有效至 ${expireLabel}`,
+      icon: 'mdi:timer-check-outline',
+      statusText: '试用中',
+      tagColor: 'success',
+      tone: 'active',
+    };
+  }
+
+  if (expired) {
+    return {
+      description: `已于 ${expireLabel} 到期`,
+      icon: 'mdi:timer-alert-outline',
+      statusText: '已到期',
+      tagColor: 'warning',
+      tone: 'expired',
+    };
+  }
+
+  return {
+    description: '试用状态正在同步',
+    icon: 'mdi:timer-sand',
+    statusText: '待同步',
+    tagColor: 'processing',
+    tone: 'unknown',
+  };
+});
+
+function readBooleanField(record: Record<string, unknown>, key: string) {
+  return typeof record[key] === 'boolean' ? (record[key] as boolean) : null;
+}
+
+function readStringField(record: Record<string, unknown>, key: string) {
+  const value = record[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : '';
+}
+
+function formatDateLabel(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString('zh-CN');
+}
+
+function formatTrialRemainingTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const remainingMs = date.getTime() - Date.now();
+  if (remainingMs <= 0) {
+    return '已到期';
+  }
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (remainingMs < dayMs) {
+    return '剩余不足 1 天';
+  }
+
+  return `剩余 ${Math.ceil(remainingMs / dayMs)} 天`;
+}
 
 /**
  * 初始化通知功能（包括本地通知和推送通知）
@@ -309,6 +422,28 @@ const actions = computed(() => {
       </div>
     </Card>
 
+    <button
+      v-if="trialStatusBar"
+      class="trial-status-bar mb-3"
+      :class="`trial-status-bar--${trialStatusBar.tone}`"
+      type="button"
+      @click="handleOpenVipMembership"
+    >
+      <span class="trial-status-bar__icon-wrap">
+        <VbenIcon :icon="trialStatusBar.icon" class="trial-status-bar__icon" />
+      </span>
+      <span class="trial-status-bar__content">
+        <span class="trial-status-bar__title">免费试用期</span>
+        <span class="trial-status-bar__description">
+          {{ trialStatusBar.description }}
+        </span>
+      </span>
+      <Tag :color="trialStatusBar.tagColor" class="trial-status-bar__tag">
+        {{ trialStatusBar.statusText }}
+      </Tag>
+      <VbenIcon :icon="ChevronRight" class="trial-status-bar__arrow" />
+    </button>
+
     <Card :bordered="false">
       <List :data-source="actions">
         <template #renderItem="{ item }">
@@ -347,7 +482,120 @@ const actions = computed(() => {
 </template>
 
 <style scoped>
+.trial-status-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 14px;
+  text-align: left;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid rgb(15 23 42 / 8%);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgb(15 23 42 / 5%);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.trial-status-bar:hover {
+  border-color: rgb(22 100 255 / 24%);
+  box-shadow: 0 8px 22px rgb(15 23 42 / 8%);
+  transform: translateY(-1px);
+}
+
+.trial-status-bar--active {
+  background: linear-gradient(90deg, rgb(240 253 244 / 98%), #fff 52%);
+  border-color: rgb(22 163 74 / 18%);
+}
+
+.trial-status-bar--expired {
+  background: linear-gradient(90deg, rgb(255 251 235 / 98%), #fff 52%);
+  border-color: rgb(217 119 6 / 20%);
+}
+
+.trial-status-bar--unknown {
+  background: linear-gradient(90deg, rgb(239 246 255 / 98%), #fff 52%);
+  border-color: rgb(14 165 233 / 16%);
+}
+
+.trial-status-bar__icon-wrap {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: #1764ff;
+  background: rgb(23 100 255 / 9%);
+  border-radius: 10px;
+}
+
+.trial-status-bar--active .trial-status-bar__icon-wrap {
+  color: #16a34a;
+  background: rgb(22 163 74 / 10%);
+}
+
+.trial-status-bar--expired .trial-status-bar__icon-wrap {
+  color: #d97706;
+  background: rgb(217 119 6 / 11%);
+}
+
+.trial-status-bar__icon {
+  font-size: 21px;
+}
+
+.trial-status-bar__content {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.trial-status-bar__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.trial-status-bar__description {
+  overflow: hidden;
+  font-size: 13px;
+  color: #667085;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trial-status-bar__tag {
+  flex: 0 0 auto;
+  margin-right: 0;
+}
+
+.trial-status-bar__arrow {
+  flex: 0 0 auto;
+  font-size: 16px;
+  color: #98a2b3;
+}
+
 .danger-action {
   color: #ff4d4f;
+}
+
+@media (max-width: 420px) {
+  .trial-status-bar {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .trial-status-bar__description {
+    white-space: normal;
+  }
+
+  .trial-status-bar__tag {
+    display: none;
+  }
 }
 </style>

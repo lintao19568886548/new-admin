@@ -23,7 +23,7 @@ import {
 const VIP_MEMBERSHIP_ACTIVE_STATUS = 'active';
 const VIP_MEMBERSHIP_ATTACH_TAG = 'vip-membership';
 const VIP_MEMBERSHIP_DURATION_MONTHS = 1;
-const VIP_TRIAL_DURATION_MONTHS = 1;
+const VIP_TRIAL_DURATION_MONTHS = 3;
 const PROVISIONING_BLOCKING_STATUSES = new Set([
   'failed_manual',
   'failed_retryable',
@@ -606,6 +606,9 @@ function toTrialState(trialStartTime: Date | null | undefined) {
 function toVipMembershipAccessState(
   coreState: ReturnType<typeof toVipMembershipCoreState>,
   trialState: ReturnType<typeof toTrialState>,
+  options: {
+    trialEligible: boolean;
+  },
 ) {
   if (coreState.isVip) {
     return {
@@ -627,7 +630,7 @@ function toVipMembershipAccessState(
     accessRestricted: true,
     accessScopeStatus: 'restricted' as const,
     membershipGateReason:
-      coreState.vipStatus === 'expired'
+      coreState.vipStatus === 'expired' || !options.trialEligible
         ? ('membership_expired' as const)
         : ('trial_expired' as const),
   };
@@ -1814,13 +1817,13 @@ export async function getVipMembershipAccessState(input: {
     : null;
 
   const coreState = toVipMembershipCoreState(membership);
-  const trialState =
-    customerId === 'public'
-      ? toTrialState(
-          centerUser?.membershipTrialStartAt || centerUser?.createTime,
-        )
-      : toTrialState(null);
-  const accessState = toVipMembershipAccessState(coreState, trialState);
+  const trialEligible = customerId === 'public';
+  const trialState = trialEligible
+    ? toTrialState(centerUser?.membershipTrialStartAt || centerUser?.createTime)
+    : toTrialState(null);
+  const accessState = toVipMembershipAccessState(coreState, trialState, {
+    trialEligible,
+  });
 
   return {
     ...coreState,
