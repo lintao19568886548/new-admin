@@ -14,6 +14,7 @@
 - 类型检查：按变更范围执行。后端 TS 改动优先跑 `pnpm -F @vben/backend-mock exec tsc --noEmit`；前端 Vue/TS 改动优先跑对应包的 `typecheck` 或 `vue-tsc --noEmit`。
 - Lint：修改 TS/Vue/JS 文件后，交付前至少跑一次目标文件 ESLint，例如 `pnpm exec eslint --no-cache <changed-files>`；大范围改动或提交前再跑 `pnpm lint`。
 - 不要执行安卓构建，应该由用户执行
+- 本项目 prisma 不走 migrate，而是走db push，且由用户手动管理
 
 ## 代码风格与命名
 
