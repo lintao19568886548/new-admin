@@ -42,7 +42,7 @@ model VipMembershipPayment {
 model VipMembershipEntitlement {
   id                  Int       @id @default(autoincrement())
   customerId          String    @map("customer_id") @db.VarChar(50)
-  centerUserId        Int       @map("center_user_id")
+  centerUserId        Int?      @map("center_user_id")
   outTradeNo          String    @unique @map("out_trade_no") @db.VarChar(64)
   transactionId       String?   @map("transaction_id") @db.VarChar(64)
   amountTotal         Int       @map("amount_total")

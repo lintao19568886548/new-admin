@@ -23,7 +23,7 @@ import {
 const VIP_MEMBERSHIP_ACTIVE_STATUS = 'active';
 const VIP_MEMBERSHIP_ATTACH_TAG = 'vip-membership';
 const VIP_MEMBERSHIP_DURATION_MONTHS = 1;
-const VIP_TRIAL_DURATION_MONTHS = 1;
+const VIP_TRIAL_DURATION_MONTHS = 3;
 const PROVISIONING_BLOCKING_STATUSES = new Set([
   'failed_manual',
   'failed_retryable',
@@ -197,7 +197,7 @@ interface VipMembershipRefundRecord {
 
 interface VipMembershipEntitlementRecord {
   amountTotal: number;
-  centerUserId: number;
+  centerUserId: null | number;
   customerId: string;
   durationMonths: number;
   endAt: Date;
@@ -606,6 +606,9 @@ function toTrialState(trialStartTime: Date | null | undefined) {
 function toVipMembershipAccessState(
   coreState: ReturnType<typeof toVipMembershipCoreState>,
   trialState: ReturnType<typeof toTrialState>,
+  options: {
+    trialEligible: boolean;
+  },
 ) {
   if (coreState.isVip) {
     return {
@@ -627,7 +630,7 @@ function toVipMembershipAccessState(
     accessRestricted: true,
     accessScopeStatus: 'restricted' as const,
     membershipGateReason:
-      coreState.vipStatus === 'expired'
+      coreState.vipStatus === 'expired' || !options.trialEligible
         ? ('membership_expired' as const)
         : ('trial_expired' as const),
   };
@@ -835,14 +838,14 @@ async function syncVipMembershipSummaryFromEntitlementsWithClient(
       customerId,
       expireAt: latestEntitlement.endAt,
       lastOutTradeNo: latestEntitlement.outTradeNo,
-      lastPayerCenterUserId: latestEntitlement.centerUserId,
+      lastPayerCenterUserId: latestEntitlement.centerUserId || null,
       lastTransactionId: latestEntitlement.transactionId || null,
       status,
     },
     update: {
       expireAt: latestEntitlement.endAt,
       lastOutTradeNo: latestEntitlement.outTradeNo,
-      lastPayerCenterUserId: latestEntitlement.centerUserId,
+      lastPayerCenterUserId: latestEntitlement.centerUserId || null,
       lastTransactionId: latestEntitlement.transactionId || null,
       status,
     },
@@ -1814,13 +1817,13 @@ export async function getVipMembershipAccessState(input: {
     : null;
 
   const coreState = toVipMembershipCoreState(membership);
-  const trialState =
-    customerId === 'public'
-      ? toTrialState(
-          centerUser?.membershipTrialStartAt || centerUser?.createTime,
-        )
-      : toTrialState(null);
-  const accessState = toVipMembershipAccessState(coreState, trialState);
+  const trialEligible = customerId === 'public';
+  const trialState = trialEligible
+    ? toTrialState(centerUser?.membershipTrialStartAt || centerUser?.createTime)
+    : toTrialState(null);
+  const accessState = toVipMembershipAccessState(coreState, trialState, {
+    trialEligible,
+  });
 
   return {
     ...coreState,
@@ -2113,12 +2116,21 @@ export async function handleVipMembershipWechatOrder(
       }
 
       await lockCustomerForVipMembership(membershipCustomerId, tx);
-      await getVipMembershipByCustomerIdForUpdate(membershipCustomerId, tx);
+      const lockedMembership = await getVipMembershipByCustomerIdForUpdate(
+        membershipCustomerId,
+        tx,
+      );
       const latestEntitlement = await getLatestActiveVipMembershipEntitlement(
         membershipCustomerId,
         tx,
       );
-      const membershipExpireAt = latestEntitlement?.endAt || null;
+      const lockedMembershipExpireAt =
+        normalizeString(lockedMembership?.status) ===
+        VIP_MEMBERSHIP_ACTIVE_STATUS
+          ? lockedMembership?.expireAt || null
+          : null;
+      const membershipExpireAt =
+        latestEntitlement?.endAt || lockedMembershipExpireAt;
       const now = new Date();
       const baseTime =
         membershipExpireAt && membershipExpireAt.getTime() > now.getTime()
