@@ -197,7 +197,7 @@ interface VipMembershipRefundRecord {
 
 interface VipMembershipEntitlementRecord {
   amountTotal: number;
-  centerUserId: number;
+  centerUserId: null | number;
   customerId: string;
   durationMonths: number;
   endAt: Date;
@@ -838,14 +838,14 @@ async function syncVipMembershipSummaryFromEntitlementsWithClient(
       customerId,
       expireAt: latestEntitlement.endAt,
       lastOutTradeNo: latestEntitlement.outTradeNo,
-      lastPayerCenterUserId: latestEntitlement.centerUserId,
+      lastPayerCenterUserId: latestEntitlement.centerUserId || null,
       lastTransactionId: latestEntitlement.transactionId || null,
       status,
     },
     update: {
       expireAt: latestEntitlement.endAt,
       lastOutTradeNo: latestEntitlement.outTradeNo,
-      lastPayerCenterUserId: latestEntitlement.centerUserId,
+      lastPayerCenterUserId: latestEntitlement.centerUserId || null,
       lastTransactionId: latestEntitlement.transactionId || null,
       status,
     },
@@ -2116,12 +2116,21 @@ export async function handleVipMembershipWechatOrder(
       }
 
       await lockCustomerForVipMembership(membershipCustomerId, tx);
-      await getVipMembershipByCustomerIdForUpdate(membershipCustomerId, tx);
+      const lockedMembership = await getVipMembershipByCustomerIdForUpdate(
+        membershipCustomerId,
+        tx,
+      );
       const latestEntitlement = await getLatestActiveVipMembershipEntitlement(
         membershipCustomerId,
         tx,
       );
-      const membershipExpireAt = latestEntitlement?.endAt || null;
+      const lockedMembershipExpireAt =
+        normalizeString(lockedMembership?.status) ===
+        VIP_MEMBERSHIP_ACTIVE_STATUS
+          ? lockedMembership?.expireAt || null
+          : null;
+      const membershipExpireAt =
+        latestEntitlement?.endAt || lockedMembershipExpireAt;
       const now = new Date();
       const baseTime =
         membershipExpireAt && membershipExpireAt.getTime() > now.getTime()

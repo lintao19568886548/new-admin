@@ -43,6 +43,7 @@ const router = useRouter();
 const userInfo = computed(() => userStore.userInfo);
 const showPasswordModal = ref(false);
 const showFeedbackModal = ref(false);
+const specialCustomerIds = new Set(['center', 'default', 'public']);
 const currentCustomerId = computed(() =>
   String((userInfo.value as any)?.customerId || ''),
 );
@@ -56,72 +57,126 @@ const canManageTenantInvitations = computed(
     Boolean(currentCustomerId.value) &&
     !['default', 'public'].includes(currentCustomerId.value),
 );
-const trialStatusBar = computed(() => {
+const membershipStatusBar = computed(() => {
   const record = userInfo.value as Record<string, unknown> | undefined;
   if (!record) {
     return null;
   }
 
   const customerId = currentCustomerId.value;
-  if (customerId !== 'public') {
+  if (customerId === 'public') {
+    const accessScopeStatus = readStringField(record, 'accessScopeStatus');
+    const membershipGateReason = readStringField(
+      record,
+      'membershipGateReason',
+    );
+    const trialStatus = readStringField(record, 'trialStatus');
+    const trialExpireAt = readStringField(record, 'trialExpireAt');
+    const isTrialActive = readBooleanField(record, 'isTrialActive');
+    const shouldShow =
+      accessScopeStatus === 'trial_active' ||
+      membershipGateReason === 'trial_expired' ||
+      Boolean(trialStatus || trialExpireAt);
+
+    if (!shouldShow) {
+      return null;
+    }
+
+    const expireLabel = trialExpireAt
+      ? formatDateLabel(trialExpireAt)
+      : '待同步';
+    const remainingLabel = trialExpireAt
+      ? formatRemainingTime(trialExpireAt)
+      : '';
+    const active =
+      isTrialActive === true ||
+      accessScopeStatus === 'trial_active' ||
+      trialStatus === 'active';
+    const expired =
+      trialStatus === 'expired' ||
+      membershipGateReason === 'trial_expired' ||
+      isTrialActive === false;
+
+    if (active) {
+      return {
+        description: remainingLabel
+          ? `有效至 ${expireLabel}，${remainingLabel}`
+          : `有效至 ${expireLabel}`,
+        icon: 'mdi:timer-check-outline',
+        statusText: '试用中',
+        tagColor: 'success',
+        title: '免费试用期',
+        tone: 'active',
+      };
+    }
+
+    if (expired) {
+      return {
+        description: `已于 ${expireLabel} 到期`,
+        icon: 'mdi:timer-alert-outline',
+        statusText: '已到期',
+        tagColor: 'warning',
+        title: '免费试用期',
+        tone: 'expired',
+      };
+    }
+
+    return {
+      description: '试用状态正在同步',
+      icon: 'mdi:timer-sand',
+      statusText: '待同步',
+      tagColor: 'processing',
+      title: '免费试用期',
+      tone: 'unknown',
+    };
+  }
+
+  if (!customerId || specialCustomerIds.has(customerId)) {
     return null;
   }
 
   const accessScopeStatus = readStringField(record, 'accessScopeStatus');
+  const membershipExpireAt =
+    readStringField(record, 'membershipExpireAt') ||
+    readStringField(record, 'vipExpireAt') ||
+    readStringField(record, 'memberExpireAt');
   const membershipGateReason = readStringField(record, 'membershipGateReason');
-  const trialStatus = readStringField(record, 'trialStatus');
-  const trialExpireAt = readStringField(record, 'trialExpireAt');
-  const isTrialActive = readBooleanField(record, 'isTrialActive');
-  const shouldShow =
-    accessScopeStatus === 'trial_active' ||
-    membershipGateReason === 'trial_expired' ||
-    Boolean(trialStatus || trialExpireAt);
-
-  if (!shouldShow) {
-    return null;
-  }
-
-  const expireLabel = trialExpireAt ? formatDateLabel(trialExpireAt) : '待同步';
-  const remainingLabel = trialExpireAt
-    ? formatTrialRemainingTime(trialExpireAt)
+  const membershipStatus =
+    readStringField(record, 'membershipStatus') ||
+    readStringField(record, 'vipStatus') ||
+    readStringField(record, 'memberStatus');
+  const expireLabel = membershipExpireAt
+    ? formatDateLabel(membershipExpireAt)
+    : '';
+  const remainingLabel = membershipExpireAt
+    ? formatRemainingTime(membershipExpireAt)
     : '';
   const active =
-    isTrialActive === true ||
-    accessScopeStatus === 'trial_active' ||
-    trialStatus === 'active';
-  const expired =
-    trialStatus === 'expired' ||
-    membershipGateReason === 'trial_expired' ||
-    isTrialActive === false;
+    membershipStatus === 'active' || accessScopeStatus === 'member_active';
 
   if (active) {
     return {
       description: remainingLabel
         ? `有效至 ${expireLabel}，${remainingLabel}`
         : `有效至 ${expireLabel}`,
-      icon: 'mdi:timer-check-outline',
-      statusText: '试用中',
+      icon: 'mdi:crown-outline',
+      statusText: '会员在期',
       tagColor: 'success',
+      title: '付费会员生效中',
       tone: 'active',
     };
   }
 
-  if (expired) {
-    return {
-      description: `已于 ${expireLabel} 到期`,
-      icon: 'mdi:timer-alert-outline',
-      statusText: '已到期',
-      tagColor: 'warning',
-      tone: 'expired',
-    };
-  }
-
   return {
-    description: '试用状态正在同步',
-    icon: 'mdi:timer-sand',
-    statusText: '待同步',
-    tagColor: 'processing',
-    tone: 'unknown',
+    description:
+      membershipExpireAt && membershipGateReason === 'membership_expired'
+        ? `已于 ${expireLabel} 到期`
+        : '暂无有效会员期限',
+    icon: 'mdi:crown-off-outline',
+    statusText: '会员过期',
+    tagColor: 'warning',
+    title: '付费会员期限',
+    tone: 'expired',
   };
 });
 
@@ -143,7 +198,7 @@ function formatDateLabel(value: string) {
   return date.toLocaleDateString('zh-CN');
 }
 
-function formatTrialRemainingTime(value: string) {
+function formatRemainingTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return '';
@@ -423,25 +478,33 @@ const actions = computed(() => {
     </Card>
 
     <button
-      v-if="trialStatusBar"
-      class="trial-status-bar mb-3"
-      :class="`trial-status-bar--${trialStatusBar.tone}`"
+      v-if="membershipStatusBar"
+      class="membership-status-bar mb-3"
+      :class="`membership-status-bar--${membershipStatusBar.tone}`"
       type="button"
       @click="handleOpenVipMembership"
     >
-      <span class="trial-status-bar__icon-wrap">
-        <VbenIcon :icon="trialStatusBar.icon" class="trial-status-bar__icon" />
+      <span class="membership-status-bar__icon-wrap">
+        <VbenIcon
+          :icon="membershipStatusBar.icon"
+          class="membership-status-bar__icon"
+        />
       </span>
-      <span class="trial-status-bar__content">
-        <span class="trial-status-bar__title">免费试用期</span>
-        <span class="trial-status-bar__description">
-          {{ trialStatusBar.description }}
+      <span class="membership-status-bar__content">
+        <span class="membership-status-bar__title">
+          {{ membershipStatusBar.title }}
+        </span>
+        <span class="membership-status-bar__description">
+          {{ membershipStatusBar.description }}
         </span>
       </span>
-      <Tag :color="trialStatusBar.tagColor" class="trial-status-bar__tag">
-        {{ trialStatusBar.statusText }}
+      <Tag
+        :color="membershipStatusBar.tagColor"
+        class="membership-status-bar__tag"
+      >
+        {{ membershipStatusBar.statusText }}
       </Tag>
-      <VbenIcon :icon="ChevronRight" class="trial-status-bar__arrow" />
+      <VbenIcon :icon="ChevronRight" class="membership-status-bar__arrow" />
     </button>
 
     <Card :bordered="false">
@@ -482,7 +545,7 @@ const actions = computed(() => {
 </template>
 
 <style scoped>
-.trial-status-bar {
+.membership-status-bar {
   display: flex;
   gap: 12px;
   align-items: center;
@@ -501,28 +564,28 @@ const actions = computed(() => {
     transform 0.18s ease;
 }
 
-.trial-status-bar:hover {
+.membership-status-bar:hover {
   border-color: rgb(22 100 255 / 24%);
   box-shadow: 0 8px 22px rgb(15 23 42 / 8%);
   transform: translateY(-1px);
 }
 
-.trial-status-bar--active {
+.membership-status-bar--active {
   background: linear-gradient(90deg, rgb(240 253 244 / 98%), #fff 52%);
   border-color: rgb(22 163 74 / 18%);
 }
 
-.trial-status-bar--expired {
+.membership-status-bar--expired {
   background: linear-gradient(90deg, rgb(255 251 235 / 98%), #fff 52%);
   border-color: rgb(217 119 6 / 20%);
 }
 
-.trial-status-bar--unknown {
+.membership-status-bar--unknown {
   background: linear-gradient(90deg, rgb(239 246 255 / 98%), #fff 52%);
   border-color: rgb(14 165 233 / 16%);
 }
 
-.trial-status-bar__icon-wrap {
+.membership-status-bar__icon-wrap {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -534,34 +597,34 @@ const actions = computed(() => {
   border-radius: 10px;
 }
 
-.trial-status-bar--active .trial-status-bar__icon-wrap {
+.membership-status-bar--active .membership-status-bar__icon-wrap {
   color: #16a34a;
   background: rgb(22 163 74 / 10%);
 }
 
-.trial-status-bar--expired .trial-status-bar__icon-wrap {
+.membership-status-bar--expired .membership-status-bar__icon-wrap {
   color: #d97706;
   background: rgb(217 119 6 / 11%);
 }
 
-.trial-status-bar__icon {
+.membership-status-bar__icon {
   font-size: 21px;
 }
 
-.trial-status-bar__content {
+.membership-status-bar__content {
   display: grid;
   flex: 1;
   gap: 2px;
   min-width: 0;
 }
 
-.trial-status-bar__title {
+.membership-status-bar__title {
   font-size: 14px;
   font-weight: 600;
   color: #1f2937;
 }
 
-.trial-status-bar__description {
+.membership-status-bar__description {
   overflow: hidden;
   font-size: 13px;
   color: #667085;
@@ -569,12 +632,12 @@ const actions = computed(() => {
   white-space: nowrap;
 }
 
-.trial-status-bar__tag {
+.membership-status-bar__tag {
   flex: 0 0 auto;
   margin-right: 0;
 }
 
-.trial-status-bar__arrow {
+.membership-status-bar__arrow {
   flex: 0 0 auto;
   font-size: 16px;
   color: #98a2b3;
@@ -585,16 +648,16 @@ const actions = computed(() => {
 }
 
 @media (max-width: 420px) {
-  .trial-status-bar {
+  .membership-status-bar {
     gap: 10px;
     padding: 10px 12px;
   }
 
-  .trial-status-bar__description {
+  .membership-status-bar__description {
     white-space: normal;
   }
 
-  .trial-status-bar__tag {
+  .membership-status-bar__tag {
     display: none;
   }
 }
