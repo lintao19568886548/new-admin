@@ -174,7 +174,7 @@ const scoreBreakdownColumns = [
   },
   {
     customRender: ({ record }: { record: LeadScoreBreakdown }) =>
-      record.eventTitle || (record.eventId ? `#${record.eventId}` : '-'),
+      record.eventTitle || '-',
     dataIndex: 'eventTitle',
     key: 'eventTitle',
     title: '命中信号',
@@ -319,7 +319,7 @@ function getNavigationText(item?: null | RadarLeadNavigationItem) {
 
 async function loadDetail() {
   if (!Number.isFinite(leadId.value) || leadId.value <= 0) {
-    loadError.value = '线索编号无效。';
+    loadError.value = '线索信息无效。';
     loading.value = false;
     return;
   }
@@ -429,7 +429,7 @@ onMounted(() => {
           <div class="radar-mobile-hero-head">
             <div>
               <div class="radar-mobile-hero-title">
-                {{ detail.enterpriseName || `线索 #${detail.leadId}` }}
+                {{ detail.enterpriseName || '雷达线索' }}
               </div>
               <div class="radar-mobile-hero-subtitle">
                 {{ detail.parkName || '未分配园区' }} ·
@@ -450,22 +450,18 @@ onMounted(() => {
         </section>
 
         <div class="radar-mobile-score-grid">
-          <div>
-            <span>总分</span>
-            <strong>{{ summary.totalScore }}</strong>
-          </div>
-          <div>
-            <span>意图</span>
-            <strong>{{ summary.intentScore }}</strong>
-          </div>
-          <div>
-            <span>匹配</span>
-            <strong>{{ summary.matchScore }}</strong>
-          </div>
-          <div>
-            <span>触达</span>
-            <strong>{{ summary.reachableScore }}</strong>
-          </div>
+          <Card class="radar-mobile-score-card">
+            <Statistic title="总分" :value="summary.totalScore" />
+          </Card>
+          <Card class="radar-mobile-score-card">
+            <Statistic title="意图" :value="summary.intentScore" />
+          </Card>
+          <Card class="radar-mobile-score-card">
+            <Statistic title="匹配" :value="summary.matchScore" />
+          </Card>
+          <Card class="radar-mobile-score-card">
+            <Statistic title="触达" :value="summary.reachableScore" />
+          </Card>
         </div>
 
         <section class="radar-mobile-section">
@@ -657,7 +653,7 @@ onMounted(() => {
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="min-w-0">
             <div class="truncate text-base font-semibold">
-              {{ detail.enterpriseName || `线索 #${detail.leadId}` }}
+              {{ detail.enterpriseName || '雷达线索' }}
             </div>
             <div class="text-text-secondary mt-1 text-sm">
               当前阶段：{{
@@ -734,7 +730,7 @@ onMounted(() => {
           </Col>
         </Row>
 
-        <Card title="评分拆解">
+        <Card class="radar-detail-list-card" title="评分拆解">
           <template #extra>
             <Space>
               <Button
@@ -752,26 +748,36 @@ onMounted(() => {
               </Button>
             </Space>
           </template>
+          <div v-if="scoreBreakdownLoading" class="radar-detail-loading">
+            <Skeleton active :paragraph="{ rows: 3 }" />
+          </div>
           <Table
+            v-else-if="scoreBreakdownItems.length > 0"
+            bordered
+            class="radar-detail-table"
             :columns="scoreBreakdownColumns"
             :data-source="scoreBreakdownItems"
-            :loading="scoreBreakdownLoading"
             :pagination="false"
             row-key="breakdownId"
-            :scroll="{ x: 1240 }"
+            :scroll="{ x: 1180 }"
             size="small"
           />
           <Empty
-            v-if="scoreBreakdownItems.length === 0 && !scoreBreakdownLoading"
-            class="py-6"
+            v-else
+            class="radar-detail-empty"
             description="暂无评分拆解，请先重算当前评分"
           />
         </Card>
 
-        <Row :gutter="[16, 16]">
-          <Col :lg="14" :md="24" :sm="24" :xs="24">
-            <Card title="线索信息">
-              <Descriptions :column="2" bordered size="small">
+        <div class="radar-detail-desktop-grid">
+          <div class="radar-detail-main-column">
+            <Card class="radar-detail-info-card" title="线索信息">
+              <Descriptions
+                class="radar-detail-descriptions"
+                :column="2"
+                bordered
+                size="small"
+              >
                 <Descriptions.Item label="企业名称" :span="2">
                   {{ detail.enterpriseName || '-' }}
                 </Descriptions.Item>
@@ -828,11 +834,48 @@ onMounted(() => {
                 </Descriptions.Item>
               </Descriptions>
             </Card>
-          </Col>
 
-          <Col :lg="10" :md="24" :sm="24" :xs="24">
-            <Card title="企业信息">
-              <Descriptions :column="1" bordered size="small">
+            <PropertyMatchPanel :lead-id="leadId" />
+
+            <SopVisitPanel :lead-id="leadId" />
+
+            <Card class="radar-detail-list-card" title="触达记录">
+              <Table
+                v-if="detail.outreachTasks.length > 0"
+                bordered
+                class="radar-detail-table"
+                :columns="outreachColumns"
+                :data-source="detail.outreachTasks"
+                :pagination="false"
+                :scroll="{ x: 1280 }"
+                row-key="taskId"
+                size="small"
+              />
+              <div
+                v-if="detail.outreachTasks.length > 0"
+                class="text-text-secondary mt-3 text-sm"
+              >
+                已记录
+                {{ detail.outreachSummary?.count || 0 }}
+                条触达任务，最近发送时间：
+                {{ formatTime(detail.outreachSummary?.latestSentAt) }}
+              </div>
+              <Empty
+                v-else
+                class="radar-detail-empty"
+                description="当前线索暂无触达记录"
+              />
+            </Card>
+          </div>
+
+          <div class="radar-detail-side-column">
+            <Card class="radar-detail-info-card" title="企业信息">
+              <Descriptions
+                class="radar-detail-descriptions"
+                :column="1"
+                bordered
+                size="small"
+              >
                 <Descriptions.Item label="统一社会信用代码">
                   {{ detail.unifiedSocialCreditCode || '-' }}
                 </Descriptions.Item>
@@ -857,8 +900,13 @@ onMounted(() => {
               </Descriptions>
             </Card>
 
-            <Card class="mt-4" title="最近采集任务">
-              <Descriptions :column="1" bordered size="small">
+            <Card class="radar-detail-info-card" title="最近采集任务">
+              <Descriptions
+                class="radar-detail-descriptions"
+                :column="1"
+                bordered
+                size="small"
+              >
                 <Descriptions.Item label="任务状态">
                   {{ formatCollectTaskStatus(detail.collectTask?.status) }}
                 </Descriptions.Item>
@@ -883,43 +931,14 @@ onMounted(() => {
                 </Descriptions.Item>
               </Descriptions>
             </Card>
-          </Col>
-        </Row>
 
-        <Row :gutter="[16, 16]">
-          <Col :lg="14" :md="24" :sm="24" :xs="24">
-            <PropertyMatchPanel :lead-id="leadId" />
-          </Col>
-          <Col :lg="10" :md="24" :sm="24" :xs="24">
             <OutreachSuggestionPanel
               :lead-id="leadId"
               visible
               @task-created="loadDetail"
             />
-          </Col>
-        </Row>
-
-        <SopVisitPanel :lead-id="leadId" />
-
-        <Card title="触达记录">
-          <Table
-            :columns="outreachColumns"
-            :data-source="detail.outreachTasks"
-            :pagination="false"
-            :scroll="{ x: 1380 }"
-            row-key="taskId"
-            size="small"
-          />
-          <div
-            v-if="detail.outreachTasks.length > 0"
-            class="text-text-secondary mt-3 text-sm"
-          >
-            已记录
-            {{ detail.outreachSummary?.count || 0 }} 条触达任务，最近发送时间：
-            {{ formatTime(detail.outreachSummary?.latestSentAt) }}
           </div>
-          <Empty v-else class="py-6" description="当前线索暂无触达记录" />
-        </Card>
+        </div>
       </template>
 
       <Empty v-else description="未找到对应线索" />
@@ -945,9 +964,9 @@ onMounted(() => {
 .radar-mobile-mini-head,
 .radar-mobile-bottom-actions {
   display: flex;
+  gap: 10px;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
 }
 
 .radar-mobile-topbar {
@@ -957,22 +976,22 @@ onMounted(() => {
 .radar-mobile-hero,
 .radar-mobile-section,
 .radar-mobile-mini-card {
+  background: var(--ant-color-bg-container);
   border: 1px solid var(--ant-color-border-secondary);
   border-radius: 8px;
-  background: var(--ant-color-bg-container);
   box-shadow: 0 4px 14px rgb(15 23 42 / 6%);
 }
 
 .radar-mobile-hero {
-  margin-bottom: 12px;
   padding: 14px;
+  margin-bottom: 12px;
 }
 
 .radar-mobile-hero-title {
-  color: var(--ant-color-text);
   font-size: 18px;
   font-weight: 700;
   line-height: 24px;
+  color: var(--ant-color-text);
   word-break: break-word;
 }
 
@@ -980,9 +999,9 @@ onMounted(() => {
 .radar-mobile-mini-meta,
 .radar-mobile-card-meta,
 .radar-mobile-tag-row {
-  color: var(--ant-color-text-secondary);
   font-size: 12px;
   line-height: 18px;
+  color: var(--ant-color-text-secondary);
 }
 
 .radar-mobile-hero-subtitle {
@@ -992,8 +1011,8 @@ onMounted(() => {
 .radar-mobile-tag-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 6px;
+  align-items: center;
   margin-top: 10px;
 }
 
@@ -1004,31 +1023,31 @@ onMounted(() => {
   margin-bottom: 12px;
 }
 
-.radar-mobile-score-grid > div {
+.radar-mobile-score-card {
   border: 1px solid var(--ant-color-border-secondary);
-  border-radius: 8px;
+}
+
+.radar-mobile-score-card :deep(.ant-card-body) {
   padding: 10px 4px;
-  background: var(--ant-color-bg-container);
   text-align: center;
 }
 
-.radar-mobile-score-grid span {
-  display: block;
-  color: var(--ant-color-text-secondary);
+.radar-mobile-score-card :deep(.ant-statistic-title) {
+  margin-bottom: 2px;
   font-size: 11px;
   line-height: 16px;
+  color: var(--ant-color-text-secondary);
 }
 
-.radar-mobile-score-grid strong {
-  display: block;
-  color: var(--ant-color-text);
+.radar-mobile-score-card :deep(.ant-statistic-content) {
   font-size: 18px;
   line-height: 24px;
+  color: var(--ant-color-text);
 }
 
 .radar-mobile-section {
-  margin-bottom: 12px;
   padding: 14px;
+  margin-bottom: 12px;
 }
 
 .radar-mobile-section-head {
@@ -1037,14 +1056,14 @@ onMounted(() => {
 
 .radar-mobile-section-head h3 {
   margin: 0;
-  color: var(--ant-color-text);
   font-size: 15px;
   font-weight: 700;
+  color: var(--ant-color-text);
 }
 
 .radar-mobile-section-head span {
-  color: var(--ant-color-text-secondary);
   font-size: 12px;
+  color: var(--ant-color-text-secondary);
 }
 
 .radar-mobile-info-list {
@@ -1059,18 +1078,18 @@ onMounted(() => {
 
 .radar-mobile-info-list span {
   display: block;
-  color: var(--ant-color-text-secondary);
   font-size: 12px;
   line-height: 18px;
+  color: var(--ant-color-text-secondary);
 }
 
 .radar-mobile-info-list strong {
   display: block;
   margin-top: 2px;
-  color: var(--ant-color-text);
   font-size: 13px;
   font-weight: 500;
   line-height: 20px;
+  color: var(--ant-color-text);
   word-break: break-word;
 }
 
@@ -1094,9 +1113,9 @@ onMounted(() => {
 
 .radar-mobile-mini-card p {
   margin: 8px 0 0;
-  color: var(--ant-color-text-secondary);
   font-size: 13px;
   line-height: 20px;
+  color: var(--ant-color-text-secondary);
   word-break: break-word;
 }
 
@@ -1117,5 +1136,93 @@ onMounted(() => {
 
 .dark .radar-mobile-bottom-actions {
   background: linear-gradient(to top, #111315 74%, rgb(17 19 21 / 0%));
+}
+
+.radar-detail-desktop-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(360px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.radar-detail-main-column,
+.radar-detail-side-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.radar-detail-list-card :deep(.ant-card-body) {
+  padding: 12px 18px 16px;
+}
+
+.radar-detail-info-card :deep(.ant-card-body) {
+  padding: 14px 18px 16px;
+}
+
+.radar-detail-descriptions :deep(.ant-descriptions-view) {
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.radar-detail-descriptions :deep(.ant-descriptions-item-label) {
+  width: 126px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ant-color-text-secondary);
+  background: var(--ant-color-fill-quaternary);
+}
+
+.radar-detail-descriptions :deep(.ant-descriptions-item-content) {
+  min-width: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ant-color-text);
+  word-break: break-word;
+}
+
+.radar-detail-table :deep(.ant-table) {
+  border-radius: 8px;
+}
+
+.radar-detail-table :deep(.ant-table-thead > tr > th) {
+  padding: 9px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--ant-color-text);
+  text-align: center;
+  vertical-align: middle;
+}
+
+.radar-detail-table :deep(.ant-table-tbody > tr > td) {
+  padding: 9px 10px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ant-color-text);
+  text-align: center;
+  vertical-align: middle;
+}
+
+.radar-detail-table :deep(.ant-table-tbody > tr > td:empty)::before {
+  color: var(--ant-color-text-tertiary);
+  content: '-';
+}
+
+.radar-detail-empty {
+  padding: 22px 0;
+}
+
+.radar-detail-loading {
+  padding: 8px 0;
+}
+
+@media (max-width: 1199px) {
+  .radar-detail-desktop-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

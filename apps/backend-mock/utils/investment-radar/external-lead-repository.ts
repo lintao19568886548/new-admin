@@ -26,6 +26,10 @@ const validStatuses = new Set<ExternalLeadStatus>([
   'WON',
 ]);
 
+let externalLeadStorageReady: null | Promise<void> = null;
+let externalLeadSeedCheckReady: null | Promise<void> = null;
+let externalLeadSeedReady: null | Promise<void> = null;
+
 export interface ExternalLeadListParams {
   confidenceLevel?: string;
   currentPage: number;
@@ -284,7 +288,12 @@ function mapEvidenceRow(row: any) {
 }
 
 export async function ensureExternalLeadStorage() {
-  await prismaClient.$executeRawUnsafe(`
+  if (externalLeadStorageReady) {
+    return externalLeadStorageReady;
+  }
+
+  externalLeadStorageReady = (async () => {
+    await prismaClient.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS company_lead (
       lead_id bigint NOT NULL AUTO_INCREMENT,
       source_id bigint NULL DEFAULT NULL,
@@ -326,7 +335,7 @@ export async function ensureExternalLeadStorage() {
     ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
   `);
 
-  await prismaClient.$executeRawUnsafe(`
+    await prismaClient.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS lead_evidence (
       evidence_id bigint NOT NULL AUTO_INCREMENT,
       lead_id bigint NOT NULL,
@@ -350,71 +359,82 @@ export async function ensureExternalLeadStorage() {
     ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
   `);
 
-  await ensureColumn(
-    'company_lead',
-    'source_title',
-    'ADD COLUMN source_title varchar(255) NULL DEFAULT NULL AFTER source_url',
-  );
-  await ensureColumn(
-    'company_lead',
-    'source_type',
-    "ADD COLUMN source_type varchar(50) NOT NULL DEFAULT 'PUBLIC' AFTER source_title",
-  );
-  await ensureColumn(
-    'company_lead',
-    'hit_keywords',
-    'ADD COLUMN hit_keywords text NULL AFTER region_district',
-  );
-  await ensureColumn(
-    'company_lead',
-    'is_deleted',
-    'ADD COLUMN is_deleted tinyint NOT NULL DEFAULT 0 AFTER update_time',
-  );
-  await ensureColumn(
-    'lead_evidence',
-    'matched_keywords',
-    'ADD COLUMN matched_keywords text NULL AFTER raw_text',
-  );
-  await ensureColumn(
-    'lead_evidence',
-    'matched_sentences',
-    'ADD COLUMN matched_sentences text NULL AFTER matched_keywords',
-  );
-  await ensureColumn(
-    'lead_evidence',
-    'update_time',
-    'ADD COLUMN update_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) AFTER create_time',
-  );
-  await ensureColumn(
-    'lead_evidence',
-    'is_deleted',
-    'ADD COLUMN is_deleted tinyint NOT NULL DEFAULT 0 AFTER update_time',
-  );
-  await repairLegacyEvidenceContentHashes();
-  await pruneAllDuplicateEvidenceByContentHash();
-  await repairDuplicateEvidenceHashesForUniqueIndex();
-  await ensureIndex(
-    'company_lead',
-    'company_lead_dedupe_key_uq',
-    'ADD UNIQUE KEY company_lead_dedupe_key_uq (dedupe_key)',
-  );
-  await ensureIndex(
-    'lead_evidence',
-    'lead_evidence_lead_hash_uq',
-    'ADD UNIQUE KEY lead_evidence_lead_hash_uq (lead_id, content_hash)',
-  );
+    await ensureColumn(
+      'company_lead',
+      'source_title',
+      'ADD COLUMN source_title varchar(255) NULL DEFAULT NULL AFTER source_url',
+    );
+    await ensureColumn(
+      'company_lead',
+      'source_type',
+      "ADD COLUMN source_type varchar(50) NOT NULL DEFAULT 'PUBLIC' AFTER source_title",
+    );
+    await ensureColumn(
+      'company_lead',
+      'hit_keywords',
+      'ADD COLUMN hit_keywords text NULL AFTER region_district',
+    );
+    await ensureColumn(
+      'company_lead',
+      'is_deleted',
+      'ADD COLUMN is_deleted tinyint NOT NULL DEFAULT 0 AFTER update_time',
+    );
+    await ensureColumn(
+      'lead_evidence',
+      'matched_keywords',
+      'ADD COLUMN matched_keywords text NULL AFTER raw_text',
+    );
+    await ensureColumn(
+      'lead_evidence',
+      'matched_sentences',
+      'ADD COLUMN matched_sentences text NULL AFTER matched_keywords',
+    );
+    await ensureColumn(
+      'lead_evidence',
+      'update_time',
+      'ADD COLUMN update_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) AFTER create_time',
+    );
+    await ensureColumn(
+      'lead_evidence',
+      'is_deleted',
+      'ADD COLUMN is_deleted tinyint NOT NULL DEFAULT 0 AFTER update_time',
+    );
+    await repairLegacyEvidenceContentHashes();
+    await pruneAllDuplicateEvidenceByContentHash();
+    await repairDuplicateEvidenceHashesForUniqueIndex();
+    await ensureIndex(
+      'company_lead',
+      'company_lead_dedupe_key_uq',
+      'ADD UNIQUE KEY company_lead_dedupe_key_uq (dedupe_key)',
+    );
+    await ensureIndex(
+      'lead_evidence',
+      'lead_evidence_lead_hash_uq',
+      'ADD UNIQUE KEY lead_evidence_lead_hash_uq (lead_id, content_hash)',
+    );
+  })().catch((error) => {
+    externalLeadStorageReady = null;
+    throw error;
+  });
+
+  return externalLeadStorageReady;
 }
 
 export async function seedExternalLeadFixtures() {
-  await ensureExternalLeadStorage();
+  if (externalLeadSeedReady) {
+    return externalLeadSeedReady;
+  }
 
-  for (const fixture of externalLeadFixtures) {
-    const dedupeKey = buildExternalLeadDedupeKey({
-      companyName: fixture.companyName,
-      sourceUrl: fixture.sourceUrl,
-    });
-    await prismaClient.$executeRawUnsafe(
-      `
+  externalLeadSeedReady = (async () => {
+    await ensureExternalLeadStorage();
+
+    for (const fixture of externalLeadFixtures) {
+      const dedupeKey = buildExternalLeadDedupeKey({
+        companyName: fixture.companyName,
+        sourceUrl: fixture.sourceUrl,
+      });
+      await prismaClient.$executeRawUnsafe(
+        `
         INSERT INTO company_lead (
           source_name, source_url, source_title, source_type,
           company_name, lead_title, summary, demand_type,
@@ -436,40 +456,40 @@ export async function seedExternalLeadFixtures() {
           crawled_at = VALUES(crawled_at),
           update_time = NOW(3)
       `,
-      fixture.sourceName,
-      fixture.sourceUrl,
-      fixture.sourceTitle,
-      fixture.companyName,
-      fixture.leadTitle,
-      fixture.summary,
-      fixture.demandType,
-      fixture.confidenceScore,
-      fixture.confidenceLevel,
-      fixture.industryName || null,
-      fixture.regionProvince || null,
-      fixture.regionCity || null,
-      fixture.regionDistrict || null,
-      toJson(fixture.hitKeywords),
-      fixture.evidences.length,
-      dedupeKey,
-      toNullableDate(fixture.crawledAt),
-      toNullableDate(fixture.crawledAt),
-      toNullableDate(fixture.crawledAt),
-    );
+        fixture.sourceName,
+        fixture.sourceUrl,
+        fixture.sourceTitle,
+        fixture.companyName,
+        fixture.leadTitle,
+        fixture.summary,
+        fixture.demandType,
+        fixture.confidenceScore,
+        fixture.confidenceLevel,
+        fixture.industryName || null,
+        fixture.regionProvince || null,
+        fixture.regionCity || null,
+        fixture.regionDistrict || null,
+        toJson(fixture.hitKeywords),
+        fixture.evidences.length,
+        dedupeKey,
+        toNullableDate(fixture.crawledAt),
+        toNullableDate(fixture.crawledAt),
+        toNullableDate(fixture.crawledAt),
+      );
 
-    const lead = await getExternalLeadByDedupeKey(dedupeKey);
-    if (!lead) {
-      continue;
-    }
+      const lead = await getExternalLeadByDedupeKey(dedupeKey);
+      if (!lead) {
+        continue;
+      }
 
-    for (const evidence of fixture.evidences) {
-      const contentHash = buildExternalLeadEvidenceHash({
-        evidenceType: evidence.evidenceType,
-        rawText: evidence.rawText,
-        sourceLink: evidence.sourceLink,
-      });
-      await prismaClient.$executeRawUnsafe(
-        `
+      for (const evidence of fixture.evidences) {
+        const contentHash = buildExternalLeadEvidenceHash({
+          evidenceType: evidence.evidenceType,
+          rawText: evidence.rawText,
+          sourceLink: evidence.sourceLink,
+        });
+        await prismaClient.$executeRawUnsafe(
+          `
           INSERT INTO lead_evidence (
             lead_id, evidence_type, source_title, source_link, raw_text,
             matched_keywords, matched_sentences, score_delta, content_hash,
@@ -486,26 +506,56 @@ export async function seedExternalLeadFixtures() {
             crawled_at = VALUES(crawled_at),
             update_time = NOW(3)
         `,
-        lead.leadId,
-        evidence.evidenceType,
-        evidence.sourceTitle,
-        evidence.sourceLink,
-        evidence.rawText,
-        toJson(evidence.matchedKeywords),
-        toJson(evidence.matchedSentences),
-        evidence.scoreDelta,
-        contentHash,
-        toNullableDate(evidence.publishedAt),
-        toNullableDate(evidence.crawledAt),
-      );
-    }
+          lead.leadId,
+          evidence.evidenceType,
+          evidence.sourceTitle,
+          evidence.sourceLink,
+          evidence.rawText,
+          toJson(evidence.matchedKeywords),
+          toJson(evidence.matchedSentences),
+          evidence.scoreDelta,
+          contentHash,
+          toNullableDate(evidence.publishedAt),
+          toNullableDate(evidence.crawledAt),
+        );
+      }
 
-    await refreshExternalLeadEvidenceCount(lead.leadId);
-  }
+      await refreshExternalLeadEvidenceCount(lead.leadId);
+    }
+  })().catch((error) => {
+    externalLeadSeedReady = null;
+    throw error;
+  });
+
+  return externalLeadSeedReady;
 }
 
 async function ensureSeeded() {
-  await seedExternalLeadFixtures();
+  if (externalLeadSeedCheckReady) {
+    return externalLeadSeedCheckReady;
+  }
+
+  externalLeadSeedCheckReady = (async () => {
+    await ensureExternalLeadStorage();
+    const rows = await prismaClient.$queryRawUnsafe<
+      Array<{ total: bigint | number }>
+    >(
+      `
+      SELECT COUNT(*) AS total
+      FROM company_lead
+      WHERE is_deleted = 0
+    `,
+    );
+    if (Number(rows[0]?.total || 0) > 0) {
+      return;
+    }
+    await seedExternalLeadFixtures();
+  })().catch((error) => {
+    externalLeadSeedCheckReady = null;
+    throw error;
+  });
+
+  return externalLeadSeedCheckReady;
 }
 
 async function refreshExternalLeadEvidenceCount(leadId: number) {

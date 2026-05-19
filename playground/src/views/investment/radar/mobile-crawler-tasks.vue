@@ -68,6 +68,7 @@ const itemLoading = ref(false);
 const detailOpen = ref(false);
 const logOpen = ref(false);
 const itemOpen = ref(false);
+const filterOpen = ref(false);
 const items = ref<CrawlerTask[]>([]);
 const opsSummary = ref<CrawlerOpsSummary | null>(null);
 const sourceItems = ref<CrawlerSource[]>([]);
@@ -133,6 +134,11 @@ const statusMeta: Record<string, { color: string; label: string }> = {
   SUCCESS: { color: 'green', label: '成功' },
 };
 
+const taskTypeLabel: Record<string, string> = {
+  PUBLIC_FACTORY_LISTING_URL_BATCH: '公开厂房URL批量采集',
+  PUBLIC_OPPORTUNITY_URL_BATCH: '公开机会URL批量采集',
+};
+
 const publicOpportunityCanRun = computed(
   () => opsSummary.value?.scheduler.canRunNow !== false,
 );
@@ -152,6 +158,40 @@ const selectedPublicSourceCode = computed(() => {
 const activeOpsSourceId = computed(
   () => searchForm.sourceId || opsSummary.value?.source?.sourceId,
 );
+
+const visibleRunningTaskCount = computed(
+  () => items.value.filter((item) => item.status === 'RUNNING').length,
+);
+
+const visibleFailedTaskCount = computed(
+  () => items.value.filter((item) => item.status === 'FAILED').length,
+);
+
+const visibleUrlIssueCount = computed(() =>
+  items.value.reduce(
+    (sum, item) =>
+      sum +
+      (item.failedItemCount || 0) +
+      (item.retryWaitingItemCount || 0) +
+      (item.skippedItemCount || 0),
+    0,
+  ),
+);
+
+function formatTaskType(taskType?: null | string) {
+  if (!taskType) {
+    return '-';
+  }
+  return taskTypeLabel[taskType] || taskType;
+}
+
+function formatJsonBlock(value?: null | Record<string, unknown>) {
+  return value ? JSON.stringify(value, null, 2) : '-';
+}
+
+function formatSourceRef(item: CrawlerTaskItem) {
+  return item.sourceRefType || (item.sourceRefId ? '已关联' : '-');
+}
 
 function getStatusCount(
   source: null | Record<string, number> | undefined,
@@ -221,6 +261,7 @@ async function loadTasks() {
 
 function searchTasks() {
   pagination.current = 1;
+  filterOpen.value = false;
   void loadTasks();
   void loadOpsSummary();
 }
@@ -228,6 +269,7 @@ function searchTasks() {
 function resetSearch() {
   searchForm.sourceId = undefined;
   searchForm.status = '';
+  filterOpen.value = false;
   searchTasks();
 }
 
@@ -244,7 +286,7 @@ async function runDemoTask() {
   runningDemo.value = true;
   try {
     const task = await runCrawlerTask();
-    message.success(`demo task 已结束：#${task.taskId} / ${task.status}`);
+    message.success(`demo task 已结束：${task.status}`);
     pagination.current = 1;
     await loadTasks();
     await loadOpsSummary();
@@ -271,7 +313,7 @@ async function runPublicOpportunityPilot() {
       freshnessDays: 180,
       sourceCode: selectedPublicSourceCode.value,
     });
-    message.success(`99cfw 试点采集已结束：#${task.taskId} / ${task.status}`);
+    message.success(`99cfw 试点采集已结束：${task.status}`);
     pagination.current = 1;
     await loadTasks();
     await loadOpsSummary();
@@ -286,6 +328,9 @@ async function runPublicOpportunityPilot() {
 async function refreshCrawlerOps() {
   await loadOpsSummary();
   await loadTasks();
+  if (itemOpen.value) {
+    await loadTaskItems();
+  }
 }
 
 async function startAutoScheduler() {
@@ -354,7 +399,6 @@ async function requeueSingleItem(item: CrawlerTaskItem) {
     });
     message.success(`已重新入队 ${result.requeuedCount} 个 URL 项`);
     await refreshCrawlerOps();
-    await loadTaskItems();
   } catch (error) {
     console.error('重新入队失败:', error);
     message.error('重新入队失败');
@@ -479,19 +523,73 @@ onMounted(() => {
 <template>
   <div class="radar-mobile-page">
     <div class="radar-mobile-header">
+      <div>
+        <h2>采集任务</h2>
+        <p>调度、重试、回收和排查 URL 采集任务。</p>
+      </div>
       <Button type="primary" :loading="loading" @click="refreshCrawlerOps">
         <ReloadOutlined class="mr-1 h-4 w-4" />
         刷新
       </Button>
     </div>
 
+    <div class="radar-mobile-overview">
+      <div class="overview-item">
+        <span>任务总数</span>
+        <strong>{{ pagination.total }}</strong>
+      </div>
+      <div class="overview-item">
+        <span>本页运行</span>
+        <strong>{{ visibleRunningTaskCount }}</strong>
+      </div>
+      <div class="overview-item">
+        <span>本页失败</span>
+        <strong>{{ visibleFailedTaskCount }}</strong>
+      </div>
+      <div class="overview-item">
+        <span>URL 待处理</span>
+        <strong>{{ visibleUrlIssueCount }}</strong>
+      </div>
+    </div>
+
     <Card v-if="!opsSummaryLoading && opsSummary" class="ops-summary-card">
       <div class="ops-summary-title">99cfw 试点运维摘要</div>
+      <div class="ops-summary-kpis">
+        <div class="ops-kpi">
+          <span>最新任务</span>
+          <strong>
+            {{
+              opsSummary.latestTask
+                ? statusMeta[opsSummary.latestTask.status]?.label ||
+                  opsSummary.latestTask.status
+                : '-'
+            }}
+          </strong>
+        </div>
+        <div class="ops-kpi">
+          <span>调度</span>
+          <strong>
+            {{ opsSummary.scheduler.active ? '运行中' : '已停止' }}
+          </strong>
+        </div>
+        <div class="ops-kpi">
+          <span>任务失败</span>
+          <strong>{{ getStatusCount(opsSummary.taskStatus, 'FAILED') }}</strong>
+        </div>
+        <div class="ops-kpi">
+          <span>URL 失败</span>
+          <strong>{{ getStatusCount(opsSummary.itemStatus, 'FAILED') }}</strong>
+        </div>
+      </div>
       <div class="ops-summary-grid">
-        <div class="ops-item">
+        <div class="ops-item ops-item-full">
           <span class="ops-label">数据源</span>
           <span class="ops-value">
-            {{ opsSummary.source?.sourceName || '-' }}
+            {{
+              opsSummary.source
+                ? `${opsSummary.source.sourceName} (${opsSummary.source.sourceCode})`
+                : '-'
+            }}
           </span>
         </div>
         <div class="ops-item">
@@ -509,19 +607,65 @@ onMounted(() => {
         <div class="ops-item">
           <span class="ops-label">调度器</span>
           <span class="ops-value">
-            <Tag :color="opsSummary.scheduler.enabled ? 'green' : 'default'">
-              {{ opsSummary.scheduler.enabled ? 'ON' : 'OFF' }}
+            <Tag :color="opsSummary.scheduler.active ? 'green' : 'default'">
+              {{ opsSummary.scheduler.active ? '运行中' : '已停止' }}
+            </Tag>
+            <Tag :color="opsSummary.scheduler.running ? 'blue' : 'default'">
+              {{ opsSummary.scheduler.running ? '执行中' : '空闲' }}
+            </Tag>
+            <Tag :color="opsSummary.scheduler.envEnabled ? 'green' : 'default'">
+              环境{{ opsSummary.scheduler.envEnabled ? '开' : '关' }}
             </Tag>
             {{ Math.round(opsSummary.scheduler.intervalMs / 1000) }}s
           </span>
         </div>
         <div class="ops-item">
           <span class="ops-label">可运行</span>
-          <Tag :color="opsSummary.scheduler.canRunNow ? 'green' : 'orange'">
-            {{ opsSummary.scheduler.canRunNow ? 'YES' : 'NO' }}
-          </Tag>
+          <span class="ops-value">
+            <Tag :color="opsSummary.scheduler.canRunNow ? 'green' : 'orange'">
+              {{ opsSummary.scheduler.canRunNow ? '是' : '否' }}
+            </Tag>
+            <span v-if="opsSummary.scheduler.nextRunAt">
+              下次 {{ formatDateOnly(opsSummary.scheduler.nextRunAt) }}
+            </span>
+            <span v-if="opsSummary.scheduler.reason">
+              / {{ opsSummary.scheduler.reason }}
+            </span>
+          </span>
         </div>
         <div class="ops-item">
+          <span class="ops-label">最近任务</span>
+          <span class="ops-value">
+            <template v-if="opsSummary.latestTask">
+              <Tag
+                :color="
+                  statusMeta[opsSummary.latestTask.status]?.color || 'default'
+                "
+              >
+                {{
+                  statusMeta[opsSummary.latestTask.status]?.label ||
+                  opsSummary.latestTask.status
+                }}
+              </Tag>
+            </template>
+            <template v-else>-</template>
+          </span>
+        </div>
+        <div class="ops-item">
+          <span class="ops-label">调度周期</span>
+          <span class="ops-value">
+            开始 {{ formatDateOnly(opsSummary.scheduler.lastTickStartedAt) }} /
+            结束 {{ formatDateOnly(opsSummary.scheduler.lastTickFinishedAt) }}
+          </span>
+        </div>
+        <div class="ops-item ops-item-full">
+          <span class="ops-label">调度结果</span>
+          <span class="ops-value">
+            {{ opsSummary.scheduler.lastSkipReason || '无跳过' }} /
+            {{ opsSummary.scheduler.lastError || '无错误' }}
+          </span>
+        </div>
+        <div class="ops-item ops-item-full">
           <span class="ops-label">任务状态</span>
           <span class="ops-value">
             <Tag color="green">
@@ -535,13 +679,14 @@ onMounted(() => {
             </Tag>
           </span>
         </div>
-        <div class="ops-item">
+        <div class="ops-item ops-item-full">
           <span class="ops-label">URL 状态</span>
           <span class="ops-value">
             P {{ getStatusCount(opsSummary.itemStatus, 'PENDING') }} / R
             {{ getStatusCount(opsSummary.itemStatus, 'RETRY_WAITING') }} / S
             {{ getStatusCount(opsSummary.itemStatus, 'SUCCESS') }} / F
-            {{ getStatusCount(opsSummary.itemStatus, 'FAILED') }}
+            {{ getStatusCount(opsSummary.itemStatus, 'FAILED') }} / SKIP
+            {{ getStatusCount(opsSummary.itemStatus, 'SKIPPED') }}
           </span>
         </div>
       </div>
@@ -571,6 +716,7 @@ onMounted(() => {
           >
             重试
           </Button>
+          <div class="failed-url">{{ item.sourceUrl }}</div>
         </div>
       </div>
       <div class="ops-actions">
@@ -602,26 +748,26 @@ onMounted(() => {
     <div v-if="opsSummaryLoading" class="ops-loading">加载中...</div>
 
     <div class="radar-mobile-filter">
-      <Form layout="horizontal" class="filter-form">
-        <Form.Item label="状态">
-          <Select
-            v-model:value="searchForm.status"
-            class="filter-select"
-            :options="statusOptions"
-            @change="searchTasks"
-          />
-        </Form.Item>
-        <Form.Item label="数据源">
-          <Select
-            v-model:value="searchForm.sourceId"
-            allow-clear
-            class="filter-select filter-select-wide"
-            :options="sourceOptions"
-            @change="searchTasks"
-          />
-        </Form.Item>
+      <div class="mobile-search-bar">
+        <Select
+          v-model:value="searchForm.status"
+          class="mobile-search-input"
+          :options="statusOptions"
+          @change="searchTasks"
+        />
+        <Button type="primary" @click="searchTasks">查询</Button>
+        <Button @click="filterOpen = !filterOpen">筛选</Button>
+      </div>
+      <div v-show="filterOpen" class="mobile-filter-panel">
+        <Select
+          v-model:value="searchForm.sourceId"
+          allow-clear
+          class="filter-select filter-select-wide"
+          :options="sourceOptions"
+          @change="searchTasks"
+        />
         <div class="filter-actions">
-          <Button type="primary" @click="searchTasks">查询</Button>
+          <Button type="primary" @click="searchTasks">应用筛选</Button>
           <Button @click="resetSearch">重置</Button>
           <Button type="primary" :loading="runningDemo" @click="runDemoTask">
             <PlayCircleOutlined class="mr-1 h-4 w-4" />
@@ -636,7 +782,7 @@ onMounted(() => {
             运行试点
           </Button>
         </div>
-      </Form>
+      </div>
     </div>
 
     <Spin :spinning="loading">
@@ -649,8 +795,12 @@ onMounted(() => {
         >
           <div class="radar-card-head">
             <div>
-              <div class="radar-card-title">#{{ item.taskId }}</div>
-              <div class="radar-card-subtitle">{{ item.taskType }}</div>
+              <div class="radar-card-title">
+                {{ item.sourceName || item.sourceCode || '采集任务' }}
+              </div>
+              <div class="radar-card-subtitle">
+                {{ formatTaskType(item.taskType) }}
+              </div>
             </div>
             <Tag :color="statusMeta[item.status]?.color || 'default'">
               {{ statusMeta[item.status]?.label || item.status }}
@@ -766,10 +916,6 @@ onMounted(() => {
       <div v-if="detailLoading" class="drawer-loading">加载中...</div>
       <div v-else-if="currentTask" class="detail-content">
         <div class="detail-row">
-          <span class="detail-label">任务 ID</span>
-          <span class="detail-value">#{{ currentTask.taskId }}</span>
-        </div>
-        <div class="detail-row">
           <span class="detail-label">状态</span>
           <Tag :color="statusMeta[currentTask.status]?.color || 'default'">
             {{ statusMeta[currentTask.status]?.label || currentTask.status }}
@@ -777,7 +923,9 @@ onMounted(() => {
         </div>
         <div class="detail-row">
           <span class="detail-label">任务类型</span>
-          <span class="detail-value">{{ currentTask.taskType }}</span>
+          <span class="detail-value">{{
+            formatTaskType(currentTask.taskType)
+          }}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">来源</span>
@@ -826,6 +974,12 @@ onMounted(() => {
         <div v-if="currentTask.errorMessage" class="detail-row error-row">
           <ExclamationCircleOutlined class="error-icon" />
           <span class="error-message">{{ currentTask.errorMessage }}</span>
+        </div>
+        <div class="detail-block">
+          <span class="detail-label">请求配置</span>
+          <pre class="task-json">{{
+            formatJsonBlock(currentTask.requestConfigJson)
+          }}</pre>
         </div>
       </div>
     </Drawer>
@@ -907,6 +1061,13 @@ onMounted(() => {
                 HTTP {{ item.lastHttpStatus }}
               </span>
             </div>
+            <div class="task-item-meta-grid">
+              <span>来源 {{ formatSourceRef(item) }}</span>
+              <span>发布 {{ formatDateOnly(item.publishedAt) }}</span>
+              <span>下次 {{ formatDateOnly(item.nextRetryAt) }}</span>
+              <span>开始 {{ formatDateOnly(item.lastStartedAt) }}</span>
+              <span>完成 {{ formatDateOnly(item.lastFinishedAt) }}</span>
+            </div>
             <div
               v-if="item.lastError || item.skipReason"
               class="task-item-reason"
@@ -982,15 +1143,94 @@ onMounted(() => {
   color: var(--ant-color-text-secondary);
 }
 
+.radar-mobile-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.overview-item {
+  min-width: 0;
+  padding: 9px 8px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+}
+
+.dark .overview-item {
+  background: #2d2d2d;
+}
+
+.overview-item span {
+  display: block;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-item strong {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 17px;
+  line-height: 24px;
+  color: var(--ant-color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ops-summary-card {
   margin-bottom: 8px;
 }
 
+.ops-summary-card :deep(.ant-card-body) {
+  padding: 12px;
+}
+
 .ops-summary-title {
+  margin-bottom: 10px;
   font-size: 15px;
   font-weight: 600;
   color: var(--ant-color-text);
+}
+
+.ops-summary-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
   margin-bottom: 10px;
+}
+
+.ops-kpi {
+  min-width: 0;
+  padding: 8px;
+  background: var(--ant-color-fill-tertiary);
+  border-radius: 8px;
+}
+
+.ops-kpi span {
+  display: block;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ant-color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ops-kpi strong {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--ant-color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ops-summary-grid {
@@ -1003,6 +1243,11 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+}
+
+.ops-item-full {
+  grid-column: 1 / -1;
 }
 
 .ops-label {
@@ -1016,27 +1261,34 @@ onMounted(() => {
   line-height: 20px;
   color: var(--ant-color-text);
   word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.ops-value :deep(.ant-tag) {
+  margin-bottom: 4px;
+  vertical-align: top;
 }
 
 .ops-failed-items {
-  margin-top: 12px;
   padding-top: 12px;
+  margin-top: 12px;
   border-top: 1px solid var(--ant-color-border);
 }
 
 .ops-failed-title {
+  margin-bottom: 8px;
   font-size: 13px;
   font-weight: 600;
   color: var(--ant-color-text);
-  margin-bottom: 8px;
 }
 
 .ops-failed-item {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  margin-bottom: 6px;
   padding: 6px;
+  margin-bottom: 6px;
   background: var(--ant-color-bg-warning);
   border-radius: 6px;
 }
@@ -1047,9 +1299,23 @@ onMounted(() => {
 
 .failed-reason {
   flex: 1;
+  min-width: 0;
   font-size: 12px;
   line-height: 18px;
   color: var(--ant-color-text-secondary);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.failed-url {
+  flex-basis: 100%;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ant-color-text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ops-actions {
@@ -1059,14 +1325,14 @@ onMounted(() => {
   margin-top: 12px;
 }
 
-.ops-actions Button {
+.ops-actions button {
+  width: 100%;
   height: auto;
   min-height: 32px;
-  width: 100%;
   white-space: normal;
 }
 
-.ops-actions Button :deep(span) {
+.ops-actions button :deep(span) {
   min-width: 0;
   overflow-wrap: anywhere;
   white-space: normal;
@@ -1074,15 +1340,15 @@ onMounted(() => {
 
 .ops-loading {
   padding: 16px;
+  margin-bottom: 8px;
   text-align: center;
   background: #fff;
   border-radius: 8px;
-  margin-bottom: 8px;
 }
 
 .radar-mobile-filter {
-  margin-bottom: 8px;
   padding: 12px;
+  margin-bottom: 8px;
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
@@ -1092,25 +1358,62 @@ onMounted(() => {
   background: #2d2d2d;
 }
 
+.mobile-search-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 64px;
+  gap: 8px;
+  align-items: center;
+}
+
+.mobile-search-input {
+  min-width: 0;
+}
+
+.mobile-filter-panel {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--ant-color-border-secondary);
+}
+
 .filter-form {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   align-items: center;
 }
 
 .filter-select {
-  min-width: 140px;
+  width: 100%;
+  min-width: 0;
 }
 
 .filter-select-wide {
-  min-width: 220px;
+  width: 100%;
+  min-width: 0;
 }
 
 .filter-actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-column: 1 / -1;
+  gap: 8px;
+}
+
+.filter-actions button,
+.item-filter-actions button {
+  width: 100%;
+  height: auto;
+  min-height: 32px;
+  white-space: normal;
+}
+
+.filter-actions button :deep(span),
+.item-filter-actions button :deep(span) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .radar-mobile-list {
@@ -1151,17 +1454,17 @@ onMounted(() => {
   font-weight: 700;
   line-height: 23px;
   color: var(--ant-color-text);
-  overflow-wrap: anywhere;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .radar-card-subtitle {
+  margin-top: 2px;
   font-size: 12px;
   line-height: 18px;
   color: var(--ant-color-text-secondary);
-  margin-top: 2px;
-  overflow-wrap: anywhere;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .radar-card-meta {
@@ -1171,6 +1474,7 @@ onMounted(() => {
 .meta-row {
   display: flex;
   gap: 8px;
+  min-width: 0;
   margin-bottom: 6px;
 }
 
@@ -1179,31 +1483,33 @@ onMounted(() => {
 }
 
 .meta-label {
+  flex-shrink: 0;
+  min-width: 70px;
   font-size: 12px;
   line-height: 18px;
   color: var(--ant-color-text-secondary);
-  min-width: 70px;
-  flex-shrink: 0;
 }
 
 .meta-value {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   line-height: 20px;
   color: var(--ant-color-text);
-  flex: 1;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .error-row {
   padding: 8px;
+  margin-top: 8px;
   background: var(--ant-color-bg-error);
   border-radius: 6px;
-  margin-top: 8px;
 }
 
 .error-icon {
-  color: var(--ant-color-error);
   margin-right: 6px;
+  color: var(--ant-color-error);
 }
 
 .error-message {
@@ -1216,13 +1522,23 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 12px;
   padding-top: 10px;
+  margin-top: 12px;
   border-top: 1px solid var(--ant-color-border);
 }
 
 .radar-action-btn {
   justify-content: center;
+  min-width: 0;
+  height: auto;
+  min-height: 32px;
+  white-space: normal;
+}
+
+.radar-action-btn :deep(span) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .radar-mobile-pagination {
@@ -1246,6 +1562,7 @@ onMounted(() => {
 .detail-row {
   display: flex;
   gap: 8px;
+  min-width: 0;
   padding: 8px 0;
   border-bottom: 1px solid var(--ant-color-border);
 }
@@ -1255,17 +1572,39 @@ onMounted(() => {
 }
 
 .detail-label {
+  flex-shrink: 0;
+  min-width: 70px;
   font-size: 12px;
   line-height: 18px;
   color: var(--ant-color-text-secondary);
-  min-width: 70px;
-  flex-shrink: 0;
 }
 
 .detail-value {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   line-height: 20px;
   color: var(--ant-color-text);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.detail-block {
+  padding: 8px 0;
+}
+
+.task-json {
+  max-height: 280px;
+  padding: 8px;
+  margin: 6px 0 0;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+  word-break: break-word;
+  white-space: pre-wrap;
+  background: var(--ant-color-fill);
+  border-radius: 6px;
 }
 
 .log-list {
@@ -1284,6 +1623,7 @@ onMounted(() => {
 
 .log-header {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   margin-bottom: 6px;
@@ -1296,37 +1636,45 @@ onMounted(() => {
 }
 
 .log-time {
+  margin-left: auto;
   font-size: 12px;
   line-height: 18px;
   color: var(--ant-color-text-secondary);
-  margin-left: auto;
 }
 
 .log-message {
+  margin-bottom: 6px;
   font-size: 13px;
   line-height: 20px;
   color: var(--ant-color-text);
-  margin-bottom: 6px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .log-detail {
+  padding: 8px;
+  overflow-x: auto;
   font-size: 12px;
   line-height: 18px;
   color: var(--ant-color-text-secondary);
+  word-break: break-word;
+  white-space: pre-wrap;
   background: var(--ant-color-fill);
-  padding: 8px;
   border-radius: 6px;
-  overflow-x: auto;
 }
 
 .item-filter-form {
-  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
   padding-bottom: 12px;
+  margin-bottom: 12px;
   border-bottom: 1px solid var(--ant-color-border);
 }
 
 .item-filter-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1337,9 +1685,9 @@ onMounted(() => {
 
 .task-item-card {
   padding: 12px;
+  margin-bottom: 8px;
   background: var(--ant-color-bg);
   border-radius: 8px;
-  margin-bottom: 8px;
 }
 
 .task-item-header {
@@ -1356,27 +1704,46 @@ onMounted(() => {
 }
 
 .task-item-url {
+  margin-bottom: 6px;
   font-size: 12px;
   line-height: 18px;
   color: var(--ant-color-text-secondary);
   word-break: break-all;
-  margin-bottom: 6px;
 }
 
 .task-item-meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
+  margin-bottom: 6px;
   font-size: 12px;
   line-height: 18px;
   color: var(--ant-color-text-secondary);
+}
+
+.task-item-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
   margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+}
+
+.task-item-meta-grid span {
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .task-item-reason {
+  margin-bottom: 8px;
   font-size: 12px;
   line-height: 18px;
   color: var(--ant-color-error);
-  margin-bottom: 8px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .task-item-actions {
@@ -1386,5 +1753,12 @@ onMounted(() => {
 .task-item-pagination {
   margin-top: 10px;
   text-align: center;
+}
+
+@media (max-width: 420px) {
+  .radar-mobile-overview,
+  .ops-summary-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

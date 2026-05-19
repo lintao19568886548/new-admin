@@ -1,8 +1,5 @@
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
-import {
-  getSignalEventDetail,
-  listSignalEventEvidences,
-} from '~/utils/investment-radar/signal-event-repository';
+import { listSignalEventEvidences } from '~/utils/investment-radar/signal-event-repository';
 import {
   badRequestResponse,
   serverErrorResponse,
@@ -22,16 +19,9 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const result = await runWithRadarSharedScope(async () => {
-      const signalEvent = await getSignalEventDetail(eventId);
-      if (!signalEvent) {
-        return null;
-      }
-      return listSignalEventEvidences(eventId);
-    });
-    if (!result) {
-      return badRequestResponse('企业信号不存在', event, 404);
-    }
+    const result = await runWithRadarSharedScope(() =>
+      listSignalEventEvidences(eventId),
+    );
     return useResponseSuccess(result);
   } catch (error) {
     console.error('list signal evidences failed:', error);

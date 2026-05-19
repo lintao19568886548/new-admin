@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { PublicOpportunityItem } from '#/api/investment';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 import { ChevronDown, ExternalLink, Search } from '@vben/icons';
 
@@ -17,6 +17,7 @@ import {
   Modal,
   Pagination,
   Spin,
+  Statistic,
   Tag,
 } from 'ant-design-vue';
 
@@ -39,7 +40,7 @@ const manualOpen = ref(false);
 const manualSaving = ref(false);
 const items = ref<PublicOpportunityItem[]>([]);
 const currentItem = ref<null | PublicOpportunityItem>(null);
-const filterExpanded = ref(true);
+const filterExpanded = ref(false);
 
 const pagination = reactive({
   current: 1,
@@ -71,8 +72,14 @@ const manualForm = reactive({
   title: '',
 });
 
+const summary = computed(() => ({
+  currentPageCount: items.value.length,
+  total: pagination.total,
+}));
+
 function handleSearch() {
   pagination.current = 1;
+  filterExpanded.value = false;
   void loadPublicDemands();
 }
 
@@ -81,6 +88,7 @@ function handleReset() {
   searchForm.keyword = '';
   searchForm.publishedAgeLabel = '';
   searchForm.sourceSite = '';
+  filterExpanded.value = false;
   handleSearch();
 }
 
@@ -156,6 +164,54 @@ function handleDetailOpenChange(value: boolean) {
 
 function openSource(record: PublicOpportunityItem) {
   window.open(record.sourceUrl, '_blank', 'noopener,noreferrer');
+}
+
+function getDemandTitle(record: PublicOpportunityItem) {
+  return record.title || '公开需求';
+}
+
+function getPublishedAgeText(record: PublicOpportunityItem) {
+  return record.publishedAgeLabel || '-';
+}
+
+function getRegionText(record: PublicOpportunityItem) {
+  return [record.city, record.district].filter(Boolean).join(' / ') || '-';
+}
+
+function getSourceSiteText(record: PublicOpportunityItem) {
+  return record.sourceSite || '-';
+}
+
+function getAreaText(record: PublicOpportunityItem) {
+  return String(formatArea(record));
+}
+
+function getPriceText(record: PublicOpportunityItem) {
+  return record.priceText || '-';
+}
+
+function getContactNameText(record: PublicOpportunityItem) {
+  return record.contactName || '-';
+}
+
+function getPhoneText(record: PublicOpportunityItem) {
+  return record.phoneNumber || '-';
+}
+
+function getPublishedDateText(record: PublicOpportunityItem) {
+  return String(formatDateOnly(record.publishedAt));
+}
+
+function getSyncedTimeText(record: PublicOpportunityItem) {
+  return String(formatTime(record.lastSyncedAt));
+}
+
+function getScoreText(record: PublicOpportunityItem) {
+  return String(record.score ?? '-');
+}
+
+function getDescriptionText(record: PublicOpportunityItem) {
+  return record.description || '';
 }
 
 function resetManualForm() {
@@ -234,24 +290,35 @@ onMounted(() => {
 
       <Alert v-if="loadError" :message="loadError" show-icon type="warning" />
 
+      <div class="radar-mobile-stats">
+        <Card class="radar-mobile-stat-card">
+          <Statistic title="当前页需求数" :value="summary.currentPageCount" />
+        </Card>
+        <Card class="radar-mobile-stat-card">
+          <Statistic title="总需求数" :value="summary.total" />
+        </Card>
+      </div>
+
       <div class="radar-mobile-filter">
-        <div class="radar-filter-header" @click="toggleFilter">
-          <span>筛选条件</span>
-          <ChevronDown
-            :class="{ 'rotate-180': filterExpanded }"
-            class="transition-transform"
+        <div class="mobile-search-bar">
+          <Input
+            v-model:value="searchForm.keyword"
+            allow-clear
+            class="mobile-search-input"
+            placeholder="标题 / 联系人 / 来源"
+            @press-enter="handleSearch"
           />
+          <Button type="primary" @click="handleSearch">查询</Button>
+          <Button @click="toggleFilter">
+            筛选
+            <ChevronDown
+              :class="{ 'rotate-180': filterExpanded }"
+              class="transition-transform"
+            />
+          </Button>
         </div>
         <div v-show="filterExpanded" class="radar-filter-content">
           <Form layout="vertical">
-            <Form.Item label="关键字">
-              <Input
-                v-model:value="searchForm.keyword"
-                allow-clear
-                placeholder="标题 / 联系人 / 来源"
-                @press-enter="handleSearch"
-              />
-            </Form.Item>
             <Form.Item label="城市">
               <Input
                 v-model:value="searchForm.city"
@@ -279,7 +346,7 @@ onMounted(() => {
             <div class="radar-mobile-filter-actions">
               <Button type="primary" @click="handleSearch">
                 <Search class="mr-1 h-4 w-4" />
-                查询
+                应用筛选
               </Button>
               <Button @click="handleReset">重置</Button>
             </div>
@@ -296,29 +363,58 @@ onMounted(() => {
             :body-style="{ padding: '0' }"
           >
             <div class="radar-card-head">
-              <div class="radar-card-title">
-                {{ item.title || `机会 #${item.opportunityId}` }}
+              <div class="radar-card-title" :title="getDemandTitle(item)">
+                {{ getDemandTitle(item) }}
               </div>
-              <Tag color="blue">需求</Tag>
+              <Tag class="radar-card-type" color="blue">需求</Tag>
             </div>
             <div class="radar-card-tags">
-              <span>{{
-                [item.city, item.district].filter(Boolean).join(' / ') || '-'
-              }}</span>
-              <span>{{ item.sourceSite || '-' }}</span>
-              <span>{{ item.publishedAgeLabel || '-' }}</span>
+              <span class="radar-card-chip" :title="getRegionText(item)">
+                {{ getRegionText(item) }}
+              </span>
+              <span class="radar-card-chip" :title="getSourceSiteText(item)">
+                {{ getSourceSiteText(item) }}
+              </span>
+              <span class="radar-card-chip" :title="getPublishedAgeText(item)">
+                {{ getPublishedAgeText(item) }}
+              </span>
             </div>
             <div class="radar-card-meta">
-              <span>面积：{{ formatArea(item) }}</span>
-              <span>预算：{{ item.priceText || '-' }}</span>
-              <span>联系人：{{ item.contactName || '-' }}</span>
-              <span>电话：{{ item.phoneNumber || '-' }}</span>
-              <span>发布：{{ formatDateOnly(item.publishedAt) }}</span>
-              <span>采集：{{ formatTime(item.lastSyncedAt) }}</span>
-              <span>分数：{{ item.score ?? '-' }}</span>
+              <span class="radar-meta-item" :title="getAreaText(item)">
+                <span>面积</span>
+                <strong>{{ getAreaText(item) }}</strong>
+              </span>
+              <span class="radar-meta-item" :title="getPriceText(item)">
+                <span>预算</span>
+                <strong>{{ getPriceText(item) }}</strong>
+              </span>
+              <span class="radar-meta-item" :title="getContactNameText(item)">
+                <span>联系人</span>
+                <strong>{{ getContactNameText(item) }}</strong>
+              </span>
+              <span class="radar-meta-item" :title="getPhoneText(item)">
+                <span>电话</span>
+                <strong>{{ getPhoneText(item) }}</strong>
+              </span>
+              <span class="radar-meta-item" :title="getPublishedDateText(item)">
+                <span>发布</span>
+                <strong>{{ getPublishedDateText(item) }}</strong>
+              </span>
+              <span class="radar-meta-item" :title="getSyncedTimeText(item)">
+                <span>采集</span>
+                <strong>{{ getSyncedTimeText(item) }}</strong>
+              </span>
+              <span class="radar-meta-item" :title="getScoreText(item)">
+                <span>分数</span>
+                <strong>{{ getScoreText(item) }}</strong>
+              </span>
             </div>
-            <div v-if="item.description" class="radar-card-desc">
-              {{ item.description }}
+            <div
+              v-if="item.description"
+              class="radar-card-desc"
+              :title="getDescriptionText(item)"
+            >
+              {{ getDescriptionText(item) }}
             </div>
             <div class="radar-card-actions">
               <Button
@@ -481,6 +577,51 @@ onMounted(() => {
   gap: 8px;
 }
 
+.radar-mobile-page :deep(.ant-alert) {
+  margin-bottom: 8px;
+}
+
+.radar-mobile-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.radar-mobile-stat-card {
+  overflow: hidden;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+}
+
+.dark .radar-mobile-stat-card {
+  background: #2d2d2d;
+}
+
+.radar-mobile-stat-card :deep(.ant-card-body) {
+  padding: 12px !important;
+}
+
+.radar-mobile-stat-card :deep(.ant-statistic-title) {
+  margin-bottom: 4px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radar-mobile-stat-card :deep(.ant-statistic-content) {
+  overflow: hidden;
+  font-size: 22px;
+  line-height: 28px;
+  color: var(--ant-color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .radar-mobile-filter {
   margin-bottom: 8px;
   background: #fff;
@@ -493,19 +634,21 @@ onMounted(() => {
   background: #2d2d2d;
 }
 
-.radar-filter-header {
-  display: flex;
+.mobile-search-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 72px;
   gap: 8px;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ant-color-text);
+  padding: 10px;
+}
+
+.mobile-search-input {
+  min-width: 0;
 }
 
 .radar-filter-content {
-  padding: 0 12px 12px;
+  padding: 0 10px 10px;
+  border-top: 1px solid var(--ant-color-border-secondary);
 }
 
 .radar-mobile-filter-actions {
@@ -540,13 +683,22 @@ onMounted(() => {
 }
 
 .radar-card-title {
+  display: -webkit-box;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
   font-size: 16px;
   font-weight: 700;
   line-height: 23px;
   color: var(--ant-color-text);
+  -webkit-line-clamp: 2;
   word-break: break-word;
+  -webkit-box-orient: vertical;
+}
+
+.radar-card-type {
+  flex: 0 0 auto;
+  margin-inline-end: 0;
 }
 
 .radar-card-tags {
@@ -559,37 +711,81 @@ onMounted(() => {
   color: var(--ant-color-text-secondary);
 }
 
+.radar-card-chip {
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px 7px;
+  overflow: hidden;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--ant-color-fill-tertiary);
+  border-radius: 4px;
+}
+
 .radar-card-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px 8px;
+  gap: 6px 10px;
   margin-top: 10px;
   font-size: 13px;
   line-height: 20px;
   color: var(--ant-color-text-secondary);
+}
+
+.radar-meta-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 4px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.radar-meta-item span {
+  color: var(--ant-color-text-tertiary);
+}
+
+.radar-meta-item strong {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 400;
+  color: var(--ant-color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .radar-card-desc {
-  margin-top: 10px;
+  display: -webkit-box;
   padding-top: 10px;
-  border-top: 1px solid var(--ant-color-border);
+  margin-top: 10px;
+  overflow: hidden;
   font-size: 13px;
   line-height: 20px;
   color: var(--ant-color-text-secondary);
+  -webkit-line-clamp: 3;
   word-break: break-word;
+  border-top: 1px solid var(--ant-color-border);
+  -webkit-box-orient: vertical;
 }
 
 .radar-card-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 8px;
-  margin-top: 12px;
   padding-top: 10px;
+  margin-top: 12px;
   border-top: 1px solid var(--ant-color-border);
 }
 
 .radar-action-btn {
-  flex: 1;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 32px;
+  white-space: normal;
 }
 
 .radar-mobile-pagination {

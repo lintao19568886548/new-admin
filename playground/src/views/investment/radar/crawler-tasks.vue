@@ -20,6 +20,7 @@ import {
   Card,
   Descriptions,
   Drawer,
+  Empty,
   Form,
   message,
   Select,
@@ -96,29 +97,33 @@ const itemTableLocale = {
 };
 const statusOptions: Array<{ label: string; value: '' | CrawlerTaskStatus }> = [
   { label: '全部', value: '' },
-  { label: 'PENDING', value: 'PENDING' },
-  { label: 'RUNNING', value: 'RUNNING' },
-  { label: 'SUCCESS', value: 'SUCCESS' },
-  { label: 'FAILED', value: 'FAILED' },
-  { label: 'CANCELED', value: 'CANCELED' },
+  { label: '等待中', value: 'PENDING' },
+  { label: '运行中', value: 'RUNNING' },
+  { label: '成功', value: 'SUCCESS' },
+  { label: '失败', value: 'FAILED' },
+  { label: '已取消', value: 'CANCELED' },
 ];
 const itemStatusOptions = [
   { label: '全部', value: '' },
-  { label: 'PENDING', value: 'PENDING' },
-  { label: 'RUNNING', value: 'RUNNING' },
-  { label: 'SUCCESS', value: 'SUCCESS' },
-  { label: 'RETRY_WAITING', value: 'RETRY_WAITING' },
-  { label: 'FAILED', value: 'FAILED' },
-  { label: 'SKIPPED', value: 'SKIPPED' },
+  { label: '等待中', value: 'PENDING' },
+  { label: '运行中', value: 'RUNNING' },
+  { label: '成功', value: 'SUCCESS' },
+  { label: '重试等待', value: 'RETRY_WAITING' },
+  { label: '失败', value: 'FAILED' },
+  { label: '跳过', value: 'SKIPPED' },
 ];
 const statusMeta: Record<string, { color: string; label: string }> = {
-  CANCELED: { color: 'default', label: 'CANCELED' },
-  FAILED: { color: 'red', label: 'FAILED' },
-  PENDING: { color: 'orange', label: 'PENDING' },
-  RETRY_WAITING: { color: 'gold', label: 'RETRY_WAITING' },
-  RUNNING: { color: 'processing', label: 'RUNNING' },
-  SKIPPED: { color: 'default', label: 'SKIPPED' },
-  SUCCESS: { color: 'green', label: 'SUCCESS' },
+  CANCELED: { color: 'default', label: '已取消' },
+  FAILED: { color: 'red', label: '失败' },
+  PENDING: { color: 'orange', label: '等待中' },
+  RETRY_WAITING: { color: 'gold', label: '重试等待' },
+  RUNNING: { color: 'processing', label: '运行中' },
+  SKIPPED: { color: 'default', label: '跳过' },
+  SUCCESS: { color: 'green', label: '成功' },
+};
+const taskTypeLabel: Record<string, string> = {
+  PUBLIC_FACTORY_LISTING_URL_BATCH: '公开厂房URL批量采集',
+  PUBLIC_OPPORTUNITY_URL_BATCH: '公开机会URL批量采集',
 };
 const sourceOptions = computed(() => [
   { label: '全部数据源', value: undefined },
@@ -153,8 +158,12 @@ function formatOptionalTime(value?: null | string) {
   return value ? formatDateTime(value) : '-';
 }
 
+function getStatusMeta(status: string) {
+  return statusMeta[status] || { color: 'default', label: status };
+}
+
 function renderStatus(status: string) {
-  const meta = statusMeta[status] || { color: 'default', label: status };
+  const meta = getStatusMeta(status);
   return h(Tag, { color: meta.color }, () => meta.label);
 }
 
@@ -282,7 +291,7 @@ async function runDemoTask() {
   runningDemo.value = true;
   try {
     const task = await runCrawlerTask();
-    message.success(`demo task 已结束：#${task.taskId} / ${task.status}`);
+    message.success(`demo task 已结束：${task.status}`);
     pagination.value.current = 1;
     await loadTasks();
     await loadOpsSummary();
@@ -309,7 +318,7 @@ async function runPublicOpportunityPilot() {
       freshnessDays: 180,
       sourceCode: selectedPublicSourceCode.value,
     });
-    message.success(`99cfw 试点采集已结束：#${task.taskId} / ${task.status}`);
+    message.success(`99cfw 试点采集已结束：${task.status}`);
     pagination.value.current = 1;
     await loadTasks();
     await loadOpsSummary();
@@ -477,94 +486,90 @@ async function cancelTask(record: CrawlerTask) {
 
 const columns: TableColumnsType<CrawlerTask> = [
   {
-    dataIndex: 'taskId',
-    key: 'taskId',
-    title: 'taskId',
-    width: 90,
-  },
-  {
     customRender: ({ record }) => record.sourceName || record.sourceCode || '-',
     dataIndex: 'sourceName',
     key: 'sourceName',
-    title: 'sourceName',
+    title: '数据源',
     width: 230,
   },
   {
+    customRender: ({ record }) =>
+      taskTypeLabel[record.taskType] || record.taskType,
     dataIndex: 'taskType',
     key: 'taskType',
-    title: 'taskType',
+    title: '任务类型',
     width: 210,
   },
   {
     customRender: ({ record }) => renderStatus(record.status),
     dataIndex: 'status',
     key: 'status',
-    title: 'status',
+    title: '状态',
     width: 120,
   },
   {
     dataIndex: 'fetchedCount',
     key: 'fetchedCount',
-    title: 'fetched',
+    title: '抓取数',
     width: 100,
   },
   {
     dataIndex: 'createdLeadCount',
     key: 'createdLeadCount',
-    title: 'created',
+    title: '新增潜客',
     width: 100,
   },
   {
     dataIndex: 'updatedLeadCount',
     key: 'updatedLeadCount',
-    title: 'updated',
+    title: '更新潜客',
     width: 100,
   },
   {
     dataIndex: 'skippedCount',
     key: 'skippedCount',
-    title: 'skipped',
+    title: '跳过数',
     width: 100,
   },
   {
     customRender: ({ record }) =>
       [
-        `P ${record.pendingItemCount || 0}`,
-        `R ${record.retryWaitingItemCount || 0}`,
-        `S ${record.successItemCount || 0}`,
-        `F ${record.failedItemCount || 0}`,
-        `K ${record.skippedItemCount || 0}`,
+        `待处理 ${record.pendingItemCount || 0}`,
+        `重试 ${record.retryWaitingItemCount || 0}`,
+        `成功 ${record.successItemCount || 0}`,
+        `失败 ${record.failedItemCount || 0}`,
+        `跳过 ${record.skippedItemCount || 0}`,
       ].join(' / '),
     key: 'itemStats',
-    title: 'URL items',
-    width: 180,
+    title: 'URL采集项',
+    width: 200,
   },
   {
     customRender: ({ record }) => record.errorMessage || '-',
     dataIndex: 'errorMessage',
     key: 'errorMessage',
-    title: 'errorMessage',
+    title: '错误信息',
     width: 220,
   },
   {
     customRender: ({ record }) => formatOptionalTime(record.createTime),
     dataIndex: 'createTime',
     key: 'createTime',
-    title: 'createTime',
+    title: '创建时间',
     width: 170,
   },
   {
     customRender: ({ record }) => formatOptionalTime(record.startedAt),
     dataIndex: 'startedAt',
     key: 'startedAt',
-    title: 'startedAt',
+    title: '开始时间',
     width: 170,
   },
   {
     customRender: ({ record }) => formatOptionalTime(record.finishedAt),
     dataIndex: 'finishedAt',
     key: 'finishedAt',
-    title: 'finishedAt',
+    title: '完成时间',
     width: 170,
   },
   {
@@ -655,73 +660,73 @@ const taskItemColumns: TableColumnsType<CrawlerTaskItem> = [
   {
     dataIndex: 'itemId',
     key: 'itemId',
-    title: 'itemId',
+    title: '采集项ID',
     width: 90,
   },
   {
     customRender: ({ record }) => renderStatus(record.status),
     dataIndex: 'status',
     key: 'status',
-    title: 'status',
+    title: '状态',
     width: 130,
   },
   {
     customRender: ({ record }) =>
       `${record.retryCount}/${record.maxRetryCount}`,
     key: 'retry',
-    title: 'retry',
+    title: '重试次数',
     width: 90,
   },
   {
     dataIndex: 'sourceRefId',
     key: 'sourceRefId',
-    title: 'sourceRefId',
+    title: '来源ID',
     width: 110,
   },
   {
     dataIndex: 'lastHttpStatus',
     key: 'lastHttpStatus',
-    title: 'http',
+    title: 'HTTP状态',
     width: 80,
   },
   {
     customRender: ({ record }) => record.skipReason || record.lastError || '-',
     key: 'reason',
-    title: 'reason',
+    title: '原因',
     width: 260,
   },
   {
     dataIndex: 'sourceUrl',
     key: 'sourceUrl',
-    title: 'sourceUrl',
+    title: 'URL地址',
     width: 420,
   },
   {
     customRender: ({ record }) => formatOptionalTime(record.publishedAt),
     dataIndex: 'publishedAt',
     key: 'publishedAt',
-    title: 'publishedAt',
+    title: '发布时间',
     width: 170,
   },
   {
     customRender: ({ record }) => formatOptionalTime(record.nextRetryAt),
     dataIndex: 'nextRetryAt',
     key: 'nextRetryAt',
-    title: 'nextRetryAt',
+    title: '下次重试',
     width: 170,
   },
   {
     customRender: ({ record }) => formatOptionalTime(record.lastStartedAt),
     dataIndex: 'lastStartedAt',
     key: 'lastStartedAt',
-    title: 'lastStartedAt',
+    title: '上次开始',
     width: 170,
   },
   {
     customRender: ({ record }) => formatOptionalTime(record.lastFinishedAt),
     dataIndex: 'lastFinishedAt',
     key: 'lastFinishedAt',
-    title: 'lastFinishedAt',
+    title: '上次完成',
     width: 170,
   },
 ];
@@ -762,57 +767,57 @@ onMounted(() => {
         </Descriptions.Item>
         <Descriptions.Item label="scheduler">
           <Tag :color="opsSummary.scheduler.active ? 'green' : 'default'">
-            {{ opsSummary.scheduler.active ? 'ACTIVE' : 'STOPPED' }}
+            {{ opsSummary.scheduler.active ? '运行中' : '已停止' }}
           </Tag>
           <Tag :color="opsSummary.scheduler.running ? 'blue' : 'default'">
-            {{ opsSummary.scheduler.running ? 'RUNNING' : 'IDLE' }}
+            {{ opsSummary.scheduler.running ? '执行中' : '空闲' }}
           </Tag>
           <Tag :color="opsSummary.scheduler.envEnabled ? 'green' : 'default'">
-            env {{ opsSummary.scheduler.envEnabled ? 'ON' : 'OFF' }}
+            环境 {{ opsSummary.scheduler.envEnabled ? '开启' : '关闭' }}
           </Tag>
-          {{ Math.round(opsSummary.scheduler.intervalMs / 1000) }}s
+          {{ Math.round(opsSummary.scheduler.intervalMs / 1000) }}秒
         </Descriptions.Item>
-        <Descriptions.Item label="canRunNow">
+        <Descriptions.Item label="是否可运行">
           <Tag :color="opsSummary.scheduler.canRunNow ? 'green' : 'orange'">
-            {{ opsSummary.scheduler.canRunNow ? 'YES' : 'NO' }}
+            {{ opsSummary.scheduler.canRunNow ? '是' : '否' }}
           </Tag>
           <span v-if="opsSummary.scheduler.nextRunAt">
-            next {{ formatOptionalTime(opsSummary.scheduler.nextRunAt) }}
+            下次 {{ formatOptionalTime(opsSummary.scheduler.nextRunAt) }}
           </span>
           <span v-if="opsSummary.scheduler.reason">
             / {{ opsSummary.scheduler.reason }}
           </span>
         </Descriptions.Item>
-        <Descriptions.Item label="latestTask">
+        <Descriptions.Item label="最近任务">
           <span v-if="opsSummary.latestTask">
-            #{{ opsSummary.latestTask.taskId }}
-            <component :is="renderStatus(opsSummary.latestTask.status)" />
+            <Tag :color="getStatusMeta(opsSummary.latestTask.status).color">
+              {{ getStatusMeta(opsSummary.latestTask.status).label }}
+            </Tag>
           </span>
           <span v-else>-</span>
         </Descriptions.Item>
-        <Descriptions.Item label="scheduler tick">
-          start {{ formatOptionalTime(opsSummary.scheduler.lastTickStartedAt) }}
-          / end
+        <Descriptions.Item label="调度周期">
+          开始 {{ formatOptionalTime(opsSummary.scheduler.lastTickStartedAt) }}
+          / 结束
           {{ formatOptionalTime(opsSummary.scheduler.lastTickFinishedAt) }}
         </Descriptions.Item>
-        <Descriptions.Item label="scheduler result" :span="2">
-          task #{{ opsSummary.scheduler.lastTaskId || '-' }} /
-          {{ opsSummary.scheduler.lastSkipReason || 'no skip' }} /
-          {{ opsSummary.scheduler.lastError || 'no error' }}
+        <Descriptions.Item label="调度结果" :span="2">
+          {{ opsSummary.scheduler.lastSkipReason || '无跳过' }} /
+          {{ opsSummary.scheduler.lastError || '无错误' }}
         </Descriptions.Item>
-        <Descriptions.Item label="task status">
-          SUCCESS {{ getStatusCount(opsSummary.taskStatus, 'SUCCESS') }} /
-          FAILED {{ getStatusCount(opsSummary.taskStatus, 'FAILED') }} / RUNNING
+        <Descriptions.Item label="任务状态">
+          成功 {{ getStatusCount(opsSummary.taskStatus, 'SUCCESS') }} / 失败
+          {{ getStatusCount(opsSummary.taskStatus, 'FAILED') }} / 运行中
           {{ getStatusCount(opsSummary.taskStatus, 'RUNNING') }}
         </Descriptions.Item>
-        <Descriptions.Item label="URL item status" :span="2">
-          PENDING {{ getStatusCount(opsSummary.itemStatus, 'PENDING') }} / RETRY
-          {{ getStatusCount(opsSummary.itemStatus, 'RETRY_WAITING') }} / SUCCESS
-          {{ getStatusCount(opsSummary.itemStatus, 'SUCCESS') }} / FAILED
-          {{ getStatusCount(opsSummary.itemStatus, 'FAILED') }} / SKIPPED
+        <Descriptions.Item label="URL采集项状态" :span="2">
+          待处理 {{ getStatusCount(opsSummary.itemStatus, 'PENDING') }} / 重试
+          {{ getStatusCount(opsSummary.itemStatus, 'RETRY_WAITING') }} / 成功
+          {{ getStatusCount(opsSummary.itemStatus, 'SUCCESS') }} / 失败
+          {{ getStatusCount(opsSummary.itemStatus, 'FAILED') }} / 跳过
           {{ getStatusCount(opsSummary.itemStatus, 'SKIPPED') }}
         </Descriptions.Item>
-        <Descriptions.Item label="recent failures" :span="3">
+        <Descriptions.Item label="最近失败" :span="3">
           <div
             v-if="opsSummary.latestFailedItems.length === 0"
             class="text-text-secondary"
@@ -841,19 +846,19 @@ onMounted(() => {
       </Descriptions>
       <Space class="mt-3">
         <Button
-          :disabled="opsSummary?.scheduler.active"
+          :disabled="!!opsSummary?.scheduler.active"
           :loading="schedulerLoading"
           type="primary"
           @click="startAutoScheduler"
         >
-          Start 99cfw auto scheduler
+          启动 99cfw 自动调度
         </Button>
         <Button
           :disabled="!opsSummary?.scheduler.active"
           :loading="schedulerLoading"
           @click="stopAutoScheduler"
         >
-          Stop 99cfw auto scheduler
+          停止 99cfw 自动调度
         </Button>
         <Button :loading="requeueLoading" @click="requeueAllFailedItems">
           恢复失败/跳过 URL
@@ -866,14 +871,14 @@ onMounted(() => {
 
     <Card class="mb-3" title="筛选">
       <Form class="radar-search-form" layout="inline">
-        <Form.Item label="status">
+        <Form.Item label="状态">
           <Select
             v-model:value="searchForm.status"
             class="radar-filter-control"
             :options="statusOptions"
           />
         </Form.Item>
-        <Form.Item label="sourceId">
+        <Form.Item label="数据源">
           <Select
             v-model:value="searchForm.sourceId"
             allow-clear
@@ -914,6 +919,7 @@ onMounted(() => {
 
     <Card class="crawler-task-table-card" title="采集任务">
       <Table
+        bordered
         :columns="columns"
         :data-source="items"
         :loading="loading"
@@ -932,13 +938,14 @@ onMounted(() => {
       title="采集任务详情"
       width="760"
     >
-      <div v-if="detailLoading" class="py-8 text-center">加载中...</div>
+      <div v-if="detailLoading && !currentTask" class="py-8 text-center">
+        加载中...
+      </div>
       <Descriptions v-else-if="currentTask" bordered :column="2" size="small">
-        <Descriptions.Item label="taskId">
-          {{ currentTask.taskId }}
-        </Descriptions.Item>
         <Descriptions.Item label="status">
-          <component :is="renderStatus(currentTask.status)" />
+          <Tag :color="getStatusMeta(currentTask.status).color">
+            {{ getStatusMeta(currentTask.status).label }}
+          </Tag>
         </Descriptions.Item>
         <Descriptions.Item label="source">
           {{ currentTask.sourceName || currentTask.sourceCode || '-' }}
@@ -982,6 +989,7 @@ onMounted(() => {
           }}</pre>
         </Descriptions.Item>
       </Descriptions>
+      <Empty v-else description="暂无详情数据" />
     </Drawer>
 
     <Drawer
@@ -991,6 +999,7 @@ onMounted(() => {
       width="980"
     >
       <Table
+        bordered
         :columns="logColumns"
         :data-source="logItems"
         :loading="logLoading"
@@ -1024,6 +1033,7 @@ onMounted(() => {
         </Form.Item>
       </Form>
       <Table
+        bordered
         :columns="taskItemColumns"
         :data-source="taskItemRows"
         :loading="itemLoading"
@@ -1048,8 +1058,7 @@ onMounted(() => {
 }
 
 .crawler-task-table-card {
-  min-height: 0;
-  flex: 1;
+  flex: none;
 }
 
 .task-json {
@@ -1092,11 +1101,15 @@ onMounted(() => {
   color: var(--ant-color-text);
   font-size: 14px;
   font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
 }
 
 :deep(.ant-table-tbody > tr > td) {
   color: var(--ant-color-text);
   font-size: 14px;
   line-height: 22px;
+  text-align: center;
+  vertical-align: middle;
 }
 </style>

@@ -5,7 +5,19 @@ import { EnvironmentOutlined } from '@ant-design/icons-vue';
 import { Button, Drawer, Input, message, Modal, Space } from 'ant-design-vue';
 
 interface UseSmartRecommendOptions {
+  onSelect?: (park: NearbyFactoryRecord) => void;
   telFallback?: string;
+}
+
+interface NearbyFactoryRecord {
+  address?: string;
+  distance?: string;
+  id: string;
+  location?: string;
+  name: string;
+  tel?: string;
+  type?: string;
+  typecode?: string;
 }
 
 function normalizeTel(t: any, telFallback?: string): string | undefined {
@@ -23,7 +35,7 @@ function normalizeTel(t: any, telFallback?: string): string | undefined {
 export function useSmartRecommend(options: UseSmartRecommendOptions = {}) {
   const recommendModalVisible = ref(false);
   const recommendLoading = ref(false);
-  const nearbyParks = ref<any[]>([]);
+  const nearbyParks = ref<NearbyFactoryRecord[]>([]);
   const manualLocationModalVisible = ref(false);
   const manualAddress = ref('');
 
@@ -65,6 +77,12 @@ export function useSmartRecommend(options: UseSmartRecommendOptions = {}) {
   function closeManualLocationModal() {
     manualLocationModalVisible.value = false;
     manualAddress.value = '';
+  }
+
+  function selectPark(park: NearbyFactoryRecord) {
+    options.onSelect?.(park);
+    message.success(`已选择工厂: ${park.name}`);
+    closeRecommendModal();
   }
 
   async function searchByManualAddress() {
@@ -231,6 +249,7 @@ export function useSmartRecommend(options: UseSmartRecommendOptions = {}) {
     recommendLoading,
     recommendModalVisible,
     searchByManualAddress,
+    selectPark,
   };
 }
 
@@ -242,8 +261,13 @@ export default defineComponent({
     Input,
     Space,
   },
-  setup() {
-    return useSmartRecommend();
+  emits: ['select'],
+  setup(_, { emit }) {
+    return useSmartRecommend({
+      onSelect: (park) => {
+        emit('select', park);
+      },
+    });
   },
 });
 </script>
@@ -294,6 +318,11 @@ export default defineComponent({
         <div class="mt-1.5 text-[13px] text-gray-600 dark:text-gray-300">
           <div class="break-words">{{ park.address }}</div>
           <div class="break-words" v-if="park.tel">{{ park.tel }}</div>
+        </div>
+        <div class="mt-2 flex justify-end">
+          <Button size="small" type="primary" @click="selectPark(park)">
+            选择
+          </Button>
         </div>
       </div>
       <div v-if="nearbyParks.length === 0" class="py-8 text-center">

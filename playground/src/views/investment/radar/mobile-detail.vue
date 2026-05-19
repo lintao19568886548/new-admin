@@ -15,6 +15,7 @@ import {
   Empty,
   Skeleton,
   Spin,
+  Statistic,
   Tag,
 } from 'ant-design-vue';
 
@@ -173,7 +174,7 @@ onMounted(() => {
       <section class="radar-mobile-hero">
         <div class="radar-hero-head">
           <div>
-            <h2>{{ detail.enterpriseName || `线索 #${detail.leadId}` }}</h2>
+            <h2>{{ detail.enterpriseName || '雷达线索' }}</h2>
             <p>
               {{ detail.parkName || '未分配园区' }} ·
               {{ detail.ownerName || '未分配负责人' }}
@@ -191,22 +192,18 @@ onMounted(() => {
       </section>
 
       <div class="radar-score-grid">
-        <div>
-          <span>总分</span>
-          <strong>{{ summary.totalScore }}</strong>
-        </div>
-        <div>
-          <span>意图</span>
-          <strong>{{ summary.intentScore }}</strong>
-        </div>
-        <div>
-          <span>匹配</span>
-          <strong>{{ summary.matchScore }}</strong>
-        </div>
-        <div>
-          <span>触达</span>
-          <strong>{{ summary.reachableScore }}</strong>
-        </div>
+        <Card class="radar-score-card">
+          <Statistic title="总分" :value="summary.totalScore" />
+        </Card>
+        <Card class="radar-score-card">
+          <Statistic title="意图" :value="summary.intentScore" />
+        </Card>
+        <Card class="radar-score-card">
+          <Statistic title="匹配" :value="summary.matchScore" />
+        </Card>
+        <Card class="radar-score-card">
+          <Statistic title="触达" :value="summary.reachableScore" />
+        </Card>
       </div>
 
       <section class="radar-mobile-section">
@@ -392,21 +389,15 @@ onMounted(() => {
         <Empty v-else class="radar-mobile-empty" description="暂无触达记录" />
       </section>
 
-      <section class="radar-mobile-section">
-        <PropertyMatchPanel :lead-id="leadId" />
-      </section>
+      <PropertyMatchPanel :lead-id="leadId" />
 
-      <section class="radar-mobile-section">
-        <OutreachSuggestionPanel
-          :lead-id="leadId"
-          visible
-          @task-created="loadDetail"
-        />
-      </section>
+      <OutreachSuggestionPanel
+        :lead-id="leadId"
+        visible
+        @task-created="loadDetail"
+      />
 
-      <section class="radar-mobile-section">
-        <SopVisitPanel :lead-id="leadId" />
-      </section>
+      <SopVisitPanel :lead-id="leadId" />
 
       <div class="radar-bottom-actions">
         <Button
@@ -517,19 +508,14 @@ onMounted(() => {
   margin: 8px 0;
 }
 
-.radar-score-grid > div {
-  padding: 9px 2px;
-  text-align: center;
-  background: #fff;
-  border-radius: 8px;
+.radar-score-card {
   box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
 }
 
-.dark .radar-score-grid > div {
+.dark .radar-score-card {
   background: #2d2d2d;
 }
 
-.radar-score-grid span,
 .radar-info-grid span,
 .radar-section-head > span,
 .radar-mini-meta,
@@ -537,14 +523,19 @@ onMounted(() => {
   color: var(--ant-color-text-secondary);
 }
 
-.radar-score-grid span {
-  display: block;
-  font-size: 11px;
-  line-height: 16px;
+.radar-score-card :deep(.ant-card-body) {
+  padding: 9px 2px;
+  text-align: center;
 }
 
-.radar-score-grid strong {
-  display: block;
+.radar-score-card :deep(.ant-statistic-title) {
+  margin-bottom: 2px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ant-color-text-secondary);
+}
+
+.radar-score-card :deep(.ant-statistic-content) {
   font-size: 18px;
   line-height: 24px;
   color: var(--ant-color-text);

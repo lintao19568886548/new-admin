@@ -50,9 +50,10 @@ const loading = ref(false);
 const detailLoading = ref(false);
 const evidenceLoading = ref(false);
 const saving = ref(false);
-const converting = ref(false);
+const convertingLeadId = ref<null | number>(null);
 const detailOpen = ref(false);
 const evidenceOpen = ref(false);
+const filterOpen = ref(false);
 const items = ref<ExternalLead[]>([]);
 const currentLead = ref<ExternalLeadDetail | null>(null);
 const evidenceItems = ref<LeadEvidence[]>([]);
@@ -157,11 +158,44 @@ const demandTypeLabel: Record<ExternalLeadDemandType, string> = {
   UNKNOWN: '未知',
 };
 
+const evidenceTypeLabel: Record<string, string> = {
+  DEMO_EVIDENCE: '演示证据',
+  KEYWORD_MATCH: '关键词匹配',
+  STRUCTURED_DATA: '结构化数据',
+  TEXT_EVIDENCE: '文本证据',
+};
+
+const reviewStatusSet = new Set<ExternalLeadStatus>(['NEW', 'PENDING_REVIEW']);
+
+const currentPageConvertedCount = computed(
+  () => items.value.filter((item) => item.convertedRadarLeadId).length,
+);
+const currentPageEvidenceCount = computed(() =>
+  items.value.reduce((total, item) => total + (item.evidenceCount || 0), 0),
+);
+const currentPageReviewCount = computed(
+  () => items.value.filter((item) => reviewStatusSet.has(item.status)).length,
+);
 const currentEvidenceCount = computed(() => {
   const detailEvidenceCount = currentLead.value?.evidences?.length || 0;
-  return detailEvidenceCount > 0
-    ? detailEvidenceCount
-    : evidenceItems.value.length;
+  if (detailEvidenceCount > 0) {
+    return detailEvidenceCount;
+  }
+  if (evidenceItems.value.length > 0) {
+    return evidenceItems.value.length;
+  }
+  return currentLead.value?.evidenceCount || 0;
+});
+const pageRangeText = computed(() => {
+  if (pagination.total <= 0 || items.value.length === 0) {
+    return '0';
+  }
+  const start = (pagination.current - 1) * pagination.pageSize + 1;
+  const end = Math.min(
+    pagination.total,
+    start + Math.max(items.value.length - 1, 0),
+  );
+  return `${start}-${end}`;
 });
 
 function buildQuery() {
@@ -184,6 +218,13 @@ function syncEditForm(lead: ExternalLeadDetail) {
   editForm.ownerUserId = lead.ownerUserId || undefined;
   editForm.remark = lead.remark || undefined;
   editForm.status = lead.status;
+}
+
+function createPreviewDetail(record: ExternalLead): ExternalLeadDetail {
+  return {
+    ...record,
+    evidences: [],
+  };
 }
 
 function resetSearchForm() {
@@ -209,6 +250,10 @@ function renderSource(lead: ExternalLead) {
   return lead.sourceName || lead.sourceTitle || lead.sourceType || '-';
 }
 
+function renderPaginationTotal(total: number) {
+  return `共 ${total} 条`;
+}
+
 async function loadLeads() {
   loading.value = true;
   try {
@@ -227,11 +272,13 @@ async function loadLeads() {
 
 function searchLeads() {
   pagination.current = 1;
+  filterOpen.value = false;
   void loadLeads();
 }
 
 function resetSearch() {
   resetSearchForm();
+  filterOpen.value = false;
   searchLeads();
 }
 
@@ -244,8 +291,10 @@ function onPageChange(page: number, pageSize: number) {
 async function openDetail(record: ExternalLead) {
   detailOpen.value = true;
   detailLoading.value = true;
-  currentLead.value = null;
+  const previewDetail = createPreviewDetail(record);
+  currentLead.value = previewDetail;
   evidenceItems.value = [];
+  syncEditForm(previewDetail);
   try {
     const detail = await getExternalLeadDetail(record.leadId);
     currentLead.value = detail;
@@ -307,15 +356,20 @@ async function saveLead() {
 
 async function convertLead(record?: ExternalLead) {
   const target = record || currentLead.value;
-  if (!target || converting.value) {
+  if (!target || convertingLeadId.value !== null) {
     return;
   }
 
-  converting.value = true;
+  convertingLeadId.value = target.leadId;
   try {
+    const isCurrentLead = currentLead.value?.leadId === target.leadId;
+    const ownerUserId = isCurrentLead
+      ? editForm.ownerUserId || target.ownerUserId || null
+      : target.ownerUserId || null;
+    const remark = (isCurrentLead ? editForm.remark : target.remark)?.trim();
     const result = await convertExternalLeadToRadarLead(target.leadId, {
-      ownerUserId: editForm.ownerUserId || target.ownerUserId || null,
-      remark: editForm.remark?.trim() || '外部公开线索确认有效，转入雷达潜客',
+      ownerUserId,
+      remark: remark || '外部公开线索确认有效，转入雷达潜客',
     });
     message.success(result.reused ? '已复用现有雷达潜客' : '已转为雷达潜客');
     await loadLeads();
@@ -324,8 +378,16 @@ async function convertLead(record?: ExternalLead) {
     console.error('转雷达潜客失败:', error);
     message.error('转雷达潜客失败');
   } finally {
-    converting.value = false;
+    if (convertingLeadId.value === target.leadId) {
+      convertingLeadId.value = null;
+    }
   }
+}
+
+function isConvertingLead(leadId?: null | number) {
+  return (
+    leadId !== null && leadId !== undefined && convertingLeadId.value === leadId
+  );
 }
 
 onMounted(() => {
@@ -347,61 +409,88 @@ onMounted(() => {
     </div>
 
     <div class="radar-mobile-filter">
-      <Input
-        v-model:value="searchForm.keyword"
-        allow-clear
-        placeholder="企业 / 标题 / 来源"
-        @press-enter="searchLeads"
-      />
-      <div class="filter-grid">
-        <Select
-          v-model:value="searchForm.status"
-          :options="statusOptions"
-          @change="searchLeads"
-        />
-        <Select
-          v-model:value="searchForm.confidenceLevel"
-          :options="confidenceOptions"
-          @change="searchLeads"
-        />
-      </div>
-      <div class="filter-grid">
-        <Select
-          v-model:value="searchForm.demandType"
-          :options="demandTypeOptions"
-          @change="searchLeads"
-        />
+      <div class="mobile-search-bar">
         <Input
-          v-model:value="searchForm.regionCity"
+          v-model:value="searchForm.keyword"
           allow-clear
-          placeholder="地区"
+          class="mobile-search-input"
+          placeholder="企业 / 标题 / 来源"
           @press-enter="searchLeads"
         />
+        <Button type="primary" @click="searchLeads">查询</Button>
+        <Button @click="filterOpen = !filterOpen">筛选</Button>
       </div>
-      <div class="filter-grid">
-        <Input
-          v-model:value="searchForm.industryName"
-          allow-clear
-          placeholder="行业"
-          @press-enter="searchLeads"
-        />
-        <Input
-          v-model:value="searchForm.sourceName"
-          allow-clear
-          placeholder="来源"
-          @press-enter="searchLeads"
-        />
-      </div>
-      <div class="filter-grid">
+      <div v-show="filterOpen" class="mobile-filter-panel">
+        <div class="filter-grid">
+          <Select
+            v-model:value="searchForm.status"
+            :options="statusOptions"
+            @change="searchLeads"
+          />
+          <Select
+            v-model:value="searchForm.confidenceLevel"
+            :options="confidenceOptions"
+            @change="searchLeads"
+          />
+        </div>
+        <div class="filter-grid">
+          <Select
+            v-model:value="searchForm.demandType"
+            :options="demandTypeOptions"
+            @change="searchLeads"
+          />
+          <Input
+            v-model:value="searchForm.regionCity"
+            allow-clear
+            placeholder="地区"
+            @press-enter="searchLeads"
+          />
+        </div>
+        <div class="filter-grid">
+          <Input
+            v-model:value="searchForm.industryName"
+            allow-clear
+            placeholder="行业"
+            @press-enter="searchLeads"
+          />
+          <Input
+            v-model:value="searchForm.sourceName"
+            allow-clear
+            placeholder="来源"
+            @press-enter="searchLeads"
+          />
+        </div>
         <Select
           v-model:value="searchForm.sourceType"
+          class="filter-wide"
           :options="sourceTypeOptions"
           @change="searchLeads"
         />
+        <div class="filter-actions">
+          <Button type="primary" @click="searchLeads">应用筛选</Button>
+          <Button @click="resetSearch">重置</Button>
+        </div>
       </div>
-      <div class="filter-actions">
-        <Button type="primary" @click="searchLeads">查询</Button>
-        <Button @click="resetSearch">重置</Button>
+    </div>
+
+    <div class="radar-mobile-stats">
+      <div class="radar-stat-card">
+        <span>总线索</span>
+        <strong>{{ pagination.total }}</strong>
+      </div>
+      <div class="radar-stat-card">
+        <span>当前页</span>
+        <strong>{{ pageRangeText }}</strong>
+      </div>
+      <div class="radar-stat-card">
+        <span>待复核</span>
+        <strong>{{ currentPageReviewCount }}</strong>
+      </div>
+      <div class="radar-stat-card">
+        <span>已转化 / 证据</span>
+        <strong>
+          {{ currentPageConvertedCount }} / {{ currentPageEvidenceCount }}
+        </strong>
       </div>
     </div>
 
@@ -473,11 +562,7 @@ onMounted(() => {
               <span class="meta-label">证据 / 潜客</span>
               <span class="meta-value">
                 {{ item.evidenceCount }} 条 /
-                {{
-                  item.convertedRadarLeadId
-                    ? `#${item.convertedRadarLeadId}`
-                    : '未转化'
-                }}
+                {{ item.convertedRadarLeadId ? '已转化' : '未转化' }}
               </span>
             </div>
             <div class="meta-row">
@@ -510,7 +595,7 @@ onMounted(() => {
               class="radar-action-btn"
               type="primary"
               :disabled="Boolean(item.convertedRadarLeadId)"
-              :loading="converting"
+              :loading="isConvertingLead(item.leadId)"
               @click="convertLead(item)"
             >
               <CheckCircleOutlined class="mr-1 h-4 w-4" />
@@ -525,6 +610,7 @@ onMounted(() => {
           size="small"
           :current="pagination.current"
           :page-size="pagination.pageSize"
+          :show-total="renderPaginationTotal"
           :total="pagination.total"
           @change="onPageChange"
         />
@@ -539,105 +625,145 @@ onMounted(() => {
       placement="right"
       width="100%"
     >
-      <div v-if="detailLoading" class="drawer-loading">加载中...</div>
-      <template v-else-if="currentLead">
-        <div class="detail-panel">
-          <div class="detail-title">{{ currentLead.companyName }}</div>
-          <div class="detail-subtitle">{{ currentLead.leadTitle }}</div>
-          <div class="detail-tags">
-            <Tag :color="statusMeta[currentLead.status].color">
-              {{ statusMeta[currentLead.status].label }}
-            </Tag>
-            <Tag :color="confidenceMeta[currentLead.confidenceLevel].color">
-              置信度 {{ confidenceMeta[currentLead.confidenceLevel].label }}
-            </Tag>
+      <Spin :spinning="detailLoading">
+        <template v-if="currentLead">
+          <div class="detail-panel">
+            <div class="detail-title">{{ currentLead.companyName }}</div>
+            <div class="detail-subtitle">{{ currentLead.leadTitle }}</div>
+            <div class="detail-tags">
+              <Tag :color="statusMeta[currentLead.status].color">
+                {{ statusMeta[currentLead.status].label }}
+              </Tag>
+              <Tag :color="confidenceMeta[currentLead.confidenceLevel].color">
+                置信度 {{ confidenceMeta[currentLead.confidenceLevel].label }}
+              </Tag>
+            </div>
+            <div class="detail-row">
+              <span>置信分</span>
+              <strong>{{ currentLead.confidenceScore }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>需求类型</span>
+              <strong>
+                {{
+                  demandTypeLabel[currentLead.demandType] ||
+                  currentLead.demandType
+                }}
+              </strong>
+            </div>
+            <div class="detail-row">
+              <span>地区</span>
+              <strong>{{ renderRegion(currentLead) }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>行业</span>
+              <strong>{{ currentLead.industryName || '-' }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>来源</span>
+              <strong>{{ renderSource(currentLead) }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>证据数</span>
+              <strong>{{ currentEvidenceCount }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>负责人</span>
+              <strong>
+                {{
+                  currentLead.ownerName ||
+                  (currentLead.ownerUserId ? '已分配' : '-')
+                }}
+              </strong>
+            </div>
+            <div class="detail-row">
+              <span>雷达潜客</span>
+              <strong>
+                {{ currentLead.convertedRadarLeadId ? '已转化' : '未转化' }}
+              </strong>
+            </div>
+            <div class="detail-row">
+              <span>首次 / 最近</span>
+              <strong>
+                {{ formatDateOnly(currentLead.firstSeenAt) }} /
+                {{ formatDateOnly(currentLead.lastSeenAt) }}
+              </strong>
+            </div>
+            <div v-if="currentLead.hitKeywords.length > 0" class="detail-block">
+              <span>命中词</span>
+              <div class="detail-tags detail-keywords">
+                <Tag
+                  v-for="kw in currentLead.hitKeywords"
+                  :key="kw"
+                  color="blue"
+                >
+                  {{ kw }}
+                </Tag>
+              </div>
+            </div>
+            <div class="detail-block">
+              <span>系统判断</span>
+              <p>{{ currentLead.summary || '-' }}</p>
+            </div>
+            <div class="detail-block">
+              <span>来源链接</span>
+              <a :href="currentLead.sourceUrl" target="_blank" rel="noreferrer">
+                {{ currentLead.sourceUrl }}
+              </a>
+            </div>
           </div>
-          <div class="detail-row">
-            <span>需求类型</span>
-            <strong>
-              {{
-                demandTypeLabel[currentLead.demandType] ||
-                currentLead.demandType
-              }}
-            </strong>
-          </div>
-          <div class="detail-row">
-            <span>地区</span>
-            <strong>{{ renderRegion(currentLead) }}</strong>
-          </div>
-          <div class="detail-row">
-            <span>行业</span>
-            <strong>{{ currentLead.industryName || '-' }}</strong>
-          </div>
-          <div class="detail-row">
-            <span>来源</span>
-            <strong>{{ renderSource(currentLead) }}</strong>
-          </div>
-          <div class="detail-row">
-            <span>证据数</span>
-            <strong>{{ currentEvidenceCount }}</strong>
-          </div>
-          <div class="detail-block">
-            <span>系统判断</span>
-            <p>{{ currentLead.summary || '-' }}</p>
-          </div>
-          <div class="detail-block">
-            <span>来源链接</span>
-            <a :href="currentLead.sourceUrl" target="_blank" rel="noreferrer">
-              {{ currentLead.sourceUrl }}
-            </a>
-          </div>
-        </div>
 
-        <Form layout="vertical" class="review-form">
-          <Form.Item label="状态">
-            <Select
-              v-model:value="editForm.status"
-              :options="editableStatusOptions"
-            />
-          </Form.Item>
-          <Form.Item label="负责人用户 ID">
-            <InputNumber
-              v-model:value="editForm.ownerUserId"
-              class="w-full"
-              :min="1"
-            />
-          </Form.Item>
-          <Form.Item label="备注">
-            <Input.TextArea
-              v-model:value="editForm.remark"
-              :auto-size="{ minRows: 2, maxRows: 4 }"
-            />
-          </Form.Item>
-          <Form.Item label="无效原因">
-            <Input.TextArea
-              v-model:value="editForm.invalidReason"
-              :auto-size="{ minRows: 2, maxRows: 4 }"
-            />
-          </Form.Item>
-        </Form>
+          <Form layout="vertical" class="review-form">
+            <Form.Item label="状态">
+              <Select
+                v-model:value="editForm.status"
+                :options="editableStatusOptions"
+              />
+            </Form.Item>
+            <Form.Item label="负责人">
+              <InputNumber
+                v-model:value="editForm.ownerUserId"
+                class="w-full"
+                :min="1"
+              />
+            </Form.Item>
+            <Form.Item label="备注">
+              <Input.TextArea
+                v-model:value="editForm.remark"
+                :auto-size="{ minRows: 2, maxRows: 4 }"
+              />
+            </Form.Item>
+            <Form.Item label="无效原因">
+              <Input.TextArea
+                v-model:value="editForm.invalidReason"
+                :auto-size="{ minRows: 2, maxRows: 4 }"
+              />
+            </Form.Item>
+          </Form>
 
-        <div class="radar-drawer-actions">
-          <Button type="primary" :loading="saving" @click="saveLead">
-            保存
-          </Button>
-          <Button @click="openEvidence()">证据</Button>
-          <Button
-            type="primary"
-            :disabled="Boolean(currentLead.convertedRadarLeadId)"
-            :loading="converting"
-            @click="convertLead()"
-          >
-            转潜客
-          </Button>
-        </div>
-      </template>
+          <div class="radar-drawer-actions">
+            <Button type="primary" :loading="saving" @click="saveLead">
+              保存
+            </Button>
+            <Button @click="openEvidence()">证据</Button>
+            <Button
+              type="primary"
+              :disabled="Boolean(currentLead.convertedRadarLeadId)"
+              :loading="isConvertingLead(currentLead.leadId)"
+              @click="convertLead()"
+            >
+              转潜客
+            </Button>
+          </div>
+        </template>
+        <Empty v-else description="暂无详情数据" />
+      </Spin>
     </Drawer>
 
     <Drawer
       v-model:open="evidenceOpen"
       destroy-on-close
-      title="证据链"
+      :title="`证据链（${evidenceItems.length}）`"
       placement="right"
       width="100%"
     >
@@ -650,7 +776,9 @@ onMounted(() => {
             :body-style="{ padding: '12px' }"
           >
             <div class="evidence-head">
-              <Tag color="blue">{{ item.evidenceType }}</Tag>
+              <Tag color="blue">
+                {{ evidenceTypeLabel[item.evidenceType] || item.evidenceType }}
+              </Tag>
               <span>+{{ item.scoreDelta }}</span>
             </div>
             <div class="evidence-title">{{ item.sourceTitle }}</div>
@@ -658,6 +786,10 @@ onMounted(() => {
               <a :href="item.sourceLink" target="_blank" rel="noreferrer">
                 {{ item.sourceLink }}
               </a>
+            </div>
+            <div class="evidence-meta">
+              <span>发布 {{ formatDateOnly(item.publishedAt) }}</span>
+              <span>采集 {{ formatDateOnly(item.crawledAt) }}</span>
             </div>
             <div
               v-if="item.matchedKeywords.length > 0"
@@ -742,6 +874,24 @@ onMounted(() => {
   background: #2d2d2d;
 }
 
+.mobile-search-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 64px;
+  gap: 8px;
+  align-items: center;
+}
+
+.mobile-search-input {
+  min-width: 0;
+}
+
+.mobile-filter-panel {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ant-color-border-secondary);
+}
+
 .filter-grid,
 .filter-actions {
   display: grid;
@@ -751,6 +901,46 @@ onMounted(() => {
 
 .filter-actions button {
   width: 100%;
+}
+
+.filter-wide {
+  grid-column: 1 / -1;
+}
+
+.radar-mobile-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.radar-stat-card {
+  min-width: 0;
+  padding: 10px 12px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+}
+
+.dark .radar-stat-card {
+  background: #2d2d2d;
+}
+
+.radar-stat-card span {
+  display: block;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+}
+
+.radar-stat-card strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 24px;
+  color: var(--ant-color-text);
+  overflow-wrap: anywhere;
 }
 
 .radar-mobile-list,
@@ -779,27 +969,35 @@ onMounted(() => {
 
 .radar-card-head {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: flex-start;
   justify-content: space-between;
 }
 
+.radar-card-head > div:first-child {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
 .radar-card-title {
+  min-width: 0;
   font-size: 16px;
   font-weight: 700;
   line-height: 23px;
   color: var(--ant-color-text);
+  overflow-wrap: anywhere;
 }
 
 .radar-card-subtitle {
   display: -webkit-box;
   margin-top: 2px;
   overflow: hidden;
-  color: var(--ant-color-text-secondary);
   font-size: 12px;
   line-height: 18px;
-  -webkit-box-orient: vertical;
+  color: var(--ant-color-text-secondary);
   -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .radar-card-tags-row,
@@ -808,6 +1006,7 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 6px;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .radar-card-meta {
@@ -827,16 +1026,16 @@ onMounted(() => {
 .meta-label {
   flex-shrink: 0;
   min-width: 76px;
-  color: var(--ant-color-text-secondary);
   font-size: 12px;
   line-height: 18px;
+  color: var(--ant-color-text-secondary);
 }
 
 .meta-value {
   flex: 1;
-  color: var(--ant-color-text);
   font-size: 13px;
   line-height: 20px;
+  color: var(--ant-color-text);
   word-break: break-word;
 }
 
@@ -851,6 +1050,13 @@ onMounted(() => {
 
 .radar-action-btn {
   justify-content: center;
+  min-width: 0;
+}
+
+.radar-action-btn :deep(span) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .radar-card-actions > :last-child:nth-child(odd),
@@ -882,17 +1088,18 @@ onMounted(() => {
 }
 
 .detail-title {
-  color: var(--ant-color-text);
   font-size: 17px;
   font-weight: 700;
   line-height: 24px;
+  color: var(--ant-color-text);
 }
 
 .detail-subtitle {
   margin-top: 4px;
-  color: var(--ant-color-text-secondary);
   font-size: 13px;
   line-height: 20px;
+  color: var(--ant-color-text-secondary);
+  overflow-wrap: anywhere;
 }
 
 .detail-tags {
@@ -902,8 +1109,8 @@ onMounted(() => {
 
 .detail-row {
   display: flex;
-  justify-content: space-between;
   gap: 12px;
+  justify-content: space-between;
   margin-top: 10px;
   font-size: 13px;
   line-height: 20px;
@@ -916,10 +1123,11 @@ onMounted(() => {
 }
 
 .detail-row strong {
-  color: var(--ant-color-text);
+  min-width: 0;
   font-weight: 500;
+  color: var(--ant-color-text);
   text-align: right;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .detail-block {
@@ -930,10 +1138,16 @@ onMounted(() => {
 .detail-block a {
   display: block;
   margin: 4px 0 0;
-  color: var(--ant-color-text);
   font-size: 13px;
   line-height: 20px;
+  color: var(--ant-color-text);
   word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.detail-keywords {
+  justify-content: flex-start;
+  margin-top: 6px;
 }
 
 .review-form {
@@ -941,10 +1155,15 @@ onMounted(() => {
 }
 
 .radar-drawer-actions {
+  position: sticky;
+  bottom: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  padding: 12px 0 max(0px, env(safe-area-inset-bottom));
   margin-top: 16px;
+  background: var(--ant-color-bg-elevated);
+  border-top: 1px solid var(--ant-color-border-secondary);
 }
 
 .evidence-head {
@@ -954,25 +1173,41 @@ onMounted(() => {
 }
 
 .evidence-head span {
-  color: var(--ant-color-success);
   font-weight: 700;
+  color: var(--ant-color-success);
 }
 
 .evidence-title {
   margin-top: 8px;
-  color: var(--ant-color-text);
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
+  color: var(--ant-color-text);
+  overflow-wrap: anywhere;
 }
 
 .evidence-link {
   margin-top: 4px;
-  overflow: hidden;
+  font-size: 11px;
+  line-height: 16px;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.evidence-link a {
+  color: var(--ant-color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.evidence-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 6px;
   font-size: 12px;
   line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--ant-color-text-tertiary);
 }
 
 .evidence-keywords {
@@ -989,9 +1224,9 @@ onMounted(() => {
 .evidence-sentences p {
   padding: 8px;
   margin: 0 0 6px;
-  color: var(--ant-color-text);
   font-size: 13px;
   line-height: 20px;
+  color: var(--ant-color-text);
   background: var(--ant-color-fill-tertiary);
   border-radius: 6px;
 }
@@ -1001,9 +1236,10 @@ onMounted(() => {
   padding: 8px;
   margin: 8px 0 0;
   overflow: auto;
-  color: var(--ant-color-text-secondary);
   font-size: 12px;
   line-height: 18px;
+  color: var(--ant-color-text-secondary);
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
   background: var(--ant-color-fill-tertiary);
   border-radius: 6px;

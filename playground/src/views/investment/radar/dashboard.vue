@@ -1,16 +1,24 @@
 <script lang="ts" setup>
+import type { EChartsOption } from 'echarts';
+
+import type { PropType } from 'vue';
+
+import type { EchartsUIType } from '@vben/plugins/echarts';
+
 import type { RadarLead } from './data';
 
 import type {
   PublicOpportunityItem,
+  RadarAnalysisSourceStat,
   RadarAnalysisSummary,
   RadarCollectTask,
 } from '#/api/investment';
 
-import { computed, h, onMounted, ref } from 'vue';
+import { computed, defineComponent, h, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
+import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 import { useMediaQuery } from '@vueuse/core';
 import {
@@ -23,7 +31,6 @@ import {
   Skeleton,
   Space,
   Statistic,
-  Table,
   Tag,
 } from 'ant-design-vue';
 
@@ -38,6 +45,73 @@ import { RADAR_STAGE_LABEL_MAP } from './data';
 
 defineOptions({ name: 'InvestmentRadarDashboard' });
 
+const DashboardChart = defineComponent({
+  name: 'RadarDashboardChart',
+  props: {
+    chartData: {
+      default: null,
+      type: null as unknown as PropType<any>,
+    },
+    getOptions: {
+      required: true,
+      type: Function as PropType<(data: any) => EChartsOption>,
+    },
+    height: {
+      default: '260px',
+      type: String,
+    },
+    placeholder: {
+      default: '暂无数据',
+      type: String,
+    },
+  },
+  setup(props) {
+    const chartRef = ref<EchartsUIType>();
+    const error = ref('');
+    const isDataEmpty = ref(false);
+    const { getChartInstance, renderEcharts } = useEcharts(chartRef);
+
+    const renderChart = async () => {
+      try {
+        error.value = '';
+        isDataEmpty.value = isEmptyChartData(props.chartData);
+        if (isDataEmpty.value) {
+          getChartInstance()?.clear();
+          return;
+        }
+        await renderEcharts(props.getOptions(props.chartData));
+      } catch (error_) {
+        console.error('招商看板图表渲染失败:', error_);
+        error.value = error_ instanceof Error ? error_.message : '加载失败';
+      }
+    };
+
+    onMounted(() => {
+      void renderChart();
+    });
+
+    watch(
+      () => [props.chartData, props.getOptions],
+      () => {
+        void renderChart();
+      },
+      { deep: true },
+    );
+
+    return () =>
+      h('div', { class: 'radar-chart', style: { height: props.height } }, [
+        h(EchartsUI, { height: '100%', ref: chartRef }),
+        isDataEmpty.value || error.value
+          ? h(
+              'div',
+              { class: 'radar-chart-placeholder' },
+              error.value || props.placeholder,
+            )
+          : null,
+      ]);
+  },
+});
+
 const router = useRouter();
 const route = useRoute();
 const isMobile = useMediaQuery('(max-width: 767px)');
@@ -47,11 +121,18 @@ const analysis = ref<null | RadarAnalysisSummary>(null);
 const leads = ref<RadarLead[]>([]);
 const opportunities = ref<PublicOpportunityItem[]>([]);
 const latestTask = ref<null | RadarCollectTask>(null);
-const leadTableScroll = computed(() =>
-  isMobile.value ? { x: 640 } : undefined,
-);
 
 const summary = computed(() => {
+  const funnel = analysis.value?.funnel;
+  if (funnel) {
+    return {
+      activeLeads: funnel.activeLeads,
+      highPriority: funnel.highPriorityLeads,
+      replied: funnel.contactedLeads,
+      totalLeads: funnel.totalLeads,
+    };
+  }
+
   const leadItems = leads.value;
   return {
     activeLeads: leadItems.filter((item) => item.stage !== 'INVALID').length,
@@ -62,6 +143,76 @@ const summary = computed(() => {
     totalLeads: leadItems.length,
   };
 });
+
+const processLineChartData = computed(() => {
+  const funnel = analysis.value?.funnel;
+  if (funnel) {
+    return [
+      {
+        name: '待触达',
+        value: Math.max(funnel.totalLeads - funnel.contactedLeads, 0),
+      },
+      {
+        name: '已触达',
+        value: Math.max(funnel.contactedLeads - funnel.repliedLeads, 0),
+      },
+      {
+        name: '已回复',
+        value: Math.max(funnel.repliedLeads - funnel.visitLeads, 0),
+      },
+      {
+        name: '已带看',
+        value: Math.max(funnel.visitLeads - funnel.dealLeads, 0),
+      },
+      { name: '已成交', value: funnel.dealLeads },
+    ];
+  }
+
+  const stageMap = new Map<string, number>();
+  for (const lead of leads.value) {
+    const label = getStageLabel(lead.stage);
+    stageMap.set(label, (stageMap.get(label) || 0) + 1);
+  }
+  return [...stageMap.entries()].map(([name, value]) => ({ name, value }));
+});
+
+const conversionLineChartData = computed(() => {
+  const funnel = analysis.value?.funnel;
+  if (!funnel) {
+    return [];
+  }
+  return [
+    { name: '触达率', value: funnel.contactRate },
+    { name: '回复率', value: funnel.replyRate },
+    { name: '带看率', value: funnel.visitRate },
+    { name: '成交率', value: funnel.dealRate },
+  ];
+});
+
+const sourceBarChartData = computed(() => analysis.value?.sourceStats || []);
+
+type ScoreScatterChartItem = {
+  name: string;
+  priorityLevel: string;
+  value: [number, number, number];
+};
+
+type ScoreScatterChartDisplayItem = Omit<ScoreScatterChartItem, 'value'> & {
+  originalValue: [number, number, number];
+  value: [number, number, number, number, number];
+};
+
+const scoreScatterChartData = computed<ScoreScatterChartItem[]>(() =>
+  leads.value.map((lead, index) => ({
+    name: lead.enterpriseName || `潜客${index + 1}`,
+    priorityLevel: lead.priorityLevel,
+    value: [
+      toFiniteChartNumber(lead.totalScore),
+      toFiniteChartNumber(lead.intentScore),
+      toFiniteChartNumber(lead.reachableScore),
+    ] as [number, number, number],
+  })),
+);
 
 const latestTaskStatusText = computed(() => {
   const status = latestTask.value?.status;
@@ -78,229 +229,50 @@ const latestTaskStatusText = computed(() => {
   );
 });
 
-const leadColumns = [
-  {
-    customRender: ({ text }: { text?: string }) =>
-      text ? hPriorityTag(text) : '-',
-    dataIndex: 'enterpriseName',
-    key: 'enterpriseName',
-    title: '企业名称',
-  },
-  {
-    dataIndex: 'parkName',
-    key: 'parkName',
-    title: '园区',
-  },
-  {
-    customRender: ({ text }: { text?: string }) =>
-      text ? hPriorityTag(text) : '-',
-    dataIndex: 'priorityLevel',
-    key: 'priorityLevel',
-    title: '优先级',
-  },
-  {
-    customRender: ({ text }: { text?: string }) => getStageLabel(text),
-    dataIndex: 'stage',
-    key: 'stage',
-    title: '阶段',
-  },
-  {
-    dataIndex: 'totalScore',
-    key: 'totalScore',
-    title: '总分',
-  },
-];
-
-const channelColumns = [
-  {
-    dataIndex: 'channel',
-    key: 'channel',
-    title: '渠道',
-  },
-  {
-    dataIndex: 'totalTasks',
-    key: 'totalTasks',
-    title: '任务数',
-  },
-  {
-    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
-    dataIndex: 'replyRate',
-    key: 'replyRate',
-    title: '回复率',
-  },
-  {
-    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
-    dataIndex: 'positiveRate',
-    key: 'positiveRate',
-    title: '正向率',
-  },
-];
-
-const templateColumns = [
-  {
-    dataIndex: 'templateName',
-    ellipsis: true,
-    key: 'templateName',
-    title: '话术',
-  },
-  {
-    dataIndex: 'totalTasks',
-    key: 'totalTasks',
-    title: '任务数',
-  },
-  {
-    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
-    dataIndex: 'replyRate',
-    key: 'replyRate',
-    title: '回复率',
-  },
-  {
-    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
-    dataIndex: 'positiveRate',
-    key: 'positiveRate',
-    title: '正向率',
-  },
-];
-
-const sourceColumns = [
-  {
-    dataIndex: 'sourceName',
-    ellipsis: true,
-    key: 'sourceName',
-    title: '来源',
-  },
-  {
-    dataIndex: 'sourceType',
-    key: 'sourceType',
-    title: '类型',
-  },
-  {
-    dataIndex: 'totalLeads',
-    key: 'totalLeads',
-    title: '线索数',
-  },
-  {
-    dataIndex: 'convertedLeads',
-    key: 'convertedLeads',
-    title: '转雷达',
-  },
-  {
-    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
-    dataIndex: 'conversionRate',
-    key: 'conversionRate',
-    title: '转化率',
-  },
-];
-
-const signalTypeColumns = [
-  {
-    dataIndex: 'eventType',
-    key: 'eventType',
-    title: '信号类型',
-  },
-  {
-    dataIndex: 'totalEvents',
-    key: 'totalEvents',
-    title: '事件数',
-  },
-  {
-    dataIndex: 'radarLeads',
-    key: 'radarLeads',
-    title: '雷达线索',
-  },
-  {
-    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
-    dataIndex: 'visitRate',
-    key: 'visitRate',
-    title: '带看率',
-  },
-  {
-    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
-    dataIndex: 'dealRate',
-    key: 'dealRate',
-    title: '成交率',
-  },
-];
-
-const ownerColumns = [
-  {
-    dataIndex: 'ownerName',
-    key: 'ownerName',
-    title: '负责人',
-  },
-  {
-    dataIndex: 'totalLeads',
-    key: 'totalLeads',
-    title: '线索数',
-  },
-  {
-    customRender: ({ text }: { text?: number }) => `${text ?? 0}%`,
-    dataIndex: 'contactRate',
-    key: 'contactRate',
-    title: '联系率',
-  },
-  {
-    dataIndex: 'followCount',
-    key: 'followCount',
-    title: '跟进数',
-  },
-  {
-    customRender: ({ text }: { text?: number }) => `${text ?? 0}h`,
-    dataIndex: 'firstContactAvgHours',
-    key: 'firstContactAvgHours',
-    title: '首联均时',
-  },
-];
-
-const opportunityColumns = [
-  {
-    dataIndex: 'title',
-    ellipsis: true,
-    key: 'title',
-    title: '标题',
-  },
-  {
-    customRender: ({ record }: { record: PublicOpportunityItem }) =>
-      [record.city, record.district].filter(Boolean).join(' / ') || '-',
-    dataIndex: 'city',
-    key: 'city',
-    title: '城市',
-  },
-  {
-    customRender: ({ text }: { text?: string }) => {
-      const label = getOpportunityTypeLabel(text);
-      if (label !== '-') {
-        return label;
-      }
-      if (text === 'DEMAND') {
-        return '需求';
-      }
-      if (text === 'SUPPLY') {
-        return '房源';
-      }
-      return '-';
-    },
-    dataIndex: 'opportunityType',
-    key: 'opportunityType',
-    title: '类型',
-  },
-  {
-    customRender: ({ text }: { text?: null | number }) => text ?? '-',
-    dataIndex: 'score',
-    key: 'score',
-    title: '分数',
-  },
-];
-
-function hPriorityTag(priorityLevel: string) {
-  let color = getPriorityColor(priorityLevel);
-  if (priorityLevel === 'A') {
-    color = 'red';
-  } else if (priorityLevel === 'B') {
-    color = 'orange';
+const mobileFunnelSteps = computed(() => {
+  const funnel = analysis.value?.funnel;
+  if (funnel) {
+    return [
+      { label: '线索', value: funnel.totalLeads },
+      { label: '触达', value: funnel.contactedLeads },
+      { label: '回复', value: funnel.repliedLeads },
+      { label: '带看', value: funnel.visitLeads },
+      { label: '成交', value: funnel.dealLeads },
+    ];
   }
-  return h(Tag, { color }, () => `${priorityLevel} 级`);
-}
+  return processLineChartData.value.map((item) => ({
+    label: item.name,
+    value: item.value,
+  }));
+});
+
+const mobileRateItems = computed(() => {
+  const funnel = analysis.value?.funnel;
+  if (!funnel) {
+    return conversionLineChartData.value.map((item) => ({
+      label: item.name,
+      value: item.value,
+    }));
+  }
+  return [
+    { label: '触达率', value: funnel.contactRate },
+    { label: '回复率', value: funnel.replyRate },
+    { label: '带看率', value: funnel.visitRate },
+    { label: '成交率', value: funnel.dealRate },
+  ];
+});
+
+const mobileSourceHighlights = computed(() =>
+  (analysis.value?.sourceStats || []).slice(0, 3),
+);
+
+const mobileSignalHighlights = computed(() =>
+  (analysis.value?.signalTypeStats || []).slice(0, 3),
+);
+
+const mobileOwnerHighlights = computed(() =>
+  (analysis.value?.ownerStats || []).slice(0, 3),
+);
 
 function getPriorityColor(priorityLevel?: null | string) {
   if (priorityLevel === 'A') {
@@ -310,6 +282,16 @@ function getPriorityColor(priorityLevel?: null | string) {
     return 'orange';
   }
   return 'blue';
+}
+
+function getPriorityChartColor(priorityLevel?: null | string) {
+  if (priorityLevel === 'A') {
+    return '#f5222d';
+  }
+  if (priorityLevel === 'B') {
+    return '#faad14';
+  }
+  return '#1677ff';
 }
 
 function getStageLabel(stage?: null | string) {
@@ -347,17 +329,539 @@ function getSuggestionColor(level: string) {
   return 'orange';
 }
 
+function toFiniteChartNumber(value: unknown) {
+  const numericValue = Number(value ?? 0);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function isZeroChartValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.every((item) => toFiniteChartNumber(item) === 0);
+  }
+  return toFiniteChartNumber(value) === 0;
+}
+
+function isEmptyChartData(data: unknown) {
+  if (data === null || data === undefined) {
+    return true;
+  }
+  if (Array.isArray(data)) {
+    return data.every(
+      (item) =>
+        typeof item === 'object' &&
+        item !== null &&
+        'value' in item &&
+        isZeroChartValue((item as { value?: unknown }).value),
+    );
+  }
+  return false;
+}
+
+function getLineChartConfig(
+  data: Array<{ name: string; value: number }>,
+): EChartsOption {
+  return {
+    color: ['#1677ff'],
+    grid: {
+      bottom: 28,
+      containLabel: true,
+      left: 8,
+      right: 18,
+      top: 20,
+    },
+    series: [
+      {
+        areaStyle: {
+          opacity: 0.08,
+        },
+        data: data.map((item) => item.value),
+        label: {
+          show: true,
+        },
+        smooth: true,
+        symbolSize: 8,
+        type: 'line',
+      },
+    ],
+    tooltip: {
+      trigger: 'axis',
+    },
+    xAxis: {
+      axisLabel: {
+        interval: 0,
+      },
+      data: data.map((item) => item.name),
+      type: 'category',
+    },
+    yAxis: {
+      splitLine: {
+        lineStyle: {
+          type: 'dashed',
+        },
+      },
+      type: 'value',
+    },
+  };
+}
+
+function getRateLineChartConfig(
+  data: Array<{ name: string; value: number }>,
+): EChartsOption {
+  return {
+    ...getLineChartConfig(data),
+    color: ['#52c41a'],
+    yAxis: {
+      axisLabel: {
+        formatter: '{value}%',
+      },
+      max: 100,
+      splitLine: {
+        lineStyle: {
+          type: 'dashed',
+        },
+      },
+      type: 'value',
+    },
+  };
+}
+
+function getSourceBarChartConfig(
+  data: RadarAnalysisSourceStat[],
+): EChartsOption {
+  const items = data.slice(0, 6).reverse();
+  return {
+    color: ['#1677ff', '#faad14'],
+    grid: {
+      bottom: 12,
+      containLabel: true,
+      left: 8,
+      right: 24,
+      top: 16,
+    },
+    series: [
+      {
+        data: items.map((item) => item.convertedLeads),
+        itemStyle: {
+          borderRadius: [0, 6, 6, 0],
+        },
+        label: {
+          position: 'right',
+          show: true,
+        },
+        name: '转雷达',
+        type: 'bar',
+      },
+      {
+        data: items.map((item) => item.highConfidenceLeads),
+        itemStyle: {
+          borderRadius: [0, 6, 6, 0],
+        },
+        name: '高可信',
+        type: 'bar',
+      },
+    ],
+    tooltip: {
+      trigger: 'axis',
+    },
+    xAxis: {
+      splitLine: {
+        lineStyle: {
+          type: 'dashed',
+        },
+      },
+      type: 'value',
+    },
+    yAxis: {
+      data: items.map((item) => item.sourceName),
+      type: 'category',
+    },
+  };
+}
+
+function getScoreAxisMax(
+  data: ScoreScatterChartItem[],
+  dimensionIndex: number,
+) {
+  const maxValue = Math.max(
+    0,
+    ...data.map((item) => toFiniteChartNumber(item.value[dimensionIndex])),
+  );
+  return Math.max(100, Math.ceil(maxValue / 10) * 10);
+}
+
+function getScoreAxisMin(
+  data: ScoreScatterChartItem[],
+  dimensionIndex: number,
+) {
+  if (data.length === 0) {
+    return 0;
+  }
+
+  const minValue = Math.min(
+    ...data.map((item) => toFiniteChartNumber(item.value[dimensionIndex])),
+  );
+  return minValue <= 0 ? -5 : 0;
+}
+
+function formatScoreAxisLabel(value: number) {
+  return value < 0 ? '' : String(value);
+}
+
+function formatScatterLeadName(name?: string) {
+  if (!name) {
+    return '-';
+  }
+  return name.length > 10 ? `${name.slice(0, 10)}...` : name;
+}
+
+function clampScoreChartValue(value: number, min: number, max: number) {
+  if (max <= min + 2) {
+    return value;
+  }
+  return Math.min(max - 1, Math.max(min + 1, value));
+}
+
+function spreadScoreScatterData(
+  data: ScoreScatterChartItem[],
+  xMin: number,
+  xMax: number,
+  yMin: number,
+  yMax: number,
+): ScoreScatterChartDisplayItem[] {
+  const groupMap = new Map<string, ScoreScatterChartItem[]>();
+  data.forEach((item) => {
+    const key = `${Math.round(item.value[0])}:${Math.round(item.value[1])}`;
+    const group = groupMap.get(key) || [];
+    group.push(item);
+    groupMap.set(key, group);
+  });
+
+  return [...groupMap.values()].flatMap((group) =>
+    group.map((item, index) => {
+      const originalValue = item.value;
+      if (group.length === 1) {
+        return {
+          ...item,
+          originalValue,
+          value: [
+            originalValue[0],
+            originalValue[1],
+            originalValue[2],
+            originalValue[0],
+            originalValue[1],
+          ],
+        };
+      }
+
+      const angle = (Math.PI * 2 * index) / group.length;
+      const radius = Math.min(4, 1.8 + group.length * 0.25);
+      const displayX = clampScoreChartValue(
+        originalValue[0] + Math.cos(angle) * radius,
+        xMin,
+        xMax,
+      );
+      const displayY = clampScoreChartValue(
+        originalValue[1] + Math.sin(angle) * radius,
+        yMin,
+        yMax,
+      );
+
+      return {
+        ...item,
+        originalValue,
+        value: [
+          displayX,
+          displayY,
+          originalValue[2],
+          originalValue[0],
+          originalValue[1],
+        ],
+      };
+    }),
+  );
+}
+
+function getScoreScatterChartConfig(
+  data: ScoreScatterChartItem[],
+): EChartsOption {
+  const xMin = getScoreAxisMin(data, 0);
+  const xMax = getScoreAxisMax(data, 0);
+  const yMin = getScoreAxisMin(data, 1);
+  const yMax = getScoreAxisMax(data, 1);
+  const chartData = spreadScoreScatterData(data, xMin, xMax, yMin, yMax);
+
+  return {
+    color: ['#f5222d', '#faad14', '#1677ff'],
+    grid: {
+      bottom: 34,
+      containLabel: true,
+      left: 10,
+      right: 26,
+      top: 28,
+    },
+    series: [
+      {
+        clip: false,
+        data: chartData,
+        emphasis: {
+          focus: 'self',
+          label: {
+            show: true,
+          },
+        },
+        encode: {
+          tooltip: [3, 4, 2],
+          x: 0,
+          y: 1,
+        },
+        itemStyle: {
+          color: (params: any) =>
+            getPriorityChartColor(params.data?.priorityLevel),
+          opacity: 0.88,
+          shadowBlur: 6,
+          shadowColor: 'rgba(0, 0, 0, 0.12)',
+        },
+        label: {
+          color: '#4b5563',
+          fontSize: 11,
+          formatter: ({ name }: { name: string }) =>
+            formatScatterLeadName(name),
+          position: 'top',
+          show: false,
+        },
+        symbolSize: (value: unknown) => {
+          const scoreValue = Array.isArray(value)
+            ? toFiniteChartNumber(value[2])
+            : 0;
+          return Math.max(18, Math.min(32, scoreValue / 3));
+        },
+        type: 'scatter',
+      },
+    ],
+    tooltip: {
+      formatter: (params: any) => {
+        const value =
+          params.data?.originalValue ||
+          (Array.isArray(params.value) ? params.value : []);
+        return `${params.name}<br/>总分：${value[0] ?? '-'}<br/>意图分：${
+          value[1] ?? '-'
+        }<br/>可触达分：${value[2] ?? '-'}`;
+      },
+    },
+    xAxis: {
+      axisLabel: {
+        formatter: formatScoreAxisLabel,
+      },
+      max: xMax,
+      min: xMin,
+      name: '总分',
+      splitLine: {
+        lineStyle: {
+          type: 'dashed',
+        },
+      },
+      type: 'value',
+    },
+    yAxis: {
+      axisLabel: {
+        formatter: formatScoreAxisLabel,
+      },
+      max: yMax,
+      min: yMin,
+      name: '意图分',
+      splitLine: {
+        lineStyle: {
+          type: 'dashed',
+        },
+      },
+      type: 'value',
+    },
+  };
+}
+
+function getMobileLineChartConfig(
+  data: Array<{ label: string; value: number }>,
+): EChartsOption {
+  return {
+    color: ['#2563eb'],
+    grid: {
+      bottom: 24,
+      containLabel: true,
+      left: 4,
+      right: 8,
+      top: 20,
+    },
+    series: [
+      {
+        areaStyle: {
+          opacity: 0.1,
+        },
+        data: data.map((item) => item.value),
+        label: {
+          color: '#2563eb',
+          fontSize: 10,
+          show: true,
+        },
+        lineStyle: {
+          width: 3,
+        },
+        smooth: true,
+        symbolSize: 7,
+        type: 'line',
+      },
+    ],
+    tooltip: {
+      trigger: 'axis',
+    },
+    xAxis: {
+      axisLabel: {
+        fontSize: 10,
+        interval: 0,
+      },
+      axisTick: {
+        show: false,
+      },
+      data: data.map((item) => item.label),
+      type: 'category',
+    },
+    yAxis: {
+      axisLabel: {
+        fontSize: 10,
+      },
+      splitLine: {
+        lineStyle: {
+          type: 'dashed',
+        },
+      },
+      type: 'value',
+    },
+  };
+}
+
+function getMobileRateChartConfig(
+  data: Array<{ label: string; value: number }>,
+): EChartsOption {
+  return {
+    color: ['#16a34a'],
+    grid: {
+      bottom: 24,
+      containLabel: true,
+      left: 4,
+      right: 8,
+      top: 18,
+    },
+    series: [
+      {
+        data: data.map((item) => item.value),
+        itemStyle: {
+          borderRadius: [6, 6, 0, 0],
+        },
+        label: {
+          color: '#16a34a',
+          fontSize: 10,
+          formatter: '{c}%',
+          position: 'top',
+          show: true,
+        },
+        type: 'bar',
+      },
+    ],
+    tooltip: {
+      trigger: 'axis',
+      valueFormatter: (value) => `${value}%`,
+    },
+    xAxis: {
+      axisLabel: {
+        fontSize: 10,
+        interval: 0,
+      },
+      axisTick: {
+        show: false,
+      },
+      data: data.map((item) => item.label),
+      type: 'category',
+    },
+    yAxis: {
+      axisLabel: {
+        fontSize: 10,
+        formatter: '{value}%',
+      },
+      max: 100,
+      splitLine: {
+        lineStyle: {
+          type: 'dashed',
+        },
+      },
+      type: 'value',
+    },
+  };
+}
+
+function getMobileSourceChartConfig(
+  data: RadarAnalysisSourceStat[],
+): EChartsOption {
+  const items = data.slice(0, 4).reverse();
+  return {
+    color: ['#2563eb'],
+    grid: {
+      bottom: 8,
+      containLabel: true,
+      left: 4,
+      right: 18,
+      top: 8,
+    },
+    series: [
+      {
+        data: items.map((item) => item.convertedLeads),
+        itemStyle: {
+          borderRadius: [0, 6, 6, 0],
+        },
+        label: {
+          color: '#2563eb',
+          fontSize: 10,
+          position: 'right',
+          show: true,
+        },
+        type: 'bar',
+      },
+    ],
+    tooltip: {
+      trigger: 'axis',
+    },
+    xAxis: {
+      axisLabel: {
+        fontSize: 10,
+      },
+      splitLine: {
+        lineStyle: {
+          type: 'dashed',
+        },
+      },
+      type: 'value',
+    },
+    yAxis: {
+      axisLabel: {
+        fontSize: 10,
+        overflow: 'truncate',
+        width: 72,
+      },
+      data: items.map((item) => item.sourceName),
+      type: 'category',
+    },
+  };
+}
+
+const mobileChartConfigRefs = {
+  getMobileLineChartConfig,
+  getMobileRateChartConfig,
+  getMobileSourceChartConfig,
+};
+
 function goToLeadDetail(leadId: number) {
   const detailBasePath = route.path.includes('/mobile-dashboard')
     ? '/investment/radar/mobile'
     : '/investment/radar';
   router.push(`${detailBasePath}/${leadId}`);
-}
-
-function getLeadRow(record: RadarLead) {
-  return {
-    onClick: () => goToLeadDetail(record.leadId),
-  };
 }
 
 async function loadDashboard() {
@@ -448,163 +952,96 @@ onMounted(() => {
       </template>
 
       <template v-else>
-        <section class="radar-mobile-summary">
-          <div>
+        <section class="radar-mobile-overview">
+          <button
+            type="button"
+            class="mobile-main-metric"
+            @click="goToRadarList"
+          >
             <span>线索总数</span>
             <strong>{{ summary.totalLeads }}</strong>
-          </div>
-          <div>
-            <span>活跃线索</span>
-            <strong>{{ summary.activeLeads }}</strong>
-          </div>
-          <div>
-            <span>A级潜客</span>
-            <strong>{{ summary.highPriority }}</strong>
-          </div>
-          <div>
-            <span>跟进阶段</span>
-            <strong>{{ summary.replied }}</strong>
+            <em>活跃 {{ summary.activeLeads }}</em>
+          </button>
+          <div class="mobile-mini-metrics">
+            <div>
+              <span>A级潜客</span>
+              <strong>{{ summary.highPriority }}</strong>
+            </div>
+            <div>
+              <span>已触达</span>
+              <strong>{{ summary.replied }}</strong>
+            </div>
+            <div>
+              <span>公开机会</span>
+              <strong>{{ opportunities.length }}</strong>
+            </div>
+            <div>
+              <span>同步状态</span>
+              <strong>{{ latestTaskStatusText }}</strong>
+            </div>
           </div>
         </section>
 
-        <section
-          v-if="analysis && analysis.sourceStats.length > 0"
-          class="radar-mobile-panel"
-        >
-          <div class="radar-mobile-section-title">来源线索贡献</div>
-          <div class="radar-mobile-list">
-            <article
-              v-for="item in analysis.sourceStats.slice(0, 3)"
-              :key="`${item.sourceType}-${item.sourceName}`"
-              class="radar-mobile-card"
-            >
-              <div class="radar-mobile-card-head">
-                <div>
-                  <div class="radar-mobile-card-title">
-                    {{ item.sourceName }}
-                  </div>
-                  <div class="radar-mobile-card-subtitle">
-                    {{ item.sourceType }}
-                  </div>
-                </div>
-                <Tag color="green">{{ item.conversionRate }}%</Tag>
-              </div>
-              <div class="radar-mobile-card-meta">
-                <span>线索数：{{ item.totalLeads }}</span>
-                <span>高可信：{{ item.highConfidenceLeads }}</span>
-                <span>转雷达：{{ item.convertedLeads }}</span>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <section
-          v-if="analysis && analysis.signalTypeStats.length > 0"
-          class="radar-mobile-panel"
-        >
-          <div class="radar-mobile-section-title">信号类型转化</div>
-          <div class="radar-mobile-list">
-            <article
-              v-for="item in analysis.signalTypeStats.slice(0, 3)"
-              :key="item.eventType"
-              class="radar-mobile-card"
-            >
-              <div class="radar-mobile-card-head">
-                <div>
-                  <div class="radar-mobile-card-title">
-                    {{ item.eventType }}
-                  </div>
-                  <div class="radar-mobile-card-subtitle">
-                    事件 {{ item.totalEvents }} / 雷达 {{ item.radarLeads }}
-                  </div>
-                </div>
-                <Tag color="blue">带看 {{ item.visitRate }}%</Tag>
-              </div>
-              <div class="radar-mobile-card-meta">
-                <span>转线索：{{ item.convertedEvents }}</span>
-                <span>带看：{{ item.visitLeads }}</span>
-                <span>成交：{{ item.dealLeads }}</span>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <section
-          v-if="analysis && analysis.ownerStats.length > 0"
-          class="radar-mobile-panel"
-        >
-          <div class="radar-mobile-section-title">销售跟进效率</div>
-          <div class="radar-mobile-list">
-            <article
-              v-for="item in analysis.ownerStats.slice(0, 3)"
-              :key="item.ownerUserId ?? item.ownerName"
-              class="radar-mobile-card"
-            >
-              <div class="radar-mobile-card-head">
-                <div>
-                  <div class="radar-mobile-card-title">
-                    {{ item.ownerName }}
-                  </div>
-                  <div class="radar-mobile-card-subtitle">
-                    线索 {{ item.totalLeads }} / 跟进 {{ item.followCount }}
-                  </div>
-                </div>
-                <Tag color="purple">{{ item.contactRate }}%</Tag>
-              </div>
-              <div class="radar-mobile-card-meta">
-                <span>已联系：{{ item.contactedLeads }}</span>
-                <span>首联：{{ item.firstContactAvgHours }}h</span>
-                <span>成交：{{ item.dealLeads }}</span>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <section class="radar-mobile-panel">
-          <div class="radar-mobile-section-title">最近同步状态</div>
-          <div class="radar-mobile-status">
+        <section v-if="mobileFunnelSteps.length > 0" class="radar-mobile-panel">
+          <div class="radar-mobile-section-head">
             <div>
-              <span>任务状态</span>
-              <Tag :color="latestTask?.status === 'SUCCESS' ? 'green' : 'blue'">
-                {{ latestTaskStatusText }}
-              </Tag>
-            </div>
-            <div>
-              <span>新增线索</span>
-              <strong>{{ latestTask?.created ?? '-' }}</strong>
-            </div>
-            <div>
-              <span>更新线索</span>
-              <strong>{{ latestTask?.updated ?? '-' }}</strong>
-            </div>
-            <div>
-              <span>跳过数量</span>
-              <strong>{{ latestTask?.skipped ?? '-' }}</strong>
+              <h3>招商进程</h3>
+              <p>对应 PC 端招商进程图</p>
             </div>
           </div>
-          <p v-if="latestTask?.errorReason" class="radar-mobile-error">
-            {{ latestTask.errorReason }}
-          </p>
+          <DashboardChart
+            :chart-data="mobileFunnelSteps"
+            :get-options="mobileChartConfigRefs.getMobileLineChartConfig"
+            height="190px"
+          />
         </section>
 
         <section v-if="analysis" class="radar-mobile-panel">
-          <div class="radar-mobile-section-title">效果分析</div>
-          <div class="radar-mobile-status">
+          <div class="radar-mobile-section-head">
             <div>
-              <span>触达率</span>
-              <strong>{{ analysis.funnel.contactRate }}%</strong>
+              <h3>转化效率</h3>
+              <p>对应 PC 端转化效率图表</p>
+            </div>
+          </div>
+          <DashboardChart
+            :chart-data="mobileRateItems"
+            :get-options="mobileChartConfigRefs.getMobileRateChartConfig"
+            height="190px"
+          />
+        </section>
+
+        <section v-if="analysis" class="radar-mobile-panel">
+          <div class="radar-mobile-section-head">
+            <div>
+              <h3>关键贡献</h3>
+              <p>来源、信号和销售效率摘要</p>
+            </div>
+          </div>
+          <DashboardChart
+            v-if="mobileSourceHighlights.length > 0"
+            :chart-data="mobileSourceHighlights"
+            :get-options="mobileChartConfigRefs.getMobileSourceChartConfig"
+            height="180px"
+          />
+          <div class="mobile-insight-grid">
+            <div>
+              <span>最佳来源</span>
+              <strong>{{
+                mobileSourceHighlights[0]?.sourceName || '-'
+              }}</strong>
+              <em>
+                转化 {{ mobileSourceHighlights[0]?.conversionRate ?? 0 }}%
+              </em>
             </div>
             <div>
-              <span>回复率</span>
-              <strong>{{ analysis.funnel.replyRate }}%</strong>
+              <span>高效信号</span>
+              <strong>{{ mobileSignalHighlights[0]?.eventType || '-' }}</strong>
+              <em>带看 {{ mobileSignalHighlights[0]?.visitRate ?? 0 }}%</em>
             </div>
             <div>
-              <span>带看率</span>
-              <strong>{{ analysis.funnel.visitRate }}%</strong>
-            </div>
-            <div>
-              <span>成交率</span>
-              <strong>{{ analysis.funnel.dealRate }}%</strong>
+              <span>跟进负责人</span>
+              <strong>{{ mobileOwnerHighlights[0]?.ownerName || '-' }}</strong>
+              <em>触达 {{ mobileOwnerHighlights[0]?.contactRate ?? 0 }}%</em>
             </div>
           </div>
           <div
@@ -625,64 +1062,61 @@ onMounted(() => {
         </section>
 
         <section class="radar-mobile-panel">
-          <div class="radar-mobile-section-title">优先潜客</div>
-          <div v-if="leads.length > 0" class="radar-mobile-list">
+          <div class="radar-mobile-section-head">
+            <div>
+              <h3>优先潜客</h3>
+              <p>按评分排序的重点跟进对象</p>
+            </div>
+            <Button size="small" type="link" @click="goToRadarList">
+              全部
+            </Button>
+          </div>
+          <div v-if="leads.length > 0" class="mobile-rank-list">
             <button
-              v-for="lead in leads"
+              v-for="(lead, index) in leads.slice(0, 5)"
               :key="lead.leadId"
-              class="radar-mobile-card"
+              class="mobile-rank-item"
               type="button"
               @click="goToLeadDetail(lead.leadId)"
             >
-              <div class="radar-mobile-card-head">
-                <div>
-                  <div class="radar-mobile-card-title">
-                    {{ lead.enterpriseName || '-' }}
-                  </div>
-                  <div class="radar-mobile-card-subtitle">
-                    {{ lead.parkName || '-' }}
-                  </div>
-                </div>
-                <Tag :color="getPriorityColor(lead.priorityLevel)">
-                  {{ lead.priorityLevel || '-' }}级
-                </Tag>
+              <span class="mobile-rank-index">{{ index + 1 }}</span>
+              <div>
+                <strong>{{ lead.enterpriseName || '-' }}</strong>
+                <small>
+                  {{ lead.parkName || '-' }} / {{ getStageLabel(lead.stage) }}
+                </small>
               </div>
-              <div class="radar-mobile-card-meta">
-                <span>阶段：{{ getStageLabel(lead.stage) }}</span>
-                <span>总分：{{ lead.totalScore ?? '-' }}</span>
-                <span>信号：{{ lead.latestSignalType || '-' }}</span>
-              </div>
+              <Tag :color="getPriorityColor(lead.priorityLevel)">
+                {{ lead.priorityLevel || '-' }}级
+              </Tag>
             </button>
           </div>
           <Empty v-else description="暂无优先潜客" />
         </section>
 
         <section class="radar-mobile-panel">
-          <div class="radar-mobile-section-title">最新公开机会</div>
-          <div v-if="opportunities.length > 0" class="radar-mobile-list">
+          <div class="radar-mobile-section-head">
+            <div>
+              <h3>最新公开机会</h3>
+              <p>需求和房源供给的最新入口</p>
+            </div>
+          </div>
+          <div v-if="opportunities.length > 0" class="mobile-opportunity-list">
             <article
-              v-for="item in opportunities"
+              v-for="item in opportunities.slice(0, 4)"
               :key="item.opportunityId"
-              class="radar-mobile-card"
+              class="mobile-opportunity-item"
             >
-              <div class="radar-mobile-card-head">
-                <div>
-                  <div class="radar-mobile-card-title">
-                    {{ item.title || '-' }}
-                  </div>
-                  <div class="radar-mobile-card-subtitle">
-                    {{ getOpportunityLocation(item) }}
-                  </div>
-                </div>
-                <Tag color="blue">
-                  {{ getOpportunityTypeLabel(item.opportunityType) }}
-                </Tag>
+              <div>
+                <strong>{{ item.title || '-' }}</strong>
+                <small>
+                  {{ getOpportunityLocation(item) }} /
+                  {{ getOpportunityArea(item) }}
+                </small>
               </div>
-              <div class="radar-mobile-card-meta">
-                <span>面积：{{ getOpportunityArea(item) }}</span>
-                <span>分数：{{ item.score ?? '-' }}</span>
-                <span>来源：{{ item.sourceSite || '-' }}</span>
-              </div>
+              <Tag color="blue">
+                {{ getOpportunityTypeLabel(item.opportunityType) }}
+              </Tag>
             </article>
           </div>
           <Empty v-else description="暂无公开机会" />
@@ -708,133 +1142,74 @@ onMounted(() => {
       <Alert v-if="loadError" :message="loadError" show-icon type="warning" />
 
       <template v-if="loading">
-        <Card v-if="analysis" title="来源线索贡献">
-          <Table
-            :columns="sourceColumns"
-            :data-source="analysis.sourceStats"
-            :pagination="false"
-            row-key="sourceName"
-            size="small"
-          />
-        </Card>
-
         <Row :gutter="[16, 16]">
           <Col v-for="item in 4" :key="item" :lg="6" :md="12" :sm="12" :xs="24">
             <Card>
-              <Skeleton active :paragraph="{ rows: 1 }" />
+              <Skeleton active :paragraph="{ rows: 4 }" />
             </Card>
           </Col>
         </Row>
       </template>
 
       <template v-else>
-        <Row :gutter="[16, 16]">
+        <Row class="radar-stat-card-grid" :gutter="[12, 12]">
           <Col :lg="6" :md="12" :sm="12" :xs="24">
-            <Card>
+            <Card class="radar-stat-card">
               <Statistic title="线索总数" :value="summary.totalLeads" />
             </Card>
           </Col>
           <Col :lg="6" :md="12" :sm="12" :xs="24">
-            <Card>
+            <Card class="radar-stat-card">
               <Statistic title="活跃线索" :value="summary.activeLeads" />
             </Card>
           </Col>
           <Col :lg="6" :md="12" :sm="12" :xs="24">
-            <Card>
-              <Statistic title="A级优先潜客" :value="summary.highPriority" />
+            <Card class="radar-stat-card">
+              <Statistic title="A级潜客" :value="summary.highPriority" />
             </Card>
           </Col>
           <Col :lg="6" :md="12" :sm="12" :xs="24">
-            <Card>
-              <Statistic title="已进入跟进阶段" :value="summary.replied" />
+            <Card class="radar-stat-card">
+              <Statistic title="已触达" :value="summary.replied" />
             </Card>
           </Col>
         </Row>
 
-        <Row v-if="analysis" :gutter="[16, 16]">
-          <Col :lg="6" :md="12" :sm="12" :xs="24">
-            <Card>
-              <Statistic
-                suffix="%"
-                title="触达率"
-                :value="analysis.funnel.contactRate"
-              />
-            </Card>
-          </Col>
-          <Col :lg="6" :md="12" :sm="12" :xs="24">
-            <Card>
-              <Statistic
-                suffix="%"
-                title="回复率"
-                :value="analysis.funnel.replyRate"
-              />
-            </Card>
-          </Col>
-          <Col :lg="6" :md="12" :sm="12" :xs="24">
-            <Card>
-              <Statistic
-                suffix="%"
-                title="带看率"
-                :value="analysis.funnel.visitRate"
-              />
-            </Card>
-          </Col>
-          <Col :lg="6" :md="12" :sm="12" :xs="24">
-            <Card>
-              <Statistic
-                suffix="%"
-                title="成交率"
-                :value="analysis.funnel.dealRate"
-              />
-            </Card>
-          </Col>
-        </Row>
-
-        <Row v-if="analysis" :gutter="[16, 16]">
+        <Row :gutter="[16, 16]">
           <Col :lg="12" :md="24" :sm="24" :xs="24">
-            <Card title="渠道转化排行">
-              <Table
-                :columns="channelColumns"
-                :data-source="analysis.channelStats"
-                :pagination="false"
-                row-key="channel"
-                size="small"
+            <Card title="招商进程">
+              <DashboardChart
+                :chart-data="processLineChartData"
+                :get-options="getLineChartConfig"
+                height="300px"
               />
             </Card>
           </Col>
           <Col :lg="12" :md="24" :sm="24" :xs="24">
-            <Card title="话术效果排行">
-              <Table
-                :columns="templateColumns"
-                :data-source="analysis.templateStats"
-                :pagination="false"
-                row-key="templateCode"
-                size="small"
-              />
-            </Card>
-          </Col>
-        </Row>
-
-        <Row v-if="analysis" :gutter="[16, 16]">
-          <Col :lg="12" :md="24" :sm="24" :xs="24">
-            <Card title="信号类型转化">
-              <Table
-                :columns="signalTypeColumns"
-                :data-source="analysis.signalTypeStats"
-                :pagination="false"
-                row-key="eventType"
-                size="small"
+            <Card title="转化效率">
+              <DashboardChart
+                :chart-data="conversionLineChartData"
+                :get-options="getRateLineChartConfig"
+                height="300px"
               />
             </Card>
           </Col>
           <Col :lg="12" :md="24" :sm="24" :xs="24">
-            <Card title="销售跟进效率">
-              <Table
-                :columns="ownerColumns"
-                :data-source="analysis.ownerStats"
-                :pagination="false"
-                row-key="ownerName"
-                size="small"
+            <Card title="来源贡献">
+              <DashboardChart
+                :chart-data="sourceBarChartData"
+                :get-options="getSourceBarChartConfig"
+                height="320px"
+              />
+            </Card>
+          </Col>
+          <Col :lg="12" :md="24" :sm="24" :xs="24">
+            <Card title="潜客评分分布">
+              <DashboardChart
+                :chart-data="scoreScatterChartData"
+                :get-options="getScoreScatterChartConfig"
+                height="320px"
+                placeholder="暂无评分数据"
               />
             </Card>
           </Col>
@@ -859,63 +1234,29 @@ onMounted(() => {
           <Empty v-else description="暂无策略建议" />
         </Card>
 
-        <Row :gutter="[16, 16]">
-          <Col :lg="14" :md="24" :sm="24" :xs="24">
-            <Card title="优先潜客列表">
-              <Table
-                :columns="leadColumns"
-                :custom-row="getLeadRow"
-                :data-source="leads"
-                :pagination="false"
-                row-key="leadId"
-                :scroll="leadTableScroll"
-                size="small"
-              />
-            </Card>
-          </Col>
-
-          <Col :lg="10" :md="24" :sm="24" :xs="24">
-            <Card title="最近同步状态">
-              <div class="space-y-3 text-sm">
-                <div class="flex items-center justify-between">
-                  <span class="text-text-secondary">任务状态</span>
-                  <Tag
-                    :color="latestTask?.status === 'SUCCESS' ? 'green' : 'blue'"
-                  >
-                    {{ latestTaskStatusText }}
-                  </Tag>
+        <Card title="最新公开机会">
+          <div v-if="opportunities.length > 0" class="radar-opportunity-list">
+            <article
+              v-for="item in opportunities"
+              :key="item.opportunityId"
+              class="radar-opportunity-item"
+            >
+              <div class="radar-opportunity-content">
+                <div class="radar-opportunity-title">
+                  {{ item.title || '-' }}
                 </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-text-secondary">新增线索</span>
-                  <span>{{ latestTask?.created ?? '-' }}</span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-text-secondary">更新线索</span>
-                  <span>{{ latestTask?.updated ?? '-' }}</span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-text-secondary">跳过数量</span>
-                  <span>{{ latestTask?.skipped ?? '-' }}</span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-text-secondary">错误原因</span>
-                  <span class="max-w-[220px] truncate">
-                    {{ latestTask?.errorReason || '-' }}
-                  </span>
+                <div class="radar-opportunity-meta">
+                  {{ getOpportunityLocation(item) }} ·
+                  {{ getOpportunityArea(item) }} ·
+                  {{ item.sourceSite || '-' }}
                 </div>
               </div>
-            </Card>
-          </Col>
-        </Row>
-
-        <Card title="最新公开机会列表">
-          <Table
-            :columns="opportunityColumns"
-            :data-source="opportunities"
-            :pagination="false"
-            row-key="opportunityId"
-            size="small"
-          />
+              <Tag class="radar-opportunity-tag" color="blue">
+                {{ getOpportunityTypeLabel(item.opportunityType) }}
+              </Tag>
+            </article>
+          </div>
+          <Empty v-else description="暂无公开机会" />
         </Card>
       </template>
     </div>
@@ -953,17 +1294,17 @@ onMounted(() => {
 
 .radar-mobile-header h2 {
   margin: 0;
-  color: var(--ant-color-text);
   font-size: 18px;
   font-weight: 700;
   line-height: 26px;
+  color: var(--ant-color-text);
 }
 
 .radar-mobile-header p {
   margin: 2px 0 0;
-  color: var(--ant-color-text-secondary);
   font-size: 13px;
   line-height: 20px;
+  color: var(--ant-color-text-secondary);
 }
 
 .radar-mobile-actions {
@@ -977,34 +1318,83 @@ onMounted(() => {
   padding: 12px;
 }
 
-.radar-mobile-summary {
+.radar-mobile-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mobile-main-metric {
+  min-width: 0;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  background: linear-gradient(135deg, #1f2937 0%, #2563eb 100%);
+  border: 0;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgb(37 99 235 / 20%);
+}
+
+.mobile-main-metric span,
+.mobile-main-metric em {
+  display: block;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 18px;
+  color: rgb(255 255 255 / 72%);
+}
+
+.mobile-main-metric strong {
+  display: block;
+  margin: 6px 0;
+  font-size: 34px;
+  font-weight: 760;
+  line-height: 38px;
+  color: #fff;
+}
+
+.mobile-mini-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin: 8px 0;
 }
 
-.radar-mobile-summary > div {
-  padding: 12px;
+.mobile-mini-metrics div,
+.mobile-insight-grid div {
+  min-width: 0;
+  padding: 10px;
   background: var(--ant-color-bg-container);
+  border: 1px solid var(--ant-color-border-secondary);
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
 }
 
-.radar-mobile-summary span,
-.radar-mobile-status span {
+.mobile-mini-metrics span,
+.mobile-insight-grid span,
+.mobile-insight-grid em {
   display: block;
-  color: var(--ant-color-text-secondary);
+  overflow: hidden;
   font-size: 12px;
   line-height: 18px;
+  color: var(--ant-color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.radar-mobile-summary strong {
+.mobile-mini-metrics strong,
+.mobile-insight-grid strong {
   display: block;
-  margin-top: 4px;
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 24px;
   color: var(--ant-color-text);
-  font-size: 22px;
-  line-height: 28px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-mini-metrics strong {
+  margin-top: 2px;
 }
 
 .radar-mobile-panel {
@@ -1012,31 +1402,57 @@ onMounted(() => {
   margin-top: 8px;
 }
 
-.radar-mobile-section-title {
+.radar-mobile-section-head {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
   margin-bottom: 10px;
-  color: var(--ant-color-text);
+}
+
+.radar-mobile-section-head h3 {
+  margin: 0;
   font-size: 15px;
   font-weight: 700;
   line-height: 22px;
-}
-
-.radar-mobile-status {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.radar-mobile-status strong {
   color: var(--ant-color-text);
-  font-size: 15px;
-  line-height: 22px;
+}
+
+.radar-mobile-section-head p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+}
+
+.mobile-insight-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.mobile-insight-grid div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 64px;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+}
+
+.mobile-insight-grid strong {
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.mobile-insight-grid em {
+  text-align: right;
 }
 
 .radar-mobile-error {
   margin: 10px 0 0;
-  color: var(--ant-color-error);
   font-size: 13px;
   line-height: 20px;
+  color: var(--ant-color-error);
   word-break: break-word;
 }
 
@@ -1069,18 +1485,18 @@ button.radar-mobile-card {
 }
 
 .radar-mobile-card-title {
-  color: var(--ant-color-text);
   font-size: 15px;
   font-weight: 700;
   line-height: 22px;
+  color: var(--ant-color-text);
   word-break: break-word;
 }
 
 .radar-mobile-card-subtitle {
   margin-top: 2px;
-  color: var(--ant-color-text-secondary);
   font-size: 12px;
   line-height: 18px;
+  color: var(--ant-color-text-secondary);
 }
 
 .radar-mobile-card-meta {
@@ -1088,9 +1504,9 @@ button.radar-mobile-card {
   grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   margin-top: 10px;
-  color: var(--ant-color-text-secondary);
   font-size: 13px;
   line-height: 20px;
+  color: var(--ant-color-text-secondary);
 }
 
 .radar-mobile-suggestions {
@@ -1100,11 +1516,111 @@ button.radar-mobile-card {
   margin-top: 12px;
 }
 
+.radar-mobile-suggestion {
+  padding-top: 8px;
+  border-top: 1px solid var(--ant-color-border-secondary);
+}
+
 .radar-mobile-suggestion p {
   margin: 6px 0 0;
-  color: var(--ant-color-text-secondary);
   font-size: 13px;
   line-height: 20px;
+  color: var(--ant-color-text-secondary);
+}
+
+.mobile-rank-list,
+.mobile-opportunity-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mobile-rank-item,
+.mobile-opportunity-item {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ant-color-border-secondary);
+}
+
+.mobile-opportunity-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.mobile-rank-item:last-child,
+.mobile-opportunity-item:last-child {
+  border-bottom: 0;
+}
+
+.mobile-rank-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ant-color-primary);
+  background: var(--ant-color-primary-bg);
+  border-radius: 999px;
+}
+
+.mobile-rank-item strong,
+.mobile-opportunity-item strong,
+.mobile-rank-item small,
+.mobile-opportunity-item small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-rank-item strong,
+.mobile-opportunity-item strong {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ant-color-text);
+}
+
+.mobile-rank-item small,
+.mobile-opportunity-item small {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+}
+
+.radar-stat-card-grid {
+  margin: 0 !important;
+}
+
+.radar-stat-card {
+  height: 100%;
+}
+
+.radar-stat-card :deep(.ant-card-body) {
+  padding: 16px 18px;
+}
+
+.radar-stat-card :deep(.ant-statistic-title) {
+  margin-bottom: 4px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ant-color-text-secondary);
+}
+
+.radar-stat-card :deep(.ant-statistic-content) {
+  font-size: 24px;
+  line-height: 32px;
+  color: var(--ant-color-text);
 }
 
 .radar-suggestion-list {
@@ -1117,8 +1633,121 @@ button.radar-mobile-card {
   display: flex;
   gap: 8px;
   align-items: flex-start;
-  color: var(--ant-color-text);
   font-size: 14px;
   line-height: 22px;
+  color: var(--ant-color-text);
+}
+
+.radar-chart {
+  position: relative;
+  width: 100%;
+}
+
+.radar-chart-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--ant-color-text-tertiary);
+  pointer-events: none;
+  background: color-mix(
+    in srgb,
+    var(--ant-color-bg-container) 82%,
+    transparent
+  );
+}
+
+.radar-sync-status {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.radar-sync-status > div {
+  min-width: 0;
+}
+
+.radar-sync-status span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+}
+
+.radar-sync-status strong {
+  display: block;
+  max-width: 180px;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--ant-color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radar-opportunity-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.radar-opportunity-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 12px;
+  background: var(--ant-color-fill-tertiary);
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+}
+
+.radar-opportunity-content {
+  min-width: 0;
+}
+
+.radar-opportunity-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  color: var(--ant-color-text);
+  text-overflow: ellipsis;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+  -webkit-box-orient: vertical;
+}
+
+.radar-opportunity-meta {
+  margin-top: 4px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radar-opportunity-tag {
+  flex: none;
+}
+
+@media (max-width: 1199px) {
+  .radar-opportunity-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .radar-opportunity-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

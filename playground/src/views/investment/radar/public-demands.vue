@@ -34,6 +34,10 @@ import OpportunityDetailDrawer from './opportunity-detail-drawer.vue';
 
 defineOptions({ name: 'InvestmentRadarPublicDemands' });
 
+defineProps<{
+  embedded?: boolean;
+}>();
+
 const router = useRouter();
 const loading = ref(false);
 const detailLoading = ref(false);
@@ -87,47 +91,59 @@ const columns: TableColumnsType<PublicOpportunityItem> = [
         h('div', { class: 'demand-source-url' }, record.sourceUrl || '-'),
       ]),
     dataIndex: 'title',
+    ellipsis: true,
     key: 'title',
     title: '标题',
+    width: 340,
   },
   {
     align: 'center',
     customRender: ({ record }: { record: PublicOpportunityItem }) =>
       [record.city, record.district].filter(Boolean).join(' / ') || '-',
     dataIndex: 'city',
+    ellipsis: true,
     key: 'city',
     title: '城市 / 区域',
+    width: 150,
   },
   {
     align: 'center',
     customRender: ({ record }: { record: PublicOpportunityItem }) =>
       formatArea(record),
     dataIndex: 'areaText',
+    ellipsis: true,
     key: 'areaText',
     title: '面积需求',
+    width: 130,
   },
   {
     align: 'center',
     customRender: ({ text }) => text || '-',
     dataIndex: 'priceText',
+    ellipsis: true,
     key: 'priceText',
     title: '预算',
+    width: 130,
   },
   {
     align: 'center',
     customRender: ({ record }: { record: PublicOpportunityItem }) =>
       [record.contactName, record.phoneNumber].filter(Boolean).join(' ') || '-',
     dataIndex: 'phoneNumber',
+    ellipsis: true,
     key: 'phoneNumber',
     title: '联系人 / 电话',
+    width: 160,
   },
   {
     align: 'center',
     customRender: ({ record }: { record: PublicOpportunityItem }) =>
       renderSourceSite(record),
     dataIndex: 'sourceSite',
+    ellipsis: true,
     key: 'sourceSite',
     title: '来源站点',
+    width: 130,
   },
   {
     align: 'center',
@@ -135,13 +151,16 @@ const columns: TableColumnsType<PublicOpportunityItem> = [
     dataIndex: 'publishedAt',
     key: 'publishedAt',
     title: '发布时间',
+    width: 120,
   },
   {
     align: 'center',
     customRender: ({ text }) => text || '-',
     dataIndex: 'publishedAgeLabel',
+    ellipsis: true,
     key: 'publishedAgeLabel',
     title: '时效',
+    width: 110,
   },
   {
     align: 'center',
@@ -149,6 +168,7 @@ const columns: TableColumnsType<PublicOpportunityItem> = [
     dataIndex: 'lastSyncedAt',
     key: 'lastSyncedAt',
     title: '采集时间',
+    width: 150,
   },
   {
     align: 'center',
@@ -156,6 +176,7 @@ const columns: TableColumnsType<PublicOpportunityItem> = [
     dataIndex: 'score',
     key: 'score',
     title: '分数',
+    width: 90,
   },
   {
     align: 'center',
@@ -182,7 +203,7 @@ const columns: TableColumnsType<PublicOpportunityItem> = [
       ]),
     key: 'operation',
     title: '操作',
-    width: 180,
+    width: 160,
   },
 ];
 
@@ -426,9 +447,13 @@ void loadPublicDemands();
 </script>
 
 <template>
-  <div class="public-demands-route">
-    <Page auto-content-height>
-      <div class="space-y-4">
+  <div :class="{ 'is-embedded': embedded }" class="public-demands-route">
+    <Page
+      :auto-content-height="!embedded"
+      class="radar-collection-page"
+      content-class="radar-collection-content"
+    >
+      <div class="radar-collection-layout">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div class="text-lg font-semibold">公开需求采集</div>
@@ -445,17 +470,17 @@ void loadPublicDemands();
 
         <Alert v-if="loadError" :message="loadError" show-icon type="warning" />
 
-        <Row :gutter="[16, 16]">
-          <Col :lg="12" :md="12" :sm="24" :xs="24">
-            <Card>
+        <Row class="radar-stat-card-grid" :gutter="[12, 12]">
+          <Col :lg="6" :md="12" :sm="12" :xs="24">
+            <Card class="radar-stat-card">
               <Statistic
                 title="当前页需求数"
                 :value="summary.currentPageCount"
               />
             </Card>
           </Col>
-          <Col :lg="12" :md="12" :sm="24" :xs="24">
-            <Card>
+          <Col :lg="6" :md="12" :sm="12" :xs="24">
+            <Card class="radar-stat-card">
               <Statistic title="总需求数" :value="summary.total" />
             </Card>
           </Col>
@@ -512,7 +537,7 @@ void loadPublicDemands();
           </Form>
         </Card>
 
-        <Card title="需求采集结果">
+        <Card class="radar-collection-table-card" title="需求采集结果">
           <Table
             bordered
             :columns="columns"
@@ -520,9 +545,10 @@ void loadPublicDemands();
             :loading="loading"
             :locale="tableLocale"
             :pagination="pagination"
-            :scroll="{ x: 1160 }"
+            :scroll="{ x: 1600 }"
             row-key="opportunityId"
             size="small"
+            table-layout="fixed"
             @change="handleTableChange"
           />
         </Card>
@@ -613,17 +639,73 @@ void loadPublicDemands();
 </template>
 
 <style lang="less" scoped>
+.public-demands-route,
+.radar-collection-page,
+:deep(.radar-collection-content) {
+  min-height: 100%;
+}
+
+.public-demands-route.is-embedded,
+.public-demands-route.is-embedded :deep(.radar-collection-page),
+.public-demands-route.is-embedded :deep(.radar-collection-content) {
+  min-height: 100%;
+}
+
+.public-demands-route.is-embedded :deep(.radar-collection-content) {
+  box-sizing: border-box;
+  padding: 0;
+}
+
+.radar-collection-layout {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.radar-collection-table-card {
+  overflow: hidden;
+}
+
 .demand-title-cell,
 .demand-title {
+  min-width: 0;
   text-align: center;
 }
 
+.radar-stat-card-grid {
+  margin: 0 !important;
+}
+
+.radar-stat-card {
+  height: 100%;
+}
+
+.radar-stat-card :deep(.ant-card-body) {
+  padding: 16px 18px;
+}
+
+.radar-stat-card :deep(.ant-statistic-title) {
+  margin-bottom: 4px;
+  color: var(--ant-color-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.radar-stat-card :deep(.ant-statistic-content) {
+  color: var(--ant-color-text);
+  font-size: 24px;
+  line-height: 32px;
+}
+
 .demand-title {
+  overflow: hidden;
   font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .demand-source-url {
-  max-width: 360px;
   overflow: hidden;
   color: var(--ant-color-text-description);
   margin: 0 auto;
@@ -633,11 +715,11 @@ void loadPublicDemands();
 }
 
 .radar-search-form {
-  --radar-filter-height: 34px;
+  --radar-filter-height: 32px;
   --radar-filter-width: 180px;
 
   align-items: center;
-  row-gap: 12px;
+  row-gap: 8px;
   width: 100%;
 }
 

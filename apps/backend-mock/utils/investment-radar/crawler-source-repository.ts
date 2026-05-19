@@ -243,7 +243,10 @@ async function ensureColumnExists(params: {
   );
 }
 
-export async function ensureCrawlerStorage() {
+let crawlerStorageReady: null | Promise<void> = null;
+let demoCrawlerSourceReady: null | Promise<void> = null;
+
+async function ensureCrawlerStorageUncached() {
   await prismaClient.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS crawler_source (
       source_id bigint NOT NULL AUTO_INCREMENT,
@@ -355,7 +358,20 @@ export async function ensureCrawlerStorage() {
   });
 }
 
-export async function ensureDemoCrawlerSource() {
+export async function ensureCrawlerStorage() {
+  if (crawlerStorageReady) {
+    return crawlerStorageReady;
+  }
+
+  crawlerStorageReady = ensureCrawlerStorageUncached().catch((error) => {
+    crawlerStorageReady = null;
+    throw error;
+  });
+
+  return crawlerStorageReady;
+}
+
+async function ensureDemoCrawlerSourceUncached() {
   await ensureCrawlerStorage();
 
   await prismaClient.$executeRawUnsafe(
@@ -525,6 +541,19 @@ export async function ensureDemoCrawlerSource() {
       JSON.stringify(source.regionScopeJson),
     );
   }
+}
+
+export async function ensureDemoCrawlerSource() {
+  if (demoCrawlerSourceReady) {
+    return demoCrawlerSourceReady;
+  }
+
+  demoCrawlerSourceReady = ensureDemoCrawlerSourceUncached().catch((error) => {
+    demoCrawlerSourceReady = null;
+    throw error;
+  });
+
+  return demoCrawlerSourceReady;
 }
 
 export async function listCrawlerSources(): Promise<CrawlerSourceListResult> {

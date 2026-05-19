@@ -36,6 +36,7 @@ const emit = defineEmits<{
 
 const isMobile = useMediaQuery('(max-width: 767px)');
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 720));
+const mobileScrollTextThreshold = 90;
 
 const shanghaiDateFormatter = new Intl.DateTimeFormat('en-US', {
   day: '2-digit',
@@ -74,13 +75,73 @@ const showRawDescription = computed(() => {
   return Boolean(raw && raw !== main && raw.length > main.length + 80);
 });
 
-const descriptionFactEntries = computed(() =>
-  extractDescriptionFacts(props.item?.description),
+const mobileParameterDescription = computed(() =>
+  getRelevantDescriptionSegment(props.item?.description),
 );
 
 const mobileDetailEntries = computed(() =>
   flattenJsonEntries(props.item?.detailJson),
 );
+
+const mobileCoreDescription = computed(() => {
+  if (!props.item) {
+    return '';
+  }
+  return joinMobileFields([
+    ['面积', formatArea(props.item)],
+    ['价格 / 预算', props.item.priceText || '-'],
+    ['联系人', props.item.contactName || '-'],
+    ['电话', props.item.phoneNumber || '-'],
+    ['区域', regionText.value],
+    ['分数', props.item.score ?? '-'],
+  ]);
+});
+
+const mobileTimeDescription = computed(() => {
+  if (!props.item) {
+    return '';
+  }
+  return joinMobileFields([
+    ['发布日期', formatPublishedDate(props.item.publishedAt)],
+    ['原始发布时间', props.item.publishedDateText || '-'],
+    [
+      '有效至',
+      props.item.effectiveUntil
+        ? formatDateTime(props.item.effectiveUntil)
+        : '-',
+    ],
+  ]);
+});
+
+const mobileSourceDescription = computed(() => {
+  if (!props.item) {
+    return '';
+  }
+  return joinMobileFields([
+    ['来源网站', props.item.sourceSite || '-'],
+    ['来源表', props.item.sourceTable || '-'],
+    ['来源链接', props.item.sourceUrl || '-'],
+  ]);
+});
+
+const mobileCollectionDescription = computed(() => {
+  if (!props.item) {
+    return '';
+  }
+  const tags = getTags(props.item.tagsJson).join('、') || '-';
+  const details =
+    mobileDetailEntries.value
+      .map((entry) => `${entry.label}：${entry.value}`)
+      .join('；') || '-';
+  return joinMobileFields([
+    ['标签', tags],
+    ['扩展信息', details],
+    [
+      '最后同步时间',
+      props.item.lastSyncedAt ? formatDateTime(props.item.lastSyncedAt) : '-',
+    ],
+  ]);
+});
 
 function formatArea(record: PublicOpportunityItem) {
   if (
@@ -140,8 +201,23 @@ function compactText(value?: null | string) {
     .trim();
 }
 
-function escapeRegExp(value: string) {
-  return value.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`);
+function shouldUseMobileScroll(
+  value?: null | string,
+  threshold = mobileScrollTextThreshold,
+) {
+  return compactText(value).length > threshold;
+}
+
+function joinMobileFields(fields: Array<[string, unknown]>) {
+  return fields
+    .map(([label, value]) => {
+      const normalized =
+        value === null || value === undefined || value === ''
+          ? '-'
+          : compactText(String(value));
+      return `${label}：${normalized || '-'}`;
+    })
+    .join('；');
 }
 
 function findFirstMarker(text: string, markers: string[]) {
@@ -196,7 +272,7 @@ function extractPrimaryDescription(value?: null | string) {
     text = raw;
   }
 
-  return text.length > 520 ? `${text.slice(0, 520)}...` : text;
+  return text;
 }
 
 function getRelevantDescriptionSegment(value?: null | string) {
@@ -213,47 +289,6 @@ function getRelevantDescriptionSegment(value?: null | string) {
     return raw.slice(start.index, endIndex);
   }
   return raw;
-}
-
-function extractDescriptionFacts(value?: null | string) {
-  const segment = getRelevantDescriptionSegment(value);
-  if (!segment) {
-    return [];
-  }
-
-  const labels = [
-    '有效期',
-    '所在区域',
-    '面积',
-    '租金',
-    '价格',
-    '预算',
-    '楼层',
-    '结构',
-    '供电',
-    '新旧',
-    '办公室',
-    '电费',
-    '食堂',
-    '宿舍',
-    '电梯',
-    '行业',
-    '用途',
-  ];
-  const labelPattern = labels.map((label) => escapeRegExp(label)).join('|');
-
-  return labels
-    .map((label) => {
-      const matcher = new RegExp(
-        `${escapeRegExp(label)}\\s*[:：]\\s*([\\s\\S]*?)(?=\\s+(?:${labelPattern})\\s*[:：]|\\s+房源详情|\\s+需求详情|$)`,
-      );
-      const match = segment.match(matcher);
-      const normalized = compactText(match?.[1]).replaceAll(/^[-:：>\s]+/g, '');
-      return normalized ? { label, value: normalized } : null;
-    })
-    .filter(
-      (entry): entry is { label: string; value: string } => entry !== null,
-    );
 }
 
 function stringifyJsonDisplay(value: unknown) {
@@ -360,73 +395,63 @@ function handleOpenSource() {
 
       <section class="opportunity-mobile-section">
         <div class="opportunity-mobile-section-title">核心信息</div>
-        <div class="opportunity-mobile-summary-grid">
-          <div class="opportunity-mobile-summary-item">
-            <span>面积</span>
-            <strong>{{ formatArea(item) }}</strong>
-          </div>
-          <div class="opportunity-mobile-summary-item">
-            <span>价格 / 预算</span>
-            <strong>{{ item.priceText || '-' }}</strong>
-          </div>
-          <div class="opportunity-mobile-summary-item">
-            <span>联系人</span>
-            <strong>{{ item.contactName || '-' }}</strong>
-          </div>
-          <div class="opportunity-mobile-summary-item">
-            <span>电话</span>
-            <strong>{{ item.phoneNumber || '-' }}</strong>
-          </div>
-          <div class="opportunity-mobile-summary-item">
-            <span>区域</span>
-            <strong>{{ regionText }}</strong>
-          </div>
-          <div class="opportunity-mobile-summary-item">
-            <span>分数</span>
-            <strong>{{ item.score ?? '-' }}</strong>
-          </div>
+        <div class="opportunity-mobile-block">
+          <p
+            :class="{
+              'opportunity-mobile-scroll-text': shouldUseMobileScroll(
+                mobileCoreDescription,
+              ),
+            }"
+          >
+            {{ mobileCoreDescription }}
+          </p>
         </div>
       </section>
 
       <section
-        v-if="descriptionFactEntries.length > 0"
+        v-if="mobileParameterDescription"
         class="opportunity-mobile-section"
       >
         <div class="opportunity-mobile-section-title">参数信息</div>
-        <div
-          v-for="entry in descriptionFactEntries"
-          :key="entry.label"
-          class="opportunity-mobile-row"
-        >
-          <span>{{ entry.label }}</span>
-          <strong>{{ entry.value }}</strong>
+        <div class="opportunity-mobile-block">
+          <p
+            :class="{
+              'opportunity-mobile-scroll-text': shouldUseMobileScroll(
+                mobileParameterDescription,
+              ),
+            }"
+          >
+            {{ mobileParameterDescription }}
+          </p>
         </div>
       </section>
 
       <section class="opportunity-mobile-section">
         <div class="opportunity-mobile-section-title">时间信息</div>
-        <div class="opportunity-mobile-row">
-          <span>发布日期</span>
-          <strong>{{ formatPublishedDate(item.publishedAt) }}</strong>
-        </div>
-        <div class="opportunity-mobile-row">
-          <span>原始发布时间</span>
-          <strong>{{ item.publishedDateText || '-' }}</strong>
-        </div>
-        <div class="opportunity-mobile-row">
-          <span>有效至</span>
-          <strong>
-            {{
-              item.effectiveUntil ? formatDateTime(item.effectiveUntil) : '-'
-            }}
-          </strong>
+        <div class="opportunity-mobile-block">
+          <p
+            :class="{
+              'opportunity-mobile-scroll-text': shouldUseMobileScroll(
+                mobileTimeDescription,
+              ),
+            }"
+          >
+            {{ mobileTimeDescription }}
+          </p>
         </div>
       </section>
 
       <section class="opportunity-mobile-section">
         <div class="opportunity-mobile-section-title">正文描述</div>
         <div class="opportunity-mobile-block">
-          <p class="opportunity-mobile-description">
+          <p
+            class="opportunity-mobile-description"
+            :class="{
+              'opportunity-mobile-scroll-text': shouldUseMobileScroll(
+                mobileMainDescription,
+              ),
+            }"
+          >
             {{ mobileMainDescription }}
           </p>
         </div>
@@ -434,62 +459,31 @@ function handleOpenSource() {
 
       <section class="opportunity-mobile-section">
         <div class="opportunity-mobile-section-title">来源信息</div>
-        <div class="opportunity-mobile-row">
-          <span>来源网站</span>
-          <strong>{{ item.sourceSite || '-' }}</strong>
-        </div>
-        <div class="opportunity-mobile-row">
-          <span>来源表</span>
-          <strong>{{ item.sourceTable || '-' }}</strong>
-        </div>
-        <div class="opportunity-mobile-row">
-          <span>来源 ID</span>
-          <strong>{{ item.sourceId ?? '-' }}</strong>
-        </div>
         <div class="opportunity-mobile-block">
-          <span>来源链接</span>
-          <Button
-            v-if="item.sourceUrl"
-            type="link"
-            class="opportunity-mobile-link"
-            @click="handleOpenSource"
+          <p
+            :class="{
+              'opportunity-mobile-scroll-text': shouldUseMobileScroll(
+                mobileSourceDescription,
+              ),
+            }"
           >
-            {{ item.sourceUrl }}
-          </Button>
-          <strong v-else>-</strong>
+            {{ mobileSourceDescription }}
+          </p>
         </div>
       </section>
 
       <section class="opportunity-mobile-section">
         <div class="opportunity-mobile-section-title">采集信息</div>
         <div class="opportunity-mobile-block">
-          <span>标签</span>
-          <div class="opportunity-mobile-wrap">
-            <Tag v-for="tag in getTags(item.tagsJson)" :key="tag" color="blue">
-              {{ tag }}
-            </Tag>
-            <strong v-if="getTags(item.tagsJson).length === 0">-</strong>
-          </div>
-        </div>
-        <div class="opportunity-mobile-block">
-          <span>扩展信息</span>
-          <div class="opportunity-mobile-detail-list">
-            <div
-              v-for="entry in mobileDetailEntries"
-              :key="entry.label"
-              class="opportunity-mobile-detail-item"
-            >
-              <span>{{ entry.label }}</span>
-              <strong>{{ entry.value }}</strong>
-            </div>
-            <strong v-if="mobileDetailEntries.length === 0">-</strong>
-          </div>
-        </div>
-        <div class="opportunity-mobile-row">
-          <span>最后同步时间</span>
-          <strong>
-            {{ item.lastSyncedAt ? formatDateTime(item.lastSyncedAt) : '-' }}
-          </strong>
+          <p
+            :class="{
+              'opportunity-mobile-scroll-text': shouldUseMobileScroll(
+                mobileCollectionDescription,
+              ),
+            }"
+          >
+            {{ mobileCollectionDescription }}
+          </p>
         </div>
       </section>
 
@@ -557,9 +551,6 @@ function handleOpenSource() {
       </Descriptions.Item>
       <Descriptions.Item label="来源表">
         {{ item.sourceTable || '-' }}
-      </Descriptions.Item>
-      <Descriptions.Item label="来源 ID">
-        {{ item.sourceId ?? '-' }}
       </Descriptions.Item>
       <Descriptions.Item label="来源链接">
         <Button
@@ -715,6 +706,7 @@ function handleOpenSource() {
   font-size: 15px;
   font-weight: 600;
   line-height: 1.55;
+  text-align: center;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -723,6 +715,7 @@ function handleOpenSource() {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  justify-content: center;
   margin-top: 10px;
 }
 
@@ -736,69 +729,26 @@ function handleOpenSource() {
   font-size: 14px;
   font-weight: 650;
   line-height: 1.4;
+  text-align: center;
 }
 
-.opportunity-mobile-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 12px;
-}
-
-.opportunity-mobile-summary-item {
-  min-width: 0;
-  padding: 10px;
-  background: #f8fafc;
-  border: 1px solid #eef2f7;
-  border-radius: 8px;
-}
-
-.opportunity-mobile-summary-item > span {
-  display: block;
-  color: #667085;
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.opportunity-mobile-summary-item > strong {
-  display: block;
-  min-width: 0;
-  margin-top: 5px;
-  color: #1d2939;
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.opportunity-mobile-row,
 .opportunity-mobile-block {
   min-width: 0;
   padding: 11px 12px;
   border-bottom: 1px solid #edf0f5;
 }
 
-.opportunity-mobile-row:last-child,
 .opportunity-mobile-block:last-child {
   border-bottom: 0;
 }
 
-.opportunity-mobile-row {
-  display: grid;
-  grid-template-columns: minmax(72px, 34%) minmax(0, 1fr);
-  column-gap: 12px;
-  align-items: start;
-}
-
-.opportunity-mobile-row > span,
 .opportunity-mobile-block > span {
   color: #667085;
   font-size: 12px;
   line-height: 1.45;
+  text-align: center;
 }
 
-.opportunity-mobile-row > strong,
 .opportunity-mobile-block > strong,
 .opportunity-mobile-block > p {
   min-width: 0;
@@ -807,6 +757,7 @@ function handleOpenSource() {
   font-size: 13px;
   font-weight: 500;
   line-height: 1.6;
+  text-align: center;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -817,70 +768,22 @@ function handleOpenSource() {
   line-height: 1.75 !important;
 }
 
-.opportunity-mobile-block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.opportunity-mobile-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
-}
-
-.opportunity-mobile-wrap :deep(.ant-tag) {
-  max-width: 100%;
-  height: auto;
-  margin-inline-end: 0;
-  line-height: 1.5;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.opportunity-mobile-link {
-  height: auto;
-  min-width: 0;
-  padding: 0;
-  text-align: left;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-all;
-}
-
-.opportunity-mobile-detail-list {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
-.opportunity-mobile-detail-item {
-  min-width: 0;
-  padding: 9px 10px;
+.opportunity-mobile-scroll-text {
+  max-height: 168px;
+  padding: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: #f8fafc;
   border: 1px solid #eef2f7;
   border-radius: 8px;
+  -webkit-overflow-scrolling: touch;
 }
 
-.opportunity-mobile-detail-item > span {
-  display: block;
-  color: #667085;
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.opportunity-mobile-detail-item > strong {
-  display: block;
-  min-width: 0;
-  margin-top: 4px;
-  color: #344054;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+.opportunity-mobile-block {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
 }
 
 .opportunity-mobile-raw {
@@ -923,30 +826,22 @@ function handleOpenSource() {
 
   .opportunity-mobile-title,
   .opportunity-mobile-section-title,
-  .opportunity-mobile-summary-item > strong,
-  .opportunity-mobile-detail-item > strong,
-  .opportunity-mobile-row > strong,
   .opportunity-mobile-block > strong,
   .opportunity-mobile-block > p {
     color: #f3f4f6;
   }
 
-  .opportunity-mobile-summary-item,
-  .opportunity-mobile-detail-item,
+  .opportunity-mobile-scroll-text,
   .opportunity-mobile-raw > p {
     background: #111827;
     border-color: #374151;
   }
 
-  .opportunity-mobile-row,
   .opportunity-mobile-block {
     border-color: #374151;
   }
 
-  .opportunity-mobile-summary-item > span,
-  .opportunity-mobile-detail-item > span,
   .opportunity-mobile-raw > summary,
-  .opportunity-mobile-row > span,
   .opportunity-mobile-block > span {
     color: #9ca3af;
   }

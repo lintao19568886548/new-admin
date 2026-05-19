@@ -34,6 +34,10 @@ import OpportunityDetailDrawer from './opportunity-detail-drawer.vue';
 
 defineOptions({ name: 'InvestmentRadarFactoryListings' });
 
+defineProps<{
+  embedded?: boolean;
+}>();
+
 const router = useRouter();
 const loading = ref(false);
 const detailLoading = ref(false);
@@ -99,39 +103,49 @@ const columns: TableColumnsType<PublicOpportunityItem> = [
         h('div', { class: 'factory-source-url' }, record.sourceUrl || '-'),
       ]),
     dataIndex: 'title',
+    ellipsis: true,
     key: 'title',
     title: '标题',
+    width: 360,
   },
   {
     align: 'center',
     customRender: ({ record }: { record: PublicOpportunityItem }) =>
       [record.city, record.district].filter(Boolean).join(' / ') || '-',
     dataIndex: 'city',
+    ellipsis: true,
     key: 'city',
     title: '城市 / 区域',
+    width: 150,
   },
   {
     align: 'center',
     customRender: ({ record }: { record: PublicOpportunityItem }) =>
       formatArea(record),
     dataIndex: 'areaText',
+    ellipsis: true,
     key: 'areaText',
     title: '面积',
+    width: 130,
   },
   {
     align: 'center',
     customRender: ({ text }) => text || '-',
     dataIndex: 'priceText',
+    ellipsis: true,
     key: 'priceText',
     title: '价格',
+    width: 130,
   },
   {
     align: 'center',
     customRender: ({ record }: { record: PublicOpportunityItem }) =>
       renderSourceSite(record),
     dataIndex: 'sourceSite',
+    ellipsis: true,
     key: 'sourceSite',
     title: '来源站点',
+    width: 130,
   },
   {
     align: 'center',
@@ -139,13 +153,16 @@ const columns: TableColumnsType<PublicOpportunityItem> = [
     dataIndex: 'publishedAt',
     key: 'publishedAt',
     title: '发布时间',
+    width: 120,
   },
   {
     align: 'center',
     customRender: ({ text }) => text || '-',
     dataIndex: 'publishedAgeLabel',
+    ellipsis: true,
     key: 'publishedAgeLabel',
     title: '时效',
+    width: 110,
   },
   {
     align: 'center',
@@ -153,6 +170,7 @@ const columns: TableColumnsType<PublicOpportunityItem> = [
     dataIndex: 'score',
     key: 'score',
     title: '分数',
+    width: 90,
   },
   {
     align: 'center',
@@ -179,7 +197,7 @@ const columns: TableColumnsType<PublicOpportunityItem> = [
       ]),
     key: 'operation',
     title: '操作',
-    width: 180,
+    width: 160,
   },
 ];
 
@@ -379,9 +397,13 @@ void loadFactoryListings();
 </script>
 
 <template>
-  <div class="factory-listings-route">
-    <Page auto-content-height>
-      <div class="space-y-4">
+  <div :class="{ 'is-embedded': embedded }" class="factory-listings-route">
+    <Page
+      :auto-content-height="!embedded"
+      class="radar-collection-page"
+      content-class="radar-collection-content"
+    >
+      <div class="radar-collection-layout">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div class="text-lg font-semibold">公开房源采集</div>
@@ -400,17 +422,17 @@ void loadFactoryListings();
 
         <Alert v-if="loadError" :message="loadError" show-icon type="warning" />
 
-        <Row :gutter="[16, 16]">
-          <Col :lg="12" :md="12" :sm="24" :xs="24">
-            <Card>
+        <Row class="radar-stat-card-grid" :gutter="[12, 12]">
+          <Col :lg="6" :md="12" :sm="12" :xs="24">
+            <Card class="radar-stat-card">
               <Statistic
                 title="当前页房源数"
                 :value="summary.currentPageCount"
               />
             </Card>
           </Col>
-          <Col :lg="12" :md="12" :sm="24" :xs="24">
-            <Card>
+          <Col :lg="6" :md="12" :sm="12" :xs="24">
+            <Card class="radar-stat-card">
               <Statistic title="总房源数" :value="summary.total" />
             </Card>
           </Col>
@@ -467,7 +489,7 @@ void loadFactoryListings();
           </Form>
         </Card>
 
-        <Card title="房源采集结果">
+        <Card class="radar-collection-table-card" title="房源采集结果">
           <Table
             bordered
             :columns="columns"
@@ -475,9 +497,10 @@ void loadFactoryListings();
             :loading="loading"
             :locale="tableLocale"
             :pagination="pagination"
-            :scroll="{ x: 1100 }"
+            :scroll="{ x: 1380 }"
             row-key="opportunityId"
             size="small"
+            table-layout="fixed"
             @change="handleTableChange"
           />
         </Card>
@@ -562,17 +585,73 @@ void loadFactoryListings();
 </template>
 
 <style lang="less" scoped>
+.factory-listings-route,
+.radar-collection-page,
+:deep(.radar-collection-content) {
+  min-height: 100%;
+}
+
+.factory-listings-route.is-embedded,
+.factory-listings-route.is-embedded :deep(.radar-collection-page),
+.factory-listings-route.is-embedded :deep(.radar-collection-content) {
+  min-height: 100%;
+}
+
+.factory-listings-route.is-embedded :deep(.radar-collection-content) {
+  box-sizing: border-box;
+  padding: 0;
+}
+
+.radar-collection-layout {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.radar-collection-table-card {
+  overflow: hidden;
+}
+
 .factory-title-cell,
 .factory-title {
+  min-width: 0;
   text-align: center;
 }
 
+.radar-stat-card-grid {
+  margin: 0 !important;
+}
+
+.radar-stat-card {
+  height: 100%;
+}
+
+.radar-stat-card :deep(.ant-card-body) {
+  padding: 16px 18px;
+}
+
+.radar-stat-card :deep(.ant-statistic-title) {
+  margin-bottom: 4px;
+  color: var(--ant-color-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.radar-stat-card :deep(.ant-statistic-content) {
+  color: var(--ant-color-text);
+  font-size: 24px;
+  line-height: 32px;
+}
+
 .factory-title {
+  overflow: hidden;
   font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .factory-source-url {
-  max-width: 360px;
   overflow: hidden;
   color: var(--ant-color-text-description);
   margin: 0 auto;
@@ -582,11 +661,11 @@ void loadFactoryListings();
 }
 
 .radar-search-form {
-  --radar-filter-height: 34px;
+  --radar-filter-height: 32px;
   --radar-filter-width: 180px;
 
   align-items: center;
-  row-gap: 12px;
+  row-gap: 8px;
   width: 100%;
 }
 

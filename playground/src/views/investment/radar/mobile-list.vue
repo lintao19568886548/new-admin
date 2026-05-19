@@ -6,7 +6,7 @@ import type {
   RadarLeadImportFailItem,
 } from '#/api/investment';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { Search } from '@vben/icons';
@@ -61,6 +61,7 @@ const opportunityLoading = ref(false);
 const loadError = ref('');
 const leads = ref<RadarLead[]>([]);
 const opportunities = ref<PublicOpportunityItem[]>([]);
+const opportunityLoaded = ref(false);
 const opportunityDetailLoading = ref(false);
 const opportunityDetailOpen = ref(false);
 const currentOpportunity = ref<null | PublicOpportunityItem>(null);
@@ -71,6 +72,8 @@ const importModalMode = ref<'json' | 'result'>('json');
 const importJsonText = ref('');
 const importing = ref(false);
 const importFailItems = ref<RadarLeadImportFailItem[]>([]);
+const leadFilterOpen = ref(false);
+const opportunityFilterOpen = ref(false);
 let collectTimer: number | undefined;
 
 const leadSearch = reactive({
@@ -115,6 +118,28 @@ const csvTemplateHeaders = [
   'sourceKey',
 ];
 
+const leadTotalText = computed(() => formatCount(leadPagination.total));
+const opportunityTotalText = computed(() =>
+  opportunityLoaded.value ? formatCount(opportunityPagination.total) : '未加载',
+);
+const leadPageText = computed(() =>
+  formatPageSummary(
+    leadPagination.current,
+    leadPagination.pageSize,
+    leadPagination.total,
+    leads.value.length,
+  ),
+);
+const opportunityPageText = computed(() =>
+  opportunityLoaded.value
+    ? formatPageSummary(
+        opportunityPagination.current,
+        opportunityPagination.pageSize,
+        opportunityPagination.total,
+        opportunities.value.length,
+      )
+    : '切换后加载',
+);
 function goToDashboard() {
   router.push('/investment/radar/mobile-dashboard');
 }
@@ -127,6 +152,17 @@ function goToLeadDetail(leadId: number) {
   router.push(`/investment/radar/mobile/${leadId}`);
 }
 
+function showLeads() {
+  activeTab.value = 'leads';
+}
+
+function showOpportunities() {
+  activeTab.value = 'opportunities';
+  if (!opportunityLoaded.value || opportunities.value.length === 0) {
+    void loadOpportunities();
+  }
+}
+
 function resolveLeadTotal(result: {
   items?: unknown[];
   page?: { total?: number };
@@ -135,6 +171,26 @@ function resolveLeadTotal(result: {
   return Number(
     result.total ?? result.page?.total ?? result.items?.length ?? 0,
   );
+}
+
+function formatCount(value: number) {
+  return Number(value || 0).toLocaleString('zh-CN');
+}
+
+function formatPageSummary(
+  current: number,
+  pageSize: number,
+  total: number,
+  currentCount: number,
+) {
+  if (total <= 0 && currentCount <= 0) {
+    return '暂无数据';
+  }
+
+  const start = (current - 1) * pageSize + 1;
+  const end =
+    total > 0 ? Math.min(current * pageSize, total) : start + currentCount - 1;
+  return `第 ${formatCount(start)}-${formatCount(end)} 条`;
 }
 
 function escapeCsvCell(value: unknown) {
@@ -323,12 +379,14 @@ async function loadOpportunities() {
     opportunityPagination.total = 0;
     loadError.value = '公开机会加载失败，请稍后重试。';
   } finally {
+    opportunityLoaded.value = true;
     opportunityLoading.value = false;
   }
 }
 
 function searchLeads() {
   leadPagination.current = 1;
+  leadFilterOpen.value = false;
   void loadLeads();
 }
 
@@ -336,11 +394,13 @@ function resetLeads() {
   leadSearch.keyword = '';
   leadSearch.priorityLevel = undefined;
   leadSearch.stage = undefined;
+  leadFilterOpen.value = false;
   searchLeads();
 }
 
 function searchOpportunities() {
   opportunityPagination.current = 1;
+  opportunityFilterOpen.value = false;
   void loadOpportunities();
 }
 
@@ -349,6 +409,7 @@ function resetOpportunities() {
   opportunitySearch.keyword = '';
   opportunitySearch.opportunityType = '';
   opportunitySearch.sourceSite = '';
+  opportunityFilterOpen.value = false;
   searchOpportunities();
 }
 
@@ -435,7 +496,10 @@ async function startCollect() {
 }
 
 function onTabChange(key: number | string) {
-  if (String(key) === 'opportunities' && opportunities.value.length === 0) {
+  if (
+    String(key) === 'opportunities' &&
+    (!opportunityLoaded.value || opportunities.value.length === 0)
+  ) {
     void loadOpportunities();
   }
 }
@@ -452,15 +516,33 @@ onMounted(() => {
         <h2>智能招商雷达</h2>
         <p>移动端快速查看高优先级线索、公开机会和触达进度。</p>
       </div>
-      <Button type="primary" :loading="collectRunning" @click="startCollect">
-        采集
-      </Button>
     </div>
 
-    <div v-if="collectText" class="radar-mobile-notice">
-      {{ collectText }}
+    <!-- 统计卡片 -->
+    <div class="radar-mobile-stats">
+      <button
+        class="radar-mobile-stat"
+        :class="{ 'is-active': activeTab === 'leads' }"
+        type="button"
+        @click="showLeads"
+      >
+        <span>雷达线索</span>
+        <strong>{{ leadTotalText }}</strong>
+        <em>{{ leadPageText }}</em>
+      </button>
+      <button
+        class="radar-mobile-stat"
+        :class="{ 'is-active': activeTab === 'opportunities' }"
+        type="button"
+        @click="showOpportunities"
+      >
+        <span>公开机会</span>
+        <strong>{{ opportunityTotalText }}</strong>
+        <em>{{ opportunityPageText }}</em>
+      </button>
     </div>
 
+    <!-- 操作按钮区 -->
     <div class="radar-mobile-actions">
       <Button block @click="goToDashboard">看板</Button>
       <Button block @click="goToTasks">触达任务</Button>
@@ -475,7 +557,24 @@ onMounted(() => {
       >
         <Button block :loading="importing">文件导入</Button>
       </AUpload>
+      <Button
+        block
+        type="primary"
+        :loading="collectRunning"
+        @click="startCollect"
+      >
+        {{ collectRunning ? '采集中...' : '采集同步' }}
+      </Button>
     </div>
+
+    <!-- 采集状态提示 -->
+    <Alert
+      v-if="collectText"
+      :message="collectText"
+      show-icon
+      type="info"
+      class="radar-mobile-notice"
+    />
 
     <Alert v-if="loadError" :message="loadError" show-icon type="warning" />
 
@@ -487,42 +586,47 @@ onMounted(() => {
       <Tabs.TabPane key="leads" tab="线索">
         <div class="radar-mobile-filter">
           <Form layout="vertical">
-            <Form.Item label="关键字">
+            <div class="mobile-search-bar">
               <Input
                 v-model:value="leadSearch.keyword"
                 allow-clear
+                class="mobile-search-input"
                 placeholder="企业 / 电话 / 园区"
                 @press-enter="searchLeads"
               />
-            </Form.Item>
-            <Row :gutter="8">
-              <Col :span="12">
-                <Form.Item label="优先级">
-                  <Select
-                    v-model:value="leadSearch.priorityLevel"
-                    allow-clear
-                    placeholder="全部"
-                    :options="priorityOptions"
-                  />
-                </Form.Item>
-              </Col>
-              <Col :span="12">
-                <Form.Item label="阶段">
-                  <Select
-                    v-model:value="leadSearch.stage"
-                    allow-clear
-                    placeholder="全部"
-                    :options="RADAR_STAGE_OPTIONS"
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-            <div class="radar-mobile-filter-actions">
-              <Button type="primary" @click="searchLeads">
-                <Search class="mr-1 h-4 w-4" />
-                查询
-              </Button>
-              <Button @click="resetLeads">重置</Button>
+              <Button type="primary" @click="searchLeads"> 查询 </Button>
+              <Button @click="leadFilterOpen = !leadFilterOpen">筛选</Button>
+            </div>
+            <div v-show="leadFilterOpen" class="mobile-filter-panel">
+              <Row :gutter="8">
+                <Col :span="12">
+                  <Form.Item label="优先级">
+                    <Select
+                      v-model:value="leadSearch.priorityLevel"
+                      allow-clear
+                      placeholder="全部"
+                      :options="priorityOptions"
+                    />
+                  </Form.Item>
+                </Col>
+                <Col :span="12">
+                  <Form.Item label="阶段">
+                    <Select
+                      v-model:value="leadSearch.stage"
+                      allow-clear
+                      placeholder="全部"
+                      :options="RADAR_STAGE_OPTIONS"
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <div class="radar-mobile-filter-actions">
+                <Button type="primary" @click="searchLeads">
+                  <Search class="mr-1 h-4 w-4" />
+                  应用筛选
+                </Button>
+                <Button @click="resetLeads">重置</Button>
+              </div>
             </div>
           </Form>
         </div>
@@ -534,10 +638,16 @@ onMounted(() => {
               :key="item.leadId"
               class="radar-mobile-card"
               :body-style="{ padding: '0' }"
+              role="button"
+              tabindex="0"
               @click="goToLeadDetail(item.leadId)"
+              @keydown.enter="goToLeadDetail(item.leadId)"
+              @keydown.space.prevent="goToLeadDetail(item.leadId)"
             >
               <div class="radar-card-head">
-                <div class="radar-card-title">{{ item.enterpriseName }}</div>
+                <div class="radar-card-title">
+                  {{ item.enterpriseName || '雷达线索' }}
+                </div>
                 <Tag :color="getPriorityColor(item.priorityLevel)">
                   {{ item.priorityLevel || '-' }} 级
                 </Tag>
@@ -575,12 +685,13 @@ onMounted(() => {
               </div>
             </Card>
             <Pagination
-              v-if="leadPagination.total > leadPagination.pageSize"
+              v-if="leadPagination.total > 0"
               class="radar-mobile-pagination"
               size="small"
               :current="leadPagination.current"
               :page-size="leadPagination.pageSize"
               :total="leadPagination.total"
+              simple
               @change="onLeadPageChange"
             />
           </div>
@@ -591,48 +702,57 @@ onMounted(() => {
       <Tabs.TabPane key="opportunities" tab="公开机会">
         <div class="radar-mobile-filter">
           <Form layout="vertical">
-            <Form.Item label="关键字">
+            <div class="mobile-search-bar">
               <Input
                 v-model:value="opportunitySearch.keyword"
                 allow-clear
+                class="mobile-search-input"
                 placeholder="标题 / 联系人 / 来源"
                 @press-enter="searchOpportunities"
               />
-            </Form.Item>
-            <Row :gutter="8">
-              <Col :span="12">
-                <Form.Item label="类型">
-                  <Select
-                    v-model:value="opportunitySearch.opportunityType"
-                    :options="opportunityTypeOptions"
-                  />
-                </Form.Item>
-              </Col>
-              <Col :span="12">
-                <Form.Item label="城市">
-                  <Input
-                    v-model:value="opportunitySearch.city"
-                    allow-clear
-                    placeholder="城市"
-                    @press-enter="searchOpportunities"
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Form.Item label="来源站点">
-              <Input
-                v-model:value="opportunitySearch.sourceSite"
-                allow-clear
-                placeholder="来源站点"
-                @press-enter="searchOpportunities"
-              />
-            </Form.Item>
-            <div class="radar-mobile-filter-actions">
               <Button type="primary" @click="searchOpportunities">
-                <Search class="mr-1 h-4 w-4" />
                 查询
               </Button>
-              <Button @click="resetOpportunities">重置</Button>
+              <Button @click="opportunityFilterOpen = !opportunityFilterOpen">
+                筛选
+              </Button>
+            </div>
+            <div v-show="opportunityFilterOpen" class="mobile-filter-panel">
+              <Row :gutter="8">
+                <Col :span="12">
+                  <Form.Item label="类型">
+                    <Select
+                      v-model:value="opportunitySearch.opportunityType"
+                      :options="opportunityTypeOptions"
+                    />
+                  </Form.Item>
+                </Col>
+                <Col :span="12">
+                  <Form.Item label="城市">
+                    <Input
+                      v-model:value="opportunitySearch.city"
+                      allow-clear
+                      placeholder="城市"
+                      @press-enter="searchOpportunities"
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item label="来源站点">
+                <Input
+                  v-model:value="opportunitySearch.sourceSite"
+                  allow-clear
+                  placeholder="来源站点"
+                  @press-enter="searchOpportunities"
+                />
+              </Form.Item>
+              <div class="radar-mobile-filter-actions">
+                <Button type="primary" @click="searchOpportunities">
+                  <Search class="mr-1 h-4 w-4" />
+                  应用筛选
+                </Button>
+                <Button @click="resetOpportunities">重置</Button>
+              </div>
             </div>
           </Form>
         </div>
@@ -644,11 +764,15 @@ onMounted(() => {
               :key="item.opportunityId"
               class="radar-mobile-card"
               :body-style="{ padding: '0' }"
+              role="button"
+              tabindex="0"
               @click="openOpportunityDetail(item)"
+              @keydown.enter="openOpportunityDetail(item)"
+              @keydown.space.prevent="openOpportunityDetail(item)"
             >
               <div class="radar-card-head">
                 <div class="radar-card-title">
-                  {{ item.title || `机会 #${item.opportunityId}` }}
+                  {{ item.title || '公开机会' }}
                 </div>
                 <Tag
                   :color="getOpportunityTypeMeta(item.opportunityType).color"
@@ -690,14 +814,13 @@ onMounted(() => {
               </div>
             </Card>
             <Pagination
-              v-if="
-                opportunityPagination.total > opportunityPagination.pageSize
-              "
+              v-if="opportunityPagination.total > 0"
               class="radar-mobile-pagination"
               size="small"
               :current="opportunityPagination.current"
               :page-size="opportunityPagination.pageSize"
               :total="opportunityPagination.total"
+              simple
               @change="onOpportunityPageChange"
             />
           </div>
@@ -775,7 +898,7 @@ onMounted(() => {
 .radar-mobile-page {
   box-sizing: border-box;
   min-height: 100%;
-  padding: 10px 8px calc(88px + env(safe-area-inset-bottom));
+  padding: 12px 10px calc(96px + env(safe-area-inset-bottom));
   background: #f0f2f5;
 }
 
@@ -784,15 +907,19 @@ onMounted(() => {
 }
 
 .radar-mobile-header {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 12px;
-  margin-bottom: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
   background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 6%);
+}
+
+.radar-mobile-header > div {
+  min-width: 0;
+}
+
+.radar-mobile-header :deep(.ant-btn) {
+  flex: 0 0 auto;
 }
 
 .dark .radar-mobile-header {
@@ -800,39 +927,87 @@ onMounted(() => {
 }
 
 .radar-mobile-header h2 {
-  margin: 0;
-  font-size: 18px;
+  margin: 0 0 4px;
+  font-size: 20px;
   font-weight: 700;
-  line-height: 26px;
+  line-height: 28px;
   color: var(--ant-color-text);
 }
 
+.dark .radar-mobile-header h2 {
+  color: #fff;
+}
+
 .radar-mobile-header p {
-  margin: 2px 0 0;
+  margin: 0;
   font-size: 13px;
   line-height: 20px;
   color: var(--ant-color-text-secondary);
 }
 
-.radar-mobile-notice {
-  padding: 9px 12px;
-  margin-bottom: 8px;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--ant-color-primary);
-  background: var(--ant-color-primary-bg);
-  border-radius: 6px;
+.dark .radar-mobile-header p {
+  color: rgb(255 255 255 / 60%);
 }
 
-.radar-mobile-actions,
+.radar-mobile-notice {
+  margin-bottom: 12px;
+  border-radius: 8px;
+}
+
+.dark .radar-mobile-notice {
+  background: rgb(24 144 255 / 10%);
+  border-color: rgb(24 144 255 / 30%);
+}
+
+.radar-mobile-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.radar-mobile-actions :deep(.ant-btn),
+.radar-mobile-filter-actions :deep(.ant-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: auto;
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 20px;
+  white-space: normal;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.radar-mobile-actions :deep(.ant-btn):hover,
+.radar-mobile-filter-actions :deep(.ant-btn):hover {
+  transform: translateY(-1px);
+}
+
+.radar-mobile-actions :deep(.ant-btn):active,
+.radar-mobile-filter-actions :deep(.ant-btn):active {
+  transform: scale(0.98);
+}
+
+.dark .radar-mobile-actions :deep(.ant-btn),
+.dark .radar-mobile-filter-actions :deep(.ant-btn) {
+  color: #fff;
+  background: rgb(255 255 255 / 10%);
+  border-color: rgb(255 255 255 / 20%);
+}
+
+.radar-mobile-filter-actions :deep(svg) {
+  flex: 0 0 auto;
+}
+
 .radar-mobile-filter-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-}
-
-.radar-mobile-actions {
-  margin-bottom: 8px;
 }
 
 .radar-mobile-upload {
@@ -844,20 +1019,136 @@ onMounted(() => {
   width: 100%;
 }
 
+.radar-mobile-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.radar-mobile-stat {
+  min-width: 0;
+  padding: 14px 12px;
+  text-align: left;
+  background: #fff;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 6%);
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button.radar-mobile-stat:hover:not(.is-active) {
+  box-shadow: 0 4px 12px rgb(0 0 0 / 10%);
+  transform: translateY(-2px);
+}
+
+button.radar-mobile-stat:active {
+  transform: scale(0.98);
+}
+
+button.radar-mobile-stat {
+  font: inherit;
+  cursor: pointer;
+}
+
+.radar-mobile-stat.is-active {
+  background: linear-gradient(
+    135deg,
+    var(--ant-color-primary-bg) 0%,
+    var(--ant-color-primary-hover) 100%
+  );
+  border-color: var(--ant-color-primary);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+  transform: translateY(-2px);
+}
+
+.radar-mobile-stat span,
+.radar-mobile-stat em,
+.radar-mobile-stat strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radar-mobile-stat span {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+}
+
+.dark .radar-mobile-stat span {
+  color: rgb(255 255 255 / 60%);
+}
+
+.radar-mobile-stat strong {
+  margin-top: 4px;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 28px;
+  color: var(--ant-color-text);
+}
+
+.dark .radar-mobile-stat strong {
+  color: #fff;
+}
+
+.radar-mobile-stat em {
+  margin-top: 4px;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 16px;
+  color: var(--ant-color-text-tertiary);
+}
+
+.dark .radar-mobile-stat em {
+  color: rgb(255 255 255 / 50%);
+}
+
 .radar-mobile-tabs :deep(.ant-tabs-nav) {
   padding: 0 4px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .radar-mobile-filter {
-  padding: 12px 8px;
-  margin-bottom: 8px;
+  padding: 14px 12px;
+  margin-bottom: 12px;
   background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 6%);
+}
+
+.mobile-search-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 64px;
+  gap: 8px;
+  align-items: center;
+}
+
+.mobile-search-input {
+  min-width: 0;
+}
+
+.mobile-filter-panel {
+  padding-top: 10px;
+  margin-top: 10px;
+  border-top: 1px solid var(--ant-color-border-secondary);
+}
+
+.radar-mobile-filter :deep(.ant-form-item) {
+  margin-bottom: 12px;
+}
+
+.radar-mobile-filter :deep(.ant-input),
+.radar-mobile-filter :deep(.ant-select-selector) {
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
 }
 
 .dark .radar-mobile-filter,
+.dark .radar-mobile-stat,
 .dark .radar-mobile-card {
   background: #2d2d2d;
 }
@@ -865,18 +1156,35 @@ onMounted(() => {
 .radar-mobile-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .radar-mobile-card {
   overflow: hidden;
+  cursor: pointer;
   background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 8%);
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.radar-mobile-card:hover {
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+  transform: translateY(-2px);
+}
+
+.radar-mobile-card:active {
+  transform: scale(0.98);
+}
+
+.radar-mobile-card:focus-visible {
+  outline: 2px solid var(--ant-color-primary);
+  outline-offset: 2px;
 }
 
 .radar-mobile-card :deep(.ant-card-body) {
-  padding: 13px !important;
+  padding: 16px !important;
 }
 
 .radar-card-head {
@@ -889,94 +1197,202 @@ onMounted(() => {
 .radar-card-title {
   flex: 1;
   min-width: 0;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
-  line-height: 23px;
+  line-height: 24px;
   color: var(--ant-color-text);
   word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.dark .radar-card-title {
+  color: #fff;
+}
+
+.radar-card-head :deep(.ant-tag) {
+  flex: 0 0 auto;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .radar-card-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 8px;
-  margin-top: 8px;
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--ant-color-text-secondary);
-}
-
-.radar-score-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 12px;
-}
-
-.radar-score-grid > div {
-  padding: 7px 2px;
-  text-align: center;
-  background: var(--ant-color-fill-quaternary);
-  border-radius: 6px;
-}
-
-.radar-score-grid span {
-  display: block;
-  font-size: 11px;
-  line-height: 16px;
-  color: var(--ant-color-text-secondary);
-}
-
-.radar-score-grid strong {
-  display: block;
-  font-size: 17px;
-  line-height: 22px;
-  color: var(--ant-color-text);
-}
-
-.radar-card-meta {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 4px;
+  gap: 8px;
   margin-top: 10px;
   font-size: 13px;
   line-height: 20px;
   color: var(--ant-color-text-secondary);
 }
 
-.radar-mobile-card p {
-  margin: 8px 0 0;
+.dark .radar-card-tags {
+  color: rgb(255 255 255 / 60%);
+}
+
+.radar-card-tags > span,
+.radar-card-tags :deep(.ant-tag) {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radar-score-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.radar-score-grid > div {
+  padding: 10px 4px;
+  text-align: center;
+  background: var(--ant-color-fill-quaternary);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.radar-score-grid > div:hover {
+  background: var(--ant-color-fill-tertiary);
+}
+
+.radar-score-grid > div:active {
+  transform: scale(0.95);
+}
+
+.dark .radar-score-grid > div {
+  background: rgb(255 255 255 / 10%);
+}
+
+.radar-score-grid span {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--ant-color-text-secondary);
+}
+
+.dark .radar-score-grid span {
+  color: rgb(255 255 255 / 60%);
+}
+
+.radar-score-grid strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 24px;
+  color: var(--ant-color-text);
+}
+
+.dark .radar-score-grid strong {
+  color: #fff;
+}
+
+.radar-card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 12px;
   font-size: 13px;
   line-height: 20px;
   color: var(--ant-color-text-secondary);
+}
+
+.dark .radar-card-meta {
+  color: rgb(255 255 255 / 60%);
+}
+
+.radar-card-meta span {
+  min-width: 0;
+  padding: 4px 8px;
+  overflow-wrap: anywhere;
+  background: var(--ant-color-fill-quaternary);
+  border-radius: 6px;
+}
+
+.dark .radar-card-meta span {
+  background: rgb(255 255 255 / 10%);
+}
+
+.radar-mobile-card p {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--ant-color-text-secondary);
   word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.dark .radar-mobile-card p {
+  color: rgb(255 255 255 / 60%);
 }
 
 .radar-card-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 12px;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 .radar-action-btn {
   min-width: 0;
+  height: 36px;
+  font-size: 14px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.radar-action-btn:active {
+  transform: scale(0.95);
+}
+
+.dark .radar-action-btn {
+  color: #fff;
+  background: rgb(255 255 255 / 10%);
+  border-color: rgb(255 255 255 / 20%);
 }
 
 .radar-mobile-pagination {
-  margin-top: 10px;
+  margin-top: 14px;
   text-align: center;
 }
 
+.dark .radar-mobile-pagination :deep(.ant-pagination-item),
+.dark .radar-mobile-pagination :deep(.ant-pagination-prev),
+.dark .radar-mobile-pagination :deep(.ant-pagination-next) {
+  background: rgb(255 255 255 / 10%);
+  border-color: rgb(255 255 255 / 20%);
+}
+
+.dark .radar-mobile-pagination :deep(.ant-pagination-item a),
+.dark .radar-mobile-pagination :deep(.ant-pagination-prev a),
+.dark .radar-mobile-pagination :deep(.ant-pagination-next a) {
+  color: #fff;
+}
+
 .radar-mobile-empty {
-  padding: 32px 0;
+  padding: 40px 0;
+}
+
+.dark .radar-mobile-empty :deep(.ant-empty-description) {
+  color: rgb(255 255 255 / 60%);
 }
 
 .import-help {
-  margin-top: 8px;
-  font-size: 12px;
-  line-height: 18px;
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 20px;
   color: var(--ant-color-text-secondary);
+}
+
+.dark .import-help {
+  color: rgb(255 255 255 / 60%);
 }
 
 .import-result-list {
@@ -988,10 +1404,15 @@ onMounted(() => {
 }
 
 .import-result-card {
-  padding: 10px;
+  padding: 12px;
   background: var(--ant-color-fill-quaternary);
   border: 1px solid var(--ant-color-border-secondary);
-  border-radius: 8px;
+  border-radius: 10px;
+}
+
+.dark .import-result-card {
+  background: rgb(255 255 255 / 5%);
+  border-color: rgb(255 255 255 / 10%);
 }
 
 .import-result-head {
@@ -999,27 +1420,37 @@ onMounted(() => {
   gap: 8px;
   align-items: flex-start;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--ant-color-text);
 }
 
 .import-result-card p {
-  margin: 6px 0;
-  font-size: 12px;
-  line-height: 18px;
+  margin: 8px 0;
+  font-size: 13px;
+  line-height: 20px;
   color: var(--ant-color-error);
 }
 
+.dark .import-result-card p {
+  color: #ff4d4f;
+}
+
 .import-result-card pre {
-  max-height: 120px;
-  padding: 8px;
+  max-height: 140px;
+  padding: 10px;
   margin: 0;
   overflow: auto;
-  font-size: 11px;
-  line-height: 16px;
+  font-size: 12px;
+  line-height: 18px;
   color: var(--ant-color-text-secondary);
   white-space: pre-wrap;
   background: var(--ant-color-bg-container);
-  border-radius: 6px;
+  border-radius: 8px;
+}
+
+.dark .import-result-card pre {
+  color: rgb(255 255 255 / 70%);
+  background: rgb(0 0 0 / 30%);
 }
 </style>

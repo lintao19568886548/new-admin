@@ -20,12 +20,14 @@ import {
   Card,
   Descriptions,
   Drawer,
+  Empty,
   Form,
   Input,
   InputNumber,
   message,
   Select,
   Space,
+  Spin,
   Table,
   Tag,
 } from 'ant-design-vue';
@@ -45,7 +47,7 @@ const loading = ref(false);
 const detailLoading = ref(false);
 const evidenceLoading = ref(false);
 const saving = ref(false);
-const converting = ref(false);
+const convertingLeadId = ref<null | number>(null);
 const items = ref<ExternalLead[]>([]);
 const currentLead = ref<ExternalLeadDetail | null>(null);
 const evidenceItems = ref<LeadEvidence[]>([]);
@@ -149,13 +151,21 @@ const tableLocale = {
 
 const currentEvidenceCount = computed(() => {
   const detailEvidenceCount = currentLead.value?.evidences?.length || 0;
-  return detailEvidenceCount > 0
-    ? detailEvidenceCount
-    : evidenceItems.value.length;
+  if (detailEvidenceCount > 0) {
+    return detailEvidenceCount;
+  }
+  if (evidenceItems.value.length > 0) {
+    return evidenceItems.value.length;
+  }
+  return currentLead.value?.evidenceCount || 0;
 });
 
 function formatOptionalTime(value?: null | string) {
   return value ? formatDateTime(value) : '-';
+}
+
+function getStatusMeta(status: ExternalLeadStatus) {
+  return statusMeta[status] || { color: 'default', label: status };
 }
 
 function buildQuery() {
@@ -221,11 +231,20 @@ function syncEditForm(lead: ExternalLeadDetail) {
   };
 }
 
+function createPreviewDetail(record: ExternalLead): ExternalLeadDetail {
+  return {
+    ...record,
+    evidences: [],
+  };
+}
+
 async function openDetail(record: ExternalLead) {
   detailOpen.value = true;
   detailLoading.value = true;
-  currentLead.value = null;
+  const previewDetail = createPreviewDetail(record);
+  currentLead.value = previewDetail;
   evidenceItems.value = [];
+  syncEditForm(previewDetail);
   try {
     const detail = await getExternalLeadDetail(record.leadId);
     currentLead.value = detail;
@@ -284,10 +303,10 @@ async function saveLead() {
 
 async function convertLead(record?: ExternalLead) {
   const target = record || currentLead.value;
-  if (!target || converting.value) {
+  if (!target || convertingLeadId.value !== null) {
     return;
   }
-  converting.value = true;
+  convertingLeadId.value = target.leadId;
   try {
     const result = await convertExternalLeadToRadarLead(target.leadId, {
       ownerUserId: editForm.value.ownerUserId || target.ownerUserId || null,
@@ -300,12 +319,20 @@ async function convertLead(record?: ExternalLead) {
     console.error('convert external lead failed:', error);
     message.error('转雷达潜客失败');
   } finally {
-    converting.value = false;
+    if (convertingLeadId.value === target.leadId) {
+      convertingLeadId.value = null;
+    }
   }
 }
 
+function isConvertingLead(leadId?: null | number) {
+  return (
+    leadId !== null && leadId !== undefined && convertingLeadId.value === leadId
+  );
+}
+
 function renderStatus(status: ExternalLeadStatus) {
-  const meta = statusMeta[status] || { color: 'default', label: status };
+  const meta = getStatusMeta(status);
   return h(Tag, { color: meta.color }, () => meta.label);
 }
 
@@ -318,8 +345,22 @@ const columns: TableColumnsType<ExternalLead> = [
   {
     customRender: ({ record }) =>
       h('div', { class: 'external-lead-title' }, [
-        h('div', { class: 'font-medium' }, record.companyName),
-        h('div', { class: 'text-xs text-gray-500' }, record.leadTitle),
+        h(
+          'div',
+          {
+            class: 'external-lead-primary',
+            title: record.companyName,
+          },
+          record.companyName,
+        ),
+        h(
+          'div',
+          {
+            class: 'external-lead-secondary',
+            title: record.leadTitle,
+          },
+          record.leadTitle || '-',
+        ),
       ]),
     dataIndex: 'companyName',
     key: 'companyName',
@@ -331,14 +372,14 @@ const columns: TableColumnsType<ExternalLead> = [
     dataIndex: 'status',
     key: 'status',
     title: '状态',
-    width: 100,
+    width: 110,
   },
   {
     customRender: ({ record }) => renderConfidence(record.confidenceLevel),
     dataIndex: 'confidenceLevel',
     key: 'confidenceLevel',
     title: '置信度',
-    width: 90,
+    width: 100,
   },
   {
     customRender: ({ record }) =>
@@ -372,8 +413,22 @@ const columns: TableColumnsType<ExternalLead> = [
   {
     customRender: ({ record }) =>
       h('div', { class: 'external-source-cell' }, [
-        h('div', record.sourceName || '-'),
-        h('div', { class: 'text-xs text-gray-500' }, record.sourceUrl),
+        h(
+          'div',
+          {
+            class: 'external-lead-primary',
+            title: record.sourceName || '-',
+          },
+          record.sourceName || '-',
+        ),
+        h(
+          'div',
+          {
+            class: 'external-lead-secondary',
+            title: record.sourceUrl || '-',
+          },
+          record.sourceUrl || '-',
+        ),
       ]),
     dataIndex: 'sourceName',
     key: 'sourceName',
@@ -381,14 +436,20 @@ const columns: TableColumnsType<ExternalLead> = [
     width: 240,
   },
   {
+    customRender: ({ record }) => {
+      const count = record.evidenceCount || 0;
+      return h(Tag, { color: count > 0 ? 'blue' : 'default' }, () =>
+        count > 0 ? `已采集 ${count} 条` : '暂无证据',
+      );
+    },
     dataIndex: 'evidenceCount',
     key: 'evidenceCount',
-    title: '证据',
-    width: 80,
+    title: '证据链',
+    width: 130,
   },
   {
     customRender: ({ record }) =>
-      record.convertedRadarLeadId ? `#${record.convertedRadarLeadId}` : '-',
+      record.convertedRadarLeadId ? '已转化' : '-',
     key: 'convertedRadarLeadId',
     title: '雷达潜客',
     width: 110,
@@ -401,7 +462,7 @@ const columns: TableColumnsType<ExternalLead> = [
   },
   {
     customRender: ({ record }) =>
-      h(Space, { size: 4 }, () => [
+      h(Space, { class: 'external-lead-actions', size: 4 }, () => [
         h(
           Button,
           {
@@ -424,7 +485,7 @@ const columns: TableColumnsType<ExternalLead> = [
           Button,
           {
             disabled: Boolean(record.convertedRadarLeadId),
-            loading: converting.value,
+            loading: isConvertingLead(record.leadId),
             onClick: () => void convertLead(record),
             size: 'small',
             type: 'link',
@@ -485,16 +546,6 @@ onMounted(() => {
 
 <template>
   <div class="external-leads-pane">
-    <Card class="mb-3" title="合规边界">
-      <Space wrap>
-        <Tag color="blue">只处理公开数据</Tag>
-        <Tag color="blue">不绕登录</Tag>
-        <Tag color="blue">不破解验证码</Tag>
-        <Tag color="blue">保留来源和证据</Tag>
-        <Tag color="gold">系统判断与证据原文分开展示</Tag>
-      </Space>
-    </Card>
-
     <Card class="mb-3" title="筛选">
       <Form class="radar-search-form" layout="inline">
         <Form.Item label="关键词">
@@ -570,6 +621,8 @@ onMounted(() => {
 
     <Card class="external-leads-table-card" title="外部公开线索">
       <Table
+        bordered
+        class="external-leads-table"
         :columns="columns"
         :data-source="items"
         :loading="loading"
@@ -578,6 +631,7 @@ onMounted(() => {
         row-key="leadId"
         :scroll="{ x: 1720 }"
         size="small"
+        table-layout="fixed"
         @change="handleTableChange"
       />
     </Card>
@@ -588,81 +642,85 @@ onMounted(() => {
       title="外部公开线索详情"
       width="860"
     >
-      <div v-if="detailLoading" class="py-8 text-center">加载中...</div>
-      <template v-else-if="currentLead">
-        <Descriptions
-          bordered
-          :column="2"
-          class="external-lead-detail"
-          size="small"
-        >
-          <Descriptions.Item label="企业">
-            {{ currentLead.companyName }}
-          </Descriptions.Item>
-          <Descriptions.Item label="状态">
-            <component :is="renderStatus(currentLead.status)" />
-          </Descriptions.Item>
-          <Descriptions.Item label="线索标题" :span="2">
-            {{ currentLead.leadTitle }}
-          </Descriptions.Item>
-          <Descriptions.Item label="系统判断" :span="2">
-            {{ currentLead.summary || '-' }}
-          </Descriptions.Item>
-          <Descriptions.Item label="来源" :span="2">
-            {{ currentLead.sourceName }} / {{ currentLead.sourceUrl }}
-          </Descriptions.Item>
-          <Descriptions.Item label="证据数">
-            {{ currentEvidenceCount }}
-          </Descriptions.Item>
-          <Descriptions.Item label="命中词">
-            {{ currentLead.hitKeywords.join(', ') || '-' }}
-          </Descriptions.Item>
-        </Descriptions>
+      <Spin :spinning="detailLoading">
+        <template v-if="currentLead">
+          <Descriptions
+            bordered
+            :column="2"
+            class="external-lead-detail"
+            size="small"
+          >
+            <Descriptions.Item label="企业">
+              {{ currentLead.companyName }}
+            </Descriptions.Item>
+            <Descriptions.Item label="状态">
+              <Tag :color="getStatusMeta(currentLead.status).color">
+                {{ getStatusMeta(currentLead.status).label }}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="线索标题" :span="2">
+              {{ currentLead.leadTitle }}
+            </Descriptions.Item>
+            <Descriptions.Item label="系统判断" :span="2">
+              {{ currentLead.summary || '-' }}
+            </Descriptions.Item>
+            <Descriptions.Item label="来源" :span="2">
+              {{ currentLead.sourceName }} / {{ currentLead.sourceUrl }}
+            </Descriptions.Item>
+            <Descriptions.Item label="证据数">
+              {{ currentEvidenceCount }}
+            </Descriptions.Item>
+            <Descriptions.Item label="命中词">
+              {{ currentLead.hitKeywords.join(', ') || '-' }}
+            </Descriptions.Item>
+          </Descriptions>
 
-        <Card class="mt-4" title="人工复核">
-          <Form layout="vertical">
-            <Form.Item label="状态">
-              <Select
-                v-model:value="editForm.status"
-                :options="statusOptions.filter((item) => item.value)"
-              />
-            </Form.Item>
-            <Form.Item label="负责人用户 ID">
-              <InputNumber
-                v-model:value="editForm.ownerUserId"
-                class="w-full"
-                :min="1"
-              />
-            </Form.Item>
-            <Form.Item label="备注">
-              <Input.TextArea
-                v-model:value="editForm.remark"
-                :auto-size="{ minRows: 2, maxRows: 5 }"
-              />
-            </Form.Item>
-            <Form.Item label="无效原因">
-              <Input.TextArea
-                v-model:value="editForm.invalidReason"
-                :auto-size="{ minRows: 2, maxRows: 5 }"
-              />
-            </Form.Item>
-          </Form>
-          <Space>
-            <Button type="primary" :loading="saving" @click="saveLead">
-              保存
-            </Button>
-            <Button @click="openEvidence()">查看证据原文</Button>
-            <Button
-              type="primary"
-              :disabled="Boolean(currentLead.convertedRadarLeadId)"
-              :loading="converting"
-              @click="convertLead()"
-            >
-              一键转雷达潜客
-            </Button>
-          </Space>
-        </Card>
-      </template>
+          <Card class="mt-4" title="人工复核">
+            <Form layout="vertical">
+              <Form.Item label="状态">
+                <Select
+                  v-model:value="editForm.status"
+                  :options="statusOptions.filter((item) => item.value)"
+                />
+              </Form.Item>
+              <Form.Item label="负责人">
+                <InputNumber
+                  v-model:value="editForm.ownerUserId"
+                  class="w-full"
+                  :min="1"
+                />
+              </Form.Item>
+              <Form.Item label="备注">
+                <Input.TextArea
+                  v-model:value="editForm.remark"
+                  :auto-size="{ minRows: 2, maxRows: 5 }"
+                />
+              </Form.Item>
+              <Form.Item label="无效原因">
+                <Input.TextArea
+                  v-model:value="editForm.invalidReason"
+                  :auto-size="{ minRows: 2, maxRows: 5 }"
+                />
+              </Form.Item>
+            </Form>
+            <Space>
+              <Button type="primary" :loading="saving" @click="saveLead">
+                保存
+              </Button>
+              <Button @click="openEvidence()">查看证据原文</Button>
+              <Button
+                type="primary"
+                :disabled="Boolean(currentLead.convertedRadarLeadId)"
+                :loading="isConvertingLead(currentLead.leadId)"
+                @click="convertLead()"
+              >
+                一键转雷达潜客
+              </Button>
+            </Space>
+          </Card>
+        </template>
+        <Empty v-else description="暂无详情数据" />
+      </Spin>
     </Drawer>
 
     <Drawer
@@ -672,6 +730,7 @@ onMounted(() => {
       width="920"
     >
       <Table
+        bordered
         :columns="evidenceColumns"
         :data-source="evidenceItems"
         :loading="evidenceLoading"
@@ -703,18 +762,42 @@ onMounted(() => {
 }
 
 .external-leads-table-card {
-  min-height: 0;
-  flex: 1;
+  flex: none;
 }
 
 .external-lead-title,
 .external-source-cell {
-  max-width: 240px;
+  display: flex;
+  max-width: 100%;
+  min-height: 40px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  text-align: center;
 }
 
-.external-source-cell {
+.external-lead-primary,
+.external-lead-secondary {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.external-lead-primary {
+  color: var(--ant-color-text);
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.external-lead-secondary {
+  color: var(--ant-color-text-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.external-lead-actions {
+  white-space: nowrap;
 }
 
 .evidence-text {
@@ -733,7 +816,17 @@ onMounted(() => {
 }
 
 .radar-search-form {
-  row-gap: 12px;
+  align-items: center;
+  row-gap: 8px;
+}
+
+.radar-search-form :deep(.ant-form-item) {
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.radar-search-form :deep(.ant-form-item-control-input) {
+  min-height: 32px;
 }
 
 .radar-filter-control {
@@ -748,30 +841,80 @@ onMounted(() => {
 }
 
 .radar-search-form :deep(.ant-input),
+.radar-search-form :deep(.ant-input-affix-wrapper),
 .radar-search-form :deep(.ant-select-selection-item),
 .radar-search-form :deep(.ant-select-selection-placeholder) {
   font-size: 14px;
 }
 
 .radar-search-form :deep(.ant-input),
+.radar-search-form :deep(.ant-input-affix-wrapper),
+.radar-search-form :deep(.ant-select-single),
+.radar-search-form :deep(.ant-select-single .ant-select-selector),
+.radar-search-form :deep(.ant-select-single .ant-select-selection-search-input),
+.radar-search-form :deep(.ant-btn) {
+  height: 32px;
+}
+
+.radar-search-form :deep(.ant-input),
+.radar-search-form :deep(.ant-input-affix-wrapper),
+.radar-search-form :deep(.ant-select-single .ant-select-selector),
+.radar-search-form :deep(.ant-btn) {
+  line-height: 30px;
+}
+
+.radar-search-form :deep(.ant-input-affix-wrapper) {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  padding-block: 0;
+}
+
+.radar-search-form :deep(.ant-input-affix-wrapper > input.ant-input) {
+  height: 30px;
+  line-height: 30px;
+}
+
 .radar-search-form :deep(.ant-select-single .ant-select-selector) {
-  min-height: 34px;
+  align-items: center;
+  display: flex;
+}
+
+.radar-search-form :deep(.ant-select-single .ant-select-selection-item),
+.radar-search-form :deep(.ant-select-single .ant-select-selection-placeholder) {
+  line-height: 30px;
 }
 
 .radar-search-form :deep(.ant-form-item-label > label) {
   color: var(--ant-color-text);
   font-size: 14px;
+  min-height: 32px;
 }
 
 :deep(.ant-table-thead > tr > th) {
   color: var(--ant-color-text);
   font-size: 14px;
   font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
 }
 
 :deep(.ant-table-tbody > tr > td) {
   color: var(--ant-color-text);
   font-size: 14px;
+  height: 56px;
   line-height: 22px;
+  padding-bottom: 8px;
+  padding-top: 8px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.external-leads-table :deep(.ant-table-cell) {
+  overflow: hidden;
+}
+
+.external-leads-table :deep(.ant-table-tbody > tr > td) {
+  max-height: 56px;
 }
 </style>

@@ -20,12 +20,14 @@ import {
   Card,
   Descriptions,
   Drawer,
+  Empty,
   Form,
   Input,
   InputNumber,
   message,
   Select,
   Space,
+  Spin,
   Table,
   Tag,
 } from 'ant-design-vue';
@@ -134,16 +136,26 @@ function formatOptionalTime(value?: null | string) {
   return value ? formatDateTime(value) : '-';
 }
 
+function getEventTypeMeta(eventType: SignalEventType) {
+  return (
+    eventTypeMeta[eventType] || {
+      color: 'default',
+      label: eventType,
+    }
+  );
+}
+
+function getStatusMeta(status: SignalEventStatus) {
+  return statusMeta[status] || { color: 'default', label: status };
+}
+
 function renderEventType(eventType: SignalEventType) {
-  const meta = eventTypeMeta[eventType] || {
-    color: 'default',
-    label: eventType,
-  };
+  const meta = getEventTypeMeta(eventType);
   return h(Tag, { color: meta.color }, () => meta.label);
 }
 
 function renderStatus(status: SignalEventStatus) {
-  const meta = statusMeta[status] || { color: 'default', label: status };
+  const meta = getStatusMeta(status);
   return h(Tag, { color: meta.color }, () => meta.label);
 }
 
@@ -208,8 +220,9 @@ function syncEditForm(event: SignalEventDetail) {
 async function openDetail(record: SignalEvent) {
   detailOpen.value = true;
   detailLoading.value = true;
-  currentEvent.value = null;
+  currentEvent.value = { ...record, evidences: [] };
   evidenceItems.value = [];
+  syncEditForm(currentEvent.value);
   try {
     const detail = await getSignalEventDetail(record.eventId);
     currentEvent.value = detail;
@@ -351,7 +364,7 @@ const columns: TableColumnsType<SignalEvent> = [
   },
   {
     customRender: ({ record }) =>
-      record.relatedExternalLeadId ? `#${record.relatedExternalLeadId}` : '-',
+      record.relatedExternalLeadId ? '已关联' : '-',
     dataIndex: 'relatedExternalLeadId',
     key: 'relatedExternalLeadId',
     title: '外部线索',
@@ -359,7 +372,7 @@ const columns: TableColumnsType<SignalEvent> = [
   },
   {
     customRender: ({ record }) =>
-      record.relatedRadarLeadId ? `#${record.relatedRadarLeadId}` : '-',
+      record.relatedRadarLeadId ? '已转潜客' : '-',
     dataIndex: 'relatedRadarLeadId',
     key: 'relatedRadarLeadId',
     title: '雷达潜客',
@@ -539,6 +552,7 @@ onMounted(() => {
 
     <Card class="signal-table-card" title="企业信号事件">
       <Table
+        bordered
         :columns="columns"
         :data-source="items"
         :loading="loading"
@@ -557,95 +571,93 @@ onMounted(() => {
       title="企业信号详情"
       width="860"
     >
-      <div v-if="detailLoading" class="py-8 text-center">加载中...</div>
-      <template v-else-if="currentEvent">
-        <Descriptions
-          bordered
-          :column="2"
-          class="signal-event-detail"
-          size="small"
-        >
-          <Descriptions.Item label="企业">
-            {{ currentEvent.companyName }}
-          </Descriptions.Item>
-          <Descriptions.Item label="状态">
-            <component :is="renderStatus(currentEvent.status)" />
-          </Descriptions.Item>
-          <Descriptions.Item label="事件类型">
-            <component :is="renderEventType(currentEvent.eventType)" />
-          </Descriptions.Item>
-          <Descriptions.Item label="置信度">
-            {{ currentEvent.confidenceScore }}
-          </Descriptions.Item>
-          <Descriptions.Item label="事件标题" :span="2">
-            {{ currentEvent.eventTitle }}
-          </Descriptions.Item>
-          <Descriptions.Item label="事件摘要" :span="2">
-            {{ currentEvent.eventSummary || '-' }}
-          </Descriptions.Item>
-          <Descriptions.Item label="来源" :span="2">
-            {{ currentEvent.sourceName }} / {{ currentEvent.sourceUrl }}
-          </Descriptions.Item>
-          <Descriptions.Item label="关联外部线索">
-            {{
-              currentEvent.relatedExternalLeadId
-                ? `#${currentEvent.relatedExternalLeadId}`
-                : '-'
-            }}
-          </Descriptions.Item>
-          <Descriptions.Item label="关联雷达潜客">
-            {{
-              currentEvent.relatedRadarLeadId
-                ? `#${currentEvent.relatedRadarLeadId}`
-                : '-'
-            }}
-          </Descriptions.Item>
-          <Descriptions.Item label="证据数">
-            {{ detailEvidenceCount }}
-          </Descriptions.Item>
-          <Descriptions.Item label="事件时间">
-            {{ formatOptionalTime(currentEvent.eventTime) }}
-          </Descriptions.Item>
-        </Descriptions>
+      <Spin :spinning="detailLoading">
+        <template v-if="currentEvent">
+          <Descriptions
+            bordered
+            :column="2"
+            class="signal-event-detail"
+            size="small"
+          >
+            <Descriptions.Item label="企业">
+              {{ currentEvent.companyName }}
+            </Descriptions.Item>
+            <Descriptions.Item label="状态">
+              <Tag :color="getStatusMeta(currentEvent.status).color">
+                {{ getStatusMeta(currentEvent.status).label }}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="事件类型">
+              <Tag :color="getEventTypeMeta(currentEvent.eventType).color">
+                {{ getEventTypeMeta(currentEvent.eventType).label }}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="置信度">
+              {{ currentEvent.confidenceScore }}
+            </Descriptions.Item>
+            <Descriptions.Item label="事件标题" :span="2">
+              {{ currentEvent.eventTitle }}
+            </Descriptions.Item>
+            <Descriptions.Item label="事件摘要" :span="2">
+              {{ currentEvent.eventSummary || '-' }}
+            </Descriptions.Item>
+            <Descriptions.Item label="来源" :span="2">
+              {{ currentEvent.sourceName }} / {{ currentEvent.sourceUrl }}
+            </Descriptions.Item>
+            <Descriptions.Item label="关联外部线索">
+              {{ currentEvent.relatedExternalLeadId ? '已关联' : '-' }}
+            </Descriptions.Item>
+            <Descriptions.Item label="关联雷达潜客">
+              {{ currentEvent.relatedRadarLeadId ? '已转潜客' : '-' }}
+            </Descriptions.Item>
+            <Descriptions.Item label="证据数">
+              {{ detailEvidenceCount }}
+            </Descriptions.Item>
+            <Descriptions.Item label="事件时间">
+              {{ formatOptionalTime(currentEvent.eventTime) }}
+            </Descriptions.Item>
+          </Descriptions>
 
-        <Card class="mt-4" title="人工复核">
-          <Form layout="vertical">
-            <Form.Item label="状态">
-              <Select
-                v-model:value="editForm.status"
-                :options="statusOptions.filter((item) => item.value)"
-              />
-            </Form.Item>
-            <Form.Item label="负责人用户 ID">
-              <InputNumber
-                v-model:value="editForm.ownerUserId"
-                class="w-full"
-                :min="1"
-              />
-            </Form.Item>
-            <Form.Item label="转换备注">
-              <Input.TextArea
-                v-model:value="editForm.remark"
-                :auto-size="{ minRows: 2, maxRows: 4 }"
-              />
-            </Form.Item>
-          </Form>
-          <Space>
-            <Button type="primary" :loading="saving" @click="saveEventStatus">
-              保存状态
-            </Button>
-            <Button @click="openEvidence()">查看证据</Button>
-            <Button
-              type="primary"
-              :disabled="Boolean(currentEvent.relatedRadarLeadId)"
-              :loading="converting"
-              @click="convertEvent()"
-            >
-              转雷达潜客
-            </Button>
-          </Space>
-        </Card>
-      </template>
+          <Card class="mt-4" title="人工复核">
+            <Form layout="vertical">
+              <Form.Item label="状态">
+                <Select
+                  v-model:value="editForm.status"
+                  :options="statusOptions.filter((item) => item.value)"
+                />
+              </Form.Item>
+              <Form.Item label="负责人">
+                <InputNumber
+                  v-model:value="editForm.ownerUserId"
+                  class="w-full"
+                  :min="1"
+                />
+              </Form.Item>
+              <Form.Item label="转换备注">
+                <Input.TextArea
+                  v-model:value="editForm.remark"
+                  :auto-size="{ minRows: 2, maxRows: 4 }"
+                />
+              </Form.Item>
+            </Form>
+            <Space>
+              <Button type="primary" :loading="saving" @click="saveEventStatus">
+                保存状态
+              </Button>
+              <Button @click="openEvidence()">查看证据</Button>
+              <Button
+                type="primary"
+                :disabled="Boolean(currentEvent.relatedRadarLeadId)"
+                :loading="converting"
+                @click="convertEvent()"
+              >
+                转雷达潜客
+              </Button>
+            </Space>
+          </Card>
+        </template>
+        <Empty v-else description="暂无详情数据" />
+      </Spin>
     </Drawer>
 
     <Drawer
@@ -655,6 +667,7 @@ onMounted(() => {
       width="920"
     >
       <Table
+        bordered
         :columns="evidenceColumns"
         :data-source="evidenceItems"
         :loading="evidenceLoading"
@@ -686,13 +699,13 @@ onMounted(() => {
 }
 
 .signal-table-card {
-  min-height: 0;
-  flex: 1;
+  flex: none;
 }
 
 .signal-title-cell,
 .signal-source-cell {
   max-width: 260px;
+  text-align: center;
 }
 
 .signal-source-cell {
@@ -725,9 +738,9 @@ onMounted(() => {
 }
 
 .radar-filter-keyword {
-  width: 320px;
+  width: 180px;
   max-width: 100%;
-  min-width: 320px;
+  min-width: 180px;
 }
 
 .radar-search-form :deep(.ant-input),
@@ -750,11 +763,15 @@ onMounted(() => {
   color: var(--ant-color-text);
   font-size: 14px;
   font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
 }
 
 :deep(.ant-table-tbody > tr > td) {
   color: var(--ant-color-text);
   font-size: 14px;
   line-height: 22px;
+  text-align: center;
+  vertical-align: middle;
 }
 </style>

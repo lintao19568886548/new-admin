@@ -22,12 +22,19 @@ import {
   PhoneOutlined,
   RadarChartOutlined,
   ReloadOutlined,
-  RightOutlined,
   SettingOutlined,
   ThunderboltOutlined,
   UserAddOutlined,
 } from '@ant-design/icons-vue';
-import { Alert, Button, Empty, Spin, Tag } from 'ant-design-vue';
+import {
+  Alert,
+  Button,
+  Card,
+  Empty,
+  Spin,
+  Statistic,
+  Tag,
+} from 'ant-design-vue';
 
 import {
   getEffectivePublicOpportunityList,
@@ -67,8 +74,10 @@ interface QuickAction {
 
 interface ManagementAction {
   description: string;
+  icon: Component;
   label: string;
   route: string;
+  tone: 'blue' | 'cyan' | 'green' | 'orange' | 'purple';
 }
 
 interface OverviewCard {
@@ -116,6 +125,13 @@ const quickActions: QuickAction[] = [
     tone: 'blue',
   },
   {
+    description: '统计线索、触达和公开机会',
+    icon: CalendarOutlined,
+    label: '招商看板',
+    route: '/investment/radar/mobile-dashboard',
+    tone: 'green',
+  },
+  {
     description: '执行电话/短信任务',
     icon: ThunderboltOutlined,
     label: '触达任务',
@@ -141,33 +157,45 @@ const quickActions: QuickAction[] = [
 const managementActions: ManagementAction[] = [
   {
     description: '复核公开来源线索并转雷达潜客',
+    icon: RadarChartOutlined,
     label: '外部线索',
     route: '/investment/radar/mobile-external-leads',
+    tone: 'blue',
   },
   {
     description: '复核扩产、搬迁和租厂信号',
+    icon: ThunderboltOutlined,
     label: '企业信号',
     route: '/investment/radar/mobile-signal-events',
+    tone: 'orange',
   },
   {
     description: '查看企业画像、标签和关联信号',
+    icon: AppstoreOutlined,
     label: '企业画像',
     route: '/investment/radar/mobile-enterprise-profiles',
+    tone: 'green',
   },
   {
     description: '维护评分规则并重算 demo 线索评分',
+    icon: SettingOutlined,
     label: '评分规则',
     route: '/investment/radar/mobile-score-rules',
+    tone: 'purple',
   },
   {
     description: '查看采集源状态、启停数据源和运行采集',
+    icon: SettingOutlined,
     label: '数据源',
     route: '/investment/radar/mobile-crawler-sources',
+    tone: 'cyan',
   },
   {
     description: '查看采集队列、日志和失败 URL 重试',
+    icon: CalendarOutlined,
     label: '采集任务',
     route: '/investment/radar/mobile-crawler-tasks',
+    tone: 'blue',
   },
 ];
 
@@ -480,15 +508,12 @@ onMounted(() => {
 
 <template>
   <div class="investment-app-page">
-    <section class="workbench-hero">
-      <div class="hero-copy">
-        <div class="hero-date">{{ pageDateText }}</div>
-        <h1>招商工作台</h1>
-        <p>聚合今日会谈、重点线索、触达任务和公开机会。</p>
-      </div>
+    <div class="workbench-toolbar">
+      <span>{{ pageDateText }}</span>
       <Button
         class="refresh-button"
-        type="primary"
+        size="small"
+        type="text"
         :loading="loading"
         @click="loadWorkbench"
       >
@@ -497,7 +522,7 @@ onMounted(() => {
         </template>
         刷新
       </Button>
-    </section>
+    </div>
 
     <Alert
       v-if="partialErrorText"
@@ -509,28 +534,31 @@ onMounted(() => {
 
     <Spin :spinning="loading">
       <section class="overview-grid" aria-label="招商关键统计">
-        <button
+        <Card
           v-for="card in overviewCards"
           :key="card.label"
-          type="button"
           class="overview-card"
           :class="`overview-card-${card.tone}`"
+          hoverable
+          role="button"
+          tabindex="0"
           @click="goTo(card.route)"
+          @keydown.enter="goTo(card.route)"
+          @keydown.space.prevent="goTo(card.route)"
         >
-          <span class="overview-label">{{ card.label }}</span>
-          <span class="overview-value">
-            {{ card.value }}
-            <small>{{ card.suffix }}</small>
-          </span>
+          <Statistic
+            :suffix="card.suffix"
+            :title="card.label"
+            :value="card.value"
+          />
           <span class="overview-hint">{{ card.hint }}</span>
-        </button>
+        </Card>
       </section>
 
       <section class="section-panel">
         <div class="section-heading">
           <div>
             <h2>快捷入口</h2>
-            <p>按移动端高频工作流进入对应功能。</p>
           </div>
         </div>
         <div class="quick-grid">
@@ -540,16 +568,14 @@ onMounted(() => {
             type="button"
             class="quick-action"
             :class="`quick-action-${action.tone}`"
+            :aria-label="`${action.label}：${action.description}`"
+            :title="action.description"
             @click="goTo(action.route)"
           >
             <span class="quick-icon">
               <component :is="action.icon" />
             </span>
-            <span class="quick-content">
-              <strong>{{ action.label }}</strong>
-              <small>{{ action.description }}</small>
-            </span>
-            <RightOutlined class="quick-arrow" />
+            <strong>{{ action.label }}</strong>
           </button>
         </div>
       </section>
@@ -558,7 +584,6 @@ onMounted(() => {
         <div class="section-heading">
           <div>
             <h2>雷达管理</h2>
-            <p>补充后台招商雷达的管理型能力。</p>
           </div>
         </div>
         <div class="management-grid">
@@ -567,16 +592,15 @@ onMounted(() => {
             :key="action.route"
             type="button"
             class="management-action"
+            :class="`quick-action-${action.tone}`"
+            :aria-label="`${action.label}：${action.description}`"
+            :title="action.description"
             @click="goTo(action.route)"
           >
-            <span class="management-icon">
-              <SettingOutlined />
+            <span class="quick-icon">
+              <component :is="action.icon" />
             </span>
-            <span>
-              <strong>{{ action.label }}</strong>
-              <small>{{ action.description }}</small>
-            </span>
-            <RightOutlined class="quick-arrow" />
+            <strong>{{ action.label }}</strong>
           </button>
         </div>
       </section>
@@ -695,9 +719,15 @@ onMounted(() => {
         </div>
 
         <div class="task-summary">
-          <span>待执行 {{ taskSummary.pendingTasks }}</span>
-          <span>已发送 {{ taskSummary.sentTasks }}</span>
-          <span>正向回复 {{ taskSummary.positiveReplies }}</span>
+          <Card class="task-summary-card" size="small">
+            <Statistic title="待执行" :value="taskSummary.pendingTasks" />
+          </Card>
+          <Card class="task-summary-card" size="small">
+            <Statistic title="已发送" :value="taskSummary.sentTasks" />
+          </Card>
+          <Card class="task-summary-card" size="small">
+            <Statistic title="正向回复" :value="taskSummary.positiveReplies" />
+          </Card>
         </div>
 
         <div v-if="taskItems.length > 0" class="task-list">
@@ -788,55 +818,27 @@ onMounted(() => {
 .investment-app-page {
   box-sizing: border-box;
   min-height: 100%;
-  padding: 12px 12px 28px;
+  padding: 10px 12px calc(72px + env(safe-area-inset-bottom));
   color: #111827;
   background: #f3f6fb;
 }
 
-.workbench-hero {
+.workbench-toolbar {
   display: flex;
-  gap: 14px;
-  align-items: flex-start;
+  gap: 8px;
+  align-items: center;
   justify-content: space-between;
-  padding: 18px;
-  margin-bottom: 12px;
-  overflow: hidden;
-  color: #fff;
-  background:
-    linear-gradient(135deg, rgba(17, 24, 39, 92%), rgba(29, 78, 216, 82%)),
-    linear-gradient(45deg, #f97316, #059669);
-  border-radius: 12px;
-}
-
-.hero-copy {
-  min-width: 0;
-}
-
-.hero-date {
-  margin-bottom: 6px;
+  min-height: 28px;
+  margin-bottom: 8px;
   font-size: 12px;
-  opacity: 0.82;
-}
-
-.hero-copy h1 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.25;
-}
-
-.hero-copy p {
-  max-width: 230px;
-  margin: 8px 0 0;
-  font-size: 13px;
-  line-height: 1.55;
-  opacity: 0.86;
+  color: #64748b;
 }
 
 .refresh-button {
   flex: 0 0 auto;
-  border: 0;
-  box-shadow: 0 8px 20px rgba(2, 6, 23, 22%);
+  height: 28px;
+  padding: 0 8px;
+  color: #2563eb;
 }
 
 .workbench-alert {
@@ -852,16 +854,15 @@ onMounted(() => {
 
 .overview-card {
   min-width: 0;
-  padding: 14px;
-  text-align: left;
   cursor: pointer;
-  background: #fff;
-  border: 1px solid rgba(148, 163, 184, 28%);
-  border-radius: 10px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 6%);
+  box-shadow: 0 8px 20px rgb(15 23 42 / 6%);
 }
 
-.overview-label,
+.overview-card :deep(.ant-card-body) {
+  padding: 14px;
+}
+
+.overview-card :deep(.ant-statistic-title),
 .overview-hint {
   display: block;
   overflow: hidden;
@@ -871,20 +872,26 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-.overview-value {
-  display: block;
-  margin: 8px 0 6px;
+.overview-card :deep(.ant-statistic-title) {
+  margin-bottom: 8px;
+}
+
+.overview-card :deep(.ant-statistic-content) {
   font-size: 26px;
   font-weight: 760;
   line-height: 1;
   color: #111827;
 }
 
-.overview-value small {
-  margin-left: 2px;
+.overview-card :deep(.ant-statistic-content-suffix) {
+  margin-inline-start: 2px;
   font-size: 12px;
   font-weight: 500;
   color: #64748b;
+}
+
+.overview-hint {
+  margin-top: 6px;
 }
 
 .overview-card-orange {
@@ -907,9 +914,9 @@ onMounted(() => {
   padding: 14px;
   margin-bottom: 12px;
   background: #fff;
-  border: 1px solid rgba(148, 163, 184, 24%);
+  border: 1px solid rgb(148 163 184 / 24%);
   border-radius: 10px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 5%);
+  box-shadow: 0 8px 20px rgb(15 23 42 / 5%);
 }
 
 .section-heading {
@@ -935,6 +942,7 @@ onMounted(() => {
 }
 
 .quick-grid,
+.management-grid,
 .lead-list,
 .meeting-list,
 .task-list,
@@ -943,43 +951,28 @@ onMounted(() => {
   gap: 10px;
 }
 
-.quick-grid {
-  grid-template-columns: 1fr;
-}
-
+.quick-grid,
 .management-grid {
-  display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.quick-action {
-  display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) 16px;
-  gap: 10px;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-  padding: 12px;
-  text-align: left;
-  cursor: pointer;
-  background: #f8fafc;
-  border: 1px solid rgba(148, 163, 184, 24%);
-  border-radius: 9px;
-}
-
+.quick-action,
 .management-action {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 16px;
-  gap: 10px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  justify-content: center;
   width: 100%;
   min-width: 0;
-  padding: 12px;
-  text-align: left;
+  min-height: 84px;
+  padding: 10px 6px;
+  text-align: center;
   cursor: pointer;
-  background: #f8fafc;
-  border: 1px solid rgba(148, 163, 184, 24%);
-  border-radius: 9px;
+  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+  border: 1px solid rgb(148 163 184 / 24%);
+  border-radius: 10px;
+  box-shadow: 0 8px 18px rgb(15 23 42 / 7%);
 }
 
 .quick-icon {
@@ -992,16 +985,9 @@ onMounted(() => {
   border-radius: 10px;
 }
 
-.management-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  font-size: 17px;
-  color: #475569;
-  background: #e2e8f0;
-  border-radius: 9px;
+.quick-action .quick-icon,
+.management-action .quick-icon {
+  margin: 0 auto;
 }
 
 .quick-action-orange .quick-icon {
@@ -1029,39 +1015,16 @@ onMounted(() => {
   background: #dcfce7;
 }
 
-.quick-content {
-  min-width: 0;
-}
-
-.management-action span:nth-child(2) {
-  min-width: 0;
-}
-
-.quick-content strong,
-.quick-content small,
-.management-action strong,
-.management-action small {
+.quick-action strong,
+.management-action strong {
   display: block;
   overflow: hidden;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 16px;
+  color: #111827;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.quick-content strong,
-.management-action strong {
-  font-size: 14px;
-  color: #111827;
-}
-
-.quick-content small,
-.management-action small {
-  margin-top: 3px;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.quick-arrow {
-  color: #94a3b8;
 }
 
 .lead-card,
@@ -1072,7 +1035,7 @@ onMounted(() => {
   padding: 13px;
   cursor: pointer;
   background: #f8fafc;
-  border: 1px solid rgba(148, 163, 184, 22%);
+  border: 1px solid rgb(148 163 184 / 22%);
   border-radius: 9px;
 }
 
@@ -1096,19 +1059,18 @@ onMounted(() => {
   font-weight: 700;
   line-height: 1.45;
   color: #111827;
-  overflow-wrap: anywhere;
   text-overflow: ellipsis;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
   white-space: normal;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .lead-meta,
 .meeting-detail,
 .task-meta,
 .opportunity-meta,
-.card-foot,
-.task-summary {
+.card-foot {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 10px;
@@ -1121,8 +1083,7 @@ onMounted(() => {
 .lead-meta span,
 .meeting-detail span,
 .task-meta span,
-.opportunity-meta span,
-.task-summary span {
+.opportunity-meta span {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1167,7 +1128,7 @@ onMounted(() => {
   justify-content: space-between;
   padding-top: 10px;
   margin-top: 10px;
-  border-top: 1px solid rgba(148, 163, 184, 22%);
+  border-top: 1px solid rgb(148 163 184 / 22%);
 }
 
 .phone-link {
@@ -1198,10 +1159,27 @@ onMounted(() => {
 }
 
 .task-summary {
-  padding: 9px 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   margin: 0 0 10px;
-  background: #eef6ff;
-  border-radius: 8px;
+}
+
+.task-summary-card :deep(.ant-card-body) {
+  padding: 9px 10px;
+}
+
+.task-summary-card :deep(.ant-statistic-title) {
+  margin-bottom: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #64748b;
+}
+
+.task-summary-card :deep(.ant-statistic-content) {
+  font-size: 20px;
+  line-height: 26px;
+  color: #111827;
 }
 
 .empty-block {
@@ -1227,7 +1205,7 @@ onMounted(() => {
 :global(.dark) .overview-card,
 :global(.dark) .section-panel {
   background: #1f2937;
-  border-color: rgba(71, 85, 105, 70%);
+  border-color: rgb(71 85 105 / 70%);
 }
 
 :global(.dark) .quick-action,
@@ -1236,11 +1214,11 @@ onMounted(() => {
 :global(.dark) .task-card,
 :global(.dark) .opportunity-card {
   background: #111827;
-  border-color: rgba(71, 85, 105, 70%);
+  border-color: rgb(71 85 105 / 70%);
 }
 
 :global(.dark) .card-title-row h3,
-:global(.dark) .overview-value,
+:global(.dark) .overview-card .ant-statistic-content,
 :global(.dark) .quick-content strong,
 :global(.dark) .info-grid strong {
   color: #f8fafc;
@@ -1250,7 +1228,7 @@ onMounted(() => {
   background: #1f2937;
 }
 
-:global(.dark) .task-summary {
-  background: rgba(14, 116, 144, 20%);
+:global(.dark) .task-summary-card .ant-statistic-content {
+  color: #f8fafc;
 }
 </style>

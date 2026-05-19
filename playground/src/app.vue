@@ -234,8 +234,8 @@ watch(
 }
 
 body.is-investment-route .ant-btn {
-  align-items: center;
   display: inline-flex;
+  align-items: center;
   justify-content: center;
   text-align: center;
 }
@@ -250,6 +250,54 @@ body.is-investment-route .ant-btn > span {
 
 body.is-investment-route .ant-btn-block > span {
   width: 100%;
+}
+
+body.is-investment-route .ant-table-wrapper .ant-table-thead > tr > th,
+body.is-investment-route .ant-table-wrapper .ant-table-tbody > tr > td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+body.is-investment-route
+  .ant-table-wrapper
+  .ant-table.ant-table-bordered
+  > .ant-table-container
+  > .ant-table-content
+  > table
+  > thead
+  > tr
+  > th,
+body.is-investment-route
+  .ant-table-wrapper
+  .ant-table.ant-table-bordered
+  > .ant-table-container
+  > .ant-table-content
+  > table
+  > tbody
+  > tr
+  > td,
+body.is-investment-route
+  .ant-table-wrapper
+  .ant-table.ant-table-bordered
+  > .ant-table-container
+  > .ant-table-body
+  > table
+  > thead
+  > tr
+  > th,
+body.is-investment-route
+  .ant-table-wrapper
+  .ant-table.ant-table-bordered
+  > .ant-table-container
+  > .ant-table-body
+  > table
+  > tbody
+  > tr
+  > td {
+  border-inline-end: 1px solid
+    var(--ant-color-border-secondary, rgb(217 217 217 / 100%)) !important;
+  border-right: 1px solid
+    var(--ant-color-border-secondary, rgb(217 217 217 / 100%)) !important;
 }
 
 body.is-investment-route .radar-search-form {

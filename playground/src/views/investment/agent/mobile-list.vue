@@ -17,19 +17,21 @@ import { useVbenModal } from '@vben/common-ui';
 import { Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
-import { MoreOutlined, PlusOutlined } from '@ant-design/icons-vue';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  EyeOutlined,
+  PlusOutlined,
+} from '@ant-design/icons-vue';
 import {
   Button,
   Card,
-  Col,
   Empty,
   Form,
   Image,
   Input,
   message,
   Pagination,
-  Popover,
-  Row,
   Select,
   Spin,
   Tag,
@@ -66,9 +68,9 @@ const selectedParkId = ref<number | undefined>(undefined);
 const parkNameMap = ref<Record<number, string>>({});
 
 const loading = ref(false);
+const filterOpen = ref(false);
 const investmentList = ref<InvestmentAgent[]>([]);
 const pagination = reactive({ current: 1, pageSize: 10, total: 0 });
-const activePopoverKey = ref<null | string>(null);
 
 const tagTypeOptions = getTagTypeOptions();
 const intentLevelOptions = tagTypeOptions.map((opt) => ({
@@ -82,9 +84,25 @@ const progressOptions = [
   { label: '签约完成', value: '签约完成' },
 ];
 
-function getTagColor(value: string) {
+function getTagColor(value?: string) {
   const option = tagTypeOptions.find((opt) => opt.value === value);
   return option ? option.color : 'default';
+}
+
+function formatValue(value?: null | number | string) {
+  const text = String(value ?? '').trim();
+  return text || '-';
+}
+
+function formatIntentArea(value?: number) {
+  if (value === undefined || value === null) {
+    return '-';
+  }
+  return `${value} ㎡`;
+}
+
+function formatMeetingTime(value?: string) {
+  return formatValue(value ? formatDateTime(value) : '');
 }
 
 const [FormModal, formModalApi] = useVbenModal({
@@ -96,12 +114,53 @@ function onEdit(row: InvestmentAgent) {
   const rowData = { ...row };
   rowData.meetingTime = String(formatDateTime(rowData.meetingTime));
   formModalApi.setData(rowData).open();
-  activePopoverKey.value = null;
 }
 
 function onAdd() {
   formModalApi.setData({}).open();
-  activePopoverKey.value = null;
+}
+
+function openAddWithPark(park?: {
+  address?: string;
+  distance?: string;
+  name: string;
+  tel?: string;
+}) {
+  const parkName = (park?.name || '').trim();
+  const payload: Partial<InvestmentAgent> = {};
+
+  if (parkName) {
+    const matchedPark = parkOptions.value.find(
+      (option) =>
+        option.label === parkName ||
+        option.label.includes(parkName) ||
+        parkName.includes(option.label),
+    );
+    if (
+      matchedPark &&
+      typeof matchedPark.value === 'number' &&
+      matchedPark.value > 0
+    ) {
+      payload.parkId = matchedPark.value;
+      payload.parkName = matchedPark.label;
+    } else {
+      payload.parkName = parkName;
+    }
+  }
+
+  const recommendRemark = [
+    parkName ? `推荐工厂：${parkName}` : '',
+    park?.address ? `地址：${park.address}` : '',
+    park?.tel ? `电话：${park.tel}` : '',
+    park?.distance ? `距离：${park.distance} 米` : '',
+  ]
+    .filter(Boolean)
+    .join('；');
+  if (recommendRemark) {
+    payload.remark = recommendRemark;
+  }
+
+  formModalApi.setData(payload).open();
 }
 
 async function onDelete(row: InvestmentAgent) {
@@ -128,7 +187,6 @@ async function onDelete(row: InvestmentAgent) {
       });
     }
   }
-  activePopoverKey.value = null;
 }
 
 function onView(row: InvestmentAgent) {
@@ -187,7 +245,6 @@ function onView(row: InvestmentAgent) {
     },
   });
   previewApp.mount(previewContainer);
-  activePopoverKey.value = null;
 }
 
 async function fetchList() {
@@ -232,15 +289,18 @@ function handlePageChange(page: number, pageSize: number) {
 
 function handleSearch() {
   pagination.current = 1;
+  filterOpen.value = false;
   fetchList();
 }
 
 function resetSearch() {
   meetingRange.value = [undefined, undefined];
+  selectedParkId.value = undefined;
   searchForm.agentName = '';
   searchForm.tenantName = '';
   searchForm.intentLevel = undefined;
   searchForm.progress = undefined;
+  filterOpen.value = false;
   pagination.current = 1;
   fetchList();
 }
@@ -332,79 +392,81 @@ function resolveParkName(id?: null | number, name?: string) {
 </script>
 
 <template>
-  <div class="box-border bg-gray-100 p-2 pb-28 dark:bg-neutral-900">
+  <div class="investment-mobile-page">
     <FormModal @success="handleSearch" />
 
-    <div class="mb-2 rounded bg-white p-3 shadow-sm dark:bg-neutral-800">
+    <div class="investment-mobile-filter">
       <Form class="investment-mobile-filter-form" layout="vertical">
-        <Row :gutter="[12, 0]">
-          <Col :span="24">
-            <Form.Item label="会谈日期">
-              <MobileDateRange v-model:value="meetingRange" />
+        <div class="investment-mobile-search-bar">
+          <Form.Item>
+            <Input
+              v-model:value="searchForm.tenantName"
+              placeholder="租户 / 中介人"
+              size="small"
+              allow-clear
+              @press-enter="handleSearch"
+            />
+          </Form.Item>
+          <Button type="primary" size="small" @click="handleSearch">
+            搜索
+          </Button>
+          <Button size="small" @click="filterOpen = !filterOpen">筛选</Button>
+        </div>
+        <div v-show="filterOpen" class="investment-mobile-filter-panel">
+          <div class="investment-mobile-filter-grid">
+            <Form.Item class="filter-date">
+              <MobileDateRange v-model:value="meetingRange" size="small" />
             </Form.Item>
-          </Col>
-          <Col :span="24">
-            <Form.Item label="区域">
+            <Form.Item>
               <Select
                 v-model:value="selectedParkId"
                 :options="parkOptions"
-                placeholder="选择区域"
+                placeholder="全部区域"
+                size="small"
                 allow-clear
                 @change="onParkChange"
               />
             </Form.Item>
-          </Col>
-          <Col :span="12">
-            <Form.Item label="中介人">
-              <Input
-                v-model:value="searchForm.agentName"
-                placeholder="请输入中介人"
-                allow-clear
-              />
-            </Form.Item>
-          </Col>
-          <Col :span="12">
-            <Form.Item label="租户名称">
-              <Input
-                v-model:value="searchForm.tenantName"
-                placeholder="请输入租户名称"
-                allow-clear
-              />
-            </Form.Item>
-          </Col>
-          <Col :span="12">
-            <Form.Item label="意向等级">
+            <Form.Item>
               <Select
                 v-model:value="searchForm.intentLevel"
                 :options="intentLevelOptions"
-                placeholder="选择等级"
+                placeholder="意向等级"
+                size="small"
                 allow-clear
               />
             </Form.Item>
-          </Col>
-          <Col :span="12">
-            <Form.Item label="跟进进度">
+            <Form.Item>
+              <Input
+                v-model:value="searchForm.agentName"
+                placeholder="中介人"
+                size="small"
+                allow-clear
+              />
+            </Form.Item>
+            <Form.Item>
               <Select
                 v-model:value="searchForm.progress"
                 :options="progressOptions"
-                placeholder="选择进度"
+                placeholder="跟进进度"
+                size="small"
                 allow-clear
               />
             </Form.Item>
-          </Col>
-        </Row>
-        <div class="mt-2 flex gap-2">
-          <Button type="primary" @click="handleSearch" class="flex-1">
-            <Search class="mr-1 h-4 w-4" />
-            {{ $t('搜索') }}
-          </Button>
-          <Button @click="resetSearch" class="flex-1">{{ $t('重置') }}</Button>
+          </div>
+          <div class="investment-mobile-filter-actions">
+            <Button type="primary" size="small" @click="handleSearch">
+              <Search class="mr-1 h-4 w-4" />
+              {{ $t('应用筛选') }}
+            </Button>
+            <Button size="small" @click="resetSearch">{{ $t('重置') }}</Button>
+          </div>
         </div>
       </Form>
     </div>
 
     <Spin :spinning="loading" :tip="$t('加载中...')">
-      <div v-if="investmentList.length > 0" class="pb-3">
+      <div v-if="investmentList.length > 0" class="investment-mobile-list">
         <Card
           v-for="item in investmentList"
           :key="
@@ -412,118 +474,81 @@ function resolveParkName(id?: null | number, name?: string) {
             String(item.meetingTime) +
             String(item.updateTime)
           "
-          class="mb-3 overflow-hidden rounded-lg bg-white text-sm shadow-sm dark:bg-neutral-800"
+          class="investment-mobile-card"
           :body-style="{ padding: '0' }"
         >
-          <div
-            class="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-neutral-700"
-          >
-            <span
-              class="mr-2 break-words text-base font-semibold text-gray-800 dark:text-gray-100"
-            >
-              {{ item.agentName || item.tenantName }}
-            </span>
-            <div>
-              <Tag :color="getTagColor(item.intentLevel)">
-                {{ item.intentLevel }}
-              </Tag>
-              <Popover
-                title="操作"
-                trigger="click"
-                placement="leftTop"
-                :open="activePopoverKey === String(item.investmentId)"
-                @open-change="
-                  (open: boolean) =>
-                    (activePopoverKey = open ? String(item.investmentId) : null)
-                "
+          <div class="investment-card-head">
+            <div class="investment-card-title-wrap">
+              <div
+                class="investment-card-title"
+                :title="formatValue(item.tenantName || item.agentName)"
               >
-                <template #content>
-                  <div class="flex flex-col gap-1">
-                    <Button type="link" size="small" @click="onView(item)">
-                      {{ $t('ui.action.view') }}
-                    </Button>
-                    <Button type="link" size="small" @click="onEdit(item)">
-                      {{ $t('ui.action.edit') }}
-                    </Button>
-                    <Button
-                      type="link"
-                      size="small"
-                      danger
-                      @click="onDelete(item)"
-                    >
-                      {{ $t('ui.action.delete') }}
-                    </Button>
-                  </div>
-                </template>
-                <Button type="text" size="small" class="ml-2">
-                  <MoreOutlined />
-                </Button>
-              </Popover>
-            </div>
-          </div>
-          <div class="p-4">
-            <div class="mt-3 grid grid-cols-2 gap-3">
-              <div class="flex flex-col">
-                <span class="text-[13px] text-gray-500 dark:text-gray-400">
-                  租户名称
-                </span>
-                <span class="text-sm text-gray-800 dark:text-gray-100">
-                  {{ item.tenantName }}
-                </span>
-              </div>
-              <div class="flex flex-col">
-                <span class="text-[13px] text-gray-500 dark:text-gray-400">
-                  意向面积
-                </span>
-                <span class="text-sm text-gray-800 dark:text-gray-100">
-                  {{ item.intentArea }} ㎡
-                </span>
-              </div>
-              <div class="flex flex-col">
-                <span class="text-[13px] text-gray-500 dark:text-gray-400">
-                  进展阶段
-                </span>
-                <span class="text-sm text-gray-800 dark:text-gray-100">
-                  {{ item.progress }}
-                </span>
-              </div>
-              <div class="flex flex-col">
-                <span class="text-[13px] text-gray-500 dark:text-gray-400">
-                  联系电话
-                </span>
-                <span class="text-sm text-gray-800 dark:text-gray-100">
-                  {{ item.phoneNumber }}
-                </span>
-              </div>
-              <div class="flex flex-col">
-                <span class="text-[13px] text-gray-500 dark:text-gray-400">
-                  会谈时间
-                </span>
-                <span class="text-sm text-gray-800 dark:text-gray-100">
-                  {{ formatDateTime(item.meetingTime) }}
-                </span>
+                {{ formatValue(item.tenantName || item.agentName) }}
               </div>
               <div
-                v-if="resolveParkName(item.parkId, item.parkName)"
-                class="flex flex-col"
+                class="investment-card-subtitle"
+                :title="`中介人：${formatValue(item.agentName)}`"
               >
-                <span class="text-[13px] text-gray-500 dark:text-gray-400">
-                  所在园区
-                </span>
-                <span class="text-sm text-gray-800 dark:text-gray-100">
-                  {{ resolveParkName(item.parkId, item.parkName) }}
-                </span>
+                中介人：{{ formatValue(item.agentName) }}
               </div>
             </div>
+            <Tag
+              class="investment-card-level"
+              :color="getTagColor(item.intentLevel)"
+            >
+              {{ formatValue(item.intentLevel) }}
+            </Tag>
+          </div>
+
+          <div class="investment-card-tags">
+            <Tag color="blue">{{ formatValue(item.progress) }}</Tag>
+            <span :title="resolveParkName(item.parkId, item.parkName) || '-'">
+              园区：{{ resolveParkName(item.parkId, item.parkName) || '-' }}
+            </span>
+          </div>
+
+          <div class="investment-card-body">
+            <div class="investment-card-meta investment-card-meta-primary">
+              <div class="meta-area">
+                <span>意向面积</span>
+                <strong>{{ formatIntentArea(item.intentArea) }}</strong>
+              </div>
+              <div class="meta-phone">
+                <span>联系电话</span>
+                <strong>{{ formatValue(item.phoneNumber) }}</strong>
+              </div>
+              <div class="meta-time">
+                <span>会谈时间</span>
+                <strong>{{ formatMeetingTime(item.meetingTime) }}</strong>
+              </div>
+              <div class="meta-tenant">
+                <span>租户名称</span>
+                <strong>{{ formatValue(item.tenantName) }}</strong>
+              </div>
+            </div>
+
             <p
               v-if="item.remark"
-              class="mt-3 rounded bg-gray-50 p-3 text-[13px] leading-relaxed text-gray-600 dark:bg-neutral-900/60 dark:text-gray-300"
+              class="investment-card-remark"
+              :title="item.remark"
             >
-              <span class="mr-1 font-semibold">备注：</span>
-              <span class="whitespace-pre-wrap break-all">{{
-                item.remark
-              }}</span>
+              备注：{{ item.remark }}
             </p>
+          </div>
+
+          <div class="investment-card-actions">
+            <Button size="small" @click="onView(item)">
+              <EyeOutlined />
+              {{ $t('ui.action.view') }}
+            </Button>
+            <Button size="small" @click="onEdit(item)">
+              <EditOutlined />
+              {{ $t('ui.action.edit') }}
+            </Button>
+            <Button size="small" danger @click="onDelete(item)">
+              <DeleteOutlined />
+              {{ $t('ui.action.delete') }}
+            </Button>
           </div>
         </Card>
         <Pagination
@@ -533,7 +558,7 @@ function resolveParkName(id?: null | number, name?: string) {
           :total="pagination.total"
           @change="handlePageChange"
           size="small"
-          class="mt-3 pb-3 text-center"
+          class="investment-mobile-pagination"
         />
       </div>
       <Empty v-else :description="loading ? $t('加载中...') : $t('暂无数据')" />
@@ -542,7 +567,7 @@ function resolveParkName(id?: null | number, name?: string) {
     <Teleport to="body">
       <div
         v-if="showFloatingActions"
-        class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom)+3.25rem)] right-4 z-[1000] flex flex-col gap-3"
+        class="investment-mobile-floating-actions"
       >
         <Button
           type="primary"
@@ -553,24 +578,312 @@ function resolveParkName(id?: null | number, name?: string) {
         >
           <PlusOutlined class="text-xl" />
         </Button>
-        <RecommendFab />
+        <RecommendFab @select="openAddWithPark" />
       </div>
     </Teleport>
   </div>
 </template>
 
 <style scoped>
+.investment-mobile-page {
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 8px 8px calc(136px + env(safe-area-inset-bottom));
+  background: #f0f2f5;
+}
+
+.dark .investment-mobile-page {
+  background: #1a1a1a;
+}
+
+.investment-mobile-filter {
+  padding: 8px;
+  margin-bottom: 8px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+}
+
+.dark .investment-mobile-filter,
+.dark .investment-mobile-card {
+  background: #2d2d2d;
+}
+
 .investment-mobile-filter-form {
   overflow-x: hidden;
 }
 
+.investment-mobile-search-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px 58px;
+  gap: 6px;
+  align-items: center;
+}
+
+.investment-mobile-search-bar :deep(.ant-form-item) {
+  margin-bottom: 0;
+}
+
+.investment-mobile-filter-panel {
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--ant-color-border-secondary);
+}
+
+.investment-mobile-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.investment-mobile-filter-grid .filter-date,
+.investment-mobile-filter-grid .filter-wide {
+  grid-column: 1 / -1;
+}
+
 .investment-mobile-filter-form :deep(.ant-form-item) {
   min-width: 0;
+  margin-bottom: 0;
+}
+
+.investment-mobile-filter-form :deep(.ant-form-item-label) {
+  display: none;
+}
+
+.investment-mobile-filter-form :deep(.ant-form-item-control-input) {
+  min-height: 28px;
 }
 
 .investment-mobile-filter-form :deep(.ant-picker),
 .investment-mobile-filter-form :deep(.ant-select),
 .investment-mobile-filter-form :deep(.ant-input-affix-wrapper) {
+  width: 100%;
   max-width: 100%;
+}
+
+.investment-mobile-filter-form :deep(.mobile-date-range) {
+  gap: 6px;
+}
+
+.investment-mobile-filter-form :deep(.range-separator) {
+  font-size: 12px;
+}
+
+.investment-mobile-filter-form :deep(.ant-select-selection-placeholder),
+.investment-mobile-filter-form :deep(.ant-input::placeholder) {
+  font-size: 12px;
+}
+
+.investment-mobile-filter-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.investment-mobile-filter-actions :deep(.ant-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 28px;
+}
+
+.investment-mobile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.investment-mobile-card {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 6%);
+}
+
+.investment-mobile-card :deep(.ant-card-body) {
+  padding: 11px 12px 10px !important;
+}
+
+.investment-card-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.investment-card-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.investment-card-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+  color: var(--ant-color-text);
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+}
+
+.investment-card-subtitle {
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.investment-card-level {
+  flex-shrink: 0;
+  max-width: 88px;
+  margin-inline-end: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.investment-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
+  padding-bottom: 8px;
+  margin-top: 7px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--ant-color-text-secondary);
+  border-bottom: 1px solid var(--ant-color-border-secondary);
+}
+
+.investment-card-tags > span {
+  flex: 1 1 120px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.investment-card-body {
+  margin-top: 9px;
+}
+
+.investment-card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 10px;
+}
+
+.investment-card-meta > div {
+  min-width: 0;
+  padding: 7px 8px;
+  background: var(--ant-color-fill-quaternary);
+  border-radius: 6px;
+}
+
+.investment-card-meta span {
+  display: block;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ant-color-text-secondary);
+}
+
+.investment-card-meta strong {
+  display: block;
+  min-height: 19px;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 19px;
+  color: var(--ant-color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.investment-card-meta .meta-time {
+  grid-column: 1 / -1;
+}
+
+.investment-card-meta .meta-time strong {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.investment-card-remark {
+  display: -webkit-box;
+  padding: 7px 8px;
+  margin: 8px 0 0;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  background: var(--ant-color-fill-quaternary);
+  border-radius: 6px;
+  -webkit-box-orient: vertical;
+}
+
+.investment-card-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding-top: 9px;
+  margin-top: 10px;
+  border-top: 1px solid var(--ant-color-border-secondary);
+}
+
+.investment-card-actions :deep(.ant-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 32px;
+  padding-inline: 4px;
+}
+
+.investment-card-actions :deep(.ant-btn > span:not(.anticon)) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.investment-mobile-pagination {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.investment-mobile-floating-actions {
+  position: fixed;
+  right: max(10px, env(safe-area-inset-right));
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 1000;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.investment-mobile-floating-actions :deep(.ant-btn) {
+  flex: 0 0 auto;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+}
+
+@media (width <= 360px) {
+  .investment-card-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .investment-card-actions :deep(.ant-btn) {
+    font-size: 12px;
+  }
 }
 </style>

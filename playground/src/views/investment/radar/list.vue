@@ -546,7 +546,7 @@ async function syncRadarLeads() {
     const result = await runRadarCollect();
     collectTask.value = result.task;
     message.success({
-      content: `采集任务已创建：${result.taskId}`,
+      content: '采集任务已创建',
       key: 'radar_sync',
     });
     scheduleCollectTaskPolling(result.taskId);
@@ -871,8 +871,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
     schema: useGridFormSchema(),
   },
   gridOptions: {
+    align: 'center',
     border: true,
     columns: useColumns(onActionClick),
+    headerAlign: 'center',
     height: 'auto',
     keepSource: true,
     proxyConfig: {
@@ -996,7 +998,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
               >
                 <div class="radar-mobile-card-head">
                   <div class="radar-mobile-card-title">
-                    {{ item.enterpriseName || `线索 #${item.leadId}` }}
+                    {{ item.enterpriseName || '雷达线索' }}
                   </div>
                   <Tag :color="getPriorityColor(item.priorityLevel)">
                     {{ item.priorityLevel || '-' }} 级
@@ -1107,7 +1109,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
               >
                 <div class="radar-mobile-card-head">
                   <div class="radar-mobile-card-title">
-                    {{ item.title || `机会 #${item.opportunityId}` }}
+                    {{ item.title || '公开机会' }}
                   </div>
                   <Tag
                     :color="getOpportunityTypeMeta(item.opportunityType).color"
@@ -1245,11 +1247,11 @@ const [Grid, gridApi] = useVbenVxeGrid({
       </Tabs.TabPane>
 
       <Tabs.TabPane key="publicDemands" tab="公开需求采集">
-        <component :is="PublicDemandsComponent" />
+        <component :is="PublicDemandsComponent" embedded />
       </Tabs.TabPane>
 
       <Tabs.TabPane key="factoryListings" tab="公开房源采集">
-        <component :is="FactoryListingsComponent" />
+        <component :is="FactoryListingsComponent" embedded />
       </Tabs.TabPane>
 
       <Tabs.TabPane key="publicOpportunities" tab="公开有效机会">
@@ -1314,8 +1316,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
             </Form>
           </Card>
 
-          <Card title="最新公开机会列表">
+          <Card class="public-opportunity-table-card" title="最新公开机会列表">
             <Table
+              bordered
               :columns="publicOpportunityColumns"
               :data-source="publicOpportunityItems"
               :loading="publicOpportunityLoading"
@@ -1349,6 +1352,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       </div>
       <Table
         v-if="importFailItems.length > 0"
+        bordered
         class="mt-4"
         :columns="importFailColumns"
         :data-source="importFailItems"
@@ -1387,7 +1391,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
 <style lang="less" scoped>
 :deep(.radar-page-content) {
   min-height: 0;
-  overflow-y: hidden !important;
+  overflow: hidden !important;
 }
 
 .radar-tabs {
@@ -1395,6 +1399,12 @@ const [Grid, gridApi] = useVbenVxeGrid({
   height: 100%;
   min-height: 0;
   flex-direction: column;
+  overflow: hidden;
+}
+
+:deep(.radar-tabs > .ant-tabs-nav) {
+  flex: none;
+  margin-bottom: 12px;
 }
 
 :deep(.radar-tabs .ant-tabs-content-holder) {
@@ -1420,36 +1430,72 @@ const [Grid, gridApi] = useVbenVxeGrid({
   height: 100%;
   min-height: 0;
   flex-direction: column;
-  overflow: hidden;
+  gap: 12px;
 }
 
-.radar-leads-grid {
-  flex: 1;
-  min-height: 0;
+.radar-leads-pane {
+  overflow: hidden;
 }
 
 .radar-public-pane {
   overflow: auto;
 }
 
+.radar-tabs :deep(.external-leads-pane),
+.radar-tabs :deep(.signal-events-pane),
+.radar-tabs :deep(.enterprise-profiles-pane),
+.radar-tabs :deep(.score-rules-pane),
+.radar-tabs :deep(.crawler-sources-pane),
+.radar-tabs :deep(.crawler-tasks-pane),
+.radar-tabs :deep(.public-demands-route.is-embedded),
+.radar-tabs :deep(.factory-listings-route.is-embedded) {
+  height: 100%;
+  min-height: 0;
+  overflow: auto !important;
+}
+
+.radar-leads-grid {
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .public-opportunity-panel {
   flex: none;
 }
 
+.public-opportunity-table-card :deep(.ant-pagination) {
+  margin: 12px 0 0;
+}
+
 .public-opportunity-title {
   font-weight: 500;
+  text-align: center;
 }
 
 .public-opportunity-source {
   max-width: 280px;
+  margin: 0 auto;
   overflow: hidden;
   color: var(--ant-color-text-description);
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .radar-search-form {
-  row-gap: 12px;
+  align-items: center;
+  row-gap: 8px;
+}
+
+.radar-search-form :deep(.ant-form-item) {
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.radar-search-form :deep(.ant-form-item-control-input) {
+  min-height: 32px;
 }
 
 .radar-filter-control {
@@ -1464,31 +1510,70 @@ const [Grid, gridApi] = useVbenVxeGrid({
 }
 
 .radar-search-form :deep(.ant-input),
+.radar-search-form :deep(.ant-input-affix-wrapper),
 .radar-search-form :deep(.ant-select-selection-item),
 .radar-search-form :deep(.ant-select-selection-placeholder) {
   font-size: 14px;
 }
 
 .radar-search-form :deep(.ant-input),
+.radar-search-form :deep(.ant-input-affix-wrapper),
+.radar-search-form :deep(.ant-select-single),
+.radar-search-form :deep(.ant-select-single .ant-select-selector),
+.radar-search-form :deep(.ant-select-single .ant-select-selection-search-input),
+.radar-search-form :deep(.ant-btn) {
+  height: 32px;
+}
+
+.radar-search-form :deep(.ant-input),
+.radar-search-form :deep(.ant-input-affix-wrapper),
+.radar-search-form :deep(.ant-select-single .ant-select-selector),
+.radar-search-form :deep(.ant-btn) {
+  line-height: 30px;
+}
+
+.radar-search-form :deep(.ant-input-affix-wrapper) {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  padding-block: 0;
+}
+
+.radar-search-form :deep(.ant-input-affix-wrapper > input.ant-input) {
+  height: 30px;
+  line-height: 30px;
+}
+
 .radar-search-form :deep(.ant-select-single .ant-select-selector) {
-  min-height: 34px;
+  align-items: center;
+  display: flex;
+}
+
+.radar-search-form :deep(.ant-select-single .ant-select-selection-item),
+.radar-search-form :deep(.ant-select-single .ant-select-selection-placeholder) {
+  line-height: 30px;
 }
 
 .radar-search-form :deep(.ant-form-item-label > label) {
   color: var(--ant-color-text);
   font-size: 14px;
+  min-height: 32px;
 }
 
 :deep(.ant-table-thead > tr > th) {
   color: var(--ant-color-text);
   font-size: 14px;
   font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
 }
 
 :deep(.ant-table-tbody > tr > td) {
   color: var(--ant-color-text);
   font-size: 14px;
   line-height: 22px;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .radar-mobile-page {

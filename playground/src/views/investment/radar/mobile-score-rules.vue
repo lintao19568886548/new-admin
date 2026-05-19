@@ -4,7 +4,7 @@ import type {
   LeadScoreRuleUpdatePayload,
 } from '#/api/investment';
 
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import {
   EditOutlined,
@@ -40,6 +40,7 @@ defineOptions({ name: 'InvestmentRadarMobileScoreRules' });
 const loading = ref(false);
 const saving = ref(false);
 const recalculating = ref(false);
+const togglingRuleId = ref<null | number>(null);
 const editOpen = ref(false);
 const items = ref<LeadScoreRule[]>([]);
 const currentRule = ref<LeadScoreRule | null>(null);
@@ -56,8 +57,44 @@ const editForm = ref({
 
 const scoreKeywordPlaceholder = '["扩建","新增产线"]';
 
+const eventTypeLabel: Record<string, string> = {
+  EVENT_EA_EXPAND: '环评扩产信号',
+  FACTORY_RENT_DEMAND: '租厂需求信号',
+  KEYWORD_EXPAND: '关键词：扩建',
+  KEYWORD_NEW_LINE: '关键词：新增产线',
+  KEYWORD_RECRUITMENT: '关键词：招聘',
+  KEYWORD_RELOCATION: '关键词：搬迁',
+  KEYWORD_WAREHOUSE: '关键词：仓储',
+  NEWS_EXPAND: '新闻扩产信号',
+  PUBLIC_FACTORY_DEMAND: '公开厂房需求信号',
+  RECRUITMENT_EXPAND: '招聘扩产信号',
+  RELOCATION: '搬迁信号',
+  UNKNOWN: '未知信号',
+};
+
+const enabledRuleCount = computed(
+  () => items.value.filter((item) => item.enabled).length,
+);
+
+const disabledRuleCount = computed(
+  () => items.value.length - enabledRuleCount.value,
+);
+
+const enabledScoreDeltaTotal = computed(() =>
+  items.value
+    .filter((item) => item.enabled)
+    .reduce((sum, item) => sum + item.scoreDelta, 0),
+);
+
 function formatKeywordJson(value: string[]) {
   return value.length > 0 ? JSON.stringify(value, null, 2) : '';
+}
+
+function formatEventType(eventType?: null | string) {
+  if (!eventType) {
+    return '-';
+  }
+  return eventTypeLabel[eventType] || eventType;
 }
 
 function parseKeywordJson(value: string) {
@@ -139,6 +176,26 @@ async function saveRule() {
   }
 }
 
+async function toggleRule(rule: LeadScoreRule) {
+  if (togglingRuleId.value !== null) {
+    return;
+  }
+
+  togglingRuleId.value = rule.ruleId;
+  try {
+    await updateLeadScoreRule(rule.ruleId, {
+      enabled: !rule.enabled,
+    });
+    message.success(rule.enabled ? '评分规则已停用' : '评分规则已启用');
+    await loadRules();
+  } catch (error) {
+    console.error('更新评分规则状态失败:', error);
+    message.error('评分规则状态更新失败');
+  } finally {
+    togglingRuleId.value = null;
+  }
+}
+
 async function recalculateDemoScores() {
   if (recalculating.value) {
     return;
@@ -167,6 +224,10 @@ onMounted(() => {
 <template>
   <div class="radar-mobile-page">
     <div class="radar-mobile-header">
+      <div>
+        <h2>评分规则</h2>
+        <p>维护信号评分规则并重算 demo 潜客分数。</p>
+      </div>
       <Button type="primary" :loading="loading" @click="loadRules">
         <ReloadOutlined class="mr-1 h-4 w-4" />
         刷新
@@ -175,10 +236,30 @@ onMounted(() => {
 
     <Alert
       v-if="recalculateSummary"
-      message="最近重算：候选 {{ recalculateSummary.totalLeadCount }}，完成 {{ recalculateSummary.recalculatedCount }}"
+      class="radar-mobile-alert"
+      :message="`最近重算：候选 ${recalculateSummary.totalLeadCount}，完成 ${recalculateSummary.recalculatedCount}`"
       show-icon
       type="info"
     />
+
+    <div class="radar-mobile-overview">
+      <div class="overview-item">
+        <span>规则总数</span>
+        <strong>{{ items.length }}</strong>
+      </div>
+      <div class="overview-item">
+        <span>启用</span>
+        <strong>{{ enabledRuleCount }}</strong>
+      </div>
+      <div class="overview-item">
+        <span>停用</span>
+        <strong>{{ disabledRuleCount }}</strong>
+      </div>
+      <div class="overview-item">
+        <span>启用分值</span>
+        <strong>{{ enabledScoreDeltaTotal }}</strong>
+      </div>
+    </div>
 
     <div class="radar-mobile-actions">
       <Button
@@ -211,7 +292,9 @@ onMounted(() => {
           <div class="radar-card-meta">
             <div class="meta-row">
               <span class="meta-label">事件类型</span>
-              <span class="meta-value">{{ item.eventType || '-' }}</span>
+              <span class="meta-value">{{
+                formatEventType(item.eventType)
+              }}</span>
             </div>
             <div class="meta-row">
               <span class="meta-label">分值</span>
@@ -260,7 +343,8 @@ onMounted(() => {
               class="radar-action-btn"
               :danger="item.enabled"
               :type="item.enabled ? 'default' : 'primary'"
-              @click="openEdit(item)"
+              :loading="togglingRuleId === item.ruleId"
+              @click="toggleRule(item)"
             >
               <PoweroffOutlined class="mr-1 h-4 w-4" />
               {{ item.enabled ? '停用' : '启用' }}
@@ -359,13 +443,54 @@ onMounted(() => {
 }
 
 .radar-mobile-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 8px;
 }
 
-.radar-mobile-actions Button {
-  flex: 1;
+.radar-mobile-alert {
+  margin-bottom: 8px;
+}
+
+.radar-mobile-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.overview-item {
+  min-width: 0;
+  padding: 9px 8px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+}
+
+.dark .overview-item {
+  background: #2d2d2d;
+}
+
+.overview-item span {
+  display: block;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-item strong {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 17px;
+  line-height: 24px;
+  color: var(--ant-color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .radar-mobile-list {
@@ -394,6 +519,11 @@ onMounted(() => {
   gap: 8px;
   align-items: flex-start;
   justify-content: space-between;
+  min-width: 0;
+}
+
+.radar-card-head > div:first-child {
+  min-width: 0;
 }
 
 .radar-card-title {
@@ -401,13 +531,17 @@ onMounted(() => {
   font-weight: 700;
   line-height: 23px;
   color: var(--ant-color-text);
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .radar-card-subtitle {
+  margin-top: 2px;
   font-size: 12px;
   line-height: 18px;
   color: var(--ant-color-text-secondary);
-  margin-top: 2px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .radar-card-meta {
@@ -417,6 +551,7 @@ onMounted(() => {
 .meta-row {
   display: flex;
   gap: 8px;
+  min-width: 0;
   margin-bottom: 6px;
 }
 
@@ -425,45 +560,72 @@ onMounted(() => {
 }
 
 .meta-label {
+  flex-shrink: 0;
+  min-width: 70px;
   font-size: 12px;
   line-height: 18px;
   color: var(--ant-color-text-secondary);
-  min-width: 70px;
-  flex-shrink: 0;
 }
 
 .meta-value {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   line-height: 20px;
   color: var(--ant-color-text);
-  flex: 1;
   word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.meta-value :deep(.ant-tag) {
+  max-width: 100%;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
 }
 
 .radar-card-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 12px;
   padding-top: 10px;
+  margin-top: 12px;
   border-top: 1px solid var(--ant-color-border);
 }
 
 .radar-action-btn {
-  flex: 1;
   justify-content: center;
+  min-width: 0;
+  height: auto;
+  min-height: 32px;
+  white-space: normal;
+}
+
+.radar-action-btn :deep(span) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .radar-drawer-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-top: 16px;
 }
 
-.radar-drawer-actions Button {
-  flex: 1;
+.radar-drawer-actions button {
+  width: 100%;
 }
 
 .radar-mobile-empty {
   padding: 32px 0;
+}
+
+@media (max-width: 420px) {
+  .radar-mobile-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

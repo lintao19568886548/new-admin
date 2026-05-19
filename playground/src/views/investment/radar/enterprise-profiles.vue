@@ -93,14 +93,23 @@ function formatRegion(record: EnterpriseProfile) {
   );
 }
 
-function renderEventType(eventType?: null | string) {
+function getEventTypeMeta(eventType?: null | string) {
   if (!eventType) {
+    return null;
+  }
+  return (
+    eventTypeMeta[eventType] || {
+      color: 'default',
+      label: eventType,
+    }
+  );
+}
+
+function renderEventType(eventType?: null | string) {
+  const meta = getEventTypeMeta(eventType);
+  if (!meta) {
     return '-';
   }
-  const meta = eventTypeMeta[eventType] || {
-    color: 'default',
-    label: eventType,
-  };
   return h(Tag, { color: meta.color }, () => meta.label);
 }
 
@@ -400,6 +409,7 @@ onMounted(() => {
 
     <Card class="profile-table-card" title="企业画像">
       <Table
+        bordered
         :columns="columns"
         :data-source="items"
         :loading="loading"
@@ -434,7 +444,16 @@ onMounted(() => {
             {{ currentProfile.signalCount }}
           </Descriptions.Item>
           <Descriptions.Item label="最新意图">
-            <component :is="renderEventType(currentProfile.latestIntentType)" />
+            <template v-if="getEventTypeMeta(currentProfile.latestIntentType)">
+              <Tag
+                :color="
+                  getEventTypeMeta(currentProfile.latestIntentType)?.color
+                "
+              >
+                {{ getEventTypeMeta(currentProfile.latestIntentType)?.label }}
+              </Tag>
+            </template>
+            <template v-else>-</template>
           </Descriptions.Item>
           <Descriptions.Item label="统一社会信用代码">
             {{ currentProfile.unifiedSocialCreditCode || '-' }}
@@ -452,6 +471,7 @@ onMounted(() => {
 
         <Card class="mt-4" title="企业标签">
           <Table
+            bordered
             :columns="tagColumns"
             :data-source="tagItems"
             :pagination="false"
@@ -462,6 +482,7 @@ onMounted(() => {
 
         <Card class="mt-4" title="关联信号">
           <Table
+            bordered
             :columns="signalColumns"
             :data-source="signalItems"
             :pagination="false"
@@ -471,6 +492,9 @@ onMounted(() => {
           />
         </Card>
       </template>
+      <div v-else class="text-text-secondary py-8 text-center">
+        暂无详情数据
+      </div>
     </Drawer>
   </div>
 </template>
@@ -485,8 +509,7 @@ onMounted(() => {
 }
 
 .profile-table-card {
-  min-height: 0;
-  flex: 1;
+  flex: none;
 }
 
 .profile-company-cell {
@@ -494,7 +517,17 @@ onMounted(() => {
 }
 
 .radar-search-form {
-  row-gap: 12px;
+  align-items: center;
+  row-gap: 8px;
+}
+
+.radar-search-form :deep(.ant-form-item) {
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.radar-search-form :deep(.ant-form-item-control-input) {
+  min-height: 32px;
 }
 
 .radar-filter-control {
@@ -509,30 +542,69 @@ onMounted(() => {
 }
 
 .radar-search-form :deep(.ant-input),
+.radar-search-form :deep(.ant-input-affix-wrapper),
 .radar-search-form :deep(.ant-select-selection-item),
 .radar-search-form :deep(.ant-select-selection-placeholder) {
   font-size: 14px;
 }
 
 .radar-search-form :deep(.ant-input),
+.radar-search-form :deep(.ant-input-affix-wrapper),
+.radar-search-form :deep(.ant-select-single),
+.radar-search-form :deep(.ant-select-single .ant-select-selector),
+.radar-search-form :deep(.ant-select-single .ant-select-selection-search-input),
+.radar-search-form :deep(.ant-btn) {
+  height: 32px;
+}
+
+.radar-search-form :deep(.ant-input),
+.radar-search-form :deep(.ant-input-affix-wrapper),
+.radar-search-form :deep(.ant-select-single .ant-select-selector),
+.radar-search-form :deep(.ant-btn) {
+  line-height: 30px;
+}
+
+.radar-search-form :deep(.ant-input-affix-wrapper) {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  padding-block: 0;
+}
+
+.radar-search-form :deep(.ant-input-affix-wrapper > input.ant-input) {
+  height: 30px;
+  line-height: 30px;
+}
+
 .radar-search-form :deep(.ant-select-single .ant-select-selector) {
-  min-height: 34px;
+  align-items: center;
+  display: flex;
+}
+
+.radar-search-form :deep(.ant-select-single .ant-select-selection-item),
+.radar-search-form :deep(.ant-select-single .ant-select-selection-placeholder) {
+  line-height: 30px;
 }
 
 .radar-search-form :deep(.ant-form-item-label > label) {
   color: var(--ant-color-text);
   font-size: 14px;
+  min-height: 32px;
 }
 
 :deep(.ant-table-thead > tr > th) {
   color: var(--ant-color-text);
   font-size: 14px;
   font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
 }
 
 :deep(.ant-table-tbody > tr > td) {
   color: var(--ant-color-text);
   font-size: 14px;
   line-height: 22px;
+  text-align: center;
+  vertical-align: middle;
 }
 </style>

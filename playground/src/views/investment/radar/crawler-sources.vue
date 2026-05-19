@@ -249,7 +249,7 @@ async function runDemoTask() {
   try {
     const task = await runCrawlerTask();
     rememberRunResult(task);
-    message.success(`demo task 已结束：#${task.taskId} / ${task.status}`);
+    message.success(`demo task 已结束：${task.status}`);
     await loadSources();
   } catch (error) {
     console.error('run demo crawler task failed:', error);
@@ -267,7 +267,7 @@ async function runInternalContractTask() {
   try {
     const task = await runInternalContractExpiryTask();
     rememberRunResult(task);
-    message.success(`内部合同到期任务已结束：#${task.taskId} / ${task.status}`);
+    message.success(`内部合同到期任务已结束：${task.status}`);
     await loadSources();
   } catch (error) {
     console.error('run internal contract expiry task failed:', error);
@@ -316,7 +316,7 @@ async function runPublicOpportunityPilot(
       sourceCode,
     });
     rememberRunResult(task);
-    message.success(`99cfw 试点采集已结束：#${task.taskId} / ${task.status}`);
+    message.success(`99cfw 试点采集已结束：${task.status}`);
     await loadSources();
   } catch (error) {
     console.error('run public opportunity crawler task failed:', error);
@@ -326,9 +326,23 @@ async function runPublicOpportunityPilot(
   }
 }
 
+const sourceTypeLabel: Record<string, string> = {
+  BA_NOTICE: '企业公告',
+  BUSINESS_CHANGE: '工商变更',
+  DEMO: '演示数据',
+  EXTERNAL_LEAD: '外部线索',
+  INTERNAL_CONTRACT: '内部合同',
+  MAP_POLAR: '地图POI',
+  PUBLIC_FACTORY_LISTING: '公开厂房',
+  PUBLIC_OPPORTUNITY: '公开机会',
+  PUBLIC_RECRUITMENT: '招聘信息',
+  PUBLIC_TENDER: '招投标',
+};
+
 function renderSourceType(record: CrawlerSource) {
   const color = record.sourceType === 'DEMO' ? 'blue' : 'purple';
-  return h(Tag, { color }, () => record.sourceType);
+  const label = sourceTypeLabel[record.sourceType] || record.sourceType;
+  return h(Tag, { color }, () => label);
 }
 
 function renderAdapterStatus(record: CrawlerSource) {
@@ -343,27 +357,27 @@ const columns: TableColumnsType<CrawlerSource> = [
   {
     dataIndex: 'sourceCode',
     key: 'sourceCode',
-    title: 'sourceCode',
+    title: '数据源编码',
     width: 220,
   },
   {
     dataIndex: 'sourceName',
     key: 'sourceName',
-    title: 'sourceName',
+    title: '数据源名称',
     width: 220,
   },
   {
     customRender: ({ record }) => renderSourceType(record),
     dataIndex: 'sourceType',
     key: 'sourceType',
-    title: 'sourceType',
+    title: '数据源类型',
     width: 150,
   },
   {
     customRender: ({ record }) => renderAdapterStatus(record),
     dataIndex: 'adapterStatus',
     key: 'adapterStatus',
-    title: 'adapter',
+    title: '适配器',
     width: 120,
   },
   {
@@ -373,44 +387,44 @@ const columns: TableColumnsType<CrawlerSource> = [
       ),
     dataIndex: 'enabled',
     key: 'enabled',
-    title: 'enabled',
+    title: '状态',
     width: 90,
   },
   {
     dataIndex: 'baseUrl',
     key: 'baseUrl',
-    title: 'baseUrl',
+    title: '基础URL',
     width: 220,
   },
   {
     customRender: ({ record }) => record.robotsUrl || '-',
     dataIndex: 'robotsUrl',
     key: 'robotsUrl',
-    title: 'robotsUrl',
+    title: 'Robots地址',
     width: 240,
   },
   {
     dataIndex: 'crawlIntervalMinutes',
     key: 'crawlIntervalMinutes',
-    title: 'crawlIntervalMinutes',
+    title: '采集间隔(分钟)',
     width: 170,
   },
   {
     dataIndex: 'rateLimitPerMinute',
     key: 'rateLimitPerMinute',
-    title: 'rateLimitPerMinute',
+    title: '限流(次/分)',
     width: 160,
   },
   {
     customRender: ({ record }) => formatOptionalTime(record.lastCrawledAt),
     dataIndex: 'lastCrawledAt',
     key: 'lastCrawledAt',
-    title: 'lastCrawledAt',
+    title: '最后采集时间',
     width: 170,
   },
   {
     customRender: ({ record }) =>
-      h(Space, { size: 4 }, () => [
+      h('div', { class: 'crawler-source-actions' }, [
         h(
           Button,
           {
@@ -478,10 +492,9 @@ const columns: TableColumnsType<CrawlerSource> = [
           () => '运行试点',
         ),
       ]),
-    fixed: 'right',
     key: 'operation',
     title: '操作',
-    width: 300,
+    width: 260,
   },
 ];
 
@@ -527,7 +540,7 @@ onMounted(() => {
           同步内部合同到雷达
         </Button>
         <span v-if="lastRunResult" class="text-text-secondary text-sm">
-          最近任务 #{{ lastRunResult.taskId }} / {{ lastRunResult.taskType }}：
+          最近任务 {{ lastRunResult.taskType }}：
           {{ lastRunResult.status }}，抓取 {{ lastRunResult.fetchedCount }}，
           新增 {{ lastRunResult.createdLeadCount }}，更新
           {{ lastRunResult.updatedLeadCount }}，跳过
@@ -542,13 +555,14 @@ onMounted(() => {
 
     <Card class="crawler-source-table-card" title="采集数据源">
       <Table
+        bordered
         :columns="columns"
         :data-source="items"
         :loading="loading"
         :locale="tableLocale"
         :pagination="false"
         row-key="sourceId"
-        :scroll="{ x: 1950 }"
+        :scroll="{ x: 1820 }"
         size="small"
       />
     </Card>
@@ -560,59 +574,59 @@ onMounted(() => {
       width="720"
     >
       <Form layout="vertical">
-        <Form.Item label="enabled">
+        <Form.Item label="启用状态">
           <Switch v-model:checked="editForm.enabled" />
         </Form.Item>
-        <Form.Item label="crawlIntervalMinutes">
+        <Form.Item label="采集间隔(分钟)">
           <InputNumber
             v-model:value="editForm.crawlIntervalMinutes"
             class="w-full"
             :min="0"
           />
         </Form.Item>
-        <Form.Item label="rateLimitPerMinute">
+        <Form.Item label="限流(次/分)">
           <InputNumber
             v-model:value="editForm.rateLimitPerMinute"
             class="w-full"
             :min="1"
           />
         </Form.Item>
-        <Form.Item label="robotsUrl">
+        <Form.Item label="Robots地址">
           <Input
             v-model:value="editForm.robotsUrl"
             allow-clear
             placeholder="DEMO 可为空；真实/试点 source 需要配置"
           />
         </Form.Item>
-        <Form.Item label="allowedPathsJson">
+        <Form.Item label="允许路径">
           <Input.TextArea
             v-model:value="editForm.allowedPathsJson"
             :auto-size="{ minRows: 2, maxRows: 5 }"
             :placeholder="jsonPlaceholders.allowedPathsJson"
           />
         </Form.Item>
-        <Form.Item label="blockedPathsJson">
+        <Form.Item label="屏蔽路径">
           <Input.TextArea
             v-model:value="editForm.blockedPathsJson"
             :auto-size="{ minRows: 2, maxRows: 5 }"
             :placeholder="jsonPlaceholders.blockedPathsJson"
           />
         </Form.Item>
-        <Form.Item label="keywordIncludeJson">
+        <Form.Item label="包含关键词">
           <Input.TextArea
             v-model:value="editForm.keywordIncludeJson"
             :auto-size="{ minRows: 2, maxRows: 5 }"
             :placeholder="jsonPlaceholders.keywordIncludeJson"
           />
         </Form.Item>
-        <Form.Item label="keywordExcludeJson">
+        <Form.Item label="排除关键词">
           <Input.TextArea
             v-model:value="editForm.keywordExcludeJson"
             :auto-size="{ minRows: 2, maxRows: 5 }"
             :placeholder="jsonPlaceholders.keywordExcludeJson"
           />
         </Form.Item>
-        <Form.Item label="regionScopeJson">
+        <Form.Item label="区域范围">
           <Input.TextArea
             v-model:value="editForm.regionScopeJson"
             :auto-size="{ minRows: 2, maxRows: 5 }"
@@ -645,7 +659,33 @@ onMounted(() => {
 }
 
 .crawler-source-table-card {
-  min-height: 0;
-  flex: 1;
+  flex: none;
+}
+
+:deep(.ant-table-thead > tr > th) {
+  color: var(--ant-color-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
+}
+
+:deep(.ant-table-tbody > tr > td) {
+  color: var(--ant-color-text);
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.crawler-source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 8px;
+}
+
+.crawler-source-actions :deep(.ant-btn) {
+  padding-inline: 0;
 }
 </style>

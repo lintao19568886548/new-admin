@@ -4,7 +4,7 @@ import type {
   CrawlerSourceUpdatePayload,
 } from '#/api/investment';
 
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import {
   EditOutlined,
@@ -87,6 +87,41 @@ const jsonPlaceholders = {
   keywordIncludeJson: '["扩产","搬迁","租厂房","仓储"]',
   regionScopeJson: '["苏州","上海"]',
 };
+
+const sourceTypeLabel: Record<string, string> = {
+  BA_NOTICE: '企业公告',
+  BUSINESS_CHANGE: '工商变更',
+  DEMO: '演示数据',
+  EXTERNAL_LEAD: '外部线索',
+  INTERNAL_CONTRACT: '内部合同',
+  MAP_POLAR: '地图POI',
+  PUBLIC_FACTORY_LISTING: '公开厂房',
+  PUBLIC_OPPORTUNITY: '公开机会',
+  PUBLIC_RECRUITMENT: '招聘信息',
+  PUBLIC_TENDER: '招投标',
+};
+
+const enabledSourceCount = computed(
+  () => items.value.filter((item) => item.enabled).length,
+);
+
+const readySourceCount = computed(
+  () => items.value.filter((item) => item.adapterStatus === 'READY').length,
+);
+
+const candidateSourceCount = computed(
+  () => items.value.length - readySourceCount.value,
+);
+
+const hasInternalContractSource = computed(() =>
+  items.value.some(
+    (item) => item.sourceCode === INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE,
+  ),
+);
+
+const hasPublicOpportunitySource = computed(() =>
+  items.value.some((item) => isPublicOpportunitySourceCode(item.sourceCode)),
+);
 
 function formatJsonText(value?: null | string[]) {
   return value && value.length > 0 ? JSON.stringify(value, null, 2) : '';
@@ -247,7 +282,7 @@ async function runDemoTask() {
   try {
     const task = await runCrawlerTask();
     rememberRunResult(task);
-    message.success(`demo task 已结束：#${task.taskId} / ${task.status}`);
+    message.success(`demo task 已结束：${task.status}`);
     await loadSources();
   } catch (error) {
     console.error('运行 demo task 失败:', error);
@@ -265,7 +300,7 @@ async function runInternalContractTask() {
   try {
     const task = await runInternalContractExpiryTask();
     rememberRunResult(task);
-    message.success(`内部合同到期任务已结束：#${task.taskId} / ${task.status}`);
+    message.success(`内部合同到期任务已结束：${task.status}`);
     await loadSources();
   } catch (error) {
     console.error('运行内部合同到期任务失败:', error);
@@ -314,7 +349,7 @@ async function runPublicOpportunityPilot(
       sourceCode,
     });
     rememberRunResult(task);
-    message.success(`99cfw 试点采集已结束：#${task.taskId} / ${task.status}`);
+    message.success(`99cfw 试点采集已结束：${task.status}`);
     await loadSources();
   } catch (error) {
     console.error('运行 99cfw 试点采集失败:', error);
@@ -326,7 +361,10 @@ async function runPublicOpportunityPilot(
 
 function renderSourceType(source: CrawlerSource) {
   const color = source.sourceType === 'DEMO' ? 'blue' : 'purple';
-  return { color, label: source.sourceType };
+  return {
+    color,
+    label: sourceTypeLabel[source.sourceType] || source.sourceType,
+  };
 }
 
 function renderAdapterStatus(source: CrawlerSource) {
@@ -344,31 +382,39 @@ onMounted(() => {
 <template>
   <div class="radar-mobile-page">
     <div class="radar-mobile-header">
+      <div>
+        <h2>采集数据源</h2>
+        <p>维护采集策略、启停数据源并手动运行采集任务。</p>
+      </div>
       <Button type="primary" :loading="loading" @click="loadSources">
         <ReloadOutlined class="mr-1 h-4 w-4" />
         刷新
       </Button>
-      <Button
-        :loading="runningInternalContract"
-        type="primary"
-        @click="runInternalContractTask"
-      >
-        <ThunderboltOutlined class="mr-1 h-4 w-4" />
-        运行内部合同
-      </Button>
-      <Button
-        :loading="syncingInternalContract"
-        type="primary"
-        @click="syncInternalContractTask"
-      >
-        <ThunderboltOutlined class="mr-1 h-4 w-4" />
-        同步雷达
-      </Button>
+    </div>
+
+    <div class="radar-mobile-overview">
+      <div class="overview-item">
+        <span>数据源</span>
+        <strong>{{ items.length }}</strong>
+      </div>
+      <div class="overview-item">
+        <span>启用</span>
+        <strong>{{ enabledSourceCount }}</strong>
+      </div>
+      <div class="overview-item">
+        <span>已接适配器</span>
+        <strong>{{ readySourceCount }}</strong>
+      </div>
+      <div class="overview-item">
+        <span>候选源</span>
+        <strong>{{ candidateSourceCount }}</strong>
+      </div>
     </div>
 
     <Alert
       v-if="lastRunResult"
-      :message="`最近任务 #${lastRunResult.taskId} / ${lastRunResult.taskType}：${lastRunResult.status}，抓取 ${lastRunResult.fetchedCount}，新增 ${lastRunResult.createdLeadCount}，更新 ${lastRunResult.updatedLeadCount}，跳过 ${lastRunResult.skippedCount}${
+      class="radar-mobile-alert"
+      :message="`最近任务 ${lastRunResult.taskType}：${lastRunResult.status}，抓取 ${lastRunResult.fetchedCount}，新增 ${lastRunResult.createdLeadCount}，更新 ${lastRunResult.updatedLeadCount}，跳过 ${lastRunResult.skippedCount}${
         lastRunResult.convertedCount === undefined
           ? ''
           : `，转雷达 ${lastRunResult.convertedCount}，复用 ${lastRunResult.reusedCount || 0}`
@@ -383,12 +429,31 @@ onMounted(() => {
         运行 demo
       </Button>
       <Button
+        :disabled="!hasPublicOpportunitySource"
         :loading="runningPilot"
         type="primary"
         @click="runPublicOpportunityPilot()"
       >
         <ThunderboltOutlined class="mr-1 h-4 w-4" />
         运行试点
+      </Button>
+      <Button
+        :disabled="!hasInternalContractSource"
+        :loading="runningInternalContract"
+        type="primary"
+        @click="runInternalContractTask"
+      >
+        <ThunderboltOutlined class="mr-1 h-4 w-4" />
+        运行内部合同
+      </Button>
+      <Button
+        :disabled="!hasInternalContractSource"
+        :loading="syncingInternalContract"
+        type="primary"
+        @click="syncInternalContractTask"
+      >
+        <ThunderboltOutlined class="mr-1 h-4 w-4" />
+        同步雷达
       </Button>
     </div>
 
@@ -581,6 +646,12 @@ onMounted(() => {
       placement="right"
       width="100%"
     >
+      <div v-if="currentSource" class="drawer-summary">
+        <div class="drawer-summary-title">{{ currentSource.sourceName }}</div>
+        <div class="drawer-summary-subtitle">
+          {{ currentSource.sourceCode }}
+        </div>
+      </div>
       <Form layout="vertical">
         <Form.Item label="启用状态">
           <Switch v-model:checked="editForm.enabled" />
@@ -696,13 +767,71 @@ onMounted(() => {
 }
 
 .radar-mobile-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 8px;
 }
 
-.radar-mobile-actions Button {
-  flex: 1;
+.radar-mobile-actions :deep(.ant-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: auto;
+  min-height: 32px;
+  padding-inline: 8px;
+  white-space: normal;
+}
+
+.radar-mobile-actions :deep(.ant-btn > span:not(.anticon)) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.radar-mobile-alert {
+  margin-bottom: 8px;
+}
+
+.radar-mobile-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.overview-item {
+  min-width: 0;
+  padding: 9px 8px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+}
+
+.dark .overview-item {
+  background: #2d2d2d;
+}
+
+.overview-item span {
+  display: block;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-item strong {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 17px;
+  line-height: 24px;
+  color: var(--ant-color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .radar-mobile-list {
@@ -743,17 +872,17 @@ onMounted(() => {
   font-weight: 700;
   line-height: 23px;
   color: var(--ant-color-text);
-  overflow-wrap: anywhere;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .radar-card-subtitle {
+  margin-top: 2px;
   font-size: 12px;
   line-height: 18px;
   color: var(--ant-color-text-secondary);
-  margin-top: 2px;
-  overflow-wrap: anywhere;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .radar-card-tags-row {
@@ -772,6 +901,7 @@ onMounted(() => {
 .meta-row {
   display: flex;
   gap: 8px;
+  min-width: 0;
   margin-bottom: 6px;
 }
 
@@ -780,45 +910,97 @@ onMounted(() => {
 }
 
 .meta-label {
+  flex-shrink: 0;
+  min-width: 80px;
   font-size: 12px;
   line-height: 18px;
   color: var(--ant-color-text-secondary);
-  min-width: 80px;
-  flex-shrink: 0;
 }
 
 .meta-value {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   line-height: 20px;
   color: var(--ant-color-text);
-  flex: 1;
   word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.meta-value :deep(.ant-tag) {
+  max-width: 100%;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
 }
 
 .radar-card-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 12px;
   padding-top: 10px;
+  margin-top: 12px;
   border-top: 1px solid var(--ant-color-border);
 }
 
 .radar-action-btn {
   justify-content: center;
+  min-width: 0;
+  height: auto;
+  min-height: 32px;
+  white-space: normal;
+}
+
+.radar-action-btn :deep(span) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .radar-drawer-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-top: 16px;
 }
 
-.radar-drawer-actions Button {
-  flex: 1;
+.radar-drawer-actions button {
+  width: 100%;
 }
 
 .radar-mobile-empty {
   padding: 32px 0;
+}
+
+.drawer-summary {
+  padding: 12px;
+  margin-bottom: 12px;
+  background: var(--ant-color-fill-tertiary);
+  border-radius: 8px;
+}
+
+.drawer-summary-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  color: var(--ant-color-text);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.drawer-summary-subtitle {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 420px) {
+  .radar-mobile-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

@@ -59,6 +59,21 @@ function formatOptionalTime(value?: null | string) {
   return value ? formatDateTime(value) : '-';
 }
 
+const eventTypeLabel: Record<string, string> = {
+  EVENT_EA_EXPAND: '环评扩产信号',
+  FACTORY_RENT_DEMAND: '租厂需求信号',
+  KEYWORD_EXPAND: '关键词：扩建',
+  KEYWORD_NEW_LINE: '关键词：新增产线',
+  KEYWORD_RECRUITMENT: '关键词：招聘',
+  KEYWORD_RELOCATION: '关键词：搬迁',
+  KEYWORD_WAREHOUSE: '关键词：仓储',
+  NEWS_EXPAND: '新闻扩产信号',
+  PUBLIC_FACTORY_DEMAND: '公开厂房需求信号',
+  RECRUITMENT_EXPAND: '招聘扩产信号',
+  RELOCATION: '搬迁信号',
+  UNKNOWN: '未知信号',
+};
+
 function formatKeywordJson(value: string[]) {
   return value.length > 0 ? JSON.stringify(value, null, 2) : '';
 }
@@ -176,7 +191,13 @@ const columns: TableColumnsType<LeadScoreRule> = [
     width: 160,
   },
   {
-    customRender: ({ record }) => record.eventType || '-',
+    customRender: ({ record }) => {
+      const eventType = record.eventType ?? '';
+      if (!eventType) {
+        return '-';
+      }
+      return eventTypeLabel[eventType] || eventType;
+    },
     dataIndex: 'eventType',
     key: 'eventType',
     title: '事件类型',
@@ -275,6 +296,7 @@ onMounted(() => {
 
     <Card class="score-rule-table-card" title="评分规则">
       <Table
+        bordered
         :columns="columns"
         :data-source="items"
         :loading="loading"
@@ -293,10 +315,10 @@ onMounted(() => {
       width="680"
     >
       <Form layout="vertical">
-        <Form.Item label="enabled">
+        <Form.Item label="启用状态">
           <Switch v-model:checked="editForm.enabled" />
         </Form.Item>
-        <Form.Item label="scoreDelta">
+        <Form.Item label="分值">
           <InputNumber
             v-model:value="editForm.scoreDelta"
             class="w-full"
@@ -304,14 +326,14 @@ onMounted(() => {
             :min="-100"
           />
         </Form.Item>
-        <Form.Item label="keywordJson">
+        <Form.Item label="关键词">
           <Input.TextArea
             v-model:value="editForm.keywordJson"
             :auto-size="{ minRows: 3, maxRows: 8 }"
             :placeholder="scoreKeywordPlaceholder"
           />
         </Form.Item>
-        <Form.Item label="ruleDescription">
+        <Form.Item label="说明">
           <Input.TextArea
             v-model:value="editForm.ruleDescription"
             :auto-size="{ minRows: 3, maxRows: 6 }"
@@ -343,7 +365,22 @@ onMounted(() => {
 }
 
 .score-rule-table-card {
-  min-height: 0;
-  flex: 1;
+  flex: none;
+}
+
+:deep(.ant-table-thead > tr > th) {
+  color: var(--ant-color-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
+}
+
+:deep(.ant-table-tbody > tr > td) {
+  color: var(--ant-color-text);
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+  vertical-align: middle;
 }
 </style>

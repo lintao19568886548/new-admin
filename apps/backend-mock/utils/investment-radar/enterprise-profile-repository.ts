@@ -185,7 +185,9 @@ function mapSignalRow(row: any) {
   };
 }
 
-export async function ensureProfileScoreStorage() {
+let profileScoreStorageReady: null | Promise<void> = null;
+
+async function ensureProfileScoreStorageUncached() {
   await prismaClient.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS enterprise_profile (
       profile_id bigint NOT NULL AUTO_INCREMENT,
@@ -273,6 +275,21 @@ export async function ensureProfileScoreStorage() {
       KEY lead_score_breakdown_event_id_idx (event_id)
     ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
   `);
+}
+
+export async function ensureProfileScoreStorage() {
+  if (profileScoreStorageReady) {
+    return profileScoreStorageReady;
+  }
+
+  profileScoreStorageReady = ensureProfileScoreStorageUncached().catch(
+    (error) => {
+      profileScoreStorageReady = null;
+      throw error;
+    },
+  );
+
+  return profileScoreStorageReady;
 }
 
 async function findProfileByCompanyName(companyName: string) {

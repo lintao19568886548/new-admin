@@ -50,6 +50,7 @@ const loadError = ref('');
 const tableLoading = ref(false);
 const detailDrawerOpen = ref(false);
 const detailLoading = ref(false);
+const mobileFilterOpen = ref(false);
 const taskDetail = ref<null | RadarOutreachTaskDetail>(null);
 const items = ref<RadarOutreachTaskListItem[]>([]);
 const total = ref(0);
@@ -65,6 +66,9 @@ const summary = ref<RadarOutreachTaskSummary>({
   smsTasks: 0,
   totalTasks: 0,
 });
+const tableLocale = {
+  emptyText: '暂无触达任务',
+};
 
 const searchForm = ref({
   channel: undefined as string | undefined,
@@ -443,6 +447,7 @@ async function loadTasks() {
 
 function handleSearch() {
   currentPage.value = 1;
+  mobileFilterOpen.value = false;
   void loadTasks();
 }
 
@@ -456,6 +461,7 @@ function handleReset() {
     status: undefined,
     taskType: undefined,
   };
+  mobileFilterOpen.value = false;
   handleSearch();
 }
 
@@ -486,487 +492,563 @@ onMounted(() => {
 </script>
 
 <template>
-  <Page auto-content-height>
-    <div class="space-y-4">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div class="text-lg font-semibold">雷达触达任务</div>
-          <div class="text-text-secondary text-sm">
-            按任务状态、渠道和回复结果集中推进招商线索。
+  <div class="radar-task-route">
+    <Page
+      auto-content-height
+      class="radar-collection-page"
+      content-class="radar-collection-content"
+    >
+      <div class="radar-collection-layout">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div class="text-lg font-semibold">雷达触达任务</div>
+            <div class="text-text-secondary text-sm">
+              按任务状态、渠道和回复结果集中推进招商线索。
+            </div>
           </div>
+          <Space wrap>
+            <Button @click="goToRadarList">返回雷达列表</Button>
+            <Button type="primary" @click="loadTasks">刷新数据</Button>
+          </Space>
         </div>
-        <Space wrap>
-          <Button @click="goToRadarList">返回雷达列表</Button>
-          <Button type="primary" @click="loadTasks">刷新数据</Button>
-        </Space>
-      </div>
 
-      <Alert v-if="loadError" :message="loadError" show-icon type="warning" />
+        <Alert v-if="loadError" :message="loadError" show-icon type="warning" />
 
-      <div v-if="isMobile" class="radar-task-mobile-summary">
-        <div>
-          <span>任务总数</span>
-          <strong>{{ summary.totalTasks }}</strong>
-        </div>
-        <div>
-          <span>待执行</span>
-          <strong>{{ summary.pendingTasks }}</strong>
-        </div>
-        <div>
-          <span>已回复</span>
-          <strong>{{ summary.repliedTasks }}</strong>
-        </div>
-        <div>
-          <span>正向</span>
-          <strong>{{ summary.positiveReplies }}</strong>
-        </div>
-      </div>
-
-      <Row v-else :gutter="[16, 16]">
-        <Col :lg="6" :md="12" :sm="12" :xs="24">
-          <Card>
-            <Statistic title="触达任务总数" :value="summary.totalTasks" />
+        <div v-if="isMobile" class="radar-task-mobile-summary">
+          <Card class="radar-task-mobile-stat-card">
+            <Statistic title="任务总数" :value="summary.totalTasks" />
           </Card>
-        </Col>
-        <Col :lg="6" :md="12" :sm="12" :xs="24">
-          <Card>
-            <Statistic title="待执行 / 执行中" :value="summary.pendingTasks" />
+          <Card class="radar-task-mobile-stat-card">
+            <Statistic title="待执行" :value="summary.pendingTasks" />
           </Card>
-        </Col>
-        <Col :lg="6" :md="12" :sm="12" :xs="24">
-          <Card>
+          <Card class="radar-task-mobile-stat-card">
             <Statistic title="已回复" :value="summary.repliedTasks" />
           </Card>
-        </Col>
-        <Col :lg="6" :md="12" :sm="12" :xs="24">
-          <Card>
-            <Statistic title="正向反馈" :value="summary.positiveReplies" />
+          <Card class="radar-task-mobile-stat-card">
+            <Statistic title="正向" :value="summary.positiveReplies" />
           </Card>
-        </Col>
-      </Row>
-
-      <Card v-if="!isMobile" title="查询条件">
-        <Form class="radar-task-filter radar-search-form" layout="inline">
-          <Form.Item label="关键字">
-            <Input
-              v-model:value="searchForm.keyword"
-              allow-clear
-              class="radar-filter-keyword"
-              placeholder="企业 / 电话 / 园区 / 模板"
-              @press-enter="handleSearch"
-            />
-          </Form.Item>
-          <Form.Item label="任务状态">
-            <Select
-              v-model:value="searchForm.status"
-              allow-clear
-              class="radar-filter-control"
-              :options="statusOptions"
-            />
-          </Form.Item>
-          <Form.Item label="回复状态">
-            <Select
-              v-model:value="searchForm.replyStatus"
-              allow-clear
-              class="radar-filter-control"
-              :options="replyStatusOptions"
-            />
-          </Form.Item>
-          <Form.Item label="渠道">
-            <Select
-              v-model:value="searchForm.channel"
-              allow-clear
-              class="radar-filter-control"
-              :options="channelOptions"
-            />
-          </Form.Item>
-          <Form.Item label="触达类型">
-            <Select
-              v-model:value="searchForm.taskType"
-              allow-clear
-              class="radar-filter-control"
-              :options="taskTypeOptions"
-            />
-          </Form.Item>
-          <Form.Item label="线索阶段">
-            <Select
-              v-model:value="searchForm.stage"
-              allow-clear
-              class="radar-filter-control"
-              :options="RADAR_STAGE_OPTIONS"
-            />
-          </Form.Item>
-          <Form.Item label="优先级">
-            <Select
-              v-model:value="searchForm.priorityLevel"
-              allow-clear
-              class="radar-filter-control"
-              :options="priorityOptions"
-            />
-          </Form.Item>
-          <Form.Item>
-            <Space>
-              <Button type="primary" @click="handleSearch">查询</Button>
-              <Button @click="handleReset">重置</Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Card>
-
-      <div v-if="isMobile" class="radar-task-mobile">
-        <div class="radar-task-mobile-filter">
-          <Input
-            v-model:value="searchForm.keyword"
-            allow-clear
-            placeholder="企业 / 电话 / 园区 / 模板"
-            @press-enter="handleSearch"
-          />
-          <div class="radar-task-mobile-grid">
-            <Select
-              v-model:value="searchForm.status"
-              allow-clear
-              placeholder="任务状态"
-              :options="statusOptions"
-            />
-            <Select
-              v-model:value="searchForm.replyStatus"
-              allow-clear
-              placeholder="回复状态"
-              :options="replyStatusOptions"
-            />
-            <Select
-              v-model:value="searchForm.channel"
-              allow-clear
-              placeholder="渠道"
-              :options="channelOptions"
-            />
-            <Select
-              v-model:value="searchForm.taskType"
-              allow-clear
-              placeholder="触达类型"
-              :options="taskTypeOptions"
-            />
-            <Select
-              v-model:value="searchForm.stage"
-              allow-clear
-              placeholder="线索阶段"
-              :options="RADAR_STAGE_OPTIONS"
-            />
-            <Select
-              v-model:value="searchForm.priorityLevel"
-              allow-clear
-              placeholder="优先级"
-              :options="priorityOptions"
-            />
-          </div>
-          <div class="radar-task-mobile-actions">
-            <Button block type="primary" @click="handleSearch">查询</Button>
-            <Button block @click="handleReset">重置</Button>
-          </div>
         </div>
 
-        <Skeleton v-if="tableLoading" active :paragraph="{ rows: 8 }" />
-        <div v-else-if="items.length > 0" class="radar-task-mobile-list">
-          <div
-            v-for="item in items"
-            :key="item.taskId"
-            class="radar-task-mobile-card"
-          >
-            <div class="radar-task-mobile-head">
-              <div>
-                <div class="radar-task-mobile-title">
-                  {{ item.enterpriseName || '-' }}
-                </div>
-                <div class="radar-task-mobile-subtitle">
-                  {{ item.parkName || '-' }} ·
-                  {{ item.latestSignalType || '-' }}
-                </div>
-              </div>
-              <Tag :color="getPriorityColor(item.priorityLevel)">
-                {{ item.priorityLevel || '-' }} 级
-              </Tag>
-            </div>
+        <Row v-else class="radar-stat-card-grid" :gutter="[12, 12]">
+          <Col :lg="6" :md="12" :sm="12" :xs="24">
+            <Card class="radar-stat-card">
+              <Statistic title="触达任务总数" :value="summary.totalTasks" />
+            </Card>
+          </Col>
+          <Col :lg="6" :md="12" :sm="12" :xs="24">
+            <Card class="radar-stat-card">
+              <Statistic
+                title="待执行 / 执行中"
+                :value="summary.pendingTasks"
+              />
+            </Card>
+          </Col>
+          <Col :lg="6" :md="12" :sm="12" :xs="24">
+            <Card class="radar-stat-card">
+              <Statistic title="已回复" :value="summary.repliedTasks" />
+            </Card>
+          </Col>
+          <Col :lg="6" :md="12" :sm="12" :xs="24">
+            <Card class="radar-stat-card">
+              <Statistic title="正向反馈" :value="summary.positiveReplies" />
+            </Card>
+          </Col>
+        </Row>
 
-            <div class="radar-task-mobile-tags">
-              <Tag :color="getStatusMeta(item.status, taskStatusMetaMap).color">
-                {{ getStatusMeta(item.status, taskStatusMetaMap).label }}
-              </Tag>
-              <Tag
-                :color="
-                  getStatusMeta(item.replyStatus, replyStatusMetaMap).color
+        <Card v-if="!isMobile" title="查询条件">
+          <Form class="radar-task-filter radar-search-form" layout="inline">
+            <Form.Item label="关键字">
+              <Input
+                v-model:value="searchForm.keyword"
+                allow-clear
+                class="radar-filter-keyword"
+                placeholder="企业 / 电话 / 园区 / 模板"
+                @press-enter="handleSearch"
+              />
+            </Form.Item>
+            <Form.Item label="任务状态">
+              <Select
+                v-model:value="searchForm.status"
+                allow-clear
+                class="radar-filter-control"
+                :options="statusOptions"
+              />
+            </Form.Item>
+            <Form.Item label="回复状态">
+              <Select
+                v-model:value="searchForm.replyStatus"
+                allow-clear
+                class="radar-filter-control"
+                :options="replyStatusOptions"
+              />
+            </Form.Item>
+            <Form.Item label="渠道">
+              <Select
+                v-model:value="searchForm.channel"
+                allow-clear
+                class="radar-filter-control"
+                :options="channelOptions"
+              />
+            </Form.Item>
+            <Form.Item label="触达类型">
+              <Select
+                v-model:value="searchForm.taskType"
+                allow-clear
+                class="radar-filter-control"
+                :options="taskTypeOptions"
+              />
+            </Form.Item>
+            <Form.Item label="线索阶段">
+              <Select
+                v-model:value="searchForm.stage"
+                allow-clear
+                class="radar-filter-control"
+                :options="RADAR_STAGE_OPTIONS"
+              />
+            </Form.Item>
+            <Form.Item label="优先级">
+              <Select
+                v-model:value="searchForm.priorityLevel"
+                allow-clear
+                class="radar-filter-control"
+                :options="priorityOptions"
+              />
+            </Form.Item>
+            <Form.Item>
+              <Space>
+                <Button type="primary" @click="handleSearch">查询</Button>
+                <Button @click="handleReset">重置</Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        </Card>
+
+        <div v-if="isMobile" class="radar-task-mobile">
+          <div class="radar-task-mobile-filter">
+            <div class="radar-task-mobile-search">
+              <Input
+                v-model:value="searchForm.keyword"
+                allow-clear
+                placeholder="企业 / 电话 / 园区 / 模板"
+                @press-enter="handleSearch"
+              />
+              <Button type="primary" @click="handleSearch">查询</Button>
+              <Button @click="mobileFilterOpen = !mobileFilterOpen">
+                筛选
+              </Button>
+            </div>
+            <div v-show="mobileFilterOpen" class="radar-task-mobile-panel">
+              <div class="radar-task-mobile-grid">
+                <Select
+                  v-model:value="searchForm.status"
+                  allow-clear
+                  placeholder="任务状态"
+                  :options="statusOptions"
+                />
+                <Select
+                  v-model:value="searchForm.replyStatus"
+                  allow-clear
+                  placeholder="回复状态"
+                  :options="replyStatusOptions"
+                />
+                <Select
+                  v-model:value="searchForm.channel"
+                  allow-clear
+                  placeholder="渠道"
+                  :options="channelOptions"
+                />
+                <Select
+                  v-model:value="searchForm.taskType"
+                  allow-clear
+                  placeholder="触达类型"
+                  :options="taskTypeOptions"
+                />
+                <Select
+                  v-model:value="searchForm.stage"
+                  allow-clear
+                  placeholder="线索阶段"
+                  :options="RADAR_STAGE_OPTIONS"
+                />
+                <Select
+                  v-model:value="searchForm.priorityLevel"
+                  allow-clear
+                  placeholder="优先级"
+                  :options="priorityOptions"
+                />
+              </div>
+              <div class="radar-task-mobile-actions">
+                <Button block type="primary" @click="handleSearch">
+                  应用筛选
+                </Button>
+                <Button block @click="handleReset">重置</Button>
+              </div>
+            </div>
+          </div>
+
+          <Skeleton v-if="tableLoading" active :paragraph="{ rows: 8 }" />
+          <div v-else-if="items.length > 0" class="radar-task-mobile-list">
+            <div
+              v-for="item in items"
+              :key="item.taskId"
+              class="radar-task-mobile-card"
+            >
+              <div class="radar-task-mobile-head">
+                <div>
+                  <div class="radar-task-mobile-title">
+                    {{ item.enterpriseName || '-' }}
+                  </div>
+                  <div class="radar-task-mobile-subtitle">
+                    {{ item.parkName || '-' }} ·
+                    {{ item.latestSignalType || '-' }}
+                  </div>
+                </div>
+                <Tag :color="getPriorityColor(item.priorityLevel)">
+                  {{ item.priorityLevel || '-' }} 级
+                </Tag>
+              </div>
+
+              <div class="radar-task-mobile-tags">
+                <Tag
+                  :color="getStatusMeta(item.status, taskStatusMetaMap).color"
+                >
+                  {{ getStatusMeta(item.status, taskStatusMetaMap).label }}
+                </Tag>
+                <Tag
+                  :color="
+                    getStatusMeta(item.replyStatus, replyStatusMetaMap).color
+                  "
+                >
+                  {{
+                    getStatusMeta(item.replyStatus, replyStatusMetaMap).label
+                  }}
+                </Tag>
+                <Tag :color="channelColorMap[item.channel] || 'default'">
+                  {{ mapChannel(item.channel) }}
+                </Tag>
+                <Tag color="blue">
+                  {{ RADAR_STAGE_LABEL_MAP[item.stage] || item.stage || '-' }}
+                </Tag>
+              </div>
+
+              <div class="radar-task-mobile-info">
+                <span>联系人：{{ item.contactName || '-' }}</span>
+                <span>电话：{{ item.phoneNumber || '-' }}</span>
+                <span>类型：{{ mapTaskType(item.taskType) }}</span>
+                <span>计划：{{ formatTime(item.scheduledAt) }}</span>
+                <span>发送：{{ formatTime(item.sentAt) }}</span>
+                <span>回复：{{ formatTime(item.replyTime) }}</span>
+              </div>
+
+              <p v-if="renderResult(item) !== '-'">
+                {{ renderResult(item) }}
+              </p>
+
+              <div class="radar-task-mobile-card-actions">
+                <Button size="small" @click="openTaskDetail(item.taskId)">
+                  任务详情
+                </Button>
+                <Button
+                  size="small"
+                  type="primary"
+                  @click="goToLeadDetail(item.leadId)"
+                >
+                  查看线索
+                </Button>
+              </div>
+            </div>
+            <div class="radar-task-mobile-pagination">
+              <Button
+                :disabled="currentPage <= 1"
+                @click="
+                  handleTableChange({ current: currentPage - 1, pageSize })
                 "
               >
-                {{ getStatusMeta(item.replyStatus, replyStatusMetaMap).label }}
-              </Tag>
-              <Tag :color="channelColorMap[item.channel] || 'default'">
-                {{ mapChannel(item.channel) }}
-              </Tag>
-              <Tag color="blue">
-                {{ RADAR_STAGE_LABEL_MAP[item.stage] || item.stage || '-' }}
-              </Tag>
-            </div>
-
-            <div class="radar-task-mobile-info">
-              <span>联系人：{{ item.contactName || '-' }}</span>
-              <span>电话：{{ item.phoneNumber || '-' }}</span>
-              <span>类型：{{ mapTaskType(item.taskType) }}</span>
-              <span>计划：{{ formatTime(item.scheduledAt) }}</span>
-              <span>发送：{{ formatTime(item.sentAt) }}</span>
-              <span>回复：{{ formatTime(item.replyTime) }}</span>
-            </div>
-
-            <p v-if="renderResult(item) !== '-'">
-              {{ renderResult(item) }}
-            </p>
-
-            <div class="radar-task-mobile-card-actions">
-              <Button size="small" @click="openTaskDetail(item.taskId)">
-                任务详情
+                上一页
               </Button>
+              <span>
+                {{ currentPage }} /
+                {{ Math.max(1, Math.ceil(total / pageSize)) }}
+              </span>
               <Button
-                size="small"
-                type="primary"
-                @click="goToLeadDetail(item.leadId)"
+                :disabled="currentPage >= Math.ceil(total / pageSize)"
+                @click="
+                  handleTableChange({ current: currentPage + 1, pageSize })
+                "
               >
-                查看线索
+                下一页
               </Button>
             </div>
           </div>
-          <div class="radar-task-mobile-pagination">
-            <Button
-              :disabled="currentPage <= 1"
-              @click="handleTableChange({ current: currentPage - 1, pageSize })"
-            >
-              上一页
-            </Button>
-            <span>
-              {{ currentPage }} / {{ Math.max(1, Math.ceil(total / pageSize)) }}
-            </span>
-            <Button
-              :disabled="currentPage >= Math.ceil(total / pageSize)"
-              @click="handleTableChange({ current: currentPage + 1, pageSize })"
-            >
-              下一页
-            </Button>
+          <Empty v-else description="暂无触达任务" />
+        </div>
+
+        <Card v-else class="radar-collection-table-card" title="触达任务列表">
+          <Table
+            bordered
+            :columns="columns"
+            :data-source="items"
+            :loading="tableLoading"
+            :locale="tableLocale"
+            :pagination="{
+              current: currentPage,
+              pageSize,
+              total,
+              showSizeChanger: true,
+              showTotal: (value: number) => `共 ${value} 条`,
+            }"
+            :scroll="{ x: 1770 }"
+            row-key="taskId"
+            size="small"
+            table-layout="fixed"
+            @change="handleTableChange"
+          >
+            <template #emptyText>
+              <Empty description="暂无触达任务" />
+            </template>
+          </Table>
+          <div v-if="items.length > 0" class="text-text-secondary mt-3 text-sm">
+            当前筛选下短信 {{ summary.smsTasks }} 条，电话
+            {{ summary.callTasks }} 条，失败 {{ summary.failedTasks }} 条。
           </div>
-        </div>
-        <Empty v-else description="暂无触达任务" />
-      </div>
+        </Card>
 
-      <Card v-else title="触达任务列表">
-        <Table
-          :columns="columns"
-          :data-source="items"
-          :loading="tableLoading"
-          :pagination="{
-            current: currentPage,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            showTotal: (value: number) => `共 ${value} 条`,
-          }"
-          :scroll="{ x: 1770 }"
-          row-key="taskId"
-          size="small"
-          @change="handleTableChange"
+        <Drawer
+          v-model:open="detailDrawerOpen"
+          destroy-on-close
+          placement="right"
+          title="触达任务详情"
+          :width="isMobile ? '100%' : 720"
         >
-          <template #emptyText>
-            <Empty description="暂无触达任务" />
-          </template>
-        </Table>
-        <div v-if="items.length > 0" class="text-text-secondary mt-3 text-sm">
-          当前筛选下短信 {{ summary.smsTasks }} 条，电话
-          {{ summary.callTasks }} 条，失败 {{ summary.failedTasks }} 条。
-        </div>
-      </Card>
-
-      <Drawer
-        v-model:open="detailDrawerOpen"
-        destroy-on-close
-        placement="right"
-        title="触达任务详情"
-        :width="isMobile ? '100%' : 720"
-      >
-        <Skeleton v-if="detailLoading" active :paragraph="{ rows: 8 }" />
-        <template v-else-if="taskDetail">
-          <div class="space-y-4">
-            <Card :body-style="{ padding: '12px 16px' }">
-              <div class="flex flex-wrap items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="truncate text-base font-semibold">
-                    {{ taskDetail.enterpriseName || '-' }}
+          <Skeleton v-if="detailLoading" active :paragraph="{ rows: 8 }" />
+          <template v-else-if="taskDetail">
+            <div class="space-y-4">
+              <Card :body-style="{ padding: '12px 16px' }">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="truncate text-base font-semibold">
+                      {{ taskDetail.enterpriseName || '-' }}
+                    </div>
+                    <div class="text-text-secondary mt-1 text-sm">
+                      {{ taskDetail.parkName || '-' }}
+                      <span class="mx-2">|</span>
+                      {{ taskDetail.ownerName || '-' }}
+                      <span class="mx-2">|</span>
+                      {{ taskDetail.totalScore }} 分
+                    </div>
                   </div>
-                  <div class="text-text-secondary mt-1 text-sm">
-                    {{ taskDetail.parkName || '-' }}
-                    <span class="mx-2">|</span>
-                    {{ taskDetail.ownerName || '-' }}
-                    <span class="mx-2">|</span>
-                    {{ taskDetail.totalScore }} 分
-                  </div>
+                  <Space wrap>
+                    <Tag :color="getPriorityColor(taskDetail.priorityLevel)">
+                      {{ taskDetail.priorityLevel || '-' }} 级
+                    </Tag>
+                    <Tag
+                      :color="
+                        taskDetail.stage === 'PENDING_CONTACT' ? 'gold' : 'blue'
+                      "
+                    >
+                      {{
+                        RADAR_STAGE_LABEL_MAP[taskDetail.stage] ||
+                        taskDetail.stage ||
+                        '-'
+                      }}
+                    </Tag>
+                  </Space>
                 </div>
-                <Space wrap>
-                  <Tag :color="getPriorityColor(taskDetail.priorityLevel)">
-                    {{ taskDetail.priorityLevel || '-' }} 级
-                  </Tag>
-                  <Tag
-                    :color="
-                      taskDetail.stage === 'PENDING_CONTACT' ? 'gold' : 'blue'
-                    "
-                  >
+              </Card>
+
+              <Card title="执行信息">
+                <Descriptions :column="isMobile ? 1 : 2" bordered size="small">
+                  <Descriptions.Item label="触达类型">
+                    {{ mapTaskType(taskDetail.taskType) }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="渠道">
+                    {{ mapChannel(taskDetail.channel) }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="触达号码">
+                    {{ taskDetail.phoneNumber || '-' }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="模板编码">
+                    {{ taskDetail.templateCode || '-' }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="操作人">
+                    {{ taskDetail.sentByName || '-' }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="任务状态">
+                    <component
+                      :is="
+                        renderStatusTag(taskDetail.status, taskStatusMetaMap)
+                      "
+                    />
+                  </Descriptions.Item>
+                  <Descriptions.Item label="回复状态">
+                    <component
+                      :is="
+                        renderStatusTag(
+                          taskDetail.replyStatus,
+                          replyStatusMetaMap,
+                        )
+                      "
+                    />
+                  </Descriptions.Item>
+                  <Descriptions.Item label="计划时间">
+                    {{ formatTime(taskDetail.scheduledAt) }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="发送时间">
+                    {{ formatTime(taskDetail.sentAt) }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="回复时间">
+                    {{ formatTime(taskDetail.replyTime) }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="更新时间">
+                    {{ formatTime(taskDetail.updateTime) }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="执行结果" :span="isMobile ? 1 : 2">
+                    {{ renderResult(taskDetail) }}
+                  </Descriptions.Item>
+                </Descriptions>
+              </Card>
+
+              <Card title="线索与企业">
+                <Descriptions :column="isMobile ? 1 : 2" bordered size="small">
+                  <Descriptions.Item label="线索来源">
+                    {{ taskDetail.leadSource || '-' }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="联系人">
+                    {{ taskDetail.contactName || '-' }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="行业">
+                    {{ taskDetail.industryName || '-' }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="城市">
+                    {{ taskDetail.city || '-' }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="意向面积">
                     {{
-                      RADAR_STAGE_LABEL_MAP[taskDetail.stage] ||
-                      taskDetail.stage ||
+                      taskDetail.intentArea === null ||
+                      taskDetail.intentArea === undefined
+                        ? '-'
+                        : `${formatNumber(taskDetail.intentArea)} ㎡`
+                    }}
+                  </Descriptions.Item>
+                  <Descriptions.Item
+                    label="意图 / 匹配 / 可触达"
+                    :span="isMobile ? 1 : 2"
+                  >
+                    {{ taskDetail.intentScore }} / {{ taskDetail.matchScore }} /
+                    {{ taskDetail.reachableScore }}
+                  </Descriptions.Item>
+                  <Descriptions.Item
+                    label="统一社会信用代码"
+                    :span="isMobile ? 1 : 2"
+                  >
+                    {{ taskDetail.unifiedSocialCreditCode || '-' }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="企业地址" :span="isMobile ? 1 : 2">
+                    {{ taskDetail.address || '-' }}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="最近信号">
+                    {{
+                      taskDetail.sourceLatest ||
+                      taskDetail.latestSignalType ||
                       '-'
                     }}
-                  </Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="最近信号时间">
+                    {{ formatTime(taskDetail.latestSignalTime) }}
+                  </Descriptions.Item>
+                </Descriptions>
+              </Card>
+
+              <div class="radar-task-detail-actions">
+                <Space>
+                  <Button @click="detailDrawerOpen = false">关闭</Button>
+                  <Button
+                    type="primary"
+                    @click="goToLeadDetail(taskDetail.leadId)"
+                  >
+                    查看线索详情
+                  </Button>
                 </Space>
               </div>
-            </Card>
-
-            <Card title="执行信息">
-              <Descriptions :column="isMobile ? 1 : 2" bordered size="small">
-                <Descriptions.Item label="任务编号">
-                  {{ taskDetail.taskId }}
-                </Descriptions.Item>
-                <Descriptions.Item label="触达类型">
-                  {{ mapTaskType(taskDetail.taskType) }}
-                </Descriptions.Item>
-                <Descriptions.Item label="渠道">
-                  {{ mapChannel(taskDetail.channel) }}
-                </Descriptions.Item>
-                <Descriptions.Item label="触达号码">
-                  {{ taskDetail.phoneNumber || '-' }}
-                </Descriptions.Item>
-                <Descriptions.Item label="模板编码">
-                  {{ taskDetail.templateCode || '-' }}
-                </Descriptions.Item>
-                <Descriptions.Item label="操作人">
-                  {{ taskDetail.sentByName || '-' }}
-                </Descriptions.Item>
-                <Descriptions.Item label="任务状态">
-                  <component
-                    :is="renderStatusTag(taskDetail.status, taskStatusMetaMap)"
-                  />
-                </Descriptions.Item>
-                <Descriptions.Item label="回复状态">
-                  <component
-                    :is="
-                      renderStatusTag(
-                        taskDetail.replyStatus,
-                        replyStatusMetaMap,
-                      )
-                    "
-                  />
-                </Descriptions.Item>
-                <Descriptions.Item label="计划时间">
-                  {{ formatTime(taskDetail.scheduledAt) }}
-                </Descriptions.Item>
-                <Descriptions.Item label="发送时间">
-                  {{ formatTime(taskDetail.sentAt) }}
-                </Descriptions.Item>
-                <Descriptions.Item label="回复时间">
-                  {{ formatTime(taskDetail.replyTime) }}
-                </Descriptions.Item>
-                <Descriptions.Item label="更新时间">
-                  {{ formatTime(taskDetail.updateTime) }}
-                </Descriptions.Item>
-                <Descriptions.Item label="执行结果" :span="isMobile ? 1 : 2">
-                  {{ renderResult(taskDetail) }}
-                </Descriptions.Item>
-              </Descriptions>
-            </Card>
-
-            <Card title="线索与企业">
-              <Descriptions :column="isMobile ? 1 : 2" bordered size="small">
-                <Descriptions.Item label="线索编号">
-                  {{ taskDetail.leadId }}
-                </Descriptions.Item>
-                <Descriptions.Item label="线索来源">
-                  {{ taskDetail.leadSource || '-' }}
-                </Descriptions.Item>
-                <Descriptions.Item label="联系人">
-                  {{ taskDetail.contactName || '-' }}
-                </Descriptions.Item>
-                <Descriptions.Item label="行业">
-                  {{ taskDetail.industryName || '-' }}
-                </Descriptions.Item>
-                <Descriptions.Item label="城市">
-                  {{ taskDetail.city || '-' }}
-                </Descriptions.Item>
-                <Descriptions.Item label="意向面积">
-                  {{
-                    taskDetail.intentArea === null ||
-                    taskDetail.intentArea === undefined
-                      ? '-'
-                      : `${formatNumber(taskDetail.intentArea)} ㎡`
-                  }}
-                </Descriptions.Item>
-                <Descriptions.Item
-                  label="意图 / 匹配 / 可触达"
-                  :span="isMobile ? 1 : 2"
-                >
-                  {{ taskDetail.intentScore }} / {{ taskDetail.matchScore }} /
-                  {{ taskDetail.reachableScore }}
-                </Descriptions.Item>
-                <Descriptions.Item
-                  label="统一社会信用代码"
-                  :span="isMobile ? 1 : 2"
-                >
-                  {{ taskDetail.unifiedSocialCreditCode || '-' }}
-                </Descriptions.Item>
-                <Descriptions.Item label="企业地址" :span="isMobile ? 1 : 2">
-                  {{ taskDetail.address || '-' }}
-                </Descriptions.Item>
-                <Descriptions.Item label="最近信号">
-                  {{
-                    taskDetail.sourceLatest ||
-                    taskDetail.latestSignalType ||
-                    '-'
-                  }}
-                </Descriptions.Item>
-                <Descriptions.Item label="最近信号时间">
-                  {{ formatTime(taskDetail.latestSignalTime) }}
-                </Descriptions.Item>
-              </Descriptions>
-            </Card>
-
-            <div class="radar-task-detail-actions">
-              <Space>
-                <Button @click="detailDrawerOpen = false">关闭</Button>
-                <Button
-                  type="primary"
-                  @click="goToLeadDetail(taskDetail.leadId)"
-                >
-                  查看线索详情
-                </Button>
-              </Space>
             </div>
-          </div>
-        </template>
-        <Empty v-else description="未找到触达任务详情" />
-      </Drawer>
-    </div>
-  </Page>
+          </template>
+          <Empty v-else description="未找到触达任务详情" />
+        </Drawer>
+      </div>
+    </Page>
+  </div>
 </template>
 
 <style scoped>
-.radar-task-filter {
-  row-gap: 12px;
+.radar-task-route,
+.radar-collection-page,
+:deep(.radar-collection-content) {
+  min-height: 100%;
+}
+
+.radar-collection-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100%;
+}
+
+.radar-collection-table-card {
+  overflow: hidden;
+}
+
+.radar-stat-card-grid {
+  margin: 0 !important;
+}
+
+.radar-stat-card {
+  height: 100%;
+}
+
+.radar-stat-card :deep(.ant-card-body) {
+  padding: 16px 18px;
+}
+
+.radar-stat-card :deep(.ant-statistic-title) {
+  margin-bottom: 4px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ant-color-text-secondary);
+}
+
+.radar-stat-card :deep(.ant-statistic-content) {
+  font-size: 24px;
+  line-height: 32px;
+  color: var(--ant-color-text);
 }
 
 .radar-search-form {
-  row-gap: 12px;
+  --radar-filter-height: 32px;
+  --radar-filter-width: 180px;
+
+  row-gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.radar-search-form :deep(.ant-form-item) {
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.radar-search-form :deep(.ant-form-item-control-input) {
+  min-height: var(--radar-filter-height);
 }
 
 .radar-filter-control {
-  width: 180px;
-  min-width: 180px;
+  width: var(--radar-filter-width);
+  min-width: var(--radar-filter-width);
+  max-width: var(--radar-filter-width);
 }
 
 .radar-filter-keyword {
-  width: 180px;
-  max-width: 100%;
-  min-width: 180px;
+  width: var(--radar-filter-width);
+  min-width: var(--radar-filter-width);
+  max-width: var(--radar-filter-width);
 }
 
 .radar-search-form :deep(.ant-input),
@@ -978,38 +1060,68 @@ onMounted(() => {
 
 .radar-search-form :deep(.ant-input),
 .radar-search-form :deep(.ant-input-affix-wrapper),
-.radar-search-form :deep(.ant-select-single .ant-select-selector) {
-  height: 34px;
-  min-height: 34px;
+.radar-search-form :deep(.ant-select-single),
+.radar-search-form :deep(.ant-select-single .ant-select-selector),
+.radar-search-form :deep(.ant-select-single .ant-select-selection-search-input),
+.radar-search-form :deep(.ant-btn) {
+  height: var(--radar-filter-height);
+}
+
+.radar-search-form :deep(.ant-input),
+.radar-search-form :deep(.ant-input-affix-wrapper),
+.radar-search-form :deep(.ant-select-single .ant-select-selector),
+.radar-search-form :deep(.ant-btn) {
+  line-height: calc(var(--radar-filter-height) - 2px);
 }
 
 .radar-search-form :deep(.ant-input-affix-wrapper) {
+  box-sizing: border-box;
+  display: flex;
   align-items: center;
-  display: inline-flex;
   padding-block: 0;
 }
 
 .radar-search-form :deep(.ant-input-affix-wrapper > input.ant-input) {
-  height: 32px;
-  min-height: 32px;
-  line-height: 32px;
+  height: calc(var(--radar-filter-height) - 2px);
+  line-height: calc(var(--radar-filter-height) - 2px);
+}
+
+.radar-search-form :deep(.ant-select-single .ant-select-selector) {
+  display: flex;
+  align-items: center;
+}
+
+.radar-search-form :deep(.ant-select-single .ant-select-selection-item),
+.radar-search-form :deep(.ant-select-single .ant-select-selection-placeholder) {
+  width: 100%;
+  line-height: calc(var(--radar-filter-height) - 2px);
+}
+
+.radar-search-form
+  :deep(.ant-select-single .ant-select-selection-search-input) {
+  text-align: left;
 }
 
 .radar-search-form :deep(.ant-form-item-label > label) {
-  color: var(--ant-color-text);
+  min-height: var(--radar-filter-height);
   font-size: 14px;
+  color: var(--ant-color-text);
 }
 
 :deep(.ant-table-thead > tr > th) {
-  color: var(--ant-color-text);
   font-size: 14px;
   font-weight: 600;
+  color: var(--ant-color-text);
+  text-align: center;
+  vertical-align: middle;
 }
 
 :deep(.ant-table-tbody > tr > td) {
-  color: var(--ant-color-text);
   font-size: 14px;
   line-height: 22px;
+  color: var(--ant-color-text);
+  text-align: center;
+  vertical-align: middle;
 }
 
 .radar-task-mobile-summary {
@@ -1018,32 +1130,31 @@ onMounted(() => {
   gap: 8px;
 }
 
-.radar-task-mobile-summary > div,
+.radar-task-mobile-stat-card,
 .radar-task-mobile-filter,
 .radar-task-mobile-card {
+  background: var(--ant-color-bg-container);
   border: 1px solid var(--ant-color-border-secondary);
   border-radius: 8px;
-  background: var(--ant-color-bg-container);
   box-shadow: 0 4px 14px rgb(15 23 42 / 6%);
 }
 
-.radar-task-mobile-summary > div {
+.radar-task-mobile-stat-card :deep(.ant-card-body) {
   padding: 10px 4px;
   text-align: center;
 }
 
-.radar-task-mobile-summary span {
-  display: block;
-  color: var(--ant-color-text-secondary);
+.radar-task-mobile-stat-card :deep(.ant-statistic-title) {
+  margin-bottom: 2px;
   font-size: 11px;
   line-height: 16px;
+  color: var(--ant-color-text-secondary);
 }
 
-.radar-task-mobile-summary strong {
-  display: block;
-  color: var(--ant-color-text);
+.radar-task-mobile-stat-card :deep(.ant-statistic-content) {
   font-size: 18px;
   line-height: 24px;
+  color: var(--ant-color-text);
 }
 
 .radar-task-mobile {
@@ -1054,8 +1165,22 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 12px;
   padding: 12px;
+  margin-bottom: 12px;
+}
+
+.radar-task-mobile-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 64px;
+  gap: 8px;
+  align-items: center;
+}
+
+.radar-task-mobile-panel {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ant-color-border-secondary);
 }
 
 .radar-task-mobile-grid,
@@ -1077,24 +1202,24 @@ onMounted(() => {
 
 .radar-task-mobile-head {
   display: flex;
+  gap: 8px;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
 }
 
 .radar-task-mobile-title {
-  color: var(--ant-color-text);
   font-size: 16px;
   font-weight: 700;
   line-height: 22px;
+  color: var(--ant-color-text);
   word-break: break-word;
 }
 
 .radar-task-mobile-subtitle {
   margin-top: 2px;
-  color: var(--ant-color-text-secondary);
   font-size: 12px;
   line-height: 18px;
+  color: var(--ant-color-text-secondary);
 }
 
 .radar-task-mobile-tags {
@@ -1109,31 +1234,31 @@ onMounted(() => {
   grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   margin-top: 10px;
-  color: var(--ant-color-text-secondary);
   font-size: 13px;
   line-height: 20px;
+  color: var(--ant-color-text-secondary);
 }
 
 .radar-task-mobile-card p {
   margin: 8px 0 0;
-  color: var(--ant-color-text-secondary);
   font-size: 13px;
   line-height: 20px;
+  color: var(--ant-color-text-secondary);
   word-break: break-word;
 }
 
 .radar-task-mobile-card-actions,
 .radar-task-mobile-pagination {
   display: flex;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
   margin-top: 12px;
 }
 
 .radar-task-mobile-pagination {
-  color: var(--ant-color-text-secondary);
   font-size: 13px;
+  color: var(--ant-color-text-secondary);
 }
 
 @media (max-width: 767px) {

@@ -52,6 +52,9 @@ const validStatuses = new Set<SignalEventStatus>([
   'REVIEWED',
 ]);
 
+let signalEventStorageReady: null | Promise<void> = null;
+let signalEventSeedReady: null | Promise<void> = null;
+
 function toJson(value: unknown) {
   return JSON.stringify(value ?? []);
 }
@@ -184,7 +187,12 @@ function mapEvidenceRow(row: any) {
 }
 
 export async function ensureSignalEventStorage() {
-  await prismaClient.$executeRawUnsafe(`
+  if (signalEventStorageReady) {
+    return signalEventStorageReady;
+  }
+
+  signalEventStorageReady = (async () => {
+    await prismaClient.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS signal_event (
       event_id bigint NOT NULL AUTO_INCREMENT,
       enterprise_id bigint NULL DEFAULT NULL,
@@ -216,7 +224,7 @@ export async function ensureSignalEventStorage() {
     ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
   `);
 
-  await prismaClient.$executeRawUnsafe(`
+    await prismaClient.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS signal_evidence (
       evidence_id bigint NOT NULL AUTO_INCREMENT,
       event_id bigint NOT NULL,
@@ -239,6 +247,12 @@ export async function ensureSignalEventStorage() {
       KEY signal_evidence_content_hash_idx (content_hash)
     ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
   `);
+  })().catch((error) => {
+    signalEventStorageReady = null;
+    throw error;
+  });
+
+  return signalEventStorageReady;
 }
 
 async function getSignalEventIdByHash(contentHash: string) {
@@ -590,20 +604,31 @@ function buildSignalEventSelectSql() {
 }
 
 async function ensureSignalSeeded() {
-  await ensureSignalEventStorage();
-  const rows = await prismaClient.$queryRawUnsafe<
-    Array<{ total: bigint | number }>
-  >(
-    `
+  if (signalEventSeedReady) {
+    return signalEventSeedReady;
+  }
+
+  signalEventSeedReady = (async () => {
+    await ensureSignalEventStorage();
+    const rows = await prismaClient.$queryRawUnsafe<
+      Array<{ total: bigint | number }>
+    >(
+      `
       SELECT COUNT(*) AS total
       FROM signal_event
       WHERE is_deleted = 0
     `,
-  );
-  if (Number(rows[0]?.total || 0) > 0) {
-    return;
-  }
-  await rebuildSignalEventsFromExternalLeads();
+    );
+    if (Number(rows[0]?.total || 0) > 0) {
+      return;
+    }
+    await rebuildSignalEventsFromExternalLeads();
+  })().catch((error) => {
+    signalEventSeedReady = null;
+    throw error;
+  });
+
+  return signalEventSeedReady;
 }
 
 export async function listSignalEvents(params: SignalEventListParams) {

@@ -1,7 +1,4 @@
-import {
-  getExternalLeadDetail,
-  listExternalLeadEvidences,
-} from '~/utils/investment-radar/external-lead-repository';
+import { listExternalLeadEvidences } from '~/utils/investment-radar/external-lead-repository';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   badRequestResponse,
@@ -22,16 +19,9 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const result = await runWithRadarSharedScope(async () => {
-      const lead = await getExternalLeadDetail(leadId);
-      if (!lead) {
-        return null;
-      }
-      return listExternalLeadEvidences(leadId);
-    });
-    if (!result) {
-      return badRequestResponse('外部公开线索不存在', event, 404);
-    }
+    const result = await runWithRadarSharedScope(() =>
+      listExternalLeadEvidences(leadId),
+    );
     return useResponseSuccess(result);
   } catch (error) {
     console.error('list external lead evidences failed:', error);

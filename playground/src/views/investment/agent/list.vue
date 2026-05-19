@@ -186,8 +186,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
     schema: useGridFormSchema(),
   },
   gridOptions: {
+    align: 'center',
     border: true,
     columns: useColumns(onActionClick),
+    headerAlign: 'center',
     height: 'auto',
     keepSource: true,
     proxyConfig: {
@@ -355,6 +357,8 @@ const recommendColumns = [
       </div>
 
       <Table
+        bordered
+        class="agent-recommend-table"
         :columns="recommendColumns"
         :data-source="nearbyParks"
         :pagination="false"
@@ -419,3 +423,21 @@ const recommendColumns = [
     </Modal>
   </Page>
 </template>
+
+<style scoped>
+.agent-recommend-table :deep(.ant-table-thead > tr > th) {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ant-color-text);
+  text-align: center;
+  vertical-align: middle;
+}
+
+.agent-recommend-table :deep(.ant-table-tbody > tr > td) {
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--ant-color-text);
+  text-align: center;
+  vertical-align: middle;
+}
+</style>

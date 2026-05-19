@@ -9,6 +9,29 @@
     "register": "Register",
     "sendingCode": "SMS Code is sending..."
   },
+  "agent": {
+    "create": "Create Agent",
+    "detail": "Agent Detail",
+    "edit": "Edit Agent",
+    "intentArea": "Intent Area",
+    "intentLevel": "Intent Level",
+    "level": {
+      "high": "High",
+      "low": "Low",
+      "normal": "Normal",
+      "veryHigh": "Very High",
+      "veryLow": "Very Low"
+    },
+    "list": "Agent List",
+    "maxIntentArea": "Max Intent Area",
+    "minIntentArea": "Min Intent Area",
+    "name": "Agent",
+    "noImages": "No images",
+    "phone": "Contact Number",
+    "progress": "Progress",
+    "title": "Agent Management",
+    "view": "View Agent"
+  },
   "bill": {
     "amount": {
       "detail": "Bill Detail",
