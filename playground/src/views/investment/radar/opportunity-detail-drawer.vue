@@ -264,7 +264,7 @@ function extractPrimaryDescription(value?: null | string) {
   }
 
   text = compactText(text)
-    .replaceAll(/^[-:：>\s]+/g, '')
+    .replaceAll(/^[\s:：>-]+/g, '')
     .replaceAll(/本网站信息全部真实有效.*?现场实拍！\s*/g, '')
     .trim();
 
