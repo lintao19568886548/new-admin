@@ -62,6 +62,15 @@ function endOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
 }
 
+function getCurrentYearMonths(referenceDate: Date) {
+  const year = referenceDate.getFullYear();
+  const currentMonth = referenceDate.getMonth();
+
+  return Array.from({ length: currentMonth + 1 }).map(
+    (_item, index) => new Date(year, index, 1),
+  );
+}
+
 function isActiveContract(
   referenceDate: Date,
   contractStart: Date | null,
@@ -223,12 +232,15 @@ export default eventHandler(async (event) => {
       retreated: [],
     };
 
-    const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentYearMonths = getCurrentYearMonths(now);
+    const currentMonth =
+      currentYearMonths[currentYearMonths.length - 1] ||
+      new Date(now.getFullYear(), now.getMonth(), 1);
     const summary = calculateContractTotals(contracts, currentMonth, now);
 
-    for (let offset = -11; offset <= 0; offset++) {
-      const monthStart = addMonths(currentMonth, offset);
-      const referenceDate = offset === 0 ? now : endOfMonth(monthStart);
+    for (const [index, monthStart] of currentYearMonths.entries()) {
+      const referenceDate =
+        index === currentYearMonths.length - 1 ? now : endOfMonth(monthStart);
       const totals = calculateContractTotals(
         contracts,
         monthStart,

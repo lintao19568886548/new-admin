@@ -165,16 +165,18 @@ onUnmounted(() => {
 const activeConsumptionType = ref<EnergyConsumptionType>('water');
 
 const currentYear = new Date().getFullYear();
-const defaultMonths = Array.from({ length: 12 }).map((_item, index) => {
-  const date = new Date(currentYear, new Date().getMonth() - 11 + index, 1);
+const defaultMonths = Array.from({
+  length: new Date().getMonth() + 1,
+}).map((_item, index) => {
+  const date = new Date(currentYear, index, 1);
 
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 });
 const defaultElectricityStats: DashboardEnergyElectricityStats = {
   electricity: {
-    consumption: Array.from({ length: 12 }, () => 0),
-    monthOnMonth: Array.from({ length: 12 }, () => 0),
-    yearOnYear: Array.from({ length: 12 }, () => 0),
+    consumption: Array.from({ length: defaultMonths.length }, () => 0),
+    monthOnMonth: Array.from({ length: defaultMonths.length }, () => 0),
+    yearOnYear: Array.from({ length: defaultMonths.length }, () => 0),
   },
   hasData: false,
   months: defaultMonths,
@@ -184,9 +186,9 @@ const defaultWaterStats: DashboardEnergyWaterStats = {
   hasData: false,
   months: defaultMonths,
   water: {
-    consumption: Array.from({ length: 12 }, () => 0),
-    monthOnMonth: Array.from({ length: 12 }, () => 0),
-    yearOnYear: Array.from({ length: 12 }, () => 0),
+    consumption: Array.from({ length: defaultMonths.length }, () => 0),
+    monthOnMonth: Array.from({ length: defaultMonths.length }, () => 0),
+    yearOnYear: Array.from({ length: defaultMonths.length }, () => 0),
   },
   year: currentYear,
 };

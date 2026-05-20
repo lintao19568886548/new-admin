@@ -6,23 +6,21 @@ import {
   useResponseSuccess,
 } from '~/utils/response';
 
-const MONTH_COUNT = 12;
-
 interface ElectricityBillItem {
   meterName: string;
   totalUsage: unknown;
 }
 
 function createEmptyStats(referenceDate: Date, message?: string) {
-  const months = getPastYearMonths(referenceDate).map((month) =>
+  const months = getCurrentYearMonths(referenceDate).map((month) =>
     formatMonth(month),
   );
 
   return {
     electricity: {
-      consumption: Array.from({ length: MONTH_COUNT }, () => 0),
-      monthOnMonth: Array.from({ length: MONTH_COUNT }, () => 0),
-      yearOnYear: Array.from({ length: MONTH_COUNT }, () => 0),
+      consumption: Array.from({ length: months.length }, () => 0),
+      monthOnMonth: Array.from({ length: months.length }, () => 0),
+      yearOnYear: Array.from({ length: months.length }, () => 0),
     },
     hasData: false,
     message,
@@ -42,15 +40,12 @@ function formatMonth(date: Date) {
   )}`;
 }
 
-function getPastYearMonths(referenceDate: Date) {
-  const currentMonth = new Date(
-    referenceDate.getFullYear(),
-    referenceDate.getMonth(),
-    1,
-  );
+function getCurrentYearMonths(referenceDate: Date) {
+  const year = referenceDate.getFullYear();
+  const currentMonth = referenceDate.getMonth();
 
-  return Array.from({ length: MONTH_COUNT }).map((_item, index) =>
-    addMonths(currentMonth, index - (MONTH_COUNT - 1)),
+  return Array.from({ length: currentMonth + 1 }).map(
+    (_item, index) => new Date(year, index, 1),
   );
 }
 
@@ -159,7 +154,7 @@ export default eventHandler(async (event) => {
       );
     }
 
-    const months = getPastYearMonths(referenceDate);
+    const months = getCurrentYearMonths(referenceDate);
     const monthLabels = months.map((month) => formatMonth(month));
     const monthLabelSet = new Set(monthLabels);
     const { createTimeEnd, createTimeStart } = getBillCreateTimeRange(months);
@@ -234,7 +229,7 @@ export default eventHandler(async (event) => {
       hasData,
       message: hasData
         ? undefined
-        : '过去一年未查询到账单电耗明细，暂无电耗数据',
+        : '当前年度未查询到账单电耗明细，暂无电耗数据',
       months: monthLabels,
       year: referenceDate.getFullYear(),
     });

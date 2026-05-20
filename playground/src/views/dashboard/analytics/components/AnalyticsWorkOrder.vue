@@ -162,10 +162,7 @@ const mockData = [
 
 <template>
   <div class="flex h-full flex-col">
-    <div
-      class="grid min-h-0 flex-1 gap-2"
-      :class="isMobile ? 'grid-cols-1' : 'grid-cols-2'"
-    >
+    <div class="grid min-h-0 flex-1 grid-cols-1 gap-2">
       <div
         class="flex flex-col rounded-lg bg-gray-50 p-2"
         :class="isMobile ? 'min-h-[180px]' : ''"
@@ -179,6 +176,7 @@ const mockData = [
           />
         </div>
       </div>
+      <!--
       <div
         class="flex flex-col rounded-lg bg-gray-50 p-2"
         :class="isMobile ? 'min-h-[180px]' : ''"
@@ -195,6 +193,7 @@ const mockData = [
           />
         </div>
       </div>
+      -->
     </div>
   </div>
 </template>

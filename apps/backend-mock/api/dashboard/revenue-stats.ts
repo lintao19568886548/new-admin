@@ -8,43 +8,42 @@ import {
 
 type TransactionType = '支出' | '收入';
 
-function addMonths(date: Date, months: number) {
-  return new Date(date.getFullYear(), date.getMonth() + months, 1);
-}
-
 function formatMonth(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function getLastTwelveMonths(referenceDate: Date) {
-  const currentMonth = new Date(
-    referenceDate.getFullYear(),
-    referenceDate.getMonth(),
-    1,
-  );
+function getCurrentYearMonths(referenceDate: Date) {
+  const year = referenceDate.getFullYear();
+  const currentMonth = referenceDate.getMonth();
 
-  return Array.from({ length: 12 }).map((_item, index) =>
-    addMonths(currentMonth, index - 11),
+  return Array.from({ length: currentMonth + 1 }).map(
+    (_item, index) => new Date(year, index, 1),
   );
 }
 
+function getCurrentYearPeriodLabel(referenceDate: Date) {
+  const year = referenceDate.getFullYear();
+  const month = referenceDate.getMonth() + 1;
+  return `${year}年1-${month}月`;
+}
+
 function createEmptyRevenueStats(referenceDate: Date) {
-  const months = getLastTwelveMonths(referenceDate).map((month) =>
+  const months = getCurrentYearMonths(referenceDate).map((month) =>
     formatMonth(month),
   );
 
   return {
-    periodLabel: '过去一年',
+    periodLabel: getCurrentYearPeriodLabel(referenceDate),
     summary: {
       expenseTotal: 0,
       incomeTotal: 0,
       profit: 0,
     },
     trend: {
-      expense: Array.from({ length: 12 }, () => 0),
-      income: Array.from({ length: 12 }, () => 0),
+      expense: Array.from({ length: months.length }, () => 0),
+      income: Array.from({ length: months.length }, () => 0),
       months,
-      profit: Array.from({ length: 12 }, () => 0),
+      profit: Array.from({ length: months.length }, () => 0),
     },
   };
 }
@@ -83,10 +82,10 @@ export default eventHandler(async (event) => {
       return useResponseSuccess(createEmptyRevenueStats(now));
     }
 
-    const months = getLastTwelveMonths(now);
+    const months = getCurrentYearMonths(now);
     const monthLabels = months.map((month) => formatMonth(month));
     const periodStart = months[0];
-    const periodEnd = addMonths(months[months.length - 1], 1);
+    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const parkIds = selectedParkId ? [selectedParkId] : authorizedParkIds;
 
     const financeList = await prismaClient.finance.findMany({
@@ -110,8 +109,12 @@ export default eventHandler(async (event) => {
       },
     });
 
-    const incomeCents = Array.from({ length: 12 }).fill(0) as number[];
-    const expenseCents = Array.from({ length: 12 }).fill(0) as number[];
+    const incomeCents = Array.from({ length: monthLabels.length }).fill(
+      0,
+    ) as number[];
+    const expenseCents = Array.from({ length: monthLabels.length }).fill(
+      0,
+    ) as number[];
 
     for (const item of financeList) {
       const monthIndex = monthLabels.indexOf(formatMonth(item.transactionTime));
@@ -133,7 +136,7 @@ export default eventHandler(async (event) => {
     const profitCents = incomeTotalCents - expenseTotalCents;
 
     return useResponseSuccess({
-      periodLabel: '过去一年',
+      periodLabel: getCurrentYearPeriodLabel(now),
       summary: {
         expenseTotal: toMoney(expenseTotalCents),
         incomeTotal: toMoney(incomeTotalCents),

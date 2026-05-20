@@ -184,7 +184,7 @@ const dotSize = computed(() => {
 const revenueSummary = ref({
   expenseTotal: 0,
   incomeTotal: 0,
-  periodLabel: '过去一年',
+  periodLabel: '当前年度',
   profit: 0,
 });
 const revenueTrendData = ref<null | RevenueTrendData>(null);
@@ -216,7 +216,7 @@ const fetchRevenueOverview = async () => {
     revenueSummary.value = {
       expenseTotal: Number(res.summary?.expenseTotal) || 0,
       incomeTotal: Number(res.summary?.incomeTotal) || 0,
-      periodLabel: res.periodLabel || '过去一年',
+      periodLabel: res.periodLabel || '当前年度',
       profit: Number(res.summary?.profit) || 0,
     };
 

@@ -22,7 +22,6 @@ import {
   AnalyticsEnergy,
   AnalyticsInvestment,
   AnalyticsRevenue,
-  AnalyticsWorkOrder,
 } from './components';
 import { allParkOption } from './components/parkOptions';
 
@@ -35,7 +34,6 @@ const contractSelectedParkId = ref<ParkOptionValue>('all');
 const customerSelectedParkId = ref<ParkOptionValue>('all');
 const revenueSelectedParkId = ref<ParkOptionValue>('all');
 const energySelectedParkId = ref<ParkOptionValue>('all');
-const workOrderSelectedParkId = ref<ParkOptionValue>('all');
 const countSelectedParkId = ref<ParkOptionValue>('all');
 const parkOptions = ref<ParkOption[]>([allParkOption]);
 
@@ -146,6 +144,19 @@ onUnmounted(() => {
 <template>
   <div class="p-5">
     <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+      <AnalysisChartCard title="营收统计">
+        <template #extra>
+          <div class="w-full sm:w-auto">
+            <Select
+              v-model:value="revenueSelectedParkId"
+              :options="parkOptions"
+              class="w-full sm:w-[220px]"
+              size="middle"
+            />
+          </div>
+        </template>
+        <AnalyticsRevenue :park-id="revenueSelectedParkId" />
+      </AnalysisChartCard>
       <AnalysisChartCard title="厂房租赁">
         <template #extra>
           <div class="w-full sm:w-auto">
@@ -185,19 +196,7 @@ onUnmounted(() => {
         </template>
         <AnalyticsCustomer :park-id="customerSelectedParkId" />
       </AnalysisChartCard>
-      <AnalysisChartCard title="营收统计">
-        <template #extra>
-          <div class="w-full sm:w-auto">
-            <Select
-              v-model:value="revenueSelectedParkId"
-              :options="parkOptions"
-              class="w-full sm:w-[220px]"
-              size="middle"
-            />
-          </div>
-        </template>
-        <AnalyticsRevenue :park-id="revenueSelectedParkId" />
-      </AnalysisChartCard>
+
       <AnalysisChartCard title="能源消耗">
         <template #extra>
           <div class="w-full sm:w-auto">
@@ -211,6 +210,7 @@ onUnmounted(() => {
         </template>
         <AnalyticsEnergy :park-id="energySelectedParkId" />
       </AnalysisChartCard>
+      <!--
       <AnalysisChartCard title="维护工单">
         <template #extra>
           <div class="w-full sm:w-auto">
@@ -224,6 +224,7 @@ onUnmounted(() => {
         </template>
         <AnalyticsWorkOrder :park-id="workOrderSelectedParkId" />
       </AnalysisChartCard>
+      -->
       <AnalysisChartCard title="表计数量统计">
         <template #extra>
           <div class="w-full sm:w-auto">
