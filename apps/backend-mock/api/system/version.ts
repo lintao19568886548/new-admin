@@ -1,11 +1,11 @@
 import { defineEventHandler } from 'h3';
-import { prismaClient } from '~/utils/db';
+import { systemDbClient } from '~/utils/db';
 
 const IOS_STORE_URL =
   'https://apps.apple.com/cn/app/%E7%9E%B0%E7%BB%B4%E6%99%BA%E7%AE%A1/id6760279136';
 
 export default defineEventHandler(async () => {
-  let latestVersion = await prismaClient.appVersion.findFirst({
+  let latestVersion = await systemDbClient.appVersion.findFirst({
     orderBy: {
       createdAt: 'desc',
     },
@@ -13,7 +13,7 @@ export default defineEventHandler(async () => {
 
   // If no version is in the DB, create a default one
   if (!latestVersion) {
-    latestVersion = await prismaClient.appVersion.create({
+    latestVersion = await systemDbClient.appVersion.create({
       data: {
         androidUrl: 'https://www.yizuw.cn/download/kvapp_v1.0.0.apk',
         version: '1.0.0',

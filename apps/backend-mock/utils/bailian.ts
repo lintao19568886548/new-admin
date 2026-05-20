@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { prismaClient, prismaScopeStorage } from '~/utils/db';
+import { systemDbClient } from '~/utils/db';
 
 const BAILIAN_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 const DEFAULT_MODEL = 'qwen3.5-plus';
@@ -46,21 +46,10 @@ export interface BailianFileObject {
   status?: string;
 }
 
-const bailianApiKeyCache = new Map<
-  string,
-  {
-    expiresAt: number;
-    value: string;
-  }
->();
-
-function getCurrentCustomerIdForCache() {
-  return String(
-    prismaScopeStorage.getStore()?.customerId ||
-      process.env.DEFAULT_CUSTOMER_ID ||
-      'default',
-  );
-}
+let bailianApiKeyCache: null | {
+  expiresAt: number;
+  value: string;
+} = null;
 
 function normalizeBailianKey(raw: unknown): string {
   if (typeof raw === 'string') {
@@ -84,13 +73,11 @@ function normalizeBailianKey(raw: unknown): string {
 
 async function ensureBailianApiKey() {
   const now = Date.now();
-  const customerId = getCurrentCustomerIdForCache();
-  const cached = bailianApiKeyCache.get(customerId);
-  if (cached && cached.expiresAt > now) {
-    return cached.value;
+  if (bailianApiKeyCache && bailianApiKeyCache.expiresAt > now) {
+    return bailianApiKeyCache.value;
   }
 
-  const record = await prismaClient.systemKey.findUnique({
+  const record = await systemDbClient.systemKey.findUnique({
     where: {
       key: BAILIAN_KEY_NAME,
     },
@@ -101,10 +88,10 @@ async function ensureBailianApiKey() {
     throw new Error('ALIYUN_BAILIAN_KEY is not configured');
   }
 
-  bailianApiKeyCache.set(customerId, {
+  bailianApiKeyCache = {
     expiresAt: now + BAILIAN_KEY_CACHE_TTL_MS,
     value: key,
-  });
+  };
 
   return key;
 }

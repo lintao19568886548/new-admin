@@ -1,5 +1,5 @@
 import { getQuery, setResponseStatus } from 'h3';
-import { prismaClient } from '~/utils/db';
+import { systemDbClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   badRequestResponse,
@@ -61,7 +61,7 @@ export default eventHandler(async (event) => {
     return forbiddenResponse(event, `key is internal only: ${keyName}`);
   }
 
-  const record = await prismaClient.systemKey.findUnique({
+  const record = await systemDbClient.systemKey.findUnique({
     where: {
       key: keyName,
     },
