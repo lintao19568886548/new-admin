@@ -67,7 +67,9 @@ function shouldKeepCurrentMonthValuesForNextMonth(
   const meterName = String(
     item.meterName?.originalText ?? item.meterName?.value ?? '',
   );
-  return ['公共', '公摊'].some((keyword) => meterName.includes(keyword));
+  return ['公共', '公摊', '电梯用电'].some((keyword) =>
+    meterName.includes(keyword),
+  );
 }
 
 /**

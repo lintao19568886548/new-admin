@@ -93,6 +93,34 @@ let univerAPI: FUniver | null = null;
 const tenantLookupOptions = ref<any[]>([]);
 const parkLookupOptions = ref<any[]>([]);
 
+function normalizeBankAccountText(value: unknown) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  return String(value).replace(/^'/, '');
+}
+
+function setTextFormat(worksheet: any, range: string) {
+  try {
+    worksheet.getRange(range).setNumberFormat('@');
+  } catch (error) {
+    console.warn('设置文本格式失败:', error);
+  }
+}
+
+function setTextCellValue(worksheet: any, rangeText: string, value: unknown) {
+  try {
+    const range = worksheet.getRange(rangeText);
+    range.setNumberFormat('@');
+    range.setHorizontalAlignment('center');
+    range.setVerticalAlignment('middle');
+    range.setValue(normalizeBankAccountText(value));
+  } catch (error) {
+    console.warn('设置文本单元格失败:', error);
+  }
+}
+
 async function init() {
   if (!univerContainer.value) {
     return;
@@ -462,7 +490,7 @@ async function init() {
           publicAccountData = {
             bank: parsed.bank || '',
             name: parsed.name || '',
-            number: parsed.number || '',
+            number: normalizeBankAccountText(parsed.number),
           };
         }
       } catch (error) {
@@ -478,7 +506,7 @@ async function init() {
           privateAccountData = {
             bank: parsed.bank || '',
             name: parsed.name || '',
-            number: parsed.number || '',
+            number: normalizeBankAccountText(parsed.number),
           };
         }
       } catch (error) {
@@ -499,7 +527,7 @@ async function init() {
           '对公账户',
           publicAccountData.name,
           '',
-          publicAccountData.number,
+          '',
           '',
           '',
           publicAccountData.bank,
@@ -517,7 +545,7 @@ async function init() {
           '对私账户',
           privateAccountData.name,
           '',
-          privateAccountData.number,
+          '',
           '',
           '',
           privateAccountData.bank,
@@ -791,6 +819,22 @@ async function init() {
       worksheet.getRange(`B${privateDataRow}:C${privateDataRow}`).merge();
       worksheet.getRange(`D${privateDataRow}:F${privateDataRow}`).merge();
       worksheet.getRange(`G${privateDataRow}:I${privateDataRow}`).merge();
+
+      const publicAccountNumberRange = `D${publicDataRow}:F${publicDataRow}`;
+      const privateAccountNumberRange = `D${privateDataRow}:F${privateDataRow}`;
+
+      setTextFormat(worksheet, publicAccountNumberRange);
+      setTextFormat(worksheet, privateAccountNumberRange);
+      setTextCellValue(
+        worksheet,
+        publicAccountNumberRange,
+        publicAccountData.number,
+      );
+      setTextCellValue(
+        worksheet,
+        privateAccountNumberRange,
+        privateAccountData.number,
+      );
 
       // Set border for the bank table after merging
       worksheet
@@ -1087,11 +1131,11 @@ function getData() {
   for (const row of fullData) {
     if (row[0] === '对公账户') {
       publicAccount.name = String(row[1] || '');
-      publicAccount.number = String(row[3] || '');
+      publicAccount.number = normalizeBankAccountText(row[3]);
       publicAccount.bank = String(row[6] || '');
     } else if (row[0] === '对私账户') {
       privateAccount.name = String(row[1] || '');
-      privateAccount.number = String(row[3] || '');
+      privateAccount.number = normalizeBankAccountText(row[3]);
       privateAccount.bank = String(row[6] || '');
     }
   }
