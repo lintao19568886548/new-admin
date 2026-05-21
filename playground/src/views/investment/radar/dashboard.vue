@@ -12,6 +12,7 @@ import type {
   RadarAnalysisSourceStat,
   RadarAnalysisSummary,
   RadarCollectTask,
+  RadarPipelineRebuildResult,
 } from '#/api/investment';
 
 import { computed, defineComponent, h, onMounted, ref, watch } from 'vue';
@@ -27,6 +28,7 @@ import {
   Card,
   Col,
   Empty,
+  message,
   Row,
   Skeleton,
   Space,
@@ -36,9 +38,14 @@ import {
 
 import {
   getEffectivePublicOpportunityList,
+  getRadarAcquisitionAnalytics,
   getRadarAnalysisSummary,
+  getRadarChannelAnalytics,
   getRadarCollectTask,
   getRadarLeadList,
+  getRadarSalesAnalytics,
+  getRadarTemplateAnalytics,
+  rebuildRadarAcquisitionPipeline,
 } from '#/api/investment';
 
 import { RADAR_STAGE_LABEL_MAP } from './data';
@@ -121,6 +128,42 @@ const analysis = ref<null | RadarAnalysisSummary>(null);
 const leads = ref<RadarLead[]>([]);
 const opportunities = ref<PublicOpportunityItem[]>([]);
 const latestTask = ref<null | RadarCollectTask>(null);
+const pipelineRebuilding = ref(false);
+const pipelineSummary = ref<null | RadarPipelineRebuildResult>(null);
+
+const signalTypeLabelMap: Record<string, string> = {
+  EIA_EXPAND: '环评扩产',
+  FACTORY_RENT_DEMAND: '租厂需求',
+  NEWS_EXPAND: '新闻扩张',
+  PUBLIC_FACTORY_DEMAND: '公开厂房需求',
+  RECRUITMENT_EXPAND: '招聘扩张',
+  RELOCATION: '搬迁信号',
+  UNKNOWN: '其他信号',
+};
+
+const channelLabelMap: Record<string, string> = {
+  CALL: '电话',
+  EMAIL: '邮件',
+  SMS: '短信',
+  VISIT: '拜访',
+  WECHAT: '微信',
+};
+
+const sourceTypeLabelMap: Record<string, string> = {
+  EIA: '环评公示',
+  GOVERNMENT: '政府公示',
+  INTERNAL_CONTRACT: '内部合同',
+  PUBLIC: '公开来源',
+  RECRUITMENT: '招聘信息',
+  TENDER: '招投标',
+};
+
+const templateLabelMap: Record<string, string> = {
+  CONTRACT_EXPIRY: '合同到期提醒',
+  EIA_EXPAND: '环评扩产触达',
+  RECRUITMENT_EXPAND: '招聘扩张触达',
+  TENDER_WIN: '中标项目触达',
+};
 
 const summary = computed(() => {
   const funnel = analysis.value?.funnel;
@@ -274,6 +317,43 @@ const mobileOwnerHighlights = computed(() =>
   (analysis.value?.ownerStats || []).slice(0, 3),
 );
 
+const pipelineSummaryItems = computed(() => {
+  const result = pipelineSummary.value;
+  if (!result) {
+    return [];
+  }
+  return [
+    {
+      label: '处理公开线索',
+      value: result.sourceLeadCount,
+    },
+    {
+      label: '企业信号',
+      value: result.createdSignalEventCount + result.updatedSignalEventCount,
+    },
+    {
+      label: '更新画像',
+      value: result.createdProfileCount + result.updatedProfileCount,
+    },
+    {
+      label: '重算评分',
+      value: result.recalculatedLeadCount,
+    },
+    {
+      label: '自动分配',
+      value: result.assignedLeadCount,
+    },
+    {
+      label: '新增触达',
+      value: result.createdOutreachTaskCount,
+    },
+    {
+      label: '新增待办',
+      value: result.createdSopReminderCount,
+    },
+  ];
+});
+
 function getPriorityColor(priorityLevel?: null | string) {
   if (priorityLevel === 'A') {
     return 'red';
@@ -298,7 +378,7 @@ function getStageLabel(stage?: null | string) {
   if (!stage) {
     return '-';
   }
-  return RADAR_STAGE_LABEL_MAP[stage] || stage;
+  return RADAR_STAGE_LABEL_MAP[stage] || '跟进中';
 }
 
 function getOpportunityTypeLabel(type?: null | string) {
@@ -308,7 +388,44 @@ function getOpportunityTypeLabel(type?: null | string) {
   if (type === 'SUPPLY') {
     return '房源';
   }
-  return '-';
+  return type ? '机会' : '-';
+}
+
+function getSignalTypeLabel(eventType?: null | string) {
+  if (!eventType) {
+    return '-';
+  }
+  return signalTypeLabelMap[eventType] || '企业信号';
+}
+
+function getChannelLabel(channel?: null | string) {
+  if (!channel) {
+    return '-';
+  }
+  return channelLabelMap[channel] || '其他渠道';
+}
+
+function getSourceLabel(source?: null | string, sourceType?: null | string) {
+  if (!source && !sourceType) {
+    return '-';
+  }
+  const sourceName = String(source || '').trim();
+  if (sourceName && !/^[\w:-]+$/.test(sourceName)) {
+    return sourceName;
+  }
+  return sourceTypeLabelMap[String(sourceType || '').trim()] || '公开来源';
+}
+
+function getTemplateLabel(
+  templateName?: null | string,
+  templateCode?: null | string,
+) {
+  const name = String(templateName || '').trim();
+  const code = String(templateCode || '').trim();
+  if (name && !/^[\w:-]+$/.test(name)) {
+    return name;
+  }
+  return templateLabelMap[code] || templateLabelMap[name] || '通用触达话术';
 }
 
 function getOpportunityLocation(record: PublicOpportunityItem) {
@@ -472,7 +589,9 @@ function getSourceBarChartConfig(
       type: 'value',
     },
     yAxis: {
-      data: items.map((item) => item.sourceName),
+      data: items.map((item) =>
+        getSourceLabel(item.sourceName, item.sourceType),
+      ),
       type: 'category',
     },
   };
@@ -845,7 +964,9 @@ function getMobileSourceChartConfig(
         overflow: 'truncate',
         width: 72,
       },
-      data: items.map((item) => item.sourceName),
+      data: items.map((item) =>
+        getSourceLabel(item.sourceName, item.sourceType),
+      ),
       type: 'category',
     },
   };
@@ -868,7 +989,15 @@ async function loadDashboard() {
   loading.value = true;
   loadError.value = '';
   try {
-    const [leadResult, opportunityResult, analysisResult] = await Promise.all([
+    const [
+      leadResult,
+      opportunityResult,
+      analysisResult,
+      acquisitionResult,
+      channelResult,
+      salesResult,
+      templateResult,
+    ] = await Promise.allSettled([
       getRadarLeadList({
         currentPage: 1,
         pageSize: 8,
@@ -876,15 +1005,97 @@ async function loadDashboard() {
       getEffectivePublicOpportunityList({
         currentPage: 1,
         pageSize: 6,
+        scope: 'collected',
       }),
       getRadarAnalysisSummary(),
+      getRadarAcquisitionAnalytics(),
+      getRadarChannelAnalytics(),
+      getRadarSalesAnalytics(),
+      getRadarTemplateAnalytics(),
     ]);
 
-    leads.value = Array.isArray(leadResult.items) ? leadResult.items : [];
-    opportunities.value = Array.isArray(opportunityResult.items)
-      ? opportunityResult.items
+    const loadedLeads =
+      leadResult.status === 'fulfilled' ? leadResult.value : null;
+    const loadedOpportunities =
+      opportunityResult.status === 'fulfilled' ? opportunityResult.value : null;
+    const loadedAnalysis =
+      analysisResult.status === 'fulfilled' ? analysisResult.value : null;
+    const loadedAcquisition =
+      acquisitionResult.status === 'fulfilled' ? acquisitionResult.value : null;
+    const loadedChannels =
+      channelResult.status === 'fulfilled' ? channelResult.value : null;
+    const loadedSales =
+      salesResult.status === 'fulfilled' ? salesResult.value : null;
+    const loadedTemplates =
+      templateResult.status === 'fulfilled' ? templateResult.value : null;
+
+    const fallbackAnalysis = loadedAnalysis || {
+      channelStats: [],
+      funnel: {
+        activeLeads: 0,
+        contactedLeads: 0,
+        contactRate: 0,
+        dealLeads: 0,
+        dealRate: 0,
+        highPriorityLeads: 0,
+        repliedLeads: 0,
+        replyRate: 0,
+        totalLeads: 0,
+        visitLeads: 0,
+        visitRate: 0,
+      },
+      generatedAt: new Date().toISOString(),
+      ownerStats: [],
+      signalTypeStats: [],
+      sopStats: {
+        followCount: 0,
+        overdueReminders: 0,
+        pendingReminders: 0,
+        visitCount: 0,
+      },
+      sourceStats: [],
+      suggestions: [],
+      templateStats: [],
+    };
+
+    leads.value = Array.isArray(loadedLeads?.items) ? loadedLeads.items : [];
+    opportunities.value = Array.isArray(loadedOpportunities?.items)
+      ? loadedOpportunities.items
       : [];
-    analysis.value = analysisResult;
+    analysis.value = {
+      ...fallbackAnalysis,
+      channelStats: Array.isArray(loadedChannels)
+        ? loadedChannels
+        : fallbackAnalysis.channelStats,
+      ownerStats: Array.isArray(loadedSales)
+        ? loadedSales
+        : fallbackAnalysis.ownerStats,
+      signalTypeStats:
+        loadedAcquisition &&
+        Array.isArray(loadedAcquisition.signalTypeConversion)
+          ? loadedAcquisition.signalTypeConversion
+          : fallbackAnalysis.signalTypeStats,
+      sourceStats:
+        loadedAcquisition && Array.isArray(loadedAcquisition.sourceConversion)
+          ? loadedAcquisition.sourceConversion
+          : fallbackAnalysis.sourceStats,
+      templateStats: Array.isArray(loadedTemplates)
+        ? loadedTemplates
+        : fallbackAnalysis.templateStats,
+    };
+
+    const failedLoads = [
+      leadResult,
+      opportunityResult,
+      analysisResult,
+      acquisitionResult,
+      channelResult,
+      salesResult,
+      templateResult,
+    ].filter((item) => item.status === 'rejected');
+    if (failedLoads.length > 0) {
+      loadError.value = '部分看板数据加载失败，请检查相关接口是否可用。';
+    }
 
     const possibleTaskId = window.sessionStorage.getItem(
       'latest_radar_task_id',
@@ -920,6 +1131,23 @@ function goToTasks() {
   );
 }
 
+async function rebuildPipeline() {
+  if (pipelineRebuilding.value) {
+    return;
+  }
+  pipelineRebuilding.value = true;
+  try {
+    pipelineSummary.value = await rebuildRadarAcquisitionPipeline();
+    message.success('主动获客链路已刷新');
+    await loadDashboard();
+  } catch (error) {
+    console.error('刷新主动获客链路失败:', error);
+    message.error('刷新主动获客链路失败，请稍后重试');
+  } finally {
+    pipelineRebuilding.value = false;
+  }
+}
+
 onMounted(() => {
   void loadDashboard();
 });
@@ -941,7 +1169,33 @@ onMounted(() => {
       <div class="radar-mobile-actions">
         <Button block @click="goToRadarList">雷达列表</Button>
         <Button block @click="goToTasks">触达任务</Button>
+        <Button
+          block
+          type="primary"
+          :loading="pipelineRebuilding"
+          @click="rebuildPipeline"
+        >
+          刷新链路
+        </Button>
       </div>
+
+      <section
+        v-if="pipelineSummary"
+        class="radar-mobile-panel radar-pipeline-summary"
+      >
+        <div class="radar-mobile-section-head">
+          <div>
+            <h3>本次刷新</h3>
+            <p>公开线索、企业信号、画像评分、销售分配、触达任务与待办已同步</p>
+          </div>
+        </div>
+        <div class="radar-pipeline-summary-grid">
+          <div v-for="item in pipelineSummaryItems" :key="item.label">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </div>
+        </div>
+      </section>
 
       <Alert v-if="loadError" :message="loadError" show-icon type="warning" />
 
@@ -1027,7 +1281,10 @@ onMounted(() => {
             <div>
               <span>最佳来源</span>
               <strong>{{
-                mobileSourceHighlights[0]?.sourceName || '-'
+                getSourceLabel(
+                  mobileSourceHighlights[0]?.sourceName,
+                  mobileSourceHighlights[0]?.sourceType,
+                )
               }}</strong>
               <em>
                 转化 {{ mobileSourceHighlights[0]?.conversionRate ?? 0 }}%
@@ -1035,7 +1292,9 @@ onMounted(() => {
             </div>
             <div>
               <span>高效信号</span>
-              <strong>{{ mobileSignalHighlights[0]?.eventType || '-' }}</strong>
+              <strong>
+                {{ getSignalTypeLabel(mobileSignalHighlights[0]?.eventType) }}
+              </strong>
               <em>带看 {{ mobileSignalHighlights[0]?.visitRate ?? 0 }}%</em>
             </div>
             <div>
@@ -1094,6 +1353,88 @@ onMounted(() => {
           <Empty v-else description="暂无优先潜客" />
         </section>
 
+        <section v-if="analysis" class="radar-mobile-panel">
+          <div class="radar-mobile-section-head">
+            <div>
+              <h3>渠道与话术</h3>
+              <p>触达效果分析</p>
+            </div>
+          </div>
+          <div
+            v-if="analysis.channelStats.length > 0"
+            class="mobile-metrics-grid"
+          >
+            <div
+              v-for="item in analysis.channelStats.slice(0, 3)"
+              :key="item.channel"
+              class="mobile-metric-item"
+            >
+              <span class="mobile-metric-label">
+                {{ getChannelLabel(item.channel) }}
+              </span>
+              <strong class="mobile-metric-value">{{ item.totalTasks }}</strong>
+              <em class="mobile-metric-sub">
+                带看{{ item.visitRate ?? 0 }}% / 成交{{ item.dealRate ?? 0 }}%
+              </em>
+            </div>
+          </div>
+          <div
+            v-if="analysis.templateStats.length > 0"
+            class="mobile-metrics-grid mobile-metrics-grid-gap"
+          >
+            <div
+              v-for="item in analysis.templateStats.slice(0, 3)"
+              :key="item.templateCode"
+              class="mobile-metric-item"
+            >
+              <span class="mobile-metric-label">{{
+                getTemplateLabel(item.templateName, item.templateCode)
+              }}</span>
+              <strong class="mobile-metric-value">{{ item.totalTasks }}</strong>
+              <em class="mobile-metric-sub">
+                成交{{ item.dealRate ?? 0 }}% / 正向{{ item.positiveRate }}%
+              </em>
+            </div>
+          </div>
+          <Empty
+            v-if="
+              analysis.channelStats.length === 0 &&
+              analysis.templateStats.length === 0
+            "
+            description="暂无渠道与话术数据"
+          />
+        </section>
+
+        <section v-if="analysis" class="radar-mobile-panel">
+          <div class="radar-mobile-section-head">
+            <div>
+              <h3>销售转化</h3>
+              <p>负责人跟进情况</p>
+            </div>
+          </div>
+          <div v-if="analysis.ownerStats.length > 0" class="mobile-rank-list">
+            <div
+              v-for="item in analysis.ownerStats.slice(0, 4)"
+              :key="item.ownerName"
+              class="mobile-rank-item mobile-rank-item-static"
+            >
+              <span class="mobile-rank-index">
+                <strong>{{ item.ownerName || '-' }}</strong>
+              </span>
+              <div>
+                <small>
+                  线索 {{ item.totalLeads }} / 触达 {{ item.contactRate }}%
+                </small>
+                <small>
+                  首联及时 {{ item.firstContactTimelyRate ?? 0 }}% / 带看
+                  {{ item.visitCount }}
+                </small>
+              </div>
+            </div>
+          </div>
+          <Empty v-else description="暂无销售转化数据" />
+        </section>
+
         <section class="radar-mobile-panel">
           <div class="radar-mobile-section-head">
             <div>
@@ -1135,11 +1476,31 @@ onMounted(() => {
         <Space>
           <Button @click="goToRadarList">返回雷达列表</Button>
           <Button @click="goToTasks">触达任务</Button>
+          <Button :loading="pipelineRebuilding" @click="rebuildPipeline">
+            刷新获客链路
+          </Button>
           <Button type="primary" @click="loadDashboard">刷新数据</Button>
         </Space>
       </div>
 
       <Alert v-if="loadError" :message="loadError" show-icon type="warning" />
+
+      <Card v-if="pipelineSummary" class="radar-pipeline-summary">
+        <div class="radar-pipeline-summary-head">
+          <div>
+            <strong>本次获客链路刷新完成</strong>
+            <span>
+              公开线索、企业信号、画像评分、销售分配、触达任务与待办已同步
+            </span>
+          </div>
+        </div>
+        <div class="radar-pipeline-summary-grid">
+          <div v-for="item in pipelineSummaryItems" :key="item.label">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </div>
+        </div>
+      </Card>
 
       <template v-if="loading">
         <Row :gutter="[16, 16]">
@@ -1234,6 +1595,141 @@ onMounted(() => {
           <Empty v-else description="暂无策略建议" />
         </Card>
 
+        <Row v-if="analysis" :gutter="[16, 16]">
+          <Col :lg="12" :md="24" :sm="24" :xs="24">
+            <Card title="渠道效果">
+              <div
+                v-if="analysis.channelStats.length > 0"
+                class="radar-analysis-table-wrapper"
+              >
+                <table class="radar-analysis-table">
+                  <thead>
+                    <tr>
+                      <th>渠道</th>
+                      <th>带看转化</th>
+                      <th>成交转化</th>
+                      <th>任务量</th>
+                      <th>已发送</th>
+                      <th>回复率</th>
+                      <th>正向率</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="item in analysis.channelStats"
+                      :key="item.channel"
+                    >
+                      <td>{{ getChannelLabel(item.channel) }}</td>
+                      <td>
+                        {{ item.visitLeads ?? 0 }} / {{ item.visitRate ?? 0 }}%
+                      </td>
+                      <td>
+                        {{ item.dealLeads ?? 0 }} / {{ item.dealRate ?? 0 }}%
+                      </td>
+                      <td>{{ item.totalTasks }}</td>
+                      <td>{{ item.sentTasks }}</td>
+                      <td>{{ item.replyRate }}%</td>
+                      <td>{{ item.positiveRate }}%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <Empty v-else description="暂无渠道数据" />
+            </Card>
+          </Col>
+          <Col :lg="12" :md="24" :sm="24" :xs="24">
+            <Card title="话术效果">
+              <div
+                v-if="analysis.templateStats.length > 0"
+                class="radar-analysis-table-wrapper"
+              >
+                <table class="radar-analysis-table">
+                  <thead>
+                    <tr>
+                      <th>话术模板</th>
+                      <th>带看转化</th>
+                      <th>成交转化</th>
+                      <th>任务量</th>
+                      <th>回复数</th>
+                      <th>回复率</th>
+                      <th>正向率</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="item in analysis.templateStats"
+                      :key="item.templateCode"
+                    >
+                      <td>
+                        {{
+                          getTemplateLabel(item.templateName, item.templateCode)
+                        }}
+                      </td>
+                      <td>
+                        {{ item.visitLeads ?? 0 }} / {{ item.visitRate ?? 0 }}%
+                      </td>
+                      <td>
+                        {{ item.dealLeads ?? 0 }} / {{ item.dealRate ?? 0 }}%
+                      </td>
+                      <td>{{ item.totalTasks }}</td>
+                      <td>{{ item.repliedTasks }}</td>
+                      <td>{{ item.replyRate }}%</td>
+                      <td>{{ item.positiveRate }}%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <Empty v-else description="暂无话术数据" />
+            </Card>
+          </Col>
+        </Row>
+
+        <Card v-if="analysis" title="销售转化">
+          <div
+            v-if="analysis.ownerStats.length > 0"
+            class="radar-analysis-table-wrapper"
+          >
+            <table class="radar-analysis-table">
+              <thead>
+                <tr>
+                  <th>负责人</th>
+                  <th>线索量</th>
+                  <th>触达率</th>
+                  <th>首次联系</th>
+                  <th>首联及时</th>
+                  <th>成交率</th>
+                  <th>跟进数</th>
+                  <th>带看数</th>
+                  <th>成交数</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in analysis.ownerStats" :key="item.ownerName">
+                  <td>{{ item.ownerName || '-' }}</td>
+                  <td>{{ item.totalLeads }}</td>
+                  <td>{{ item.contactRate }}%</td>
+                  <td>
+                    {{
+                      item.firstContactAvgHours > 0
+                        ? `${item.firstContactAvgHours}h`
+                        : '-'
+                    }}
+                  </td>
+                  <td>
+                    {{ item.firstContactTimelyLeads ?? 0 }} /
+                    {{ item.firstContactTimelyRate ?? 0 }}%
+                  </td>
+                  <td>{{ item.dealRate }}%</td>
+                  <td>{{ item.followCount }}</td>
+                  <td>{{ item.visitCount }}</td>
+                  <td>{{ item.dealLeads }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <Empty v-else description="暂无销售转化数据" />
+        </Card>
+
         <Card title="最新公开机会">
           <div v-if="opportunities.length > 0" class="radar-opportunity-list">
             <article
@@ -1309,7 +1805,7 @@ onMounted(() => {
 
 .radar-mobile-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -1690,6 +2186,72 @@ button.radar-mobile-card {
   white-space: nowrap;
 }
 
+.radar-pipeline-summary {
+  border-color: var(--ant-color-primary-border);
+}
+
+.radar-pipeline-summary-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.radar-pipeline-summary-head strong,
+.radar-pipeline-summary-head span {
+  display: block;
+}
+
+.radar-pipeline-summary-head strong {
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--ant-color-text);
+}
+
+.radar-pipeline-summary-head span {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+}
+
+.radar-pipeline-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.radar-pipeline-summary-grid div {
+  min-width: 0;
+  padding: 10px 12px;
+  text-align: center;
+  background: var(--ant-color-fill-tertiary);
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+}
+
+.radar-pipeline-summary-grid span,
+.radar-pipeline-summary-grid strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radar-pipeline-summary-grid span {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
+}
+
+.radar-pipeline-summary-grid strong {
+  margin-top: 4px;
+  font-size: 22px;
+  line-height: 28px;
+  color: var(--ant-color-text);
+}
+
 .radar-opportunity-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1739,6 +2301,112 @@ button.radar-mobile-card {
   flex: none;
 }
 
+.radar-analysis-table-wrapper {
+  overflow-x: auto;
+}
+
+.radar-analysis-table {
+  width: 100%;
+  font-size: 13px;
+  line-height: 20px;
+  border-collapse: collapse;
+}
+
+.radar-analysis-table th,
+.radar-analysis-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--ant-color-border-secondary);
+}
+
+.radar-analysis-table th {
+  font-weight: 600;
+  color: var(--ant-color-text-secondary);
+  background: var(--ant-color-fill-tertiary);
+}
+
+.radar-analysis-table td {
+  color: var(--ant-color-text);
+}
+
+.radar-analysis-table tbody tr:hover {
+  background: var(--ant-color-fill-tertiary);
+}
+
+.mobile-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mobile-metrics-grid-gap {
+  margin-top: 8px;
+}
+
+.mobile-metric-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 6px;
+  text-align: center;
+  background: var(--ant-color-fill-tertiary);
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+}
+
+.mobile-metric-label {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ant-color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-metric-value {
+  display: block;
+  margin: 4px 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 24px;
+  color: var(--ant-color-text);
+}
+
+.mobile-metric-sub {
+  display: block;
+  font-size: 10px;
+  font-style: normal;
+  line-height: 14px;
+  color: var(--ant-color-text-tertiary);
+}
+
+.mobile-rank-item-static {
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--ant-color-fill-tertiary);
+  border: 1px solid var(--ant-color-border-secondary);
+  border-bottom: 0;
+  border-radius: 8px;
+}
+
+.mobile-rank-item-static:last-child {
+  border-bottom: 1px solid var(--ant-color-border-secondary);
+  border-radius: 0 0 8px 8px;
+}
+
+.mobile-rank-item-static:first-child {
+  border-radius: 8px 8px 0 0;
+}
+
+.mobile-rank-item-static .mobile-rank-index {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  background: transparent;
+}
+
 @media (max-width: 1199px) {
   .radar-opportunity-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1746,6 +2414,11 @@ button.radar-mobile-card {
 }
 
 @media (max-width: 767px) {
+  .radar-mobile-actions,
+  .radar-pipeline-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .radar-opportunity-list {
     grid-template-columns: minmax(0, 1fr);
   }

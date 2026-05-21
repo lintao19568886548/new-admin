@@ -101,7 +101,7 @@ export default eventHandler(async (event) => {
             SELECT
               COUNT(*) AS totalTasks,
               SUM(CASE WHEN t.status IN ('PENDING', 'RUNNING') THEN 1 ELSE 0 END) AS pendingTasks,
-              SUM(CASE WHEN t.status IN ('SENT', 'SUCCESS') THEN 1 ELSE 0 END) AS sentTasks,
+              SUM(CASE WHEN t.status IN ('SENT', 'SUCCESS', 'REPLIED') THEN 1 ELSE 0 END) AS sentTasks,
               SUM(CASE WHEN t.status IN ('FAILED', 'ERROR') THEN 1 ELSE 0 END) AS failedTasks,
               SUM(CASE WHEN t.reply_status IN ('REPLIED', 'POSITIVE', 'NEGATIVE') THEN 1 ELSE 0 END) AS repliedTasks,
               SUM(CASE WHEN t.reply_status = 'POSITIVE' THEN 1 ELSE 0 END) AS positiveReplies,
@@ -147,7 +147,7 @@ export default eventHandler(async (event) => {
                 WHEN t.status IN ('PENDING', 'RUNNING') THEN 0
                 WHEN t.reply_status = 'POSITIVE' THEN 1
                 WHEN t.reply_status IN ('REPLIED', 'NEGATIVE') THEN 2
-                WHEN t.status IN ('SENT', 'SUCCESS') THEN 3
+                WHEN t.status IN ('SENT', 'SUCCESS', 'REPLIED') THEN 3
                 ELSE 4
               END,
               COALESCE(t.scheduled_at, t.sent_at, t.create_time) DESC,

@@ -94,7 +94,7 @@ function formatEventType(eventType?: null | string) {
   if (!eventType) {
     return '-';
   }
-  return eventTypeLabel[eventType] || eventType;
+  return eventTypeLabel[eventType] || '其他信号';
 }
 
 function parseKeywordJson(value: string) {
@@ -283,7 +283,9 @@ onMounted(() => {
           <div class="radar-card-head">
             <div>
               <div class="radar-card-title">{{ item.ruleName }}</div>
-              <div class="radar-card-subtitle">{{ item.ruleCode }}</div>
+              <div class="radar-card-subtitle">
+                {{ formatEventType(item.eventType) }}
+              </div>
             </div>
             <Tag :color="item.enabled ? 'green' : 'default'">
               {{ item.enabled ? '启用' : '停用' }}

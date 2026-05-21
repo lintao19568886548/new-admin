@@ -5,7 +5,7 @@ import type {
   RadarOutreachTaskItem,
 } from '#/api/investment';
 
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, h, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import {
@@ -13,6 +13,9 @@ import {
   Button,
   Card,
   Empty,
+  Input,
+  message,
+  Modal,
   Skeleton,
   Spin,
   Statistic,
@@ -20,6 +23,7 @@ import {
 } from 'ant-design-vue';
 
 import {
+  closeRadarLead,
   getRadarLeadDetail,
   getRadarLeadScoreBreakdown,
   recalculateRadarLeadScore,
@@ -49,6 +53,7 @@ const loading = ref(true);
 const loadError = ref('');
 const scoreLoading = ref(false);
 const scoreRecalculating = ref(false);
+const leadClosing = ref(false);
 const detail = ref<null | RadarLeadDetail>(null);
 const scoreItems = ref<LeadScoreBreakdown[]>([]);
 
@@ -59,6 +64,21 @@ const summary = computed(() => ({
   reachableScore: detail.value?.reachableScore ?? 0,
   totalScore: detail.value?.totalScore ?? 0,
 }));
+
+const eventTypeLabelMap: Record<string, string> = {
+  EVENT_EA_EXPAND: '环评扩产信号',
+  FACTORY_RENT_DEMAND: '租厂需求信号',
+  KEYWORD_EXPAND: '关键词：扩建',
+  KEYWORD_NEW_LINE: '关键词：新增产线',
+  KEYWORD_RECRUITMENT: '关键词：招聘',
+  KEYWORD_RELOCATION: '关键词：搬迁',
+  KEYWORD_WAREHOUSE: '关键词：仓储',
+  NEWS_EXPAND: '新闻扩产信号',
+  PUBLIC_FACTORY_DEMAND: '公开厂房需求信号',
+  RECRUITMENT_EXPAND: '招聘扩产信号',
+  RELOCATION: '搬迁信号',
+  UNKNOWN: '未知信号',
+};
 
 function goBack() {
   router.push('/investment/radar/mobile');
@@ -137,6 +157,81 @@ async function recalculateScore() {
   }
 }
 
+function updateDetailAfterClose(result: {
+  invalidReason?: null | string;
+  stage: string;
+  updateTime?: string;
+}) {
+  if (!detail.value) {
+    return;
+  }
+  detail.value = {
+    ...detail.value,
+    invalidReason: result.invalidReason || null,
+    stage: result.stage,
+    updateTime: result.updateTime || detail.value.updateTime,
+  };
+}
+
+function formatEventType(eventType?: null | string) {
+  if (!eventType) {
+    return '-';
+  }
+  return eventTypeLabelMap[eventType] || '其他信号';
+}
+
+async function closeLead(stage: 'DEAL' | 'INVALID', reason = '') {
+  if (!detail.value || leadClosing.value) {
+    return;
+  }
+  leadClosing.value = true;
+  try {
+    const result = await closeRadarLead(leadId.value, {
+      reason,
+      stage,
+    });
+    updateDetailAfterClose(result);
+    message.success(stage === 'DEAL' ? '已标记成交' : '已标记失效');
+  } catch (error) {
+    console.error('移动端更新线索转化结果失败:', error);
+    message.error('更新线索转化结果失败');
+  } finally {
+    leadClosing.value = false;
+  }
+}
+
+function markDeal() {
+  Modal.confirm({
+    content: '确认后将关闭该线索的待处理提醒，并取消未执行触达任务。',
+    okText: '确认成交',
+    onOk: () => closeLead('DEAL'),
+    title: '标记为成交',
+  });
+}
+
+function markInvalid() {
+  let reason = '';
+  Modal.confirm({
+    content: () =>
+      h(Input.TextArea, {
+        autoSize: { maxRows: 6, minRows: 3 },
+        onChange: (event: Event) => {
+          reason = (event.target as HTMLTextAreaElement).value;
+        },
+        placeholder: '请填写失效原因',
+      }),
+    okText: '确认失效',
+    onOk: () => {
+      if (!reason.trim()) {
+        message.warning('请填写失效原因');
+        return Promise.reject(new Error('INVALID_REASON_REQUIRED'));
+      }
+      return closeLead('INVALID', reason.trim());
+    },
+    title: '标记为失效',
+  });
+}
+
 function taskStatusColor(task: RadarOutreachTaskItem) {
   return getTaskStatusMeta(task.status).color;
 }
@@ -188,6 +283,17 @@ onMounted(() => {
           <Tag color="blue">{{ getStageLabel(detail.stage) }}</Tag>
           <span>{{ detail.leadSource || '-' }}</span>
           <span>{{ detail.phoneNumber || '暂无电话' }}</span>
+        </div>
+        <div
+          v-if="!['DEAL', 'INVALID'].includes(detail.stage)"
+          class="radar-close-actions"
+        >
+          <Button block :loading="leadClosing" @click="markInvalid">
+            标记失效
+          </Button>
+          <Button block type="primary" :loading="leadClosing" @click="markDeal">
+            标记成交
+          </Button>
         </div>
       </section>
 
@@ -343,7 +449,7 @@ onMounted(() => {
                 <Tag color="green">+{{ item.scoreDelta }}</Tag>
               </div>
               <div class="radar-mini-meta">
-                {{ item.ruleCode }} · {{ item.eventType || '-' }}
+                {{ formatEventType(item.eventType) }}
               </div>
               <p>{{ item.reason || '-' }}</p>
             </div>
@@ -501,6 +607,13 @@ onMounted(() => {
   color: var(--ant-color-text-secondary);
 }
 
+.radar-close-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .radar-score-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -584,6 +697,17 @@ onMounted(() => {
 
 .radar-info-wide {
   grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.radar-info-wide strong {
+  display: block;
+  max-height: 72px;
+  overflow-y: auto;
+  text-align: center;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .radar-mini-list {

@@ -6,6 +6,9 @@ import type {
   RadarOutreachTaskListItem,
   RadarOutreachTaskListParams,
   RadarOutreachTaskSummary,
+  RadarSopReminderListItem,
+  RadarSopReminderListParams,
+  RadarSopReminderSummary,
 } from '#/api/investment';
 
 import { h, onMounted, ref } from 'vue';
@@ -25,6 +28,8 @@ import {
   Empty,
   Form,
   Input,
+  message,
+  Modal,
   Row,
   Select,
   Skeleton,
@@ -35,8 +40,13 @@ import {
 } from 'ant-design-vue';
 
 import {
+  cancelOutreachTask,
+  completeRadarSopReminder,
   getRadarOutreachTaskDetail,
   getRadarOutreachTaskList,
+  getRadarSopReminderList,
+  mockSendOutreachTask,
+  replyOutreachTask,
 } from '#/api/investment';
 
 import { RADAR_STAGE_LABEL_MAP, RADAR_STAGE_OPTIONS } from './data';
@@ -51,11 +61,20 @@ const tableLoading = ref(false);
 const detailDrawerOpen = ref(false);
 const detailLoading = ref(false);
 const mobileFilterOpen = ref(false);
+const reminderCompletingId = ref<null | number>(null);
+const reminderLoading = ref(false);
+const replyModalOpen = ref(false);
+const taskActionLoadingId = ref<null | number>(null);
 const taskDetail = ref<null | RadarOutreachTaskDetail>(null);
+const replyTask = ref<null | RadarOutreachTaskListItem>(null);
 const items = ref<RadarOutreachTaskListItem[]>([]);
+const reminders = ref<RadarSopReminderListItem[]>([]);
 const total = ref(0);
 const currentPage = ref(1);
 const pageSize = ref(20);
+const reminderTotal = ref(0);
+const reminderCurrentPage = ref(1);
+const reminderPageSize = ref(10);
 const summary = ref<RadarOutreachTaskSummary>({
   callTasks: 0,
   failedTasks: 0,
@@ -66,8 +85,20 @@ const summary = ref<RadarOutreachTaskSummary>({
   smsTasks: 0,
   totalTasks: 0,
 });
+const reminderSummary = ref<RadarSopReminderSummary>({
+  needVisitReminders: 0,
+  newLeadReminders: 0,
+  overdueReminders: 0,
+  pendingReminders: 0,
+  totalReminders: 0,
+  visitFeedbackReminders: 0,
+  weeklyFollowUpReminders: 0,
+});
 const tableLocale = {
   emptyText: '暂无触达任务',
+};
+const reminderTableLocale = {
+  emptyText: '暂无SOP待办',
 };
 
 const searchForm = ref({
@@ -78,6 +109,22 @@ const searchForm = ref({
   stage: undefined as string | undefined,
   status: undefined as string | undefined,
   taskType: undefined as string | undefined,
+});
+
+const replyForm = ref<{
+  replyContent: string;
+  replyStatus: 'NEGATIVE' | 'POSITIVE' | 'REPLIED';
+}>({
+  replyContent: '',
+  replyStatus: 'POSITIVE',
+});
+
+const reminderSearchForm = ref({
+  keyword: '',
+  priorityLevel: undefined as string | undefined,
+  reminderStatus: undefined as string | undefined,
+  reminderType: undefined as string | undefined,
+  stage: undefined as string | undefined,
 });
 
 const channelLabelMap: Record<string, string> = {
@@ -104,6 +151,7 @@ const replyStatusMetaMap: Record<string, { color: string; label: string }> = {
 };
 
 const taskStatusMetaMap: Record<string, { color: string; label: string }> = {
+  CANCELED: { color: 'default', label: '已取消' },
   ERROR: { color: 'red', label: '执行异常' },
   FAILED: { color: 'red', label: '发送失败' },
   PENDING: { color: 'gold', label: '待执行' },
@@ -117,6 +165,20 @@ const taskTypeLabelMap: Record<string, string> = {
   FOLLOW_UP: '跟进',
   OUTREACH: '外呼触达',
   VISIT: '预约拜访',
+};
+
+const reminderStatusMetaMap: Record<string, { color: string; label: string }> =
+  {
+    DONE: { color: 'green', label: '已完成' },
+    OVERDUE: { color: 'red', label: '已超时' },
+    PENDING: { color: 'gold', label: '待处理' },
+  };
+
+const reminderTypeLabelMap: Record<string, string> = {
+  NEED_VISIT: '待安排带看',
+  NEW_LEAD: '新线索待联系',
+  VISIT_FEEDBACK: '待记录反馈',
+  WEEKLY_FOLLOW_UP: '持续跟进',
 };
 
 const channelOptions = [
@@ -145,6 +207,7 @@ const statusOptions = [
   { label: '执行中', value: 'RUNNING' },
   { label: '已发送', value: 'SENT' },
   { label: '执行成功', value: 'SUCCESS' },
+  { label: '已取消', value: 'CANCELED' },
   { label: '发送失败', value: 'FAILED' },
   { label: '执行异常', value: 'ERROR' },
 ];
@@ -153,6 +216,19 @@ const taskTypeOptions = [
   { label: '外呼触达', value: 'OUTREACH' },
   { label: '跟进', value: 'FOLLOW_UP' },
   { label: '预约拜访', value: 'VISIT' },
+];
+
+const reminderStatusOptions = [
+  { label: '待处理', value: 'PENDING' },
+  { label: '已超时', value: 'OVERDUE' },
+  { label: '已完成', value: 'DONE' },
+];
+
+const reminderTypeOptions = [
+  { label: '新线索待联系', value: 'NEW_LEAD' },
+  { label: '待安排带看', value: 'NEED_VISIT' },
+  { label: '待记录反馈', value: 'VISIT_FEEDBACK' },
+  { label: '持续跟进', value: 'WEEKLY_FOLLOW_UP' },
 ];
 
 const columns: TableColumnsType<RadarOutreachTaskListItem> = [
@@ -192,13 +268,6 @@ const columns: TableColumnsType<RadarOutreachTaskListItem> = [
     width: 180,
   },
   {
-    customRender: ({ text }) => text || '-',
-    dataIndex: 'templateCode',
-    key: 'templateCode',
-    title: '模板编码',
-    width: 140,
-  },
-  {
     customRender: ({ record }) => renderTaskTime(record),
     dataIndex: 'sentAt',
     key: 'sentAt',
@@ -221,14 +290,56 @@ const columns: TableColumnsType<RadarOutreachTaskListItem> = [
   },
   {
     customRender: ({ record }) =>
-      h(Space, {}, () => [
-        hButton('任务详情', () => openTaskDetail(record.taskId)),
-        hButton('查看线索', () => goToLeadDetail(record.leadId)),
-      ]),
+      h(Space, { size: 4, wrap: true }, () => renderTaskActions(record)),
     fixed: 'right',
     key: 'operation',
     title: '操作',
+    width: 230,
+  },
+];
+
+const reminderColumns: TableColumnsType<RadarSopReminderListItem> = [
+  {
+    customRender: ({ record }) => renderReminderLead(record),
+    dataIndex: 'enterpriseName',
+    key: 'enterpriseName',
+    title: '待办企业',
+    width: 260,
+  },
+  {
+    customRender: ({ record }) => renderReminderStatus(record),
+    dataIndex: 'reminderStatus',
+    key: 'reminderStatus',
+    title: '待办类型',
+    width: 190,
+  },
+  {
+    customRender: ({ record }) => renderReminderContent(record),
+    dataIndex: 'title',
+    key: 'title',
+    title: '提醒内容',
+    width: 320,
+  },
+  {
+    customRender: ({ record }) => renderLeadStatus(record),
+    dataIndex: 'stage',
+    key: 'stage',
+    title: '线索状态',
     width: 160,
+  },
+  {
+    customRender: ({ record }) => renderReminderDue(record),
+    dataIndex: 'dueTime',
+    key: 'dueTime',
+    title: '处理时限',
+    width: 190,
+  },
+  {
+    customRender: ({ record }) => renderReminderActions(record),
+    fixed: 'right',
+    key: 'operation',
+    title: '操作',
+    width: 180,
   },
 ];
 
@@ -243,6 +354,18 @@ function buildParams(): RadarOutreachTaskListParams {
     stage: searchForm.value.stage,
     status: searchForm.value.status,
     taskType: searchForm.value.taskType,
+  };
+}
+
+function buildReminderParams(): RadarSopReminderListParams {
+  return {
+    currentPage: reminderCurrentPage.value,
+    keyword: reminderSearchForm.value.keyword || undefined,
+    pageSize: reminderPageSize.value,
+    priorityLevel: reminderSearchForm.value.priorityLevel,
+    reminderStatus: reminderSearchForm.value.reminderStatus,
+    reminderType: reminderSearchForm.value.reminderType,
+    stage: reminderSearchForm.value.stage,
   };
 }
 
@@ -293,6 +416,13 @@ function mapTaskType(taskType?: null | string) {
   return taskTypeLabelMap[taskType] || taskType;
 }
 
+function mapReminderType(reminderType?: null | string) {
+  if (!reminderType) {
+    return '-';
+  }
+  return reminderTypeLabelMap[reminderType] || '跟进提醒';
+}
+
 function renderChannel(channel?: null | string) {
   if (!channel) {
     return '-';
@@ -324,7 +454,12 @@ function renderEnterprise(record: RadarOutreachTaskListItem) {
   ]);
 }
 
-function renderLeadStatus(record: RadarOutreachTaskListItem) {
+function renderLeadStatus(
+  record: Pick<
+    RadarOutreachTaskListItem,
+    'priorityLevel' | 'stage' | 'totalScore'
+  >,
+) {
   const stageText = RADAR_STAGE_LABEL_MAP[record.stage] || record.stage || '-';
 
   return h(Space, { size: 4, wrap: true }, () => [
@@ -348,7 +483,6 @@ function renderLeadStatus(record: RadarOutreachTaskListItem) {
 
 function renderResult(record: RadarOutreachTaskListItem) {
   const parts = [
-    record.resultCode ? `结果码：${record.resultCode}` : '',
     record.resultMessage || '',
     record.replyContent ? `回复：${record.replyContent}` : '',
   ].filter(Boolean);
@@ -409,6 +543,113 @@ function renderTaskTime(record: RadarOutreachTaskListItem) {
   ]);
 }
 
+function renderTaskActions(record: RadarOutreachTaskListItem) {
+  const taskId = Number(record.taskId || 0);
+  const sending = taskActionLoadingId.value === taskId;
+  const canSend = ['PENDING', 'RUNNING'].includes(record.status);
+  const canReply =
+    ['SENT', 'SUCCESS'].includes(record.status) &&
+    !['NEGATIVE', 'POSITIVE', 'REPLIED'].includes(record.replyStatus || '');
+  const canCancel = ['PENDING', 'RUNNING'].includes(record.status);
+
+  return [
+    hButton('详情', () => openTaskDetail(record.taskId)),
+    hButton('线索', () => goToLeadDetail(record.leadId)),
+    h(
+      Button,
+      {
+        disabled: !canSend,
+        loading: sending && canSend,
+        onClick: () => handleMockSend(record),
+        size: 'small',
+        type: canSend ? 'primary' : 'default',
+      },
+      () => '发送',
+    ),
+    h(
+      Button,
+      {
+        disabled: !canReply,
+        onClick: () => openReplyModal(record),
+        size: 'small',
+      },
+      () => '回复',
+    ),
+    h(
+      Button,
+      {
+        danger: canCancel,
+        disabled: !canCancel,
+        loading: sending && canCancel,
+        onClick: () => handleCancelTask(record),
+        size: 'small',
+      },
+      () => '取消',
+    ),
+  ];
+}
+
+function renderReminderActions(record: RadarSopReminderListItem) {
+  const reminderId = Number(record.reminderId || 0);
+  const canComplete =
+    reminderId > 0 && ['OVERDUE', 'PENDING'].includes(record.reminderStatus);
+
+  return h(Space, { size: 4, wrap: true }, () => [
+    hButton('查看线索', () => goToLeadDetail(record.leadId)),
+    h(
+      Button,
+      {
+        disabled: !canComplete,
+        loading: reminderCompletingId.value === reminderId,
+        onClick: () => handleCompleteReminder(record),
+        size: 'small',
+        type: canComplete ? 'primary' : 'default',
+      },
+      () => (record.reminderStatus === 'DONE' ? '已完成' : '完成'),
+    ),
+  ]);
+}
+
+function renderReminderContent(record: RadarSopReminderListItem) {
+  return h('div', { class: 'leading-6 text-left' }, [
+    h('div', { class: 'font-medium' }, record.title || '-'),
+    h(
+      'div',
+      { class: 'text-text-secondary text-xs' },
+      record.description || '-',
+    ),
+  ]);
+}
+
+function renderReminderDue(record: RadarSopReminderListItem) {
+  return h('div', { class: 'leading-6' }, [
+    h('div', formatTime(record.dueTime)),
+    h(
+      'div',
+      { class: 'text-text-secondary text-xs' },
+      `最近联系：${formatTime(record.latestContactTime)}`,
+    ),
+  ]);
+}
+
+function renderReminderLead(record: RadarSopReminderListItem) {
+  return h('div', { class: 'min-w-0 leading-6' }, [
+    h('div', { class: 'truncate font-medium' }, record.enterpriseName || '-'),
+    h(
+      'div',
+      { class: 'text-text-secondary truncate text-xs' },
+      `${record.ownerName || '未分配'} | ${record.parkName || '-'}`,
+    ),
+  ]);
+}
+
+function renderReminderStatus(record: RadarSopReminderListItem) {
+  return h(Space, { size: 4, wrap: true }, () => [
+    renderStatusTag(record.reminderStatus, reminderStatusMetaMap),
+    h(Tag, { color: 'blue' }, () => mapReminderType(record.reminderType)),
+  ]);
+}
+
 async function openTaskDetail(taskId: number | string) {
   detailDrawerOpen.value = true;
   detailLoading.value = true;
@@ -421,6 +662,26 @@ async function openTaskDetail(taskId: number | string) {
     taskDetail.value = null;
   } finally {
     detailLoading.value = false;
+  }
+}
+
+async function loadReminders() {
+  reminderLoading.value = true;
+  try {
+    const result = await getRadarSopReminderList(buildReminderParams());
+    reminders.value = Array.isArray(result.items) ? result.items : [];
+    reminderTotal.value =
+      typeof result.total === 'number'
+        ? result.total
+        : result.page?.total || Math.max(reminders.value.length, 0);
+    reminderSummary.value = result.summary || reminderSummary.value;
+  } catch (error) {
+    console.error('加载SOP待办失败:', error);
+    reminders.value = [];
+    reminderTotal.value = 0;
+    message.error('SOP待办加载失败');
+  } finally {
+    reminderLoading.value = false;
   }
 }
 
@@ -445,10 +706,112 @@ async function loadTasks() {
   }
 }
 
+async function handleCancelTask(record: RadarOutreachTaskListItem) {
+  const taskId = Number(record.taskId || 0);
+  if (taskId <= 0 || taskActionLoadingId.value) {
+    return;
+  }
+  taskActionLoadingId.value = taskId;
+  try {
+    await cancelOutreachTask(taskId);
+    message.success('触达任务已取消');
+    await loadTasks();
+    if (taskDetail.value?.taskId === record.taskId) {
+      await openTaskDetail(record.taskId);
+    }
+  } catch (error) {
+    console.error('取消触达任务失败:', error);
+    message.error('取消触达任务失败');
+  } finally {
+    taskActionLoadingId.value = null;
+  }
+}
+
+async function handleMockSend(record: RadarOutreachTaskListItem) {
+  const taskId = Number(record.taskId || 0);
+  if (taskId <= 0 || taskActionLoadingId.value) {
+    return;
+  }
+  taskActionLoadingId.value = taskId;
+  try {
+    await mockSendOutreachTask(taskId);
+    message.success('触达任务已发送');
+    await loadTasks();
+    await loadReminders();
+    if (taskDetail.value?.taskId === record.taskId) {
+      await openTaskDetail(record.taskId);
+    }
+  } catch (error) {
+    console.error('模拟发送触达任务失败:', error);
+    message.error('发送触达任务失败');
+  } finally {
+    taskActionLoadingId.value = null;
+  }
+}
+
+async function handleCompleteReminder(reminder: RadarSopReminderListItem) {
+  const reminderId = Number(reminder.reminderId || 0);
+  if (reminderId <= 0 || reminderCompletingId.value) {
+    return;
+  }
+  reminderCompletingId.value = reminderId;
+  try {
+    await completeRadarSopReminder(reminderId);
+    message.success('待办已完成');
+    await loadReminders();
+  } catch (error) {
+    console.error('完成SOP待办失败:', error);
+    message.error('完成待办失败');
+  } finally {
+    reminderCompletingId.value = null;
+  }
+}
+
+function openReplyModal(record: RadarOutreachTaskListItem) {
+  replyTask.value = record;
+  replyForm.value = {
+    replyContent: '',
+    replyStatus: 'POSITIVE',
+  };
+  replyModalOpen.value = true;
+}
+
+async function submitReply() {
+  const task = replyTask.value;
+  const taskId = Number(task?.taskId || 0);
+  if (!task || taskId <= 0 || taskActionLoadingId.value) {
+    return;
+  }
+  taskActionLoadingId.value = taskId;
+  try {
+    await replyOutreachTask(taskId, {
+      replyContent: replyForm.value.replyContent,
+      replyStatus: replyForm.value.replyStatus,
+    });
+    message.success('触达回复已记录');
+    replyModalOpen.value = false;
+    await loadTasks();
+    await loadReminders();
+    if (taskDetail.value?.taskId === task.taskId) {
+      await openTaskDetail(task.taskId);
+    }
+  } catch (error) {
+    console.error('记录触达回复失败:', error);
+    message.error('记录触达回复失败');
+  } finally {
+    taskActionLoadingId.value = null;
+  }
+}
+
 function handleSearch() {
   currentPage.value = 1;
   mobileFilterOpen.value = false;
   void loadTasks();
+}
+
+function handleReminderSearch() {
+  reminderCurrentPage.value = 1;
+  void loadReminders();
 }
 
 function handleReset() {
@@ -465,10 +828,30 @@ function handleReset() {
   handleSearch();
 }
 
+function handleReminderReset() {
+  reminderSearchForm.value = {
+    keyword: '',
+    priorityLevel: undefined,
+    reminderStatus: undefined,
+    reminderType: undefined,
+    stage: undefined,
+  };
+  handleReminderSearch();
+}
+
 function handleTableChange(page: { current?: number; pageSize?: number }) {
   currentPage.value = page.current || 1;
   pageSize.value = page.pageSize || 20;
   void loadTasks();
+}
+
+function handleReminderTableChange(page: {
+  current?: number;
+  pageSize?: number;
+}) {
+  reminderCurrentPage.value = page.current || 1;
+  reminderPageSize.value = page.pageSize || 10;
+  void loadReminders();
 }
 
 function goToLeadDetail(leadId: number) {
@@ -488,6 +871,7 @@ function goToRadarList() {
 
 onMounted(() => {
   void loadTasks();
+  void loadReminders();
 });
 </script>
 
@@ -527,15 +911,27 @@ onMounted(() => {
           <Card class="radar-task-mobile-stat-card">
             <Statistic title="正向" :value="summary.positiveReplies" />
           </Card>
+          <Card class="radar-task-mobile-stat-card">
+            <Statistic
+              title="SOP待办"
+              :value="reminderSummary.totalReminders"
+            />
+          </Card>
+          <Card class="radar-task-mobile-stat-card">
+            <Statistic
+              title="超时待办"
+              :value="reminderSummary.overdueReminders"
+            />
+          </Card>
         </div>
 
         <Row v-else class="radar-stat-card-grid" :gutter="[12, 12]">
-          <Col :lg="6" :md="12" :sm="12" :xs="24">
+          <Col :lg="4" :md="8" :sm="12" :xs="24">
             <Card class="radar-stat-card">
               <Statistic title="触达任务总数" :value="summary.totalTasks" />
             </Card>
           </Col>
-          <Col :lg="6" :md="12" :sm="12" :xs="24">
+          <Col :lg="4" :md="8" :sm="12" :xs="24">
             <Card class="radar-stat-card">
               <Statistic
                 title="待执行 / 执行中"
@@ -543,14 +939,30 @@ onMounted(() => {
               />
             </Card>
           </Col>
-          <Col :lg="6" :md="12" :sm="12" :xs="24">
+          <Col :lg="4" :md="8" :sm="12" :xs="24">
             <Card class="radar-stat-card">
               <Statistic title="已回复" :value="summary.repliedTasks" />
             </Card>
           </Col>
-          <Col :lg="6" :md="12" :sm="12" :xs="24">
+          <Col :lg="4" :md="8" :sm="12" :xs="24">
             <Card class="radar-stat-card">
               <Statistic title="正向反馈" :value="summary.positiveReplies" />
+            </Card>
+          </Col>
+          <Col :lg="4" :md="8" :sm="12" :xs="24">
+            <Card class="radar-stat-card">
+              <Statistic
+                title="SOP待办"
+                :value="reminderSummary.totalReminders"
+              />
+            </Card>
+          </Col>
+          <Col :lg="4" :md="8" :sm="12" :xs="24">
+            <Card class="radar-stat-card">
+              <Statistic
+                title="超时待办"
+                :value="reminderSummary.overdueReminders"
+              />
             </Card>
           </Col>
         </Row>
@@ -623,7 +1035,253 @@ onMounted(() => {
           </Form>
         </Card>
 
+        <Card
+          v-if="!isMobile"
+          class="radar-collection-table-card"
+          title="SOP待办"
+        >
+          <template #extra>
+            <Space>
+              <Button @click="handleReminderReset">重置</Button>
+              <Button type="primary" @click="handleReminderSearch">查询</Button>
+            </Space>
+          </template>
+          <Form class="radar-task-filter radar-search-form" layout="inline">
+            <Form.Item label="关键字">
+              <Input
+                v-model:value="reminderSearchForm.keyword"
+                allow-clear
+                class="radar-filter-keyword"
+                placeholder="企业 / 联系人 / 园区 / 待办"
+                @press-enter="handleReminderSearch"
+              />
+            </Form.Item>
+            <Form.Item label="待办状态">
+              <Select
+                v-model:value="reminderSearchForm.reminderStatus"
+                allow-clear
+                class="radar-filter-control"
+                :options="reminderStatusOptions"
+              />
+            </Form.Item>
+            <Form.Item label="待办类型">
+              <Select
+                v-model:value="reminderSearchForm.reminderType"
+                allow-clear
+                class="radar-filter-control"
+                :options="reminderTypeOptions"
+              />
+            </Form.Item>
+            <Form.Item label="线索阶段">
+              <Select
+                v-model:value="reminderSearchForm.stage"
+                allow-clear
+                class="radar-filter-control"
+                :options="RADAR_STAGE_OPTIONS"
+              />
+            </Form.Item>
+            <Form.Item label="优先级">
+              <Select
+                v-model:value="reminderSearchForm.priorityLevel"
+                allow-clear
+                class="radar-filter-control"
+                :options="priorityOptions"
+              />
+            </Form.Item>
+          </Form>
+
+          <Table
+            bordered
+            class="radar-reminder-table"
+            :columns="reminderColumns"
+            :data-source="reminders"
+            :loading="reminderLoading"
+            :locale="reminderTableLocale"
+            :pagination="{
+              current: reminderCurrentPage,
+              pageSize: reminderPageSize,
+              total: reminderTotal,
+              showSizeChanger: true,
+              showTotal: (value: number) => `共 ${value} 条`,
+            }"
+            :scroll="{ x: 1300 }"
+            row-key="reminderId"
+            size="small"
+            table-layout="fixed"
+            @change="handleReminderTableChange"
+          >
+            <template #emptyText>
+              <Empty description="暂无SOP待办" />
+            </template>
+          </Table>
+          <div
+            v-if="reminders.length > 0"
+            class="text-text-secondary mt-3 text-sm"
+          >
+            当前待联系 {{ reminderSummary.newLeadReminders }} 条，待安排带看
+            {{ reminderSummary.needVisitReminders }} 条，待记录反馈
+            {{ reminderSummary.visitFeedbackReminders }} 条，持续跟进
+            {{ reminderSummary.weeklyFollowUpReminders }} 条。
+          </div>
+        </Card>
+
         <div v-if="isMobile" class="radar-task-mobile">
+          <section class="radar-task-mobile-reminders">
+            <div class="radar-task-mobile-section-head">
+              <div>
+                <h3>SOP待办</h3>
+                <p>优先处理超时和即将到期的销售动作。</p>
+              </div>
+              <Button size="small" @click="loadReminders">刷新</Button>
+            </div>
+
+            <div class="radar-task-mobile-filter">
+              <div class="radar-task-mobile-search">
+                <Input
+                  v-model:value="reminderSearchForm.keyword"
+                  allow-clear
+                  placeholder="企业 / 联系人 / 园区"
+                  @press-enter="handleReminderSearch"
+                />
+                <Button type="primary" @click="handleReminderSearch">
+                  查询
+                </Button>
+                <Button @click="handleReminderReset">重置</Button>
+              </div>
+              <div class="radar-task-mobile-grid">
+                <Select
+                  v-model:value="reminderSearchForm.reminderStatus"
+                  allow-clear
+                  placeholder="待办状态"
+                  :options="reminderStatusOptions"
+                />
+                <Select
+                  v-model:value="reminderSearchForm.reminderType"
+                  allow-clear
+                  placeholder="待办类型"
+                  :options="reminderTypeOptions"
+                />
+                <Select
+                  v-model:value="reminderSearchForm.stage"
+                  allow-clear
+                  placeholder="线索阶段"
+                  :options="RADAR_STAGE_OPTIONS"
+                />
+                <Select
+                  v-model:value="reminderSearchForm.priorityLevel"
+                  allow-clear
+                  placeholder="优先级"
+                  :options="priorityOptions"
+                />
+              </div>
+            </div>
+
+            <Skeleton v-if="reminderLoading" active :paragraph="{ rows: 5 }" />
+            <div
+              v-else-if="reminders.length > 0"
+              class="radar-task-mobile-list"
+            >
+              <div
+                v-for="item in reminders"
+                :key="item.reminderId"
+                class="radar-task-mobile-card"
+              >
+                <div class="radar-task-mobile-head">
+                  <div>
+                    <div class="radar-task-mobile-title">
+                      {{ item.enterpriseName || '-' }}
+                    </div>
+                    <div class="radar-task-mobile-subtitle">
+                      {{ item.ownerName || '未分配' }} ·
+                      {{ item.parkName || '-' }}
+                    </div>
+                  </div>
+                  <Tag
+                    :color="
+                      getStatusMeta(item.reminderStatus, reminderStatusMetaMap)
+                        .color
+                    "
+                  >
+                    {{
+                      getStatusMeta(item.reminderStatus, reminderStatusMetaMap)
+                        .label
+                    }}
+                  </Tag>
+                </div>
+
+                <div class="radar-task-mobile-tags">
+                  <Tag color="blue">
+                    {{ mapReminderType(item.reminderType) }}
+                  </Tag>
+                  <Tag :color="getPriorityColor(item.priorityLevel)">
+                    {{ item.priorityLevel || '-' }} 级
+                  </Tag>
+                  <Tag color="default">
+                    {{ RADAR_STAGE_LABEL_MAP[item.stage] || item.stage || '-' }}
+                  </Tag>
+                </div>
+
+                <div class="radar-task-mobile-info">
+                  <span>联系人：{{ item.contactName || '-' }}</span>
+                  <span>电话：{{ item.phoneNumber || '-' }}</span>
+                  <span>到期：{{ formatTime(item.dueTime) }}</span>
+                  <span>
+                    最近联系：{{ formatTime(item.latestContactTime) }}
+                  </span>
+                </div>
+
+                <p>{{ item.description || item.title || '-' }}</p>
+
+                <div class="radar-task-mobile-card-actions">
+                  <Button size="small" @click="goToLeadDetail(item.leadId)">
+                    查看线索
+                  </Button>
+                  <Button
+                    :disabled="item.reminderStatus === 'DONE'"
+                    :loading="reminderCompletingId === item.reminderId"
+                    size="small"
+                    type="primary"
+                    @click="handleCompleteReminder(item)"
+                  >
+                    完成
+                  </Button>
+                </div>
+              </div>
+              <div class="radar-task-mobile-pagination">
+                <Button
+                  :disabled="reminderCurrentPage <= 1"
+                  @click="
+                    handleReminderTableChange({
+                      current: reminderCurrentPage - 1,
+                      pageSize: reminderPageSize,
+                    })
+                  "
+                >
+                  上一页
+                </Button>
+                <span>
+                  {{ reminderCurrentPage }} /
+                  {{ Math.max(1, Math.ceil(reminderTotal / reminderPageSize)) }}
+                </span>
+                <Button
+                  :disabled="
+                    reminderCurrentPage >=
+                    Math.ceil(reminderTotal / reminderPageSize)
+                  "
+                  @click="
+                    handleReminderTableChange({
+                      current: reminderCurrentPage + 1,
+                      pageSize: reminderPageSize,
+                    })
+                  "
+                >
+                  下一页
+                </Button>
+              </div>
+            </div>
+            <Empty v-else description="暂无SOP待办" />
+          </section>
+
           <div class="radar-task-mobile-filter">
             <div class="radar-task-mobile-search">
               <Input
@@ -747,12 +1405,29 @@ onMounted(() => {
                 <Button size="small" @click="openTaskDetail(item.taskId)">
                   任务详情
                 </Button>
+                <Button size="small" @click="goToLeadDetail(item.leadId)">
+                  查看线索
+                </Button>
                 <Button
+                  :disabled="!['PENDING', 'RUNNING'].includes(item.status)"
+                  :loading="taskActionLoadingId === Number(item.taskId)"
                   size="small"
                   type="primary"
-                  @click="goToLeadDetail(item.leadId)"
+                  @click="handleMockSend(item)"
                 >
-                  查看线索
+                  发送
+                </Button>
+                <Button
+                  :disabled="
+                    !['SENT', 'SUCCESS'].includes(item.status) ||
+                    ['NEGATIVE', 'POSITIVE', 'REPLIED'].includes(
+                      item.replyStatus || '',
+                    )
+                  "
+                  size="small"
+                  @click="openReplyModal(item)"
+                >
+                  回复
                 </Button>
               </div>
             </div>
@@ -796,7 +1471,7 @@ onMounted(() => {
               showSizeChanger: true,
               showTotal: (value: number) => `共 ${value} 条`,
             }"
-            :scroll="{ x: 1770 }"
+            :scroll="{ x: 1630 }"
             row-key="taskId"
             size="small"
             table-layout="fixed"
@@ -865,9 +1540,6 @@ onMounted(() => {
                   </Descriptions.Item>
                   <Descriptions.Item label="触达号码">
                     {{ taskDetail.phoneNumber || '-' }}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="模板编码">
-                    {{ taskDetail.templateCode || '-' }}
                   </Descriptions.Item>
                   <Descriptions.Item label="操作人">
                     {{ taskDetail.sentByName || '-' }}
@@ -962,6 +1634,26 @@ onMounted(() => {
                 <Space>
                   <Button @click="detailDrawerOpen = false">关闭</Button>
                   <Button
+                    :disabled="
+                      !['PENDING', 'RUNNING'].includes(taskDetail.status)
+                    "
+                    :loading="taskActionLoadingId === Number(taskDetail.taskId)"
+                    @click="handleMockSend(taskDetail)"
+                  >
+                    模拟发送
+                  </Button>
+                  <Button
+                    :disabled="
+                      !['SENT', 'SUCCESS'].includes(taskDetail.status) ||
+                      ['NEGATIVE', 'POSITIVE', 'REPLIED'].includes(
+                        taskDetail.replyStatus || '',
+                      )
+                    "
+                    @click="openReplyModal(taskDetail)"
+                  >
+                    记录回复
+                  </Button>
+                  <Button
                     type="primary"
                     @click="goToLeadDetail(taskDetail.leadId)"
                   >
@@ -973,6 +1665,34 @@ onMounted(() => {
           </template>
           <Empty v-else description="未找到触达任务详情" />
         </Drawer>
+
+        <Modal
+          v-model:open="replyModalOpen"
+          destroy-on-close
+          title="记录触达回复"
+          :confirm-loading="
+            replyTask ? taskActionLoadingId === Number(replyTask.taskId) : false
+          "
+          @ok="submitReply"
+        >
+          <Form layout="vertical">
+            <Form.Item label="回复结果">
+              <Select
+                v-model:value="replyForm.replyStatus"
+                :options="
+                  replyStatusOptions.filter((item) => item.value !== 'NO_REPLY')
+                "
+              />
+            </Form.Item>
+            <Form.Item label="回复内容">
+              <Input.TextArea
+                v-model:value="replyForm.replyContent"
+                :auto-size="{ minRows: 3, maxRows: 5 }"
+                placeholder="记录客户回复或沟通要点"
+              />
+            </Form.Item>
+          </Form>
+        </Modal>
       </div>
     </Page>
   </div>
@@ -994,6 +1714,10 @@ onMounted(() => {
 
 .radar-collection-table-card {
   overflow: hidden;
+}
+
+.radar-reminder-table {
+  margin-top: 12px;
 }
 
 .radar-stat-card-grid {
@@ -1159,6 +1883,38 @@ onMounted(() => {
 
 .radar-task-mobile {
   padding-bottom: calc(var(--app-safe-area-bottom) + 16px);
+}
+
+.radar-task-mobile-reminders {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.radar-task-mobile-section-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.radar-task-mobile-section-head h3,
+.radar-task-mobile-section-head p {
+  margin: 0;
+}
+
+.radar-task-mobile-section-head h3 {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+  color: var(--ant-color-text);
+}
+
+.radar-task-mobile-section-head p {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ant-color-text-secondary);
 }
 
 .radar-task-mobile-filter {

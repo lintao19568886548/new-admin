@@ -91,9 +91,11 @@ function formatOptionalTime(value?: null | string) {
 }
 
 function isPublicOpportunitySourceCode(sourceCode?: string) {
-  return (
+  return Boolean(
     sourceCode === PUBLIC_OPPORTUNITY_SOURCE_CODE ||
-    sourceCode === PUBLIC_FACTORY_LISTING_SOURCE_CODE
+    sourceCode === PUBLIC_FACTORY_LISTING_SOURCE_CODE ||
+    sourceCode?.startsWith('PUBLIC_FACTORY_LISTING_') ||
+    sourceCode?.startsWith('PUBLIC_DEMAND_'),
   );
 }
 
@@ -311,16 +313,16 @@ async function runPublicOpportunityPilot(
   runningPilot.value = true;
   try {
     const task = await runPublicOpportunityCrawlerTask({
-      batchSize: 20,
-      freshnessDays: 180,
+      batchSize: 80,
+      freshnessDays: 365,
       sourceCode,
     });
     rememberRunResult(task);
-    message.success(`99cfw 试点采集已结束：${task.status}`);
+    message.success(`公开采集已结束：${task.status}`);
     await loadSources();
   } catch (error) {
     console.error('run public opportunity crawler task failed:', error);
-    message.error('运行 99cfw 试点采集失败');
+    message.error('运行公开采集失败');
   } finally {
     runningPilot.value = false;
   }
@@ -354,12 +356,6 @@ function renderAdapterStatus(record: CrawlerSource) {
 }
 
 const columns: TableColumnsType<CrawlerSource> = [
-  {
-    dataIndex: 'sourceCode',
-    key: 'sourceCode',
-    title: '数据源编码',
-    width: 220,
-  },
   {
     dataIndex: 'sourceName',
     key: 'sourceName',
@@ -489,7 +485,7 @@ const columns: TableColumnsType<CrawlerSource> = [
             size: 'small',
             type: 'link',
           },
-          () => '运行试点',
+          () => '运行采集',
         ),
       ]),
     key: 'operation',
@@ -507,7 +503,7 @@ onMounted(() => {
   <div class="crawler-sources-pane">
     <Alert
       class="mb-3"
-      message="当前支持本地 demo adapter 和公开采集 URL 试点。试点按 180 天时效、批量 20 条、路径白名单和重试队列执行；失败项只保留在任务项和日志里，不进入外部线索或企业信号。"
+      message="当前支持本地 demo adapter 和公开采集 URL 试点。试点按 365 天时效、批量 80 条、路径白名单和重试队列执行；失败项只保留在任务项和日志里，不进入外部线索或企业信号。"
       show-icon
       type="info"
     />
@@ -523,7 +519,7 @@ onMounted(() => {
           type="primary"
           @click="runPublicOpportunityPilot()"
         >
-          运行 99cfw 试点采集
+          运行公开采集
         </Button>
         <Button
           :loading="runningInternalContract"
@@ -562,7 +558,7 @@ onMounted(() => {
         :locale="tableLocale"
         :pagination="false"
         row-key="sourceId"
-        :scroll="{ x: 1820 }"
+        :scroll="{ x: 1600 }"
         size="small"
       />
     </Card>

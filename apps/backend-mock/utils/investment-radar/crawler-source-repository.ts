@@ -3,6 +3,7 @@ import type {
   CrawlerSourceListResult,
   CrawlerSourceUpdatePayload,
 } from './crawler-types';
+import type { PublicCrawlerAdapter } from './public-crawler-adapters';
 
 import { prismaClient } from '~/utils/db';
 
@@ -22,9 +23,20 @@ import {
   PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE,
   PUBLIC_MAP_POI_SOURCE_CODE,
   PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE,
+  PUBLIC_OPPORTUNITY_PLATFORM_SOURCE_CODES,
   PUBLIC_RECRUITMENT_SOURCE_CODE,
   PUBLIC_TENDER_SOURCE_CODE,
 } from './crawler-types';
+import {
+  GUANGDONG_CITY_NAMES,
+  GUANGDONG_PROVINCE_NAME,
+} from './guangdong-public-scope';
+import {
+  genericPublicCrawlerAdapterConfigs,
+  getPublicCrawlerAdapter,
+  getPublicCrawlerAdapterAllowedPaths,
+  listPublicCrawlerAdapters,
+} from './public-crawler-adapters';
 
 export class CrawlerSourceValidationError extends Error {
   constructor(message: string) {
@@ -42,6 +54,68 @@ const jsonArrayFieldNames = [
 ] as const;
 
 type JsonArrayFieldName = (typeof jsonArrayFieldNames)[number];
+
+const PUBLIC_CRAWLER_GUANGDONG_REGION_SCOPE: string[] = [
+  GUANGDONG_PROVINCE_NAME,
+  ...GUANGDONG_CITY_NAMES,
+];
+
+const PUBLIC_CRAWLER_CITY_REGION_SCOPE_BY_CODE: Record<string, string[]> = {
+  [PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE]: ['深圳'],
+};
+
+const CITY_SCOPE_RULES = [
+  { patterns: ['dg.', '/dg/', 'dongguan', '441900'], scope: ['东莞'] },
+  { patterns: ['sz.', '/sz/', 'shenzhen', '440300'], scope: ['深圳'] },
+  { patterns: ['gz.', '/gz/', 'guangzhou', '440100'], scope: ['广州'] },
+  { patterns: ['fs.', '/fs/', 'foshan', '440600'], scope: ['佛山'] },
+  { patterns: ['hz.', '/hz/', 'huizhou', '441300'], scope: ['惠州'] },
+  { patterns: ['zs.', '/zs/', 'zhongshan', '442000'], scope: ['中山'] },
+  { patterns: ['zh.', '/zh/', 'zhuhai', '440400'], scope: ['珠海'] },
+  { patterns: ['jm.', '/jm/', 'jiangmen', '440700'], scope: ['江门'] },
+  { patterns: ['zq.', '/zq/', 'zhaoqing', '441200'], scope: ['肇庆'] },
+] as const;
+
+function listUrlMatchesScope(listUrl: string, scope: string) {
+  const normalizedListUrl = listUrl.toLowerCase();
+  const rule = CITY_SCOPE_RULES.find((item) =>
+    (item.scope as readonly string[]).includes(scope),
+  );
+  return Boolean(
+    rule?.patterns.some((pattern) => normalizedListUrl.includes(pattern)),
+  );
+}
+
+function resolvePublicCrawlerRegionScope(params: {
+  listUrls: string[];
+  sourceCode: string;
+}) {
+  const explicitScope =
+    PUBLIC_CRAWLER_CITY_REGION_SCOPE_BY_CODE[params.sourceCode];
+  if (explicitScope) {
+    return [...explicitScope];
+  }
+
+  const haystack = params.listUrls.join(' ').toLowerCase();
+  const matchedScopes = CITY_SCOPE_RULES.filter((rule) =>
+    rule.patterns.some((pattern) => haystack.includes(pattern)),
+  ).flatMap((rule) => rule.scope);
+
+  if (
+    matchedScopes.length > 0 &&
+    params.listUrls.every((listUrl) =>
+      matchedScopes.some((scope) => listUrlMatchesScope(listUrl, scope)),
+    )
+  ) {
+    return [...new Set(matchedScopes)];
+  }
+
+  return [...PUBLIC_CRAWLER_GUANGDONG_REGION_SCOPE];
+}
+
+function getPublicCrawlerListUrls(adapter: PublicCrawlerAdapter) {
+  return adapter.buildListUrls?.() || [adapter.buildListUrl()];
+}
 
 interface CandidateCrawlerSourceSeed {
   allowedPathsJson: string[];
@@ -183,18 +257,37 @@ function toNullableString(value: unknown) {
 function mapSourceRow(row: any): CrawlerSource {
   const sourceCode = row.sourceCode || '';
   const storedAllowedPaths = parseStoredJsonArray(row.allowedPathsJson);
-  const adapterStatus =
-    sourceCode === DEMO_CRAWLER_SOURCE_CODE ||
-    sourceCode === INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE ||
-    sourceCode === PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE ||
-    sourceCode === PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE
-      ? 'READY'
-      : 'CANDIDATE';
+  const readySourceCodes = new Set([
+    DEMO_CRAWLER_SOURCE_CODE,
+    INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE,
+    PUBLIC_EIA_NOTICE_SOURCE_CODE,
+    PUBLIC_RECRUITMENT_SOURCE_CODE,
+    PUBLIC_TENDER_SOURCE_CODE,
+    ...PUBLIC_OPPORTUNITY_PLATFORM_SOURCE_CODES,
+  ]);
+  const adapterStatus = readySourceCodes.has(sourceCode)
+    ? 'READY'
+    : 'CANDIDATE';
   let allowedPathsJson = storedAllowedPaths;
+  let regionScopeJson = parseStoredJsonArray(row.regionScopeJson);
   if (sourceCode === PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE) {
     allowedPathsJson = [...PUBLIC_OPPORTUNITY_99CFW_ALLOWED_PATHS];
   } else if (sourceCode === PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE) {
     allowedPathsJson = [...PUBLIC_FACTORY_CFZSW68_ALLOWED_PATHS];
+  } else if (
+    PUBLIC_OPPORTUNITY_PLATFORM_SOURCE_CODES.includes(sourceCode as any)
+  ) {
+    allowedPathsJson =
+      getPublicCrawlerAdapterAllowedPaths(sourceCode) || storedAllowedPaths;
+  }
+  if (PUBLIC_OPPORTUNITY_PLATFORM_SOURCE_CODES.includes(sourceCode as any)) {
+    const adapter = getPublicCrawlerAdapter(sourceCode);
+    regionScopeJson = adapter
+      ? resolvePublicCrawlerRegionScope({
+          listUrls: getPublicCrawlerListUrls(adapter),
+          sourceCode,
+        })
+      : [...PUBLIC_CRAWLER_GUANGDONG_REGION_SCOPE];
   }
 
   return {
@@ -209,7 +302,7 @@ function mapSourceRow(row: any): CrawlerSource {
     keywordIncludeJson: parseStoredJsonArray(row.keywordIncludeJson),
     lastCrawledAt: row.lastCrawledAt || null,
     rateLimitPerMinute: Number(row.rateLimitPerMinute || 0),
-    regionScopeJson: parseStoredJsonArray(row.regionScopeJson),
+    regionScopeJson,
     robotsUrl: row.robotsUrl || null,
     sourceCode,
     sourceId: Number(row.sourceId),
@@ -373,6 +466,17 @@ export async function ensureCrawlerStorage() {
 
 async function ensureDemoCrawlerSourceUncached() {
   await ensureCrawlerStorage();
+  const manualReadySourceCodes = [
+    PUBLIC_EIA_NOTICE_SOURCE_CODE,
+    PUBLIC_RECRUITMENT_SOURCE_CODE,
+    PUBLIC_TENDER_SOURCE_CODE,
+  ];
+  const publicOpportunity99CfwAdapter = getPublicCrawlerAdapter(
+    PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE,
+  );
+  const publicOpportunity99CfwListUrls = publicOpportunity99CfwAdapter
+    ? getPublicCrawlerListUrls(publicOpportunity99CfwAdapter)
+    : [];
 
   await prismaClient.$executeRawUnsafe(
     `
@@ -435,17 +539,21 @@ async function ensureDemoCrawlerSourceUncached() {
       )
       VALUES (?, '99cfw public opportunity URL pilot', 'PUBLIC_OPPORTUNITY',
         ?, NULL, 1,
-        5, 10, ?, ?, ?, ?, NULL, NOW(3), NOW(3))
+        5, 30, ?, ?, ?, ?, ?, NOW(3), NOW(3))
       ON DUPLICATE KEY UPDATE
         source_name = VALUES(source_name),
         source_type = VALUES(source_type),
         base_url = VALUES(base_url),
         robots_url = VALUES(robots_url),
+        crawl_interval_minutes = VALUES(crawl_interval_minutes),
+        rate_limit_per_minute = VALUES(rate_limit_per_minute),
         allowed_paths_json = VALUES(allowed_paths_json),
+        region_scope_json = VALUES(region_scope_json),
         update_time = update_time
     `,
     PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE,
-    PUBLIC_OPPORTUNITY_99CFW_ALLOWED_ORIGIN,
+    publicOpportunity99CfwListUrls[0] ||
+      PUBLIC_OPPORTUNITY_99CFW_ALLOWED_ORIGIN,
     JSON.stringify(PUBLIC_OPPORTUNITY_99CFW_ALLOWED_PATHS),
     JSON.stringify([]),
     JSON.stringify([
@@ -472,6 +580,12 @@ async function ensureDemoCrawlerSourceUncached() {
       '活动宣传',
       '招聘普通岗位',
     ]),
+    JSON.stringify(
+      resolvePublicCrawlerRegionScope({
+        listUrls: publicOpportunity99CfwListUrls,
+        sourceCode: PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE,
+      }),
+    ),
   );
 
   await prismaClient.$executeRawUnsafe(
@@ -485,13 +599,16 @@ async function ensureDemoCrawlerSourceUncached() {
       )
       VALUES (?, 'cfzsw68 public factory listing URL pilot', 'PUBLIC_OPPORTUNITY',
         ?, NULL, 1,
-        5, 10, ?, ?, ?, ?, ?, NOW(3), NOW(3))
+        5, 30, ?, ?, ?, ?, ?, NOW(3), NOW(3))
       ON DUPLICATE KEY UPDATE
         source_name = VALUES(source_name),
         source_type = VALUES(source_type),
         base_url = VALUES(base_url),
         robots_url = VALUES(robots_url),
+        crawl_interval_minutes = VALUES(crawl_interval_minutes),
+        rate_limit_per_minute = VALUES(rate_limit_per_minute),
         allowed_paths_json = VALUES(allowed_paths_json),
+        region_scope_json = VALUES(region_scope_json),
         update_time = update_time
     `,
     PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE,
@@ -500,8 +617,136 @@ async function ensureDemoCrawlerSourceUncached() {
     JSON.stringify([]),
     JSON.stringify(['厂房', '出租', '招租', '分租', '平方', '平米']),
     JSON.stringify(['求租', '出售', '写字楼', '住宅', '商铺']),
-    JSON.stringify(['深圳']),
+    JSON.stringify(
+      resolvePublicCrawlerRegionScope({
+        listUrls: [`${PUBLIC_FACTORY_CFZSW68_ALLOWED_ORIGIN}/sz/cfcz/`],
+        sourceCode: PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE,
+      }),
+    ),
   );
+  for (const source of genericPublicCrawlerAdapterConfigs) {
+    const adapter = getPublicCrawlerAdapter(source.sourceCode);
+    const listUrls = adapter
+      ? getPublicCrawlerListUrls(adapter)
+      : source.listUrls;
+    await prismaClient.$executeRawUnsafe(
+      `
+        INSERT INTO crawler_source (
+          source_code, source_name, source_type, base_url, robots_url, enabled,
+          crawl_interval_minutes, rate_limit_per_minute,
+          allowed_paths_json, blocked_paths_json,
+          keyword_include_json, keyword_exclude_json, region_scope_json,
+          create_time, update_time
+        )
+        VALUES (?, ?, 'PUBLIC_OPPORTUNITY',
+          ?, NULL, 1,
+          5, 30, ?, ?, ?, ?, ?, NOW(3), NOW(3))
+        ON DUPLICATE KEY UPDATE
+          source_name = VALUES(source_name),
+          source_type = VALUES(source_type),
+          base_url = VALUES(base_url),
+          robots_url = VALUES(robots_url),
+          enabled = VALUES(enabled),
+          crawl_interval_minutes = VALUES(crawl_interval_minutes),
+          rate_limit_per_minute = VALUES(rate_limit_per_minute),
+          allowed_paths_json = VALUES(allowed_paths_json),
+          blocked_paths_json = VALUES(blocked_paths_json),
+          keyword_include_json = VALUES(keyword_include_json),
+          keyword_exclude_json = VALUES(keyword_exclude_json),
+          region_scope_json = VALUES(region_scope_json),
+          update_time = update_time
+      `,
+      source.sourceCode,
+      source.sourceName,
+      listUrls[0] || source.allowedHosts[0],
+      JSON.stringify(
+        getPublicCrawlerAdapterAllowedPaths(source.sourceCode) ||
+          source.detailPathPrefixes ||
+          [],
+      ),
+      JSON.stringify([]),
+      JSON.stringify(['厂房', '仓库', '出租', '招租', '分租', '平方', '平米']),
+      JSON.stringify(['住宅', '商铺', '写字楼', '公寓']),
+      JSON.stringify(
+        resolvePublicCrawlerRegionScope({
+          listUrls,
+          sourceCode: source.sourceCode,
+        }),
+      ),
+    );
+  }
+  const seededPublicAdapterSourceCodes = new Set([
+    PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE,
+    PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE,
+    ...genericPublicCrawlerAdapterConfigs.map((source) => source.sourceCode),
+  ]);
+  for (const adapter of listPublicCrawlerAdapters()) {
+    if (seededPublicAdapterSourceCodes.has(adapter.sourceCode)) {
+      continue;
+    }
+    const isSupply = adapter.opportunityType === 'SUPPLY';
+    const listUrls = getPublicCrawlerListUrls(adapter);
+    await prismaClient.$executeRawUnsafe(
+      `
+        INSERT INTO crawler_source (
+          source_code, source_name, source_type, base_url, robots_url, enabled,
+          crawl_interval_minutes, rate_limit_per_minute,
+          allowed_paths_json, blocked_paths_json,
+          keyword_include_json, keyword_exclude_json, region_scope_json,
+          create_time, update_time
+        )
+        VALUES (?, ?, 'PUBLIC_OPPORTUNITY',
+          ?, NULL, 1,
+          5, 30, ?, ?, ?, ?, ?, NOW(3), NOW(3))
+        ON DUPLICATE KEY UPDATE
+          source_name = VALUES(source_name),
+          source_type = VALUES(source_type),
+          base_url = VALUES(base_url),
+          robots_url = VALUES(robots_url),
+          enabled = VALUES(enabled),
+          crawl_interval_minutes = VALUES(crawl_interval_minutes),
+          rate_limit_per_minute = VALUES(rate_limit_per_minute),
+          allowed_paths_json = VALUES(allowed_paths_json),
+          blocked_paths_json = VALUES(blocked_paths_json),
+          keyword_include_json = VALUES(keyword_include_json),
+          keyword_exclude_json = VALUES(keyword_exclude_json),
+          region_scope_json = VALUES(region_scope_json),
+          update_time = update_time
+      `,
+      adapter.sourceCode,
+      adapter.platformName || adapter.sourceCode,
+      listUrls[0] || adapter.buildListUrl(),
+      JSON.stringify(adapter.allowedPaths),
+      JSON.stringify([]),
+      JSON.stringify(
+        isSupply
+          ? ['厂房', '仓库', '出租', '招租', '分租', '平方', '平米']
+          : [
+              '扩产',
+              '搬迁',
+              '迁建',
+              '新建厂房',
+              '技改',
+              '生产线',
+              '仓储',
+              '求租',
+              '租厂房',
+              '厂房需求',
+            ],
+      ),
+      JSON.stringify(
+        isSupply
+          ? ['住宅', '商铺', '写字楼', '公寓']
+          : ['住宅', '商铺', '个人', '培训', '会议', '活动宣传'],
+      ),
+      JSON.stringify(
+        resolvePublicCrawlerRegionScope({
+          listUrls,
+          sourceCode: adapter.sourceCode,
+        }),
+      ),
+    );
+  }
   for (const source of phase9CandidateCrawlerSources) {
     await prismaClient.$executeRawUnsafe(
       `
@@ -512,12 +757,17 @@ async function ensureDemoCrawlerSourceUncached() {
           keyword_include_json, keyword_exclude_json, region_scope_json,
           create_time, update_time
         )
-        VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, NOW(3), NOW(3))
+        VALUES (
+          ?, ?, ?, ?, ?,
+          CASE WHEN ? IN (?, ?, ?) THEN 1 ELSE 0 END,
+          ?, ?, ?, ?, ?, ?, ?, NOW(3), NOW(3)
+        )
         ON DUPLICATE KEY UPDATE
           source_name = VALUES(source_name),
           source_type = VALUES(source_type),
           base_url = VALUES(base_url),
           robots_url = VALUES(robots_url),
+          enabled = CASE WHEN source_code IN (?, ?, ?) THEN 1 ELSE enabled END,
           crawl_interval_minutes = VALUES(crawl_interval_minutes),
           rate_limit_per_minute = VALUES(rate_limit_per_minute),
           allowed_paths_json = VALUES(allowed_paths_json),
@@ -532,6 +782,8 @@ async function ensureDemoCrawlerSourceUncached() {
       source.sourceType,
       source.baseUrl,
       source.robotsUrl,
+      source.sourceCode,
+      ...manualReadySourceCodes,
       source.crawlIntervalMinutes,
       source.rateLimitPerMinute,
       JSON.stringify(source.allowedPathsJson),
@@ -539,6 +791,7 @@ async function ensureDemoCrawlerSourceUncached() {
       JSON.stringify(source.keywordIncludeJson),
       JSON.stringify(source.keywordExcludeJson),
       JSON.stringify(source.regionScopeJson),
+      ...manualReadySourceCodes,
     );
   }
 }
@@ -660,10 +913,11 @@ export function getPublicFactoryListingCrawlerSource() {
 }
 
 export async function listPublicOpportunityCrawlerSources() {
-  const sources = await Promise.all([
-    getPublicOpportunityCrawlerSource(),
-    getPublicFactoryListingCrawlerSource(),
-  ]);
+  const sources = await Promise.all(
+    PUBLIC_OPPORTUNITY_PLATFORM_SOURCE_CODES.map((sourceCode) =>
+      getCrawlerSourceByCode(sourceCode),
+    ),
+  );
   return sources.filter(Boolean) as CrawlerSource[];
 }
 
@@ -719,6 +973,12 @@ export async function updateCrawlerSource(
       );
     }
     normalized.allowedPathsJson = [...PUBLIC_OPPORTUNITY_99CFW_ALLOWED_PATHS];
+    const adapter = getPublicCrawlerAdapter(source.sourceCode);
+    const listUrls = adapter ? getPublicCrawlerListUrls(adapter) : [];
+    normalized.regionScopeJson = resolvePublicCrawlerRegionScope({
+      listUrls,
+      sourceCode: PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE,
+    });
     normalized.robotsUrl = null;
   } else if (source.sourceCode === PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE) {
     if (
@@ -730,11 +990,28 @@ export async function updateCrawlerSource(
       );
     }
     normalized.allowedPathsJson = [...PUBLIC_FACTORY_CFZSW68_ALLOWED_PATHS];
+    normalized.regionScopeJson = resolvePublicCrawlerRegionScope({
+      listUrls: [`${PUBLIC_FACTORY_CFZSW68_ALLOWED_ORIGIN}/sz/cfcz/`],
+      sourceCode: PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE,
+    });
     normalized.robotsUrl = null;
-  } else if (normalized.robotsUrl === null && source.sourceType !== 'DEMO') {
-    throw new CrawlerSourceValidationError(
-      'robotsUrl can only be empty for DEMO sources',
-    );
+  } else {
+    const adapter = getPublicCrawlerAdapter(source.sourceCode);
+    if (adapter) {
+      const listUrls = getPublicCrawlerListUrls(adapter);
+      normalized.allowedPathsJson =
+        getPublicCrawlerAdapterAllowedPaths(source.sourceCode) ||
+        source.allowedPathsJson;
+      normalized.regionScopeJson = resolvePublicCrawlerRegionScope({
+        listUrls,
+        sourceCode: source.sourceCode,
+      });
+      normalized.robotsUrl = null;
+    } else if (normalized.robotsUrl === null && source.sourceType !== 'DEMO') {
+      throw new CrawlerSourceValidationError(
+        'robotsUrl can only be empty for DEMO sources',
+      );
+    }
   }
 
   const setClauses: string[] = [];

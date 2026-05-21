@@ -1,4 +1,5 @@
 import { prismaClient } from '~/utils/db';
+import { checkContactRestriction } from '~/utils/investment-radar/contact-restriction-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   badRequestResponse,
@@ -71,11 +72,13 @@ export default eventHandler(async (event) => {
         `
           SELECT
             l.lead_id AS leadId,
+            l.enterprise_id AS enterpriseId,
             l.intent_area AS intentArea,
             l.priority_level AS priorityLevel,
             l.stage,
             l.total_score AS totalScore,
             l.invalid_reason AS invalidReason,
+            l.latest_contact_time AS latestContactTime,
             e.enterprise_name AS companyName,
             e.contact_name AS contactName,
             e.phone_number AS phoneNumber,
@@ -96,6 +99,21 @@ export default eventHandler(async (event) => {
         return null;
       }
 
+      const recentTaskRows = await prismaClient.$queryRawUnsafe<any[]>(
+        `
+          SELECT COUNT(*) AS pendingCount
+          FROM investment_outreach_task
+          WHERE lead_id = ? AND status IN ('PENDING', 'RUNNING', 'SENT')
+        `,
+        leadId,
+      );
+      const pendingTaskCount = Number(recentTaskRows[0]?.pendingCount || 0);
+      const restriction = await checkContactRestriction({
+        enterpriseId: Number(lead.enterpriseId || 0) || null,
+        leadId,
+        phoneNumber: lead.phoneNumber,
+      });
+
       const priorityLevel = String(lead.priorityLevel || 'C');
       const matchedTemplates = templates.filter((item) => {
         if (priorityLevel === 'A') {
@@ -112,27 +130,47 @@ export default eventHandler(async (event) => {
         parkName: String(lead.parkName || '园区'),
       };
       const phoneNumber = String(lead.phoneNumber || '').trim();
+      const stage = String(lead.stage || '');
+      const invalidStage = ['CLOSED', 'DEAL', 'INVALID'].includes(stage);
+
+      const contactRestrictionReasons: string[] = [];
+      if (!phoneNumber) {
+        contactRestrictionReasons.push('缺少联系电话');
+      }
+      if (lead.invalidReason) {
+        contactRestrictionReasons.push(lead.invalidReason);
+      }
+      if (invalidStage) {
+        contactRestrictionReasons.push('当前阶段不建议触达');
+      }
+      if (pendingTaskCount > 0) {
+        contactRestrictionReasons.push('存在未完成的触达任务');
+      }
+      if (!restriction.canContact) {
+        contactRestrictionReasons.push(restriction.reason);
+      }
+
       const canContact =
         Boolean(phoneNumber) &&
         !lead.invalidReason &&
-        !['CLOSED', 'DEAL', 'INVALID'].includes(String(lead.stage || ''));
+        !invalidStage &&
+        pendingTaskCount === 0 &&
+        restriction.canContact;
 
       return {
         canContact,
         city: lead.city || '',
         companyName: lead.companyName || '',
         contactName: lead.contactName || '',
-        contactRestrictionReason: canContact
-          ? ''
-          : lead.invalidReason ||
-            (phoneNumber ? '当前阶段不建议触达' : '缺少联系电话'),
+        contactRestrictionReason: contactRestrictionReasons.join('；') || '',
         industryName: lead.industryName || '',
         intentArea,
         leadId: Number(lead.leadId),
+        latestContactTime: lead.latestContactTime || '',
         parkName: lead.parkName || '',
         phoneNumber,
         priorityLevel,
-        stage: lead.stage || '',
+        stage,
         suggestions: matchedTemplates.map((item) => ({
           channel: item.channel,
           priorityLevel: item.priorityLevel,

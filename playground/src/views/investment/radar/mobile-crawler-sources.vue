@@ -130,7 +130,9 @@ function formatJsonText(value?: null | string[]) {
 function isPublicOpportunitySourceCode(sourceCode?: string) {
   return (
     sourceCode === PUBLIC_OPPORTUNITY_SOURCE_CODE ||
-    sourceCode === PUBLIC_FACTORY_LISTING_SOURCE_CODE
+    sourceCode === PUBLIC_FACTORY_LISTING_SOURCE_CODE ||
+    sourceCode?.startsWith('PUBLIC_FACTORY_LISTING_') ||
+    sourceCode?.startsWith('PUBLIC_DEMAND_')
   );
 }
 
@@ -344,8 +346,8 @@ async function runPublicOpportunityPilot(
   runningPilot.value = true;
   try {
     const task = await runPublicOpportunityCrawlerTask({
-      batchSize: 20,
-      freshnessDays: 180,
+      batchSize: 80,
+      freshnessDays: 365,
       sourceCode,
     });
     rememberRunResult(task);
@@ -468,7 +470,9 @@ onMounted(() => {
           <div class="radar-card-head">
             <div>
               <div class="radar-card-title">{{ item.sourceName }}</div>
-              <div class="radar-card-subtitle">{{ item.sourceCode }}</div>
+              <div class="radar-card-subtitle">
+                {{ renderSourceType(item).label }}
+              </div>
             </div>
             <div class="radar-card-tags-row">
               <Tag :color="renderSourceType(item).color">
@@ -649,7 +653,7 @@ onMounted(() => {
       <div v-if="currentSource" class="drawer-summary">
         <div class="drawer-summary-title">{{ currentSource.sourceName }}</div>
         <div class="drawer-summary-subtitle">
-          {{ currentSource.sourceCode }}
+          {{ renderSourceType(currentSource).label }}
         </div>
       </div>
       <Form layout="vertical">

@@ -205,11 +205,5 @@ export function mapTaskType(taskType?: null | string) {
 }
 
 export function renderTaskResult(record: RadarOutreachTaskItem) {
-  return (
-    record.replyContent ||
-    record.resultMessage ||
-    record.resultCode ||
-    record.templateCode ||
-    '-'
-  );
+  return record.replyContent || record.resultMessage || '-';
 }

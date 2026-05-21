@@ -22,6 +22,7 @@ import {
   Space,
   Statistic,
   Table,
+  Tag,
 } from 'ant-design-vue';
 
 import {
@@ -52,6 +53,7 @@ const pagination = ref({
   pageSize: 20,
   total: 0,
 });
+const strictTotal = ref(0);
 const searchForm = ref({
   city: '',
   keyword: '',
@@ -75,6 +77,7 @@ const manualForm = ref({
 
 const summary = computed(() => ({
   currentPageCount: items.value.length,
+  strictTotal: strictTotal.value,
   total: pagination.value.total,
 }));
 
@@ -177,6 +180,15 @@ const columns: TableColumnsType<PublicOpportunityItem> = [
     key: 'score',
     title: '分数',
     width: 90,
+  },
+  {
+    align: 'center',
+    customRender: ({ record }: { record: PublicOpportunityItem }) =>
+      renderOpportunityStatus(record.opportunityStatus),
+    dataIndex: 'opportunityStatus',
+    key: 'opportunityStatus',
+    title: '状态',
+    width: 110,
   },
   {
     align: 'center',
@@ -311,6 +323,45 @@ function renderSourceSite(record: PublicOpportunityItem) {
   );
 }
 
+function getOpportunityStatusMeta(status?: null | string) {
+  if (status === 'EFFECTIVE') {
+    return { color: 'green', label: '有效' };
+  }
+  if (status === 'VERIFIED') {
+    return { color: 'cyan', label: '已核验' };
+  }
+  if (status === 'NEEDS_REVIEW') {
+    return { color: 'orange', label: '待复核' };
+  }
+  if (status === 'EXPIRED') {
+    return { color: 'red', label: '已失效' };
+  }
+  if (status === 'OUT_OF_SCOPE') {
+    return { color: 'default', label: '越界' };
+  }
+  if (status === 'UNKNOWN_TIME') {
+    return { color: 'orange', label: '时间待核' };
+  }
+  if (status === 'SOURCE_LOST') {
+    return { color: 'red', label: '来源缺失' };
+  }
+  if (status === 'INVALID') {
+    return { color: 'red', label: '无效' };
+  }
+  if (status === 'PARSED') {
+    return { color: 'blue', label: '已解析' };
+  }
+  if (status === 'RAW') {
+    return { color: 'default', label: '原始' };
+  }
+  return { color: 'blue', label: status || '待审核' };
+}
+
+function renderOpportunityStatus(status?: null | string) {
+  const meta = getOpportunityStatusMeta(status);
+  return h(Tag, { color: meta.color }, () => meta.label);
+}
+
 function buildQuery() {
   return {
     city: searchForm.value.city || undefined,
@@ -319,6 +370,7 @@ function buildQuery() {
     opportunityType: 'DEMAND',
     pageSize: pagination.value.pageSize,
     publishedAgeLabel: searchForm.value.publishedAgeLabel || undefined,
+    scope: 'collected' as const,
     sourceSite: searchForm.value.sourceSite || undefined,
   };
 }
@@ -336,6 +388,8 @@ async function loadPublicDemands() {
       typeof result.total === 'number'
         ? result.total
         : result.page?.total || itemCount;
+    strictTotal.value =
+      typeof result.strictTotal === 'number' ? result.strictTotal : 0;
     publishedAgeLabelOptions.value = toAutoCompleteOptions(
       result.filters?.publishedAgeLabels,
     );
@@ -346,6 +400,7 @@ async function loadPublicDemands() {
     console.error('加载公开需求采集失败:', error);
     items.value = [];
     pagination.value.total = 0;
+    strictTotal.value = 0;
     loadError.value = '需求数据加载失败，请检查公开机会相关接口是否可用。';
   } finally {
     loading.value = false;
@@ -474,14 +529,19 @@ void loadPublicDemands();
           <Col :lg="6" :md="12" :sm="12" :xs="24">
             <Card class="radar-stat-card">
               <Statistic
-                title="当前页需求数"
+                title="当前页采集数"
                 :value="summary.currentPageCount"
               />
             </Card>
           </Col>
           <Col :lg="6" :md="12" :sm="12" :xs="24">
             <Card class="radar-stat-card">
-              <Statistic title="总需求数" :value="summary.total" />
+              <Statistic title="采集入库总数" :value="summary.total" />
+            </Card>
+          </Col>
+          <Col :lg="6" :md="12" :sm="12" :xs="24">
+            <Card class="radar-stat-card">
+              <Statistic title="严格有效数" :value="summary.strictTotal" />
             </Card>
           </Col>
         </Row>
@@ -545,7 +605,7 @@ void loadPublicDemands();
             :loading="loading"
             :locale="tableLocale"
             :pagination="pagination"
-            :scroll="{ x: 1600 }"
+            :scroll="{ x: 1710 }"
             row-key="opportunityId"
             size="small"
             table-layout="fixed"

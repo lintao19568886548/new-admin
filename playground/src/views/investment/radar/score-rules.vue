@@ -74,6 +74,13 @@ const eventTypeLabel: Record<string, string> = {
   UNKNOWN: '未知信号',
 };
 
+function formatEventType(eventType?: null | string) {
+  if (!eventType) {
+    return '-';
+  }
+  return eventTypeLabel[eventType] || '其他信号';
+}
+
 function formatKeywordJson(value: string[]) {
   return value.length > 0 ? JSON.stringify(value, null, 2) : '';
 }
@@ -179,25 +186,13 @@ async function recalculateDemoScores() {
 
 const columns: TableColumnsType<LeadScoreRule> = [
   {
-    dataIndex: 'ruleCode',
-    key: 'ruleCode',
-    title: '规则编码',
-    width: 190,
-  },
-  {
     dataIndex: 'ruleName',
     key: 'ruleName',
     title: '规则名称',
     width: 160,
   },
   {
-    customRender: ({ record }) => {
-      const eventType = record.eventType ?? '';
-      if (!eventType) {
-        return '-';
-      }
-      return eventTypeLabel[eventType] || eventType;
-    },
+    customRender: ({ record }) => formatEventType(record.eventType),
     dataIndex: 'eventType',
     key: 'eventType',
     title: '事件类型',
@@ -303,7 +298,7 @@ onMounted(() => {
         :locale="tableLocale"
         :pagination="false"
         row-key="ruleId"
-        :scroll="{ x: 1350 }"
+        :scroll="{ x: 1160 }"
         size="small"
       />
     </Card>

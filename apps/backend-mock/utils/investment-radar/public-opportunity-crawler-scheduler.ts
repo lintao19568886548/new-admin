@@ -1,17 +1,10 @@
-import {
-  PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE,
-  PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE,
-} from './crawler-types';
-import { runPublicOpportunityUrlCrawlerTask } from './public-opportunity-url-crawler';
+import { runPublicOpportunityBatchCrawler } from './public-opportunity-batch-runner';
 import { runWithRadarSharedScope } from './shared-scope';
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
-const DEFAULT_BATCH_SIZE = 20;
+const DEFAULT_BATCH_SIZE = 80;
+const DEFAULT_FRESHNESS_DAYS = 365;
 const DEFAULT_ENABLED = true;
-const DEFAULT_SOURCE_CODES = [
-  PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE,
-  PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE,
-];
 
 const globalForPublicOpportunityCrawler = globalThis as typeof globalThis & {
   __publicOpportunityCrawlerScheduler?: {
@@ -100,7 +93,7 @@ async function runSchedulerTick(state: { running: boolean }) {
       ),
       freshnessDays: getPositiveIntegerEnv(
         'INVESTMENT_RADAR_PUBLIC_CRAWLER_FRESHNESS_DAYS',
-        180,
+        DEFAULT_FRESHNESS_DAYS,
       ),
       maxRetryCount: getPositiveIntegerEnv(
         'INVESTMENT_RADAR_PUBLIC_CRAWLER_MAX_RETRY_COUNT',
@@ -111,33 +104,35 @@ async function runSchedulerTick(state: { running: boolean }) {
         30,
       ),
     };
-    for (const sourceCode of DEFAULT_SOURCE_CODES) {
-      try {
-        const task = await runWithRadarSharedScope(() =>
-          runPublicOpportunityUrlCrawlerTask({
-            ...runOptions,
-            sourceCode,
-          }),
-        );
-        if (runtimeState) {
-          runtimeState.lastTaskId = Number(task.taskId);
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (runtimeState) {
-          if (message === 'CRAWL_INTERVAL_NOT_REACHED') {
-            runtimeState.lastSkipReason = `${sourceCode}: ${message}`;
-          } else {
-            runtimeState.lastError = `${sourceCode}: ${message}`;
-          }
-        }
-        if (message !== 'CRAWL_INTERVAL_NOT_REACHED') {
-          console.error(
-            `[investment-radar-public-crawler] ${sourceCode} tick failed:`,
-            error,
-          );
-        }
-      }
+    const batchResult = await runWithRadarSharedScope(() =>
+      runPublicOpportunityBatchCrawler({
+        ...runOptions,
+        continueOnError: true,
+        mode: 'ALL',
+      }),
+    );
+    const latestTask = [...batchResult.items]
+      .reverse()
+      .find((item) => item.taskId);
+    const firstFailed = batchResult.items.find(
+      (item) => item.status === 'FAILED',
+    );
+    if (runtimeState) {
+      runtimeState.lastTaskId = latestTask?.taskId || null;
+      runtimeState.lastSkipReason =
+        batchResult.total.failedPlatformCount > 0
+          ? `${batchResult.total.failedPlatformCount} public crawler platforms failed or skipped`
+          : null;
+      runtimeState.lastError = firstFailed?.errorMessage || null;
+    }
+    for (const failed of batchResult.items.filter(
+      (item) =>
+        item.status === 'FAILED' &&
+        item.errorMessage !== 'CRAWL_INTERVAL_NOT_REACHED',
+    )) {
+      console.error(
+        `[investment-radar-public-crawler] ${failed.sourceCode} tick failed: ${failed.errorMessage}`,
+      );
     }
   } finally {
     state.running = false;

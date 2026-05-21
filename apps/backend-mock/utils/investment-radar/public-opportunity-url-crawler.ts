@@ -1,8 +1,10 @@
+import type { ParsedPublicOpportunity } from './crawler-adapters/types';
 import type {
   CrawlerTask,
   PublicOpportunityCrawlerRunOptions,
 } from './crawler-types';
 import type { PublicOpportunityRow } from './public-opportunity-lead-rebuilder';
+import type { PublicOpportunityCrawlerInput } from './public-opportunity-repository';
 
 import { createHash } from 'node:crypto';
 
@@ -11,10 +13,6 @@ import { prismaClient } from '~/utils/db';
 import {
   checkCrawlerIntervalPolicy,
   checkCrawlerSourcePolicy,
-  PUBLIC_FACTORY_CFZSW68_ALLOWED_HOST,
-  PUBLIC_FACTORY_CFZSW68_ALLOWED_PATHS,
-  PUBLIC_OPPORTUNITY_99CFW_ALLOWED_HOST,
-  PUBLIC_OPPORTUNITY_99CFW_ALLOWED_PATHS,
 } from './crawler-policy';
 import {
   getPublicCrawlerSourceByCode,
@@ -45,10 +43,14 @@ import {
 import { upsertExternalLeadFromCrawler } from './external-lead-repository';
 import { getPublicCrawlerAdapter } from './public-crawler-adapters';
 import { buildExternalLeadInputFromPublicOpportunityRow } from './public-opportunity-lead-rebuilder';
-import { upsertCrawlerPublicOpportunity } from './public-opportunity-repository';
+import {
+  PublicOpportunityQualitySkipError,
+  upsertCrawlerPublicOpportunity,
+} from './public-opportunity-repository';
 
-const DEFAULT_BATCH_SIZE = 20;
-const DEFAULT_FRESHNESS_DAYS = 180;
+const DEFAULT_BATCH_SIZE = 80;
+const DEFAULT_FRESHNESS_DAYS = 365;
+const MAX_BATCH_SIZE = 500;
 const DEFAULT_MAX_RETRY_COUNT = 3;
 const DEFAULT_RETRY_DELAY_MINUTES = 30;
 const DEFAULT_STALE_RUNNING_MINUTES = 15;
@@ -57,6 +59,7 @@ const RESPONSE_TEXT_TIMEOUT_MS = 10_000;
 const SHENZHEN_CITY_NAME = '\u6DF1\u5733';
 
 interface DiscoveredPublicUrl {
+  publishedAt?: null | string;
   sourceTitle?: null | string;
   sourceUrl: string;
 }
@@ -71,11 +74,16 @@ interface SyntheticOpportunityParseMeta {
   phoneNumber?: null | string;
   priceText?: null | string;
   publishedAt?: null | string;
+  strictCity?: null | string;
+  strictDistrict?: null | string;
   title?: null | string;
+  urlInferredCity?: null | string;
+  urlInferredDistrict?: null | string;
 }
 
 interface OpportunityUpsertPayload {
   parseMeta?: null | SyntheticOpportunityParseMeta;
+  responseHash?: null | string;
   row: PublicOpportunityRow;
   sourceUrl: string;
 }
@@ -90,7 +98,12 @@ function clampInt(value: unknown, fallback: number, min: number, max: number) {
 
 function normalizeOptions(options: PublicOpportunityCrawlerRunOptions = {}) {
   return {
-    batchSize: clampInt(options.batchSize, DEFAULT_BATCH_SIZE, 1, 20),
+    batchSize: clampInt(
+      options.batchSize,
+      DEFAULT_BATCH_SIZE,
+      1,
+      MAX_BATCH_SIZE,
+    ),
     discoverList: options.discoverList !== false,
     freshnessDays: clampInt(
       options.freshnessDays,
@@ -98,12 +111,14 @@ function normalizeOptions(options: PublicOpportunityCrawlerRunOptions = {}) {
       1,
       DEFAULT_FRESHNESS_DAYS,
     ),
+    ignoreInterval: options.ignoreInterval === true,
     maxRetryCount: clampInt(
       options.maxRetryCount,
       DEFAULT_MAX_RETRY_COUNT,
       1,
       10,
     ),
+    reprocessSuccess: options.reprocessSuccess === true,
     retryDelayMinutes: clampInt(
       options.retryDelayMinutes,
       DEFAULT_RETRY_DELAY_MINUTES,
@@ -169,12 +184,6 @@ async function withTimeout<T>(
   }
 }
 
-function resolveOpportunityTypeBySourceCode(sourceCode: string) {
-  return sourceCode === PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE
-    ? 'SUPPLY'
-    : 'DEMAND';
-}
-
 async function queryFreshDemandRows(freshnessDays: number) {
   return prismaClient.$queryRawUnsafe<PublicOpportunityRow[]>(
     `
@@ -182,6 +191,7 @@ async function queryFreshDemandRows(freshnessDays: number) {
         opportunity_id AS opportunityId,
         opportunity_type AS opportunityType,
         source_site AS sourceSite,
+        source_table AS sourceTable,
         source_url AS sourceUrl,
         title,
         city,
@@ -221,6 +231,7 @@ async function queryFreshRowsByType(params: {
         opportunity_id AS opportunityId,
         opportunity_type AS opportunityType,
         source_site AS sourceSite,
+        source_table AS sourceTable,
         source_url AS sourceUrl,
         title,
         city,
@@ -258,6 +269,7 @@ async function getPublicOpportunityRowById(opportunityId: number) {
         opportunity_id AS opportunityId,
         opportunity_type AS opportunityType,
         source_site AS sourceSite,
+        source_table AS sourceTable,
         source_url AS sourceUrl,
         title,
         city,
@@ -305,13 +317,123 @@ function decodeBasicHtmlEntities(value: string) {
 
 function normalizeDiscoveredUrl(href: string, baseUrl: string) {
   try {
-    const url = new URL(decodeBasicHtmlEntities(href).trim(), baseUrl);
+    const decodedHref = decodeBasicHtmlEntities(href).trim();
+    const protocolMatches = [...decodedHref.matchAll(/https?:\/\//gi)];
+    const lastProtocolIndex = protocolMatches.at(-1)?.index;
+    const absoluteUrlMatches = decodedHref.match(/https?:\/\/[^\s"'<>]+/gi);
+    let normalizedHref = decodedHref;
+    if (protocolMatches.length > 1 && lastProtocolIndex !== undefined) {
+      normalizedHref = decodedHref.slice(lastProtocolIndex);
+    } else if (absoluteUrlMatches && absoluteUrlMatches.length > 0) {
+      normalizedHref =
+        absoluteUrlMatches[absoluteUrlMatches.length - 1] || decodedHref;
+    }
+    const url = new URL(normalizedHref, baseUrl);
     url.hash = '';
     url.search = '';
     return url.toString();
   } catch {
     return null;
   }
+}
+
+function normalizePublishedAtText(value: unknown) {
+  const rawValue = String(value ?? '').trim();
+  if (!rawValue) {
+    return null;
+  }
+  const normalizedValue = rawValue
+    .replace('年', '-')
+    .replace('月', '-')
+    .replace('日', '')
+    .replaceAll('/', '-')
+    .replaceAll('.', '-')
+    .replace('T', ' ');
+  const match =
+    /^(20\d{2})-(\d{1,2})-(\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/.exec(
+      normalizedValue,
+    );
+  if (!match) {
+    return null;
+  }
+  const [, year, month, day, hour = '0', minute = '0', second = '0'] = match;
+  const date = new Date(
+    `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(
+      2,
+      '0',
+    )}:${minute.padStart(2, '0')}:${second.padStart(2, '0')}+08:00`,
+  );
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function extractJsonLdBlocks(html: string) {
+  const blocks: string[] = [];
+  const scriptPattern =
+    /<script(?:\s[^>]*)?type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  for (const match of html.matchAll(scriptPattern)) {
+    const content = decodeBasicHtmlEntities(match[1] || '').trim();
+    if (content) {
+      blocks.push(content);
+    }
+  }
+  return blocks;
+}
+
+function visitJsonValue(value: unknown, visitor: (value: unknown) => void) {
+  visitor(value);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      visitJsonValue(item, visitor);
+    }
+  } else if (value && typeof value === 'object') {
+    for (const item of Object.values(value as Record<string, unknown>)) {
+      visitJsonValue(item, visitor);
+    }
+  }
+}
+
+function extractPublicOpportunityJsonLdUrls(html: string, listUrl: string) {
+  const discovered: DiscoveredPublicUrl[] = [];
+  for (const block of extractJsonLdBlocks(html)) {
+    try {
+      const parsed = JSON.parse(block) as unknown;
+      visitJsonValue(parsed, (value) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return;
+        }
+        const record = value as Record<string, unknown>;
+        const sourceUrl = normalizeDiscoveredUrl(
+          String(record.url || ''),
+          listUrl,
+        );
+        if (!sourceUrl) {
+          return;
+        }
+        discovered.push({
+          publishedAt: normalizePublishedAtText(record.datePublished),
+          sourceTitle:
+            String(record.name || record.headline || '').trim() || null,
+          sourceUrl,
+        });
+      });
+    } catch {
+      const urlMatch = /"url"\s*:\s*"([^"]+)"/i.exec(block);
+      if (!urlMatch?.[1]) {
+        continue;
+      }
+      discovered.push({
+        publishedAt: normalizePublishedAtText(
+          /"datePublished"\s*:\s*"([^"]+)"/i.exec(block)?.[1],
+        ),
+        sourceTitle:
+          decodeUnicodeEscapes(
+            /"name"\s*:\s*"([^"]+)"/i.exec(block)?.[1] || '',
+          ).trim() || null,
+        sourceUrl: normalizeDiscoveredUrl(urlMatch[1], listUrl) || urlMatch[1],
+      });
+    }
+  }
+  return discovered;
 }
 
 function extractPublicOpportunityDetailUrls(
@@ -325,18 +447,43 @@ function extractPublicOpportunityDetailUrls(
 ) {
   const discovered: DiscoveredPublicUrl[] = [];
   const seen = new Set<string>();
+  const adapter = getPublicCrawlerAdapter(source?.sourceCode || '');
+  const pushDiscovered = (item: DiscoveredPublicUrl) => {
+    if (!item.sourceUrl || seen.has(item.sourceUrl)) {
+      return;
+    }
+    if (buildUrlPolicyFailureReason(item.sourceUrl, source)) {
+      return;
+    }
+    seen.add(item.sourceUrl);
+    discovered.push(item);
+  };
+
+  for (const item of adapter?.extractDetailUrlsFromListHtml?.(html, listUrl) ||
+    []) {
+    pushDiscovered({
+      publishedAt: item.publishedAt || null,
+      sourceTitle: item.sourceTitle?.slice(0, 120) || null,
+      sourceUrl: item.sourceUrl,
+    });
+  }
+
+  for (const item of extractPublicOpportunityJsonLdUrls(html, listUrl)) {
+    pushDiscovered({
+      publishedAt: item.publishedAt || null,
+      sourceTitle: item.sourceTitle?.slice(0, 120) || null,
+      sourceUrl: item.sourceUrl,
+    });
+  }
+
   const anchorPattern =
     /<a(?:\s[^>]*)?href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   for (const match of html.matchAll(anchorPattern)) {
     const sourceUrl = normalizeDiscoveredUrl(match[1] || '', listUrl);
-    if (!sourceUrl || seen.has(sourceUrl)) {
+    if (!sourceUrl) {
       continue;
     }
-    if (buildUrlPolicyFailureReason(sourceUrl, source)) {
-      continue;
-    }
-    seen.add(sourceUrl);
-    discovered.push({
+    pushDiscovered({
       sourceTitle: stripHtml(match[2] || '').slice(0, 120) || null,
       sourceUrl,
     });
@@ -352,7 +499,7 @@ async function fetchPublicPage(sourceUrl: string) {
       headers: {
         'User-Agent': 'vben-investment-radar-crawler/0.1',
       },
-      redirect: 'manual',
+      redirect: 'follow',
       signal: controller.signal,
     });
     const text = await withTimeout(
@@ -395,47 +542,74 @@ function extractFirstMatch(
 }
 
 function extractPageTitle(html: string, bodyText: string) {
+  const h1Titles = [...html.matchAll(/<h1(?:\s[^>]*)?>([\s\S]*?)<\/h1>/gi)]
+    .map((match) => stripHtml(match[1] || ''))
+    .map((title) => normalizeExtractedTitle(title))
+    .filter(Boolean);
+  const detailTitle =
+    h1Titles.find((title) => !/久久厂房网|厂房仓库租赁平台/.test(title)) ||
+    h1Titles[0];
+  if (detailTitle) {
+    return detailTitle;
+  }
   const title = extractFirstMatch(html, [
-    /<h1(?:\s[^>]*)?>([\s\S]*?)<\/h1>/i,
     /<title(?:\s[^>]*)?>([\s\S]*?)<\/title>/i,
   ]);
-  const normalizedTitle = title
-    ? stripHtml(title)
-        .replace(/[-_丨|].*99cfw.*$/i, '')
-        .trim()
-    : '';
+  const normalizedTitle = normalizeExtractedTitle(title || '');
   return normalizedTitle || bodyText.split(/\s+/).slice(0, 18).join(' ');
 }
 
-function extractPublishedAtFromText(text: string) {
-  const value = extractFirstMatch(text, [
-    /(?:发布时间|发布日期|更新时间|发布于|时间)[：:\s]*(20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2})/,
-    /(20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2})/,
-  ]);
-  if (!value) {
-    return null;
-  }
-  const normalized = value
-    .replace('年', '-')
-    .replace('月', '-')
-    .replace('日', '')
-    .replaceAll('/', '-')
-    .replaceAll('.', '-');
-  const date = new Date(`${normalized}T00:00:00+08:00`);
+function normalizeExtractedTitle(title: string) {
+  return stripHtml(title)
+    .replace(/[-_丨|].*99cfw.*$/i, '')
+    .replace(/[-_丨|].*久久厂房网.*$/, '')
+    .trim();
+}
+
+function buildShanghaiIsoDate(params: {
+  day: number;
+  hour?: number;
+  minute?: number;
+  month: number;
+  second?: number;
+  year: number;
+}) {
+  const date = new Date(
+    `${params.year}-${String(params.month).padStart(2, '0')}-${String(
+      params.day,
+    ).padStart(2, '0')}T${String(params.hour || 0).padStart(2, '0')}:${String(
+      params.minute || 0,
+    ).padStart(2, '0')}:${String(params.second || 0).padStart(2, '0')}+08:00`,
+  );
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-function extractAreaTextFromText(text: string) {
-  return extractFirstMatch(text, [
-    /(?:面积|需求面积|厂房面积)[：:\s]*([0-9.,，]+\s*(?:㎡|平方米|平米|m2))/i,
-    /([0-9.,，]+\s*(?:㎡|平方米|平米|m2))/i,
-  ]);
+function getShanghaiDateParts(date = new Date()) {
+  const shifted = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  return {
+    day: shifted.getUTCDate(),
+    month: shifted.getUTCMonth() + 1,
+    year: shifted.getUTCFullYear(),
+  };
+}
+
+function buildRelativeDayIso(dayOffset: number, timeText?: null | string) {
+  const base = new Date(Date.now() - dayOffset * 24 * 60 * 60 * 1000);
+  const parts = getShanghaiDateParts(base);
+  const timeMatch = /^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/.exec(
+    String(timeText || '').trim(),
+  );
+  return buildShanghaiIsoDate({
+    ...parts,
+    hour: timeMatch ? Number(timeMatch[1]) : 0,
+    minute: timeMatch ? Number(timeMatch[2]) : 0,
+    second: timeMatch?.[3] ? Number(timeMatch[3]) : 0,
+  });
 }
 
 function extractPriceTextFromText(text: string) {
   return extractFirstMatch(text, [
     /(?:租金|价格|单价)[：:\s]*([0-9.,]+\s*(?:元|块|RMB)?\s*\/?\s*(?:㎡|平米|平方|m2)?\s*\/?\s*(?:月|天)?)/i,
-    /([0-9.,]+\s*(?:元|块)\s*\/?\s*(?:㎡|平米|平方|m2)?\s*\/?\s*(?:月|天)?)/i,
   ]);
 }
 
@@ -445,23 +619,20 @@ function extractContactNameFromText(text: string) {
   ]);
 }
 
-function extractPhoneNumberFromText(text: string) {
-  return extractFirstMatch(text, [
-    /(?:电话|联系电话|手机)[：:\s]*(1[3-9]\d{9}|0\d{2,3}[-\s]?\d{7,8})/,
-    /(1[3-9]\d{9}|0\d{2,3}[-\s]?\d{7,8})/,
-  ]);
-}
-
-function extractRegionFromText(text: string) {
-  const city = extractFirstMatch(text, [
-    /(?:城市|所在地|地区|区域)[：:\s]*([\u4E00-\u9FA5]{2,20}[市州盟])/,
-    /([\u4E00-\u9FA5]{2,20}市)/,
-  ]);
-  const district = extractFirstMatch(text, [
-    /(?:区县|所在区|区域)[：:\s]*([\u4E00-\u9FA5]{2,20}[区县镇])/,
-    /([\u4E00-\u9FA5]{2,20}[区县镇])/,
-  ]);
-  return { city, district };
+function normalizeRegionPart(value?: null | string) {
+  const normalized = String(value || '')
+    .replaceAll(/\s+/g, '')
+    .trim();
+  if (
+    !normalized ||
+    ['不限', '其他', '切换城市', '区域', '当前城市', '首页'].includes(
+      normalized,
+    ) ||
+    /求购|求租|范围|附近|周边|需求|诚购|急购/.test(normalized)
+  ) {
+    return null;
+  }
+  return normalized;
 }
 
 function inferRegionFromCfzsw68Url(sourceUrl: string) {
@@ -488,6 +659,102 @@ function extractCompanyNameFromText(text: string) {
   ]);
 }
 
+function extractStrictRelativePublishedAt(value: string) {
+  if (/\u521A\u521A|\u521A\u53D1\u5E03/.test(value)) {
+    return new Date().toISOString();
+  }
+  const minuteAgo = /(\d{1,4})\s*\u5206\u949F\u524D/.exec(value);
+  if (minuteAgo?.[1]) {
+    return new Date(
+      Date.now() - Number(minuteAgo[1]) * 60 * 1000,
+    ).toISOString();
+  }
+  const hourAgo = /(\d{1,4})\s*\u5C0F\u65F6\u524D/.exec(value);
+  if (hourAgo?.[1]) {
+    return new Date(
+      Date.now() - Number(hourAgo[1]) * 60 * 60 * 1000,
+    ).toISOString();
+  }
+  const dayAgo = /(\d{1,4})\s*\u5929\u524D/.exec(value);
+  if (dayAgo?.[1]) {
+    return new Date(
+      Date.now() - Number(dayAgo[1]) * 24 * 60 * 60 * 1000,
+    ).toISOString();
+  }
+  const today = /\u4ECA\u5929\s*(\d{1,2}:\d{1,2}(?::\d{1,2})?)?/.exec(value);
+  if (today?.[0]) {
+    return buildRelativeDayIso(0, today[1]);
+  }
+  const yesterday = /\u6628\u5929\s*(\d{1,2}:\d{1,2}(?::\d{1,2})?)?/.exec(
+    value,
+  );
+  if (yesterday?.[0]) {
+    return buildRelativeDayIso(1, yesterday[1]);
+  }
+  const beforeYesterday = /\u524D\u5929\s*(\d{1,2}:\d{1,2}(?::\d{1,2})?)?/.exec(
+    value,
+  );
+  if (beforeYesterday?.[0]) {
+    return buildRelativeDayIso(2, beforeYesterday[1]);
+  }
+  return null;
+}
+
+function extractStrictPublishedAtFromText(text: string) {
+  const value = extractFirstMatch(text, [
+    /(?:\u66F4\u65B0\u65F6\u95F4|\u66F4\u65B0\u65E5\u671F|\u53D1\u5E03\u65F6\u95F4|\u53D1\u5E03\u65E5\u671F|\u53D1\u5E03\u4E8E)[\uFF1A:\s]*(20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}(?:[T\s]\d{1,2}:\d{1,2}(?::\d{1,2})?)?)/,
+    /(?:\u66F4\u65B0\u65F6\u95F4|\u66F4\u65B0\u65E5\u671F|\u53D1\u5E03\u65F6\u95F4|\u53D1\u5E03\u65E5\u671F|\u53D1\u5E03\u4E8E)[\uFF1A:\s]*(\u521A\u521A|\u521A\u53D1\u5E03|\d{1,4}\s*\u5206\u949F\u524D|\d{1,4}\s*\u5C0F\u65F6\u524D|\d{1,4}\s*\u5929\u524D|\u4ECA\u5929\s*\d{0,2}:?\d{0,2}:?\d{0,2}|\u6628\u5929\s*\d{0,2}:?\d{0,2}:?\d{0,2}|\u524D\u5929\s*\d{0,2}:?\d{0,2}:?\d{0,2})/,
+  ]);
+  if (!value) {
+    return null;
+  }
+  return (
+    normalizePublishedAtText(value) || extractStrictRelativePublishedAt(value)
+  );
+}
+
+function extractStrictAreaTextFromText(text: string) {
+  return extractFirstMatch(text, [
+    /(?:\u9762\u79EF\u9700\u6C42|\u9700\u6C42\u9762\u79EF|\u5382\u623F\u9762\u79EF|\u5EFA\u7B51\u9762\u79EF)[\uFF1A:\s]*([0-9.,，~～\-−－\u5230\u81F3]+\s*(?:\u33A1|\u5E73\u65B9\u7C73|\u5E73\u7C73|m2|\u4EA9))/i,
+  ]);
+}
+
+function extractStrictPhoneNumberFromText(text: string) {
+  return extractFirstMatch(text, [
+    /(?:\u8054\u7CFB\u7535\u8BDD|\u7535\u8BDD|\u624B\u673A)[\uFF1A:\s]*(1[3-9]\d{9}|0\d{2,3}[-\s]?\d{7,8})/,
+  ]);
+}
+
+function extractStrictRegionFromText(text: string) {
+  const regionText = extractFirstMatch(text, [
+    /\u610F\u5411\u533A\u57DF[\uFF1A:\s]*([^：]{2,120}?)(?:\u529F\u80FD\u7528\u9014|\u9762\u79EF\u9700\u6C42|\u5EFA\u7B51\u53C2\u6570|\u8BE6\u60C5\u63CF\u8FF0|\u8054\u7CFB\u65B9\u5F0F)/,
+  ]);
+  if (regionText) {
+    const parts = regionText
+      .split(/[-－]/)
+      .map((part) => normalizeRegionPart(part))
+      .filter(Boolean) as string[];
+    if (parts.length >= 3) {
+      return { city: parts[1] || null, district: parts[2] || null };
+    }
+    if (parts.length === 2) {
+      if (/[省市自治区]$/.test(parts[0] || '')) {
+        return { city: parts[1] || null, district: null };
+      }
+      return { city: parts[0] || null, district: parts[1] || null };
+    }
+    return { city: parts[0] || null, district: null };
+  }
+
+  const city = extractFirstMatch(text, [
+    /(?:\u57CE\u5E02|\u6240\u5728\u5730|\u5730\u533A|\u533A\u57DF)[\uFF1A:\s]*([\u4E00-\u9FA5]{2,20}[市州盟]?)/,
+  ]);
+  return {
+    city: normalizeRegionPart(city),
+    district: null,
+  };
+}
+
 function buildSyntheticPublicOpportunityRowFromFetchedPage(params: {
   bodyHtml?: string;
   bodyText: string;
@@ -501,32 +768,38 @@ function buildSyntheticPublicOpportunityRowFromFetchedPage(params: {
   const decodedBodyHtml = decodeUnicodeEscapes(bodyHtml);
   const title = extractPageTitle(decodedBodyHtml, decodedBodyText);
   const companyName = extractCompanyNameFromText(decodedBodyText);
-  const publishedAt = extractPublishedAtFromText(decodedBodyText);
-  const region = extractRegionFromText(decodedBodyText);
-  const areaText = extractAreaTextFromText(decodedBodyText);
+  const publishedAt = extractStrictPublishedAtFromText(decodedBodyText);
+  const region = extractStrictRegionFromText(decodedBodyText);
+  const areaText = extractStrictAreaTextFromText(decodedBodyText);
   const contactName = extractContactNameFromText(decodedBodyText);
-  const phoneNumber = extractPhoneNumberFromText(decodedBodyText);
+  const phoneNumber = extractStrictPhoneNumberFromText(decodedBodyText);
   const priceText = extractPriceTextFromText(decodedBodyText);
   const industryText = extractIndustryTextFromText(decodedBodyText);
   const fallbackRegion = inferRegionFromCfzsw68Url(params.sourceUrl);
+  const city = region.city || fallbackRegion.city;
+  const district = region.district || fallbackRegion.district;
   const opportunityType = params.opportunityType || 'DEMAND';
   const parseMeta = {
     areaText,
-    city: region.city || fallbackRegion.city,
+    city,
     companyName,
     contactName,
-    district: region.district || fallbackRegion.district,
+    district,
     industryText,
     phoneNumber,
     priceText,
     publishedAt,
+    strictCity: region.city,
+    strictDistrict: region.district,
     title,
+    urlInferredCity: fallbackRegion.city,
+    urlInferredDistrict: fallbackRegion.district,
   };
   return {
     parseMeta,
     row: {
       areaText,
-      city: region.city || fallbackRegion.city,
+      city,
       contactName,
       description: decodedBodyText,
       detailJson: {
@@ -534,7 +807,7 @@ function buildSyntheticPublicOpportunityRowFromFetchedPage(params: {
         crawledFrom: 'public_opportunity_url_crawler',
         sourceUrl: params.sourceUrl,
       },
-      district: region.district || fallbackRegion.district,
+      district,
       industryText,
       opportunityId: 0,
       opportunityType,
@@ -555,10 +828,18 @@ async function upsertFetchedPublicOpportunity(
   const { parseMeta, row, sourceUrl } = params;
   const opportunityType =
     row.opportunityType === 'SUPPLY' ? 'SUPPLY' : 'DEMAND';
+  const useStrictParsedOnly =
+    row.opportunityType === 'SUPPLY' && Number(row.opportunityId || 0) > 0;
   return upsertCrawlerPublicOpportunity({
-    areaText: row.areaText || null,
-    city: row.city || parseMeta?.city || null,
-    contactName: row.contactName || parseMeta?.contactName || null,
+    areaText: useStrictParsedOnly
+      ? parseMeta?.areaText || null
+      : row.areaText || parseMeta?.areaText || null,
+    city: useStrictParsedOnly
+      ? parseMeta?.city || null
+      : row.city || parseMeta?.city || null,
+    contactName: useStrictParsedOnly
+      ? parseMeta?.contactName || null
+      : row.contactName || parseMeta?.contactName || null,
     description: row.description || null,
     detailJson: {
       ...(row.detailJson &&
@@ -566,15 +847,27 @@ async function upsertFetchedPublicOpportunity(
       !Array.isArray(row.detailJson)
         ? row.detailJson
         : {}),
+      extractionPolicy: 'STRICT_DETAIL_PAGE_LABELS_ONLY',
       parseMeta: parseMeta || null,
+      responseHash: params.responseHash || null,
       sourceOpportunityId: row.opportunityId || null,
     },
-    district: row.district || parseMeta?.district || null,
-    industryText: row.industryText || parseMeta?.industryText || null,
+    district: useStrictParsedOnly
+      ? parseMeta?.district || null
+      : row.district || parseMeta?.district || null,
+    industryText: useStrictParsedOnly
+      ? parseMeta?.industryText || null
+      : row.industryText || parseMeta?.industryText || null,
     opportunityType,
-    phoneNumber: row.phoneNumber || parseMeta?.phoneNumber || null,
-    priceText: row.priceText || parseMeta?.priceText || null,
-    publishedAt: row.publishedAt || parseMeta?.publishedAt || null,
+    phoneNumber: useStrictParsedOnly
+      ? parseMeta?.phoneNumber || null
+      : row.phoneNumber || parseMeta?.phoneNumber || null,
+    priceText: useStrictParsedOnly
+      ? parseMeta?.priceText || null
+      : row.priceText || parseMeta?.priceText || null,
+    publishedAt: useStrictParsedOnly
+      ? parseMeta?.publishedAt || null
+      : row.publishedAt || parseMeta?.publishedAt || null,
     score: opportunityType === 'SUPPLY' ? 70 : 75,
     sourceSite: row.sourceSite || null,
     sourceTable:
@@ -585,6 +878,108 @@ async function upsertFetchedPublicOpportunity(
     tagsJson: ['crawler', opportunityType],
     title: row.title || parseMeta?.title || sourceUrl,
   });
+}
+
+function isEffectiveCrawlerUpsert(
+  upsertResult: Awaited<ReturnType<typeof upsertCrawlerPublicOpportunity>>,
+) {
+  const status =
+    upsertResult.qualityResult?.status ||
+    String(upsertResult.opportunity?.opportunityStatus || '');
+  return status === 'EFFECTIVE' || status === 'VERIFIED';
+}
+
+function buildQualitySkipReason(error: PublicOpportunityQualitySkipError) {
+  const reasons = error.qualityResult.reasons.filter(Boolean);
+  return [error.skipReason, ...reasons].join(':').slice(0, 255);
+}
+
+function buildPublicOpportunityInputFromAdapterExtract(params: {
+  opportunity: ParsedPublicOpportunity;
+  responseHash: string;
+  sourceCode: string;
+  sourceName: string;
+  sourceUrl: string;
+}): PublicOpportunityCrawlerInput {
+  const detailJson =
+    params.opportunity.detailJson &&
+    typeof params.opportunity.detailJson === 'object' &&
+    !Array.isArray(params.opportunity.detailJson)
+      ? params.opportunity.detailJson
+      : {};
+  return {
+    areaText: params.opportunity.areaText,
+    city: params.opportunity.city,
+    contactName: params.opportunity.contactName,
+    description: params.opportunity.description,
+    detailJson: {
+      ...detailJson,
+      crawlerSourceCode: params.sourceCode,
+      responseHash: params.responseHash,
+      sourceUrl: params.sourceUrl,
+    },
+    district: params.opportunity.district,
+    industryText: params.opportunity.industryText,
+    opportunityType: params.opportunity.opportunityType,
+    phoneNumber: params.opportunity.phoneNumber,
+    priceText: params.opportunity.priceText,
+    publishedAt: params.opportunity.publishedAt,
+    publishedDateText: params.opportunity.publishedDateText,
+    score: params.opportunity.opportunityType === 'SUPPLY' ? 70 : 75,
+    sourceSite: params.opportunity.sourceSite || params.sourceName,
+    sourceTable: 'public_platform_adapter',
+    sourceUrl: params.opportunity.sourceUrl || params.sourceUrl,
+    tagsJson: [
+      'crawler',
+      params.opportunity.opportunityType,
+      params.sourceCode,
+    ],
+    title: params.opportunity.title || params.sourceUrl,
+  };
+}
+
+async function upsertAdapterParsedPublicOpportunity(params: {
+  adapter: NonNullable<ReturnType<typeof getPublicCrawlerAdapter>>;
+  bodyHtml: string;
+  responseHash: string;
+  sourceName: string;
+  sourceUrl: string;
+}) {
+  if (!params.adapter.extractFromHtml) {
+    return null;
+  }
+  const extracted = params.adapter.extractFromHtml(
+    params.bodyHtml,
+    params.sourceUrl,
+  );
+  const upsertResult = await upsertCrawlerPublicOpportunity(
+    buildPublicOpportunityInputFromAdapterExtract({
+      opportunity: extracted,
+      responseHash: params.responseHash,
+      sourceCode: params.adapter.sourceCode,
+      sourceName: params.sourceName,
+      sourceUrl: params.sourceUrl,
+    }),
+  );
+  return { extracted, upsertResult };
+}
+
+function buildParseMetaFromParsedOpportunity(
+  opportunity: ParsedPublicOpportunity,
+): SyntheticOpportunityParseMeta {
+  return {
+    areaText: opportunity.areaText,
+    city: opportunity.city,
+    contactName: opportunity.contactName,
+    district: opportunity.district,
+    industryText: opportunity.industryText,
+    phoneNumber: opportunity.phoneNumber,
+    priceText: opportunity.priceText,
+    publishedAt: opportunity.publishedAt,
+    strictCity: opportunity.city,
+    strictDistrict: opportunity.district,
+    title: opportunity.title,
+  };
 }
 
 export async function runPublicOpportunityUrlCrawlerTask(
@@ -606,7 +1001,10 @@ export async function runPublicOpportunityUrlCrawlerTask(
     throw new Error('PUBLIC_OPPORTUNITY crawler source not found');
   }
   const adapter = getPublicCrawlerAdapter(source.sourceCode);
-  const opportunityType = resolveOpportunityTypeBySourceCode(source.sourceCode);
+  if (!adapter) {
+    throw new CrawlerTaskValidationError('SOURCE_ADAPTER_NOT_FOUND');
+  }
+  const opportunityType = adapter.opportunityType;
   const precheckAt = new Date();
   const sourcePolicy = checkCrawlerSourcePolicy(source);
   if (!sourcePolicy.allowed) {
@@ -614,18 +1012,22 @@ export async function runPublicOpportunityUrlCrawlerTask(
       sourcePolicy.reason || 'SOURCE_POLICY_REJECTED',
     );
   }
-  const intervalPolicy = checkCrawlerIntervalPolicy(source, precheckAt);
-  if (!intervalPolicy.allowed) {
-    throw new CrawlerTaskValidationError(
-      intervalPolicy.reason || 'CRAWL_INTERVAL_NOT_REACHED',
-    );
+  if (!options.ignoreInterval) {
+    const intervalPolicy = checkCrawlerIntervalPolicy(source, precheckAt);
+    if (!intervalPolicy.allowed) {
+      throw new CrawlerTaskValidationError(
+        intervalPolicy.reason || 'CRAWL_INTERVAL_NOT_REACHED',
+      );
+    }
   }
 
   const taskId = await createCrawlerTask({
     requestConfig: {
       batchSize: options.batchSize,
       freshnessDays: options.freshnessDays,
+      ignoreInterval: options.ignoreInterval,
       maxRetryCount: options.maxRetryCount,
+      reprocessSuccess: options.reprocessSuccess,
       retryDelayMinutes: options.retryDelayMinutes,
       sourceCode: source.sourceCode,
     },
@@ -655,6 +1057,12 @@ export async function runPublicOpportunityUrlCrawlerTask(
         lastCrawledAt: source.lastCrawledAt,
         options,
         rateLimitPerMinute: source.rateLimitPerMinute,
+        sourceAdapter: {
+          listUrls: adapter.buildListUrls?.() || [adapter.buildListUrl()],
+          opportunityType: adapter.opportunityType,
+          platformName: adapter.platformName || null,
+          sourceSite: adapter.sourceSite,
+        },
         sourceCode: source.sourceCode,
         sourceId: source.sourceId,
       },
@@ -666,20 +1074,27 @@ export async function runPublicOpportunityUrlCrawlerTask(
 
     await appendCrawlerTaskLog({
       detail: {
+        adapterSourceCode: adapter.sourceCode,
+        adapterSourceSite: adapter.sourceSite,
+        listUrls: adapter.buildListUrls?.() || [adapter.buildListUrl()],
+        opportunityType: adapter.opportunityType,
+        parserEnabled: Boolean(adapter.extractFromHtml),
+        platformName: adapter.platformName || null,
+      },
+      level: 'INFO',
+      message: 'public crawler adapter selected',
+      stage: 'ADAPTER',
+      taskId,
+    });
+
+    await appendCrawlerTaskLog({
+      detail: {
         allowedPathsJson: source.allowedPathsJson,
-        fixedAllowedHost:
-          source.sourceCode === PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE
-            ? PUBLIC_FACTORY_CFZSW68_ALLOWED_HOST
-            : PUBLIC_OPPORTUNITY_99CFW_ALLOWED_HOST,
-        fixedAllowedPaths:
-          source.sourceCode === PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE
-            ? PUBLIC_FACTORY_CFZSW68_ALLOWED_PATHS
-            : PUBLIC_OPPORTUNITY_99CFW_ALLOWED_PATHS,
         blockedPathsJson: source.blockedPathsJson,
         robotsUrl: source.robotsUrl,
       },
       level: 'INFO',
-      message: 'local robots/path strategy validated; no robots.txt fetched',
+      message: 'public crawler path strategy validated; no robots.txt fetched',
       stage: 'ROBOTS_CHECK',
       taskId,
     });
@@ -700,8 +1115,8 @@ export async function runPublicOpportunityUrlCrawlerTask(
     }
 
     if (options.discoverList) {
-      if (adapter) {
-        const listUrl = adapter.buildListUrl();
+      const listUrls = adapter.buildListUrls?.() || [adapter.buildListUrl()];
+      for (const listUrl of listUrls) {
         const listPolicyFailureReason = adapter.validateListUrl(listUrl);
         if (listPolicyFailureReason) {
           await appendCrawlerTaskLog({
@@ -711,69 +1126,61 @@ export async function runPublicOpportunityUrlCrawlerTask(
             stage: 'DISCOVER',
             taskId,
           });
-        } else {
-          try {
-            const listFetchResult = await fetchPublicPage(listUrl);
+          continue;
+        }
+        try {
+          const listFetchResult = await fetchPublicPage(listUrl);
+          await appendCrawlerTaskLog({
+            detail: {
+              httpStatus: listFetchResult.httpStatus,
+              listUrl,
+              responseHash: listFetchResult.responseHash,
+            },
+            level: listFetchResult.ok ? 'INFO' : 'WARN',
+            message: 'public opportunity list page fetched',
+            stage: 'DISCOVER',
+            taskId,
+          });
+          if (listFetchResult.ok) {
+            const discoveredUrls = extractPublicOpportunityDetailUrls(
+              listFetchResult.bodyHtml,
+              listUrl,
+              source,
+            );
+            const discoverSeedResult = await seedCrawlerTaskItems(
+              discoveredUrls.map((item) => ({
+                maxRetryCount: options.maxRetryCount,
+                publishedAt: item.publishedAt || null,
+                sourceId: source.sourceId,
+                sourceRefId: null,
+                sourceRefType: `${source.sourceCode}_list_discovery`,
+                sourceUrl: item.sourceUrl,
+              })),
+            );
             await appendCrawlerTaskLog({
               detail: {
-                httpStatus: listFetchResult.httpStatus,
-                listUrl,
-                responseHash: listFetchResult.responseHash,
+                discoveredCount: discoveredUrls.length,
+                sampleUrls: discoveredUrls.slice(0, 5),
+                seedCreatedCount: discoverSeedResult.createdCount,
+                seedUpdatedCount: discoverSeedResult.updatedCount,
               },
-              level: listFetchResult.ok ? 'INFO' : 'WARN',
-              message: 'public opportunity list page fetched',
-              stage: 'DISCOVER',
-              taskId,
-            });
-            if (listFetchResult.ok) {
-              const discoveredUrls = extractPublicOpportunityDetailUrls(
-                listFetchResult.bodyHtml,
-                listUrl,
-                source,
-              );
-              const discoverSeedResult = await seedCrawlerTaskItems(
-                discoveredUrls.map((item) => ({
-                  maxRetryCount: options.maxRetryCount,
-                  publishedAt: null,
-                  sourceId: source.sourceId,
-                  sourceRefId: null,
-                  sourceRefType: `${source.sourceCode}_list_discovery`,
-                  sourceUrl: item.sourceUrl,
-                })),
-              );
-              await appendCrawlerTaskLog({
-                detail: {
-                  discoveredCount: discoveredUrls.length,
-                  sampleUrls: discoveredUrls.slice(0, 5),
-                  seedCreatedCount: discoverSeedResult.createdCount,
-                  seedUpdatedCount: discoverSeedResult.updatedCount,
-                },
-                level: 'INFO',
-                message: 'public opportunity list URLs discovered and queued',
-                stage: 'DISCOVER',
-                taskId,
-              });
-            }
-          } catch (error) {
-            const message =
-              error instanceof Error ? error.message : String(error);
-            await appendCrawlerTaskLog({
-              detail: { errorMessage: message, listUrl },
-              level: 'ERROR',
-              message: 'public opportunity list discovery failed',
+              level: 'INFO',
+              message: 'public opportunity list URLs discovered and queued',
               stage: 'DISCOVER',
               taskId,
             });
           }
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          await appendCrawlerTaskLog({
+            detail: { errorMessage: message, listUrl },
+            level: 'ERROR',
+            message: 'public opportunity list discovery failed',
+            stage: 'DISCOVER',
+            taskId,
+          });
         }
-      } else {
-        await appendCrawlerTaskLog({
-          detail: { sourceCode: source.sourceCode },
-          level: 'WARN',
-          message: 'public crawler adapter not found for list discovery',
-          stage: 'DISCOVER',
-          taskId,
-        });
       }
     }
 
@@ -838,6 +1245,7 @@ export async function runPublicOpportunityUrlCrawlerTask(
       freshAfter,
       limit: options.batchSize,
       prioritySourceRefIds,
+      reprocessSuccess: options.reprocessSuccess,
       sourceId: source.sourceId,
     });
     await appendCrawlerTaskLog({
@@ -853,6 +1261,7 @@ export async function runPublicOpportunityUrlCrawlerTask(
     for (const item of items) {
       const claimed = await claimCrawlerTaskItem({
         itemId: item.itemId,
+        reprocessSuccess: options.reprocessSuccess,
         taskId,
       });
       if (!claimed) {
@@ -955,20 +1364,76 @@ export async function runPublicOpportunityUrlCrawlerTask(
           continue;
         }
 
-        const syntheticBuild = item.sourceRefId
-          ? null
-          : buildSyntheticPublicOpportunityRowFromFetchedPage({
+        let parseMeta: null | SyntheticOpportunityParseMeta = null;
+        let row: null | PublicOpportunityRow = null;
+        let opportunityUpsert: Awaited<
+          ReturnType<typeof upsertCrawlerPublicOpportunity>
+        > | null = null;
+        const adapterParsed = await upsertAdapterParsedPublicOpportunity({
+          adapter,
+          bodyHtml: fetchResult.bodyHtml,
+          responseHash: fetchResult.responseHash,
+          sourceName: source.sourceName,
+          sourceUrl: item.sourceUrl,
+        });
+
+        if (adapterParsed) {
+          parseMeta = buildParseMetaFromParsedOpportunity(
+            adapterParsed.extracted,
+          );
+          opportunityUpsert = adapterParsed.upsertResult;
+          row =
+            (opportunityUpsert.opportunity as null | PublicOpportunityRow) ||
+            null;
+        } else {
+          const syntheticBuild =
+            buildSyntheticPublicOpportunityRowFromFetchedPage({
               bodyHtml: fetchResult.bodyHtml,
               bodyText: fetchResult.bodyText,
               opportunityType,
               sourceName: source.sourceName,
-              sourceSite: adapter?.sourceSite || source.sourceName,
+              sourceSite: adapter.sourceSite || source.sourceName,
               sourceUrl: item.sourceUrl,
             });
-        const parseMeta = syntheticBuild?.parseMeta || null;
-        const row = item.sourceRefId
-          ? await getPublicOpportunityRowById(item.sourceRefId)
-          : syntheticBuild?.row;
+          parseMeta = syntheticBuild?.parseMeta || null;
+          row = item.sourceRefId
+            ? await getPublicOpportunityRowById(item.sourceRefId)
+            : syntheticBuild?.row;
+          if (!row) {
+            skippedCount += 1;
+            await markCrawlerTaskItemSkipped({
+              itemId: item.itemId,
+              reason: 'SOURCE_ROW_NOT_FOUND',
+              taskId,
+            });
+            continue;
+          }
+
+          const shouldSyncPublicOpportunity =
+            opportunityType === 'SUPPLY' ||
+            source.sourceCode === PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE;
+          opportunityUpsert = shouldSyncPublicOpportunity
+            ? await upsertFetchedPublicOpportunity({
+                parseMeta,
+                responseHash: fetchResult.responseHash,
+                row: {
+                  ...row,
+                  description: row.description || fetchResult.bodyText,
+                  opportunityType,
+                  publishedAt:
+                    row.publishedAt || parseMeta?.publishedAt || null,
+                  sourceSite:
+                    adapter.sourceSite || row.sourceSite || source.sourceName,
+                  sourceUrl: row.sourceUrl || item.sourceUrl,
+                },
+                sourceUrl: item.sourceUrl,
+              })
+            : null;
+          row =
+            (opportunityUpsert?.opportunity as null | PublicOpportunityRow) ||
+            row;
+        }
+
         if (!row) {
           skippedCount += 1;
           await markCrawlerTaskItemSkipped({
@@ -979,30 +1444,15 @@ export async function runPublicOpportunityUrlCrawlerTask(
           continue;
         }
 
-        const shouldSyncPublicOpportunity =
-          opportunityType === 'SUPPLY' ||
-          source.sourceCode === PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE;
-        const opportunityUpsert = shouldSyncPublicOpportunity
-          ? await upsertFetchedPublicOpportunity({
-              parseMeta,
-              row: {
-                ...row,
-                description: row.description || fetchResult.bodyText,
-                opportunityType,
-                sourceSite:
-                  adapter?.sourceSite || row.sourceSite || source.sourceName,
-                sourceUrl: row.sourceUrl || item.sourceUrl,
-              },
-              sourceUrl: item.sourceUrl,
-            })
-          : null;
         const opportunityId =
           Number(opportunityUpsert?.opportunity?.opportunityId || 0) ||
           row.opportunityId ||
           null;
+        const qualityResult = opportunityUpsert?.qualityResult || null;
 
-        if (opportunityType === 'SUPPLY') {
-          if (opportunityUpsert?.created) {
+        if (opportunityUpsert && !isEffectiveCrawlerUpsert(opportunityUpsert)) {
+          skippedCount += 1;
+          if (opportunityUpsert.created) {
             createdLeadCount += 1;
           } else {
             updatedLeadCount += 1;
@@ -1011,9 +1461,13 @@ export async function runPublicOpportunityUrlCrawlerTask(
             httpStatus: fetchResult.httpStatus,
             itemId: item.itemId,
             parsedPayload: {
-              opportunityCreated: Boolean(opportunityUpsert?.created),
+              effective: false,
+              opportunityCreated: Boolean(opportunityUpsert.created),
               opportunityId,
+              opportunityStatus:
+                opportunityUpsert.opportunity?.opportunityStatus || null,
               parseMeta,
+              qualityResult,
               responseHash: fetchResult.responseHash,
             },
             responseText: fetchResult.bodyText,
@@ -1022,9 +1476,58 @@ export async function runPublicOpportunityUrlCrawlerTask(
           await appendCrawlerTaskLog({
             detail: {
               itemId: item.itemId,
-              opportunityCreated: Boolean(opportunityUpsert?.created),
+              opportunityCreated: Boolean(opportunityUpsert.created),
+              opportunityId,
+              opportunityStatus:
+                opportunityUpsert.opportunity?.opportunityStatus || null,
+              parseMeta,
+              qualityResult,
+              sourceUrl: item.sourceUrl,
+            },
+            level: 'WARN',
+            message:
+              'public opportunity upserted without EFFECTIVE quality status',
+            stage: 'POLICY_SKIP',
+            taskId,
+          });
+          continue;
+        }
+
+        if (opportunityType === 'SUPPLY') {
+          if (!opportunityUpsert) {
+            skippedCount += 1;
+            await markCrawlerTaskItemSkipped({
+              itemId: item.itemId,
+              reason: 'PUBLIC_OPPORTUNITY_NOT_SYNCED',
+              taskId,
+            });
+            continue;
+          }
+          if (opportunityUpsert.created) {
+            createdLeadCount += 1;
+          } else {
+            updatedLeadCount += 1;
+          }
+          await markCrawlerTaskItemSuccess({
+            httpStatus: fetchResult.httpStatus,
+            itemId: item.itemId,
+            parsedPayload: {
+              opportunityCreated: Boolean(opportunityUpsert.created),
               opportunityId,
               parseMeta,
+              qualityResult,
+              responseHash: fetchResult.responseHash,
+            },
+            responseText: fetchResult.bodyText,
+            taskId,
+          });
+          await appendCrawlerTaskLog({
+            detail: {
+              itemId: item.itemId,
+              opportunityCreated: Boolean(opportunityUpsert.created),
+              opportunityId,
+              parseMeta,
+              qualityResult,
               sourceUrl: item.sourceUrl,
             },
             level: 'INFO',
@@ -1064,6 +1567,7 @@ export async function runPublicOpportunityUrlCrawlerTask(
                 opportunityCreated: Boolean(opportunityUpsert.created),
                 opportunityId,
                 parseMeta,
+                qualityResult,
                 responseHash: fetchResult.responseHash,
               },
               responseText: fetchResult.bodyText,
@@ -1084,6 +1588,7 @@ export async function runPublicOpportunityUrlCrawlerTask(
               opportunityCreated: Boolean(opportunityUpsert?.created),
               opportunityId,
               parseMeta,
+              qualityResult,
               reason: buildResult.skipReason,
               sourceUrl: item.sourceUrl,
             },
@@ -1113,6 +1618,7 @@ export async function runPublicOpportunityUrlCrawlerTask(
             opportunityCreated: Boolean(opportunityUpsert?.created),
             opportunityId,
             parseMeta,
+            qualityResult,
             responseHash: fetchResult.responseHash,
           },
           responseText: fetchResult.bodyText,
@@ -1125,6 +1631,7 @@ export async function runPublicOpportunityUrlCrawlerTask(
             itemId: item.itemId,
             leadId: upsertResult.leadId,
             parseMeta,
+            qualityResult,
             sourceUrl: item.sourceUrl,
           },
           level: 'INFO',
@@ -1133,6 +1640,27 @@ export async function runPublicOpportunityUrlCrawlerTask(
           taskId,
         });
       } catch (error) {
+        if (error instanceof PublicOpportunityQualitySkipError) {
+          skippedCount += 1;
+          await markCrawlerTaskItemSkipped({
+            itemId: item.itemId,
+            reason: buildQualitySkipReason(error),
+            taskId,
+          });
+          await appendCrawlerTaskLog({
+            detail: {
+              itemId: item.itemId,
+              qualityResult: error.qualityResult,
+              sourceUrl: item.sourceUrl,
+            },
+            level: 'WARN',
+            message: 'public opportunity skipped by quality policy',
+            stage: 'POLICY_SKIP',
+            taskId,
+          });
+          continue;
+        }
+
         const message = error instanceof Error ? error.message : String(error);
         const failed = await markCrawlerTaskItemFailed({
           itemId: item.itemId,

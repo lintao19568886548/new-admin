@@ -16,6 +16,10 @@ interface ScoreHit {
   scoreDelta: number;
 }
 
+export interface LeadScoreRecalculateOptions {
+  skipSignalRebuild?: boolean;
+}
+
 function clampScore(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
@@ -228,8 +232,13 @@ async function replaceLeadScoreBreakdown(leadId: number, hits: ScoreHit[]) {
   }
 }
 
-export async function recalculateRadarLeadScore(leadId: number) {
-  await rebuildSignalEventsFromExternalLeads();
+export async function recalculateRadarLeadScore(
+  leadId: number,
+  options: LeadScoreRecalculateOptions = {},
+) {
+  if (!options.skipSignalRebuild) {
+    await rebuildSignalEventsFromExternalLeads();
+  }
   await ensureProfileScoreStorage();
   await seedDefaultScoreRules();
 
@@ -304,8 +313,12 @@ export async function listRadarLeadScoreBreakdown(leadId: number) {
   };
 }
 
-export async function recalculateDemoLeadScores() {
-  await rebuildSignalEventsFromExternalLeads();
+export async function recalculateDemoLeadScores(
+  options: LeadScoreRecalculateOptions = {},
+) {
+  if (!options.skipSignalRebuild) {
+    await rebuildSignalEventsFromExternalLeads();
+  }
   await ensureProfileScoreStorage();
   await seedDefaultScoreRules();
 
@@ -333,7 +346,9 @@ export async function recalculateDemoLeadScores() {
 
   const results = [];
   for (const row of leadRows) {
-    const result = await recalculateRadarLeadScore(Number(row.leadId));
+    const result = await recalculateRadarLeadScore(Number(row.leadId), {
+      skipSignalRebuild: true,
+    });
     if (result) {
       results.push(result);
     }

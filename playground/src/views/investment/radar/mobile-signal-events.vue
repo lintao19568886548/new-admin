@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type {
+  RadarSalesUser,
   SignalEvent,
   SignalEventDetail,
   SignalEventStatus,
@@ -25,7 +26,6 @@ import {
   Empty,
   Form,
   Input,
-  InputNumber,
   message,
   Pagination,
   Select,
@@ -35,6 +35,7 @@ import {
 
 import {
   convertSignalEventToRadarLead,
+  getRadarSalesUserList,
   getSignalEventDetail,
   getSignalEventEvidenceList,
   getSignalEventList,
@@ -60,6 +61,7 @@ const filterOpen = ref(false);
 const items = ref<SignalEvent[]>([]);
 const currentEvent = ref<null | SignalEventDetail>(null);
 const evidenceItems = ref<SignalEvidence[]>([]);
+const salesUsers = ref<RadarSalesUser[]>([]);
 const rebuildSummary = ref<null | {
   createdEventCount: number;
   createdEvidenceCount: number;
@@ -158,6 +160,12 @@ const currentPageNewCount = computed(
   () => items.value.filter((item) => item.status === 'NEW').length,
 );
 const detailEvidenceCount = computed(() => evidenceItems.value.length);
+const salesUserOptions = computed(() =>
+  salesUsers.value.map((item) => ({
+    label: `${item.userName}${item.parkName ? ` · ${item.parkName}` : ''}`,
+    value: item.userId,
+  })),
+);
 const pageRangeText = computed(() => {
   if (pagination.total <= 0 || items.value.length === 0) {
     return '0';
@@ -235,6 +243,16 @@ async function loadEvents() {
     message.error('企业信号加载失败');
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadSalesUsers() {
+  try {
+    const result = await getRadarSalesUserList();
+    salesUsers.value = Array.isArray(result.items) ? result.items : [];
+  } catch (error) {
+    console.error('加载销售负责人失败:', error);
+    salesUsers.value = [];
   }
 }
 
@@ -369,6 +387,7 @@ async function convertEvent(record?: SignalEvent) {
 
 onMounted(() => {
   void loadEvents();
+  void loadSalesUsers();
 });
 </script>
 
@@ -655,10 +674,14 @@ onMounted(() => {
               />
             </Form.Item>
             <Form.Item label="负责人">
-              <InputNumber
+              <Select
                 v-model:value="editForm.ownerUserId"
+                allow-clear
                 class="w-full"
-                :min="1"
+                option-filter-prop="label"
+                :options="salesUserOptions"
+                placeholder="选择负责人"
+                show-search
               />
             </Form.Item>
             <Form.Item label="转换备注">

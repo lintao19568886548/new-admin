@@ -22,7 +22,7 @@ export default eventHandler(async (event) => {
   try {
     const result = await runWithRadarSharedScope(() =>
       runPublicOpportunityUrlCrawlerTask({
-        batchSize: body.batchSize === undefined ? 20 : Number(body.batchSize),
+        batchSize: body.batchSize === undefined ? 80 : Number(body.batchSize),
         discoverList:
           body.discoverList === undefined
             ? undefined
@@ -35,6 +35,10 @@ export default eventHandler(async (event) => {
           body.maxRetryCount === undefined
             ? undefined
             : Number(body.maxRetryCount),
+        reprocessSuccess:
+          body.reprocessSuccess === undefined
+            ? undefined
+            : Boolean(body.reprocessSuccess),
         retryDelayMinutes:
           body.retryDelayMinutes === undefined
             ? undefined

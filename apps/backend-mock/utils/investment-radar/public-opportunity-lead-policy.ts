@@ -31,6 +31,7 @@ export interface PublicOpportunityRow {
   priceText?: null | string;
   publishedAt?: null | string;
   sourceSite?: null | string;
+  sourceTable?: null | string;
   sourceUrl?: null | string;
   tagsJson?: unknown;
   title?: null | string;

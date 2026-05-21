@@ -1,4 +1,5 @@
 import { prismaClient } from '~/utils/db';
+import { checkContactRestriction } from '~/utils/investment-radar/contact-restriction-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   badRequestResponse,
@@ -26,6 +27,40 @@ export default eventHandler(async (event) => {
   try {
     const task = await runWithRadarSharedScope(async () => {
       const taskId = await prismaClient.$transaction(async (tx) => {
+        const leadRows = await tx.$queryRawUnsafe<any[]>(
+          `
+            SELECT lead_id AS leadId, enterprise_id AS enterpriseId
+            FROM investment_lead
+            WHERE lead_id = ? AND is_deleted = 0
+            LIMIT 1
+          `,
+          leadId,
+        );
+        if (!leadRows[0]) {
+          throw new Error('线索不存在');
+        }
+        const restriction = await checkContactRestriction({
+          enterpriseId: Number(leadRows[0].enterpriseId || 0) || null,
+          leadId,
+          phoneNumber,
+        });
+        if (!restriction.canContact) {
+          throw new Error(restriction.reason || '当前联系人不建议触达');
+        }
+
+        const pendingTaskRows = await tx.$queryRawUnsafe<any[]>(
+          `
+            SELECT COUNT(*) AS count
+            FROM investment_outreach_task
+            WHERE lead_id = ? AND status IN ('PENDING', 'RUNNING', 'SENT')
+          `,
+          leadId,
+        );
+        const pendingCount = Number(pendingTaskRows[0]?.count || 0);
+        if (pendingCount > 0) {
+          throw new Error('该线索存在未完成的触达任务');
+        }
+
         await tx.$executeRawUnsafe(
           `
             INSERT INTO investment_outreach_task
@@ -62,8 +97,17 @@ export default eventHandler(async (event) => {
     });
 
     return useResponseSuccess(task);
-  } catch (error) {
+  } catch (error: any) {
     console.error('create outreach task failed:', error);
+    if (error.message?.includes('线索不存在')) {
+      return badRequestResponse(error.message, event, 404);
+    }
+    if (error.message?.includes('未完成的触达任务')) {
+      return badRequestResponse(error.message, event);
+    }
+    if (error.message?.includes('不建议触达')) {
+      return badRequestResponse(error.message, event);
+    }
     return serverErrorResponse('创建触达任务失败', event);
   }
 });

@@ -5,15 +5,20 @@ import type {
 } from './crawler-types';
 
 import {
+  GENERIC_PUBLIC_FACTORY_LISTING_SOURCE_CODES,
+  PUBLIC_EIA_NOTICE_SOURCE_CODE,
   PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE,
   PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE,
+  PUBLIC_OPPORTUNITY_PLATFORM_SOURCE_CODES,
 } from './crawler-types';
 
 export const PUBLIC_OPPORTUNITY_99CFW_ALLOWED_HOST = 'www.99cfw.com';
 export const PUBLIC_OPPORTUNITY_99CFW_ALLOWED_ORIGIN = 'https://www.99cfw.com';
 export const PUBLIC_OPPORTUNITY_99CFW_ALLOWED_PATH_PREFIX = '/changfangxuqiu/';
+export const PUBLIC_OPPORTUNITY_99CFW_ALLOWED_CITY_PATH_PREFIX = '/xuqiu/';
 export const PUBLIC_OPPORTUNITY_99CFW_ALLOWED_PATHS = [
   PUBLIC_OPPORTUNITY_99CFW_ALLOWED_PATH_PREFIX,
+  PUBLIC_OPPORTUNITY_99CFW_ALLOWED_CITY_PATH_PREFIX,
 ] as const;
 export const PUBLIC_FACTORY_CFZSW68_ALLOWED_HOST = 'cfzsw68.com';
 export const PUBLIC_FACTORY_CFZSW68_ALLOWED_ORIGIN = 'http://cfzsw68.com';
@@ -24,6 +29,8 @@ export const PUBLIC_FACTORY_CFZSW68_ALLOWED_PATHS = [
 
 const PUBLIC_OPPORTUNITY_99CFW_DETAIL_PATH_PATTERN =
   /^\/changfangxuqiu\/[\w-]+\.(?:html|htm)$/i;
+const PUBLIC_OPPORTUNITY_99CFW_CITY_DETAIL_PATH_PATTERN =
+  /^\/xuqiu\/[\w-]+\.(?:html|htm)$/i;
 const PUBLIC_FACTORY_CFZSW68_DETAIL_PATH_PATTERN =
   /^\/sz\/cfcz\/[\w-]+\.(?:html|htm)$/i;
 
@@ -61,6 +68,13 @@ function pathMatches(pathname: string, patterns: string[]) {
     const normalizedPattern = pattern.startsWith('/') ? pattern : `/${pattern}`;
     return normalizedPath.startsWith(normalizedPattern);
   });
+}
+
+function isPublicOpportunity99CfwHost(hostname: string) {
+  return (
+    hostname === PUBLIC_OPPORTUNITY_99CFW_ALLOWED_HOST ||
+    hostname.endsWith('.99cfw.com')
+  );
 }
 
 export function isPublicOpportunity99CfwAllowedPathPolicy(
@@ -102,7 +116,7 @@ export function buildPublicOpportunity99CfwUrlPolicyFailureReason(
     if (url.username || url.password) {
       return 'URL_AUTH_NOT_ALLOWED';
     }
-    if (url.hostname !== PUBLIC_OPPORTUNITY_99CFW_ALLOWED_HOST) {
+    if (!isPublicOpportunity99CfwHost(url.hostname)) {
       return 'URL_HOST_NOT_ALLOWED';
     }
     if (url.port && url.port !== '443') {
@@ -111,7 +125,10 @@ export function buildPublicOpportunity99CfwUrlPolicyFailureReason(
     if (url.search || url.hash) {
       return 'URL_QUERY_NOT_ALLOWED';
     }
-    if (!PUBLIC_OPPORTUNITY_99CFW_DETAIL_PATH_PATTERN.test(url.pathname)) {
+    if (
+      !PUBLIC_OPPORTUNITY_99CFW_DETAIL_PATH_PATTERN.test(url.pathname) &&
+      !PUBLIC_OPPORTUNITY_99CFW_CITY_DETAIL_PATH_PATTERN.test(url.pathname)
+    ) {
       return 'URL_DETAIL_PATH_NOT_ALLOWED';
     }
 
@@ -277,6 +294,26 @@ export function checkCrawlerSourcePolicy(
           reason: 'SOURCE_PATH_ALLOWLIST_WOULD_BROADEN',
         };
       }
+      return { allowed: true };
+    }
+
+    if (
+      GENERIC_PUBLIC_FACTORY_LISTING_SOURCE_CODES.includes(
+        source.sourceCode as any,
+      )
+    ) {
+      return { allowed: true };
+    }
+
+    if (
+      PUBLIC_OPPORTUNITY_PLATFORM_SOURCE_CODES.includes(
+        source.sourceCode as any,
+      )
+    ) {
+      return { allowed: true };
+    }
+
+    if (source.sourceCode === PUBLIC_EIA_NOTICE_SOURCE_CODE) {
       return { allowed: true };
     }
 

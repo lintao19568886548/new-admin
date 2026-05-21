@@ -56,6 +56,41 @@ const opportunityMeta = computed(() => {
   return { color: 'default', label: type || '-' };
 });
 
+const opportunityStatusMeta = computed(() => {
+  const status = props.item?.opportunityStatus;
+  if (status === 'EFFECTIVE') {
+    return { color: 'green', label: '有效' };
+  }
+  if (status === 'VERIFIED') {
+    return { color: 'cyan', label: '已核验' };
+  }
+  if (status === 'NEEDS_REVIEW') {
+    return { color: 'orange', label: '待复核' };
+  }
+  if (status === 'EXPIRED') {
+    return { color: 'red', label: '已失效' };
+  }
+  if (status === 'OUT_OF_SCOPE') {
+    return { color: 'default', label: '越界' };
+  }
+  if (status === 'UNKNOWN_TIME') {
+    return { color: 'orange', label: '时间待核' };
+  }
+  if (status === 'SOURCE_LOST') {
+    return { color: 'red', label: '来源缺失' };
+  }
+  if (status === 'INVALID') {
+    return { color: 'red', label: '无效' };
+  }
+  if (status === 'PARSED') {
+    return { color: 'blue', label: '已解析' };
+  }
+  if (status === 'RAW') {
+    return { color: 'default', label: '原始' };
+  }
+  return { color: 'blue', label: status || '待审核' };
+});
+
 const regionText = computed(
   () =>
     [props.item?.city, props.item?.district].filter(Boolean).join(' / ') || '-',
@@ -142,6 +177,17 @@ const mobileCollectionDescription = computed(() => {
     ],
   ]);
 });
+
+const mobileWholeDescription = computed(() =>
+  joinMobileFields([
+    ['核心信息', mobileCoreDescription.value],
+    ['参数信息', mobileParameterDescription.value || '-'],
+    ['时间信息', mobileTimeDescription.value],
+    ['来源信息', mobileSourceDescription.value],
+    ['采集信息', mobileCollectionDescription.value],
+    ['正文描述', mobileMainDescription.value],
+  ]),
+);
 
 function formatArea(record: PublicOpportunityItem) {
   if (
@@ -233,6 +279,19 @@ function findFirstMarker(text: string, markers: string[]) {
   return { index: matchedIndex, marker: matchedMarker };
 }
 
+function trimLeadingDetailSeparators(value: string) {
+  let text = value.trimStart();
+  while (
+    text.startsWith('-') ||
+    text.startsWith(':') ||
+    text.startsWith('：') ||
+    text.startsWith('>')
+  ) {
+    text = text.slice(1).trimStart();
+  }
+  return text;
+}
+
 function extractPrimaryDescription(value?: null | string) {
   const raw = compactText(value);
   if (!raw) {
@@ -263,8 +322,7 @@ function extractPrimaryDescription(value?: null | string) {
     text = text.slice(0, end.index);
   }
 
-  text = compactText(text)
-    .replaceAll(/^[\s:：>-]+/g, '')
+  text = trimLeadingDetailSeparators(compactText(text))
     .replaceAll(/本网站信息全部真实有效.*?现场实拍！\s*/g, '')
     .trim();
 
@@ -386,7 +444,9 @@ function handleOpenSource() {
           <Tag :color="opportunityMeta.color">
             {{ opportunityMeta.label }}
           </Tag>
-          <Tag>{{ item.opportunityStatus || '-' }}</Tag>
+          <Tag :color="opportunityStatusMeta.color">
+            {{ opportunityStatusMeta.label }}
+          </Tag>
           <Tag v-if="item.publishedAgeLabel">
             {{ item.publishedAgeLabel }}
           </Tag>
@@ -394,95 +454,17 @@ function handleOpenSource() {
       </section>
 
       <section class="opportunity-mobile-section">
-        <div class="opportunity-mobile-section-title">核心信息</div>
-        <div class="opportunity-mobile-block">
-          <p
-            :class="{
-              'opportunity-mobile-scroll-text': shouldUseMobileScroll(
-                mobileCoreDescription,
-              ),
-            }"
-          >
-            {{ mobileCoreDescription }}
-          </p>
-        </div>
-      </section>
-
-      <section
-        v-if="mobileParameterDescription"
-        class="opportunity-mobile-section"
-      >
-        <div class="opportunity-mobile-section-title">参数信息</div>
-        <div class="opportunity-mobile-block">
-          <p
-            :class="{
-              'opportunity-mobile-scroll-text': shouldUseMobileScroll(
-                mobileParameterDescription,
-              ),
-            }"
-          >
-            {{ mobileParameterDescription }}
-          </p>
-        </div>
-      </section>
-
-      <section class="opportunity-mobile-section">
-        <div class="opportunity-mobile-section-title">时间信息</div>
-        <div class="opportunity-mobile-block">
-          <p
-            :class="{
-              'opportunity-mobile-scroll-text': shouldUseMobileScroll(
-                mobileTimeDescription,
-              ),
-            }"
-          >
-            {{ mobileTimeDescription }}
-          </p>
-        </div>
-      </section>
-
-      <section class="opportunity-mobile-section">
-        <div class="opportunity-mobile-section-title">正文描述</div>
+        <div class="opportunity-mobile-section-title">详情信息</div>
         <div class="opportunity-mobile-block">
           <p
             class="opportunity-mobile-description"
             :class="{
               'opportunity-mobile-scroll-text': shouldUseMobileScroll(
-                mobileMainDescription,
+                mobileWholeDescription,
               ),
             }"
           >
-            {{ mobileMainDescription }}
-          </p>
-        </div>
-      </section>
-
-      <section class="opportunity-mobile-section">
-        <div class="opportunity-mobile-section-title">来源信息</div>
-        <div class="opportunity-mobile-block">
-          <p
-            :class="{
-              'opportunity-mobile-scroll-text': shouldUseMobileScroll(
-                mobileSourceDescription,
-              ),
-            }"
-          >
-            {{ mobileSourceDescription }}
-          </p>
-        </div>
-      </section>
-
-      <section class="opportunity-mobile-section">
-        <div class="opportunity-mobile-section-title">采集信息</div>
-        <div class="opportunity-mobile-block">
-          <p
-            :class="{
-              'opportunity-mobile-scroll-text': shouldUseMobileScroll(
-                mobileCollectionDescription,
-              ),
-            }"
-          >
-            {{ mobileCollectionDescription }}
+            {{ mobileWholeDescription }}
           </p>
         </div>
       </section>
@@ -511,7 +493,9 @@ function handleOpenSource() {
         </Tag>
       </Descriptions.Item>
       <Descriptions.Item label="状态">
-        {{ item.opportunityStatus || '-' }}
+        <Tag :color="opportunityStatusMeta.color">
+          {{ opportunityStatusMeta.label }}
+        </Tag>
       </Descriptions.Item>
       <Descriptions.Item label="城市 / 区域">
         {{ regionText }}

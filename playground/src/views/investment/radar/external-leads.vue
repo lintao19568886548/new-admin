@@ -8,6 +8,7 @@ import type {
   ExternalLeadDetail,
   ExternalLeadStatus,
   LeadEvidence,
+  RadarSalesUser,
 } from '#/api/investment';
 
 import { computed, h, onMounted, ref } from 'vue';
@@ -23,7 +24,6 @@ import {
   Empty,
   Form,
   Input,
-  InputNumber,
   message,
   Select,
   Space,
@@ -37,6 +37,7 @@ import {
   getExternalLeadDetail,
   getExternalLeadEvidenceList,
   getExternalLeadList,
+  getRadarSalesUserList,
   updateExternalLead,
 } from '#/api/investment';
 
@@ -51,6 +52,7 @@ const convertingLeadId = ref<null | number>(null);
 const items = ref<ExternalLead[]>([]);
 const currentLead = ref<ExternalLeadDetail | null>(null);
 const evidenceItems = ref<LeadEvidence[]>([]);
+const salesUsers = ref<RadarSalesUser[]>([]);
 const detailOpen = ref(false);
 const evidenceOpen = ref(false);
 const pagination = ref({
@@ -159,6 +161,12 @@ const currentEvidenceCount = computed(() => {
   }
   return currentLead.value?.evidenceCount || 0;
 });
+const salesUserOptions = computed(() =>
+  salesUsers.value.map((item) => ({
+    label: `${item.userName}${item.parkName ? ` · ${item.parkName}` : ''}`,
+    value: item.userId,
+  })),
+);
 
 function formatOptionalTime(value?: null | string) {
   return value ? formatDateTime(value) : '-';
@@ -194,6 +202,16 @@ async function loadLeads() {
     message.error('外部公开线索加载失败');
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadSalesUsers() {
+  try {
+    const result = await getRadarSalesUserList();
+    salesUsers.value = Array.isArray(result.items) ? result.items : [];
+  } catch (error) {
+    console.error('load radar sales users failed:', error);
+    salesUsers.value = [];
   }
 }
 
@@ -541,6 +559,7 @@ const evidenceColumns: TableColumnsType<LeadEvidence> = [
 
 onMounted(() => {
   void loadLeads();
+  void loadSalesUsers();
 });
 </script>
 
@@ -684,10 +703,14 @@ onMounted(() => {
                 />
               </Form.Item>
               <Form.Item label="负责人">
-                <InputNumber
+                <Select
                   v-model:value="editForm.ownerUserId"
+                  allow-clear
                   class="w-full"
-                  :min="1"
+                  option-filter-prop="label"
+                  :options="salesUserOptions"
+                  placeholder="选择负责人"
+                  show-search
                 />
               </Form.Item>
               <Form.Item label="备注">

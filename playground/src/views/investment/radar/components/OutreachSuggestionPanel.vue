@@ -43,6 +43,7 @@ const stageLabelMap: Record<string, string> = {
   INVALID: '无效',
   PENDING_CONTACT: '待触达',
   REPLIED: '已回复',
+  VISIT: '待带看',
   VISITED: '已带看',
 };
 
@@ -52,16 +53,28 @@ const taskTypeLabelMap: Record<string, string> = {
   VISIT: '预约拜访',
 };
 
+const priorityLabelMap: Record<string, string> = {
+  HIGH: '高优先级',
+  LOW: '低优先级',
+  MEDIUM: '中优先级',
+  NORMAL: '普通优先级',
+  URGENT: '紧急优先级',
+};
+
 function mapChannel(value?: string) {
-  return value ? channelLabelMap[value] || value : '-';
+  return value ? channelLabelMap[value] || '其他渠道' : '-';
 }
 
 function mapStage(value?: string) {
-  return value ? stageLabelMap[value] || value : '-';
+  return value ? stageLabelMap[value] || '跟进中' : '-';
 }
 
 function mapTaskType(value?: string) {
-  return value ? taskTypeLabelMap[value] || value : '-';
+  return value ? taskTypeLabelMap[value] || '触达任务' : '-';
+}
+
+function mapPriority(value?: string) {
+  return value ? priorityLabelMap[value] || '普通优先级' : '-';
 }
 
 async function createTask(item: OutreachSuggestionItem) {
@@ -155,7 +168,7 @@ onMounted(() => {
               <Space :size="4" wrap>
                 <Tag color="blue">{{ mapTaskType(item.taskType) }}</Tag>
                 <Tag>{{ mapChannel(item.channel) }}</Tag>
-                <Tag color="orange">{{ item.priorityLevel || '-' }}级</Tag>
+                <Tag color="orange">{{ mapPriority(item.priorityLevel) }}</Tag>
               </Space>
               <p>{{ item.suggestedContent || '-' }}</p>
             </div>

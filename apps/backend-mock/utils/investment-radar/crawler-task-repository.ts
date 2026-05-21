@@ -95,6 +95,13 @@ function mapLogRow(row: any): CrawlerTaskLog {
   };
 }
 
+function truncateSkipReason(value: null | string | undefined) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  return String(value).slice(0, 255);
+}
+
 function buildTaskSelectSql() {
   return `
     SELECT
@@ -427,7 +434,7 @@ export async function updateCrawlerTaskStatus(params: {
     push('error_message = ?', params.errorMessage);
   }
   if (params.skipReason !== undefined) {
-    push('skip_reason = ?', params.skipReason);
+    push('skip_reason = ?', truncateSkipReason(params.skipReason));
   }
 
   await prismaClient.$executeRawUnsafe(

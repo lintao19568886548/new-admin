@@ -1,5 +1,7 @@
 import { prismaClient } from '~/utils/db';
+import { upsertContactRestriction } from '~/utils/investment-radar/contact-restriction-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
+import { ensureFollowRecordTable } from '~/utils/investment-radar/sop-record-service';
 import {
   badRequestResponse,
   serverErrorResponse,
@@ -14,6 +16,32 @@ function normalizeDate(value: unknown) {
   }
   const date = new Date(text);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+const allowedFollowResults = new Set([
+  'CONTACTED',
+  'INTENTED',
+  'INVALID',
+  'NEGATIVE',
+  'NO_ANSWER',
+  'POSITIVE',
+  'REPLIED',
+]);
+
+const allowedFollowTypes = new Set(['PHONE', 'VISIT', 'WECHAT']);
+
+function normalizeFollowResult(value: unknown) {
+  const result = String(value || 'CONTACTED')
+    .trim()
+    .toUpperCase();
+  return allowedFollowResults.has(result) ? result : 'CONTACTED';
+}
+
+function normalizeFollowType(value: unknown) {
+  const type = String(value || 'PHONE')
+    .trim()
+    .toUpperCase();
+  return allowedFollowTypes.has(type) ? type : 'PHONE';
 }
 
 export default eventHandler(async (event) => {
@@ -32,10 +60,34 @@ export default eventHandler(async (event) => {
   if (!content) {
     return badRequestResponse('跟进内容不能为空', event);
   }
+  const followResult = normalizeFollowResult(body.followResult);
+  const followType = normalizeFollowType(body.followType);
+  const invalidReason =
+    String(body.invalidReason || '').trim() ||
+    (followResult === 'INVALID' ? content : null);
 
   try {
     const result = await runWithRadarSharedScope(async () => {
+      await ensureFollowRecordTable();
       const inserted = await prismaClient.$transaction(async (tx) => {
+        const leadRows = await tx.$queryRawUnsafe<any[]>(
+          `
+            SELECT
+              l.lead_id AS leadId,
+              l.enterprise_id AS enterpriseId,
+              e.phone_number AS phoneNumber
+            FROM investment_lead l
+            LEFT JOIN investment_enterprise e ON e.enterprise_id = l.enterprise_id
+            WHERE l.lead_id = ? AND l.is_deleted = 0
+            LIMIT 1
+          `,
+          leadId,
+        );
+        const lead = leadRows[0];
+        if (!lead) {
+          throw new Error('线索不存在');
+        }
+
         await tx.$executeRawUnsafe(
           `
             INSERT INTO investment_follow_record
@@ -44,8 +96,8 @@ export default eventHandler(async (event) => {
               (?, ?, ?, ?, ?, ?, ?, NOW(3))
           `,
           leadId,
-          String(body.followType || 'PHONE'),
-          String(body.followResult || 'CONTACTED'),
+          followType,
+          followResult,
           content,
           String(body.nextAction || '').trim() || null,
           normalizeDate(body.nextFollowTime),
@@ -55,27 +107,61 @@ export default eventHandler(async (event) => {
         const rows = await tx.$queryRawUnsafe<Array<{ recordId: bigint }>>(
           'SELECT LAST_INSERT_ID() AS recordId',
         );
-        return Number(rows[0]?.recordId || 0);
+        return {
+          enterpriseId: Number(lead.enterpriseId || 0) || null,
+          phoneNumber: lead.phoneNumber || null,
+          recordId: Number(rows[0]?.recordId || 0),
+        };
       });
+
+      if (followResult === 'NEGATIVE') {
+        await upsertContactRestriction({
+          enterpriseId: inserted.enterpriseId,
+          leadId,
+          phoneNumber: inserted.phoneNumber,
+          reason: content || '客户负向反馈',
+          restrictionType: 'NEGATIVE_REPLY',
+        });
+      }
 
       await prismaClient.$executeRawUnsafe(
         `
           UPDATE investment_lead
-          SET latest_contact_time = NOW(3), stage = CASE
-            WHEN stage = 'PENDING_CONTACT' THEN 'CONTACTED'
-            ELSE stage
-          END, update_time = NOW(3)
+          SET
+            latest_contact_time = NOW(3),
+            stage = CASE
+              WHEN ? IN ('POSITIVE', 'INTENTED', 'REPLIED')
+                AND stage IN ('NEW', 'PENDING_CONTACT', 'CONTACTED')
+                THEN 'REPLIED'
+              WHEN ? = 'INVALID'
+                THEN 'INVALID'
+              WHEN stage IN ('NEW', 'PENDING_CONTACT')
+                THEN 'CONTACTED'
+              ELSE stage
+            END,
+            invalid_reason = CASE
+              WHEN ? = 'INVALID' THEN ?
+              ELSE invalid_reason
+            END,
+            update_time = NOW(3)
           WHERE lead_id = ?
         `,
+        followResult,
+        followResult,
+        followResult,
+        invalidReason,
         leadId,
       );
 
-      return { recordId: inserted };
+      return { recordId: inserted.recordId };
     });
 
     return useResponseSuccess(result);
-  } catch (error) {
+  } catch (error: any) {
     console.error('create radar follow failed:', error);
+    if (error.message?.includes('线索不存在')) {
+      return badRequestResponse(error.message, event, 404);
+    }
     return serverErrorResponse('新增跟进记录失败', event);
   }
 });

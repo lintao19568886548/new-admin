@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TableColumnsType } from 'ant-design-vue';
 
-import type { RadarLeadDetail } from '#/api/investment';
+import type { PropertyMatchItem } from '#/api/investment';
 
 import { computed, h, onMounted, ref, watch } from 'vue';
 
@@ -16,65 +16,28 @@ import {
   Tag,
 } from 'ant-design-vue';
 
-import { getAvailableFactoryList } from '#/api/factory';
-import { getRadarLeadDetail } from '#/api/investment';
+import { getPropertyMatchList, rebuildPropertyMatch } from '#/api/investment';
 
 const props = defineProps<{
   leadId: number | string;
 }>();
 
-interface FactoryMatchItem {
-  address?: null | string;
-  availableArea?: number;
-  factoryId?: number;
-  factoryName?: string;
-  floorCount?: number;
-  id?: number;
-  parkId?: null | number;
-  parkName?: null | string;
-  rentPrice?: number;
-  rentPriceText?: string;
-  tag?: string;
-  title?: string;
-  totalArea?: number;
-  usedArea?: number;
-}
-
-type ScoredFactoryMatchItem = FactoryMatchItem & {
-  availableAreaValue: number;
-  matchReasons: string[];
-  matchScore: number;
-};
-
-const detail = ref<null | RadarLeadDetail>(null);
-const items = ref<FactoryMatchItem[]>([]);
+const items = ref<PropertyMatchItem[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 
-const displayItems = computed<ScoredFactoryMatchItem[]>(() => {
-  return items.value
-    .map((item) => {
-      const availableArea = getAvailableArea(item);
-      const scoreResult = calculateMatchScore(item, availableArea);
-      return {
-        ...item,
-        availableAreaValue: availableArea,
-        matchReasons: scoreResult.reasons,
-        matchScore: scoreResult.score,
-      };
-    })
-    .sort((a, b) => b.matchScore - a.matchScore)
-    .slice(0, 5);
+const displayItems = computed<PropertyMatchItem[]>(() => {
+  return items.value.slice(0, 5);
 });
 
-const columns: TableColumnsType<ScoredFactoryMatchItem> = [
+const columns: TableColumnsType<PropertyMatchItem> = [
   {
     customRender: ({ record }) =>
       h('div', { class: 'property-name-cell' }, [
         h(
           'div',
           { class: 'property-name' },
-          record.factoryName || record.title || '未命名房源',
+          record.factoryName || '未命名房源',
         ),
         h(
           'div',
@@ -104,7 +67,7 @@ const columns: TableColumnsType<ScoredFactoryMatchItem> = [
   {
     customRender: ({ record }) =>
       h('div', [
-        h('div', `空置 ${formatArea(record.availableAreaValue)}`),
+        h('div', `空置 ${formatArea(record.availableArea)}`),
         h(
           'div',
           { class: 'property-muted' },
@@ -132,44 +95,26 @@ const columns: TableColumnsType<ScoredFactoryMatchItem> = [
     title: '匹配依据',
     width: 170,
   },
+  {
+    customRender: ({ record }) =>
+      h('div', { class: 'property-note-cell' }, [
+        h('div', { class: 'property-sales-pitch' }, record.salesPitch || '-'),
+        record.mismatchReminders.length > 0
+          ? h(
+              Space,
+              { class: 'property-warning-list', size: 4, wrap: true },
+              () =>
+                record.mismatchReminders.map((item) =>
+                  h(Tag, { color: 'orange' }, () => item),
+                ),
+            )
+          : null,
+      ]),
+    key: 'salesPitch',
+    title: '销售话术',
+    width: 300,
+  },
 ];
-
-function calculateMatchScore(item: FactoryMatchItem, availableArea: number) {
-  const reasons: string[] = [];
-  let score = 60;
-
-  const intentArea = Number(detail.value?.intentArea || 0);
-  if (intentArea > 0 && availableArea > 0) {
-    const lowerBound = intentArea * 0.8;
-    const upperBound = intentArea * 1.5;
-    if (availableArea >= lowerBound && availableArea <= upperBound) {
-      score += 25;
-      reasons.push('面积匹配');
-    } else if (availableArea >= intentArea * 0.5) {
-      score += 12;
-      reasons.push('面积接近');
-    }
-  }
-
-  if (detail.value?.parkId && item.parkId === detail.value.parkId) {
-    score += 10;
-    reasons.push('同园区');
-  }
-
-  if (item.tag) {
-    score += 5;
-    reasons.push(item.tag);
-  }
-
-  if (reasons.length === 0) {
-    reasons.push('可用房源');
-  }
-
-  return {
-    reasons,
-    score: Math.min(score, 100),
-  };
-}
 
 function formatArea(value?: null | number) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
@@ -178,7 +123,7 @@ function formatArea(value?: null | number) {
   return `${Number(value).toLocaleString('zh-CN')}m²`;
 }
 
-function formatPrice(item: FactoryMatchItem) {
+function formatPrice(item: PropertyMatchItem) {
   if (item.rentPriceText) {
     return item.rentPriceText;
   }
@@ -186,15 +131,6 @@ function formatPrice(item: FactoryMatchItem) {
     return '-';
   }
   return `${Number(item.rentPrice).toLocaleString('zh-CN')}元/m²/月`;
-}
-
-function getAvailableArea(item: FactoryMatchItem) {
-  if (item.availableArea !== null && item.availableArea !== undefined) {
-    return Math.max(Number(item.availableArea || 0), 0);
-  }
-  const total = Number(item.totalArea || 0);
-  const used = Number(item.usedArea || 0);
-  return Math.max(total - used, 0);
 }
 
 async function loadMatches() {
@@ -206,27 +142,30 @@ async function loadMatches() {
   loading.value = true;
   loadError.value = '';
   try {
-    const [leadDetail, result] = await Promise.all([
-      getRadarLeadDetail(leadId),
-      getAvailableFactoryList({
-        currentPage: 1,
-        pageSize: 20,
-      }),
-    ]);
-    detail.value = leadDetail;
-
-    let records: unknown[] = [];
-    if (Array.isArray(result?.items)) {
-      records = result.items;
-    } else if (Array.isArray(result)) {
-      records = result;
-    }
-    items.value = records as FactoryMatchItem[];
+    const result = await getPropertyMatchList(leadId);
+    items.value = Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('load property matches failed:', error);
-    detail.value = null;
     items.value = [];
     loadError.value = '房源匹配数据加载失败';
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function handleRebuild() {
+  const leadId = Number(props.leadId);
+  if (!leadId) {
+    return;
+  }
+
+  loading.value = true;
+  try {
+    await rebuildPropertyMatch(leadId);
+    await loadMatches();
+  } catch (error) {
+    console.error('rebuild property match failed:', error);
+    loadError.value = '重新计算房源匹配失败';
   } finally {
     loading.value = false;
   }
@@ -247,7 +186,14 @@ onMounted(() => {
 <template>
   <Card class="property-match-panel" title="房源匹配">
     <template #extra>
-      <Button size="small" :loading="loading" @click="loadMatches">刷新</Button>
+      <Space :size="8">
+        <Button size="small" :loading="loading" @click="handleRebuild">
+          重新计算
+        </Button>
+        <Button size="small" :loading="loading" @click="loadMatches">
+          刷新
+        </Button>
+      </Space>
     </template>
 
     <Spin :spinning="loading">
@@ -258,7 +204,7 @@ onMounted(() => {
         :data-source="displayItems"
         :pagination="false"
         row-key="factoryId"
-        :scroll="{ x: 840 }"
+        :scroll="{ x: 1140 }"
         size="small"
       />
       <Empty
@@ -307,7 +253,8 @@ onMounted(() => {
 }
 
 .property-location,
-.property-muted {
+.property-muted,
+.property-sales-pitch {
   overflow: hidden;
   font-size: 12px;
   line-height: 18px;
@@ -321,6 +268,19 @@ onMounted(() => {
   grid-template-columns: minmax(0, 1fr) 38px;
   gap: 8px;
   align-items: center;
+}
+
+.property-note-cell {
+  min-width: 0;
+  text-align: left;
+}
+
+.property-sales-pitch {
+  white-space: normal;
+}
+
+.property-warning-list {
+  margin-top: 6px;
 }
 
 .panel-empty {

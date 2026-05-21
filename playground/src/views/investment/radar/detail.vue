@@ -4,6 +4,7 @@ import type {
   RadarLeadDetail,
   RadarLeadNavigationItem,
   RadarOutreachTaskItem,
+  RadarSalesUser,
 } from '#/api/investment';
 
 import { computed, h, onMounted, ref, watch } from 'vue';
@@ -20,7 +21,11 @@ import {
   Col,
   Descriptions,
   Empty,
+  Input,
+  message,
+  Modal,
   Row,
+  Select,
   Skeleton,
   Space,
   Spin,
@@ -30,8 +35,11 @@ import {
 } from 'ant-design-vue';
 
 import {
+  assignRadarLeadOwner,
+  closeRadarLead,
   getRadarLeadDetail,
   getRadarLeadScoreBreakdown,
+  getRadarSalesUserList,
   recalculateRadarLeadScore,
 } from '#/api/investment';
 
@@ -51,6 +59,10 @@ const detail = ref<null | RadarLeadDetail>(null);
 const scoreBreakdownLoading = ref(false);
 const scoreRecalculating = ref(false);
 const scoreBreakdownItems = ref<LeadScoreBreakdown[]>([]);
+const ownerAssigning = ref(false);
+const leadClosing = ref(false);
+const salesUsers = ref<RadarSalesUser[]>([]);
+const selectedOwnerUserId = ref<number | undefined>();
 
 const leadId = computed(() => Number(route.params.id));
 
@@ -85,12 +97,34 @@ const taskTypeLabelMap: Record<string, string> = {
   VISIT: '预约拜访',
 };
 
+const eventTypeLabelMap: Record<string, string> = {
+  EVENT_EA_EXPAND: '环评扩产信号',
+  FACTORY_RENT_DEMAND: '租厂需求信号',
+  KEYWORD_EXPAND: '关键词：扩建',
+  KEYWORD_NEW_LINE: '关键词：新增产线',
+  KEYWORD_RECRUITMENT: '关键词：招聘',
+  KEYWORD_RELOCATION: '关键词：搬迁',
+  KEYWORD_WAREHOUSE: '关键词：仓储',
+  NEWS_EXPAND: '新闻扩产信号',
+  PUBLIC_FACTORY_DEMAND: '公开厂房需求信号',
+  RECRUITMENT_EXPAND: '招聘扩产信号',
+  RELOCATION: '搬迁信号',
+  UNKNOWN: '未知信号',
+};
+
 const summary = computed(() => ({
   intentScore: detail.value?.intentScore ?? 0,
   matchScore: detail.value?.matchScore ?? 0,
   reachableScore: detail.value?.reachableScore ?? 0,
   totalScore: detail.value?.totalScore ?? 0,
 }));
+
+const salesUserOptions = computed(() =>
+  salesUsers.value.map((item) => ({
+    label: `${item.userName}${item.parkName ? ` · ${item.parkName}` : ''}`,
+    value: item.userId,
+  })),
+);
 
 const outreachColumns = [
   {
@@ -120,13 +154,6 @@ const outreachColumns = [
     dataIndex: 'phoneNumber',
     key: 'phoneNumber',
     title: '触达号码',
-    width: 140,
-  },
-  {
-    customRender: ({ text }: { text?: string }) => text || '-',
-    dataIndex: 'templateCode',
-    key: 'templateCode',
-    title: '模板编码',
     width: 140,
   },
   {
@@ -163,10 +190,7 @@ const outreachColumns = [
 const scoreBreakdownColumns = [
   {
     customRender: ({ record }: { record: LeadScoreBreakdown }) =>
-      h('div', [
-        h('div', { class: 'font-medium' }, record.ruleName),
-        h('div', { class: 'text-xs text-gray-500' }, record.ruleCode),
-      ]),
+      h('div', { class: 'font-medium' }, record.ruleName),
     dataIndex: 'ruleName',
     key: 'ruleName',
     title: '规则',
@@ -182,7 +206,7 @@ const scoreBreakdownColumns = [
   },
   {
     customRender: ({ record }: { record: LeadScoreBreakdown }) =>
-      record.eventType || '-',
+      formatEventType(record.eventType),
     dataIndex: 'eventType',
     key: 'eventType',
     title: '事件类型',
@@ -232,6 +256,13 @@ function mapTaskType(taskType?: null | string) {
     return '-';
   }
   return taskTypeLabelMap[taskType] || taskType;
+}
+
+function formatEventType(eventType?: null | string) {
+  if (!eventType) {
+    return '-';
+  }
+  return eventTypeLabelMap[eventType] || '其他信号';
 }
 
 function renderPriority(priorityLevel?: null | string) {
@@ -294,7 +325,6 @@ function renderStatusGroup(record: RadarOutreachTaskItem) {
 
 function renderResult(record: RadarOutreachTaskItem) {
   const parts = [
-    record.resultCode ? `结果码：${record.resultCode}` : '',
     record.resultMessage || '',
     record.replyContent ? `回复：${record.replyContent}` : '',
   ].filter(Boolean);
@@ -329,6 +359,8 @@ async function loadDetail() {
 
   try {
     detail.value = await getRadarLeadDetail(leadId.value);
+    selectedOwnerUserId.value = detail.value.ownerUserId || undefined;
+    await loadSalesUsers();
     await loadScoreBreakdown();
   } catch (error) {
     console.error('加载雷达线索详情失败:', error);
@@ -336,6 +368,18 @@ async function loadDetail() {
     loadError.value = '线索详情加载失败，请检查详情接口是否可用。';
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadSalesUsers() {
+  try {
+    const result = await getRadarSalesUserList({
+      parkId: detail.value?.parkId || undefined,
+    });
+    salesUsers.value = Array.isArray(result.items) ? result.items : [];
+  } catch (error) {
+    console.error('加载销售负责人失败:', error);
+    salesUsers.value = [];
   }
 }
 
@@ -353,6 +397,99 @@ async function loadScoreBreakdown() {
   } finally {
     scoreBreakdownLoading.value = false;
   }
+}
+
+async function assignOwner() {
+  if (!detail.value || !selectedOwnerUserId.value || ownerAssigning.value) {
+    return;
+  }
+  ownerAssigning.value = true;
+  try {
+    const result = await assignRadarLeadOwner(leadId.value, {
+      assignReason: '线索详情人工调整负责人',
+      ownerUserId: selectedOwnerUserId.value,
+    });
+    detail.value = {
+      ...detail.value,
+      ownerName: result.ownerName,
+      ownerUserId: result.ownerUserId,
+      stage: result.stage,
+    };
+    message.success('负责人已更新');
+  } catch (error) {
+    console.error('分配负责人失败:', error);
+    message.error('分配负责人失败');
+  } finally {
+    ownerAssigning.value = false;
+  }
+}
+
+function updateDetailAfterClose(result: {
+  invalidReason?: null | string;
+  stage: string;
+  updateTime?: string;
+}) {
+  if (!detail.value) {
+    return;
+  }
+  detail.value = {
+    ...detail.value,
+    invalidReason: result.invalidReason || null,
+    stage: result.stage,
+    updateTime: result.updateTime || detail.value.updateTime,
+  };
+}
+
+async function closeLead(stage: 'DEAL' | 'INVALID', reason = '') {
+  if (!detail.value || leadClosing.value) {
+    return;
+  }
+  leadClosing.value = true;
+  try {
+    const result = await closeRadarLead(leadId.value, {
+      reason,
+      stage,
+    });
+    updateDetailAfterClose(result);
+    message.success(stage === 'DEAL' ? '已标记成交' : '已标记失效');
+  } catch (error) {
+    console.error('更新线索转化结果失败:', error);
+    message.error('更新线索转化结果失败');
+  } finally {
+    leadClosing.value = false;
+  }
+}
+
+function markDeal() {
+  Modal.confirm({
+    content: '确认后将关闭该线索的待处理提醒，并取消未执行触达任务。',
+    okText: '确认成交',
+    onOk: () => closeLead('DEAL'),
+    title: '标记为成交',
+  });
+}
+
+function markInvalid() {
+  const reason = ref('');
+  Modal.confirm({
+    content: () =>
+      h(Input.TextArea, {
+        autoSize: { maxRows: 6, minRows: 3 },
+        onChange: (event: Event) => {
+          reason.value = (event.target as HTMLTextAreaElement).value;
+        },
+        placeholder: '请填写失效原因',
+      }),
+    okText: '确认失效',
+    onOk: () => {
+      if (!reason.value.trim()) {
+        message.warning('请填写失效原因');
+        return Promise.reject(new Error('INVALID_REASON_REQUIRED'));
+      }
+      return closeLead('INVALID', reason.value.trim());
+    },
+    title: '标记为失效',
+  });
 }
 
 async function recalculateScore() {
@@ -447,6 +584,22 @@ onMounted(() => {
             <span>{{ detail.leadSource || '-' }}</span>
             <span>{{ detail.phoneNumber || '暂无电话' }}</span>
           </div>
+          <div
+            v-if="!['DEAL', 'INVALID'].includes(detail.stage)"
+            class="radar-mobile-close-actions"
+          >
+            <Button block :loading="leadClosing" @click="markInvalid">
+              标记失效
+            </Button>
+            <Button
+              block
+              type="primary"
+              :loading="leadClosing"
+              @click="markDeal"
+            >
+              标记成交
+            </Button>
+          </div>
         </section>
 
         <div class="radar-mobile-score-grid">
@@ -482,6 +635,29 @@ onMounted(() => {
                     : `${formatNumber(detail.intentArea)}㎡`
                 }}
               </strong>
+            </div>
+            <div>
+              <span>负责人</span>
+              <div class="radar-owner-select-wrap">
+                <Select
+                  v-model:value="selectedOwnerUserId"
+                  class="radar-owner-select"
+                  placeholder="选择负责人"
+                  :options="salesUserOptions"
+                />
+                <Button
+                  :disabled="
+                    !selectedOwnerUserId ||
+                    selectedOwnerUserId === detail.ownerUserId
+                  "
+                  :loading="ownerAssigning"
+                  size="small"
+                  type="primary"
+                  @click="assignOwner"
+                >
+                  保存
+                </Button>
+              </div>
             </div>
             <div>
               <span>最近信号</span>
@@ -564,7 +740,7 @@ onMounted(() => {
                   <Tag color="green">+{{ item.scoreDelta }}</Tag>
                 </div>
                 <div class="radar-mobile-mini-meta">
-                  {{ item.ruleCode }} · {{ item.eventType || '-' }}
+                  {{ formatEventType(item.eventType) }}
                 </div>
                 <p>{{ item.reason || '-' }}</p>
               </div>
@@ -640,6 +816,21 @@ onMounted(() => {
         </div>
         <Space wrap>
           <Button @click="goBack">返回雷达主列表</Button>
+          <Button
+            v-if="detail && !['DEAL', 'INVALID'].includes(detail.stage)"
+            :loading="leadClosing"
+            @click="markInvalid"
+          >
+            标记失效
+          </Button>
+          <Button
+            v-if="detail && !['DEAL', 'INVALID'].includes(detail.stage)"
+            type="primary"
+            :loading="leadClosing"
+            @click="markDeal"
+          >
+            标记成交
+          </Button>
           <Button type="primary" @click="loadDetail">刷新数据</Button>
         </Space>
       </div>
@@ -804,7 +995,26 @@ onMounted(() => {
                   {{ detail.contactName || '-' }}
                 </Descriptions.Item>
                 <Descriptions.Item label="负责人">
-                  {{ detail.ownerName || '-' }}
+                  <Space>
+                    <Select
+                      v-model:value="selectedOwnerUserId"
+                      class="radar-owner-select"
+                      placeholder="选择负责人"
+                      :options="salesUserOptions"
+                    />
+                    <Button
+                      :disabled="
+                        !selectedOwnerUserId ||
+                        selectedOwnerUserId === detail.ownerUserId
+                      "
+                      :loading="ownerAssigning"
+                      size="small"
+                      type="primary"
+                      @click="assignOwner"
+                    >
+                      保存
+                    </Button>
+                  </Space>
                 </Descriptions.Item>
                 <Descriptions.Item label="意向面积">
                   {{
@@ -847,7 +1057,7 @@ onMounted(() => {
                 :columns="outreachColumns"
                 :data-source="detail.outreachTasks"
                 :pagination="false"
-                :scroll="{ x: 1280 }"
+                :scroll="{ x: 1140 }"
                 row-key="taskId"
                 size="small"
               />
@@ -1014,6 +1224,13 @@ onMounted(() => {
   gap: 6px;
   align-items: center;
   margin-top: 10px;
+}
+
+.radar-mobile-close-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .radar-mobile-score-grid {
@@ -1210,6 +1427,18 @@ onMounted(() => {
 .radar-detail-table :deep(.ant-table-tbody > tr > td:empty)::before {
   color: var(--ant-color-text-tertiary);
   content: '-';
+}
+
+.radar-owner-select {
+  width: 220px;
+  max-width: 100%;
+}
+
+.radar-owner-select-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
 }
 
 .radar-detail-empty {

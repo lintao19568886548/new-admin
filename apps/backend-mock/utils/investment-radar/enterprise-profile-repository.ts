@@ -19,6 +19,10 @@ export interface EnterpriseProfileRebuildResult {
   updatedTagCount: number;
 }
 
+export interface EnterpriseProfileRebuildOptions {
+  skipSignalRebuild?: boolean;
+}
+
 const eventTypeLabelMap: Record<string, string> = {
   EIA_EXPAND: '扩产信号',
   FACTORY_RENT_DEMAND: '租厂需求',
@@ -378,8 +382,12 @@ function buildIndustryTags(params: {
   return [...tags];
 }
 
-export async function rebuildEnterpriseProfilesFromSignals(): Promise<EnterpriseProfileRebuildResult> {
-  await rebuildSignalEventsFromExternalLeads();
+export async function rebuildEnterpriseProfilesFromSignals(
+  options: EnterpriseProfileRebuildOptions = {},
+): Promise<EnterpriseProfileRebuildResult> {
+  if (!options.skipSignalRebuild) {
+    await rebuildSignalEventsFromExternalLeads();
+  }
   await ensureProfileScoreStorage();
 
   const rows = await prismaClient.$queryRawUnsafe<any[]>(`

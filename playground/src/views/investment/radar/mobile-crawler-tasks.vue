@@ -43,7 +43,10 @@ import {
   reclaimStaleCrawlerTaskItems,
   requeueCrawlerTaskItems,
   runCrawlerTask,
+  runEiaCrawlerTask,
   runPublicOpportunityCrawlerTask,
+  runRecruitmentCrawlerTask,
+  runTenderCrawlerTask,
   startPublicOpportunityCrawlerScheduler,
   stopPublicOpportunityCrawlerScheduler,
 } from '#/api/investment';
@@ -58,7 +61,10 @@ const PUBLIC_OPPORTUNITY_SOURCE_CODE = 'PUBLIC_OPPORTUNITY_99CFW';
 const loading = ref(false);
 const opsSummaryLoading = ref(false);
 const runningDemo = ref(false);
+const runningEia = ref(false);
 const runningPilot = ref(false);
+const runningRecruitment = ref(false);
+const runningTender = ref(false);
 const schedulerLoading = ref(false);
 const reclaimLoading = ref(false);
 const requeueLoading = ref(false);
@@ -119,7 +125,7 @@ const itemStatusOptions = [
 const sourceOptions = computed(() => [
   { label: '全部数据源', value: undefined },
   ...sourceItems.value.map((source) => ({
-    label: `${source.sourceName} (${source.sourceCode})`,
+    label: source.sourceName,
     value: source.sourceId,
   })),
 ]);
@@ -135,8 +141,33 @@ const statusMeta: Record<string, { color: string; label: string }> = {
 };
 
 const taskTypeLabel: Record<string, string> = {
+  MANUAL_DEMO: '示例数据采集',
+  MANUAL_EIA: '环评公示采集',
+  MANUAL_RECRUITMENT: '招聘扩产采集',
+  MANUAL_TENDER: '招投标信号采集',
   PUBLIC_FACTORY_LISTING_URL_BATCH: '公开厂房URL批量采集',
   PUBLIC_OPPORTUNITY_URL_BATCH: '公开机会URL批量采集',
+};
+
+const logLevelLabel: Record<string, string> = {
+  ERROR: '错误',
+  INFO: '信息',
+  WARN: '提醒',
+};
+
+const logStageLabel: Record<string, string> = {
+  ADAPTER: '采集适配',
+  DISCOVER: '发现链接',
+  FETCH: '抓取页面',
+  FINISH: '任务结束',
+  ITEM_FAIL: '单项失败',
+  ITEM_SUCCESS: '单项成功',
+  POLICY_SKIP: '策略跳过',
+  QUEUE: '队列处理',
+  RATE_LIMIT: '频率限制',
+  ROBOTS_CHECK: '路径校验',
+  SOURCE_VALIDATE: '数据源校验',
+  UPSERT_LEAD: '线索入库',
 };
 
 const publicOpportunityCanRun = computed(
@@ -182,15 +213,29 @@ function formatTaskType(taskType?: null | string) {
   if (!taskType) {
     return '-';
   }
-  return taskTypeLabel[taskType] || taskType;
+  return taskTypeLabel[taskType] || '采集任务';
 }
 
-function formatJsonBlock(value?: null | Record<string, unknown>) {
-  return value ? JSON.stringify(value, null, 2) : '-';
+function formatSourceName(item?: null | { sourceName?: null | string }) {
+  return item?.sourceName || '采集数据源';
+}
+
+function formatLogLevel(level?: null | string) {
+  if (!level) {
+    return '-';
+  }
+  return logLevelLabel[level] || '信息';
+}
+
+function formatLogStage(stage?: null | string) {
+  if (!stage) {
+    return '-';
+  }
+  return logStageLabel[stage] || '任务处理';
 }
 
 function formatSourceRef(item: CrawlerTaskItem) {
-  return item.sourceRefType || (item.sourceRefId ? '已关联' : '-');
+  return item.sourceRefType || item.sourceRefId ? '已关联' : '-';
 }
 
 function getStatusCount(
@@ -309,8 +354,8 @@ async function runPublicOpportunityPilot() {
   runningPilot.value = true;
   try {
     const task = await runPublicOpportunityCrawlerTask({
-      batchSize: 20,
-      freshnessDays: 180,
+      batchSize: 80,
+      freshnessDays: 365,
       sourceCode: selectedPublicSourceCode.value,
     });
     message.success(`99cfw 试点采集已结束：${task.status}`);
@@ -322,6 +367,69 @@ async function runPublicOpportunityPilot() {
     message.error('运行 99cfw 试点采集失败');
   } finally {
     runningPilot.value = false;
+  }
+}
+
+async function runEiaPilot() {
+  if (runningEia.value) {
+    return;
+  }
+  runningEia.value = true;
+  try {
+    const task = await runEiaCrawlerTask();
+    message.success(
+      `环评公示采集已结束：${statusMeta[task.status]?.label || task.status}`,
+    );
+    pagination.current = 1;
+    await loadTasks();
+    await loadOpsSummary();
+  } catch (error) {
+    console.error('运行环评公示采集失败:', error);
+    message.error('运行环评公示采集失败');
+  } finally {
+    runningEia.value = false;
+  }
+}
+
+async function runRecruitmentPilot() {
+  if (runningRecruitment.value) {
+    return;
+  }
+  runningRecruitment.value = true;
+  try {
+    const task = await runRecruitmentCrawlerTask();
+    message.success(
+      `招聘扩产采集已结束：${statusMeta[task.status]?.label || task.status}`,
+    );
+    pagination.current = 1;
+    await loadTasks();
+    await loadOpsSummary();
+  } catch (error) {
+    console.error('运行招聘扩产采集失败:', error);
+    message.error('运行招聘扩产采集失败');
+  } finally {
+    runningRecruitment.value = false;
+  }
+}
+
+async function runTenderPilot() {
+  if (runningTender.value) {
+    return;
+  }
+  runningTender.value = true;
+  try {
+    const task = await runTenderCrawlerTask();
+    message.success(
+      `招投标信号采集已结束：${statusMeta[task.status]?.label || task.status}`,
+    );
+    pagination.current = 1;
+    await loadTasks();
+    await loadOpsSummary();
+  } catch (error) {
+    console.error('运行招投标信号采集失败:', error);
+    message.error('运行招投标信号采集失败');
+  } finally {
+    runningTender.value = false;
   }
 }
 
@@ -417,11 +525,11 @@ async function reclaimStaleRunningItems() {
       sourceId: activeOpsSourceId.value,
       staleMinutes: 15,
     });
-    message.success(`已回收 ${result.reclaimedCount} 个超时 RUNNING URL 项`);
+    message.success(`已回收 ${result.reclaimedCount} 个超时执行 URL 项`);
     await refreshCrawlerOps();
   } catch (error) {
-    console.error('回收超时 RUNNING URL 失败:', error);
-    message.error('回收超时 RUNNING URL 失败');
+    console.error('回收超时执行 URL 失败:', error);
+    message.error('回收超时执行 URL 失败');
   } finally {
     reclaimLoading.value = false;
   }
@@ -585,11 +693,7 @@ onMounted(() => {
         <div class="ops-item ops-item-full">
           <span class="ops-label">数据源</span>
           <span class="ops-value">
-            {{
-              opsSummary.source
-                ? `${opsSummary.source.sourceName} (${opsSummary.source.sourceCode})`
-                : '-'
-            }}
+            {{ formatSourceName(opsSummary.source) }}
           </span>
         </div>
         <div class="ops-item">
@@ -669,23 +773,23 @@ onMounted(() => {
           <span class="ops-label">任务状态</span>
           <span class="ops-value">
             <Tag color="green">
-              SUCCESS {{ getStatusCount(opsSummary.taskStatus, 'SUCCESS') }}
+              成功 {{ getStatusCount(opsSummary.taskStatus, 'SUCCESS') }}
             </Tag>
             <Tag color="red">
-              FAILED {{ getStatusCount(opsSummary.taskStatus, 'FAILED') }}
+              失败 {{ getStatusCount(opsSummary.taskStatus, 'FAILED') }}
             </Tag>
             <Tag color="processing">
-              RUNNING {{ getStatusCount(opsSummary.taskStatus, 'RUNNING') }}
+              执行中 {{ getStatusCount(opsSummary.taskStatus, 'RUNNING') }}
             </Tag>
           </span>
         </div>
         <div class="ops-item ops-item-full">
           <span class="ops-label">URL 状态</span>
           <span class="ops-value">
-            P {{ getStatusCount(opsSummary.itemStatus, 'PENDING') }} / R
-            {{ getStatusCount(opsSummary.itemStatus, 'RETRY_WAITING') }} / S
-            {{ getStatusCount(opsSummary.itemStatus, 'SUCCESS') }} / F
-            {{ getStatusCount(opsSummary.itemStatus, 'FAILED') }} / SKIP
+            待处理 {{ getStatusCount(opsSummary.itemStatus, 'PENDING') }} / 重试
+            {{ getStatusCount(opsSummary.itemStatus, 'RETRY_WAITING') }} / 成功
+            {{ getStatusCount(opsSummary.itemStatus, 'SUCCESS') }} / 失败
+            {{ getStatusCount(opsSummary.itemStatus, 'FAILED') }} / 跳过
             {{ getStatusCount(opsSummary.itemStatus, 'SKIPPED') }}
           </span>
         </div>
@@ -740,7 +844,7 @@ onMounted(() => {
           恢复失败/跳过 URL
         </Button>
         <Button :loading="reclaimLoading" @click="reclaimStaleRunningItems">
-          回收超时 RUNNING URL
+          回收超时执行 URL
         </Button>
       </div>
     </Card>
@@ -781,6 +885,23 @@ onMounted(() => {
           >
             运行试点
           </Button>
+          <Button type="primary" :loading="runningEia" @click="runEiaPilot">
+            运行环评
+          </Button>
+          <Button
+            type="primary"
+            :loading="runningRecruitment"
+            @click="runRecruitmentPilot"
+          >
+            运行招聘
+          </Button>
+          <Button
+            type="primary"
+            :loading="runningTender"
+            @click="runTenderPilot"
+          >
+            运行招投标
+          </Button>
         </div>
       </div>
     </div>
@@ -796,7 +917,7 @@ onMounted(() => {
           <div class="radar-card-head">
             <div>
               <div class="radar-card-title">
-                {{ item.sourceName || item.sourceCode || '采集任务' }}
+                {{ formatSourceName(item) }}
               </div>
               <div class="radar-card-subtitle">
                 {{ formatTaskType(item.taskType) }}
@@ -809,9 +930,7 @@ onMounted(() => {
           <div class="radar-card-meta">
             <div class="meta-row">
               <span class="meta-label">来源</span>
-              <span class="meta-value">{{
-                item.sourceName || item.sourceCode || '-'
-              }}</span>
+              <span class="meta-value">{{ formatSourceName(item) }}</span>
             </div>
             <div class="meta-row">
               <span class="meta-label">抓取数</span>
@@ -832,9 +951,9 @@ onMounted(() => {
             <div class="meta-row">
               <span class="meta-label">URL 统计</span>
               <span class="meta-value">
-                P {{ item.pendingItemCount || 0 }} / R
-                {{ item.retryWaitingItemCount || 0 }} / S
-                {{ item.successItemCount || 0 }} / F
+                待处理 {{ item.pendingItemCount || 0 }} / 重试
+                {{ item.retryWaitingItemCount || 0 }} / 成功
+                {{ item.successItemCount || 0 }} / 失败
                 {{ item.failedItemCount || 0 }}
               </span>
             </div>
@@ -929,9 +1048,7 @@ onMounted(() => {
         </div>
         <div class="detail-row">
           <span class="detail-label">来源</span>
-          <span class="detail-value">{{
-            currentTask.sourceName || currentTask.sourceCode || '-'
-          }}</span>
+          <span class="detail-value">{{ formatSourceName(currentTask) }}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">抓取数</span>
@@ -952,10 +1069,10 @@ onMounted(() => {
         <div class="detail-row">
           <span class="detail-label">URL 统计</span>
           <span class="detail-value">
-            PENDING {{ currentTask.pendingItemCount || 0 }} / RETRY_WAITING
-            {{ currentTask.retryWaitingItemCount || 0 }} / SUCCESS
-            {{ currentTask.successItemCount || 0 }} / FAILED
-            {{ currentTask.failedItemCount || 0 }} / SKIPPED
+            待处理 {{ currentTask.pendingItemCount || 0 }} / 重试
+            {{ currentTask.retryWaitingItemCount || 0 }} / 成功
+            {{ currentTask.successItemCount || 0 }} / 失败
+            {{ currentTask.failedItemCount || 0 }} / 跳过
             {{ currentTask.skippedItemCount || 0 }}
           </span>
         </div>
@@ -974,12 +1091,6 @@ onMounted(() => {
         <div v-if="currentTask.errorMessage" class="detail-row error-row">
           <ExclamationCircleOutlined class="error-icon" />
           <span class="error-message">{{ currentTask.errorMessage }}</span>
-        </div>
-        <div class="detail-block">
-          <span class="detail-label">请求配置</span>
-          <pre class="task-json">{{
-            formatJsonBlock(currentTask.requestConfigJson)
-          }}</pre>
         </div>
       </div>
     </Drawer>
@@ -1004,15 +1115,12 @@ onMounted(() => {
                       : 'default'
                 "
               >
-                {{ log.level }}
+                {{ formatLogLevel(log.level) }}
               </Tag>
-              <span class="log-stage">{{ log.stage }}</span>
+              <span class="log-stage">{{ formatLogStage(log.stage) }}</span>
               <span class="log-time">{{ formatDateOnly(log.createTime) }}</span>
             </div>
             <div class="log-message">{{ log.message }}</div>
-            <pre v-if="log.detailJson" class="log-detail">{{
-              JSON.stringify(log.detailJson, null, 2)
-            }}</pre>
           </div>
         </div>
         <Empty v-else description="暂无日志" />
@@ -1049,10 +1157,12 @@ onMounted(() => {
             class="task-item-card"
           >
             <div class="task-item-header">
-              <span class="task-item-id">#{{ item.itemId }}</span>
               <Tag :color="statusMeta[item.status]?.color || 'default'">
                 {{ statusMeta[item.status]?.label || item.status }}
               </Tag>
+              <span class="task-item-title">
+                {{ item.sourceUrl || 'URL 采集项' }}
+              </span>
             </div>
             <div class="task-item-url">{{ item.sourceUrl }}</div>
             <div class="task-item-meta">
@@ -1697,10 +1807,14 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 
-.task-item-id {
+.task-item-title {
+  min-width: 0;
+  overflow: hidden;
   font-size: 14px;
   font-weight: 600;
   color: var(--ant-color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-item-url {

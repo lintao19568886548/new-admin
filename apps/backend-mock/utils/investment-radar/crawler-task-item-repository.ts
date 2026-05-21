@@ -51,6 +51,10 @@ function toNullableDate(value: unknown) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function truncateSkipReason(value: string) {
+  return String(value || '').slice(0, 255);
+}
+
 function mapItemRow(row: any): CrawlerTaskItem {
   return {
     createTime: row.createTime || null,
@@ -151,6 +155,7 @@ export async function listRunnableCrawlerTaskItems(params: {
   freshAfter?: Date;
   limit: number;
   prioritySourceRefIds?: number[];
+  reprocessSuccess?: boolean;
   sourceId: number;
 }) {
   await ensureDemoCrawlerSource();
@@ -159,6 +164,7 @@ export async function listRunnableCrawlerTaskItems(params: {
     .filter((id) => Number.isFinite(id) && id > 0);
   const queryParams = [
     params.sourceId,
+    params.reprocessSuccess ? 1 : 0,
     params.freshAfter || null,
     params.freshAfter || null,
     params.allowUnknownPublishedAt ? 1 : 0,
@@ -198,6 +204,7 @@ export async function listRunnableCrawlerTaskItems(params: {
         AND (
           status = 'PENDING'
           OR (status = 'RETRY_WAITING' AND (next_retry_at IS NULL OR next_retry_at <= NOW(3)))
+          OR (? = 1 AND status = 'SUCCESS')
         )
         AND retry_count < max_retry_count
         AND (? IS NULL OR published_at >= ? OR (? = 1 AND published_at IS NULL))
@@ -374,6 +381,7 @@ export async function reclaimStaleRunningCrawlerTaskItems(params: {
 
 export async function claimCrawlerTaskItem(params: {
   itemId: number;
+  reprocessSuccess?: boolean;
   taskId: number;
 }) {
   const affected = await prismaClient.$executeRawUnsafe(
@@ -389,11 +397,13 @@ export async function claimCrawlerTaskItem(params: {
         AND (
           status = 'PENDING'
           OR (status = 'RETRY_WAITING' AND (next_retry_at IS NULL OR next_retry_at <= NOW(3)))
+          OR (? = 1 AND status = 'SUCCESS')
         )
         AND retry_count < max_retry_count
     `,
     params.taskId,
     params.itemId,
+    params.reprocessSuccess ? 1 : 0,
   );
   return Number(affected || 0) > 0;
 }
@@ -449,7 +459,7 @@ export async function markCrawlerTaskItemSkipped(params: {
       WHERE item_id = ?
     `,
     params.taskId,
-    params.reason,
+    truncateSkipReason(params.reason),
     params.itemId,
   );
 }

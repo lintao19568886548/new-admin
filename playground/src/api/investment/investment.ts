@@ -23,6 +23,8 @@ export interface RadarListResponse<T> {
     pageSize: number;
     total: number;
   };
+  scope?: 'collected' | 'strict';
+  strictTotal?: number;
   total: number;
 }
 
@@ -136,9 +138,17 @@ export interface RadarFollowRecord {
 }
 
 export interface RadarLeadSop {
+  assignmentRecords: RadarAssignmentRecord[];
   followRecords: RadarFollowRecord[];
   reminders: RadarSopReminder[];
   visitRecords: RadarVisitRecord[];
+}
+
+export interface RadarAssignmentRecord {
+  assignmentSource?: null | string;
+  assignReason?: null | string;
+  createTime?: null | string;
+  ownerName?: null | string;
 }
 
 export interface RadarSopReminder {
@@ -181,15 +191,21 @@ export interface RadarAnalysisFunnel {
 
 export interface RadarAnalysisChannelStat {
   channel: string;
+  dealLeads?: number;
+  dealRate?: number;
   positiveRate: number;
   positiveReplies: number;
   repliedTasks: number;
   replyRate: number;
   sentTasks: number;
   totalTasks: number;
+  visitLeads?: number;
+  visitRate?: number;
 }
 
 export interface RadarAnalysisTemplateStat {
+  dealLeads?: number;
+  dealRate?: number;
   positiveRate: number;
   positiveReplies: number;
   repliedTasks: number;
@@ -197,6 +213,8 @@ export interface RadarAnalysisTemplateStat {
   templateCode: string;
   templateName: string;
   totalTasks: number;
+  visitLeads?: number;
+  visitRate?: number;
 }
 
 export interface RadarAnalysisSopStats {
@@ -234,6 +252,8 @@ export interface RadarAnalysisOwnerStat {
   dealLeads: number;
   dealRate: number;
   firstContactAvgHours: number;
+  firstContactTimelyLeads?: number;
+  firstContactTimelyRate?: number;
   followCount: number;
   ownerName: string;
   ownerUserId?: null | number;
@@ -273,6 +293,47 @@ export interface CreateRadarVisitPayload {
   scheduledTime: string;
   visitorName?: string;
   visitorPhone?: string;
+}
+
+export interface CompleteRadarVisitPayload {
+  actualTime?: string;
+  feedback: string;
+}
+
+export interface RadarSalesUser {
+  activeLeadCount: number;
+  parkName?: null | string;
+  userId: number;
+  userName: string;
+}
+
+export interface RadarSalesUserListParams {
+  keyword?: string;
+  parkId?: number;
+}
+
+export interface RadarLeadOwnerAssignPayload {
+  assignReason?: string;
+  ownerUserId: number;
+}
+
+export interface RadarLeadOwnerAssignResponse {
+  leadId: number;
+  ownerName: string;
+  ownerUserId: number;
+  stage: string;
+}
+
+export interface RadarLeadClosePayload {
+  reason?: string;
+  stage: 'DEAL' | 'INVALID' | string;
+}
+
+export interface RadarLeadCloseResponse {
+  invalidReason?: null | string;
+  leadId: number;
+  stage: string;
+  updateTime?: string;
 }
 
 export interface RadarLeadNavigationItem {
@@ -366,6 +427,7 @@ export interface PublicOpportunityListParams {
   opportunityType?: string;
   pageSize?: number;
   publishedAgeLabel?: string;
+  scope?: 'collected' | 'strict';
   sourceSite?: string;
 }
 
@@ -685,9 +747,53 @@ export interface PublicOpportunityCrawlerRunPayload {
   batchSize?: number;
   discoverList?: boolean;
   freshnessDays?: number;
+  ignoreInterval?: boolean;
   maxRetryCount?: number;
   retryDelayMinutes?: number;
   sourceCode?: string;
+}
+
+export interface RadarAcquisitionAnalytics {
+  funnel: {
+    companyLeadTotal: number;
+    conversionRate: number;
+    convertedToRadar: number;
+    signalConversionRate: number;
+    signalConvertedEvents: number;
+    signalEventTotal: number;
+  };
+  signalTypeConversion: RadarAnalysisSignalTypeStat[];
+  sourceConversion: RadarAnalysisSourceStat[];
+}
+
+export interface RadarChannelAnalyticsItem extends RadarAnalysisChannelStat {
+  sendRate?: number;
+}
+
+export type RadarTemplateAnalyticsItem = RadarAnalysisTemplateStat;
+
+export interface RadarPipelineRebuildResult {
+  assignedLeadCount: number;
+  createdOutreachTaskCount: number;
+  createdProfileCount: number;
+  createdSignalEventCount: number;
+  createdSignalEvidenceCount: number;
+  createdSopReminderCount: number;
+  createdTagCount: number;
+  deletedDirtySignalEventCount: number;
+  finishedAt: string;
+  outreachTargetLeadCount: number;
+  pendingOutreachTaskCount: number;
+  pendingSopReminderCount: number;
+  profileCompanyCount: number;
+  recalculatedLeadCount: number;
+  sourceLeadCount: number;
+  targetLeadCount: number;
+  totalLeadCount: number;
+  updatedProfileCount: number;
+  updatedSignalEventCount: number;
+  updatedSignalEvidenceCount: number;
+  updatedTagCount: number;
 }
 
 export type SignalEventStatus = 'CONVERTED' | 'IGNORED' | 'NEW' | 'REVIEWED';
@@ -941,6 +1047,7 @@ export interface OutreachSuggestion {
   contactRestrictionReason: string;
   industryName: string;
   intentArea: string;
+  latestContactTime?: string;
   leadId: number;
   parkName: string;
   phoneNumber: string;
@@ -990,6 +1097,55 @@ export interface ReplyOutreachTaskResponse {
   replyStatus: string;
   replyTime?: string;
   taskId: number;
+}
+
+export interface CancelOutreachTaskResponse {
+  resultCode: string;
+  resultMessage: string;
+  status: string;
+  taskId: number;
+}
+
+export interface RadarSopReminderListItem {
+  contactName?: null | string;
+  createTime?: null | string;
+  description?: null | string;
+  dueTime?: null | string;
+  enterpriseName: string;
+  handledTime?: null | string;
+  latestContactTime?: null | string;
+  leadId: number;
+  ownerName?: null | string;
+  parkName?: null | string;
+  phoneNumber?: null | string;
+  priorityLevel: string;
+  reminderId: number;
+  reminderStatus: string;
+  reminderType: string;
+  stage: string;
+  title: string;
+  totalScore: number;
+  updateTime?: null | string;
+}
+
+export interface RadarSopReminderListParams {
+  currentPage?: number;
+  keyword?: string;
+  pageSize?: number;
+  priorityLevel?: string;
+  reminderStatus?: string;
+  reminderType?: string;
+  stage?: string;
+}
+
+export interface RadarSopReminderSummary {
+  needVisitReminders: number;
+  newLeadReminders: number;
+  overdueReminders: number;
+  pendingReminders: number;
+  totalReminders: number;
+  visitFeedbackReminders: number;
+  weeklyFollowUpReminders: number;
 }
 
 export async function getInvestmentList(params: any) {
@@ -1290,6 +1446,27 @@ export async function runPublicOpportunityCrawlerTask(
   );
 }
 
+export async function runEiaCrawlerTask() {
+  return requestClient.post<CrawlerTask>(
+    '/investment/radar/crawler-task/run-eia',
+    {},
+  );
+}
+
+export async function runRecruitmentCrawlerTask() {
+  return requestClient.post<CrawlerTask>(
+    '/investment/radar/crawler-task/run-recruitment',
+    {},
+  );
+}
+
+export async function runTenderCrawlerTask() {
+  return requestClient.post<CrawlerTask>(
+    '/investment/radar/crawler-task/run-tender',
+    {},
+  );
+}
+
 export async function cancelCrawlerTask(taskId: number | string) {
   return requestClient.post<CrawlerTask>(
     `/investment/radar/crawler-task/${taskId}/cancel`,
@@ -1523,6 +1700,49 @@ export async function getRadarAnalysisSummary() {
   );
 }
 
+export async function getRadarAcquisitionAnalytics() {
+  return requestClient.get<RadarAcquisitionAnalytics>(
+    '/investment/radar/analytics/acquisition',
+    {
+      silentError: true,
+    },
+  );
+}
+
+export async function getRadarChannelAnalytics() {
+  return requestClient.get<RadarChannelAnalyticsItem[]>(
+    '/investment/radar/analytics/channel',
+    {
+      silentError: true,
+    },
+  );
+}
+
+export async function getRadarSalesAnalytics() {
+  return requestClient.get<RadarAnalysisOwnerStat[]>(
+    '/investment/radar/analytics/sales',
+    {
+      silentError: true,
+    },
+  );
+}
+
+export async function getRadarTemplateAnalytics() {
+  return requestClient.get<RadarTemplateAnalyticsItem[]>(
+    '/investment/radar/analytics/template',
+    {
+      silentError: true,
+    },
+  );
+}
+
+export async function rebuildRadarAcquisitionPipeline() {
+  return requestClient.post<RadarPipelineRebuildResult>(
+    '/investment/radar/pipeline/rebuild',
+    {},
+  );
+}
+
 export async function createRadarFollowRecord(
   leadId: number | string,
   data: CreateRadarFollowPayload,
@@ -1543,6 +1763,70 @@ export async function createRadarVisitRecord(
   );
 }
 
+export async function assignRadarLeadOwner(
+  leadId: number | string,
+  data: RadarLeadOwnerAssignPayload,
+) {
+  return requestClient.post<RadarLeadOwnerAssignResponse>(
+    `/investment/radar/lead/${leadId}/assign-owner`,
+    data,
+  );
+}
+
+export async function closeRadarLead(
+  leadId: number | string,
+  data: RadarLeadClosePayload,
+) {
+  return requestClient.post<RadarLeadCloseResponse>(
+    `/investment/radar/lead/${leadId}/close`,
+    data,
+  );
+}
+
+export async function getRadarSalesUserList(
+  params: RadarSalesUserListParams = {},
+) {
+  return requestClient.get<RadarListResponse<RadarSalesUser>>(
+    '/investment/radar/sales-user/list',
+    {
+      params,
+      silentError: true,
+    },
+  );
+}
+
+export async function completeRadarSopReminder(reminderId: number | string) {
+  return requestClient.post<{ reminderId: number; status: string }>(
+    `/investment/radar/sop-reminder/${reminderId}/complete`,
+    {},
+  );
+}
+
+export async function completeRadarVisitRecord(
+  visitId: number | string,
+  data: CompleteRadarVisitPayload,
+) {
+  return requestClient.post<{
+    actualTime: string;
+    feedback: string;
+    visitId: number;
+    visitStatus: string;
+  }>(`/investment/radar/visit-record/${visitId}/complete`, data);
+}
+
+export async function getRadarSopReminderList(
+  params: RadarSopReminderListParams,
+) {
+  return requestClient.get<
+    RadarListResponse<RadarSopReminderListItem> & {
+      summary: RadarSopReminderSummary;
+    }
+  >('/investment/radar/sop-reminder/list', {
+    params,
+    silentError: true,
+  });
+}
+
 export async function createOutreachTask(data: CreateOutreachTaskPayload) {
   return requestClient.post<OutreachTask>(
     '/investment/radar/outreach-task',
@@ -1557,6 +1841,13 @@ export async function mockSendOutreachTask(taskId: number | string) {
   );
 }
 
+export async function cancelOutreachTask(taskId: number | string) {
+  return requestClient.post<CancelOutreachTaskResponse>(
+    `/investment/radar/outreach-task/${taskId}/cancel`,
+    {},
+  );
+}
+
 export async function replyOutreachTask(
   taskId: number | string,
   data: ReplyOutreachTaskPayload,
@@ -1564,5 +1855,55 @@ export async function replyOutreachTask(
   return requestClient.post<ReplyOutreachTaskResponse>(
     `/investment/radar/outreach-task/${taskId}/reply`,
     data,
+  );
+}
+
+// ==================== 房源匹配相关 ====================
+
+export interface PropertyMatchItem {
+  address?: null | string;
+  availableArea: number;
+  factoryId: number;
+  factoryName: string;
+  floorCount?: number;
+  matchReasons: string[];
+  matchScore: number;
+  mismatchReminders: string[];
+  parkId?: null | number;
+  parkName?: null | string;
+  rentPrice?: number;
+  rentPriceText?: string;
+  salesPitch: string;
+  tag?: string;
+  title?: string;
+  totalArea: number;
+  usedArea?: number;
+}
+
+export interface RebuildPropertyMatchResponse {
+  matches: PropertyMatchItem[];
+  rebuiltAt: string;
+  totalCount: number;
+}
+
+/**
+ * 获取房源匹配结果
+ */
+export async function getPropertyMatchList(leadId: number | string) {
+  return requestClient.get<PropertyMatchItem[]>(
+    `/investment/radar/lead/${leadId}/property-match`,
+    {
+      silentError: true,
+    },
+  );
+}
+
+/**
+ * 重新计算房源匹配
+ */
+export async function rebuildPropertyMatch(leadId: number | string) {
+  return requestClient.post<RebuildPropertyMatchResponse>(
+    `/investment/radar/lead/${leadId}/rebuild-property-match`,
+    {},
   );
 }

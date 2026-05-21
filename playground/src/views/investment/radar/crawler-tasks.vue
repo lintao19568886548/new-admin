@@ -40,7 +40,10 @@ import {
   reclaimStaleCrawlerTaskItems,
   requeueCrawlerTaskItems,
   runCrawlerTask,
+  runEiaCrawlerTask,
   runPublicOpportunityCrawlerTask,
+  runRecruitmentCrawlerTask,
+  runTenderCrawlerTask,
   startPublicOpportunityCrawlerScheduler,
   stopPublicOpportunityCrawlerScheduler,
 } from '#/api/investment';
@@ -52,7 +55,10 @@ const PUBLIC_OPPORTUNITY_SOURCE_CODE = 'PUBLIC_OPPORTUNITY_99CFW';
 
 const loading = ref(false);
 const runningDemo = ref(false);
+const runningEia = ref(false);
 const runningPilot = ref(false);
+const runningRecruitment = ref(false);
+const runningTender = ref(false);
 const reclaimLoading = ref(false);
 const requeueLoading = ref(false);
 const detailLoading = ref(false);
@@ -122,13 +128,36 @@ const statusMeta: Record<string, { color: string; label: string }> = {
   SUCCESS: { color: 'green', label: '成功' },
 };
 const taskTypeLabel: Record<string, string> = {
+  MANUAL_DEMO: '示例数据采集',
+  MANUAL_EIA: '环评公示采集',
+  MANUAL_RECRUITMENT: '招聘扩产采集',
+  MANUAL_TENDER: '招投标信号采集',
   PUBLIC_FACTORY_LISTING_URL_BATCH: '公开厂房URL批量采集',
   PUBLIC_OPPORTUNITY_URL_BATCH: '公开机会URL批量采集',
+};
+const logLevelLabel: Record<string, string> = {
+  ERROR: '错误',
+  INFO: '信息',
+  WARN: '提醒',
+};
+const logStageLabel: Record<string, string> = {
+  ADAPTER: '采集适配',
+  DISCOVER: '发现链接',
+  FETCH: '抓取页面',
+  FINISH: '任务结束',
+  ITEM_FAIL: '单项失败',
+  ITEM_SUCCESS: '单项成功',
+  POLICY_SKIP: '策略跳过',
+  QUEUE: '队列处理',
+  RATE_LIMIT: '频率限制',
+  ROBOTS_CHECK: '路径校验',
+  SOURCE_VALIDATE: '数据源校验',
+  UPSERT_LEAD: '线索入库',
 };
 const sourceOptions = computed(() => [
   { label: '全部数据源', value: undefined },
   ...sourceItems.value.map((source) => ({
-    label: `${source.sourceName} (${source.sourceCode})`,
+    label: source.sourceName,
     value: source.sourceId,
   })),
 ]);
@@ -145,7 +174,8 @@ const selectedSource = computed(() =>
 const selectedPublicSourceCode = computed(() => {
   const sourceCode = selectedSource.value?.sourceCode;
   return sourceCode === PUBLIC_FACTORY_LISTING_SOURCE_CODE ||
-    sourceCode === PUBLIC_OPPORTUNITY_SOURCE_CODE
+    sourceCode === PUBLIC_OPPORTUNITY_SOURCE_CODE ||
+    sourceCode?.startsWith('PUBLIC_FACTORY_LISTING_')
     ? sourceCode
     : PUBLIC_OPPORTUNITY_SOURCE_CODE;
 });
@@ -160,6 +190,31 @@ function formatOptionalTime(value?: null | string) {
 
 function getStatusMeta(status: string) {
   return statusMeta[status] || { color: 'default', label: status };
+}
+
+function formatTaskType(taskType?: null | string) {
+  if (!taskType) {
+    return '-';
+  }
+  return taskTypeLabel[taskType] || '采集任务';
+}
+
+function formatSourceName(item?: null | { sourceName?: null | string }) {
+  return item?.sourceName || '采集数据源';
+}
+
+function formatLogLevel(level?: null | string) {
+  if (!level) {
+    return '-';
+  }
+  return logLevelLabel[level] || '信息';
+}
+
+function formatLogStage(stage?: null | string) {
+  if (!stage) {
+    return '-';
+  }
+  return logStageLabel[stage] || '任务处理';
 }
 
 function renderStatus(status: string) {
@@ -223,7 +278,7 @@ async function startAutoScheduler() {
   schedulerLoading.value = true;
   try {
     await startPublicOpportunityCrawlerScheduler();
-    message.success('99cfw auto scheduler started');
+    message.success('公开采集自动调度已启动');
     await loadOpsSummary();
   } catch (error) {
     console.error('start public opportunity crawler scheduler failed:', error);
@@ -240,7 +295,7 @@ async function stopAutoScheduler() {
   schedulerLoading.value = true;
   try {
     await stopPublicOpportunityCrawlerScheduler();
-    message.success('99cfw auto scheduler stopped');
+    message.success('公开采集自动调度已停止');
     await loadOpsSummary();
   } catch (error) {
     console.error('stop public opportunity crawler scheduler failed:', error);
@@ -308,17 +363,17 @@ async function runPublicOpportunityPilot() {
     return;
   }
   if (!publicOpportunityCanRun.value) {
-    message.warning('99cfw 采集未到下次可运行时间，请稍后再试');
+    message.warning('公开采集未到下次可运行时间，请稍后再试');
     return;
   }
   runningPilot.value = true;
   try {
     const task = await runPublicOpportunityCrawlerTask({
-      batchSize: 20,
-      freshnessDays: 180,
+      batchSize: 80,
+      freshnessDays: 365,
       sourceCode: selectedPublicSourceCode.value,
     });
-    message.success(`99cfw 试点采集已结束：${task.status}`);
+    message.success(`公开采集已结束：${task.status}`);
     pagination.value.current = 1;
     await loadTasks();
     await loadOpsSummary();
@@ -327,6 +382,65 @@ async function runPublicOpportunityPilot() {
     message.error('运行 99cfw 试点采集失败');
   } finally {
     runningPilot.value = false;
+  }
+}
+
+async function runEiaPilot() {
+  if (runningEia.value) {
+    return;
+  }
+  runningEia.value = true;
+  try {
+    const task = await runEiaCrawlerTask();
+    message.success(`环评公示采集已结束：${getStatusMeta(task.status).label}`);
+    pagination.value.current = 1;
+    await loadTasks();
+    await loadOpsSummary();
+  } catch (error) {
+    console.error('run eia crawler task failed:', error);
+    message.error('运行环评公示采集失败');
+  } finally {
+    runningEia.value = false;
+  }
+}
+
+async function runRecruitmentPilot() {
+  if (runningRecruitment.value) {
+    return;
+  }
+  runningRecruitment.value = true;
+  try {
+    const task = await runRecruitmentCrawlerTask();
+    message.success(`招聘扩产采集已结束：${getStatusMeta(task.status).label}`);
+    pagination.value.current = 1;
+    await loadTasks();
+    await loadOpsSummary();
+  } catch (error) {
+    console.error('run recruitment crawler task failed:', error);
+    message.error('运行招聘扩产采集失败');
+  } finally {
+    runningRecruitment.value = false;
+  }
+}
+
+async function runTenderPilot() {
+  if (runningTender.value) {
+    return;
+  }
+  runningTender.value = true;
+  try {
+    const task = await runTenderCrawlerTask();
+    message.success(
+      `招投标信号采集已结束：${getStatusMeta(task.status).label}`,
+    );
+    pagination.value.current = 1;
+    await loadTasks();
+    await loadOpsSummary();
+  } catch (error) {
+    console.error('run tender crawler task failed:', error);
+    message.error('运行招投标信号采集失败');
+  } finally {
+    runningTender.value = false;
   }
 }
 
@@ -388,11 +502,11 @@ async function reclaimStaleRunningItems() {
       sourceId: activeOpsSourceId.value,
       staleMinutes: 15,
     });
-    message.success(`已回收 ${result.reclaimedCount} 个超时 RUNNING URL 项`);
+    message.success(`已回收 ${result.reclaimedCount} 个超时执行 URL 项`);
     await refreshCrawlerOps();
   } catch (error) {
     console.error('reclaim stale crawler task items failed:', error);
-    message.error('回收超时 RUNNING URL 失败');
+    message.error('回收超时执行 URL 失败');
   } finally {
     reclaimLoading.value = false;
   }
@@ -486,15 +600,14 @@ async function cancelTask(record: CrawlerTask) {
 
 const columns: TableColumnsType<CrawlerTask> = [
   {
-    customRender: ({ record }) => record.sourceName || record.sourceCode || '-',
+    customRender: ({ record }) => formatSourceName(record),
     dataIndex: 'sourceName',
     key: 'sourceName',
     title: '数据源',
     width: 230,
   },
   {
-    customRender: ({ record }) =>
-      taskTypeLabel[record.taskType] || record.taskType,
+    customRender: ({ record }) => formatTaskType(record.taskType),
     dataIndex: 'taskType',
     key: 'taskType',
     title: '任务类型',
@@ -622,47 +735,35 @@ const columns: TableColumnsType<CrawlerTask> = [
 
 const logColumns: TableColumnsType<CrawlerTaskLog> = [
   {
+    customRender: ({ record }) => formatLogLevel(record.level),
     dataIndex: 'level',
     key: 'level',
-    title: 'level',
+    title: '等级',
     width: 90,
   },
   {
+    customRender: ({ record }) => formatLogStage(record.stage),
     dataIndex: 'stage',
     key: 'stage',
-    title: 'stage',
+    title: '阶段',
     width: 140,
   },
   {
     dataIndex: 'message',
     key: 'message',
-    title: 'message',
+    title: '日志内容',
     width: 260,
-  },
-  {
-    customRender: ({ record }) =>
-      record.detailJson ? JSON.stringify(record.detailJson, null, 2) : '-',
-    dataIndex: 'detailJson',
-    key: 'detailJson',
-    title: 'detailJson',
-    width: 360,
   },
   {
     customRender: ({ record }) => formatOptionalTime(record.createTime),
     dataIndex: 'createTime',
     key: 'createTime',
-    title: 'createTime',
+    title: '时间',
     width: 170,
   },
 ];
 
 const taskItemColumns: TableColumnsType<CrawlerTaskItem> = [
-  {
-    dataIndex: 'itemId',
-    key: 'itemId',
-    title: '采集项ID',
-    width: 90,
-  },
   {
     customRender: ({ record }) => renderStatus(record.status),
     dataIndex: 'status',
@@ -678,9 +779,10 @@ const taskItemColumns: TableColumnsType<CrawlerTaskItem> = [
     width: 90,
   },
   {
-    dataIndex: 'sourceRefId',
-    key: 'sourceRefId',
-    title: '来源ID',
+    customRender: ({ record }) =>
+      record.sourceRefType || record.sourceRefId ? '已关联' : '-',
+    key: 'sourceRef',
+    title: '来源类型',
     width: 110,
   },
   {
@@ -742,7 +844,7 @@ onMounted(() => {
   <div class="crawler-tasks-pane">
     <Alert
       class="mb-3"
-      message="采集任务按数据源异步执行。demo 使用本地固定数据；99cfw 试点按 5 分钟后台调度、批量 URL 队列、白名单列表发现和失败重试执行；失败 URL 会进入 RETRY_WAITING/FAILED，不会展示到外部线索或企业信号。"
+      message="采集任务按数据源异步执行。demo 使用本地固定数据；99cfw 试点按 5 分钟后台调度、批量 URL 队列、白名单列表发现和失败重试执行；环评公示采集会沉淀为外部线索和证据链。"
       show-icon
       type="info"
     />
@@ -750,19 +852,15 @@ onMounted(() => {
     <Card class="mb-3" title="99cfw 试点运维摘要">
       <div v-if="opsSummaryLoading" class="py-4 text-center">加载中...</div>
       <Descriptions v-else-if="opsSummary" bordered :column="3" size="small">
-        <Descriptions.Item label="source">
-          {{
-            opsSummary.source
-              ? `${opsSummary.source.sourceName} (${opsSummary.source.sourceCode})`
-              : '-'
-          }}
+        <Descriptions.Item label="数据源">
+          {{ formatSourceName(opsSummary.source) }}
         </Descriptions.Item>
-        <Descriptions.Item label="enabled">
+        <Descriptions.Item label="状态">
           <Tag :color="opsSummary.source?.enabled ? 'green' : 'red'">
             {{ opsSummary.source?.enabled ? '启用' : '停用' }}
           </Tag>
         </Descriptions.Item>
-        <Descriptions.Item label="lastCrawledAt">
+        <Descriptions.Item label="上次采集">
           {{ formatOptionalTime(opsSummary.source?.lastCrawledAt) }}
         </Descriptions.Item>
         <Descriptions.Item label="scheduler">
@@ -829,7 +927,7 @@ onMounted(() => {
               v-for="item in opsSummary.latestFailedItems"
               :key="item.itemId"
             >
-              #{{ item.itemId }} {{ item.status }} /
+              {{ item.status }} /
               {{ item.lastError || item.skipReason || '-' }} /
               {{ item.sourceUrl }}
               <Button
@@ -864,7 +962,7 @@ onMounted(() => {
           恢复失败/跳过 URL
         </Button>
         <Button :loading="reclaimLoading" @click="reclaimStaleRunningItems">
-          回收超时 RUNNING URL
+          回收超时执行 URL
         </Button>
       </Space>
     </Card>
@@ -910,7 +1008,24 @@ onMounted(() => {
               type="primary"
               @click="runPublicOpportunityPilot"
             >
-              运行 99cfw 试点采集
+              运行公开采集
+            </Button>
+            <Button :loading="runningEia" type="primary" @click="runEiaPilot">
+              运行环评采集
+            </Button>
+            <Button
+              :loading="runningRecruitment"
+              type="primary"
+              @click="runRecruitmentPilot"
+            >
+              运行招聘采集
+            </Button>
+            <Button
+              :loading="runningTender"
+              type="primary"
+              @click="runTenderPilot"
+            >
+              运行招投标采集
             </Button>
           </Space>
         </Form.Item>
@@ -942,51 +1057,44 @@ onMounted(() => {
         加载中...
       </div>
       <Descriptions v-else-if="currentTask" bordered :column="2" size="small">
-        <Descriptions.Item label="status">
+        <Descriptions.Item label="状态">
           <Tag :color="getStatusMeta(currentTask.status).color">
             {{ getStatusMeta(currentTask.status).label }}
           </Tag>
         </Descriptions.Item>
-        <Descriptions.Item label="source">
-          {{ currentTask.sourceName || currentTask.sourceCode || '-' }}
+        <Descriptions.Item label="数据源">
+          {{ formatSourceName(currentTask) }}
         </Descriptions.Item>
-        <Descriptions.Item label="taskType">
-          {{ currentTask.taskType }}
+        <Descriptions.Item label="任务类型">
+          {{ formatTaskType(currentTask.taskType) }}
         </Descriptions.Item>
-        <Descriptions.Item label="fetchedCount">
+        <Descriptions.Item label="抓取数">
           {{ currentTask.fetchedCount }}
         </Descriptions.Item>
-        <Descriptions.Item label="skippedCount">
+        <Descriptions.Item label="跳过数">
           {{ currentTask.skippedCount }}
         </Descriptions.Item>
-        <Descriptions.Item label="createdLeadCount">
+        <Descriptions.Item label="新增线索">
           {{ currentTask.createdLeadCount }}
         </Descriptions.Item>
-        <Descriptions.Item label="updatedLeadCount">
+        <Descriptions.Item label="更新线索">
           {{ currentTask.updatedLeadCount }}
         </Descriptions.Item>
-        <Descriptions.Item label="URL item stats" :span="2">
-          PENDING {{ currentTask.pendingItemCount || 0 }} / RETRY_WAITING
-          {{ currentTask.retryWaitingItemCount || 0 }} / SUCCESS
-          {{ currentTask.successItemCount || 0 }} / FAILED
-          {{ currentTask.failedItemCount || 0 }} / SKIPPED
+        <Descriptions.Item label="URL 采集项" :span="2">
+          待处理 {{ currentTask.pendingItemCount || 0 }} / 重试
+          {{ currentTask.retryWaitingItemCount || 0 }} / 成功
+          {{ currentTask.successItemCount || 0 }} / 失败
+          {{ currentTask.failedItemCount || 0 }} / 跳过
           {{ currentTask.skippedItemCount || 0 }}
         </Descriptions.Item>
-        <Descriptions.Item label="startedAt">
+        <Descriptions.Item label="开始时间">
           {{ formatOptionalTime(currentTask.startedAt) }}
         </Descriptions.Item>
-        <Descriptions.Item label="finishedAt">
+        <Descriptions.Item label="完成时间">
           {{ formatOptionalTime(currentTask.finishedAt) }}
         </Descriptions.Item>
-        <Descriptions.Item label="errorMessage" :span="2">
+        <Descriptions.Item label="错误信息" :span="2">
           {{ currentTask.errorMessage || '-' }}
-        </Descriptions.Item>
-        <Descriptions.Item label="requestConfigJson" :span="2">
-          <pre class="task-json">{{
-            currentTask.requestConfigJson
-              ? JSON.stringify(currentTask.requestConfigJson, null, 2)
-              : '-'
-          }}</pre>
         </Descriptions.Item>
       </Descriptions>
       <Empty v-else description="暂无详情数据" />
@@ -1005,7 +1113,7 @@ onMounted(() => {
         :loading="logLoading"
         :pagination="false"
         row-key="logId"
-        :scroll="{ x: 1020 }"
+        :scroll="{ x: 660 }"
         size="small"
       />
     </Drawer>
@@ -1017,7 +1125,7 @@ onMounted(() => {
       width="1180"
     >
       <Form class="radar-search-form mb-3" layout="inline">
-        <Form.Item label="status">
+        <Form.Item label="状态">
           <Select
             v-model:value="itemSearchForm.status"
             class="radar-filter-control"

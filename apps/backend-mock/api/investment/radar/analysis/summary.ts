@@ -1,5 +1,7 @@
+import { eventHandler } from 'h3';
 import { prismaClient } from '~/utils/db';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
+import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   serverErrorResponse,
   unAuthorizedResponse,
@@ -338,18 +340,37 @@ export default eventHandler(async (event) => {
         visitRate: toRate(item.visitLeads, item.radarLeads),
       }));
 
-      const ownerFollowJoin = hasOutreachTaskTable
+      const [hasFollowRecordTable, hasVisitRecordTable] = await Promise.all([
+        tableExists('investment_follow_record'),
+        tableExists('investment_visit_record'),
+      ]);
+
+      const ownerFollowJoin = hasFollowRecordTable
         ? `
           LEFT JOIN (
             SELECT lead_id, COUNT(*) AS followCount
-            FROM investment_outreach_task
+            FROM investment_follow_record
             GROUP BY lead_id
-          ) ft ON ft.lead_id = l.lead_id
+          ) fr ON fr.lead_id = l.lead_id
         `
         : '';
-      const ownerFollowCountExpression = hasOutreachTaskTable
-        ? 'SUM(COALESCE(ft.followCount, 0))'
+      const ownerFollowCountExpression = hasFollowRecordTable
+        ? 'SUM(COALESCE(fr.followCount, 0))'
         : '0';
+
+      const ownerVisitJoin = hasVisitRecordTable
+        ? `
+          LEFT JOIN (
+            SELECT lead_id, COUNT(*) AS visitCount
+            FROM investment_visit_record
+            GROUP BY lead_id
+          ) vr ON vr.lead_id = l.lead_id
+        `
+        : '';
+      const ownerVisitCountExpression = hasVisitRecordTable
+        ? 'SUM(COALESCE(vr.visitCount, 0))'
+        : '0';
+
       const ownerRows = await prismaClient.$queryRawUnsafe<
         Array<
           Record<string, CountValue> & {
@@ -363,7 +384,7 @@ export default eventHandler(async (event) => {
             COALESCE(NULLIF(COALESCE(u.real_name, u.username), ''), '未分配') AS ownerName,
             COUNT(*) AS totalLeads,
             SUM(CASE WHEN l.latest_contact_time IS NOT NULL OR l.stage IN ('CONTACTED', 'REPLIED', 'VISIT', 'DEAL') THEN 1 ELSE 0 END) AS contactedLeads,
-            SUM(CASE WHEN l.stage IN ('VISIT', 'DEAL') THEN 1 ELSE 0 END) AS visitCount,
+            ${ownerVisitCountExpression} AS visitCount,
             SUM(CASE WHEN l.stage = 'DEAL' THEN 1 ELSE 0 END) AS dealLeads,
             ${ownerFollowCountExpression} AS followCount,
             AVG(
@@ -375,6 +396,7 @@ export default eventHandler(async (event) => {
           FROM investment_lead l
           LEFT JOIN user u ON u.id = l.owner_user_id
           ${ownerFollowJoin}
+          ${ownerVisitJoin}
           WHERE l.is_deleted = 0
           GROUP BY l.owner_user_id, ownerName
           ORDER BY totalLeads DESC
@@ -398,13 +420,32 @@ export default eventHandler(async (event) => {
         visitCount: toNumber(item.visitCount),
       }));
 
+      // 真实读取 SOP 统计数据
+      const hasSopReminderTable = await tableExists('investment_sop_reminder');
+
+      let pendingReminders = 0;
+      let overdueReminders = 0;
+
+      if (hasSopReminderTable) {
+        const sopRows = await prismaClient.$queryRawUnsafe<
+          Array<Record<string, CountValue>>
+        >(`
+          SELECT
+            SUM(CASE WHEN reminder_status = 'PENDING' AND due_time >= NOW() THEN 1 ELSE 0 END) AS pendingReminders,
+            SUM(CASE WHEN reminder_status = 'PENDING' AND due_time < NOW() THEN 1 ELSE 0 END) AS overdueReminders
+          FROM investment_sop_reminder
+        `);
+        pendingReminders = toNumber(sopRows[0]?.pendingReminders);
+        overdueReminders = toNumber(sopRows[0]?.overdueReminders);
+      }
+
       const sopStats = {
         followCount: ownerStats.reduce(
           (sum, item) => sum + item.followCount,
           0,
         ),
-        overdueReminders: 0,
-        pendingReminders: 0,
+        overdueReminders,
+        pendingReminders,
         visitCount: ownerStats.reduce((sum, item) => sum + item.visitCount, 0),
       };
 

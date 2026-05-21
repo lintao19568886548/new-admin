@@ -86,7 +86,7 @@ const quickNavItems = computed((): WorkbenchQuickNavItem[] => {
       color: '#1fdaca',
       icon: 'ion:home-outline',
       title: '首页',
-      url: '/',
+      url: '/workbench',
     },
     {
       color: '#bf0c2c',
@@ -98,13 +98,13 @@ const quickNavItems = computed((): WorkbenchQuickNavItem[] => {
       color: '#e18525',
       icon: 'mdi:office-building',
       title: '招商管理',
-      url: isMobileView ? '/investment/mobile' : '/investment',
+      url: '/investment/app',
     },
     {
       color: '#3fb27f',
       icon: 'mdi:currency-usd',
       title: '财务管理',
-      url: isMobileView ? '/mobile-manage' : '/finance/manage',
+      url: isMobileView ? '/finance/mobile-manage' : '/finance/manage',
     },
     {
       color: '#4daf1bc9',

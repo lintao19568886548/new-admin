@@ -1,10 +1,35 @@
+import type {
+  PublicOpportunityQualityResult,
+  PublicOpportunityQualityStatus,
+} from './public-opportunity-quality';
+
 import { createHash, randomUUID } from 'node:crypto';
 
 import { prismaClient } from '~/utils/db';
 
 import { rebuildExternalLeadsFromPublicOpportunity } from './public-opportunity-lead-rebuilder';
+import {
+  evaluatePublicOpportunityQuality,
+  parsePublicPublishedAt,
+} from './public-opportunity-quality';
 
 type PublicOpportunityType = 'DEMAND' | 'SUPPLY';
+
+const CRAWLER_WRITABLE_QUALITY_STATUSES =
+  new Set<PublicOpportunityQualityStatus>(['EFFECTIVE', 'VERIFIED']);
+
+export class PublicOpportunityQualitySkipError extends Error {
+  qualityResult: PublicOpportunityQualityResult;
+  skipReason: string;
+
+  constructor(qualityResult: PublicOpportunityQualityResult) {
+    const skipReason = `QUALITY_${qualityResult.status}`;
+    super(skipReason);
+    this.name = 'PublicOpportunityQualitySkipError';
+    this.qualityResult = qualityResult;
+    this.skipReason = skipReason;
+  }
+}
 
 export interface PublicOpportunityManualInput {
   areaText?: null | string;
@@ -23,6 +48,7 @@ export interface PublicOpportunityManualInput {
 
 export interface PublicOpportunityCrawlerInput extends PublicOpportunityManualInput {
   detailJson?: unknown;
+  opportunityStatus?: null | string;
   publishedAt?: null | string;
   publishedDateText?: null | string;
   score?: null | number;
@@ -100,6 +126,23 @@ function toJson(value: unknown) {
   return JSON.stringify(value);
 }
 
+function normalizeDetailJsonObject(value: unknown) {
+  if (!value || Array.isArray(value)) {
+    return null;
+  }
+  if (typeof value === 'object') {
+    return value as Record<string, unknown>;
+  }
+  try {
+    const parsed = JSON.parse(String(value));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function buildManualSourceId(sourceUrl: string) {
   const hash = createHash('sha256').update(sourceUrl).digest('hex');
   return Number.parseInt(hash.slice(0, 7), 16);
@@ -118,26 +161,61 @@ function normalizeCrawlerInput(input: PublicOpportunityCrawlerInput) {
 
   const rawSourceUrl = normalizeOptionalString(input.sourceUrl, 500);
   if (!rawSourceUrl) {
-    throw new Error('sourceUrl is required');
+    throw new PublicOpportunityQualitySkipError({
+      city: null,
+      missingFields: ['sourceUrl'],
+      reasons: ['SOURCE_URL_MISSING_OR_INVALID'],
+      status: 'SOURCE_LOST',
+    });
   }
 
   const publishedAt = input.publishedAt
     ? new Date(String(input.publishedAt))
     : null;
-  const validPublishedAt =
-    publishedAt && !Number.isNaN(publishedAt.getTime())
-      ? publishedAt.toISOString()
-      : null;
+  const parsedPublishedDateText = parsePublicPublishedAt(
+    input.publishedDateText,
+  );
+  let validPublishedAt: null | string = null;
+  if (publishedAt && !Number.isNaN(publishedAt.getTime())) {
+    validPublishedAt = publishedAt.toISOString();
+  } else if (parsedPublishedDateText) {
+    validPublishedAt = parsedPublishedDateText.toISOString();
+  }
+  const detailJson = input.detailJson ?? null;
+  const detailJsonObject = normalizeDetailJsonObject(detailJson);
+  const opportunityType = normalizeOpportunityType(input.opportunityType);
+  const qualityResult = evaluatePublicOpportunityQuality({
+    areaText: input.areaText,
+    city: input.city,
+    contactName: input.contactName,
+    description: input.description,
+    detailJson: detailJsonObject,
+    district: input.district,
+    opportunityStatus: input.opportunityStatus,
+    opportunityType,
+    phoneNumber: input.phoneNumber,
+    priceText: input.priceText,
+    publishedAt: validPublishedAt,
+    publishedDateText: input.publishedDateText,
+    sourceSite: input.sourceSite,
+    sourceUrl: rawSourceUrl,
+    title,
+  });
+  const qualityDetailJson = {
+    ...detailJsonObject,
+    qualityResult,
+  };
 
   return {
     areaText: normalizeOptionalString(input.areaText, 100),
     city: normalizeOptionalString(input.city, 100),
     contactName: normalizeOptionalString(input.contactName, 100),
     description: normalizeOptionalString(input.description, 5000),
-    detailJson: input.detailJson ?? null,
+    detailJson: qualityDetailJson,
     district: normalizeOptionalString(input.district, 100),
     industryText: normalizeOptionalString(input.industryText, 100),
-    opportunityType: normalizeOpportunityType(input.opportunityType),
+    opportunityStatus: qualityResult.status,
+    opportunityType,
     phoneNumber: normalizeOptionalString(input.phoneNumber, 50),
     priceText: normalizeOptionalString(input.priceText, 100),
     publishedAt: validPublishedAt,
@@ -159,9 +237,11 @@ function normalizeCrawlerInput(input: PublicOpportunityCrawlerInput) {
     sourceUrl: rawSourceUrl,
     tagsJson: input.tagsJson ?? [
       'crawler',
-      normalizeOpportunityType(input.opportunityType),
+      opportunityType,
+      qualityResult.status,
     ],
     title: title.slice(0, 255),
+    qualityResult,
   };
 }
 
@@ -437,6 +517,10 @@ export async function upsertCrawlerPublicOpportunity(
   await ensurePublicOpportunityStorage();
 
   const normalized = normalizeCrawlerInput(input);
+  if (!CRAWLER_WRITABLE_QUALITY_STATUSES.has(normalized.qualityResult.status)) {
+    throw new PublicOpportunityQualitySkipError(normalized.qualityResult);
+  }
+
   const detailJson = toJson(normalized.detailJson);
   const tagsJson = toJson(normalized.tagsJson);
   const existingRows = await prismaClient.$queryRawUnsafe<
@@ -486,9 +570,9 @@ export async function upsertCrawlerPublicOpportunity(
           contact_name = ?,
           phone_number = ?,
           description = ?,
-          published_at = COALESCE(?, published_at),
-          published_date_text = COALESCE(?, published_date_text),
-          opportunity_status = 'EFFECTIVE',
+          published_at = ?,
+          published_date_text = ?,
+          opportunity_status = ?,
           score = ?,
           tags_json = ?,
           detail_json = ?,
@@ -513,6 +597,7 @@ export async function upsertCrawlerPublicOpportunity(
       normalized.description,
       normalized.publishedAt ? new Date(normalized.publishedAt) : null,
       normalized.publishedDateText,
+      normalized.opportunityStatus,
       normalized.score,
       tagsJson,
       detailJson,
@@ -521,6 +606,7 @@ export async function upsertCrawlerPublicOpportunity(
     return {
       created: false,
       opportunity: await getPublicOpportunityById(existingId),
+      qualityResult: normalized.qualityResult,
     };
   }
 
@@ -537,7 +623,7 @@ export async function upsertCrawlerPublicOpportunity(
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?,
-        ?, 'EFFECTIVE', ?, ?,
+        ?, ?, ?, ?,
         ?, NOW(3), NOW(3), NOW(3)
       )
     `,
@@ -558,6 +644,7 @@ export async function upsertCrawlerPublicOpportunity(
     normalized.description,
     normalized.publishedAt ? new Date(normalized.publishedAt) : null,
     normalized.publishedDateText,
+    normalized.opportunityStatus,
     normalized.score,
     tagsJson,
     detailJson,
@@ -583,6 +670,7 @@ export async function upsertCrawlerPublicOpportunity(
   return {
     created: true,
     opportunity: await getPublicOpportunityById(opportunityId),
+    qualityResult: normalized.qualityResult,
   };
 }
 
