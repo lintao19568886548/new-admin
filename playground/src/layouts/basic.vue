@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { PluginListenerHandle } from '@capacitor/core';
+
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -23,36 +25,43 @@ import { useLayoutStore } from '#/store/layout';
 import EditPassword from '#/views/_core/authentication/edit-password.vue';
 import LoginForm from '#/views/_core/authentication/login.vue';
 
+const FALLBACK_NOT_FOUND_NAME = 'FallbackNotFound';
 const isMobile = ref(false);
+let backButtonListener: null | PluginListenerHandle = null;
 
 const handleResize = () => {
   isMobile.value = window.innerWidth < 768;
 };
 
-onMounted(() => {
+onMounted(async () => {
   handleResize();
   window.addEventListener('resize', handleResize);
 
   // 处理硬件返回按钮
   if (Capacitor.isNativePlatform()) {
-    App.addListener('backButton', ({ canGoBack }: any) => {
-      if (canGoBack) {
-        router.back();
-      } else {
-        // 在首页时，最小化应用而不是退出
-        App.minimizeApp();
-      }
-    });
+    backButtonListener = await App.addListener(
+      'backButton',
+      ({ canGoBack }) => {
+        if (router.currentRoute.value.name === FALLBACK_NOT_FOUND_NAME) {
+          void router.replace('/home');
+          return;
+        }
+
+        if (canGoBack) {
+          router.back();
+        } else {
+          // 在首页时，最小化应用而不是退出
+          App.minimizeApp();
+        }
+      },
+    );
   }
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
 
-  // 清理 Capacitor 监听器
-  if (Capacitor.isNativePlatform()) {
-    App.removeAllListeners();
-  }
+  void backButtonListener?.remove();
 });
 
 const router = useRouter();
@@ -248,12 +257,17 @@ function goTo(path: string) {
 }
 
 function goBack() {
+  if (router.currentRoute.value.name === FALLBACK_NOT_FOUND_NAME) {
+    void router.replace('/home');
+    return;
+  }
+
   // 检查是否有历史记录
   if (window.history.length > 1) {
     router.back();
   } else {
     // 没有历史记录时，导航到首页而不是退出应用
-    router.push('/home');
+    router.replace('/home');
   }
 }
 </script>
