@@ -295,10 +295,6 @@ const fetchMeterStatistics = async () => {
           : [],
       },
     };
-
-    if (!res.hasData && res.message) {
-      message.info(res.message);
-    }
   } catch (error) {
     console.error('获取表计数量统计数据失败:', error);
     message.error('获取表计数量统计数据失败');

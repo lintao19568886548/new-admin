@@ -235,10 +235,6 @@ const fetchElectricityStats = async () => {
         : defaultElectricityStats.months,
       year: Number(res.year || currentYear),
     };
-
-    if (!res.hasData && res.message) {
-      message.info(res.message);
-    }
   } catch (error) {
     console.error('获取电消耗数据失败:', error);
     message.error('获取电消耗数据失败');
@@ -271,10 +267,6 @@ const fetchWaterStats = async () => {
       },
       year: Number(res.year || currentYear),
     };
-
-    if (!res.hasData && res.message) {
-      message.info(res.message);
-    }
   } catch (error) {
     console.error('获取水消耗数据失败:', error);
     message.error('获取水消耗数据失败');
