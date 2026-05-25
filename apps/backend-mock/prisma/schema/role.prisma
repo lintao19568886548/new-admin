@@ -26,6 +26,11 @@ model Code {
   name       String     @db.VarChar(50)
   content    String?    @db.VarChar(100)
   menuId     Int?       @unique @map("menu_id") // 与菜单的一对一关联
+  templateKey       String?   @unique @map("template_key") @db.VarChar(191)
+  templateVersion   Int       @default(1) @map("template_version")
+  templateManaged   Boolean   @default(false) @map("template_managed")
+  templateInternalOnly Boolean @default(false) @map("template_internal_only")
+  templateDeletedAt DateTime? @map("template_deleted_at")
   menu       Menu?      @relation("MenuToCode", fields: [menuId], references: [menuId], onDelete: Cascade)
   roleCodes  RoleCode[] @relation("CodeToRoleCode")
   createTime DateTime?  @default(now()) @map("create_time")
@@ -33,6 +38,8 @@ model Code {
 
   @@index([codeId])
   @@index([menuId])
+  @@index([templateManaged, templateInternalOnly, templateDeletedAt])
+  @@index([templateManaged, templateDeletedAt])
   @@map("code")
 }
 
