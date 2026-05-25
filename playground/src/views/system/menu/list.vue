@@ -39,7 +39,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
     },
     rowConfig: {
-      keyField: 'id',
+      keyField: 'menuId',
     },
     toolbarConfig: {
       custom: true,
@@ -49,6 +49,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     treeConfig: {
       parentField: 'pid',
+      reserve: true,
       rowField: 'menuId', // 使用menuId而不是id
       transform: false,
     },
