@@ -340,6 +340,43 @@ const schema: VbenFormSchema[] = [
   },
   {
     component: 'Divider',
+    fieldName: 'templateDivider',
+    formItemClass: 'col-span-2 md:col-span-2 pb-0',
+    hideLabel: true,
+    renderComponentContent() {
+      return {
+        default: () => $t('system.menu.templateSettings'),
+      };
+    },
+  },
+  {
+    component: 'Switch',
+    componentProps: {
+      checkedChildren: $t('common.enabled'),
+      unCheckedChildren: $t('common.disabled'),
+    },
+    defaultValue: false,
+    fieldName: 'templateManaged',
+    label: $t('system.menu.templateManaged'),
+  },
+  {
+    component: 'Switch',
+    componentProps(values) {
+      return {
+        checkedChildren: $t('common.enabled'),
+        disabled: !values.templateManaged,
+        unCheckedChildren: $t('common.disabled'),
+      };
+    },
+    defaultValue: false,
+    dependencies: {
+      triggerFields: ['templateManaged'],
+    },
+    fieldName: 'templateInternalOnly',
+    label: $t('system.menu.templateInternalOnly'),
+  },
+  {
+    component: 'Divider',
     dependencies: {
       show: (values) => {
         return !['button', 'link'].includes(values.type);

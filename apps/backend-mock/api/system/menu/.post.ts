@@ -1,5 +1,18 @@
 import { useResponseError, useResponseSuccess } from '~/utils/response';
 
+function normalizeBoolean(value: unknown) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value === 1;
+  }
+  if (typeof value === 'string') {
+    return ['1', 'true'].includes(value.trim().toLowerCase());
+  }
+  return false;
+}
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -7,12 +20,17 @@ export default eventHandler(async (event) => {
   }
   const body = await readBody(event);
   const { meta, ...menuData } = body;
+  const templateData = {
+    templateInternalOnly: normalizeBoolean(menuData.templateInternalOnly),
+    templateManaged: normalizeBoolean(menuData.templateManaged),
+  };
   try {
     const res = await prismaClient.$transaction(async (prisma) => {
       // 创建菜单
       const menu = await prisma.menu.create({
         data: {
           ...menuData,
+          ...templateData,
           meta: {
             create: meta,
           },
@@ -30,6 +48,7 @@ export default eventHandler(async (event) => {
             name: meta.title,
             content: meta.title,
             menuId: menu.menuId,
+            ...templateData,
           },
         });
       }

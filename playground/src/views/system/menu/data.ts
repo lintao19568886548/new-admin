@@ -80,6 +80,30 @@ export function useColumns(
       title: $t('system.menu.status'),
       width: 100,
     },
+    {
+      cellRender: {
+        name: 'CellTag',
+        options: [
+          { color: 'processing', label: $t('common.enabled'), value: true },
+          { color: 'default', label: $t('common.disabled'), value: false },
+        ],
+      },
+      field: 'templateManaged',
+      title: $t('system.menu.templateManaged'),
+      width: 120,
+    },
+    {
+      cellRender: {
+        name: 'CellTag',
+        options: [
+          { color: 'warning', label: $t('common.enabled'), value: true },
+          { color: 'default', label: $t('common.disabled'), value: false },
+        ],
+      },
+      field: 'templateInternalOnly',
+      title: $t('system.menu.templateInternalOnly'),
+      width: 120,
+    },
 
     {
       align: 'right',
