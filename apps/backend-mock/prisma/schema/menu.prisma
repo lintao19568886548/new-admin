@@ -9,6 +9,12 @@ model Menu {
   component  String?    @db.VarChar(100)
   pid        Int?
   authCode   String?    @map("auth_code") @db.VarChar(100)
+  templateKey       String?   @unique @map("template_key") @db.VarChar(191)
+  templateParentKey String?   @map("template_parent_key") @db.VarChar(191)
+  templateVersion   Int       @default(1) @map("template_version")
+  templateManaged   Boolean   @default(false) @map("template_managed")
+  templateInternalOnly Boolean @default(false) @map("template_internal_only")
+  templateDeletedAt DateTime? @map("template_deleted_at")
   roleMenus  RoleMenu[] @relation("MenuToRoleMenu")
   code       Code?      @relation("MenuToCode") // 与权限码的一对一关联
   children   Menu[]     @relation("MenuToMenu")
@@ -16,6 +22,9 @@ model Menu {
   meta       MenuMeta?  @relation("MenuToMenuMeta")
 
   @@index([pid])
+  @@index([templateParentKey])
+  @@index([templateManaged, templateInternalOnly, templateDeletedAt])
+  @@index([templateManaged, templateDeletedAt])
   @@map("menu")
 }
 

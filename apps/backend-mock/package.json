@@ -22,6 +22,7 @@
     "prisma:push": "pnpm exec prisma db push",
     "prisma:push:center": "pnpm exec cross-env PRISMA_TARGET=center prisma db push",
     "prisma:push:notices": "pnpm exec cross-env PRISMA_TARGET=notices prisma db push",
+    "menu-template:backfill-keys": "node ./scripts/backfill-menu-template-keys.mjs",
     "tenant-provisioning:requeue-failed-manual": "node ./scripts/requeue-failed-manual-tenant-provisioning.mjs",
     "vip-membership:migrate-legacy": "node ./scripts/migrate-legacy-vip-membership.mjs",
     "trial:reset-public": "node ./scripts/reset-public-trial-start.mjs"
