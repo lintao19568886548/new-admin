@@ -85,6 +85,18 @@ export namespace SystemMenuApi {
     pid: string;
     /** 重定向 */
     redirect?: string;
+    /** 模板下线时间 */
+    templateDeletedAt?: string;
+    /** 是否仅内部使用，不发布到 public 或租户库 */
+    templateInternalOnly?: boolean;
+    /** 模板稳定键 */
+    templateKey?: string;
+    /** 是否进入菜单模板体系 */
+    templateManaged?: boolean;
+    /** 模板父级稳定键 */
+    templateParentKey?: string;
+    /** 模板版本 */
+    templateVersion?: number;
     /** 菜单类型 */
     type: (typeof MenuTypes)[number];
   }

@@ -1,0 +1,40 @@
+model MenuTemplateSyncJob {
+  id               Int                   @id @default(autoincrement())
+  mode             String                @default("dry_run") @db.VarChar(20)
+  sourceCustomerId String                @map("source_customer_id") @db.VarChar(50)
+  targetScope      String                @map("target_scope") @db.VarChar(32)
+  targetCustomerId String?               @map("target_customer_id") @db.VarChar(50)
+  status           String                @default("pending") @db.VarChar(32)
+  summary          Json?
+  errorMessage     String?               @map("error_message") @db.LongText
+  startedAt        DateTime?             @map("started_at")
+  completedAt      DateTime?             @map("completed_at")
+  createTime       DateTime?             @default(now()) @map("create_time")
+  updateTime       DateTime?             @updatedAt @map("update_time")
+  logs             MenuTemplateSyncLog[] @relation("MenuTemplateSyncJobToLog")
+
+  @@index([mode, status])
+  @@index([sourceCustomerId])
+  @@index([targetScope])
+  @@index([targetCustomerId])
+  @@map("menu_template_sync_job")
+}
+
+model MenuTemplateSyncLog {
+  id               Int                 @id @default(autoincrement())
+  jobId            Int                 @map("job_id")
+  targetCustomerId String              @map("target_customer_id") @db.VarChar(50)
+  targetDbName     String?             @map("target_db_name") @db.VarChar(100)
+  status           String              @db.VarChar(32)
+  summary          Json?
+  details          Json?
+  errorMessage     String?             @map("error_message") @db.LongText
+  createTime       DateTime?           @default(now()) @map("create_time")
+  updateTime       DateTime?           @updatedAt @map("update_time")
+  job              MenuTemplateSyncJob @relation("MenuTemplateSyncJobToLog", fields: [jobId], references: [id])
+
+  @@index([jobId])
+  @@index([targetCustomerId])
+  @@index([status])
+  @@map("menu_template_sync_log")
+}
