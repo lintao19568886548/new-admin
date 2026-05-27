@@ -1,0 +1,75 @@
+model Organization {
+  id                    Int       @id @default(autoincrement())
+  name                  String    @db.VarChar(100)
+  city                  String?   @db.VarChar(30)
+  companyShortName      String?   @map("company_short_name") @db.VarChar(50)
+  sourceCustomerId      String    @map("source_customer_id") @db.VarChar(50)
+  status                String    @default("active") @db.VarChar(32)
+  createdByCenterUserId Int?      @map("created_by_center_user_id")
+  legacy                Boolean   @default(false)
+  createTime            DateTime? @default(now()) @map("create_time")
+  updateTime            DateTime? @updatedAt @map("update_time")
+
+  @@index([sourceCustomerId, status])
+  @@index([createdByCenterUserId])
+  @@index([status])
+  @@index([legacy])
+  @@map("organization")
+}
+
+model OrganizationMember {
+  id               Int       @id @default(autoincrement())
+  organizationId   Int       @map("organization_id")
+  centerUserId     Int       @map("center_user_id")
+  sourceCustomerId String    @map("source_customer_id") @db.VarChar(50)
+  sourceUserId     Int?      @map("source_user_id")
+  memberRole       String    @default("member") @map("member_role") @db.VarChar(32)
+  status           String    @default("active") @db.VarChar(32)
+  joinedAt         DateTime? @map("joined_at")
+  createTime       DateTime? @default(now()) @map("create_time")
+  updateTime       DateTime? @updatedAt @map("update_time")
+
+  @@unique([organizationId, centerUserId])
+  @@index([centerUserId])
+  @@index([sourceCustomerId, sourceUserId])
+  @@index([status])
+  @@map("organization_member")
+}
+
+model OrganizationInvitation {
+  id                    Int       @id @default(autoincrement())
+  organizationId        Int       @map("organization_id")
+  code                  String    @unique @db.VarChar(32)
+  createdByCenterUserId Int       @map("created_by_center_user_id")
+  roleIds               String?   @map("role_ids") @db.VarChar(255)
+  maxUses               Int?      @map("max_uses")
+  usedCount             Int       @default(0) @map("used_count")
+  expiresAt             DateTime? @map("expires_at")
+  status                String    @default("active") @db.VarChar(20)
+  remark                String?   @db.VarChar(200)
+  createTime            DateTime? @default(now()) @map("create_time")
+  updateTime            DateTime? @updatedAt @map("update_time")
+
+  @@index([organizationId, status])
+  @@index([createdByCenterUserId])
+  @@index([expiresAt])
+  @@map("organization_invitation")
+}
+
+model OrganizationTenantMapping {
+  id                      Int       @id @default(autoincrement())
+  organizationId          Int       @map("organization_id")
+  targetCustomerId        String    @unique @map("target_customer_id") @db.VarChar(50)
+  targetDbName            String?   @map("target_db_name") @db.VarChar(100)
+  tenantProvisioningJobId Int?      @map("tenant_provisioning_job_id")
+  status                  String    @default("active") @db.VarChar(32)
+  legacy                  Boolean   @default(false)
+  createTime              DateTime? @default(now()) @map("create_time")
+  updateTime              DateTime? @updatedAt @map("update_time")
+
+  @@index([organizationId])
+  @@index([tenantProvisioningJobId])
+  @@index([status])
+  @@index([legacy])
+  @@map("organization_tenant_mapping")
+}

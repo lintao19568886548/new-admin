@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { normalizeTenantIdentityProfile } from '~/utils/customer-identity';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
+  listActiveOrganizationMembershipsByCenterUserId,
+  resolveSingleActiveOwnedSourceOrganizationForCenterUser,
+} from '~/utils/organization';
+import {
   badRequestResponse,
   serverErrorResponse,
   unAuthorizedResponse,
@@ -99,6 +103,29 @@ export default eventHandler(async (event) => {
         sourceCustomerId: customerId,
         tenantUserId: userinfo.id,
       };
+      const sourceOrganizationMemberships =
+        customerId === 'public'
+          ? await listActiveOrganizationMembershipsByCenterUserId(centerUserId)
+          : [];
+      const sourceOrganizations = sourceOrganizationMemberships.filter(
+        (item) => item.organization.sourceCustomerId === customerId,
+      );
+      if (sourceOrganizations.length > 1) {
+        return badRequestResponse(
+          '当前账号绑定多个 active 组织，请先选择要开通的组织',
+          event,
+        );
+      }
+      const sourceOwnedOrganization =
+        customerId === 'public'
+          ? await resolveSingleActiveOwnedSourceOrganizationForCenterUser({
+              centerUserId,
+              sourceCustomerId: customerId,
+            })
+          : null;
+      if (sourceOrganizations.length === 1 && !sourceOwnedOrganization) {
+        return badRequestResponse('只有组织 owner 可以开通专属空间', event);
+      }
       const expectedAmount = resolveVipMembershipAmountTotal(amountContext);
       if (amount !== expectedAmount) {
         if (!isVipMembershipTestPayment(amountContext)) {
@@ -151,6 +178,7 @@ export default eventHandler(async (event) => {
         outTradeNo,
         rawAttach: attach,
         sourceCustomerId: customerId,
+        sourceOrgId: sourceOwnedOrganization?.organization.id || null,
         tenantIdentity,
         username: userinfo.username,
       });

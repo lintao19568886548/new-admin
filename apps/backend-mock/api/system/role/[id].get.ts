@@ -4,6 +4,11 @@ import {
   useResponseError,
   useResponseSuccess,
 } from '~/utils/response';
+import {
+  getRoleScopeWhere,
+  noRoleScopeResponse,
+  resolveRoleScopeContext,
+} from '~/utils/role-scope';
 
 /**
  * @function GET /api/system/role/:id
@@ -17,6 +22,10 @@ export default eventHandler(async (event) => {
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
+  const roleScope = await resolveRoleScopeContext(userinfo);
+  if (!roleScope) {
+    return noRoleScopeResponse(event);
+  }
 
   // 从路由参数中获取角色 ID
   const id = event.context.params?.id;
@@ -28,9 +37,10 @@ export default eventHandler(async (event) => {
 
   try {
     // 查询角色及其关联数据
-    const role = await prismaClient.role.findUnique({
+    const role = await prismaClient.role.findFirst({
       where: {
         roleId,
+        ...getRoleScopeWhere(roleScope),
       },
       include: {
         roleMenus: {

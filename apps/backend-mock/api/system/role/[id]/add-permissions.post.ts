@@ -5,6 +5,11 @@ import {
   useResponseError,
   useResponseSuccess,
 } from '~/utils/response';
+import {
+  assertRoleInScope,
+  noRoleScopeResponse,
+  resolveRoleScopeContext,
+} from '~/utils/role-scope';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -12,6 +17,10 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
   const customerId = String(userinfo.customerId);
+  const roleScope = await resolveRoleScopeContext(userinfo);
+  if (!roleScope) {
+    return noRoleScopeResponse(event);
+  }
   const id = event.context.params?.id;
   if (!id) {
     return useResponseError('id is required', 400);
@@ -28,6 +37,11 @@ export default eventHandler(async (event) => {
 
   try {
     const res = await prismaClient.$transaction(async (prisma) => {
+      await assertRoleInScope({
+        context: roleScope,
+        roleId: Number(id),
+        roleModel: prisma.role,
+      });
       // 1. 安全验证：检查子角色权限是否超出父角色范围
       const role = await prisma.role.findUnique({
         where: { roleId: Number(id) },

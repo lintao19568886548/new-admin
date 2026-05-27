@@ -1,31 +1,44 @@
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import { unAuthorizedResponse } from '~/utils/response';
+import {
+  getRoleScopeWhere,
+  noRoleScopeResponse,
+  resolveRoleScopeContext,
+} from '~/utils/role-scope';
 
 export default eventHandler(async (event) => {
   const userinfo = verifyAccessToken(event);
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
+  const roleScope = await resolveRoleScopeContext(userinfo);
+  if (!roleScope) {
+    return noRoleScopeResponse(event);
+  }
 
   const { page, pageSize, name, remark, startTime, endTime, status } =
     getQuery(event);
 
   // 构建查询条件
-  const where: any = {};
+  const where: any = getRoleScopeWhere(roleScope);
+  let hasQueryFilters = false;
 
   if (name) {
+    hasQueryFilters = true;
     where.name = {
       contains: String(name),
     };
   }
 
   if (remark) {
+    hasQueryFilters = true;
     where.remark = {
       contains: String(remark),
     };
   }
 
   if (startTime) {
+    hasQueryFilters = true;
     where.createTime = {
       ...where.createTime,
       gte: new Date(String(startTime)),
@@ -33,6 +46,7 @@ export default eventHandler(async (event) => {
   }
 
   if (endTime) {
+    hasQueryFilters = true;
     where.createTime = {
       ...where.createTime,
       lte: new Date(String(endTime)),
@@ -40,6 +54,7 @@ export default eventHandler(async (event) => {
   }
 
   if (['0', '1', 'false', 'true'].includes(status as string)) {
+    hasQueryFilters = true;
     where.status = ['1', 'true'].includes(status as string);
   }
 
@@ -88,7 +103,7 @@ export default eventHandler(async (event) => {
   };
 
   // 1. 如果有查询条件，则进行分页查询（不支持层级）
-  if (Object.keys(where).length > 0 || (page && pageSize)) {
+  if (hasQueryFilters || (page && pageSize)) {
     const total = await prismaClient.role.count({ where });
     const roles = await prismaClient.role.findMany({
       where,

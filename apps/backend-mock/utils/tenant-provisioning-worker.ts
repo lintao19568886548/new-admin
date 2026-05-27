@@ -3,6 +3,7 @@ import { hostname } from 'node:os';
 
 import mariadb from 'mariadb';
 import { systemDbClient } from '~/utils/db';
+import { resolveSingleActiveOwnedSourceOrganizationForCenterUser } from '~/utils/organization';
 
 const BASE_DATA_TABLES = ['app_versions'];
 const COPY_ROWS_CHUNK_SIZE = 100;
@@ -20,6 +21,7 @@ interface TenantProvisioningJobRecord {
   initiatorCenterUserId: number;
   lockOwner: string;
   retryCount: number;
+  sourceOrgId: null | number;
   sourceCustomerId: string;
   status: string;
   targetCity: null | string;
@@ -48,6 +50,35 @@ interface SourceTenantUserSnapshot {
   realName: string;
   status: null | number;
   username: string;
+}
+
+interface OrganizationMemberSnapshot {
+  centerUser: CenterUserSnapshot;
+  centerUserId: number;
+  memberRole: string;
+  sourceUser: SourceTenantUserSnapshot;
+  sourceUserId: number;
+  targetUserId: number;
+}
+
+interface OrganizationMigrationContext {
+  centerUser: CenterUserSnapshot;
+  centerUserId: number;
+  sourceCustomerId: string;
+  sourceOrgId: number;
+  targetCustomerId: string;
+  targetUserId: number;
+}
+
+interface OrganizationRoleSnapshotItem {
+  roleName: null | string;
+  sourceRoleId: number;
+  targetRoleId: number;
+}
+
+interface OrganizationRoleSnapshotPlan {
+  roleMap: Map<number, number>;
+  snapshots: OrganizationRoleSnapshotItem[];
 }
 
 interface CopyRowsOptions {
@@ -84,6 +115,7 @@ interface PreparedCopyRowsPlan {
 interface UserMigrationContext {
   centerUser: CenterUserSnapshot;
   centerUserId: number;
+  sourceOrgId?: number;
   sourceCustomerId: string;
   sourceUserId: number;
   targetCustomerId: string;
@@ -744,9 +776,16 @@ function buildInWhere(column: string, ids: number[]) {
   };
 }
 
+function buildRawInWhere(column: string, ids: number[]) {
+  return {
+    params: ids,
+    whereSql: `WHERE ${column} IN (${ids.map(() => '?').join(', ')})`,
+  };
+}
+
 function toPositiveNumber(value: unknown) {
   const normalized = Number(value);
-  return Number.isFinite(normalized) && normalized > 0 ? normalized : null;
+  return Number.isInteger(normalized) && normalized > 0 ? normalized : null;
 }
 
 function uniquePositiveNumbers(values: unknown[]) {
@@ -1010,30 +1049,204 @@ async function copyBaseDataTables(params: {
   return copied;
 }
 
+async function getOrganizationRoleRows(params: {
+  sourceConnection: DbConnection;
+  sourceOrgId: number;
+}) {
+  return (await params.sourceConnection.query(
+    `
+      SELECT
+        role_id AS roleId,
+        parent_id AS parentId,
+        name
+      FROM \`role\`
+      WHERE scope = 'organization'
+        AND organization_id = ?
+      ORDER BY role_id ASC
+    `,
+    [params.sourceOrgId],
+  )) as Array<{
+    name: null | string;
+    parentId: bigint | null | number | string;
+    roleId: bigint | number | string;
+  }>;
+}
+
+async function copyOrganizationRoleSnapshot(params: {
+  heartbeat?: () => Promise<void>;
+  jobId: number;
+  sourceConnection: DbConnection;
+  sourceOrgId: number;
+  targetConnection: DbConnection;
+}): Promise<OrganizationRoleSnapshotPlan> {
+  const roleRows = await getOrganizationRoleRows({
+    sourceConnection: params.sourceConnection,
+    sourceOrgId: params.sourceOrgId,
+  });
+  const roleIds = uniquePositiveNumbers(roleRows.map((row) => row.roleId));
+  if (roleIds.length === 0) {
+    return {
+      roleMap: new Map<number, number>(),
+      snapshots: [],
+    };
+  }
+
+  const roleIdSet = new Set(roleIds);
+  const invalidParent = roleRows.find((row) => {
+    const parentId = toPositiveNumber(row.parentId);
+    return parentId !== null && !roleIdSet.has(parentId);
+  });
+  if (invalidParent) {
+    throw new Error(
+      `组织角色树存在跨组织父级: sourceOrgId=${params.sourceOrgId}, roleId=${invalidParent.roleId}`,
+    );
+  }
+
+  const where = buildInWhere('role_id', roleIds);
+  const rawRoleWhere = buildRawInWhere('role_id', roleIds);
+  await copyRows({
+    ...where,
+    heartbeat: params.heartbeat,
+    sourceConnection: params.sourceConnection,
+    tableName: 'role',
+    targetConnection: params.targetConnection,
+    targetTransforms: {
+      organization_id: () => null,
+      scope: () => 'system',
+    },
+    whereSql: `${where.whereSql} ORDER BY role_id ASC`,
+  });
+
+  const roleCodeRows = (await params.sourceConnection.query(
+    `SELECT code_id AS codeId FROM role_code WHERE role_id IN (${roleIds
+      .map(() => '?')
+      .join(', ')})`,
+    roleIds,
+  )) as Array<{ codeId: bigint | number | string }>;
+  await copyRowsByIdsOrdered({
+    heartbeat: params.heartbeat,
+    idColumn: 'code_id',
+    ids: uniquePositiveNumbers(roleCodeRows.map((row) => row.codeId)),
+    sourceConnection: params.sourceConnection,
+    tableName: 'code',
+    targetConnection: params.targetConnection,
+  });
+
+  const roleParkRows = (await params.sourceConnection.query(
+    `SELECT park_id AS parkId FROM role_park WHERE role_id IN (${roleIds
+      .map(() => '?')
+      .join(', ')})`,
+    roleIds,
+  )) as Array<{ parkId: bigint | number | string }>;
+  await copyRowsByIds({
+    heartbeat: params.heartbeat,
+    idColumn: 'park_id',
+    ids: uniquePositiveNumbers(roleParkRows.map((row) => row.parkId)),
+    sourceConnection: params.sourceConnection,
+    tableName: 'park',
+    targetConnection: params.targetConnection,
+  });
+
+  await copyRows({
+    ...rawRoleWhere,
+    heartbeat: params.heartbeat,
+    sourceConnection: params.sourceConnection,
+    tableName: 'role_menu',
+    targetConnection: params.targetConnection,
+    whereSql: rawRoleWhere.whereSql,
+  });
+
+  await copyRows({
+    ...rawRoleWhere,
+    heartbeat: params.heartbeat,
+    sourceConnection: params.sourceConnection,
+    tableName: 'role_park',
+    targetConnection: params.targetConnection,
+    whereSql: rawRoleWhere.whereSql,
+  });
+
+  await copyRows({
+    ...rawRoleWhere,
+    heartbeat: params.heartbeat,
+    sourceConnection: params.sourceConnection,
+    tableName: 'role_code',
+    targetConnection: params.targetConnection,
+    whereSql: rawRoleWhere.whereSql,
+  });
+
+  const roleMap = new Map<number, number>();
+  const snapshots = roleRows
+    .map((row) => ({
+      roleName: row.name ? String(row.name) : null,
+      roleId: toPositiveNumber(row.roleId),
+    }))
+    .filter((item): item is { roleId: number; roleName: null | string } =>
+      Boolean(item.roleId),
+    )
+    .map((item) => {
+      roleMap.set(item.roleId, item.roleId);
+      return {
+        roleName: item.roleName,
+        sourceRoleId: item.roleId,
+        targetRoleId: item.roleId,
+      };
+    });
+
+  return { roleMap, snapshots };
+}
+
+async function saveTenantProvisioningRoleSnapshots(params: {
+  jobId: number;
+  snapshots: OrganizationRoleSnapshotItem[];
+  sourceOrgId: number;
+}) {
+  await systemDbClient.$transaction(async (tx) => {
+    await tx.tenantProvisioningRoleSnapshot.deleteMany({
+      where: { jobId: params.jobId },
+    });
+    for (const item of params.snapshots) {
+      await tx.tenantProvisioningRoleSnapshot.create({
+        data: {
+          jobId: params.jobId,
+          roleName: item.roleName,
+          sourceOrgId: params.sourceOrgId,
+          sourceRoleId: item.sourceRoleId,
+          targetRoleId: item.targetRoleId,
+        },
+      });
+    }
+  });
+}
+
 async function resolveSourceTenantUser(params: {
   centerUser: CenterUserSnapshot;
   centerUserId: number;
   sourceConnection: DbConnection;
   sourceCustomerId: string;
+  sourceUserId?: null | number;
 }) {
-  const mapping = await systemDbClient.userCustomerMapping.findUnique({
-    select: { customerUserId: true },
-    where: {
-      centerUserId_customerId: {
-        centerUserId: params.centerUserId,
-        customerId: params.sourceCustomerId,
-      },
-    },
-  });
+  const sourceUserId = toPositiveNumber(params.sourceUserId);
+  const mapping = sourceUserId
+    ? null
+    : await systemDbClient.userCustomerMapping.findUnique({
+        select: { customerUserId: true },
+        where: {
+          centerUserId_customerId: {
+            centerUserId: params.centerUserId,
+            customerId: params.sourceCustomerId,
+          },
+        },
+      });
 
   const rows = (await params.sourceConnection.query(
-    mapping?.customerUserId
+    sourceUserId || mapping?.customerUserId
       ? 'SELECT id, username, real_name AS realName, password, status, phone, home_path AS homePath FROM `user` WHERE id = ? LIMIT 1'
       : 'SELECT id, username, real_name AS realName, password, status, phone, home_path AS homePath FROM `user` WHERE username = ? LIMIT 1',
     [
-      mapping?.customerUserId
-        ? Number(mapping.customerUserId)
-        : params.centerUser.username,
+      sourceUserId ||
+        (mapping?.customerUserId
+          ? Number(mapping.customerUserId)
+          : params.centerUser.username),
     ],
   )) as SourceTenantUserSnapshot[];
 
@@ -1044,6 +1257,179 @@ async function resolveSourceTenantUser(params: {
     );
   }
   return sourceUser;
+}
+
+async function resolveOrganizationMembers(params: {
+  sourceConnection: DbConnection;
+  sourceCustomerId: string;
+  sourceOrgId: number;
+}) {
+  const members = await systemDbClient.organizationMember.findMany({
+    orderBy: [{ memberRole: 'desc' }, { id: 'asc' }],
+    select: {
+      centerUserId: true,
+      memberRole: true,
+      sourceUserId: true,
+    },
+    where: {
+      organizationId: params.sourceOrgId,
+      sourceCustomerId: params.sourceCustomerId,
+      status: 'active',
+    },
+  });
+
+  if (members.length === 0) {
+    throw new Error(`组织缺少 active 成员: sourceOrgId=${params.sourceOrgId}`);
+  }
+
+  const resolved: OrganizationMemberSnapshot[] = [];
+  for (const member of members) {
+    const centerUser = await systemDbClient.user.findUnique({
+      select: {
+        customerType: true,
+        homePath: true,
+        id: true,
+        password: true,
+        phone: true,
+        realName: true,
+        status: true,
+        tokenVersion: true,
+        username: true,
+      },
+      where: { id: Number(member.centerUserId) },
+    });
+    if (!centerUser) {
+      throw new Error(`组织成员中心用户不存在: ${member.centerUserId}`);
+    }
+    if (Number(centerUser.status ?? 1) !== 1) {
+      throw new Error(`组织成员中心用户已禁用: ${member.centerUserId}`);
+    }
+
+    const sourceUser = await resolveSourceTenantUser({
+      centerUser,
+      centerUserId: Number(member.centerUserId),
+      sourceConnection: params.sourceConnection,
+      sourceCustomerId: params.sourceCustomerId,
+      sourceUserId: member.sourceUserId ? Number(member.sourceUserId) : null,
+    });
+
+    resolved.push({
+      centerUser,
+      centerUserId: Number(member.centerUserId),
+      memberRole: String(member.memberRole || 'member'),
+      sourceUser,
+      sourceUserId: Number(sourceUser.id),
+      targetUserId: 0,
+    });
+  }
+
+  return resolved;
+}
+
+async function assertOrganizationMigrationScope(params: {
+  sourceCustomerId: string;
+  sourceOrgId: number;
+}) {
+  const organization = await systemDbClient.organization.findFirst({
+    select: {
+      id: true,
+      sourceCustomerId: true,
+      status: true,
+    },
+    where: {
+      id: params.sourceOrgId,
+      sourceCustomerId: params.sourceCustomerId,
+      status: 'active',
+    },
+  });
+  if (!organization) {
+    throw new Error(
+      `源组织不存在或不可迁移: sourceOrgId=${params.sourceOrgId}, sourceCustomerId=${params.sourceCustomerId}`,
+    );
+  }
+
+  const existingMapping =
+    await systemDbClient.organizationTenantMapping.findFirst({
+      select: { targetCustomerId: true },
+      where: {
+        organizationId: params.sourceOrgId,
+        status: 'active',
+      },
+    });
+  if (existingMapping?.targetCustomerId) {
+    throw new Error(
+      `源组织已有 active 租户映射: sourceOrgId=${params.sourceOrgId}, targetCustomerId=${existingMapping.targetCustomerId}`,
+    );
+  }
+}
+
+async function assertOrganizationMembersCanSwitch(params: {
+  sourceCustomerId: string;
+  sourceOrgId: number;
+  targetCustomerId: string;
+}) {
+  const members = await systemDbClient.organizationMember.findMany({
+    select: { centerUserId: true },
+    where: {
+      organizationId: params.sourceOrgId,
+      sourceCustomerId: params.sourceCustomerId,
+      status: 'active',
+    },
+  });
+  if (members.length === 0) {
+    throw new Error(`组织缺少 active 成员: sourceOrgId=${params.sourceOrgId}`);
+  }
+
+  const centerUserIds = uniquePositiveNumbers(
+    members.map((member) => member.centerUserId),
+  );
+  const centerUsers = await systemDbClient.user.findMany({
+    select: {
+      customerType: true,
+      id: true,
+      status: true,
+    },
+    where: { id: { in: centerUserIds } },
+  });
+  const centerUsersById = new Map(centerUsers.map((user) => [user.id, user]));
+
+  for (const centerUserId of centerUserIds) {
+    const centerUser = centerUsersById.get(centerUserId);
+    if (!centerUser) {
+      throw new Error(`组织成员中心用户不存在: ${centerUserId}`);
+    }
+    if (Number(centerUser.status ?? 1) !== 1) {
+      throw new Error(`组织成员中心用户已禁用: ${centerUserId}`);
+    }
+
+    const customerType = String(centerUser.customerType || '');
+    if (
+      customerType &&
+      customerType !== params.sourceCustomerId &&
+      customerType !== params.targetCustomerId
+    ) {
+      throw new Error(
+        `组织成员已归属到其他租户: centerUserId=${centerUserId}, customerType=${customerType}，停止自动切换`,
+      );
+    }
+  }
+}
+
+async function assertInitiatorOwnsOrganization(params: {
+  centerUserId: number;
+  sourceCustomerId: string;
+  sourceOrgId: number;
+}) {
+  const membership =
+    await resolveSingleActiveOwnedSourceOrganizationForCenterUser({
+      centerUserId: params.centerUserId,
+      sourceCustomerId: params.sourceCustomerId,
+    });
+  if (membership?.organization.id !== params.sourceOrgId) {
+    throw new Error(
+      `开通发起人不是组织 active owner: centerUserId=${params.centerUserId}, sourceOrgId=${params.sourceOrgId}`,
+    );
+  }
 }
 
 async function ensureTargetTenantUser(params: {
@@ -1117,6 +1503,63 @@ async function assignTenantCreatorSuperRole(params: {
     [params.context.targetUserId, roleId],
   );
   await params.heartbeat?.();
+}
+
+async function assignOrganizationMemberRoles(params: {
+  heartbeat?: () => Promise<void>;
+  members: OrganizationMemberSnapshot[];
+  roleMap: Map<number, number>;
+  sourceConnection: DbConnection;
+  sourceOrgId: number;
+  targetConnection: DbConnection;
+}) {
+  for (const member of params.members) {
+    await params.targetConnection.query(
+      'DELETE FROM user_role WHERE user_id = ?',
+      [member.targetUserId],
+    );
+    await params.targetConnection.query(
+      'DELETE FROM user_code WHERE user_id = ?',
+      [member.targetUserId],
+    );
+
+    if (member.memberRole === 'owner') {
+      const roleId = await getRoleIdByName(params.targetConnection);
+      await params.targetConnection.query(
+        'INSERT INTO user_role (user_id, role_id, create_time, update_time) VALUES (?, ?, NOW(), NOW())',
+        [member.targetUserId, roleId],
+      );
+      await params.heartbeat?.();
+      continue;
+    }
+
+    const sourceRoleRows = (await params.sourceConnection.query(
+      `
+        SELECT user_role.role_id AS roleId
+          FROM user_role
+          INNER JOIN \`role\`
+            ON \`role\`.role_id = user_role.role_id
+         WHERE user_role.user_id = ?
+           AND \`role\`.scope = 'organization'
+           AND \`role\`.organization_id = ?
+      `,
+      [member.sourceUserId, params.sourceOrgId],
+    )) as Array<{ roleId: bigint | number | string }>;
+    const targetRoleIds = uniquePositiveNumbers(
+      sourceRoleRows
+        .map((row) => params.roleMap.get(Number(row.roleId)))
+        .filter((roleId) => roleId !== undefined),
+    );
+
+    if (targetRoleIds.length > 0) {
+      await params.targetConnection.query(
+        `INSERT INTO user_role (user_id, role_id, create_time, update_time)
+         VALUES ${targetRoleIds.map(() => '(?, ?, NOW(), NOW())').join(', ')}`,
+        targetRoleIds.flatMap((roleId) => [member.targetUserId, roleId]),
+      );
+    }
+    await params.heartbeat?.();
+  }
 }
 
 async function migrateUserScopedData(params: {
@@ -1231,6 +1674,52 @@ async function migrateUserScopedData(params: {
   }
 }
 
+async function migrateOrganizationScopedData(params: {
+  context: OrganizationMigrationContext;
+  heartbeat?: () => Promise<void>;
+  members: OrganizationMemberSnapshot[];
+  roleMap: Map<number, number>;
+  sourceConnection: DbConnection;
+  sourceOrgId: number;
+  targetConnection: DbConnection;
+}) {
+  for (const member of params.members) {
+    member.targetUserId = await ensureTargetTenantUser({
+      centerUser: member.centerUser,
+      sourceUser: member.sourceUser,
+      targetConnection: params.targetConnection,
+      targetCustomerId: params.context.targetCustomerId,
+    });
+  }
+
+  await assignOrganizationMemberRoles({
+    heartbeat: params.heartbeat,
+    members: params.members,
+    roleMap: params.roleMap,
+    sourceConnection: params.sourceConnection,
+    sourceOrgId: params.sourceOrgId,
+    targetConnection: params.targetConnection,
+  });
+
+  for (const member of params.members) {
+    await migrateUserScopedData({
+      context: {
+        centerUser: member.centerUser,
+        centerUserId: member.centerUserId,
+        sourceCustomerId: params.context.sourceCustomerId,
+        sourceOrgId: params.sourceOrgId,
+        sourceUserId: member.sourceUserId,
+        targetCustomerId: params.context.targetCustomerId,
+        targetUserId: member.targetUserId,
+        username: member.sourceUser.username || member.centerUser.username,
+      },
+      heartbeat: params.heartbeat,
+      sourceConnection: params.sourceConnection,
+      targetConnection: params.targetConnection,
+    });
+  }
+}
+
 async function ensureJobTargetIdentity(job: TenantProvisioningJobRecord) {
   if (!job.targetCustomerId) {
     throw new Error(
@@ -1298,6 +1787,9 @@ async function switchCenterUserToTarget(params: {
   customerName: string;
   jobId: number;
   lockOwner: string;
+  organizationMembers?: OrganizationMemberSnapshot[];
+  sourceCustomerId: string;
+  sourceOrgId?: null | number;
   targetCustomerId: string;
   targetDbName: string;
   targetUserId: number;
@@ -1325,6 +1817,25 @@ async function switchCenterUserToTarget(params: {
       throw new Error('中心用户不存在，无法切换租户');
     }
 
+    const memberMappings =
+      params.organizationMembers && params.organizationMembers.length > 0
+        ? params.organizationMembers.map((member) => ({
+            centerUserId: member.centerUserId,
+            targetUserId: member.targetUserId,
+          }))
+        : [
+            {
+              centerUserId: params.centerUserId,
+              targetUserId: params.targetUserId,
+            },
+          ];
+    const invalidMember = memberMappings.find((item) => !item.targetUserId);
+    if (invalidMember) {
+      throw new Error(
+        `组织成员缺少目标用户映射，centerUserId=${invalidMember.centerUserId}`,
+      );
+    }
+
     await tx.customer.upsert({
       create: {
         code: params.targetCustomerId,
@@ -1344,39 +1855,78 @@ async function switchCenterUserToTarget(params: {
       },
       where: { customerId: params.targetCustomerId },
     });
-    await tx.userCustomerMapping.upsert({
-      create: {
-        centerUserId: params.centerUserId,
-        customerId: params.targetCustomerId,
-        customerUserId: params.targetUserId,
-        dbName: params.targetDbName,
-      },
-      update: {
-        customerUserId: params.targetUserId,
-        dbName: params.targetDbName,
-      },
-      where: {
-        centerUserId_customerId: {
-          centerUserId: params.centerUserId,
-          customerId: params.targetCustomerId,
-        },
-      },
-    });
 
-    if (String(current.customerType || '') !== params.targetCustomerId) {
-      await tx.user.update({
-        data: {
-          customerType: params.targetCustomerId,
-          tokenVersion: { increment: 1 },
+    for (const member of memberMappings) {
+      await tx.userCustomerMapping.upsert({
+        create: {
+          centerUserId: member.centerUserId,
+          customerId: params.targetCustomerId,
+          customerUserId: member.targetUserId,
+          dbName: params.targetDbName,
         },
-        where: { id: params.centerUserId },
-      });
-      await tx.refreshToken.updateMany({
-        data: { revokedAt: new Date() },
+        update: {
+          customerUserId: member.targetUserId,
+          dbName: params.targetDbName,
+        },
         where: {
-          revokedAt: null,
-          userId: params.centerUserId,
+          centerUserId_customerId: {
+            centerUserId: member.centerUserId,
+            customerId: params.targetCustomerId,
+          },
         },
+      });
+
+      const memberCurrent = await tx.user.findUnique({
+        select: { customerType: true },
+        where: { id: member.centerUserId },
+      });
+      if (!memberCurrent) {
+        throw new Error(`中心用户不存在，无法切换租户: ${member.centerUserId}`);
+      }
+      const memberCustomerType = String(memberCurrent.customerType || '');
+      if (
+        memberCustomerType &&
+        memberCustomerType !== params.sourceCustomerId &&
+        memberCustomerType !== params.targetCustomerId
+      ) {
+        throw new Error(
+          `中心用户已归属到其他租户: centerUserId=${member.centerUserId}, customerType=${memberCustomerType}，停止自动切换`,
+        );
+      }
+      if (memberCustomerType !== params.targetCustomerId) {
+        await tx.user.update({
+          data: {
+            customerType: params.targetCustomerId,
+            tokenVersion: { increment: 1 },
+          },
+          where: { id: member.centerUserId },
+        });
+        await tx.refreshToken.updateMany({
+          data: { revokedAt: new Date() },
+          where: {
+            revokedAt: null,
+            userId: member.centerUserId,
+          },
+        });
+      }
+    }
+
+    if (params.sourceOrgId) {
+      await tx.organizationTenantMapping.upsert({
+        create: {
+          legacy: false,
+          organizationId: params.sourceOrgId,
+          status: 'active',
+          targetCustomerId: params.targetCustomerId,
+          targetDbName: params.targetDbName,
+          tenantProvisioningJobId: params.jobId,
+        },
+        update: {
+          status: 'active',
+          targetDbName: params.targetDbName,
+          tenantProvisioningJobId: params.jobId,
+        },
+        where: { targetCustomerId: params.targetCustomerId },
       });
     }
 
@@ -1786,6 +2336,121 @@ async function validateProvisionedTenant(params: {
   });
 }
 
+async function validateProvisionedOrganizationTenant(params: {
+  context: OrganizationMigrationContext;
+  members: OrganizationMemberSnapshot[];
+  roleSnapshots: OrganizationRoleSnapshotItem[];
+  sourceConnection: DbConnection;
+  sourceOrgId: number;
+  targetConnection: DbConnection;
+  templateConnection: DbConnection;
+}) {
+  for (const tableName of BASE_DATA_TABLES) {
+    await assertTableCountMatches({
+      label: `基础表 ${tableName}`,
+      sourceConnection: params.templateConnection,
+      sourceTableName: tableName,
+      targetConnection: params.targetConnection,
+      targetTableName: tableName,
+    });
+  }
+  for (const tableName of ['menu', 'menu_meta']) {
+    await assertTableCountMatches({
+      label: `菜单基础表 ${tableName}`,
+      sourceConnection: params.sourceConnection,
+      sourceTableName: tableName,
+      targetConnection: params.targetConnection,
+      targetTableName: tableName,
+    });
+  }
+
+  const sourceClosure = await resolveSuperPermissionClosure(
+    params.sourceConnection,
+  );
+  const superRoleId = await getRoleIdByName(params.targetConnection);
+  if (superRoleId !== sourceClosure.roleId) {
+    throw new Error(
+      `Super 角色 ID 校验失败，期望 ${sourceClosure.roleId}，实际 ${superRoleId}`,
+    );
+  }
+
+  if (params.roleSnapshots.length > 0) {
+    const targetSnapshotCount = await getQueryCount(
+      params.targetConnection,
+      `SELECT COUNT(*) AS total
+         FROM role
+        WHERE role_id IN (${params.roleSnapshots.map(() => '?').join(', ')})`,
+      params.roleSnapshots.map((item) => item.targetRoleId),
+    );
+    if (targetSnapshotCount !== params.roleSnapshots.length) {
+      throw new Error(
+        `组织角色快照校验失败，期望 ${params.roleSnapshots.length} 条，实际 ${targetSnapshotCount} 条`,
+      );
+    }
+  }
+
+  const publicSuperMigrated = params.roleSnapshots.some(
+    (item) => item.sourceRoleId === sourceClosure.roleId,
+  );
+  if (publicSuperMigrated) {
+    throw new Error('public 系统 Super 不能作为组织角色快照迁移');
+  }
+
+  for (const member of params.members) {
+    const targetUserCount = await getTableCount(
+      params.targetConnection,
+      'user',
+      'WHERE id = ? AND username = ?',
+      [member.targetUserId, member.sourceUser.username],
+    );
+    if (targetUserCount !== 1) {
+      throw new Error(
+        `组织成员目标用户校验失败，centerUserId=${member.centerUserId}, targetUserId=${member.targetUserId}`,
+      );
+    }
+
+    if (member.memberRole === 'owner') {
+      const ownerSuperCount = await getTableCount(
+        params.targetConnection,
+        'user_role',
+        'WHERE user_id = ? AND role_id = ?',
+        [member.targetUserId, superRoleId],
+      );
+      if (ownerSuperCount !== 1) {
+        throw new Error(
+          `组织 owner 未获得目标租户 Super，centerUserId=${member.centerUserId}`,
+        );
+      }
+      continue;
+    }
+
+    const sourceRoleCount = await getQueryCount(
+      params.sourceConnection,
+      `
+        SELECT COUNT(*) AS total
+          FROM user_role
+          INNER JOIN \`role\`
+            ON \`role\`.role_id = user_role.role_id
+         WHERE user_role.user_id = ?
+           AND \`role\`.scope = 'organization'
+           AND \`role\`.organization_id = ?
+      `,
+      [member.sourceUserId, params.sourceOrgId],
+    );
+    const targetRoleCount = await getTableCount(
+      params.targetConnection,
+      'user_role',
+      'WHERE user_id = ?',
+      [member.targetUserId],
+    );
+    if (sourceRoleCount !== targetRoleCount) {
+      throw new Error(
+        `组织成员角色快照校验失败，centerUserId=${member.centerUserId}, 期望 ${sourceRoleCount} 条，实际 ${targetRoleCount} 条`,
+      );
+    }
+  }
+}
+
 async function processProvisioningJob(job: TenantProvisioningJobRecord) {
   const centerUser = await systemDbClient.user.findUnique({
     select: {
@@ -1823,6 +2488,24 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
     );
   }
 
+  const sourceOrgId = toPositiveNumber(job.sourceOrgId);
+  if (sourceOrgId) {
+    await assertOrganizationMigrationScope({
+      sourceCustomerId,
+      sourceOrgId,
+    });
+    await assertInitiatorOwnsOrganization({
+      centerUserId: job.initiatorCenterUserId,
+      sourceCustomerId,
+      sourceOrgId,
+    });
+    await assertOrganizationMembersCanSwitch({
+      sourceCustomerId,
+      sourceOrgId,
+      targetCustomerId,
+    });
+  }
+
   const targetDatabaseUrl = resolveCustomerDbUrl(targetCustomerId, {
     dbName: targetDbName,
   });
@@ -1838,6 +2521,8 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
     withoutDatabase: true,
   });
   let targetUserId = 0;
+  let organizationMembers: OrganizationMemberSnapshot[] = [];
+  let roleSnapshots: OrganizationRoleSnapshotItem[] = [];
 
   try {
     await updateJobStep(job, 'rebuilding_database');
@@ -1871,58 +2556,139 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
         targetConnection,
       });
 
-      const sourceUser = await resolveSourceTenantUser({
-        centerUser,
-        centerUserId: job.initiatorCenterUserId,
-        sourceConnection,
-        sourceCustomerId,
-      });
+      const sourceUser = sourceOrgId
+        ? null
+        : await resolveSourceTenantUser({
+            centerUser,
+            centerUserId: job.initiatorCenterUserId,
+            sourceConnection,
+            sourceCustomerId,
+          });
+      if (sourceOrgId) {
+        organizationMembers = await resolveOrganizationMembers({
+          sourceConnection,
+          sourceCustomerId,
+          sourceOrgId,
+        });
+      }
 
       await targetConnection.beginTransaction();
       try {
-        await updateJobStep(job, 'creating_tenant_user');
-        targetUserId = await ensureTargetTenantUser({
-          centerUser,
-          sourceUser,
-          targetConnection,
-          targetCustomerId,
-        });
+        if (sourceOrgId) {
+          await updateJobStep(job, 'copying_organization_roles');
+          const roleSnapshotPlan = await copyOrganizationRoleSnapshot({
+            heartbeat: () => updateJobHeartbeat(job),
+            jobId: job.id,
+            sourceConnection,
+            sourceOrgId,
+            targetConnection,
+          });
+          roleSnapshots = roleSnapshotPlan.snapshots;
 
-        const context: UserMigrationContext = {
-          centerUser,
-          centerUserId: job.initiatorCenterUserId,
-          sourceCustomerId,
-          sourceUserId: Number(sourceUser.id),
-          targetCustomerId,
-          targetUserId,
-          username: String(centerUser.username),
-        };
+          await updateJobStep(job, 'migrating_organization_members');
+          const orgContext: OrganizationMigrationContext = {
+            centerUser,
+            centerUserId: job.initiatorCenterUserId,
+            sourceCustomerId,
+            sourceOrgId,
+            targetCustomerId,
+            targetUserId: 0,
+          };
+          await migrateOrganizationScopedData({
+            context: orgContext,
+            heartbeat: () => updateJobHeartbeat(job),
+            members: organizationMembers,
+            roleMap: roleSnapshotPlan.roleMap,
+            sourceConnection,
+            sourceOrgId,
+            targetConnection,
+          });
+          targetUserId =
+            organizationMembers.find(
+              (member) => member.centerUserId === job.initiatorCenterUserId,
+            )?.targetUserId ||
+            organizationMembers[0]?.targetUserId ||
+            0;
+          orgContext.targetUserId = targetUserId;
+        } else {
+          if (!sourceUser) {
+            throw new Error('源用户缺失，无法执行单用户迁移');
+          }
 
-        await assignTenantCreatorSuperRole({
-          context,
-          heartbeat: () => updateJobHeartbeat(job),
-          targetConnection,
-        });
+          await updateJobStep(job, 'creating_tenant_user');
+          targetUserId = await ensureTargetTenantUser({
+            centerUser,
+            sourceUser,
+            targetConnection,
+            targetCustomerId,
+          });
 
-        await updateJobStep(job, 'migrating_user_data');
-        await migrateUserScopedData({
-          context,
-          heartbeat: () => updateJobHeartbeat(job),
-          sourceConnection,
-          targetConnection,
-        });
+          const context: UserMigrationContext = {
+            centerUser,
+            centerUserId: job.initiatorCenterUserId,
+            sourceCustomerId,
+            sourceUserId: Number(sourceUser.id),
+            targetCustomerId,
+            targetUserId,
+            username: String(centerUser.username),
+          };
+
+          await assignTenantCreatorSuperRole({
+            context,
+            heartbeat: () => updateJobHeartbeat(job),
+            targetConnection,
+          });
+
+          await updateJobStep(job, 'migrating_user_data');
+          await migrateUserScopedData({
+            context,
+            heartbeat: () => updateJobHeartbeat(job),
+            sourceConnection,
+            targetConnection,
+          });
+        }
 
         await updateJobStep(job, 'committing_data');
         await targetConnection.commit();
 
         await updateJobStep(job, 'validating_data');
-        await validateProvisionedTenant({
-          context,
-          sourceConnection,
-          targetConnection,
-          targetUserId,
-          templateConnection,
-        });
+        if (sourceOrgId) {
+          await validateProvisionedOrganizationTenant({
+            context: {
+              centerUser,
+              centerUserId: job.initiatorCenterUserId,
+              sourceCustomerId,
+              sourceOrgId,
+              targetCustomerId,
+              targetUserId,
+            },
+            members: organizationMembers,
+            roleSnapshots,
+            sourceConnection,
+            sourceOrgId,
+            targetConnection,
+            templateConnection,
+          });
+        } else {
+          if (!sourceUser) {
+            throw new Error('源用户缺失，无法校验单用户迁移');
+          }
+          await validateProvisionedTenant({
+            context: {
+              centerUser,
+              centerUserId: job.initiatorCenterUserId,
+              sourceCustomerId,
+              sourceUserId: Number(sourceUser.id),
+              targetCustomerId,
+              targetUserId,
+              username: String(centerUser.username),
+            },
+            sourceConnection,
+            targetConnection,
+            targetUserId,
+            templateConnection,
+          });
+        }
       } catch (error) {
         await targetConnection.rollback().catch(() => undefined);
         throw error;
@@ -1940,6 +2706,13 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
   }
 
   await updateJobStep(job, 'switching_customer');
+  if (sourceOrgId) {
+    await saveTenantProvisioningRoleSnapshots({
+      jobId: job.id,
+      snapshots: roleSnapshots,
+      sourceOrgId,
+    });
+  }
   await switchCenterUserToTarget({
     centerUserId: job.initiatorCenterUserId,
     city: job.targetCity,
@@ -1949,6 +2722,9 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
       `${centerUser.realName || centerUser.username}的专属空间`,
     jobId: job.id,
     lockOwner: job.lockOwner,
+    organizationMembers: sourceOrgId ? organizationMembers : undefined,
+    sourceCustomerId,
+    sourceOrgId,
     targetCustomerId,
     targetDbName,
     targetUserId,
@@ -1969,6 +2745,7 @@ export async function runTenantProvisioningWorkerOnce() {
       initiatorCenterUserId: Number(claimed.initiatorCenterUserId),
       lockOwner: String(claimed.lockOwner || WORKER_ID),
       retryCount: Number(claimed.retryCount || 0),
+      sourceOrgId: claimed.sourceOrgId ? Number(claimed.sourceOrgId) : null,
       sourceCustomerId: String(claimed.sourceCustomerId),
       status: String(claimed.status),
       targetCity: claimed.targetCity ? String(claimed.targetCity) : null,

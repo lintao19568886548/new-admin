@@ -5,6 +5,12 @@ import {
   useResponseError,
   useResponseSuccess,
 } from '~/utils/response';
+import {
+  applyRoleScopeCreateData,
+  assertRoleInScope,
+  noRoleScopeResponse,
+  resolveRoleScopeContext,
+} from '~/utils/role-scope';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -12,9 +18,20 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
   const customerId = String(userinfo.customerId);
+  const roleScope = await resolveRoleScopeContext(userinfo);
+  if (!roleScope) {
+    return noRoleScopeResponse(event);
+  }
 
   const body = await readBody(event);
-  const { permissions, parkIds, parentId, ...roleData } = body;
+  const {
+    organizationId: _organizationId,
+    permissions,
+    parkIds,
+    parentId,
+    scope: _scope,
+    ...roleData
+  } = body;
   roleData.status = !!roleData.status;
 
   // 如果提供了 parentid，确保它是数字或 null
@@ -28,14 +45,19 @@ export default eventHandler(async (event) => {
 
   // 只有在 parentIdValue 不为 null 时才添加到 dataToCreate 中
   if (parentIdValue !== null) {
+    await assertRoleInScope({
+      context: roleScope,
+      roleId: parentIdValue,
+    });
     dataToCreate.parentId = parentIdValue;
   }
+  const scopedDataToCreate = applyRoleScopeCreateData(dataToCreate, roleScope);
 
   try {
     const res = await prismaClient.$transaction(async (prisma) => {
       // 1. 创建角色基本信息
       const newRole = await prisma.role.create({
-        data: dataToCreate, // 使用包含 parentId 的数据
+        data: scopedDataToCreate, // 使用包含 parentId 的数据
       });
 
       // 2. 如果提供了permissions，则创建角色菜单关联

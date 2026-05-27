@@ -4,9 +4,12 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
+import { computed } from 'vue';
+
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon, Plus } from '@vben/icons';
 import { $t } from '@vben/locales';
+import { useUserStore } from '@vben/stores';
 
 import { MenuBadge } from '@vben-core/menu-ui';
 
@@ -17,9 +20,22 @@ import { deleteMenu, getMenuList, SystemMenuApi } from '#/api/system/menu';
 
 import { useColumns } from './data';
 import Form from './modules/form.vue';
+import TemplateSyncDrawer from './modules/template-sync-drawer.vue';
+
+const userStore = useUserStore();
+
+const canManageTemplateSync = computed(() => {
+  const customerId = String(userStore.userInfo?.customerId || '');
+  return customerId === 'default' && userStore.userRoles.includes('Super');
+});
 
 const [FormDrawer, formDrawerApi] = useVbenDrawer({
   connectedComponent: Form,
+  destroyOnClose: true,
+});
+
+const [TemplateSync, templateSyncApi] = useVbenDrawer({
+  connectedComponent: TemplateSyncDrawer,
   destroyOnClose: true,
 });
 
@@ -88,6 +104,9 @@ function onEdit(row: SystemMenuApi.SystemMenu) {
 function onCreate() {
   formDrawerApi.setData({}).open();
 }
+function onOpenTemplateSync() {
+  templateSyncApi.open();
+}
 function onAppend(row: SystemMenuApi.SystemMenu) {
   formDrawerApi.setData({ pid: row.menuId }).open(); // 使用menuId而不是id
 }
@@ -114,12 +133,19 @@ function onDelete(row: SystemMenuApi.SystemMenu) {
 <template>
   <Page auto-content-height>
     <FormDrawer @success="onRefresh" />
+    <TemplateSync />
     <Grid>
       <template #toolbar-tools>
-        <Button type="primary" @click="onCreate">
-          <Plus class="size-5" />
-          {{ $t('ui.actionTitle.create', [$t('system.menu.name')]) }}
-        </Button>
+        <div class="toolbar-actions">
+          <Button v-if="canManageTemplateSync" @click="onOpenTemplateSync">
+            <IconifyIcon icon="lucide:send" class="size-4" />
+            模板发布
+          </Button>
+          <Button type="primary" @click="onCreate">
+            <Plus class="size-5" />
+            {{ $t('ui.actionTitle.create', [$t('system.menu.name')]) }}
+          </Button>
+        </div>
       </template>
       <template #title="{ row }">
         <div class="flex w-full items-center gap-1">
@@ -159,5 +185,13 @@ function onDelete(row: SystemMenuApi.SystemMenu) {
     padding-top: 0;
     padding-bottom: 0;
   }
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
 }
 </style>

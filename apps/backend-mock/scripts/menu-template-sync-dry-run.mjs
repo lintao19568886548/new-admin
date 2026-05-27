@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import dotenv from 'dotenv';
 import mariadb from 'mariadb';
+import { createClient } from 'redis';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const backendMockDir = path.resolve(scriptDir, '..');
@@ -47,12 +48,26 @@ const MENU_META_COMPARE_FIELDS = [
   'openInNewWindow',
 ];
 
-const CODE_COMPARE_FIELDS = ['code', 'name', 'content', 'templateVersion'];
+const CODE_COMPARE_FIELDS = [
+  'code',
+  'name',
+  'content',
+  'menuTemplateKey',
+  'templateVersion',
+];
 
 class MenuTemplateDryRunError extends Error {
   constructor(message) {
     super(message);
     this.name = 'MenuTemplateDryRunError';
+  }
+}
+
+class TargetExecutionError extends Error {
+  constructor(message, result) {
+    super(message);
+    this.name = 'TargetExecutionError';
+    this.result = result;
   }
 }
 
@@ -65,12 +80,13 @@ function shouldPrintHelp(argv) {
 }
 
 function printHelp() {
-  console.log(`菜单模板同步 dry-run
+  console.log(`菜单模板同步
 
 用法:
   pnpm -F @vben/backend-mock run menu-template:sync-dry-run -- --target-customer-id=public
   pnpm -F @vben/backend-mock run menu-template:sync-dry-run -- --target-customer-id=<tenantId>
   pnpm -F @vben/backend-mock run menu-template:sync-dry-run -- --all-tenants
+  pnpm -F @vben/backend-mock run menu-template:sync-execute -- --target-customer-id=public
 
 参数:
   --source-customer-id=<id>   模板源逻辑库，默认 default
@@ -79,19 +95,24 @@ function printHelp() {
   --target-db-name=<name>     目标库真实数据库名，通常来自 center.customer.db_name
   --target-database-url=<url> 直接指定目标数据库 URL；优先级高于 target-customer-id
   --all-tenants               从中心库 customer 表枚举全部启用租户，不包含 public/default
+  --execute                   执行真实 OTA 写入；不传时只做 dry-run
   --no-log                    只输出结果，不写 menu_template_sync_job/log
   --help, -h                  输出帮助
 
 说明:
-  - 只读 source/target 菜单、menu_meta、code，不写目标库。
+  - 默认只读 source/target 菜单、menu_meta、code，不写目标库。
+  - --execute 会先对全部目标做 preflight；任一目标 blocked 时整批不执行。
+  - --execute 下每个目标库单独事务，写 menu/menu_meta/code，不写角色和授权表。
+  - --execute 要求 REDIS_URL 已配置且 Redis 可连接，用于刷新跨进程权限缓存版本。
   - source 发布候选集为 template_managed=1 AND template_internal_only=0 AND template_deleted_at IS NULL。
   - target 下线候选只统计 template_managed=1 且不在 source 发布候选集内的记录。
-  - 有 duplicate、缺失 template_key、未受模板管理的同 key 目标记录时，目标状态为 blocked。`);
+  - 有 duplicate、缺失 template_key、父级未发布、code 关联冲突时，目标状态为 blocked。`);
 }
 
 function parseArgs(argv) {
   const options = {
     allTenants: false,
+    execute: false,
     log: true,
     sourceCustomerId: getDefaultCustomerId(),
     sourceDatabaseUrl: '',
@@ -103,6 +124,10 @@ function parseArgs(argv) {
   for (const arg of argv) {
     if (arg === '--all-tenants') {
       options.allTenants = true;
+      continue;
+    }
+    if (arg === '--execute') {
+      options.execute = true;
       continue;
     }
     if (arg === '--no-log') {
@@ -147,6 +172,12 @@ function parseArgs(argv) {
     throw new MenuTemplateDryRunError(
       '请指定 --target-customer-id、--target-database-url 或 --all-tenants',
     );
+  }
+  if (options.execute && !options.log) {
+    throw new MenuTemplateDryRunError('--execute 不能和 --no-log 同时使用');
+  }
+  if (options.execute && !getRedisUrl()) {
+    throw new MenuTemplateDryRunError('--execute 需要配置 REDIS_URL');
   }
 
   return options;
@@ -293,6 +324,34 @@ function maskDatabaseUrl(rawUrl) {
     /:\/\/([^:/?#]+):([^@/?#]+)@/g,
     '://$1:***@',
   );
+}
+
+function getRedisUrl() {
+  return stripWrappingQuotes(process.env.REDIS_URL);
+}
+
+function maskRedisUrl(rawUrl) {
+  const redisUrl = stripWrappingQuotes(rawUrl);
+  if (!redisUrl) {
+    return '';
+  }
+  try {
+    const url = new URL(redisUrl);
+    if (url.password) {
+      url.password = '***';
+    }
+    return url.toString();
+  } catch {
+    return redisUrl.replaceAll(/:\/\/([^:/?#]+):([^@/?#]+)@/g, '://$1:***@');
+  }
+}
+
+function buildRedisOutput(options) {
+  const redisUrl = getRedisUrl();
+  return {
+    required: Boolean(options.execute),
+    url: redisUrl ? maskRedisUrl(redisUrl) : null,
+  };
 }
 
 function toBoolean(value) {
@@ -448,15 +507,24 @@ async function readSnapshot(connection) {
     readMenuMetas(connection),
     readCodes(connection),
   ]);
+  const menusById = new Map(menus.map((item) => [item.menuId, item]));
+  const normalizedCodes = codes.map((code) => ({
+    ...code,
+    menuTemplateKey: code.menuId
+      ? menusById.get(code.menuId)?.templateKey || null
+      : null,
+  }));
   return {
-    codes,
+    codes: normalizedCodes,
     codesByMenuId: new Map(
-      codes.filter((item) => item.menuId).map((item) => [item.menuId, item]),
+      normalizedCodes
+        .filter((item) => item.menuId)
+        .map((item) => [item.menuId, item]),
     ),
     metas,
     metasByMenuId: new Map(metas.map((item) => [item.menuId, item])),
     menus,
-    menusById: new Map(menus.map((item) => [item.menuId, item])),
+    menusById,
   };
 }
 
@@ -575,6 +643,43 @@ function pushConflict(details, scope, reason, item) {
   });
 }
 
+function findMenuTemplateParentCycles(menus) {
+  const parentByKey = new Map(
+    menus
+      .filter((item) => item.templateKey)
+      .map((item) => [item.templateKey, item.templateParentKey || '']),
+  );
+  const reported = new Set();
+  const cycles = [];
+
+  for (const menu of menus) {
+    if (!menu.templateKey) {
+      continue;
+    }
+    const pathKeys = [];
+    const seen = new Set();
+    let currentKey = menu.templateKey;
+
+    while (currentKey && parentByKey.has(currentKey)) {
+      if (seen.has(currentKey)) {
+        const startIndex = pathKeys.indexOf(currentKey);
+        const cycleKeys = [...pathKeys.slice(startIndex), currentKey];
+        const reportKey = [...new Set(cycleKeys)].sort().join('|');
+        if (!reported.has(reportKey)) {
+          reported.add(reportKey);
+          cycles.push(cycleKeys);
+        }
+        break;
+      }
+      seen.add(currentKey);
+      pathKeys.push(currentKey);
+      currentKey = parentByKey.get(currentKey);
+    }
+  }
+
+  return cycles;
+}
+
 function validateSourceSnapshot(source, details) {
   const menuDuplicateKeys = findDuplicateTemplateKeys(source.menus, 'menuId');
   for (const item of menuDuplicateKeys) {
@@ -587,6 +692,12 @@ function validateSourceSnapshot(source, details) {
   }
 
   const menuKeys = new Set(source.menus.map((item) => item.templateKey));
+  for (const cycleKeys of findMenuTemplateParentCycles(source.menus)) {
+    pushConflict(details, 'menu', 'source_parent_cycle', {
+      cycleKeys,
+    });
+  }
+
   for (const menu of source.menus) {
     if (!menu.templateKey) {
       pushConflict(details, 'menu', 'source_missing_template_key', {
@@ -679,6 +790,46 @@ function validateTargetSnapshot(target, details) {
   }
 }
 
+function validateTargetCodeMenuSlots(
+  source,
+  target,
+  details,
+  targetMenuByKey,
+  targetCodeByKey,
+) {
+  for (const sourceCode of source.codes) {
+    if (!sourceCode.templateKey || !sourceCode.menuId) {
+      continue;
+    }
+
+    const sourceMenu = source.menusById.get(sourceCode.menuId);
+    if (!sourceMenu?.templateKey) {
+      continue;
+    }
+
+    const expectedTargetMenu = targetMenuByKey.get(sourceMenu.templateKey);
+    if (!expectedTargetMenu) {
+      continue;
+    }
+
+    const targetCode = targetCodeByKey.get(sourceCode.templateKey);
+    const targetSlotCode = target.codesByMenuId.get(expectedTargetMenu.menuId);
+    if (!targetSlotCode) {
+      continue;
+    }
+    if (!targetCode || targetCode.codeId !== targetSlotCode.codeId) {
+      pushConflict(details, 'code', 'target_code_menu_slot_conflict', {
+        expectedMenuId: expectedTargetMenu.menuId,
+        expectedMenuTemplateKey: sourceMenu.templateKey,
+        sourceCodeId: sourceCode.codeId,
+        sourceCodeTemplateKey: sourceCode.templateKey,
+        targetCodeId: targetSlotCode.codeId,
+        targetCodeTemplateKey: targetSlotCode.templateKey,
+      });
+    }
+  }
+}
+
 function buildEmptyDetails() {
   return {
     code: {
@@ -708,6 +859,13 @@ function buildDiff(source, target) {
   const targetMenuByKey = indexByTemplateKey(target.menus);
   const sourceCodeByKey = indexByTemplateKey(source.codes);
   const targetCodeByKey = indexByTemplateKey(target.codes);
+  validateTargetCodeMenuSlots(
+    source,
+    target,
+    details,
+    targetMenuByKey,
+    targetCodeByKey,
+  );
 
   for (const sourceMenu of source.menus) {
     if (!sourceMenu.templateKey) {
@@ -773,6 +931,7 @@ function buildDiff(source, target) {
     if (
       targetMenu.templateManaged &&
       targetMenu.templateKey &&
+      !targetMenu.templateDeletedAt &&
       !sourceMenuByKey.has(targetMenu.templateKey)
     ) {
       details.menu.disable.push({
@@ -821,6 +980,7 @@ function buildDiff(source, target) {
     if (
       targetCode.templateManaged &&
       targetCode.templateKey &&
+      !targetCode.templateDeletedAt &&
       !sourceCodeByKey.has(targetCode.templateKey)
     ) {
       details.code.disable.push({
@@ -850,7 +1010,7 @@ async function createJob(centerConnection, params) {
         (?, ?, ?, ?, ?, ?)
     `,
     [
-      'dry_run',
+      params.mode,
       params.sourceCustomerId,
       params.targetScope,
       params.targetCustomerId || null,
@@ -983,6 +1143,551 @@ async function runTarget(sourcePublishSnapshot, target) {
   }
 }
 
+function toDbNullable(value) {
+  return value === undefined ? null : value;
+}
+
+function toDbBoolean(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  return toBoolean(value) ? 1 : 0;
+}
+
+function getMenuWriteParams(sourceMenu) {
+  return [
+    sourceMenu.name || '',
+    sourceMenu.type || 'menu',
+    Number(sourceMenu.status ?? 1),
+    sourceMenu.path || '',
+    toDbNullable(sourceMenu.activePath),
+    toDbNullable(sourceMenu.redirect),
+    toDbNullable(sourceMenu.component),
+    toDbNullable(sourceMenu.authCode),
+    sourceMenu.templateKey,
+    toDbNullable(sourceMenu.templateParentKey),
+    Number(sourceMenu.templateVersion || 1),
+  ];
+}
+
+async function upsertMenuFromSource(connection, sourceMenu, targetMenu) {
+  const params = getMenuWriteParams(sourceMenu);
+  if (targetMenu) {
+    await connection.query(
+      `
+        UPDATE menu
+        SET
+          name = ?,
+          type = ?,
+          status = ?,
+          path = ?,
+          active_path = ?,
+          redirect = ?,
+          component = ?,
+          auth_code = ?,
+          template_key = ?,
+          template_parent_key = ?,
+          template_version = ?,
+          template_managed = 1,
+          template_internal_only = 0,
+          template_deleted_at = NULL
+        WHERE menu_id = ?
+      `,
+      [...params, targetMenu.menuId],
+    );
+    return targetMenu.menuId;
+  }
+
+  const result = await connection.query(
+    `
+      INSERT INTO menu
+        (
+          name,
+          type,
+          status,
+          path,
+          active_path,
+          redirect,
+          component,
+          auth_code,
+          template_key,
+          template_parent_key,
+          template_version,
+          template_managed,
+          template_internal_only,
+          template_deleted_at,
+          pid
+        )
+      VALUES
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, NULL, NULL)
+    `,
+    params,
+  );
+  return Number(result.insertId);
+}
+
+function getMenuMetaWriteParams(sourceMeta, targetMenuId) {
+  return [
+    sourceMeta.title || '',
+    toDbNullable(sourceMeta.icon),
+    toDbNullable(sourceMeta.order),
+    toDbNullable(sourceMeta.color),
+    toDbNullable(sourceMeta.activeIcon),
+    toDbNullable(sourceMeta.activePath),
+    toDbBoolean(sourceMeta.affixTab),
+    toDbNullable(sourceMeta.affixTabOrder),
+    toDbNullable(sourceMeta.badge),
+    toDbNullable(sourceMeta.badgeType),
+    toDbNullable(sourceMeta.badgeVariants),
+    toDbBoolean(sourceMeta.hideChildrenInMenu),
+    toDbBoolean(sourceMeta.hideInBreadcrumb),
+    toDbBoolean(sourceMeta.hideInMenu),
+    toDbBoolean(sourceMeta.hideInTab),
+    toDbNullable(sourceMeta.iframeSrc),
+    toDbBoolean(sourceMeta.keepAlive),
+    toDbNullable(sourceMeta.link),
+    toDbBoolean(sourceMeta.isApp),
+    toDbNullable(sourceMeta.maxNumOfOpenTab),
+    toDbBoolean(sourceMeta.noBasicLayout),
+    toDbBoolean(sourceMeta.openInNewWindow),
+    targetMenuId,
+  ];
+}
+
+async function upsertMenuMetaFromSource(
+  connection,
+  sourceMeta,
+  targetMenuId,
+  targetMeta,
+) {
+  const params = getMenuMetaWriteParams(sourceMeta, targetMenuId);
+  if (targetMeta) {
+    await connection.query(
+      `
+        UPDATE menu_meta
+        SET
+          title = ?,
+          icon = ?,
+          \`order\` = ?,
+          color = ?,
+          active_icon = ?,
+          active_path = ?,
+          affix_tab = ?,
+          affix_tab_order = ?,
+          badge_content = ?,
+          badge_type = ?,
+          badge_variants = ?,
+          hide_children_in_menu = ?,
+          hide_in_breadcrumb = ?,
+          hide_in_menu = ?,
+          hide_in_tab = ?,
+          iframe_src = ?,
+          keep_alive = ?,
+          link = ?,
+          is_app = ?,
+          max_num_of_open_tab = ?,
+          no_basic_layout = ?,
+          open_in_new_window = ?
+        WHERE menu_id = ?
+      `,
+      params,
+    );
+    return;
+  }
+
+  await connection.query(
+    `
+      INSERT INTO menu_meta
+        (
+          title,
+          icon,
+          \`order\`,
+          color,
+          active_icon,
+          active_path,
+          affix_tab,
+          affix_tab_order,
+          badge_content,
+          badge_type,
+          badge_variants,
+          hide_children_in_menu,
+          hide_in_breadcrumb,
+          hide_in_menu,
+          hide_in_tab,
+          iframe_src,
+          keep_alive,
+          link,
+          is_app,
+          max_num_of_open_tab,
+          no_basic_layout,
+          open_in_new_window,
+          menu_id
+        )
+      VALUES
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    params,
+  );
+}
+
+function getTargetMenuIdForSourceCode(
+  source,
+  targetMenuIdByTemplateKey,
+  sourceCode,
+) {
+  if (!sourceCode.menuId) {
+    return null;
+  }
+  const sourceMenu = source.menusById.get(sourceCode.menuId);
+  if (!sourceMenu?.templateKey) {
+    return null;
+  }
+  return targetMenuIdByTemplateKey.get(sourceMenu.templateKey) || null;
+}
+
+function getCodeWriteParams(sourceCode, targetMenuId) {
+  return [
+    sourceCode.code || '',
+    sourceCode.name || '',
+    toDbNullable(sourceCode.content),
+    targetMenuId,
+    sourceCode.templateKey,
+    Number(sourceCode.templateVersion || 1),
+  ];
+}
+
+async function upsertCodeFromSource(
+  connection,
+  sourceCode,
+  targetMenuId,
+  targetCode,
+) {
+  const params = getCodeWriteParams(sourceCode, targetMenuId);
+  if (targetCode) {
+    await connection.query(
+      `
+        UPDATE code
+        SET
+          code = ?,
+          name = ?,
+          content = ?,
+          menu_id = ?,
+          template_key = ?,
+          template_version = ?,
+          template_managed = 1,
+          template_internal_only = 0,
+          template_deleted_at = NULL
+        WHERE code_id = ?
+      `,
+      [...params, targetCode.codeId],
+    );
+    return targetCode.codeId;
+  }
+
+  const result = await connection.query(
+    `
+      INSERT INTO code
+        (
+          code,
+          name,
+          content,
+          menu_id,
+          template_key,
+          template_version,
+          template_managed,
+          template_internal_only,
+          template_deleted_at
+        )
+      VALUES
+        (?, ?, ?, ?, ?, ?, 1, 0, NULL)
+    `,
+    params,
+  );
+  return Number(result.insertId);
+}
+
+async function disableTargetMenu(connection, targetMenu, now) {
+  await connection.query(
+    `
+      UPDATE menu
+      SET
+        status = 0,
+        template_deleted_at = COALESCE(template_deleted_at, ?)
+      WHERE menu_id = ?
+    `,
+    [now, targetMenu.menuId],
+  );
+}
+
+async function disableTargetCode(connection, targetCode, now) {
+  await connection.query(
+    `
+      UPDATE code
+      SET
+        template_deleted_at = COALESCE(template_deleted_at, ?)
+      WHERE code_id = ?
+    `,
+    [now, targetCode.codeId],
+  );
+}
+
+async function applyMenuTemplateSync(connection, source, target) {
+  const sourceMenuByKey = indexByTemplateKey(source.menus);
+  const sourceCodeByKey = indexByTemplateKey(source.codes);
+  const targetMenuByKey = indexByTemplateKey(target.menus);
+  const targetCodeByKey = indexByTemplateKey(target.codes);
+  const targetMetaByMenuId = new Map(target.metasByMenuId);
+  const targetMenuIdByTemplateKey = new Map();
+  const execution = {
+    code: {
+      disabled: 0,
+      upserted: 0,
+    },
+    menu: {
+      disabled: 0,
+      metaUpserted: 0,
+      parentFixed: 0,
+      upserted: 0,
+    },
+  };
+
+  for (const sourceMenu of source.menus) {
+    if (!sourceMenu.templateKey) {
+      continue;
+    }
+    const targetMenu = targetMenuByKey.get(sourceMenu.templateKey);
+    const targetMenuId = await upsertMenuFromSource(
+      connection,
+      sourceMenu,
+      targetMenu,
+    );
+    targetMenuIdByTemplateKey.set(sourceMenu.templateKey, targetMenuId);
+    execution.menu.upserted += 1;
+
+    const sourceMeta = source.metasByMenuId.get(sourceMenu.menuId);
+    if (!sourceMeta) {
+      throw new MenuTemplateDryRunError(
+        `source menu ${sourceMenu.templateKey} 缺少 menu_meta`,
+      );
+    }
+    await upsertMenuMetaFromSource(
+      connection,
+      sourceMeta,
+      targetMenuId,
+      targetMetaByMenuId.get(targetMenuId),
+    );
+    targetMetaByMenuId.set(targetMenuId, { menuId: targetMenuId });
+    execution.menu.metaUpserted += 1;
+  }
+
+  for (const sourceMenu of source.menus) {
+    if (!sourceMenu.templateKey) {
+      continue;
+    }
+    const targetMenuId = targetMenuIdByTemplateKey.get(sourceMenu.templateKey);
+    const parentMenuId = sourceMenu.templateParentKey
+      ? targetMenuIdByTemplateKey.get(sourceMenu.templateParentKey) || null
+      : null;
+    await connection.query('UPDATE menu SET pid = ? WHERE menu_id = ?', [
+      parentMenuId,
+      targetMenuId,
+    ]);
+    execution.menu.parentFixed += 1;
+  }
+
+  for (const sourceCode of source.codes) {
+    if (!sourceCode.templateKey) {
+      continue;
+    }
+    const targetMenuId = getTargetMenuIdForSourceCode(
+      source,
+      targetMenuIdByTemplateKey,
+      sourceCode,
+    );
+    const targetCode = targetCodeByKey.get(sourceCode.templateKey);
+    await upsertCodeFromSource(
+      connection,
+      sourceCode,
+      targetMenuId,
+      targetCode,
+    );
+    execution.code.upserted += 1;
+  }
+
+  const now = new Date();
+  for (const targetMenu of target.menus) {
+    if (
+      targetMenu.templateManaged &&
+      targetMenu.templateKey &&
+      !targetMenu.templateDeletedAt &&
+      !sourceMenuByKey.has(targetMenu.templateKey)
+    ) {
+      await disableTargetMenu(connection, targetMenu, now);
+      execution.menu.disabled += 1;
+    }
+  }
+
+  for (const targetCode of target.codes) {
+    if (
+      targetCode.templateManaged &&
+      targetCode.templateKey &&
+      !targetCode.templateDeletedAt &&
+      !sourceCodeByKey.has(targetCode.templateKey)
+    ) {
+      await disableTargetCode(connection, targetCode, now);
+      execution.code.disabled += 1;
+    }
+  }
+
+  return execution;
+}
+
+let redisClientPromise = null;
+
+async function getScriptRedisClient() {
+  const url = getRedisUrl();
+  if (!url) {
+    return null;
+  }
+  if (!redisClientPromise) {
+    redisClientPromise = (async () => {
+      const client = createClient({ url });
+      client.on('error', (error) => {
+        console.error('[menu-template:sync] Redis client error:', error);
+      });
+      await client.connect();
+      return client;
+    })();
+  }
+  return await redisClientPromise;
+}
+
+async function closeScriptRedisClient() {
+  if (!redisClientPromise) {
+    return;
+  }
+  const client = await redisClientPromise.catch(() => null);
+  redisClientPromise = null;
+  await client?.quit().catch(() => undefined);
+}
+
+async function assertPermissionCacheReadyForExecute() {
+  const redis = await getScriptRedisClient();
+  if (!redis) {
+    throw new MenuTemplateDryRunError('--execute 需要配置 REDIS_URL');
+  }
+  await redis.ping();
+}
+
+async function bumpPermissionCacheVersion(customerId) {
+  const redis = await getScriptRedisClient();
+  if (!redis) {
+    throw new MenuTemplateDryRunError('--execute 需要配置 REDIS_URL');
+  }
+  const value = await redis.incr(`permission:version:${customerId}`);
+  return {
+    status: 'bumped',
+    version: Number(value),
+  };
+}
+
+async function executeTarget(sourcePublishSnapshot, target) {
+  const targetDatabaseUrl = resolveTargetDatabaseUrl(target);
+  const targetConnection = await openConnection(targetDatabaseUrl);
+  let committed = false;
+  let execution;
+  let targetSnapshot;
+  let diff;
+  const targetDbName =
+    target.dbName || getDatabaseNameFromUrl(targetDatabaseUrl) || null;
+
+  try {
+    await targetConnection.beginTransaction();
+    targetSnapshot = await readSnapshot(targetConnection);
+    diff = buildDiff(sourcePublishSnapshot, targetSnapshot);
+
+    if (diff.blocked) {
+      const blockedResult = {
+        databaseUrl: maskDatabaseUrl(targetDatabaseUrl),
+        details: diff.details,
+        errorMessage: `目标 ${target.customerId} execute 前 preflight blocked`,
+        status: 'blocked',
+        summary: diff.summary,
+        targetCustomerId: target.customerId,
+        targetDbName,
+      };
+      throw new TargetExecutionError(
+        `目标 ${target.customerId} execute 前 preflight blocked`,
+        blockedResult,
+      );
+    }
+
+    execution = await applyMenuTemplateSync(
+      targetConnection,
+      sourcePublishSnapshot,
+      targetSnapshot,
+    );
+    await targetConnection.commit();
+    committed = true;
+    let permissionCache;
+    try {
+      permissionCache = await bumpPermissionCacheVersion(target.customerId);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      throw new TargetExecutionError(
+        `目标 ${target.customerId} 数据已提交，但权限缓存刷新失败: ${errorMessage}`,
+        {
+          databaseUrl: maskDatabaseUrl(targetDatabaseUrl),
+          details: diff.details,
+          errorMessage,
+          execution,
+          permissionCache: {
+            errorMessage,
+            status: 'failed',
+          },
+          status: 'failed',
+          summary: diff.summary,
+          targetCustomerId: target.customerId,
+          targetDbName,
+        },
+      );
+    }
+
+    return {
+      databaseUrl: maskDatabaseUrl(targetDatabaseUrl),
+      details: diff.details,
+      execution,
+      permissionCache,
+      status: 'completed',
+      summary: diff.summary,
+      targetCustomerId: target.customerId,
+      targetDbName,
+    };
+  } catch (error) {
+    if (!committed) {
+      await targetConnection.rollback().catch(() => undefined);
+    }
+    if (error instanceof TargetExecutionError) {
+      throw error;
+    }
+    throw new TargetExecutionError(
+      error instanceof Error ? error.message : String(error),
+      {
+        databaseUrl: maskDatabaseUrl(targetDatabaseUrl),
+        details: diff?.details || buildEmptyDetails(),
+        errorMessage: error instanceof Error ? error.message : String(error),
+        status: 'failed',
+        summary: diff?.summary || summarizeDetails(buildEmptyDetails()),
+        targetCustomerId: target.customerId,
+        targetDbName,
+      },
+    );
+  } finally {
+    await targetConnection.end().catch(() => undefined);
+  }
+}
+
 function summarizeTargets(results) {
   return {
     blocked: results.filter((item) => item.status === 'blocked').length,
@@ -991,11 +1696,20 @@ function summarizeTargets(results) {
   };
 }
 
-async function main() {
-  const argv = normalizeArgv(process.argv.slice(2));
+function summarizeExecutions(results) {
+  return {
+    blocked: results.filter((item) => item.status === 'blocked').length,
+    completed: results.filter((item) => item.status === 'completed').length,
+    failed: results.filter((item) => item.status === 'failed').length,
+    targets: results.length,
+  };
+}
+
+export async function runMenuTemplateSync(rawArgv = process.argv.slice(2)) {
+  const argv = normalizeArgv(rawArgv);
   if (shouldPrintHelp(argv)) {
     printHelp();
-    return;
+    return null;
   }
 
   const options = parseArgs(argv);
@@ -1008,15 +1722,21 @@ async function main() {
   let jobId = 0;
 
   try {
+    if (options.execute) {
+      await assertPermissionCacheReadyForExecute();
+    }
+
     const targets = options.allTenants
       ? await listTenantTargets(centerConnection)
       : [buildSingleTarget(options)];
     const targetScope = options.allTenants
       ? 'all_tenants'
       : targets[0]?.customerId || 'direct';
+    const mode = options.execute ? 'execute' : 'dry_run';
 
     if (options.log && centerConnection) {
       jobId = await createJob(centerConnection, {
+        mode,
         sourceCustomerId: options.sourceCustomerId,
         targetCustomerId: options.allTenants ? '' : targets[0]?.customerId,
         targetScope,
@@ -1033,20 +1753,11 @@ async function main() {
       await sourceConnection.end().catch(() => undefined);
     }
 
-    const results = [];
+    const preflightResults = [];
     for (const target of targets) {
       try {
         const result = await runTarget(sourceSnapshot, target);
-        results.push(result);
-        if (options.log && centerConnection) {
-          await createLog(centerConnection, jobId, {
-            details: result.details,
-            status: result.status,
-            summary: result.summary,
-            targetCustomerId: result.targetCustomerId,
-            targetDbName: result.targetDbName,
-          });
-        }
+        preflightResults.push(result);
       } catch (error) {
         const failed = {
           databaseUrl: maskTargetDatabaseUrl(target),
@@ -1057,50 +1768,168 @@ async function main() {
           targetCustomerId: target.customerId,
           targetDbName: target.dbName || '',
         };
-        results.push(failed);
-        if (options.log && centerConnection) {
-          await createLog(centerConnection, jobId, {
-            details: failed.details,
-            errorMessage: failed.errorMessage,
-            status: failed.status,
-            summary: failed.summary,
-            targetCustomerId: failed.targetCustomerId,
-            targetDbName: failed.targetDbName,
-          });
-        }
+        preflightResults.push(failed);
       }
     }
 
-    const summary = summarizeTargets(results);
-    const status = summary.blocked > 0 ? 'blocked' : 'ready';
+    if (!options.execute) {
+      for (const result of preflightResults) {
+        if (options.log && centerConnection) {
+          await createLog(centerConnection, jobId, {
+            details: result.details,
+            errorMessage: result.errorMessage,
+            status: result.status,
+            summary: result.summary,
+            targetCustomerId: result.targetCustomerId,
+            targetDbName: result.targetDbName,
+          });
+        }
+      }
+
+      const summary = summarizeTargets(preflightResults);
+      const status = summary.blocked > 0 ? 'blocked' : 'ready';
+      if (options.log && centerConnection) {
+        await updateJob(centerConnection, jobId, {
+          status,
+          summary,
+        });
+      }
+
+      return {
+        dryRun: true,
+        jobId: jobId || null,
+        mode,
+        redis: buildRedisOutput(options),
+        source: {
+          customerId: options.sourceCustomerId,
+          databaseUrl: maskDatabaseUrl(sourceDatabaseUrl),
+          publishSet: {
+            code: sourceSnapshot.codes.length,
+            menu: sourceSnapshot.menus.length,
+          },
+        },
+        status,
+        summary,
+        targets: preflightResults,
+      };
+    }
+
+    const preflightSummary = summarizeTargets(preflightResults);
+    if (preflightSummary.blocked > 0) {
+      for (const result of preflightResults) {
+        if (options.log && centerConnection) {
+          await createLog(centerConnection, jobId, {
+            details: result.details,
+            errorMessage: result.errorMessage,
+            status: result.status,
+            summary: result.summary,
+            targetCustomerId: result.targetCustomerId,
+            targetDbName: result.targetDbName,
+          });
+        }
+      }
+      if (options.log && centerConnection) {
+        await updateJob(centerConnection, jobId, {
+          status: 'blocked',
+          summary: preflightSummary,
+        });
+      }
+      return {
+        dryRun: false,
+        executed: false,
+        jobId: jobId || null,
+        mode,
+        preflight: preflightSummary,
+        redis: buildRedisOutput(options),
+        source: {
+          customerId: options.sourceCustomerId,
+          databaseUrl: maskDatabaseUrl(sourceDatabaseUrl),
+          publishSet: {
+            code: sourceSnapshot.codes.length,
+            menu: sourceSnapshot.menus.length,
+          },
+        },
+        status: 'blocked',
+        summary: preflightSummary,
+        targets: preflightResults,
+      };
+    }
+
+    const executionResults = [];
+    for (const target of targets) {
+      let result;
+      try {
+        result = await executeTarget(sourceSnapshot, target);
+      } catch (error) {
+        result =
+          error instanceof TargetExecutionError
+            ? error.result
+            : {
+                databaseUrl: maskTargetDatabaseUrl(target),
+                details: buildEmptyDetails(),
+                errorMessage:
+                  error instanceof Error ? error.message : String(error),
+                status: 'failed',
+                summary: summarizeDetails(buildEmptyDetails()),
+                targetCustomerId: target.customerId,
+                targetDbName: target.dbName || '',
+              };
+      }
+      executionResults.push(result);
+      if (result.permissionCache?.status === 'failed') {
+        break;
+      }
+    }
+
+    for (const result of executionResults) {
+      if (options.log && centerConnection) {
+        await createLog(centerConnection, jobId, {
+          details: {
+            plan: result.details,
+            execution: result.execution,
+            permissionCache: result.permissionCache,
+          },
+          errorMessage: result.errorMessage,
+          status: result.status,
+          summary: result.summary,
+          targetCustomerId: result.targetCustomerId,
+          targetDbName: result.targetDbName,
+        });
+      }
+    }
+
+    const summary = summarizeExecutions(executionResults);
+    const status =
+      summary.failed > 0 || summary.blocked > 0 ? 'failed' : 'completed';
     if (options.log && centerConnection) {
       await updateJob(centerConnection, jobId, {
         status,
-        summary,
+        summary: {
+          execution: summary,
+          preflight: preflightSummary,
+        },
       });
     }
 
-    console.log(
-      JSON.stringify(
-        {
-          dryRun: true,
-          jobId: jobId || null,
-          source: {
-            customerId: options.sourceCustomerId,
-            databaseUrl: maskDatabaseUrl(sourceDatabaseUrl),
-            publishSet: {
-              code: sourceSnapshot.codes.length,
-              menu: sourceSnapshot.menus.length,
-            },
-          },
-          status,
-          summary,
-          targets: results,
+    return {
+      dryRun: false,
+      executed: status === 'completed',
+      jobId: jobId || null,
+      mode,
+      preflight: preflightSummary,
+      redis: buildRedisOutput(options),
+      source: {
+        customerId: options.sourceCustomerId,
+        databaseUrl: maskDatabaseUrl(sourceDatabaseUrl),
+        publishSet: {
+          code: sourceSnapshot.codes.length,
+          menu: sourceSnapshot.menus.length,
         },
-        null,
-        2,
-      ),
-    );
+      },
+      status,
+      summary,
+      targets: executionResults,
+    };
   } catch (error) {
     if (options.log && centerConnection && jobId) {
       await updateJob(centerConnection, jobId, {
@@ -1112,13 +1941,23 @@ async function main() {
     throw error;
   } finally {
     await centerConnection?.end().catch(() => undefined);
+    await closeScriptRedisClient();
   }
 }
 
-main().catch((error) => {
-  console.error(
-    '[menu-template:sync-dry-run] 执行失败:',
-    error instanceof Error ? error.message : String(error),
-  );
-  process.exitCode = 1;
-});
+async function main() {
+  const result = await runMenuTemplateSync(process.argv.slice(2));
+  if (result) {
+    console.log(JSON.stringify(result, null, 2));
+  }
+}
+
+if (path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(
+      '[menu-template:sync] 执行失败:',
+      error instanceof Error ? error.message : String(error),
+    );
+    process.exitCode = 1;
+  });
+}

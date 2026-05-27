@@ -1,5 +1,15 @@
+import { verifyAccessToken } from '~/utils/jwt-utils';
 import { bumpPermissionCacheVersion } from '~/utils/permission-cache';
-import { useResponseError, useResponseSuccess } from '~/utils/response';
+import {
+  unAuthorizedResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
+import {
+  assertRoleInScope,
+  noRoleScopeResponse,
+  resolveRoleScopeContext,
+} from '~/utils/role-scope';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -7,6 +17,10 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
   const customerId = String(userinfo.customerId);
+  const roleScope = await resolveRoleScopeContext(userinfo);
+  if (!roleScope) {
+    return noRoleScopeResponse(event);
+  }
 
   const body = await readBody(event);
   const { roleId, codeId } = body;
@@ -16,6 +30,10 @@ export default eventHandler(async (event) => {
   }
 
   try {
+    await assertRoleInScope({
+      context: roleScope,
+      roleId: Number(roleId),
+    });
     // 检查是否已存在关联记录
     const existingRecord = await prismaClient.roleCode.findFirst({
       where: {
