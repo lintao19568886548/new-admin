@@ -18,6 +18,7 @@ model VipMembershipPayment {
   outTradeNo             String    @unique @map("out_trade_no") @db.VarChar(64)
   centerUserId           Int       @map("center_user_id")
   user                   User      @relation("CenterUserToVipMembershipPayment", fields: [centerUserId], references: [id])
+  sourceOrgId            Int?      @map("source_org_id")
   sourceCustomerId       String    @map("source_customer_id") @db.VarChar(50)
   targetCustomerId       String?   @map("target_customer_id") @db.VarChar(50)
   targetCity             String?   @map("target_city") @db.VarChar(30)
@@ -34,6 +35,7 @@ model VipMembershipPayment {
   updateTime             DateTime? @updatedAt @map("update_time")
 
   @@index([centerUserId])
+  @@index([sourceOrgId])
   @@index([sourceCustomerId])
   @@index([tradeState, refundCheckedAt])
   @@map("vip_membership_payment")
@@ -93,6 +95,7 @@ model VipMembershipRefund {
 model TenantProvisioningJob {
   id                     Int       @id @default(autoincrement())
   initiatorCenterUserId  Int       @map("initiator_center_user_id") // 发起人中心用户ID
+  sourceOrgId            Int?      @map("source_org_id") // 源组织ID
   sourceCustomerId       String    @map("source_customer_id") @db.VarChar(50) // 源客户ID
   targetCustomerId       String?   @map("target_customer_id") @db.VarChar(50) // 目标客户ID
   targetCity             String?   @map("target_city") @db.VarChar(30) // 目标城市
@@ -113,10 +116,29 @@ model TenantProvisioningJob {
 
   @@unique([targetCustomerId])
   @@index([initiatorCenterUserId])
+  @@index([sourceOrgId])
   @@index([sourceCustomerId])
   @@index([status])
   @@index([status, heartbeatAt])
   @@index([lockOwner])
   @@index([targetDbName])
   @@map("tenant_provisioning_job")
+}
+
+model TenantProvisioningRoleSnapshot {
+  id             Int       @id @default(autoincrement())
+  jobId          Int       @map("job_id")
+  sourceOrgId    Int       @map("source_org_id")
+  sourceRoleId   Int       @map("source_role_id")
+  targetRoleId   Int       @map("target_role_id")
+  roleName       String?   @map("role_name") @db.VarChar(50)
+  createTime     DateTime? @default(now()) @map("create_time")
+  updateTime     DateTime? @updatedAt @map("update_time")
+
+  @@unique([jobId, sourceRoleId])
+  @@index([jobId])
+  @@index([sourceOrgId])
+  @@index([sourceRoleId])
+  @@index([targetRoleId])
+  @@map("tenant_provisioning_role_snapshot")
 }

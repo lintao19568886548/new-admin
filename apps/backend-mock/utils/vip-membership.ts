@@ -79,6 +79,7 @@ export interface VipTenantIdentityInput {
 interface TenantProvisioningDraft {
   companyShortName: string;
   city: string;
+  sourceOrgId?: null | number;
 }
 
 interface TenantProvisioningTargetIdentity extends TenantProvisioningDraft {
@@ -1421,6 +1422,7 @@ async function saveTenantProvisioningDraft(
     initiatorCenterUserId: number;
     outTradeNo: string;
     sourceCustomerId: string;
+    sourceOrgId?: null | number;
     tenantIdentity?: VipTenantIdentityInput;
   },
   prisma: VipMembershipDbClient,
@@ -1446,6 +1448,9 @@ async function saveTenantProvisioningDraft(
     await prisma.tenantProvisioningJob.update({
       data: {
         lastPaymentOutTradeNo: params.outTradeNo,
+        ...(params.sourceOrgId === undefined
+          ? {}
+          : { sourceOrgId: params.sourceOrgId || null }),
         ...(existingDraft
           ? {}
           : {
@@ -1460,6 +1465,7 @@ async function saveTenantProvisioningDraft(
 
   const data = {
     lastPaymentOutTradeNo: params.outTradeNo,
+    sourceOrgId: params.sourceOrgId || null,
     sourceCustomerId: params.sourceCustomerId,
     status: 'reserved',
     targetCity: profile.city,
@@ -1490,6 +1496,7 @@ async function upsertVipMembershipPaymentSnapshot(
     paidAt?: Date | null;
     rawAttach?: null | string;
     sourceCustomerId: string;
+    sourceOrgId?: null | number;
     targetCity?: null | string;
     targetCompanyShortName?: null | string;
     targetCustomerId?: null | string;
@@ -1506,6 +1513,7 @@ async function upsertVipMembershipPaymentSnapshot(
       outTradeNo: params.outTradeNo,
       paidAt: params.paidAt || null,
       rawAttach: params.rawAttach || null,
+      sourceOrgId: params.sourceOrgId || null,
       sourceCustomerId: params.sourceCustomerId,
       targetCity: params.targetCity || null,
       targetCompanyShortName: params.targetCompanyShortName || null,
@@ -1518,6 +1526,9 @@ async function upsertVipMembershipPaymentSnapshot(
       amountTotal: params.amountTotal,
       paidAt: params.paidAt || null,
       rawAttach: params.rawAttach || null,
+      ...(params.sourceOrgId === undefined
+        ? {}
+        : { sourceOrgId: params.sourceOrgId || null }),
       ...(params.targetCity === undefined
         ? {}
         : { targetCity: params.targetCity || null }),
@@ -1544,6 +1555,7 @@ async function createVipMembershipPaymentPendingSnapshot(
     outTradeNo: string;
     rawAttach: string;
     sourceCustomerId: string;
+    sourceOrgId?: null | number;
     targetCity?: null | string;
     targetCompanyShortName?: null | string;
     targetCustomerId?: null | string;
@@ -1557,6 +1569,7 @@ async function createVipMembershipPaymentPendingSnapshot(
       centerUserId: params.centerUserId,
       outTradeNo: params.outTradeNo,
       rawAttach: params.rawAttach,
+      sourceOrgId: params.sourceOrgId || null,
       sourceCustomerId: params.sourceCustomerId,
       targetCity: params.targetCity || null,
       targetCompanyShortName: params.targetCompanyShortName || null,
@@ -1572,6 +1585,7 @@ async function ensureTenantProvisioningJob(
     initiatorCenterUserId: number;
     outTradeNo: string;
     sourceCustomerId: string;
+    sourceOrgId?: null | number;
     targetCity?: null | string;
     targetCompanyShortName?: null | string;
   },
@@ -1590,6 +1604,9 @@ async function ensureTenantProvisioningJob(
     return prisma.tenantProvisioningJob.update({
       data: {
         lastPaymentOutTradeNo: params.outTradeNo,
+        ...(params.sourceOrgId === undefined
+          ? {}
+          : { sourceOrgId: params.sourceOrgId || null }),
       },
       where: {
         id: existingJob.id,
@@ -1612,6 +1629,7 @@ async function ensureTenantProvisioningJob(
       errorMessage: null,
       heartbeatAt: null,
       lastPaymentOutTradeNo: params.outTradeNo,
+      sourceOrgId: params.sourceOrgId || null,
       lockedAt: null,
       lockOwner: null,
       retryCount: 0,
@@ -1690,6 +1708,7 @@ export async function recordVipMembershipPaymentPending(params: {
   outTradeNo: string;
   rawAttach: string;
   sourceCustomerId: string;
+  sourceOrgId?: null | number;
   tenantIdentity?: VipTenantIdentityInput;
   username?: string;
 }) {
@@ -1699,6 +1718,7 @@ export async function recordVipMembershipPaymentPending(params: {
         {
           initiatorCenterUserId: params.centerUserId,
           outTradeNo: params.outTradeNo,
+          sourceOrgId: params.sourceOrgId,
           sourceCustomerId: params.sourceCustomerId,
           tenantIdentity: params.tenantIdentity,
         },
@@ -1711,6 +1731,7 @@ export async function recordVipMembershipPaymentPending(params: {
           centerUserId: params.centerUserId,
           outTradeNo: params.outTradeNo,
           rawAttach: params.rawAttach,
+          sourceOrgId: params.sourceOrgId,
           sourceCustomerId: params.sourceCustomerId,
           targetCity: targetDraft?.city,
           targetCompanyShortName: targetDraft?.companyShortName,
@@ -2094,6 +2115,7 @@ export async function handleVipMembershipWechatOrder(
         {
           initiatorCenterUserId: payment.centerUserId,
           outTradeNo,
+          sourceOrgId: payment.sourceOrgId,
           sourceCustomerId: payment.sourceCustomerId,
           targetCity: payment.targetCity,
           targetCompanyShortName: payment.targetCompanyShortName,

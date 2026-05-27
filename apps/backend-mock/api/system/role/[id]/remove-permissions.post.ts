@@ -5,6 +5,11 @@ import {
   useResponseError,
   useResponseSuccess,
 } from '~/utils/response';
+import {
+  assertRoleInScope,
+  noRoleScopeResponse,
+  resolveRoleScopeContext,
+} from '~/utils/role-scope';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -12,6 +17,10 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
   const customerId = String(userinfo.customerId);
+  const roleScope = await resolveRoleScopeContext(userinfo);
+  if (!roleScope) {
+    return noRoleScopeResponse(event);
+  }
   const id = event.context.params?.id;
   if (!id) {
     return useResponseError('id is required', 400);
@@ -29,16 +38,24 @@ export default eventHandler(async (event) => {
   try {
     const menuIdsToRemove = permissions.map(Number);
 
-    await prismaClient.roleMenu.updateMany({
-      where: {
+    await prismaClient.$transaction(async (prisma) => {
+      await assertRoleInScope({
+        context: roleScope,
         roleId: Number(id),
-        menuId: {
-          in: menuIdsToRemove,
+        roleModel: prisma.role,
+      });
+
+      await prisma.roleMenu.updateMany({
+        where: {
+          roleId: Number(id),
+          menuId: {
+            in: menuIdsToRemove,
+          },
         },
-      },
-      data: {
-        isDeleted: true,
-      },
+        data: {
+          isDeleted: true,
+        },
+      });
     });
 
     await bumpPermissionCacheVersion(customerId).catch(() => undefined);

@@ -5,6 +5,11 @@ import {
   useResponseError,
   useResponseSuccess,
 } from '~/utils/response';
+import {
+  assertRoleInScope,
+  noRoleScopeResponse,
+  resolveRoleScopeContext,
+} from '~/utils/role-scope';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -12,18 +17,42 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
   const customerId = String(userinfo.customerId);
+  const roleScope = await resolveRoleScopeContext(userinfo);
+  if (!roleScope) {
+    return noRoleScopeResponse(event);
+  }
   const id = event.context.params?.id;
   if (!id) {
     return useResponseError('id is required', 400);
   }
   const body = await readBody(event);
-  const { permissions, parkIds, parentId, ...roleData } = body;
+  const {
+    organizationId: _organizationId,
+    permissions,
+    parkIds,
+    parentId,
+    scope: _scope,
+    ...roleData
+  } = body;
   // roleData.status = !!roleData.status;
   if (roleData.status) {
     roleData.status = Boolean(roleData.status);
   }
   try {
     const res = await prismaClient.$transaction(async (prisma) => {
+      await assertRoleInScope({
+        context: roleScope,
+        roleId: Number(id),
+        roleModel: prisma.role,
+      });
+      if (parentId) {
+        await assertRoleInScope({
+          context: roleScope,
+          roleId: Number(parentId),
+          roleModel: prisma.role,
+        });
+      }
+
       // 1. 更新角色基本信息
       await prisma.role.update({
         where: {

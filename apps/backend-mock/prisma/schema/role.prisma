@@ -4,6 +4,8 @@ model Role {
   remark            String?    @db.VarChar(100)
   status            Boolean
   parentId          Int?       @map("parent_id")
+  organizationId    Int?       @map("organization_id")
+  scope             String     @default("system") @db.VarChar(32)
   createTime        DateTime?  @default(now()) @map("create_time")
   updateTime        DateTime?  @updatedAt @map("update_time")
   roleMenus         RoleMenu[] @relation("RoleToRoleMenu")
@@ -16,6 +18,8 @@ model Role {
   parent            Role?      @relation("RoleToRole", fields: [parentId], references: [roleId], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([parentId])
+  @@index([organizationId, scope])
+  @@index([scope])
   @@map("role")
 }
 
