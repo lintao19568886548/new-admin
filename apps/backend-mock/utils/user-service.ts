@@ -49,7 +49,9 @@ export interface UserInfoForToken {
 // Prisma返回的带有完整关联信息的用户类型 (近似表示)
 // 您可能需要根据实际的Prisma查询结果调整此类型，或使用Prisma生成的类型
 type PrismaRoleWithParks = Role & {
-  roleCodes: Array<{ code: null | { code: string } }>;
+  roleCodes: Array<{
+    code: null | { code: string; templateDeletedAt?: Date | null };
+  }>;
   roleParks: (UserRole & {
     role: Role & {
       roleParks: { park: Park }[];
@@ -188,6 +190,7 @@ export async function transformPrismaUserToUserInfo(
   // 获取用户的所有权限码
   const userCodes = validUserRoles.flatMap((userRole) =>
     userRole.role.roleCodes
+      .filter((rc) => !rc.code?.templateDeletedAt)
       .map((rc) => rc.code?.code)
       .filter(
         (code): code is string => typeof code === 'string' && code.length > 0,

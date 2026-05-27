@@ -13,6 +13,16 @@ services:
       - ./magic.sql:/docker-entrypoint-initdb.d/init.sql # 挂载 SQL 文件
       - ./my.cnf:/etc/mysql/conf.d/custom.cnf:ro
     # command: --init-file=/docker-entrypoint-initdb.d/init.sql # 指定初始化文件
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '127.0.0.1:6379:6379'
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - magic-network
+
   nginx:
     image: nginx:latest
     ports:
@@ -46,6 +56,7 @@ services:
       - CENTER_DATABASE_URL=mysql://root:123456@mysql:3306/magic_center?timezone=Asia/Shanghai
       - PUBLIC_DATABASE_URL=mysql://root:123456@mysql:3306/public_magic?timezone=Asia/Shanghai
       - NOTICES_DATABASE_URL=mysql://root:123456@mysql:3306/spider?timezone=Asia/Shanghai
+      - REDIS_URL=redis://redis:6379
       - TZ=Asia/Shanghai # 后端时区
       - SMS_MCH_ID=1066338
       - SMS_APP_ID=10011751423821130
@@ -69,6 +80,7 @@ services:
     command: node ./server/index.mjs
     depends_on:
       - mysql
+      - redis
     networks:
       - magic-network
 
@@ -78,5 +90,6 @@ networks:
 
 volumes:
   mysql_data:
+  redis_data:
   uploads_data: {} # <-- 新增：定义共享数据卷
   public_upload_data: {} # <-- 新增：定义共享数据卷
