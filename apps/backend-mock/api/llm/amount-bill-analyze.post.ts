@@ -17,11 +17,14 @@ import {
 } from '~/utils/response';
 
 interface AmountBillLlmMeterItem {
+  amount?: string;
   currentReading?: string;
   meterName?: string;
   multiplier?: string;
+  monthlyUsage?: string;
   previousReading?: string;
   remark?: string;
+  totalUsage?: string;
   unitPrice?: string;
 }
 
@@ -63,6 +66,7 @@ const AMOUNT_BILL_CACHE_TTL_MS = 10 * 60_000;
 const AMOUNT_BILL_FILE_MAX_SIZE_BYTES = 150 * 1024 * 1024;
 const AMOUNT_BILL_FILE_READY_MAX_WAIT_MS = 90_000;
 const AMOUNT_BILL_FILE_READY_POLL_INTERVAL_MS = 1500;
+const AMOUNT_BILL_FORMULA_CONTEXT_MAX_CHARS = 20_000;
 const AMOUNT_BILL_PRIMARY_MODEL = 'qwen-doc-turbo';
 const AMOUNT_BILL_FALLBACK_MODEL = 'qwen-long';
 const amountBillResultCache = new Map<
@@ -126,6 +130,14 @@ function shouldFallbackToLongModel(error: any) {
     message.includes('invalid model') ||
     message.includes('region')
   );
+}
+
+function getMultipartText(part: undefined | { data?: Uint8Array }) {
+  if (!part?.data) return '';
+  return Buffer.from(part.data)
+    .toString('utf8')
+    .slice(0, AMOUNT_BILL_FORMULA_CONTEXT_MAX_CHARS)
+    .trim();
 }
 
 async function requestAmountBillCompletion(
@@ -215,6 +227,9 @@ export default eventHandler(async (event) => {
   const file =
     formData?.find((part) => part.name === 'file' && part.filename) ||
     formData?.[0];
+  const formulaContext = getMultipartText(
+    formData?.find((part) => part.name === 'formulaContext'),
+  );
 
   if (!file?.data || file.data.length === 0) {
     return badRequestResponse('Missing Excel file', event);
@@ -241,6 +256,15 @@ export default eventHandler(async (event) => {
   const prompt = [
     'Please read the uploaded Excel bill workbook and extract the bill fields.',
     'Return JSON only, and do not wrap the JSON in markdown code fences.',
+    formulaContext
+      ? [
+          'The application also parsed this formula context from the same workbook.',
+          'Use it to preserve original Excel formulas when they match extracted rows.',
+          'If a meter row has formulas, put them in monthlyUsage, totalUsage and amount.',
+          'If an extra fee row has a formula, put it in extraProjectItems.value.',
+          formulaContext,
+        ].join('\n')
+      : '',
     'Rules:',
     '1. Keep all scalar values as strings. Use "" when the value is unknown.',
     '2. eleItems and waterItems should contain only real meter rows.',
@@ -250,8 +274,10 @@ export default eventHandler(async (event) => {
     '6. If a candidate name contains words like 明细, 通知单, 账单, 水电, 房租, 租金, 收费 or looks like a heading, return "" instead.',
     '7. Keep remark short and useful.',
     '8. Use exactly this JSON object schema:',
-    '{"tenantName":"","projectName":"","parkName":"","receiptTime":"","receiptAmount":"","eleFee":"","waterFee":"","factoryRent":"","managementFee":"","garbageFee":"","serviceFee":"","invoiceTax":"","penaltyFee":"","totalFee":"","remark":"","publicBankAccount":{"name":"","number":"","bank":""},"privateBankAccount":{"name":"","number":"","bank":""},"eleItems":[{"meterName":"","previousReading":"","currentReading":"","multiplier":"","unitPrice":"","remark":""}],"waterItems":[{"meterName":"","previousReading":"","currentReading":"","multiplier":"","unitPrice":"","remark":""}],"extraProjectItems":[{"itemName":"","value":""}]}',
-  ].join('\n');
+    '{"tenantName":"","projectName":"","parkName":"","receiptTime":"","receiptAmount":"","eleFee":"","waterFee":"","factoryRent":"","managementFee":"","garbageFee":"","serviceFee":"","invoiceTax":"","penaltyFee":"","totalFee":"","remark":"","publicBankAccount":{"name":"","number":"","bank":""},"privateBankAccount":{"name":"","number":"","bank":""},"eleItems":[{"meterName":"","previousReading":"","currentReading":"","monthlyUsage":"","multiplier":"","totalUsage":"","unitPrice":"","amount":"","remark":""}],"waterItems":[{"meterName":"","previousReading":"","currentReading":"","monthlyUsage":"","multiplier":"","totalUsage":"","unitPrice":"","amount":"","remark":""}],"extraProjectItems":[{"itemName":"","value":""}]}',
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   let uploadedFileId = '';
 
