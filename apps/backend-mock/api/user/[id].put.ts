@@ -1,6 +1,14 @@
 import bcrypt from 'bcryptjs';
 import { prismaClient, prismaScopeStorage, systemDbClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  assertCenterUserCanLeaveCustomerOrganizations,
+  assertOrganizationRolesRequireActiveMembership,
+  deactivateCenterUserCustomerOrganizationMemberships,
+  OrganizationLifecycleError,
+  removeOrganizationRolesForUser,
+  syncSourceOrganizationMembershipsAfterRoleChange,
+} from '~/utils/organization-role-policy';
 import { bumpPermissionCacheVersion } from '~/utils/permission-cache';
 import {
   badRequestResponse,
@@ -128,10 +136,27 @@ export default eventHandler(async (event) => {
     : null;
   const statusToWrite =
     nextStatus === null ? Number(tenantUser.status ?? 1) : nextStatus;
+  let deactivatedOrganizationIds: number[] = [];
 
   try {
+    if (statusToWrite === 0 && centerUser?.id) {
+      await assertCenterUserCanLeaveCustomerOrganizations({
+        centerUserId: Number(centerUser.id),
+        customerId,
+      });
+    }
+
     await prismaScopeStorage.run({ customerId }, async () =>
       prismaClient.$transaction(async (prisma) => {
+        if (statusToWrite !== 0 && nextRoleIds) {
+          await assertOrganizationRolesRequireActiveMembership({
+            centerUserId: centerUser?.id ? Number(centerUser.id) : null,
+            prisma,
+            roleIds: nextRoleIds,
+            sourceCustomerId: customerId,
+          });
+        }
+
         await prisma.user.update({
           where: { id },
           data: {
@@ -213,6 +238,32 @@ export default eventHandler(async (event) => {
         data: { revokedAt: new Date() },
       });
     }
+    if (centerUserId) {
+      if (statusToWrite === 0) {
+        const result =
+          await deactivateCenterUserCustomerOrganizationMemberships({
+            centerUserId,
+            customerId,
+          });
+        deactivatedOrganizationIds = result.organizationIds;
+      } else if (nextRoleIds) {
+        await syncSourceOrganizationMembershipsAfterRoleChange({
+          centerUserId,
+          roleIds: nextRoleIds,
+          sourceCustomerId: customerId,
+        });
+      }
+    }
+
+    if (deactivatedOrganizationIds.length > 0) {
+      await prismaScopeStorage.run({ customerId }, async () =>
+        removeOrganizationRolesForUser({
+          organizationIds: deactivatedOrganizationIds,
+          prisma: prismaClient,
+          userId: id,
+        }),
+      );
+    }
 
     if (centerUserId) {
       await systemDbClient.userCustomerMapping.upsert({
@@ -243,6 +294,9 @@ export default eventHandler(async (event) => {
       tenantUserId: id,
     });
   } catch (error) {
+    if (error instanceof OrganizationLifecycleError) {
+      return badRequestResponse(error.message, event, error.statusCode);
+    }
     console.error('更新账号失败:', error);
     return serverErrorResponse('更新账号失败', event);
   }

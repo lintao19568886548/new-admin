@@ -1085,10 +1085,9 @@ async function copyOrganizationRoleSnapshot(params: {
   });
   const roleIds = uniquePositiveNumbers(roleRows.map((row) => row.roleId));
   if (roleIds.length === 0) {
-    return {
-      roleMap: new Map<number, number>(),
-      snapshots: [],
-    };
+    throw new Error(
+      `组织缺少可迁移角色，请先回填默认员工角色: sourceOrgId=${params.sourceOrgId}`,
+    );
   }
 
   const roleIdSet = new Set(roleIds);
@@ -1312,11 +1311,33 @@ async function resolveOrganizationMembers(params: {
       sourceCustomerId: params.sourceCustomerId,
       sourceUserId: member.sourceUserId ? Number(member.sourceUserId) : null,
     });
+    const memberRole = String(member.memberRole || 'member');
+
+    if (memberRole !== 'owner') {
+      const sourceRoleCount = await getQueryCount(
+        params.sourceConnection,
+        `
+          SELECT COUNT(*) AS total
+            FROM user_role
+            INNER JOIN \`role\`
+              ON \`role\`.role_id = user_role.role_id
+           WHERE user_role.user_id = ?
+             AND \`role\`.scope = 'organization'
+             AND \`role\`.organization_id = ?
+        `,
+        [Number(sourceUser.id), params.sourceOrgId],
+      );
+      if (sourceRoleCount === 0) {
+        throw new Error(
+          `组织普通成员缺少可迁移角色，请先回填默认员工角色: centerUserId=${member.centerUserId}, sourceOrgId=${params.sourceOrgId}`,
+        );
+      }
+    }
 
     resolved.push({
       centerUser,
       centerUserId: Number(member.centerUserId),
-      memberRole: String(member.memberRole || 'member'),
+      memberRole,
       sourceUser,
       sourceUserId: Number(sourceUser.id),
       targetUserId: 0,

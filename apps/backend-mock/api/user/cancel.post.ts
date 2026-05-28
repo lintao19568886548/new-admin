@@ -1,6 +1,11 @@
 import { clearRefreshTokenCookie } from '~/utils/cookie-utils';
 import { prismaClient, prismaScopeStorage, systemDbClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  assertCenterUserCanLeaveCustomerOrganizations,
+  deactivateCenterUserCustomerOrganizationMemberships,
+  OrganizationLifecycleError,
+} from '~/utils/organization-role-policy';
 import { bumpPermissionCacheVersion } from '~/utils/permission-cache';
 import {
   badRequestResponse,
@@ -81,6 +86,13 @@ export default eventHandler(async (event) => {
       String(centerUserRaw.customerType) === customerId;
     const centerUser = centerUserBelongsCurrentCustomer ? centerUserRaw : null;
 
+    if (centerUserRaw?.id) {
+      await assertCenterUserCanLeaveCustomerOrganizations({
+        centerUserId: Number(centerUserRaw.id),
+        customerId,
+      });
+    }
+
     await prismaScopeStorage.run({ customerId }, async () =>
       prismaClient.$transaction(async (prisma) => {
         await prisma.user.update({
@@ -149,6 +161,12 @@ export default eventHandler(async (event) => {
 
     clearRefreshTokenCookie(event);
     await bumpPermissionCacheVersion(customerId).catch(() => undefined);
+    if (centerUser?.id) {
+      await deactivateCenterUserCustomerOrganizationMemberships({
+        centerUserId: Number(centerUser.id),
+        customerId,
+      });
+    }
 
     return useResponseSuccess({
       centerUserId: centerUser?.id ? Number(centerUser.id) : null,
@@ -156,6 +174,9 @@ export default eventHandler(async (event) => {
       tenantUserId,
     });
   } catch (error) {
+    if (error instanceof OrganizationLifecycleError) {
+      return badRequestResponse(error.message, event, error.statusCode);
+    }
     console.error('注销当前账号失败:', error);
     return serverErrorResponse('注销当前账号失败', event);
   }

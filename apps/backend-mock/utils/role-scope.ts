@@ -1,7 +1,7 @@
 import type { UserInfoForToken } from './user-service';
 
 import { prismaClient } from '~/utils/db';
-import { resolveSingleActiveSourceOrganizationForCenterUser } from '~/utils/organization';
+import { resolveSingleActiveOwnedSourceOrganizationForCenterUser } from '~/utils/organization';
 import { forbiddenResponse } from '~/utils/response';
 
 export type RoleScopeContext =
@@ -27,10 +27,11 @@ export async function resolveRoleScopeContext(userinfo: UserInfoForToken) {
   }
 
   const centerUserId = Number(userinfo.centerUserId ?? userinfo.id);
-  const membership = await resolveSingleActiveSourceOrganizationForCenterUser({
-    centerUserId,
-    sourceCustomerId: 'public',
-  });
+  const membership =
+    await resolveSingleActiveOwnedSourceOrganizationForCenterUser({
+      centerUserId,
+      sourceCustomerId: 'public',
+    });
   if (!membership) {
     return null;
   }

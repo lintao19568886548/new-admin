@@ -1,6 +1,10 @@
 import bcrypt from 'bcryptjs';
 import { prismaClient, prismaScopeStorage, systemDbClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
+import {
+  assertOrganizationRolesRequireActiveMembership,
+  OrganizationLifecycleError,
+} from '~/utils/organization-role-policy';
 import { bumpPermissionCacheVersion } from '~/utils/permission-cache';
 import {
   badRequestResponse,
@@ -105,6 +109,17 @@ export default eventHandler(async (event) => {
   try {
     const tenantUser = await prismaScopeStorage.run({ customerId }, async () =>
       prismaClient.$transaction(async (prisma) => {
+        if (roleIds.length > 0) {
+          await assertOrganizationRolesRequireActiveMembership({
+            centerUserId: centerUserBeforeCreate?.id
+              ? Number(centerUserBeforeCreate.id)
+              : null,
+            prisma,
+            roleIds,
+            sourceCustomerId: customerId,
+          });
+        }
+
         const createdUser = await prisma.user.create({
           data: {
             customerType: customerId,
@@ -243,6 +258,9 @@ export default eventHandler(async (event) => {
         .catch(() => undefined);
     }
 
+    if (error instanceof OrganizationLifecycleError) {
+      return badRequestResponse(error.message, event, error.statusCode);
+    }
     console.error('创建账号失败:', error);
     return serverErrorResponse('创建账号失败', event);
   }
