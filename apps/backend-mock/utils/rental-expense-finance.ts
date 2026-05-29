@@ -1,4 +1,4 @@
-import { prismaClient } from '~/utils/db';
+import { prismaClient, prismaScopeStorage, systemDbClient } from '~/utils/db';
 
 const AUTO_RENTAL_EXPENSE_MARKER = '[AUTO_RENTAL_EXPENSE]';
 const DEFAULT_BILL_CATEGORY = '其他费用';
@@ -13,6 +13,10 @@ const globalForRentalExpenseFinance = globalThis as typeof globalThis & {
 };
 
 interface SyncRentalExpenseFinanceRecordsOptions {
+  customerScope?: {
+    customerId: string;
+    dbName?: null | string;
+  };
   now?: Date;
   parkIds?: number[];
   tenantIds?: number[];
@@ -35,6 +39,11 @@ interface AutoFinanceCreateInput {
   transactionType: string;
 }
 
+interface CustomerScope {
+  customerId: string;
+  dbName?: null | string;
+}
+
 function isValidDate(value: Date | null | undefined): value is Date {
   return value instanceof Date && !Number.isNaN(value.getTime());
 }
@@ -49,6 +58,35 @@ function normalizeIdList(values?: number[]) {
     .filter((value) => Number.isInteger(value) && value > 0);
 
   return normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeCustomerScope(
+  value?: CustomerScope | null,
+): CustomerScope | null {
+  const customerId = String(value?.customerId || '').trim();
+  if (!customerId) {
+    return null;
+  }
+
+  const dbName = String(value?.dbName || '').trim();
+  return {
+    customerId,
+    dbName: dbName || null,
+  };
+}
+
+function isSameCustomerScope(
+  left?: CustomerScope | null,
+  right?: CustomerScope | null,
+) {
+  const normalizedLeft = normalizeCustomerScope(left);
+  const normalizedRight = normalizeCustomerScope(right);
+
+  return (
+    normalizedLeft?.customerId === normalizedRight?.customerId &&
+    String(normalizedLeft?.dbName || '') ===
+      String(normalizedRight?.dbName || '')
+  );
 }
 
 function getWorkerIntervalMs() {
@@ -175,7 +213,7 @@ function parseAutoRemark(remark?: null | string) {
   };
 }
 
-export async function syncRentalExpenseFinanceRecords(
+async function syncRentalExpenseFinanceRecordsInCurrentScope(
   options: SyncRentalExpenseFinanceRecordsOptions = {},
 ): Promise<SyncRentalExpenseFinanceRecordsResult> {
   const now = isValidDate(options.now) ? options.now : new Date();
@@ -348,6 +386,44 @@ export async function syncRentalExpenseFinanceRecords(
   };
 }
 
+export async function syncRentalExpenseFinanceRecords(
+  options: SyncRentalExpenseFinanceRecordsOptions = {},
+): Promise<SyncRentalExpenseFinanceRecordsResult> {
+  const targetScope = normalizeCustomerScope(options.customerScope);
+  const currentScope = normalizeCustomerScope(prismaScopeStorage.getStore());
+
+  if (targetScope && !isSameCustomerScope(targetScope, currentScope)) {
+    return prismaScopeStorage.run(targetScope, async () =>
+      syncRentalExpenseFinanceRecordsInCurrentScope(options),
+    );
+  }
+
+  return syncRentalExpenseFinanceRecordsInCurrentScope(options);
+}
+
+async function listActiveCustomerScopes() {
+  const customers = await systemDbClient.customer.findMany({
+    where: {
+      status: {
+        not: 0,
+      },
+    },
+    select: {
+      customerId: true,
+      dbName: true,
+    },
+  });
+
+  return customers
+    .map((customer) =>
+      normalizeCustomerScope({
+        customerId: customer.customerId,
+        dbName: customer.dbName,
+      }),
+    )
+    .filter(Boolean) as CustomerScope[];
+}
+
 async function runRentalExpenseFinanceWorkerTick() {
   const worker = globalForRentalExpenseFinance.__rentalExpenseFinanceWorker;
   if (!worker || worker.running) {
@@ -356,7 +432,20 @@ async function runRentalExpenseFinanceWorkerTick() {
 
   worker.running = true;
   try {
-    await syncRentalExpenseFinanceRecords();
+    const customerScopes = await listActiveCustomerScopes();
+
+    for (const customerScope of customerScopes) {
+      try {
+        await syncRentalExpenseFinanceRecords({
+          customerScope,
+        });
+      } catch (error) {
+        console.error(
+          `同步租户月度支出失败(customerId=${customerScope.customerId}):`,
+          error,
+        );
+      }
+    }
   } catch (error) {
     console.error('同步租户月度支出失败:', error);
   } finally {
