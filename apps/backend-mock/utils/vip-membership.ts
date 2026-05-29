@@ -1050,12 +1050,20 @@ function resolveRefundOrderDisabledReason(status: unknown) {
     return undefined;
   }
   if (['CREATE_PENDING', 'PENDING', 'PROCESSING'].includes(normalizedStatus)) {
-    return `退款处理中，当前状态：${normalizedStatus}`;
+    return '退款申请正在处理，请稍后查看结果';
   }
   if (['ABNORMAL', 'CLOSED'].includes(normalizedStatus)) {
-    return `退款未成功，当前状态：${normalizedStatus}，请先人工核对`;
+    return '退款未成功，请联系管理员核对';
   }
-  return `已有退款记录，当前状态：${normalizedStatus}`;
+  if (
+    normalizedStatus === VIP_MEMBERSHIP_REFUND_IGNORED_NO_ENTITLEMENT_STATUS
+  ) {
+    return '微信侧已退款，当前订单无对应权益流水可撤销';
+  }
+  if (normalizedStatus === VIP_MEMBERSHIP_REFUND_MANUAL_REVIEW_STATUS) {
+    return '微信侧已退款，订单权益归属需人工核对';
+  }
+  return '该订单已有退款处理记录，请联系管理员核对';
 }
 
 function toVipMembershipRefundResult(

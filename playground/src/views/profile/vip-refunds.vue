@@ -59,30 +59,62 @@ function formatDate(value?: string) {
   return value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '未记录';
 }
 
+function getRefundStatusView(status?: string) {
+  if (status === 'SUCCESS') {
+    return { color: 'success', label: '已退款' };
+  }
+  if (status === 'CREATE_FAILED') {
+    return { color: 'error', label: '退款提交失败，可重试' };
+  }
+  if (['CREATE_PENDING', 'PENDING', 'PROCESSING'].includes(String(status))) {
+    return { color: 'processing', label: '退款处理中' };
+  }
+  if (['ABNORMAL', 'CLOSED'].includes(String(status))) {
+    return { color: 'warning', label: '退款未成功' };
+  }
+  if (status === 'IGNORED_NO_ENTITLEMENT') {
+    return { color: 'success', label: '已退款' };
+  }
+  if (status === 'MANUAL_REVIEW') {
+    return { color: 'warning', label: '退款需人工核对' };
+  }
+  return { color: 'warning', label: '退款状态待确认' };
+}
+
 function getTradeStateView(order: VipMembershipRefundOrder) {
   const refundStatus = order.latestRefund?.status;
   if (refundStatus) {
-    if (refundStatus === 'SUCCESS') {
-      return { color: 'default', label: '已退款' };
-    }
-    if (refundStatus === 'CREATE_FAILED') {
-      return { color: 'error', label: '退款创建失败，可重试' };
-    }
-    if (['ABNORMAL', 'CLOSED'].includes(refundStatus)) {
-      return { color: 'warning', label: `退款异常 ${refundStatus}` };
-    }
-    return {
-      color: 'processing',
-      label: `退款处理中 ${refundStatus}`,
-    };
+    return getRefundStatusView(refundStatus);
   }
   if (order.tradeState === 'SUCCESS') {
     return { color: 'success', label: '支付成功' };
   }
   if (order.tradeState === 'REFUND') {
-    return { color: 'default', label: '已退款' };
+    return { color: 'success', label: '已退款' };
   }
   return { color: 'warning', label: order.tradeState || '未知状态' };
+}
+
+function getProvisioningStatusView(status?: string) {
+  if (status === 'active') {
+    return { color: 'success', label: '已开通' };
+  }
+  if (status === 'pending') {
+    return { color: 'processing', label: '等待开通' };
+  }
+  if (status === 'provisioning') {
+    return { color: 'processing', label: '开通中' };
+  }
+  if (status === 'failed_manual') {
+    return { color: 'error', label: '人工处理' };
+  }
+  if (status === 'failed_retryable') {
+    return { color: 'warning', label: '自动重试' };
+  }
+  if (status === 'reserved') {
+    return { color: 'default', label: '草稿' };
+  }
+  return { color: 'default', label: status || '未关联' };
 }
 
 async function loadOrders() {
@@ -121,7 +153,7 @@ function updateOrderAfterRefund(result: VipMembershipRefundResult) {
           refundDisabledReason:
             result.status === 'SUCCESS'
               ? '该订单已退款成功'
-              : `退款已提交，当前状态：${result.status}`,
+              : '退款申请已提交，请稍后查看结果',
         }
       : order,
   );
@@ -269,6 +301,51 @@ watch(
                   <dd>{{ formatDate(order.entitlement?.endAt) }}</dd>
                 </div>
               </dl>
+
+              <div class="vip-refund-item__tenant">
+                <div>
+                  <span>来源组织</span>
+                  <strong>
+                    {{
+                      order.sourceOrganization?.name ||
+                      (order.tenantProvisioningJob?.sourceOrgId
+                        ? `组织 #${order.tenantProvisioningJob.sourceOrgId}`
+                        : '-')
+                    }}
+                  </strong>
+                  <small v-if="order.sourceOrganization?.sourceCustomerId">
+                    {{ order.sourceOrganization.sourceCustomerId }}
+                  </small>
+                </div>
+                <div>
+                  <span>目标租户</span>
+                  <strong>{{ order.targetCustomerId || '-' }}</strong>
+                </div>
+                <div>
+                  <span>开通任务</span>
+                  <strong v-if="order.tenantProvisioningJob">
+                    #{{ order.tenantProvisioningJob.id }}
+                    <Tag
+                      class="vip-refund-item__job-tag"
+                      :color="
+                        getProvisioningStatusView(
+                          order.tenantProvisioningJob.status,
+                        ).color
+                      "
+                    >
+                      {{
+                        getProvisioningStatusView(
+                          order.tenantProvisioningJob.status,
+                        ).label
+                      }}
+                    </Tag>
+                  </strong>
+                  <strong v-else>-</strong>
+                  <small v-if="order.tenantProvisioningJob?.targetCustomerId">
+                    {{ order.tenantProvisioningJob.targetCustomerId }}
+                  </small>
+                </div>
+              </div>
 
               <div class="vip-refund-item__foot">
                 <span v-if="order.transactionId">
@@ -472,6 +549,51 @@ watch(
   white-space: nowrap;
 }
 
+.vip-refund-item__tenant {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.3fr) minmax(160px, 1fr) minmax(
+      180px,
+      1fr
+    );
+  gap: 12px;
+  padding: 12px;
+  margin-top: 14px;
+  background: rgb(23 100 255 / 5%);
+  border: 1px solid rgb(23 100 255 / 10%);
+  border-radius: 14px;
+}
+
+.vip-refund-item__tenant div {
+  min-width: 0;
+}
+
+.vip-refund-item__tenant span,
+.vip-refund-item__tenant small {
+  display: block;
+  font-size: 12px;
+  color: var(--refund-muted);
+}
+
+.vip-refund-item__tenant strong {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  margin-top: 6px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.vip-refund-item__tenant small {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.vip-refund-item__job-tag {
+  margin-inline-end: 0;
+}
+
 .vip-refund-item__foot {
   display: grid;
   gap: 6px;
@@ -530,6 +652,10 @@ watch(
 
   .vip-refund-item__meta dd {
     white-space: normal;
+  }
+
+  .vip-refund-item__tenant {
+    grid-template-columns: 1fr;
   }
 }
 

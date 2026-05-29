@@ -128,7 +128,18 @@ export interface VipMembershipRefundOrder {
   paidAt?: string;
   refundable: boolean;
   refundDisabledReason?: string;
+  sourceOrganization?: {
+    id: number;
+    name: string;
+    sourceCustomerId: string;
+  };
   targetCustomerId?: string;
+  tenantProvisioningJob?: {
+    id: number;
+    sourceOrgId?: number;
+    status: string;
+    targetCustomerId?: string;
+  };
   tradeState: string;
   transactionId?: string;
 }
