@@ -1,3 +1,5 @@
+import type { UserInfoForToken } from '~/utils/user-service';
+
 import { systemDbClient } from '~/utils/db';
 
 type TenantProvisioningRequeueJob = {
@@ -41,6 +43,15 @@ function normalizePositiveInteger(value: unknown) {
   return numberValue;
 }
 
+function normalizeLimit(value: unknown) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const limit = Number(raw || 50);
+  if (!Number.isFinite(limit)) {
+    return 50;
+  }
+  return Math.min(Math.max(Math.trunc(limit), 1), 100);
+}
+
 function normalizeString(value: unknown) {
   return String(value ?? '').trim();
 }
@@ -79,6 +90,142 @@ function buildRequeueConfirmation(job: {
   targetCustomerId: null | string;
 }) {
   return `requeue_failed_manual:${job.id}:${job.targetCustomerId || 'missing_target'}`;
+}
+
+export function canManageTenantProvisioningAdmin(userinfo: UserInfoForToken) {
+  const defaultCustomerId = String(
+    process.env.DEFAULT_CUSTOMER_ID || 'default',
+  );
+  return (
+    userinfo.customerId === defaultCustomerId &&
+    Array.isArray(userinfo.roles) &&
+    userinfo.roles.includes('Super')
+  );
+}
+
+export async function listFailedManualTenantProvisioningJobs(
+  input: {
+    limit?: unknown;
+  } = {},
+) {
+  const limit = normalizeLimit(input.limit);
+  const jobs = await systemDbClient.tenantProvisioningJob.findMany({
+    orderBy: [{ updateTime: 'desc' }, { id: 'desc' }],
+    take: limit,
+    where: {
+      status: 'failed_manual',
+    },
+  });
+  const sourceOrgIds = [
+    ...new Set(
+      jobs
+        .map((job) => normalizePositiveInteger(job.sourceOrgId))
+        .filter(Boolean),
+    ),
+  ];
+  const initiatorCenterUserIds = [
+    ...new Set(jobs.map((job) => Number(job.initiatorCenterUserId))),
+  ].filter((id) => Number.isInteger(id) && id > 0);
+  const outTradeNos = [
+    ...new Set(jobs.map((job) => normalizeString(job.lastPaymentOutTradeNo))),
+  ].filter(Boolean);
+
+  const [organizations, initiators, payments] = await Promise.all([
+    sourceOrgIds.length > 0
+      ? systemDbClient.organization.findMany({
+          select: {
+            id: true,
+            name: true,
+            sourceCustomerId: true,
+            status: true,
+          },
+          where: { id: { in: sourceOrgIds } },
+        })
+      : [],
+    initiatorCenterUserIds.length > 0
+      ? systemDbClient.user.findMany({
+          select: {
+            customerType: true,
+            id: true,
+            realName: true,
+            status: true,
+            username: true,
+          },
+          where: { id: { in: initiatorCenterUserIds } },
+        })
+      : [],
+    outTradeNos.length > 0
+      ? systemDbClient.vipMembershipPayment.findMany({
+          select: {
+            amountTotal: true,
+            outTradeNo: true,
+            paidAt: true,
+            sourceOrgId: true,
+            targetCustomerId: true,
+            tradeState: true,
+            transactionId: true,
+          },
+          where: { outTradeNo: { in: outTradeNos } },
+        })
+      : [],
+  ]);
+
+  const organizationMap = new Map(
+    organizations.map(
+      (organization) => [Number(organization.id), organization] as const,
+    ),
+  );
+  const initiatorMap = new Map(
+    initiators.map((initiator) => [Number(initiator.id), initiator] as const),
+  );
+  const paymentMap = new Map(
+    payments.map((payment) => [payment.outTradeNo, payment] as const),
+  );
+
+  return {
+    items: jobs.map((job) => {
+      const sourceOrgId = normalizePositiveInteger(job.sourceOrgId);
+      const outTradeNo = normalizeString(job.lastPaymentOutTradeNo);
+      const organization = sourceOrgId
+        ? organizationMap.get(sourceOrgId)
+        : undefined;
+      const initiator = initiatorMap.get(Number(job.initiatorCenterUserId));
+      const payment = outTradeNo ? paymentMap.get(outTradeNo) : undefined;
+
+      return {
+        ...serializeJob(job),
+        initiator: initiator
+          ? {
+              customerType: initiator.customerType,
+              id: Number(initiator.id),
+              realName: initiator.realName,
+              status: initiator.status,
+              username: initiator.username,
+            }
+          : undefined,
+        lastPayment: payment
+          ? {
+              amountTotal: payment.amountTotal,
+              outTradeNo: payment.outTradeNo,
+              paidAt: serializeDate(payment.paidAt),
+              sourceOrgId: payment.sourceOrgId,
+              targetCustomerId: payment.targetCustomerId,
+              tradeState: payment.tradeState,
+              transactionId: payment.transactionId,
+            }
+          : undefined,
+        organization: organization
+          ? {
+              id: Number(organization.id),
+              name: organization.name,
+              sourceCustomerId: organization.sourceCustomerId,
+              status: organization.status,
+            }
+          : undefined,
+      };
+    }),
+    total: jobs.length,
+  };
 }
 
 export async function requeueFailedManualTenantProvisioningJob(input: {
