@@ -174,8 +174,8 @@ const selectedDate = ref<Dayjs>(dayjs());
 const meterStatistics = ref<DashboardMeterStatisticsStats>({
   dateType: 'month',
   dayNight: [
-    { name: '白天', value: 0 },
-    { name: '夜晚', value: 0 },
+    { name: '普通表', value: 0 },
+    { name: '时段表', value: 0 },
   ],
   hasData: false,
   peakValley: [
@@ -216,8 +216,8 @@ const getPeakValleyColor = (name: string) => {
 
   return colors[name] || '#6B7280';
 };
-const getDayNightColor = (name: string) =>
-  name === '白天' ? '#5ab1ef' : '#91cc75';
+const getMeterCategoryColor = (name: string) =>
+  name === '普通表' ? '#5ab1ef' : '#91cc75';
 
 const peakValleyData = computed(() =>
   meterStatistics.value.peakValley.map((item) => ({
@@ -228,7 +228,7 @@ const peakValleyData = computed(() =>
 const dayNightData = computed(() =>
   meterStatistics.value.dayNight.map((item) => ({
     ...item,
-    itemStyle: { color: getDayNightColor(item.name) },
+    itemStyle: { color: getMeterCategoryColor(item.name) },
   })),
 );
 const emptyWaterTrendData = computed(() => {
@@ -327,18 +327,6 @@ watch(
           @click="activeStatisticsType = 'electricity'"
         >
           用电统计
-        </button>
-        <button
-          class="rounded px-3 py-1 text-xs transition-colors"
-          :class="
-            activeStatisticsType === 'water'
-              ? 'bg-white text-blue-600 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700'
-          "
-          type="button"
-          @click="activeStatisticsType = 'water'"
-        >
-          用水统计
         </button>
       </div>
       <div
