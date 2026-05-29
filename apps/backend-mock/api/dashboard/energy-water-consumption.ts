@@ -11,6 +11,18 @@ interface WaterBillItem {
   totalUsage: unknown;
 }
 
+interface WaterItemCell {
+  originalText?: unknown;
+  value?: unknown;
+}
+
+interface WaterItemRow {
+  meterName?: unknown;
+  monthlyUsage?: unknown;
+  totalUsage?: unknown;
+  [key: string]: unknown;
+}
+
 function createEmptyStats(referenceDate: Date, message?: string) {
   const months = getCurrentYearMonths(referenceDate).map((month) =>
     formatMonth(month),
@@ -56,6 +68,12 @@ function toNumber(value: unknown) {
   const numberValue = Number(normalized);
 
   return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function normalizeText(value: unknown) {
+  return String(value ?? '')
+    .replaceAll(/\s+/g, '')
+    .toLowerCase();
 }
 
 function roundPercent(value: number) {
@@ -128,6 +146,62 @@ function sumBillUsage(items: WaterBillItem[]) {
     .reduce((sum, item) => sum + toNumber(item.totalUsage), 0);
 }
 
+function getWaterItemCellValue(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value;
+  }
+
+  const cell = value as WaterItemCell;
+
+  if (cell.value !== undefined) {
+    return cell.value;
+  }
+
+  return cell.originalText;
+}
+
+function parseWaterItems(value: unknown): WaterItemRow[] {
+  if (typeof value !== 'string' || !value.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+
+    return Array.isArray(parsed)
+      ? parsed.filter(
+          (item): item is WaterItemRow =>
+            Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function isTotalWaterItemRow(item: WaterItemRow) {
+  return normalizeText(getWaterItemCellValue(item.meterName)).includes('合计');
+}
+
+function getWaterItemUsage(item: WaterItemRow) {
+  const totalUsage = toNumber(getWaterItemCellValue(item.totalUsage));
+
+  if (totalUsage !== 0) {
+    return totalUsage;
+  }
+
+  return toNumber(getWaterItemCellValue(item.monthlyUsage));
+}
+
+function sumWaterItemUsage(items: WaterItemRow[]) {
+  const totalRows = items.filter((item) => isTotalWaterItemRow(item));
+  const rows = totalRows.length > 0 ? totalRows : items;
+
+  return rows
+    .filter((item) => totalRows.length > 0 || !isTotalWaterItemRow(item))
+    .reduce((sum, item) => sum + getWaterItemUsage(item), 0);
+}
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -161,6 +235,7 @@ export default eventHandler(async (event) => {
     const bills = await prismaClient.amountBill.findMany({
       select: {
         createTime: true,
+        waterItem: true,
         waterBills: {
           select: {
             meterName: true,
@@ -182,12 +257,18 @@ export default eventHandler(async (event) => {
     let rangeBillCount = 0;
 
     for (const bill of bills) {
-      if (bill.waterBills.length === 0) {
+      const dataMonth = getDataMonth(bill.createTime);
+      if (!dataMonth) {
         continue;
       }
 
-      const dataMonth = getDataMonth(bill.createTime);
-      if (!dataMonth) {
+      const waterItems = parseWaterItems(bill.waterItem);
+      const usage =
+        waterItems.length > 0
+          ? sumWaterItemUsage(waterItems)
+          : sumBillUsage(bill.waterBills);
+
+      if (usage === 0) {
         continue;
       }
 
@@ -195,10 +276,7 @@ export default eventHandler(async (event) => {
         rangeBillCount++;
       }
 
-      monthTotals.set(
-        dataMonth,
-        (monthTotals.get(dataMonth) || 0) + sumBillUsage(bill.waterBills),
-      );
+      monthTotals.set(dataMonth, (monthTotals.get(dataMonth) || 0) + usage);
     }
 
     const consumption = monthLabels.map((month) =>

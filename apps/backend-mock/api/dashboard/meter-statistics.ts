@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   serverErrorResponse,
@@ -35,6 +36,23 @@ interface MeterReading {
   freezeTime: unknown;
 }
 
+interface AmountBillEleItemCell {
+  originalText?: unknown;
+  value?: unknown;
+}
+
+interface AmountBillEleItemRow {
+  meterName?: unknown;
+  monthlyUsage?: unknown;
+  totalUsage?: unknown;
+  [key: string]: unknown;
+}
+
+interface AmountBillWaterItemRecord {
+  createTime: Date | null;
+  waterItem: null | string;
+}
+
 function createEmptyStats(params: {
   dateType: MeterStatisticsDateType;
   message?: string;
@@ -44,8 +62,8 @@ function createEmptyStats(params: {
   return {
     dateType: params.dateType,
     dayNight: [
-      { name: '白天', value: 0 },
-      { name: '夜晚', value: 0 },
+      { name: '普通表', value: 0 },
+      { name: '时段表', value: 0 },
     ],
     hasData: false,
     message: params.message,
@@ -188,16 +206,220 @@ function resolveDateRange(value: unknown, dateType: MeterStatisticsDateType) {
   };
 }
 
-function isDaytimeReading(value: unknown) {
-  const date = dayjs(String(value || ''));
-
-  if (!date.isValid()) {
-    return true;
+function getBillDataMonth(createTime: Date | null) {
+  if (!createTime) {
+    return null;
   }
 
-  const hour = date.hour();
+  return dayjs(createTime).subtract(1, 'month').format('YYYY-MM');
+}
 
-  return hour >= 6 && hour < 18;
+function resolveAmountBillCreateTimeRange(selectedMonth: string) {
+  const parsedMonth = dayjs(`${selectedMonth}-01`);
+  const safeMonth = parsedMonth.isValid()
+    ? parsedMonth
+    : dayjs().startOf('month');
+  const createTimeStart = safeMonth.add(1, 'month').startOf('month');
+  const createTimeEnd = createTimeStart.add(1, 'month');
+
+  return {
+    createTimeEnd: createTimeEnd.toDate(),
+    createTimeStart: createTimeStart.toDate(),
+  };
+}
+
+function getEleItemCellValue(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value;
+  }
+
+  const cell = value as AmountBillEleItemCell;
+
+  if (cell.value !== undefined) {
+    return cell.value;
+  }
+
+  return cell.originalText;
+}
+
+function parseAmountBillEleItems(value: unknown): AmountBillEleItemRow[] {
+  if (typeof value !== 'string' || !value.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+
+    return Array.isArray(parsed)
+      ? parsed.filter(
+          (item): item is AmountBillEleItemRow =>
+            Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+type PeakValleyCategory = 'flat' | 'peak' | 'sharp' | 'valley';
+
+function resolvePeakValleyCategory(
+  meterName: unknown,
+): null | PeakValleyCategory {
+  const normalized = normalizeText(getEleItemCellValue(meterName));
+
+  if (!normalized || normalized.includes('合计')) {
+    return null;
+  }
+
+  if (normalized === '尖' || normalized.startsWith('尖')) {
+    return 'sharp';
+  }
+
+  if (normalized === '峰' || normalized.startsWith('峰')) {
+    return 'peak';
+  }
+
+  if (normalized === '平' || normalized.startsWith('平')) {
+    return 'flat';
+  }
+
+  if (normalized === '谷' || normalized.startsWith('谷')) {
+    return 'valley';
+  }
+
+  return null;
+}
+
+function resolveAmountBillItemUsage(item: AmountBillEleItemRow) {
+  const totalUsage = toNumber(getEleItemCellValue(item.totalUsage));
+
+  if (totalUsage !== 0) {
+    return totalUsage;
+  }
+
+  return toNumber(getEleItemCellValue(item.monthlyUsage));
+}
+
+function isEmptyOrTotalAmountBillMeterName(meterName: unknown) {
+  const normalized = normalizeText(getEleItemCellValue(meterName));
+
+  return !normalized || normalized.includes('合计');
+}
+
+function buildMeterCategoryDataFromAmountBills(
+  bills: Array<{ createTime: Date | null; eleItem: null | string }>,
+  selectedMonth: string,
+) {
+  let ordinary = 0;
+  let timeOfUse = 0;
+  let recordCount = 0;
+
+  for (const bill of bills) {
+    if (getBillDataMonth(bill.createTime) !== selectedMonth) {
+      continue;
+    }
+
+    const items = parseAmountBillEleItems(bill.eleItem);
+
+    for (const item of items) {
+      if (isEmptyOrTotalAmountBillMeterName(item.meterName)) {
+        continue;
+      }
+
+      const usage = resolveAmountBillItemUsage(item);
+
+      if (resolvePeakValleyCategory(item.meterName)) {
+        timeOfUse += usage;
+      } else {
+        ordinary += usage;
+      }
+      recordCount++;
+    }
+  }
+
+  return {
+    dayNight: [
+      { name: '普通表', value: roundValue(ordinary) },
+      { name: '时段表', value: roundValue(timeOfUse) },
+    ],
+    recordCount,
+  };
+}
+
+function buildPeakValleyDataFromAmountBills(
+  bills: Array<{ createTime: Date | null; eleItem: null | string }>,
+  selectedMonth: string,
+) {
+  const totals = {
+    flat: 0,
+    peak: 0,
+    sharp: 0,
+    valley: 0,
+  };
+  let recordCount = 0;
+
+  for (const bill of bills) {
+    if (getBillDataMonth(bill.createTime) !== selectedMonth) {
+      continue;
+    }
+
+    const items = parseAmountBillEleItems(bill.eleItem);
+
+    for (const item of items) {
+      const category = resolvePeakValleyCategory(item.meterName);
+
+      if (!category) {
+        continue;
+      }
+
+      totals[category] += resolveAmountBillItemUsage(item);
+      recordCount++;
+    }
+  }
+
+  return {
+    peakValley: [
+      { name: '尖', value: roundValue(totals.sharp) },
+      { name: '峰', value: roundValue(totals.peak) },
+      { name: '平', value: roundValue(totals.flat) },
+      { name: '谷', value: roundValue(totals.valley) },
+    ],
+    recordCount,
+  };
+}
+
+function buildWaterTrendDataFromAmountBills(
+  bills: AmountBillWaterItemRecord[],
+  selectedMonth: string,
+) {
+  let recordCount = 0;
+  let totalUsage = 0;
+
+  for (const bill of bills) {
+    if (getBillDataMonth(bill.createTime) !== selectedMonth) {
+      continue;
+    }
+
+    const items = parseAmountBillEleItems(bill.waterItem);
+
+    for (const item of items) {
+      if (isEmptyOrTotalAmountBillMeterName(item.meterName)) {
+        continue;
+      }
+
+      totalUsage += resolveAmountBillItemUsage(item);
+      recordCount++;
+    }
+  }
+
+  return {
+    recordCount,
+    waterTrend: {
+      times: [selectedMonth],
+      values: [roundValue(totalUsage)],
+    },
+  };
 }
 
 async function fetchAllDevices(params: { comType: string; projCode: string }) {
@@ -314,26 +536,53 @@ function buildPeakValleyData(readings: MeterReading[]) {
   ];
 }
 
-function buildDayNightData(readings: MeterReading[]) {
-  const totals = {
-    day: 0,
-    night: 0,
-  };
+function getPeakValleyReadingUsage(reading: MeterReading) {
+  const peakValleyTotal =
+    toNumber(reading.dataValue1) +
+    toNumber(reading.dataValue2) +
+    toNumber(reading.dataValue3) +
+    toNumber(reading.dataValue4);
+  const totalUsage = toNumber(reading.dataValue);
 
-  for (const reading of readings) {
-    const value = toNumber(reading.dataValue);
-
-    if (isDaytimeReading(reading.freezeTime)) {
-      totals.day += value;
-    } else {
-      totals.night += value;
-    }
+  if (totalUsage === 0) {
+    return peakValleyTotal;
   }
 
-  return [
-    { name: '白天', value: roundValue(totals.day) },
-    { name: '夜晚', value: roundValue(totals.night) },
-  ];
+  return totalUsage;
+}
+
+function isTimeOfUseReading(reading: MeterReading) {
+  return (
+    toNumber(reading.dataValue1) !== 0 ||
+    toNumber(reading.dataValue2) !== 0 ||
+    toNumber(reading.dataValue3) !== 0 ||
+    toNumber(reading.dataValue4) !== 0
+  );
+}
+
+function buildMeterCategoryData(readings: MeterReading[]) {
+  const totals = {
+    ordinary: 0,
+    timeOfUse: 0,
+  };
+  let recordCount = 0;
+
+  for (const reading of readings) {
+    if (isTimeOfUseReading(reading)) {
+      totals.timeOfUse += getPeakValleyReadingUsage(reading);
+    } else {
+      totals.ordinary += toNumber(reading.dataValue);
+    }
+    recordCount++;
+  }
+
+  return {
+    dayNight: [
+      { name: '普通表', value: roundValue(totals.ordinary) },
+      { name: '时段表', value: roundValue(totals.timeOfUse) },
+    ],
+    recordCount,
+  };
 }
 
 function sumChartData(data: { value: number }[]) {
@@ -456,12 +705,100 @@ export default eventHandler(async (event) => {
       );
     }
 
+    let peakValleyFromAmountBills = [
+      { name: '尖', value: 0 },
+      { name: '峰', value: 0 },
+      { name: '平', value: 0 },
+      { name: '谷', value: 0 },
+    ];
+    let meterCategoryFromAmountBills = [
+      { name: '普通表', value: 0 },
+      { name: '时段表', value: 0 },
+    ];
+    let meterCategoryAmountBillRecordCount = 0;
+    let waterTrendFromAmountBills = {
+      times: [] as string[],
+      values: [] as number[],
+    };
+    let waterAmountBillRecordCount = 0;
+
+    if (statisticsType === 'electricity' && dateType === 'month') {
+      const { createTimeEnd, createTimeStart } =
+        resolveAmountBillCreateTimeRange(dateRange.selectedDate);
+      const amountBills = await prismaClient.amountBill.findMany({
+        select: {
+          createTime: true,
+          eleItem: true,
+        },
+        where: {
+          createTime: {
+            gte: createTimeStart,
+            lt: createTimeEnd,
+          },
+          eleItem: {
+            not: null,
+          },
+          parkId: {
+            in: parks.map((park) => park.parkId),
+          },
+        },
+      });
+      const peakValleyStats = buildPeakValleyDataFromAmountBills(
+        amountBills,
+        dateRange.selectedDate,
+      );
+      const meterCategoryStats = buildMeterCategoryDataFromAmountBills(
+        amountBills,
+        dateRange.selectedDate,
+      );
+
+      peakValleyFromAmountBills = peakValleyStats.peakValley;
+      meterCategoryFromAmountBills = meterCategoryStats.dayNight;
+      meterCategoryAmountBillRecordCount = meterCategoryStats.recordCount;
+    }
+
+    if (statisticsType === 'water' && dateType === 'month') {
+      const { createTimeEnd, createTimeStart } =
+        resolveAmountBillCreateTimeRange(dateRange.selectedDate);
+      const amountBills = await prismaClient.amountBill.findMany({
+        select: {
+          createTime: true,
+          waterItem: true,
+        },
+        where: {
+          createTime: {
+            gte: createTimeStart,
+            lt: createTimeEnd,
+          },
+          parkId: {
+            in: parks.map((park) => park.parkId),
+          },
+          waterItem: {
+            not: null,
+          },
+        },
+      });
+      const waterStats = buildWaterTrendDataFromAmountBills(
+        amountBills,
+        dateRange.selectedDate,
+      );
+
+      waterTrendFromAmountBills = waterStats.waterTrend;
+      waterAmountBillRecordCount = waterStats.recordCount;
+    }
+
     const devices = await fetchAllDevices({ comType, projCode });
     const permittedDevices = devices.filter((device) =>
       isDeviceInParks(device, parks),
     );
 
-    if (permittedDevices.length === 0) {
+    if (
+      permittedDevices.length === 0 &&
+      !(
+        (statisticsType === 'electricity' && dateType === 'month') ||
+        (statisticsType === 'water' && dateType === 'month')
+      )
+    ) {
       return useResponseSuccess(
         createEmptyStats({
           dateType,
@@ -478,14 +815,16 @@ export default eventHandler(async (event) => {
     const permittedAddressSet = new Set(
       permittedDevices.map((device) => device.comAddress),
     );
-    const peakValleyType = dateType === 'month' ? '2' : '1';
     const waterTrendType = dateType === 'month' ? '2' : '1';
     let hourlyReadings: MeterReading[] = [];
     let peakValleyReadings: MeterReading[] = [];
     let waterTrendReadings: MeterReading[] = [];
 
     if (statisticsType === 'electricity') {
-      if (dateType === 'day') {
+      if (permittedDevices.length === 0) {
+        peakValleyReadings = [];
+        hourlyReadings = [];
+      } else if (dateType === 'day') {
         hourlyReadings = await fetchReadings({
           comType,
           projCode,
@@ -495,24 +834,15 @@ export default eventHandler(async (event) => {
         });
         peakValleyReadings = hourlyReadings;
       } else {
-        [peakValleyReadings, hourlyReadings] = await Promise.all([
-          fetchReadings({
-            comType,
-            projCode,
-            timeFrom: dateRange.timeFrom,
-            timeTo: dateRange.timeTo,
-            type: peakValleyType,
-          }),
-          fetchReadings({
-            comType,
-            projCode,
-            timeFrom: dateRange.timeFrom,
-            timeTo: dateRange.timeTo,
-            type: '1',
-          }),
-        ]);
+        hourlyReadings = await fetchReadings({
+          comType,
+          projCode,
+          timeFrom: dateRange.timeFrom,
+          timeTo: dateRange.timeTo,
+          type: '1',
+        });
       }
-    } else {
+    } else if (dateType === 'day' && permittedDevices.length > 0) {
       waterTrendReadings = await fetchReadings({
         comType,
         projCode,
@@ -534,35 +864,62 @@ export default eventHandler(async (event) => {
       filterReadingsByDateRange(waterTrendReadings, dateRange),
       permittedAddressSet,
     );
-    const peakValley =
-      statisticsType === 'electricity'
-        ? buildPeakValleyData(permittedPeakValleyReadings)
-        : [];
-    const dayNight =
-      statisticsType === 'electricity'
-        ? buildDayNightData(permittedHourlyReadings)
-        : [];
-    const waterTrend =
-      statisticsType === 'water'
-        ? buildWaterTrendData({
-            dateType,
-            readings: permittedWaterTrendReadings,
-            selectedDate: dateRange.selectedDate,
-          })
-        : {
-            times: [],
-            values: [],
-          };
-    let recordCount = permittedWaterTrendReadings.length;
+    let peakValley: Array<{ name: string; value: number }> = [];
+
     if (statisticsType === 'electricity') {
+      peakValley =
+        dateType === 'month'
+          ? peakValleyFromAmountBills
+          : buildPeakValleyData(permittedPeakValleyReadings);
+    }
+    let meterCategoryStats: {
+      dayNight: Array<{ name: string; value: number }>;
+      recordCount: number;
+    } = {
+      dayNight: [],
+      recordCount: 0,
+    };
+
+    if (statisticsType === 'electricity') {
+      meterCategoryStats =
+        dateType === 'month'
+          ? {
+              dayNight: meterCategoryFromAmountBills,
+              recordCount: meterCategoryAmountBillRecordCount,
+            }
+          : buildMeterCategoryData(permittedHourlyReadings);
+    }
+    const dayNight = meterCategoryStats.dayNight;
+    let waterTrend = {
+      times: [] as string[],
+      values: [] as number[],
+    };
+
+    if (statisticsType === 'water') {
+      waterTrend =
+        dateType === 'month'
+          ? waterTrendFromAmountBills
+          : buildWaterTrendData({
+              dateType,
+              readings: permittedWaterTrendReadings,
+              selectedDate: dateRange.selectedDate,
+            });
+    }
+
+    let recordCount = 0;
+
+    if (statisticsType === 'water') {
       recordCount =
-        dateType === 'day'
-          ? permittedHourlyReadings.length
-          : permittedPeakValleyReadings.length + permittedHourlyReadings.length;
+        dateType === 'month'
+          ? waterAmountBillRecordCount
+          : permittedWaterTrendReadings.length;
+    }
+    if (statisticsType === 'electricity') {
+      recordCount = meterCategoryStats.recordCount;
     }
     const total =
       statisticsType === 'electricity'
-        ? Math.max(sumChartData(peakValley), sumChartData(dayNight))
+        ? sumChartData(dayNight)
         : sumValues(waterTrend.values);
     const hasData = recordCount > 0;
 
@@ -570,7 +927,7 @@ export default eventHandler(async (event) => {
       dateType,
       dayNight,
       hasData,
-      message: hasData ? undefined : '当前时间范围未查询到抄表数据',
+      message: hasData ? undefined : '当前时间范围未查询到统计数据',
       peakValley,
       selectedDate: dateRange.selectedDate,
       statisticsType,

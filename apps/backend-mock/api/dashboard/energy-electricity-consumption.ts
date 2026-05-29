@@ -11,6 +11,18 @@ interface ElectricityBillItem {
   totalUsage: unknown;
 }
 
+interface AmountBillEleItemCell {
+  originalText?: unknown;
+  value?: unknown;
+}
+
+interface AmountBillEleItemRow {
+  meterName?: unknown;
+  monthlyUsage?: unknown;
+  totalUsage?: unknown;
+  [key: string]: unknown;
+}
+
 function createEmptyStats(referenceDate: Date, message?: string) {
   const months = getCurrentYearMonths(referenceDate).map((month) =>
     formatMonth(month),
@@ -115,6 +127,61 @@ function getDataMonth(createTime: Date | null) {
   return formatMonth(addMonths(createTime, -1));
 }
 
+function normalizeText(value: unknown) {
+  return String(value ?? '')
+    .replaceAll(/\s+/g, '')
+    .toLowerCase();
+}
+
+function getEleItemCellValue(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value;
+  }
+
+  const cell = value as AmountBillEleItemCell;
+
+  if (cell.value !== undefined) {
+    return cell.value;
+  }
+
+  return cell.originalText;
+}
+
+function parseAmountBillEleItems(value: unknown): AmountBillEleItemRow[] {
+  if (typeof value !== 'string' || !value.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+
+    return Array.isArray(parsed)
+      ? parsed.filter(
+          (item): item is AmountBillEleItemRow =>
+            Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function isEmptyOrTotalMeterName(meterName: unknown) {
+  const normalized = normalizeText(getEleItemCellValue(meterName));
+
+  return !normalized || normalized.includes('合计');
+}
+
+function resolveAmountBillUsage(item: AmountBillEleItemRow) {
+  const totalUsage = toNumber(getEleItemCellValue(item.totalUsage));
+
+  if (totalUsage !== 0) {
+    return totalUsage;
+  }
+
+  return toNumber(getEleItemCellValue(item.monthlyUsage));
+}
+
 function isTotalRow(item: ElectricityBillItem) {
   return String(item.meterName || '').includes('合计');
 }
@@ -126,6 +193,20 @@ function sumBillUsage(items: ElectricityBillItem[]) {
   return rows
     .filter((item) => totalRows.length > 0 || !isTotalRow(item))
     .reduce((sum, item) => sum + toNumber(item.totalUsage), 0);
+}
+
+function sumAmountBillUsage(items: AmountBillEleItemRow[]) {
+  let total = 0;
+
+  for (const item of items) {
+    if (isEmptyOrTotalMeterName(item.meterName)) {
+      continue;
+    }
+
+    total += resolveAmountBillUsage(item);
+  }
+
+  return total;
 }
 
 export default eventHandler(async (event) => {
@@ -161,6 +242,7 @@ export default eventHandler(async (event) => {
     const bills = await prismaClient.amountBill.findMany({
       select: {
         createTime: true,
+        eleItem: true,
         eleBills: {
           select: {
             meterName: true,
@@ -182,7 +264,13 @@ export default eventHandler(async (event) => {
     let rangeBillCount = 0;
 
     for (const bill of bills) {
-      if (bill.eleBills.length === 0) {
+      const eleItems = parseAmountBillEleItems(bill.eleItem);
+      const amountBillUsage = sumAmountBillUsage(eleItems);
+      const fallbackUsage =
+        bill.eleBills.length > 0 ? sumBillUsage(bill.eleBills) : 0;
+      const usage = amountBillUsage || fallbackUsage;
+
+      if (usage <= 0) {
         continue;
       }
 
@@ -195,10 +283,7 @@ export default eventHandler(async (event) => {
         rangeBillCount++;
       }
 
-      monthTotals.set(
-        dataMonth,
-        (monthTotals.get(dataMonth) || 0) + sumBillUsage(bill.eleBills),
-      );
+      monthTotals.set(dataMonth, (monthTotals.get(dataMonth) || 0) + usage);
     }
 
     const consumption = monthLabels.map((month) =>
