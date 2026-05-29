@@ -48,6 +48,15 @@ export interface TenantProvisioningStatus {
   isTenantProvisioning: boolean;
   requiresRelogin?: boolean;
   sourceCustomerId?: string;
+  sourceOrganization?: {
+    city?: string;
+    companyShortName?: string;
+    id: number;
+    memberRole: string;
+    name: string;
+    sourceCustomerId: string;
+  };
+  sourceOrganizationCount?: number;
   targetCity?: string;
   targetCompanyShortName?: string;
   targetCustomerId?: string;

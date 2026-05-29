@@ -96,6 +96,15 @@ interface ProfileTenantProvisioningState {
   targetCustomerId?: string;
 }
 
+interface SourceOrganizationState {
+  city?: string;
+  companyShortName?: string;
+  id: number;
+  memberRole: string;
+  name: string;
+  sourceCustomerId: string;
+}
+
 type MembershipCheckoutResult = 'failed' | 'ready' | 'syncing' | 'unknown';
 
 interface CheckoutResultModalView {
@@ -242,21 +251,45 @@ const profileTenantProvisioningState =
       latestTenantProvisioningStatus.value || userInfo.value,
     ),
   );
+const sourceOrganizationState = computed<null | SourceOrganizationState>(() =>
+  resolveSourceOrganizationState(
+    latestTenantProvisioningStatus.value || userInfo.value,
+  ),
+);
+const sourceOrganizationIdentityComplete = computed(
+  () =>
+    Boolean(sourceOrganizationState.value?.city?.trim()) &&
+    Boolean(sourceOrganizationState.value?.companyShortName?.trim()),
+);
+const sourceOrganizationPaymentAllowed = computed(
+  () =>
+    !sourceOrganizationState.value ||
+    sourceOrganizationState.value.memberRole === 'owner',
+);
 const requiresTenantIdentity = computed(
   () =>
     currentCustomerId.value === 'public' &&
+    !sourceOrganizationIdentityComplete.value &&
     !profileTenantProvisioningState.value,
 );
 const membershipScopeName = computed(() => {
   const companyShortName = (
     requiresTenantIdentity.value
       ? tenantCompanyShortName.value
-      : customerCompanyShortName.value || tenantCompanyShortName.value
+      : sourceOrganizationState.value?.companyShortName ||
+        customerCompanyShortName.value ||
+        tenantCompanyShortName.value
   ).trim();
   if (requiresTenantIdentity.value) {
     return companyShortName
       ? `${companyShortName} 企业专属空间`
       : '待开通企业专属空间';
+  }
+
+  if (sourceOrganizationState.value) {
+    return companyShortName
+      ? `${companyShortName} 企业专属空间`
+      : sourceOrganizationState.value.name;
   }
 
   if (currentCustomerId.value === 'public') {
@@ -280,6 +313,7 @@ const membershipScopeName = computed(() => {
 const canJoinExistingTenant = computed(
   () =>
     currentCustomerId.value === 'public' &&
+    !sourceOrganizationState.value &&
     !profileTenantProvisioningState.value,
 );
 const tenantInvitationError = computed(() => {
@@ -339,6 +373,10 @@ const payButtonText = computed(() => {
     return profileTenantProvisioningState.value?.label || '专属空间开通中';
   }
 
+  if (!sourceOrganizationPaymentAllowed.value) {
+    return '仅组织所有者可支付';
+  }
+
   if (!tenantIdentityReady.value) {
     return '填写专属空间信息';
   }
@@ -350,6 +388,7 @@ const payButtonDisabled = computed(
     payLoading.value ||
     wechatConfigLoading.value ||
     tenantProvisioningPaymentBlocked.value ||
+    !sourceOrganizationPaymentAllowed.value ||
     !wechatOpenAppId.value ||
     !appPaySupported.value,
 );
@@ -359,6 +398,10 @@ const paymentAgreementHint = computed(() => {
       profileTenantProvisioningState.value?.label ||
       '专属空间正在开通中，请勿重复支付。'
     );
+  }
+
+  if (!sourceOrganizationPaymentAllowed.value) {
+    return '当前账号是组织成员，只有组织所有者可以为该组织支付会员。';
   }
 
   if (agreedToTerms.value) {
@@ -671,6 +714,41 @@ function resolveProfileTenantProvisioningState(
   };
 }
 
+function resolveSourceOrganizationState(
+  value: null | object | undefined,
+): null | SourceOrganizationState {
+  if (!value) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const sourceOrganization = record.sourceOrganization;
+  if (!sourceOrganization || typeof sourceOrganization !== 'object') {
+    return null;
+  }
+
+  const organizationRecord = sourceOrganization as Record<string, unknown>;
+  const id = Number(organizationRecord.id);
+  const name = readStringField(organizationRecord, ['name'])?.value;
+  const sourceCustomerId = readStringField(organizationRecord, [
+    'sourceCustomerId',
+  ])?.value;
+  const memberRole = readStringField(organizationRecord, ['memberRole'])?.value;
+  if (!Number.isInteger(id) || id <= 0 || !name || !sourceCustomerId) {
+    return null;
+  }
+
+  return {
+    city: readStringField(organizationRecord, ['city'])?.value,
+    companyShortName: readStringField(organizationRecord, ['companyShortName'])
+      ?.value,
+    id,
+    memberRole: memberRole || 'member',
+    name,
+    sourceCustomerId,
+  };
+}
+
 function handleGoBack() {
   if (
     !membershipAccessState.value.accessRestricted &&
@@ -819,10 +897,12 @@ function applyTenantIdentityDraft(value: null | object | undefined) {
   }
 
   const record = value as Record<string, unknown>;
-  const draftCity = readStringField(record, ['targetCity'])?.value;
-  const draftCompanyShortName = readStringField(record, [
-    'targetCompanyShortName',
-  ])?.value;
+  const sourceOrganization = resolveSourceOrganizationState(value);
+  const draftCity =
+    readStringField(record, ['targetCity'])?.value || sourceOrganization?.city;
+  const draftCompanyShortName =
+    readStringField(record, ['targetCompanyShortName'])?.value ||
+    sourceOrganization?.companyShortName;
 
   if (draftCity && !tenantCity.value.trim()) {
     tenantCity.value = draftCity;
@@ -920,6 +1000,11 @@ async function requestWechatPay(options: { scrollToPayment?: boolean } = {}) {
     return;
   }
 
+  if (!sourceOrganizationPaymentAllowed.value) {
+    message.warning('只有组织所有者可以为该组织支付会员');
+    return;
+  }
+
   if (!validateTenantIdentity()) {
     return;
   }
@@ -945,6 +1030,12 @@ async function handleAgreementModalConfirm() {
 
   if (tenantProvisioningPaymentBlocked.value) {
     agreementModalOpen.value = false;
+    return;
+  }
+
+  if (!sourceOrganizationPaymentAllowed.value) {
+    agreementModalOpen.value = false;
+    message.warning('只有组织所有者可以为该组织支付会员');
     return;
   }
 
@@ -1037,6 +1128,11 @@ async function handleWechatPay() {
   }
 
   if (tenantProvisioningPaymentBlocked.value) {
+    return;
+  }
+
+  if (!sourceOrganizationPaymentAllowed.value) {
+    message.warning('只有组织所有者可以为该组织支付会员');
     return;
   }
 

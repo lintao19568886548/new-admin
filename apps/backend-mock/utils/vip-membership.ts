@@ -11,6 +11,10 @@ import {
 } from '~/utils/customer-identity';
 import { systemDbClient } from '~/utils/db';
 import {
+  getSingleActiveSourceOrganizationStateForCenterUser,
+  resolveActiveOrganizationMembershipForTargetCustomer,
+} from '~/utils/organization';
+import {
   isVipMembershipTestPayment,
   resolveVipMembershipTestPaymentAmountTotal,
 } from '~/utils/vip-membership-test-payment';
@@ -79,7 +83,6 @@ export interface VipTenantIdentityInput {
 interface TenantProvisioningDraft {
   companyShortName: string;
   city: string;
-  sourceOrgId?: null | number;
 }
 
 interface TenantProvisioningTargetIdentity extends TenantProvisioningDraft {
@@ -106,6 +109,15 @@ export interface VipMembershipProfileState {
   membershipGateReason: 'membership_expired' | 'none' | 'trial_expired';
   membershipExpireAt?: string;
   membershipStatus: 'active' | 'expired' | 'inactive';
+  sourceOrganization?: {
+    city?: string;
+    companyShortName?: string;
+    id: number;
+    memberRole: string;
+    name: string;
+    sourceCustomerId: string;
+  };
+  sourceOrganizationCount?: number;
   sourceCustomerId?: string;
   targetCity?: string;
   targetCompanyShortName?: string;
@@ -179,7 +191,18 @@ export interface VipMembershipRefundOrder {
   paidAt?: string;
   refundable: boolean;
   refundDisabledReason?: string;
+  sourceOrganization?: {
+    id: number;
+    name: string;
+    sourceCustomerId: string;
+  };
   targetCustomerId?: string;
+  tenantProvisioningJob?: {
+    id: number;
+    sourceOrgId?: number;
+    status: string;
+    targetCustomerId?: string;
+  };
   tradeState: string;
   transactionId?: string;
 }
@@ -734,6 +757,68 @@ async function getTenantProvisioningJobByInitiatorCenterUserId(
   });
 }
 
+async function getTenantProvisioningJobBySourceOrgId(
+  sourceOrgId: number,
+  prisma: VipMembershipDbClient = systemDbClient,
+) {
+  return prisma.tenantProvisioningJob.findFirst({
+    orderBy: {
+      id: 'desc',
+    },
+    where: {
+      sourceOrgId,
+    },
+  });
+}
+
+async function getTenantProvisioningJobForProfile(
+  params: {
+    centerUserId: number;
+    sourceCustomerId?: string;
+  },
+  prisma: VipMembershipDbClient = systemDbClient,
+) {
+  if (normalizeString(params.sourceCustomerId) !== 'public') {
+    return getTenantProvisioningJobByInitiatorCenterUserId(
+      params.centerUserId,
+      prisma,
+    );
+  }
+
+  const memberships = await prisma.organizationMember.findMany({
+    orderBy: { id: 'asc' },
+    select: { organizationId: true },
+    where: {
+      centerUserId: params.centerUserId,
+      sourceCustomerId: 'public',
+      status: 'active',
+    },
+  });
+  const organizationIds = [
+    ...new Set(
+      memberships
+        .map((membership) =>
+          normalizePositiveInteger(membership.organizationId),
+        )
+        .filter(Boolean),
+    ),
+  ];
+  if (organizationIds.length === 1) {
+    const job = await getTenantProvisioningJobBySourceOrgId(
+      organizationIds[0],
+      prisma,
+    );
+    if (job) {
+      return job;
+    }
+  }
+
+  return getTenantProvisioningJobByInitiatorCenterUserId(
+    params.centerUserId,
+    prisma,
+  );
+}
+
 async function getCenterUserMembershipTrialProfile(
   centerUserId: number,
   prisma: VipMembershipDbClient = systemDbClient,
@@ -859,6 +944,7 @@ async function getStaleTenantProvisioningPaymentState(
     centerUserId: number;
     outTradeNo: string;
     sourceCustomerId: string;
+    sourceOrgId?: null | number;
   },
   prisma: VipMembershipDbClient,
 ) {
@@ -866,10 +952,20 @@ async function getStaleTenantProvisioningPaymentState(
     return null;
   }
 
-  const job = await getTenantProvisioningJobByInitiatorCenterUserId(
-    params.centerUserId,
-    prisma,
-  );
+  const sourceOrgId = normalizePositiveInteger(params.sourceOrgId);
+  const job = sourceOrgId
+    ? await prisma.tenantProvisioningJob.findFirst({
+        orderBy: {
+          id: 'desc',
+        },
+        where: {
+          sourceOrgId,
+        },
+      })
+    : await getTenantProvisioningJobByInitiatorCenterUserId(
+        params.centerUserId,
+        prisma,
+      );
   const latestOutTradeNo = normalizeString(job?.lastPaymentOutTradeNo);
   if (!latestOutTradeNo || latestOutTradeNo === params.outTradeNo) {
     return null;
@@ -1430,9 +1526,13 @@ async function saveTenantProvisioningDraft(
   if (params.sourceCustomerId !== 'public') {
     return null;
   }
+  const sourceOrgId = normalizePositiveInteger(params.sourceOrgId);
+  if (!sourceOrgId) {
+    throw new Error('缺少开通组织，无法创建专属空间订单');
+  }
 
-  const existingJob = await getTenantProvisioningJobByInitiatorCenterUserId(
-    params.initiatorCenterUserId,
+  const existingJob = await getTenantProvisioningJobBySourceOrgId(
+    sourceOrgId,
     prisma,
   );
   const existingDraft = existingJob
@@ -1448,9 +1548,7 @@ async function saveTenantProvisioningDraft(
     await prisma.tenantProvisioningJob.update({
       data: {
         lastPaymentOutTradeNo: params.outTradeNo,
-        ...(params.sourceOrgId === undefined
-          ? {}
-          : { sourceOrgId: params.sourceOrgId || null }),
+        ...(params.sourceOrgId === undefined ? {} : { sourceOrgId }),
         ...(existingDraft
           ? {}
           : {
@@ -1465,7 +1563,7 @@ async function saveTenantProvisioningDraft(
 
   const data = {
     lastPaymentOutTradeNo: params.outTradeNo,
-    sourceOrgId: params.sourceOrgId || null,
+    sourceOrgId,
     sourceCustomerId: params.sourceCustomerId,
     status: 'reserved',
     targetCity: profile.city,
@@ -1594,9 +1692,13 @@ async function ensureTenantProvisioningJob(
   if (params.sourceCustomerId !== 'public') {
     return null;
   }
+  const sourceOrgId = normalizePositiveInteger(params.sourceOrgId);
+  if (!sourceOrgId) {
+    throw new Error('缺少开通组织，无法创建专属空间任务');
+  }
 
-  const existingJob = await getTenantProvisioningJobByInitiatorCenterUserId(
-    params.initiatorCenterUserId,
+  const existingJob = await getTenantProvisioningJobBySourceOrgId(
+    sourceOrgId,
     prisma,
   );
   assertTenantProvisioningJobAcceptsNewPayment(existingJob);
@@ -1604,9 +1706,7 @@ async function ensureTenantProvisioningJob(
     return prisma.tenantProvisioningJob.update({
       data: {
         lastPaymentOutTradeNo: params.outTradeNo,
-        ...(params.sourceOrgId === undefined
-          ? {}
-          : { sourceOrgId: params.sourceOrgId || null }),
+        ...(params.sourceOrgId === undefined ? {} : { sourceOrgId }),
       },
       where: {
         id: existingJob.id,
@@ -1629,7 +1729,7 @@ async function ensureTenantProvisioningJob(
       errorMessage: null,
       heartbeatAt: null,
       lastPaymentOutTradeNo: params.outTradeNo,
-      sourceOrgId: params.sourceOrgId || null,
+      sourceOrgId,
       lockedAt: null,
       lockOwner: null,
       retryCount: 0,
@@ -1763,18 +1863,53 @@ export async function getVipMembershipPaymentOwner(
 export async function getTenantProvisioningProfileState(
   centerUserId: number,
   prisma: VipMembershipDbClient = systemDbClient,
+  sourceCustomerId?: string,
 ) {
-  const job = await withVipMembershipDb(() =>
-    getTenantProvisioningJobByInitiatorCenterUserId(centerUserId, prisma),
+  const normalizedSourceCustomerId = normalizeString(sourceCustomerId);
+  const [job, sourceOrganizationState] = await withVipMembershipDb(() =>
+    Promise.all([
+      getTenantProvisioningJobForProfile(
+        {
+          centerUserId,
+          sourceCustomerId: normalizedSourceCustomerId,
+        },
+        prisma,
+      ),
+      normalizedSourceCustomerId === 'public'
+        ? getSingleActiveSourceOrganizationStateForCenterUser({
+            centerUserId,
+            sourceCustomerId: normalizedSourceCustomerId,
+          })
+        : resolveActiveOrganizationMembershipForTargetCustomer({
+            centerUserId,
+            targetCustomerId: normalizedSourceCustomerId,
+          }).then((membership) => ({
+            membership,
+            total: membership ? 1 : 0,
+          })),
+    ]),
   );
   const rawStatus = job?.status || 'none';
   const status = (
     rawStatus === 'reserved' ? 'none' : rawStatus
   ) as VipMembershipProfileState['tenantProvisioningStatus'];
   const exposeProvisioningJob = rawStatus !== 'reserved';
+  const sourceOrganization = sourceOrganizationState?.membership;
 
   return {
     isTenantProvisioning: ['pending', 'provisioning'].includes(status),
+    sourceOrganization: sourceOrganization
+      ? {
+          city: sourceOrganization.organization.city || undefined,
+          companyShortName:
+            sourceOrganization.organization.companyShortName || undefined,
+          id: sourceOrganization.organization.id,
+          memberRole: sourceOrganization.memberRole,
+          name: sourceOrganization.organization.name,
+          sourceCustomerId: sourceOrganization.organization.sourceCustomerId,
+        }
+      : undefined,
+    sourceOrganizationCount: sourceOrganizationState?.total,
     sourceCustomerId: exposeProvisioningJob
       ? job?.sourceCustomerId || undefined
       : undefined,
@@ -1795,6 +1930,8 @@ export async function getVipMembershipProfileState(input: {
   const membershipState = await getVipMembershipAccessState(input);
   const provisioningState = await getTenantProvisioningProfileState(
     input.centerUserId,
+    systemDbClient,
+    input.customerId,
   );
 
   return {
@@ -1909,8 +2046,11 @@ export async function shouldBlockTenantWriteForProvisioning(input: {
     return false;
   }
 
-  const provisioningState =
-    await getTenantProvisioningProfileState(centerUserId);
+  const provisioningState = await getTenantProvisioningProfileState(
+    centerUserId,
+    systemDbClient,
+    customerId,
+  );
   return PROVISIONING_BLOCKING_STATUSES.has(
     provisioningState.tenantProvisioningStatus,
   );
@@ -2027,7 +2167,8 @@ export async function handleVipMembershipWechatOrder(
 
       if (
         payment.sourceCustomerId === 'public' &&
-        (!normalizeString(payment.targetCity) ||
+        (!normalizePositiveInteger(payment.sourceOrgId) ||
+          !normalizeString(payment.targetCity) ||
           !normalizeString(payment.targetCompanyShortName))
       ) {
         return {
@@ -2044,6 +2185,7 @@ export async function handleVipMembershipWechatOrder(
           {
             centerUserId: payment.centerUserId,
             outTradeNo,
+            sourceOrgId: payment.sourceOrgId,
             sourceCustomerId: payment.sourceCustomerId,
           },
           tx,
@@ -2069,6 +2211,7 @@ export async function handleVipMembershipWechatOrder(
         const provisioningState = await getTenantProvisioningProfileState(
           payment.centerUserId,
           tx,
+          payment.sourceCustomerId,
         );
         return {
           alreadyApplied: true,
@@ -2100,6 +2243,7 @@ export async function handleVipMembershipWechatOrder(
         const provisioningState = await getTenantProvisioningProfileState(
           payment.centerUserId,
           tx,
+          payment.sourceCustomerId,
         );
         return {
           alreadyApplied: true,
@@ -2237,7 +2381,7 @@ export async function listVipMembershipRefundOrders(params: {
   }
 
   return withVipMembershipDb(async () => {
-    const [payments, entitlements, refunds] = await Promise.all([
+    const [payments, entitlements, refunds, jobs] = await Promise.all([
       systemDbClient.vipMembershipPayment.findMany({
         orderBy: [{ paidAt: 'desc' }, { createTime: 'desc' }],
         where: {
@@ -2259,8 +2403,56 @@ export async function listVipMembershipRefundOrders(params: {
           customerId,
         },
       }),
+      systemDbClient.tenantProvisioningJob.findMany({
+        orderBy: { id: 'desc' },
+        where: {
+          OR: [
+            { sourceCustomerId: customerId },
+            { targetCustomerId: customerId },
+          ],
+        },
+      }),
     ]);
 
+    const sourceOrgIds = [
+      ...new Set(
+        [
+          ...payments.map((payment) => Number(payment.sourceOrgId || 0)),
+          ...jobs.map((job) => Number(job.sourceOrgId || 0)),
+        ].filter((id) => Number.isInteger(id) && id > 0),
+      ),
+    ];
+    const organizations =
+      sourceOrgIds.length > 0
+        ? await systemDbClient.organization.findMany({
+            select: {
+              id: true,
+              name: true,
+              sourceCustomerId: true,
+            },
+            where: {
+              id: { in: sourceOrgIds },
+            },
+          })
+        : [];
+    const organizationMap = new Map(
+      organizations.map((organization) => [
+        Number(organization.id),
+        organization,
+      ]),
+    );
+    const jobByOutTradeNo = new Map<string, (typeof jobs)[number]>();
+    const jobBySourceOrgId = new Map<number, (typeof jobs)[number]>();
+    for (const job of jobs) {
+      const outTradeNo = normalizeString(job.lastPaymentOutTradeNo);
+      if (outTradeNo && !jobByOutTradeNo.has(outTradeNo)) {
+        jobByOutTradeNo.set(outTradeNo, job);
+      }
+      const sourceOrgId = normalizePositiveInteger(job.sourceOrgId);
+      if (sourceOrgId && !jobBySourceOrgId.has(sourceOrgId)) {
+        jobBySourceOrgId.set(sourceOrgId, job);
+      }
+    }
     const entitlementMap = new Map(
       entitlements.map((entitlement) => [entitlement.outTradeNo, entitlement]),
     );
@@ -2280,6 +2472,13 @@ export async function listVipMembershipRefundOrders(params: {
     const items: VipMembershipRefundOrder[] = payments.map((payment) => {
       const entitlement = entitlementMap.get(payment.outTradeNo);
       const latestRefund = latestRefundMap.get(payment.outTradeNo);
+      const sourceOrgId = normalizePositiveInteger(payment.sourceOrgId);
+      const organization = sourceOrgId
+        ? organizationMap.get(sourceOrgId)
+        : null;
+      const provisioningJob =
+        jobByOutTradeNo.get(payment.outTradeNo) ||
+        (sourceOrgId ? jobBySourceOrgId.get(sourceOrgId) : undefined);
       const tradeState = normalizeString(payment.tradeState) || 'UNKNOWN';
       const latestRefundStatus = latestRefund?.status;
       const refundActionAllowed =
@@ -2333,10 +2532,27 @@ export async function listVipMembershipRefundOrders(params: {
         paidAt: payment.paidAt?.toISOString(),
         refundable,
         refundDisabledReason,
+        sourceOrganization: organization
+          ? {
+              id: Number(organization.id),
+              name: organization.name,
+              sourceCustomerId: organization.sourceCustomerId,
+            }
+          : undefined,
         targetCustomerId:
           normalizeString(
             payment.targetCustomerId || payment.sourceCustomerId,
           ) || undefined,
+        tenantProvisioningJob: provisioningJob
+          ? {
+              id: Number(provisioningJob.id),
+              sourceOrgId:
+                normalizePositiveInteger(provisioningJob.sourceOrgId) ||
+                undefined,
+              status: provisioningJob.status,
+              targetCustomerId: provisioningJob.targetCustomerId || undefined,
+            }
+          : undefined,
         tradeState,
         transactionId: payment.transactionId || undefined,
       };

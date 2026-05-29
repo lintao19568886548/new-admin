@@ -12,6 +12,7 @@ type TenantProvisioningRequeueJob = {
   lockOwner: null | string;
   retryCount: number;
   sourceCustomerId: string;
+  sourceOrgId: null | number;
   startedAt: Date | null;
   status: string;
   step: null | string;
@@ -60,6 +61,7 @@ function serializeJob(job: TenantProvisioningRequeueJob) {
     lockedAt: serializeDate(job.lockedAt),
     lockOwner: job.lockOwner,
     retryCount: job.retryCount,
+    sourceOrgId: job.sourceOrgId,
     sourceCustomerId: job.sourceCustomerId,
     startedAt: serializeDate(job.startedAt),
     status: job.status,
@@ -127,11 +129,39 @@ export async function requeueFailedManualTenantProvisioningJob(input: {
     );
   }
 
+  if (!job.sourceOrgId) {
+    throw new TenantProvisioningRequeueError(
+      '任务缺少 sourceOrgId，不能安全重排，请先按组织补齐开通任务',
+      409,
+    );
+  }
+
+  const organization = await systemDbClient.organization.findFirst({
+    select: {
+      id: true,
+      name: true,
+      sourceCustomerId: true,
+      status: true,
+    },
+    where: {
+      id: Number(job.sourceOrgId),
+      sourceCustomerId: job.sourceCustomerId,
+      status: 'active',
+    },
+  });
+  if (!organization) {
+    throw new TenantProvisioningRequeueError(
+      `任务关联组织不存在或不可用: sourceOrgId=${job.sourceOrgId}`,
+      409,
+    );
+  }
+
   const expectedConfirmation = buildRequeueConfirmation(job);
   const preview = {
     confirmation: expectedConfirmation,
     execute: false,
     job: serializeJob(job),
+    organization,
     message:
       '预览模式，未写入。确认已修复根因后，携带 execute=true 和 confirmation 重排任务。',
   };
@@ -181,6 +211,7 @@ export async function requeueFailedManualTenantProvisioningJob(input: {
   console.info('租户开通 failed_manual 任务已手动重排', {
     jobId: job.id,
     operator,
+    organizationId: organization.id,
     reason,
     targetCustomerId: job.targetCustomerId,
   });
@@ -190,6 +221,7 @@ export async function requeueFailedManualTenantProvisioningJob(input: {
     execute: true,
     job: serializeJob(updated),
     message: '任务已重置为 pending，worker 下一轮将全量重建目标库。',
+    organization,
     previousJob: serializeJob(job),
   };
 }

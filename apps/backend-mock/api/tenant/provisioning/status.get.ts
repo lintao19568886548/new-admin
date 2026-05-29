@@ -19,8 +19,14 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
+  const sourceCustomerId =
+    flowTokenPayload?.sourceCustomerId ?? userinfo?.customerId;
   const [provisioningState, centerUser] = await Promise.all([
-    getTenantProvisioningProfileState(centerUserId),
+    getTenantProvisioningProfileState(
+      centerUserId,
+      systemDbClient,
+      sourceCustomerId,
+    ),
     systemDbClient.user.findUnique({
       select: { customerType: true },
       where: { id: centerUserId },
@@ -33,9 +39,6 @@ export default eventHandler(async (event) => {
   const currentCustomerId = centerUser.customerType
     ? String(centerUser.customerType)
     : undefined;
-  const sourceCustomerId =
-    flowTokenPayload?.sourceCustomerId ?? userinfo?.customerId;
-
   return useResponseSuccess({
     ...provisioningState,
     currentCustomerId,

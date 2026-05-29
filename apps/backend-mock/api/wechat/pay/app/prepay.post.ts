@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { normalizeTenantIdentityProfile } from '~/utils/customer-identity';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
-  listActiveOrganizationMembershipsByCenterUserId,
-  resolveSingleActiveOwnedSourceOrganizationForCenterUser,
+  ensureSingleOwnerSourceOrganizationForCenterUser,
+  resolveActiveOrganizationMembershipForTargetCustomer,
 } from '~/utils/organization';
 import {
   badRequestResponse,
@@ -103,29 +103,6 @@ export default eventHandler(async (event) => {
         sourceCustomerId: customerId,
         tenantUserId: userinfo.id,
       };
-      const sourceOrganizationMemberships =
-        customerId === 'public'
-          ? await listActiveOrganizationMembershipsByCenterUserId(centerUserId)
-          : [];
-      const sourceOrganizations = sourceOrganizationMemberships.filter(
-        (item) => item.organization.sourceCustomerId === customerId,
-      );
-      if (sourceOrganizations.length > 1) {
-        return badRequestResponse(
-          '当前账号绑定多个 active 组织，请先选择要开通的组织',
-          event,
-        );
-      }
-      const sourceOwnedOrganization =
-        customerId === 'public'
-          ? await resolveSingleActiveOwnedSourceOrganizationForCenterUser({
-              centerUserId,
-              sourceCustomerId: customerId,
-            })
-          : null;
-      if (sourceOrganizations.length === 1 && !sourceOwnedOrganization) {
-        return badRequestResponse('只有组织 owner 可以开通专属空间', event);
-      }
       const expectedAmount = resolveVipMembershipAmountTotal(amountContext);
       if (amount !== expectedAmount) {
         if (!isVipMembershipTestPayment(amountContext)) {
@@ -137,10 +114,20 @@ export default eventHandler(async (event) => {
       let tenantIdentity:
         | ReturnType<typeof normalizeTenantIdentityProfile>
         | undefined;
+      let sourceOwnedOrganization:
+        | Awaited<
+            ReturnType<typeof ensureSingleOwnerSourceOrganizationForCenterUser>
+          >
+        | undefined;
+      let paymentSourceOrgId: null | number = null;
       if (customerId === 'public') {
         const tenantIdentityInput = normalizeTenantIdentityInput(body);
         const existingProvisioningState =
-          await getTenantProvisioningProfileState(centerUserId);
+          await getTenantProvisioningProfileState(
+            centerUserId,
+            undefined,
+            customerId,
+          );
         const provisioningBlockedMessage =
           getTenantProvisioningPaymentBlockedMessage(
             existingProvisioningState.tenantProvisioningStatus,
@@ -154,17 +141,55 @@ export default eventHandler(async (event) => {
         );
 
         try {
-          tenantIdentity =
-            hasTenantIdentityInput(tenantIdentityInput) ||
-            !canReuseExistingIdentity
-              ? normalizeTenantIdentityProfile(tenantIdentityInput)
-              : undefined;
+          let requestedTenantIdentity:
+            | undefined
+            | {
+                city?: unknown;
+                companyShortName?: unknown;
+              };
+          if (hasTenantIdentityInput(tenantIdentityInput)) {
+            requestedTenantIdentity = tenantIdentityInput;
+          } else if (canReuseExistingIdentity) {
+            requestedTenantIdentity = {
+              city: existingProvisioningState.targetCity,
+              companyShortName:
+                existingProvisioningState.targetCompanyShortName,
+            };
+          }
+          sourceOwnedOrganization =
+            await ensureSingleOwnerSourceOrganizationForCenterUser({
+              centerUserId,
+              sourceCustomerId: customerId,
+              tenantIdentity: requestedTenantIdentity,
+            });
+          tenantIdentity = normalizeTenantIdentityProfile({
+            city: sourceOwnedOrganization.organization.city,
+            companyShortName:
+              sourceOwnedOrganization.organization.companyShortName,
+          });
+          paymentSourceOrgId = sourceOwnedOrganization.organization.id;
         } catch (error) {
           return badRequestResponse(
             error instanceof Error ? error.message : '专属空间信息不完整',
             event,
           );
         }
+      } else {
+        const organizationMembership =
+          await resolveActiveOrganizationMembershipForTargetCustomer({
+            centerUserId,
+            targetCustomerId: customerId,
+          });
+        if (!organizationMembership) {
+          return badRequestResponse('当前租户缺少可续费组织', event);
+        }
+        if (organizationMembership.memberRole !== 'owner') {
+          return badRequestResponse(
+            '只有组织所有者可以为该组织支付会员',
+            event,
+          );
+        }
+        paymentSourceOrgId = organizationMembership.organization.id;
       }
       attach = buildVipMembershipAttach({
         centerUserId,
@@ -178,7 +203,7 @@ export default eventHandler(async (event) => {
         outTradeNo,
         rawAttach: attach,
         sourceCustomerId: customerId,
-        sourceOrgId: sourceOwnedOrganization?.organization.id || null,
+        sourceOrgId: paymentSourceOrgId,
         tenantIdentity,
         username: userinfo.username,
       });
