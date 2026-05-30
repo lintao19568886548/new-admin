@@ -13,16 +13,16 @@ const PROFILE_AUXILIARY_ROUTE_MENUS = [
     type: 'menu',
   },
   {
-    authCode: 'profile:tenant-invitations',
-    component: '/profile/tenant-invitations',
+    authCode: 'profile:organization-invitations',
+    component: '/profile/organization-invitations',
     meta: {
       activePath: '/profile',
       hideInMenu: true,
       icon: 'mdi:ticket-confirmation-outline',
       title: '企业邀请码',
     },
-    name: 'ProfileTenantInvitations',
-    path: '/profile/tenant-invitations',
+    name: 'ProfileOrganizationInvitations',
+    path: '/profile/organization-invitations',
     type: 'menu',
   },
   {

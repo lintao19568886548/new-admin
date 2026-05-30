@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type {
-  TenantProvisioningStatus,
+  OrganizationProvisioningStatus,
   WechatPayOrderStatus,
 } from '#/api/wechat-pay';
 
@@ -12,8 +12,8 @@ import { useUserStore } from '@vben/stores';
 
 import { Button, Checkbox, Input, message, Modal, Tag } from 'ant-design-vue';
 
-import { joinTenantByInvitationCodeApi } from '#/api/tenant-invitation';
-import { getTenantProvisioningStatus } from '#/api/wechat-pay';
+import { joinOrganizationByInvitationCodeApi } from '#/api/organization-invitation';
+import { getOrganizationProvisioningStatus } from '#/api/wechat-pay';
 import { useAuthStore } from '#/store';
 import { resolveMembershipAccessState } from '#/utils/membership-access';
 import {
@@ -32,19 +32,22 @@ defineOptions({ name: 'VipMembershipPage' });
 const MEMBERSHIP_AMOUNT_FEN = 98_000;
 const PAY_MESSAGE_KEY = 'vip-membership-pay';
 const ORDER_PENDING_STATES = new Set(['NOTPAY', 'USERPAYING']);
-const TENANT_PROVISIONING_PENDING_STATES = new Set(['pending', 'provisioning']);
-const TENANT_PROVISIONING_FAILED_STATES = new Set([
+const ORGANIZATION_PROVISIONING_PENDING_STATES = new Set([
+  'pending',
+  'provisioning',
+]);
+const ORGANIZATION_PROVISIONING_FAILED_STATES = new Set([
   'failed_manual',
   'failed_retryable',
 ]);
-const TENANT_PROVISIONING_PAYMENT_BLOCKED_STATES = new Set([
+const ORGANIZATION_PROVISIONING_PAYMENT_BLOCKED_STATES = new Set([
   'pending',
   'provisioning',
-  ...TENANT_PROVISIONING_FAILED_STATES,
+  ...ORGANIZATION_PROVISIONING_FAILED_STATES,
 ]);
 
 const membershipPlan = {
-  name: '企业 VIP 月度会员',
+  name: '组织会员月度服务',
   originalPrice: 1280,
   period: '月',
   price: MEMBERSHIP_AMOUNT_FEN / 100,
@@ -54,12 +57,12 @@ const RESTRICTED_PAGE_LABEL = '租赁管理、人员信息';
 
 const benefitItems = [
   {
-    description: '企业会员有效期内，企业空间成员可使用对应定位能力。',
+    description: '组织会员有效期内，组织成员可使用对应定位能力。',
     icon: 'mdi:map-marker-radius-outline',
     title: '定位服务',
   },
   {
-    description: '开放企业招商相关能力入口。',
+    description: '开放组织招商相关能力入口。',
     icon: 'mdi:radar',
     title: '招商雷达',
   },
@@ -69,7 +72,7 @@ const benefitItems = [
     title: '结果回页',
   },
   {
-    description: '保留最近订单号，便于排查。',
+    description: '保留最近订单号，便于付款排查。',
     icon: 'mdi:receipt-text-outline',
     title: '订单可追踪',
   },
@@ -90,7 +93,7 @@ interface ProfileMembershipState {
   sourceField?: string;
 }
 
-interface ProfileTenantProvisioningState {
+interface ProfileOrganizationProvisioningState {
   label: string;
   status: string;
   targetCustomerId?: string;
@@ -121,8 +124,8 @@ const CHECKOUT_RESULT_MODAL_VIEW_MAP: Record<
   CheckoutResultModalView
 > = {
   failed: {
-    description: '专属空间开通未完成。请联系客服处理。',
-    heading: '专属空间暂未开通',
+    description: '组织空间开通未完成。请联系客服处理。',
+    heading: '组织空间暂未开通',
     icon: 'mdi:alert-circle-outline',
     okText: '重新登录查看',
     title: '支付成功，开通异常',
@@ -130,17 +133,17 @@ const CHECKOUT_RESULT_MODAL_VIEW_MAP: Record<
   },
   ready: {
     description:
-      '企业会员与专属空间已完成开通。重新登录后会进入新的企业空间，并加载最新权限与菜单。',
-    heading: '专属空间开通成功',
+      '组织会员与组织空间已完成开通。重新登录后会进入新的组织空间，并加载最新权限与菜单。',
+    heading: '组织空间开通成功',
     icon: 'mdi:check-decagram',
     okText: '重新登录',
-    title: '企业会员已开通',
+    title: '组织会员已开通',
     tone: 'success',
   },
   syncing: {
     description:
-      '微信支付已完成，后台正在完成企业专属空间开通。稍后可重新登录查看最新状态。',
-    heading: '专属空间正在完成开通',
+      '微信支付已完成，后台正在完成组织空间开通。稍后可重新登录查看最新状态。',
+    heading: '组织空间正在完成开通',
     icon: 'mdi:progress-clock',
     okText: '重新登录查看',
     title: '支付成功',
@@ -148,7 +151,7 @@ const CHECKOUT_RESULT_MODAL_VIEW_MAP: Record<
   },
   unknown: {
     description:
-      '微信支付已完成，会员状态正在同步。稍后可重新登录或刷新查看最新状态。',
+      '微信支付已完成，组织会员状态正在同步。稍后可重新登录或刷新查看最新状态。',
     heading: '支付结果已确认',
     icon: 'mdi:check-circle-outline',
     okText: '重新登录查看',
@@ -166,18 +169,17 @@ const agreedToTerms = ref(false);
 const agreementModalOpen = ref(false);
 const checkoutResultModalOpen = ref(false);
 const membershipCheckoutResult = ref<MembershipCheckoutResult>('unknown');
-const tenantCity = ref('');
-const tenantCompanyShortName = ref('');
-const tenantIdentityTouched = ref(false);
-const tenantInvitationCode = ref('');
-const tenantInvitationTouched = ref(false);
-const tenantJoinLoading = ref(false);
+const organizationCity = ref('');
+const organizationCompanyShortName = ref('');
+const organizationIdentityTouched = ref(false);
+const organizationInvitationCode = ref('');
+const organizationInvitationTouched = ref(false);
+const organizationJoinLoading = ref(false);
 const payLoading = ref(false);
 const wechatConfigLoading = ref(false);
 const latestPaymentState = ref<MembershipPaymentState | null>(null);
-const latestTenantProvisioningStatus = ref<null | TenantProvisioningStatus>(
-  null,
-);
+const latestOrganizationProvisioningStatus =
+  ref<null | OrganizationProvisioningStatus>(null);
 const paymentSectionRef = ref<HTMLElement | null>(null);
 const wechatOpenAppId = ref('');
 
@@ -245,15 +247,15 @@ const postPaymentMembershipExpireLabel = computed(() => {
 
   return `预计至 ${formatMembershipExpireAt(addMonths(baseTime, 1).toISOString())}`;
 });
-const profileTenantProvisioningState =
-  computed<null | ProfileTenantProvisioningState>(() =>
-    resolveProfileTenantProvisioningState(
-      latestTenantProvisioningStatus.value || userInfo.value,
+const profileOrganizationProvisioningState =
+  computed<null | ProfileOrganizationProvisioningState>(() =>
+    resolveProfileOrganizationProvisioningState(
+      latestOrganizationProvisioningStatus.value || userInfo.value,
     ),
   );
 const sourceOrganizationState = computed<null | SourceOrganizationState>(() =>
   resolveSourceOrganizationState(
-    latestTenantProvisioningStatus.value || userInfo.value,
+    latestOrganizationProvisioningStatus.value || userInfo.value,
   ),
 );
 const sourceOrganizationIdentityComplete = computed(
@@ -266,29 +268,27 @@ const sourceOrganizationPaymentAllowed = computed(
     !sourceOrganizationState.value ||
     sourceOrganizationState.value.memberRole === 'owner',
 );
-const requiresTenantIdentity = computed(
+const requiresOrganizationIdentity = computed(
   () =>
     currentCustomerId.value === 'public' &&
     !sourceOrganizationIdentityComplete.value &&
-    !profileTenantProvisioningState.value,
+    !profileOrganizationProvisioningState.value,
 );
 const membershipScopeName = computed(() => {
   const companyShortName = (
-    requiresTenantIdentity.value
-      ? tenantCompanyShortName.value
+    requiresOrganizationIdentity.value
+      ? organizationCompanyShortName.value
       : sourceOrganizationState.value?.companyShortName ||
         customerCompanyShortName.value ||
-        tenantCompanyShortName.value
+        organizationCompanyShortName.value
   ).trim();
-  if (requiresTenantIdentity.value) {
-    return companyShortName
-      ? `${companyShortName} 企业专属空间`
-      : '待开通企业专属空间';
+  if (requiresOrganizationIdentity.value) {
+    return companyShortName ? `${companyShortName} 组织空间` : '待开通组织空间';
   }
 
   if (sourceOrganizationState.value) {
     return companyShortName
-      ? `${companyShortName} 企业专属空间`
+      ? `${companyShortName} 组织空间`
       : sourceOrganizationState.value.name;
   }
 
@@ -301,52 +301,54 @@ const membershipScopeName = computed(() => {
   }
 
   if (companyShortName) {
-    return `${companyShortName} 企业空间`;
+    return `${companyShortName} 组织空间`;
   }
 
   if (customerName.value) {
-    return `${customerName.value} 企业空间`;
+    return `${customerName.value} 组织空间`;
   }
 
-  return '当前企业空间';
+  return '当前组织空间';
 });
-const canJoinExistingTenant = computed(
+const canJoinExistingOrganization = computed(
   () =>
     currentCustomerId.value === 'public' &&
     !sourceOrganizationState.value &&
-    !profileTenantProvisioningState.value,
+    !profileOrganizationProvisioningState.value,
 );
-const tenantInvitationError = computed(() => {
-  if (!canJoinExistingTenant.value) {
+const organizationInvitationError = computed(() => {
+  if (!canJoinExistingOrganization.value) {
     return '';
   }
 
-  if (!tenantInvitationCode.value.trim()) {
-    return '请输入企业邀请码';
+  if (!organizationInvitationCode.value.trim()) {
+    return '请输入组织邀请码';
   }
 
   return '';
 });
-const tenantIdentityError = computed(() => {
-  if (!requiresTenantIdentity.value) {
+const organizationIdentityError = computed(() => {
+  if (!requiresOrganizationIdentity.value) {
     return '';
   }
 
-  if (!tenantCity.value.trim()) {
-    return '请填写租户公司所在城市';
+  if (!organizationCity.value.trim()) {
+    return '请填写 组织/公司 所在城市';
   }
 
-  if (!tenantCompanyShortName.value.trim()) {
-    return '请填写租户公司简称';
+  if (!organizationCompanyShortName.value.trim()) {
+    return '请填写 组织/公司 简称';
   }
 
   return '';
 });
-const tenantIdentityReady = computed(() => !tenantIdentityError.value);
-const tenantProvisioningPaymentBlocked = computed(() => {
-  const status = profileTenantProvisioningState.value?.status;
+const organizationIdentityReady = computed(
+  () => !organizationIdentityError.value,
+);
+const organizationProvisioningPaymentBlocked = computed(() => {
+  const status = profileOrganizationProvisioningState.value?.status;
   return Boolean(
-    status && TENANT_PROVISIONING_PAYMENT_BLOCKED_STATES.has(status),
+    status && ORGANIZATION_PROVISIONING_PAYMENT_BLOCKED_STATES.has(status),
   );
 });
 const appPaySupported = computed(
@@ -369,16 +371,18 @@ const payButtonText = computed(() => {
     return '仅支持 Android App';
   }
 
-  if (tenantProvisioningPaymentBlocked.value) {
-    return profileTenantProvisioningState.value?.label || '专属空间开通中';
+  if (organizationProvisioningPaymentBlocked.value) {
+    return (
+      profileOrganizationProvisioningState.value?.label || '组织空间开通中'
+    );
   }
 
   if (!sourceOrganizationPaymentAllowed.value) {
     return '仅组织所有者可支付';
   }
 
-  if (!tenantIdentityReady.value) {
-    return '填写专属空间信息';
+  if (!organizationIdentityReady.value) {
+    return '填写组织信息';
   }
 
   return `确认支付 ¥${membershipPlan.price}`;
@@ -387,38 +391,40 @@ const payButtonDisabled = computed(
   () =>
     payLoading.value ||
     wechatConfigLoading.value ||
-    tenantProvisioningPaymentBlocked.value ||
+    organizationProvisioningPaymentBlocked.value ||
     !sourceOrganizationPaymentAllowed.value ||
     !wechatOpenAppId.value ||
     !appPaySupported.value,
 );
 const paymentAgreementHint = computed(() => {
-  if (tenantProvisioningPaymentBlocked.value) {
+  if (organizationProvisioningPaymentBlocked.value) {
     return (
-      profileTenantProvisioningState.value?.label ||
-      '专属空间正在开通中，请勿重复支付。'
+      profileOrganizationProvisioningState.value?.label ||
+      '组织空间正在开通中，请勿重复支付。'
     );
   }
 
   if (!sourceOrganizationPaymentAllowed.value) {
-    return '当前账号是组织成员，只有组织所有者可以为该组织支付会员。';
+    return '当前账号是组织成员，只有组织所有者可以为该组织开通或续费会员。';
   }
 
   if (agreedToTerms.value) {
     return '已同意《会员服务协议》和《隐私政策》。';
   }
 
-  if (requiresTenantIdentity.value) {
-    return '支付前请填写专属空间信息，并阅读勾选相关协议。';
+  if (requiresOrganizationIdentity.value) {
+    return '支付前请填写组织信息，并阅读勾选相关协议。';
   }
 
   return '支付前请先阅读并勾选相关协议。';
 });
 
 watch(
-  [userInfo, latestTenantProvisioningStatus],
+  [userInfo, latestOrganizationProvisioningStatus],
   ([currentUserInfo, currentProvisioningStatus]) => {
-    applyTenantIdentityDraft(currentProvisioningStatus || currentUserInfo);
+    applyOrganizationIdentityDraft(
+      currentProvisioningStatus || currentUserInfo,
+    );
   },
   { immediate: true },
 );
@@ -449,25 +455,25 @@ const membershipGateNotice = computed(() => {
   if (reason === 'membership_expired') {
     return {
       description:
-        '当前企业空间仍保留数据和成员关系，但除租赁管理和人员信息外的页面已限制访问。续费企业会员后恢复全部功能。',
+        '当前组织仍保留数据和成员关系，但除租赁管理和人员信息外的页面已限制访问。续费组织会员后恢复全部功能。',
       eyebrow: 'Membership Expired',
-      title: '企业会员已过期',
+      title: '组织会员已过期',
     };
   }
 
   return {
     description:
-      '免费试用期已结束，目前仅保留租赁管理和人员信息两个页面可用。开通企业会员后恢复全部功能。',
+      '免费试用期已结束，目前仅保留租赁管理和人员信息两个页面可用。开通组织会员后恢复全部功能。',
     eyebrow: 'Trial Ended',
     title: '试用已到期',
   };
 });
 const orderStatusTag = computed(() => {
-  if (profileTenantProvisioningState.value) {
-    const status = profileTenantProvisioningState.value.status;
+  if (profileOrganizationProvisioningState.value) {
+    const status = profileOrganizationProvisioningState.value.status;
     return {
-      color: resolveTenantProvisioningTagColor(status),
-      text: profileTenantProvisioningState.value.label,
+      color: resolveOrganizationProvisioningTagColor(status),
+      text: profileOrganizationProvisioningState.value.label,
     };
   }
 
@@ -560,7 +566,7 @@ function addMonths(source: Date, months: number) {
   return date;
 }
 
-function resolveTenantProvisioningTagColor(status: string) {
+function resolveOrganizationProvisioningTagColor(status: string) {
   if (status === 'failed_manual') {
     return 'error';
   }
@@ -572,19 +578,19 @@ function resolveTenantProvisioningTagColor(status: string) {
   return 'processing';
 }
 
-function resolveCheckoutResultFromProvisioningStatus(
-  status: null | TenantProvisioningStatus,
+function resolveCheckoutResultFromOrganizationProvisioningStatus(
+  status: null | OrganizationProvisioningStatus,
 ): MembershipCheckoutResult {
-  const provisioningStatus = status?.tenantProvisioningStatus;
+  const provisioningStatus = status?.organizationProvisioningStatus;
   if (!provisioningStatus) {
     return 'ready';
   }
 
-  if (TENANT_PROVISIONING_FAILED_STATES.has(provisioningStatus)) {
+  if (ORGANIZATION_PROVISIONING_FAILED_STATES.has(provisioningStatus)) {
     return 'failed';
   }
 
-  if (TENANT_PROVISIONING_PENDING_STATES.has(provisioningStatus)) {
+  if (ORGANIZATION_PROVISIONING_PENDING_STATES.has(provisioningStatus)) {
     return 'syncing';
   }
 
@@ -643,9 +649,9 @@ function resolveProfileMembershipState(
     if (active !== null) {
       let label = statusField.value;
       if (active && expireAtField?.value) {
-        label = `当前会员有效至 ${formatMembershipExpireAt(expireAtField.value)}`;
+        label = `组织会员有效至 ${formatMembershipExpireAt(expireAtField.value)}`;
       } else if (active) {
-        label = '企业会员已开通';
+        label = '组织会员已开通';
       }
 
       return {
@@ -658,11 +664,11 @@ function resolveProfileMembershipState(
   }
 
   if (booleanField) {
-    let label = '未开通企业会员';
+    let label = '未开通组织会员';
     if (booleanField.value && expireAtField?.value) {
-      label = `企业会员有效至 ${formatMembershipExpireAt(expireAtField.value)}`;
+      label = `组织会员有效至 ${formatMembershipExpireAt(expireAtField.value)}`;
     } else if (booleanField.value) {
-      label = '企业会员已开通';
+      label = '组织会员已开通';
     }
 
     return {
@@ -681,8 +687,8 @@ function resolveProfileMembershipState(
         active,
         expireAt: expireAtField.value,
         label: active
-          ? `企业会员有效至 ${formatMembershipExpireAt(expireAtField.value)}`
-          : '企业会员已过期',
+          ? `组织会员有效至 ${formatMembershipExpireAt(expireAtField.value)}`
+          : '组织会员已过期',
         sourceField: expireAtField.field,
       };
     }
@@ -691,24 +697,28 @@ function resolveProfileMembershipState(
   return null;
 }
 
-function resolveProfileTenantProvisioningState(
+function resolveProfileOrganizationProvisioningState(
   value: null | object | undefined,
-): null | ProfileTenantProvisioningState {
+): null | ProfileOrganizationProvisioningState {
   if (!value) {
     return null;
   }
 
   const record = value as Record<string, unknown>;
-  const status = readStringField(record, ['tenantProvisioningStatus'])?.value;
+  const status = readStringField(record, [
+    'organizationProvisioningStatus',
+  ])?.value;
   if (!status || ['active', 'none'].includes(status)) {
     return null;
   }
 
-  const message = readStringField(record, ['tenantProvisioningMessage'])?.value;
+  const message = readStringField(record, [
+    'organizationProvisioningMessage',
+  ])?.value;
   const targetCustomerId = readStringField(record, ['targetCustomerId'])?.value;
 
   return {
-    label: message || '专属空间开通中',
+    label: message || '组织空间开通中',
     status,
     targetCustomerId,
   };
@@ -802,11 +812,11 @@ function resolveVipMembershipApplyFailureMessage(
   }
 
   if (!result) {
-    return '支付已完成，但企业会员开通状态未确认，请稍后刷新或联系客服处理。';
+    return '支付已完成，但组织会员开通状态未确认，请稍后刷新或联系客服处理。';
   }
 
   if (result.reason === 'amount-mismatch') {
-    return '支付金额异常，企业会员未开通，请联系客服处理退款或对账。';
+    return '支付金额异常，组织会员未开通，请联系客服处理退款或对账。';
   }
 
   if (
@@ -817,10 +827,10 @@ function resolveVipMembershipApplyFailureMessage(
       'not-vip-membership',
     ].includes(result.reason || '')
   ) {
-    return '支付订单归属信息异常，企业会员未开通，请联系客服处理。';
+    return '支付订单归属信息异常，组织会员未开通，请联系客服处理。';
   }
 
-  return '支付已完成，但企业会员开通未生效，请联系客服处理。';
+  return '支付已完成，但组织会员开通未生效，请联系客服处理。';
 }
 
 function normalizeVipMembershipApplyFailureState(
@@ -872,7 +882,7 @@ function handleContactSupport() {
     return;
   }
 
-  message.info('如支付遇到问题，请联系客服处理；企业会员开通以订单状态为准。');
+  message.info('如支付遇到问题，请联系客服处理；组织会员开通以订单状态为准。');
 }
 
 function handleMobileCheckoutNavigate() {
@@ -891,8 +901,8 @@ function handleMobileCheckoutNavigate() {
   paymentSection.scrollIntoView({ behavior, block: 'start' });
 }
 
-function applyTenantIdentityDraft(value: null | object | undefined) {
-  if (!value || tenantIdentityTouched.value) {
+function applyOrganizationIdentityDraft(value: null | object | undefined) {
+  if (!value || organizationIdentityTouched.value) {
     return;
   }
 
@@ -904,29 +914,29 @@ function applyTenantIdentityDraft(value: null | object | undefined) {
     readStringField(record, ['targetCompanyShortName'])?.value ||
     sourceOrganization?.companyShortName;
 
-  if (draftCity && !tenantCity.value.trim()) {
-    tenantCity.value = draftCity;
+  if (draftCity && !organizationCity.value.trim()) {
+    organizationCity.value = draftCity;
   }
 
-  if (draftCompanyShortName && !tenantCompanyShortName.value.trim()) {
-    tenantCompanyShortName.value = draftCompanyShortName;
+  if (draftCompanyShortName && !organizationCompanyShortName.value.trim()) {
+    organizationCompanyShortName.value = draftCompanyShortName;
   }
 }
 
-function resolveTenantIdentityPayload() {
-  if (!requiresTenantIdentity.value) {
+function resolveOrganizationIdentityPayload() {
+  if (!requiresOrganizationIdentity.value) {
     return undefined;
   }
 
   return {
-    city: tenantCity.value.trim(),
-    companyShortName: tenantCompanyShortName.value.trim(),
+    city: organizationCity.value.trim(),
+    companyShortName: organizationCompanyShortName.value.trim(),
   };
 }
 
-function validateTenantIdentity() {
-  tenantIdentityTouched.value = true;
-  if (!tenantIdentityError.value) {
+function validateOrganizationIdentity() {
+  organizationIdentityTouched.value = true;
+  if (!organizationIdentityError.value) {
     return true;
   }
 
@@ -934,33 +944,35 @@ function validateTenantIdentity() {
   return false;
 }
 
-async function handleJoinExistingTenant() {
-  if (tenantJoinLoading.value) {
+async function handleJoinExistingOrganization() {
+  if (organizationJoinLoading.value) {
     return;
   }
 
-  tenantInvitationTouched.value = true;
-  if (tenantInvitationError.value) {
+  organizationInvitationTouched.value = true;
+  if (organizationInvitationError.value) {
     return;
   }
 
-  tenantJoinLoading.value = true;
+  organizationJoinLoading.value = true;
   try {
-    const result = await joinTenantByInvitationCodeApi(
-      tenantInvitationCode.value.trim(),
+    const result = await joinOrganizationByInvitationCodeApi(
+      organizationInvitationCode.value.trim(),
     );
     if (result.requiresRelogin) {
       message.success(
-        `已加入 ${result.customerName || '目标租户'}，请重新登录进入企业空间。`,
+        `已加入 ${
+          result.organizationSpaceName || result.customerName || '目标组织'
+        }，请重新登录进入组织空间。`,
       );
       await authStore.logout(false, false);
       return;
     }
 
-    message.success('当前账号已在该企业空间。');
+    message.success('当前账号已在该组织空间。');
     await authStore.fetchUserInfo();
   } finally {
-    tenantJoinLoading.value = false;
+    organizationJoinLoading.value = false;
   }
 }
 
@@ -996,16 +1008,16 @@ async function requestWechatPay(options: { scrollToPayment?: boolean } = {}) {
     handleMobileCheckoutNavigate();
   }
 
-  if (tenantProvisioningPaymentBlocked.value) {
+  if (organizationProvisioningPaymentBlocked.value) {
     return;
   }
 
   if (!sourceOrganizationPaymentAllowed.value) {
-    message.warning('只有组织所有者可以为该组织支付会员');
+    message.warning('只有组织所有者可以为该组织开通或续费会员');
     return;
   }
 
-  if (!validateTenantIdentity()) {
+  if (!validateOrganizationIdentity()) {
     return;
   }
 
@@ -1028,14 +1040,14 @@ async function handleAgreementModalConfirm() {
     return;
   }
 
-  if (tenantProvisioningPaymentBlocked.value) {
+  if (organizationProvisioningPaymentBlocked.value) {
     agreementModalOpen.value = false;
     return;
   }
 
   if (!sourceOrganizationPaymentAllowed.value) {
     agreementModalOpen.value = false;
-    message.warning('只有组织所有者可以为该组织支付会员');
+    message.warning('只有组织所有者可以为该组织开通或续费会员');
     return;
   }
 
@@ -1045,7 +1057,7 @@ async function handleAgreementModalConfirm() {
     return;
   }
 
-  if (!validateTenantIdentity()) {
+  if (!validateOrganizationIdentity()) {
     return;
   }
 
@@ -1063,27 +1075,29 @@ function handleOpenRefundOrders() {
   void router.push('/profile/vip-refunds');
 }
 
-async function refreshTenantProvisioningStatus(checkoutFlowToken?: string) {
-  const state = await getTenantProvisioningStatus({
+async function refreshOrganizationProvisioningStatus(
+  checkoutFlowToken?: string,
+) {
+  const state = await getOrganizationProvisioningStatus({
     checkoutFlowToken,
   });
-  latestTenantProvisioningStatus.value = state;
+  latestOrganizationProvisioningStatus.value = state;
   return state;
 }
 
-async function pollTenantProvisioningStatusAfterPaid(
+async function pollOrganizationProvisioningStatusAfterPaid(
   checkoutFlowToken?: string,
 ) {
-  let lastStatus: null | TenantProvisioningStatus = null;
+  let lastStatus: null | OrganizationProvisioningStatus = null;
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const currentStatus =
-      await refreshTenantProvisioningStatus(checkoutFlowToken);
+      await refreshOrganizationProvisioningStatus(checkoutFlowToken);
     lastStatus = currentStatus;
 
     if (
-      !TENANT_PROVISIONING_PENDING_STATES.has(
-        currentStatus.tenantProvisioningStatus,
+      !ORGANIZATION_PROVISIONING_PENDING_STATES.has(
+        currentStatus.organizationProvisioningStatus,
       )
     ) {
       return currentStatus;
@@ -1098,18 +1112,20 @@ async function pollTenantProvisioningStatusAfterPaid(
 async function showCheckoutResultAfterPaid(checkoutFlowToken?: string) {
   membershipCheckoutResult.value = 'ready';
   message.loading({
-    content: '支付成功，正在完成企业专属空间开通...',
+    content: '支付成功，正在完成组织空间开通...',
     duration: 0,
     key: PAY_MESSAGE_KEY,
   });
 
   try {
     const provisioningStatus =
-      await pollTenantProvisioningStatusAfterPaid(checkoutFlowToken);
+      await pollOrganizationProvisioningStatusAfterPaid(checkoutFlowToken);
     membershipCheckoutResult.value =
-      resolveCheckoutResultFromProvisioningStatus(provisioningStatus);
+      resolveCheckoutResultFromOrganizationProvisioningStatus(
+        provisioningStatus,
+      );
   } catch (error) {
-    console.warn('支付成功后刷新专属空间状态失败:', error);
+    console.warn('支付成功后刷新组织空间状态失败:', error);
     membershipCheckoutResult.value = 'ready';
   }
 
@@ -1127,16 +1143,16 @@ async function handleWechatPay() {
     return;
   }
 
-  if (tenantProvisioningPaymentBlocked.value) {
+  if (organizationProvisioningPaymentBlocked.value) {
     return;
   }
 
   if (!sourceOrganizationPaymentAllowed.value) {
-    message.warning('只有组织所有者可以为该组织支付会员');
+    message.warning('只有组织所有者可以为该组织开通或续费会员');
     return;
   }
 
-  if (!validateTenantIdentity()) {
+  if (!validateOrganizationIdentity()) {
     return;
   }
 
@@ -1170,9 +1186,9 @@ async function handleWechatPay() {
     const execution = await payWithWechatApp({
       amount: MEMBERSHIP_AMOUNT_FEN,
       attach: 'vip-membership',
-      description: `${membershipScopeName.value} 企业月度会员`,
+      description: `${membershipScopeName.value} 组织会员月度服务`,
       deviceId: 'vip-membership-page',
-      tenantIdentity: resolveTenantIdentityPayload(),
+      organizationIdentity: resolveOrganizationIdentityPayload(),
     });
 
     currentOutTradeNo = execution.launchParams.outTradeNo;
@@ -1226,11 +1242,11 @@ async function handleWechatPay() {
 
     if (orderStatus.vipMembershipResult?.reason === 'stale-payment') {
       latestPaymentState.value = normalizeStalePaymentState(orderStatus);
-      await refreshTenantProvisioningStatus(execution.checkoutFlowToken).catch(
-        (error) => {
-          console.warn('旧支付订单同步后刷新专属空间状态失败:', error);
-        },
-      );
+      await refreshOrganizationProvisioningStatus(
+        execution.checkoutFlowToken,
+      ).catch((error) => {
+        console.warn('旧支付订单同步后刷新组织空间状态失败:', error);
+      });
       message.warning({
         content: '该支付订单已不是当前开通订单，请联系客服处理退款或对账。',
         duration: 6,
@@ -1284,8 +1300,8 @@ async function handleWechatPay() {
 
 onMounted(() => {
   void refreshWechatPayAppConfig({ silent: true });
-  void refreshTenantProvisioningStatus().catch((error) => {
-    console.warn('读取专属空间草稿失败:', error);
+  void refreshOrganizationProvisioningStatus().catch((error) => {
+    console.warn('读取组织空间信息草稿失败:', error);
   });
 });
 </script>
@@ -1312,46 +1328,49 @@ onMounted(() => {
         </div>
       </section>
 
-      <div v-if="canJoinExistingTenant" class="tenant-invitation-card">
+      <div
+        v-if="canJoinExistingOrganization"
+        class="organization-invitation-card"
+      >
         <div>
-          <h3>已有企业邀请码？</h3>
+          <h3>已有组织邀请码？</h3>
           <p>
-            如果公司已经开通专属空间，可输入管理员提供的邀请码加入。
+            如果组织已经开通，可输入管理员提供的邀请码加入。
             加入成功后需要重新登录。
           </p>
         </div>
-        <label class="tenant-identity-field">
-          <span>企业邀请码</span>
+        <label class="organization-identity-field">
+          <span>组织邀请码</span>
           <Input
-            v-model:value="tenantInvitationCode"
-            placeholder="输入企业邀请码"
-            @blur="tenantInvitationTouched = true"
-            @press-enter="handleJoinExistingTenant"
+            v-model:value="organizationInvitationCode"
+            placeholder="输入组织邀请码"
+            @blur="organizationInvitationTouched = true"
+            @press-enter="handleJoinExistingOrganization"
           />
         </label>
         <p
-          v-if="tenantInvitationTouched && tenantInvitationError"
-          class="tenant-identity-card__error"
+          v-if="organizationInvitationTouched && organizationInvitationError"
+          class="organization-identity-card__error"
         >
-          {{ tenantInvitationError }}
+          {{ organizationInvitationError }}
         </p>
         <Button
           block
-          :loading="tenantJoinLoading"
-          @click="handleJoinExistingTenant"
+          :loading="organizationJoinLoading"
+          @click="handleJoinExistingOrganization"
         >
-          加入已有租户
+          加入已有组织
         </Button>
       </div>
 
       <section class="pay-head">
         <div class="pay-head__intro">
           <p class="pay-head__eyebrow">Membership Checkout</p>
-          <h1>开通企业会员服务</h1>
+          <h1>开通组织会员服务</h1>
           <p class="pay-head__description">
             为
             {{ membershipScopeName }}
-            开通月度企业会员后，企业空间成员可使用定位服务、招商雷达等会员专属能力。
+            开通组织月度会员后，组织成员可使用定位服务、招商雷达等会员专属能力。
           </p>
         </div>
 
@@ -1379,7 +1398,7 @@ onMounted(() => {
             <div class="pay-card__head">
               <div>
                 <p class="pay-card__eyebrow">Benefits</p>
-                <h2>企业会员权益</h2>
+                <h2>组织会员权益</h2>
               </div>
               <span class="pay-card__hint">支付前可查看</span>
             </div>
@@ -1414,7 +1433,7 @@ onMounted(() => {
             </div>
 
             <div class="order-card__account">
-              <span>开通主体</span>
+              <span>开通组织</span>
               <strong>{{ membershipScopeName }}</strong>
             </div>
 
@@ -1436,12 +1455,12 @@ onMounted(() => {
                 <span>{{ postPaymentMembershipExpireLabel }}</span>
               </div>
               <div
-                v-if="profileTenantProvisioningState"
+                v-if="profileOrganizationProvisioningState"
                 class="order-card__row order-card__row--wrap"
               >
-                <span>专属空间</span>
+                <span>组织空间</span>
                 <span>
-                  {{ profileTenantProvisioningState.label }}
+                  {{ profileOrganizationProvisioningState.label }}
                 </span>
               </div>
               <div
@@ -1474,35 +1493,38 @@ onMounted(() => {
               </div>
             </div>
 
-            <div v-if="requiresTenantIdentity" class="tenant-identity-card">
+            <div
+              v-if="requiresOrganizationIdentity"
+              class="organization-identity-card"
+            >
               <div>
-                <h3>租户公司信息</h3>
+                <h3>组织信息</h3>
                 <p>
                   用于生成独立数据库标识，如
                   深圳市腾讯计算机系统有限公司，填深圳市、腾讯
                 </p>
               </div>
-              <label class="tenant-identity-field">
+              <label class="organization-identity-field">
                 <span>所在城市</span>
                 <Input
-                  v-model:value="tenantCity"
+                  v-model:value="organizationCity"
                   placeholder="如 深圳市"
-                  @blur="tenantIdentityTouched = true"
+                  @blur="organizationIdentityTouched = true"
                 />
               </label>
-              <label class="tenant-identity-field">
+              <label class="organization-identity-field">
                 <span>公司简称</span>
                 <Input
-                  v-model:value="tenantCompanyShortName"
+                  v-model:value="organizationCompanyShortName"
                   placeholder="如 腾讯"
-                  @blur="tenantIdentityTouched = true"
+                  @blur="organizationIdentityTouched = true"
                 />
               </label>
               <p
-                v-if="tenantIdentityTouched && tenantIdentityError"
-                class="tenant-identity-card__error"
+                v-if="organizationIdentityTouched && organizationIdentityError"
+                class="organization-identity-card__error"
               >
-                {{ tenantIdentityError }}
+                {{ organizationIdentityError }}
               </p>
             </div>
 
@@ -1543,9 +1565,9 @@ onMounted(() => {
         <div v-if="isSuperUser" class="order-card__management">
           <div>
             <strong>订单管理</strong>
-            <p>可查看当前企业的所有会员支付订单并按规则退款。</p>
+            <p>可查看当前组织的所有组织订单并按规则退款。</p>
           </div>
-          <Button @click="handleOpenRefundOrders"> 管理企业订单 </Button>
+          <Button @click="handleOpenRefundOrders"> 管理组织订单 </Button>
         </div>
       </div>
     </div>
@@ -1580,7 +1602,7 @@ onMounted(() => {
     >
       <div class="agreement-confirm">
         <p>
-          开通企业会员前，请先阅读并同意《会员服务协议》和《隐私政策》。确认后将直接发起微信支付。
+          开通组织会员前，请先阅读并同意《会员服务协议》和《隐私政策》。确认后将直接发起微信支付。
         </p>
         <div class="agreement-confirm__links">
           <button type="button" @click="openServiceAgreementDialog">
@@ -1985,7 +2007,7 @@ onMounted(() => {
   line-height: 1;
 }
 
-.tenant-identity-card {
+.organization-identity-card {
   display: grid;
   gap: 14px;
   padding: 16px;
@@ -1996,7 +2018,7 @@ onMounted(() => {
   border-radius: 20px;
 }
 
-.tenant-invitation-card {
+.organization-invitation-card {
   display: grid;
   gap: 14px;
   padding: 16px;
@@ -2007,44 +2029,44 @@ onMounted(() => {
   border-radius: 20px;
 }
 
-.tenant-invitation-card h3 {
+.organization-invitation-card h3 {
   margin: 0;
   font-size: 16px;
   color: var(--vip-text);
 }
 
-.tenant-invitation-card p {
+.organization-invitation-card p {
   margin: 6px 0 0;
   font-size: 13px;
   line-height: 1.6;
   color: var(--vip-text-soft);
 }
 
-.tenant-identity-card h3 {
+.organization-identity-card h3 {
   margin: 0;
   font-size: 16px;
   color: var(--vip-text);
 }
 
-.tenant-identity-card p {
+.organization-identity-card p {
   margin: 6px 0 0;
   font-size: 13px;
   line-height: 1.6;
   color: var(--vip-text-soft);
 }
 
-.tenant-identity-field {
+.organization-identity-field {
   display: grid;
   gap: 8px;
 }
 
-.tenant-identity-field span {
+.organization-identity-field span {
   font-size: 13px;
   font-weight: 600;
   color: var(--vip-text);
 }
 
-.tenant-identity-card__error {
+.organization-identity-card__error {
   color: #d4380d !important;
 }
 

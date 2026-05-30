@@ -1,15 +1,16 @@
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
+  canManageOrganizationProvisioningAdmin,
+  OrganizationProvisioningRequeueError,
+  requeueFailedManualOrganizationProvisioningJob,
+} from '~/utils/organization-provisioning-admin';
+import {
   badRequestResponse,
   forbiddenResponse,
   serverErrorResponse,
   unAuthorizedResponse,
   useResponseSuccess,
 } from '~/utils/response';
-import {
-  requeueFailedManualTenantProvisioningJob,
-  TenantProvisioningRequeueError,
-} from '~/utils/tenant-provisioning-admin';
 
 export default eventHandler(async (event) => {
   const userinfo = verifyAccessToken(event);
@@ -17,14 +18,14 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
-  if (!userinfo.roles?.includes('Super')) {
-    return forbiddenResponse(event, '仅 Super 角色可重排租户开通任务');
+  if (!canManageOrganizationProvisioningAdmin(userinfo)) {
+    return forbiddenResponse(event, '仅平台 Super 可重排组织空间开通任务');
   }
 
   const body = (await readBody(event)) as Record<string, unknown>;
 
   try {
-    const result = await requeueFailedManualTenantProvisioningJob({
+    const result = await requeueFailedManualOrganizationProvisioningJob({
       confirmation: body.confirmation,
       execute: body.execute,
       jobId: body.jobId,
@@ -34,15 +35,15 @@ export default eventHandler(async (event) => {
 
     return useResponseSuccess(result);
   } catch (error) {
-    if (error instanceof TenantProvisioningRequeueError) {
+    if (error instanceof OrganizationProvisioningRequeueError) {
       return badRequestResponse(error.message, event, error.statusCode);
     }
 
-    console.error('重排租户开通 failed_manual 任务失败:', error);
+    console.error('重排组织空间开通 failed_manual 任务失败:', error);
     return serverErrorResponse(
       error instanceof Error
         ? error.message
-        : '重排租户开通 failed_manual 任务失败',
+        : '重排组织空间开通 failed_manual 任务失败',
       event,
     );
   }

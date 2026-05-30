@@ -3,6 +3,7 @@ import { prismaClient, prismaScopeStorage, systemDbClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   assertOrganizationRolesRequireActiveMembership,
+  ensureLegacyOrganizationMembershipsForRoleAssignment,
   OrganizationLifecycleError,
 } from '~/utils/organization-role-policy';
 import { bumpPermissionCacheVersion } from '~/utils/permission-cache';
@@ -104,22 +105,12 @@ export default eventHandler(async (event) => {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   let createdCenterUserId: null | number = null;
+  let createdOrganizationMemberIds: number[] = [];
   let createdTenantUserId: null | number = null;
 
   try {
     const tenantUser = await prismaScopeStorage.run({ customerId }, async () =>
       prismaClient.$transaction(async (prisma) => {
-        if (roleIds.length > 0) {
-          await assertOrganizationRolesRequireActiveMembership({
-            centerUserId: centerUserBeforeCreate?.id
-              ? Number(centerUserBeforeCreate.id)
-              : null,
-            prisma,
-            roleIds,
-            sourceCustomerId: customerId,
-          });
-        }
-
         const createdUser = await prisma.user.create({
           data: {
             customerType: customerId,
@@ -133,7 +124,51 @@ export default eventHandler(async (event) => {
           select: { id: true },
         });
 
-        if (roleIds.length > 0) {
+        return createdUser;
+      }),
+    );
+    createdTenantUserId = Number(tenantUser.id);
+
+    let centerUser = centerUserBeforeCreate;
+
+    if (!centerUser) {
+      centerUser = await systemDbClient.user.create({
+        data: {
+          customerType: customerId,
+          password: hashedPassword,
+          phone: phone || null,
+          realName,
+          status,
+          tokenVersion: 1,
+          username,
+        },
+        select: { id: true, customerType: true },
+      });
+      createdCenterUserId = Number(centerUser.id);
+    }
+
+    if (roleIds.length > 0) {
+      await prismaScopeStorage.run({ customerId }, async () =>
+        prismaClient.$transaction(async (prisma) => {
+          const membershipResult =
+            await ensureLegacyOrganizationMembershipsForRoleAssignment({
+              centerUserId: Number(centerUser.id),
+              prisma,
+              roleIds,
+              sourceCustomerId: customerId,
+              sourceUserId: Number(tenantUser.id),
+            });
+          createdOrganizationMemberIds = [
+            ...createdOrganizationMemberIds,
+            ...membershipResult.createdMemberIds,
+          ];
+          await assertOrganizationRolesRequireActiveMembership({
+            centerUserId: Number(centerUser.id),
+            prisma,
+            roleIds,
+            sourceCustomerId: customerId,
+          });
+
           const existingRoles = await prisma.role.findMany({
             where: {
               roleId: {
@@ -143,25 +178,19 @@ export default eventHandler(async (event) => {
             select: { roleId: true },
           });
           const existingRoleIds = existingRoles.map((item) => item.roleId);
-
           if (existingRoleIds.length > 0) {
             await prisma.userRole.createMany({
               data: existingRoleIds.map((roleId) => ({
                 roleId,
-                userId: Number(createdUser.id),
+                userId: Number(tenantUser.id),
               })),
             });
           }
-        }
+        }),
+      );
+    }
 
-        return createdUser;
-      }),
-    );
-    createdTenantUserId = Number(tenantUser.id);
-
-    let centerUser = centerUserBeforeCreate;
-
-    if (centerUser) {
+    if (centerUserBeforeCreate) {
       await systemDbClient.user.update({
         where: { id: Number(centerUser.id) },
         data: {
@@ -180,20 +209,6 @@ export default eventHandler(async (event) => {
         },
         data: { revokedAt: new Date() },
       });
-    } else {
-      centerUser = await systemDbClient.user.create({
-        data: {
-          customerType: customerId,
-          password: hashedPassword,
-          phone: phone || null,
-          realName,
-          status,
-          tokenVersion: 1,
-          username,
-        },
-        select: { id: true, customerType: true },
-      });
-      createdCenterUserId = Number(centerUser.id);
     }
 
     await systemDbClient.userCustomerMapping.upsert({
@@ -223,6 +238,14 @@ export default eventHandler(async (event) => {
       tenantUserId: Number(tenantUser.id),
     });
   } catch (error) {
+    if (createdOrganizationMemberIds.length > 0) {
+      await systemDbClient.organizationMember
+        .deleteMany({
+          where: { id: { in: createdOrganizationMemberIds } },
+        })
+        .catch(() => undefined);
+    }
+
     if (createdTenantUserId) {
       await prismaScopeStorage
         .run({ customerId }, async () => {

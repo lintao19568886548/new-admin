@@ -5,9 +5,9 @@ import { createHash } from 'node:crypto';
 
 import { Prisma } from '@prisma/.prisma/center-client/index.js';
 import {
-  buildTenantCustomerIdBase,
-  buildTenantCustomerIdCandidate,
-  normalizeTenantIdentityProfile,
+  buildOrganizationCustomerIdBase,
+  buildOrganizationCustomerIdCandidate,
+  normalizeOrganizationIdentityProfile,
 } from '~/utils/customer-identity';
 import { systemDbClient } from '~/utils/db';
 import {
@@ -34,16 +34,16 @@ const PROVISIONING_BLOCKING_STATUSES = new Set([
   'pending',
   'provisioning',
 ]);
-const TENANT_PROVISIONING_MANUAL_FAILURE_MESSAGE =
-  '专属空间开通失败，请联系客服处理后再重新开通';
-const TENANT_PROVISIONING_PAYMENT_BLOCKED_STATUS_MESSAGES: Record<
+const ORGANIZATION_PROVISIONING_MANUAL_FAILURE_MESSAGE =
+  '组织空间开通失败，请联系客服处理后再重新开通';
+const ORGANIZATION_PROVISIONING_PAYMENT_BLOCKED_STATUS_MESSAGES: Record<
   string,
   string
 > = {
-  failed_manual: TENANT_PROVISIONING_MANUAL_FAILURE_MESSAGE,
-  failed_retryable: '专属空间开通失败，系统正在自动重试，请勿重复支付',
-  pending: '专属空间等待开通中，请勿重复支付',
-  provisioning: '专属空间正在开通中，请勿重复支付',
+  failed_manual: ORGANIZATION_PROVISIONING_MANUAL_FAILURE_MESSAGE,
+  failed_retryable: '组织空间开通失败，系统正在自动重试，请勿重复支付',
+  pending: '组织空间等待开通中，请勿重复支付',
+  provisioning: '组织空间正在开通中，请勿重复支付',
 };
 export const VIP_MEMBERSHIP_AMOUNT_TOTAL = 98_000;
 
@@ -75,19 +75,27 @@ interface VipMembershipAttachPayload {
   tenantUserId?: number;
 }
 
-export interface VipTenantIdentityInput {
+export interface VipOrganizationIdentityInput {
   city?: unknown;
   companyShortName?: unknown;
 }
 
-interface TenantProvisioningDraft {
+interface OrganizationProvisioningDraft {
   companyShortName: string;
   city: string;
 }
 
-interface TenantProvisioningTargetIdentity extends TenantProvisioningDraft {
+interface OrganizationProvisioningTargetIdentity extends OrganizationProvisioningDraft {
   customerId: string;
 }
+
+type OrganizationProvisioningStatus =
+  | 'active'
+  | 'failed_manual'
+  | 'failed_retryable'
+  | 'none'
+  | 'pending'
+  | 'provisioning';
 
 export interface VipMembershipProfileState {
   accessRestricted: boolean;
@@ -102,7 +110,7 @@ export interface VipMembershipProfileState {
   isMember: boolean;
   isMembership: boolean;
   isTrialActive: boolean;
-  isTenantProvisioning: boolean;
+  isOrganizationProvisioning: boolean;
   isVip: boolean;
   memberExpireAt?: string;
   memberStatus: 'active' | 'expired' | 'inactive';
@@ -122,14 +130,8 @@ export interface VipMembershipProfileState {
   targetCity?: string;
   targetCompanyShortName?: string;
   targetCustomerId?: string;
-  tenantProvisioningMessage?: string;
-  tenantProvisioningStatus:
-    | 'active'
-    | 'failed_manual'
-    | 'failed_retryable'
-    | 'none'
-    | 'pending'
-    | 'provisioning';
+  organizationProvisioningMessage?: string;
+  organizationProvisioningStatus: OrganizationProvisioningStatus;
   trialExpireAt?: string;
   trialStartAt?: string;
   trialStatus: 'active' | 'expired' | 'inactive';
@@ -151,7 +153,7 @@ export interface VipMembershipWechatOrderResult {
   applied: boolean;
   matched: boolean;
   outTradeNo: string;
-  provisioningStatus?: VipMembershipProfileState['tenantProvisioningStatus'];
+  provisioningStatus?: VipMembershipProfileState['organizationProvisioningStatus'];
   reason?:
     | 'amount-mismatch'
     | 'missing-center-user'
@@ -197,7 +199,7 @@ export interface VipMembershipRefundOrder {
     sourceCustomerId: string;
   };
   targetCustomerId?: string;
-  tenantProvisioningJob?: {
+  organizationProvisioningJob?: {
     id: number;
     sourceOrgId?: number;
     status: string;
@@ -660,23 +662,21 @@ function toVipMembershipAccessState(
   };
 }
 
-function resolveProvisioningMessage(
-  status: VipMembershipProfileState['tenantProvisioningStatus'],
-) {
+function resolveProvisioningMessage(status: OrganizationProvisioningStatus) {
   if (status === 'pending') {
-    return '专属空间等待开通';
+    return '组织空间等待开通';
   }
   if (status === 'provisioning') {
-    return '专属空间正在开通中';
+    return '组织空间正在开通中';
   }
   if (status === 'active') {
-    return '专属空间已开通';
+    return '组织空间已开通';
   }
   if (status === 'failed_retryable') {
-    return '专属空间开通失败，系统将自动重试';
+    return '组织空间开通失败，系统将自动重试';
   }
   if (status === 'failed_manual') {
-    return '专属空间开通失败，需要人工处理';
+    return '组织空间开通失败，需要人工处理';
   }
   return undefined;
 }
@@ -743,7 +743,7 @@ async function lockCustomerForVipMembership(
   );
 }
 
-async function getTenantProvisioningJobByInitiatorCenterUserId(
+async function getOrganizationProvisioningJobByInitiatorCenterUserId(
   initiatorCenterUserId: number,
   prisma: VipMembershipDbClient = systemDbClient,
 ) {
@@ -757,7 +757,7 @@ async function getTenantProvisioningJobByInitiatorCenterUserId(
   });
 }
 
-async function getTenantProvisioningJobBySourceOrgId(
+async function getOrganizationProvisioningJobBySourceOrgId(
   sourceOrgId: number,
   prisma: VipMembershipDbClient = systemDbClient,
 ) {
@@ -771,7 +771,7 @@ async function getTenantProvisioningJobBySourceOrgId(
   });
 }
 
-async function getTenantProvisioningJobForProfile(
+async function getOrganizationProvisioningJobForProfile(
   params: {
     centerUserId: number;
     sourceCustomerId?: string;
@@ -779,7 +779,7 @@ async function getTenantProvisioningJobForProfile(
   prisma: VipMembershipDbClient = systemDbClient,
 ) {
   if (normalizeString(params.sourceCustomerId) !== 'public') {
-    return getTenantProvisioningJobByInitiatorCenterUserId(
+    return getOrganizationProvisioningJobByInitiatorCenterUserId(
       params.centerUserId,
       prisma,
     );
@@ -804,7 +804,7 @@ async function getTenantProvisioningJobForProfile(
     ),
   ];
   if (organizationIds.length === 1) {
-    const job = await getTenantProvisioningJobBySourceOrgId(
+    const job = await getOrganizationProvisioningJobBySourceOrgId(
       organizationIds[0],
       prisma,
     );
@@ -813,7 +813,7 @@ async function getTenantProvisioningJobForProfile(
     }
   }
 
-  return getTenantProvisioningJobByInitiatorCenterUserId(
+  return getOrganizationProvisioningJobByInitiatorCenterUserId(
     params.centerUserId,
     prisma,
   );
@@ -939,7 +939,7 @@ async function syncVipMembershipSummaryFromEntitlementsWithClient(
   });
 }
 
-async function getStaleTenantProvisioningPaymentState(
+async function getStaleOrganizationProvisioningPaymentState(
   params: {
     centerUserId: number;
     outTradeNo: string;
@@ -962,7 +962,7 @@ async function getStaleTenantProvisioningPaymentState(
           sourceOrgId,
         },
       })
-    : await getTenantProvisioningJobByInitiatorCenterUserId(
+    : await getOrganizationProvisioningJobByInitiatorCenterUserId(
         params.centerUserId,
         prisma,
       );
@@ -975,8 +975,7 @@ async function getStaleTenantProvisioningPaymentState(
     job?.status === 'reserved' ? 'none' : job?.status || 'none';
 
   return {
-    provisioningStatus:
-      provisioningStatus as VipMembershipProfileState['tenantProvisioningStatus'],
+    provisioningStatus: provisioningStatus as OrganizationProvisioningStatus,
   };
 }
 
@@ -1050,12 +1049,20 @@ function resolveRefundOrderDisabledReason(status: unknown) {
     return undefined;
   }
   if (['CREATE_PENDING', 'PENDING', 'PROCESSING'].includes(normalizedStatus)) {
-    return `退款处理中，当前状态：${normalizedStatus}`;
+    return '退款申请正在处理，请稍后查看结果';
   }
   if (['ABNORMAL', 'CLOSED'].includes(normalizedStatus)) {
-    return `退款未成功，当前状态：${normalizedStatus}，请先人工核对`;
+    return '退款未成功，请联系管理员核对';
   }
-  return `已有退款记录，当前状态：${normalizedStatus}`;
+  if (
+    normalizedStatus === VIP_MEMBERSHIP_REFUND_IGNORED_NO_ENTITLEMENT_STATUS
+  ) {
+    return '微信侧已退款，当前订单无对应权益流水可撤销';
+  }
+  if (normalizedStatus === VIP_MEMBERSHIP_REFUND_MANUAL_REVIEW_STATUS) {
+    return '微信侧已退款，订单权益归属需人工核对';
+  }
+  return '该订单已有退款处理记录，请联系管理员核对';
 }
 
 function toVipMembershipRefundResult(
@@ -1103,7 +1110,7 @@ function assertVipMembershipRefundStackSelection(params: {
       !isRefundableEntitlementStartNotBeforeToday(entitlement.startAt, now),
   );
   if (invalidEntitlement) {
-    throw new Error('仅支持退款权益开始日期不早于今天的会员订单');
+    throw new Error('仅支持退款权益开始日期不早于今天的组织订单');
   }
 
   return stackPrefix;
@@ -1128,7 +1135,7 @@ async function assertVipMembershipRefundableEntitlementsWithClient(
       ),
   );
   if (missingOutTradeNo) {
-    throw new Error('会员订单没有可退款的有效权益流水');
+    throw new Error('组织订单没有可退款的有效权益流水');
   }
 
   return assertVipMembershipRefundStackSelection({
@@ -1276,7 +1283,7 @@ async function resolveVipMembershipRefundStackOrderWithClient(
     (outTradeNo) => !paymentMap.has(outTradeNo),
   );
   if (missingOutTradeNo) {
-    throw new Error('会员支付订单不存在');
+    throw new Error('组织订单不存在');
   }
 
   const membershipCustomerIds = new Set(
@@ -1285,11 +1292,11 @@ async function resolveVipMembershipRefundStackOrderWithClient(
     ),
   );
   if (membershipCustomerIds.size !== 1) {
-    throw new Error('批量退款只支持同一租户的会员订单');
+    throw new Error('批量退款只支持同一组织空间的组织订单');
   }
   const [membershipCustomerId] = [...membershipCustomerIds];
   if (!membershipCustomerId) {
-    throw new Error('会员订单缺少租户归属，无法退款');
+    throw new Error('组织订单缺少组织空间归属，无法退款');
   }
 
   const requesterCustomerId = normalizeString(params.requesterCustomerId);
@@ -1298,7 +1305,7 @@ async function resolveVipMembershipRefundStackOrderWithClient(
     requesterCustomerId &&
     requesterCustomerId !== membershipCustomerId
   ) {
-    throw new Error('无权退款其他租户的会员订单');
+    throw new Error('无权退款其他组织空间的组织订单');
   }
 
   await lockCustomerForVipMembership(membershipCustomerId, prisma);
@@ -1322,21 +1329,21 @@ async function createVipMembershipRefundRecord(params: {
 }) {
   const outTradeNo = normalizeString(params.outTradeNo);
   if (!outTradeNo) {
-    throw new Error('缺少会员支付订单号');
+    throw new Error('缺少组织订单号');
   }
 
   return withVipMembershipDb(() =>
     systemDbClient.$transaction(async (tx) => {
       const payment = await getVipMembershipPaymentByOutTradeNo(outTradeNo, tx);
       if (!payment) {
-        throw new Error('会员支付订单不存在');
+        throw new Error('组织订单不存在');
       }
 
       const membershipCustomerId = normalizeString(
         payment.targetCustomerId || payment.sourceCustomerId,
       );
       if (!membershipCustomerId) {
-        throw new Error('会员订单缺少租户归属，无法退款');
+        throw new Error('组织订单缺少组织空间归属，无法退款');
       }
 
       const requesterCustomerId = normalizeString(params.requesterCustomerId);
@@ -1345,7 +1352,7 @@ async function createVipMembershipRefundRecord(params: {
         requesterCustomerId &&
         requesterCustomerId !== membershipCustomerId
       ) {
-        throw new Error('无权退款其他租户的会员订单');
+        throw new Error('无权退款其他组织空间的组织订单');
       }
 
       await lockCustomerForVipMembership(membershipCustomerId, tx);
@@ -1366,10 +1373,10 @@ async function createVipMembershipRefundRecord(params: {
       }
 
       if (normalizeString(payment.tradeState) !== 'SUCCESS') {
-        throw new Error('仅已支付成功的会员订单可以退款');
+        throw new Error('仅已支付成功的组织订单可以退款');
       }
       if (!payment.transactionId) {
-        throw new Error('会员订单缺少微信支付交易号，无法退款');
+        throw new Error('组织订单缺少微信支付交易号，无法退款');
       }
 
       await assertVipMembershipRefundableEntitlementsWithClient(
@@ -1438,21 +1445,24 @@ async function isTenantCustomerIdTaken(
   return Boolean(customerById || customerByCode || job);
 }
 
-async function buildTenantProvisioningTargetIdentity(
+async function buildOrganizationProvisioningTargetIdentity(
   params: {
     targetCity?: null | string;
     targetCompanyShortName?: null | string;
   },
   prisma: VipMembershipDbClient,
-): Promise<TenantProvisioningTargetIdentity> {
-  const profile = normalizeTenantIdentityProfile({
+): Promise<OrganizationProvisioningTargetIdentity> {
+  const profile = normalizeOrganizationIdentityProfile({
     city: params.targetCity,
     companyShortName: params.targetCompanyShortName,
   });
-  const baseCustomerId = buildTenantCustomerIdBase(profile);
+  const baseCustomerId = buildOrganizationCustomerIdBase(profile);
 
   for (let ordinal = 1; ordinal <= 100; ordinal += 1) {
-    const customerId = buildTenantCustomerIdCandidate(baseCustomerId, ordinal);
+    const customerId = buildOrganizationCustomerIdCandidate(
+      baseCustomerId,
+      ordinal,
+    );
     const customerIdTaken = await isTenantCustomerIdTaken(
       {
         customerId,
@@ -1470,20 +1480,22 @@ async function buildTenantProvisioningTargetIdentity(
     };
   }
 
-  throw new Error('无法生成不冲突的专属空间标识，请调整城市或公司简称');
+  throw new Error('无法生成不冲突的组织空间标识，请调整城市或公司简称');
 }
 
-function hasTenantIdentityInput(input: undefined | VipTenantIdentityInput) {
+function hasOrganizationIdentityInput(
+  input: undefined | VipOrganizationIdentityInput,
+) {
   return (
     Boolean(normalizeString(input?.city)) ||
     Boolean(normalizeString(input?.companyShortName))
   );
 }
 
-function toTenantProvisioningDraft(input: {
+function toOrganizationProvisioningDraft(input: {
   targetCity?: null | string;
   targetCompanyShortName?: null | string;
-}): null | TenantProvisioningDraft {
+}): null | OrganizationProvisioningDraft {
   const city = normalizeString(input.targetCity);
   const companyShortName = normalizeString(input.targetCompanyShortName);
   if (!city || !companyShortName) {
@@ -1496,53 +1508,55 @@ function toTenantProvisioningDraft(input: {
   };
 }
 
-export function getTenantProvisioningPaymentBlockedMessage(status: unknown) {
+export function getOrganizationProvisioningPaymentBlockedMessage(
+  status: unknown,
+) {
   return (
-    TENANT_PROVISIONING_PAYMENT_BLOCKED_STATUS_MESSAGES[
+    ORGANIZATION_PROVISIONING_PAYMENT_BLOCKED_STATUS_MESSAGES[
       normalizeString(status)
     ] || ''
   );
 }
 
-function assertTenantProvisioningJobAcceptsNewPayment(
+function assertOrganizationProvisioningJobAcceptsNewPayment(
   job: null | { status?: string },
 ) {
-  const message = getTenantProvisioningPaymentBlockedMessage(job?.status);
+  const message = getOrganizationProvisioningPaymentBlockedMessage(job?.status);
   if (message) {
     throw new Error(message);
   }
 }
 
-async function saveTenantProvisioningDraft(
+async function saveOrganizationProvisioningDraft(
   params: {
     initiatorCenterUserId: number;
+    organizationIdentity?: VipOrganizationIdentityInput;
     outTradeNo: string;
     sourceCustomerId: string;
     sourceOrgId?: null | number;
-    tenantIdentity?: VipTenantIdentityInput;
   },
   prisma: VipMembershipDbClient,
-): Promise<null | TenantProvisioningDraft> {
+): Promise<null | OrganizationProvisioningDraft> {
   if (params.sourceCustomerId !== 'public') {
     return null;
   }
   const sourceOrgId = normalizePositiveInteger(params.sourceOrgId);
   if (!sourceOrgId) {
-    throw new Error('缺少开通组织，无法创建专属空间订单');
+    throw new Error('缺少开通组织，无法创建组织空间订单');
   }
 
-  const existingJob = await getTenantProvisioningJobBySourceOrgId(
+  const existingJob = await getOrganizationProvisioningJobBySourceOrgId(
     sourceOrgId,
     prisma,
   );
   const existingDraft = existingJob
-    ? toTenantProvisioningDraft(existingJob)
+    ? toOrganizationProvisioningDraft(existingJob)
     : null;
-  assertTenantProvisioningJobAcceptsNewPayment(existingJob);
-  const profile = hasTenantIdentityInput(params.tenantIdentity)
-    ? normalizeTenantIdentityProfile(params.tenantIdentity || {})
-    : existingDraft ||
-      normalizeTenantIdentityProfile(params.tenantIdentity || {});
+  assertOrganizationProvisioningJobAcceptsNewPayment(existingJob);
+  const identity = params.organizationIdentity;
+  const profile = hasOrganizationIdentityInput(identity)
+    ? normalizeOrganizationIdentityProfile(identity || {})
+    : existingDraft || normalizeOrganizationIdentityProfile(identity || {});
 
   if (existingJob?.status && existingJob.status !== 'reserved') {
     await prisma.tenantProvisioningJob.update({
@@ -1678,7 +1692,7 @@ async function createVipMembershipPaymentPendingSnapshot(
   });
 }
 
-async function ensureTenantProvisioningJob(
+async function ensureOrganizationProvisioningJob(
   params: {
     initiatorCenterUserId: number;
     outTradeNo: string;
@@ -1694,14 +1708,14 @@ async function ensureTenantProvisioningJob(
   }
   const sourceOrgId = normalizePositiveInteger(params.sourceOrgId);
   if (!sourceOrgId) {
-    throw new Error('缺少开通组织，无法创建专属空间任务');
+    throw new Error('缺少开通组织，无法创建组织空间任务');
   }
 
-  const existingJob = await getTenantProvisioningJobBySourceOrgId(
+  const existingJob = await getOrganizationProvisioningJobBySourceOrgId(
     sourceOrgId,
     prisma,
   );
-  assertTenantProvisioningJobAcceptsNewPayment(existingJob);
+  assertOrganizationProvisioningJobAcceptsNewPayment(existingJob);
   if (existingJob?.targetCustomerId && existingJob.status !== 'reserved') {
     return prisma.tenantProvisioningJob.update({
       data: {
@@ -1715,7 +1729,7 @@ async function ensureTenantProvisioningJob(
   }
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const targetIdentity = await buildTenantProvisioningTargetIdentity(
+    const targetIdentity = await buildOrganizationProvisioningTargetIdentity(
       {
         targetCity: params.targetCity || existingJob?.targetCity || null,
         targetCompanyShortName:
@@ -1764,7 +1778,7 @@ async function ensureTenantProvisioningJob(
     }
   }
 
-  throw new Error('专属空间标识冲突，请稍后重试');
+  throw new Error('组织空间标识冲突，请稍后重试');
 }
 
 export function buildVipMembershipAttach(input: {
@@ -1777,7 +1791,7 @@ export function buildVipMembershipAttach(input: {
   const sourceCustomerId = normalizeString(input.customerId);
 
   if (!centerUserId || !tenantUserId || !sourceCustomerId) {
-    throw new Error('缺少会员订单归属信息，无法创建微信支付 attach');
+    throw new Error('缺少组织订单归属信息，无法创建微信支付 attach');
   }
 
   const attach = JSON.stringify({
@@ -1788,7 +1802,7 @@ export function buildVipMembershipAttach(input: {
   });
 
   if (Buffer.byteLength(attach, 'utf8') > 128) {
-    throw new Error('会员订单微信 attach 超过 128 字节限制');
+    throw new Error('组织订单微信 attach 超过 128 字节限制');
   }
 
   return attach;
@@ -1805,22 +1819,22 @@ export function isVipMembershipAttach(value: unknown) {
 export async function recordVipMembershipPaymentPending(params: {
   amountTotal: number;
   centerUserId: number;
+  organizationIdentity?: VipOrganizationIdentityInput;
   outTradeNo: string;
   rawAttach: string;
   sourceCustomerId: string;
   sourceOrgId?: null | number;
-  tenantIdentity?: VipTenantIdentityInput;
   username?: string;
 }) {
   return withVipMembershipDb(() =>
     systemDbClient.$transaction(async (tx) => {
-      const targetDraft = await saveTenantProvisioningDraft(
+      const targetDraft = await saveOrganizationProvisioningDraft(
         {
           initiatorCenterUserId: params.centerUserId,
+          organizationIdentity: params.organizationIdentity,
           outTradeNo: params.outTradeNo,
           sourceOrgId: params.sourceOrgId,
           sourceCustomerId: params.sourceCustomerId,
-          tenantIdentity: params.tenantIdentity,
         },
         tx,
       );
@@ -1860,7 +1874,7 @@ export async function getVipMembershipPaymentOwner(
     : null;
 }
 
-export async function getTenantProvisioningProfileState(
+export async function getOrganizationProvisioningProfileState(
   centerUserId: number,
   prisma: VipMembershipDbClient = systemDbClient,
   sourceCustomerId?: string,
@@ -1868,7 +1882,7 @@ export async function getTenantProvisioningProfileState(
   const normalizedSourceCustomerId = normalizeString(sourceCustomerId);
   const [job, sourceOrganizationState] = await withVipMembershipDb(() =>
     Promise.all([
-      getTenantProvisioningJobForProfile(
+      getOrganizationProvisioningJobForProfile(
         {
           centerUserId,
           sourceCustomerId: normalizedSourceCustomerId,
@@ -1892,12 +1906,14 @@ export async function getTenantProvisioningProfileState(
   const rawStatus = job?.status || 'none';
   const status = (
     rawStatus === 'reserved' ? 'none' : rawStatus
-  ) as VipMembershipProfileState['tenantProvisioningStatus'];
+  ) as OrganizationProvisioningStatus;
   const exposeProvisioningJob = rawStatus !== 'reserved';
   const sourceOrganization = sourceOrganizationState?.membership;
+  const message = resolveProvisioningMessage(status);
+  const isProvisioning = ['pending', 'provisioning'].includes(status);
 
   return {
-    isTenantProvisioning: ['pending', 'provisioning'].includes(status),
+    isOrganizationProvisioning: isProvisioning,
     sourceOrganization: sourceOrganization
       ? {
           city: sourceOrganization.organization.city || undefined,
@@ -1918,8 +1934,8 @@ export async function getTenantProvisioningProfileState(
     targetCustomerId: exposeProvisioningJob
       ? job?.targetCustomerId || undefined
       : undefined,
-    tenantProvisioningMessage: resolveProvisioningMessage(status),
-    tenantProvisioningStatus: status,
+    organizationProvisioningMessage: message,
+    organizationProvisioningStatus: status,
   };
 }
 
@@ -1928,7 +1944,7 @@ export async function getVipMembershipProfileState(input: {
   customerId: string;
 }) {
   const membershipState = await getVipMembershipAccessState(input);
-  const provisioningState = await getTenantProvisioningProfileState(
+  const provisioningState = await getOrganizationProvisioningProfileState(
     input.centerUserId,
     systemDbClient,
     input.customerId,
@@ -2046,13 +2062,13 @@ export async function shouldBlockTenantWriteForProvisioning(input: {
     return false;
   }
 
-  const provisioningState = await getTenantProvisioningProfileState(
+  const provisioningState = await getOrganizationProvisioningProfileState(
     centerUserId,
     systemDbClient,
     customerId,
   );
   return PROVISIONING_BLOCKING_STATUSES.has(
-    provisioningState.tenantProvisioningStatus,
+    provisioningState.organizationProvisioningStatus,
   );
 }
 
@@ -2181,7 +2197,7 @@ export async function handleVipMembershipWechatOrder(
       }
 
       const staleProvisioningPayment =
-        await getStaleTenantProvisioningPaymentState(
+        await getStaleOrganizationProvisioningPaymentState(
           {
             centerUserId: payment.centerUserId,
             outTradeNo,
@@ -2208,7 +2224,7 @@ export async function handleVipMembershipWechatOrder(
         const currentMembership = membershipCustomerId
           ? await getVipMembershipByCustomerId(membershipCustomerId, tx)
           : null;
-        const provisioningState = await getTenantProvisioningProfileState(
+        const provisioningState = await getOrganizationProvisioningProfileState(
           payment.centerUserId,
           tx,
           payment.sourceCustomerId,
@@ -2218,7 +2234,7 @@ export async function handleVipMembershipWechatOrder(
           applied: false,
           matched: true,
           outTradeNo,
-          provisioningStatus: provisioningState.tenantProvisioningStatus,
+          provisioningStatus: provisioningState.organizationProvisioningStatus,
           vipExpireAt: currentMembership?.expireAt?.toISOString(),
         };
       }
@@ -2240,7 +2256,7 @@ export async function handleVipMembershipWechatOrder(
         const currentMembership = membershipCustomerId
           ? await getVipMembershipByCustomerId(membershipCustomerId, tx)
           : null;
-        const provisioningState = await getTenantProvisioningProfileState(
+        const provisioningState = await getOrganizationProvisioningProfileState(
           payment.centerUserId,
           tx,
           payment.sourceCustomerId,
@@ -2250,12 +2266,12 @@ export async function handleVipMembershipWechatOrder(
           applied: false,
           matched: true,
           outTradeNo,
-          provisioningStatus: provisioningState.tenantProvisioningStatus,
+          provisioningStatus: provisioningState.organizationProvisioningStatus,
           vipExpireAt: currentMembership?.expireAt?.toISOString(),
         };
       }
 
-      const provisioningJob = await ensureTenantProvisioningJob(
+      const provisioningJob = await ensureOrganizationProvisioningJob(
         {
           initiatorCenterUserId: payment.centerUserId,
           outTradeNo,
@@ -2340,8 +2356,8 @@ export async function handleVipMembershipWechatOrder(
         outTradeNo,
         provisioningStatus:
           (provisioningJob?.status as
-            | undefined
-            | VipMembershipProfileState['tenantProvisioningStatus']) || 'none',
+            | OrganizationProvisioningStatus
+            | undefined) || 'none',
         vipExpireAt:
           currentMembership.expireAt?.toISOString() ||
           entitlement.endAt.toISOString(),
@@ -2358,7 +2374,7 @@ export async function createVipMembershipRefund(params: {
 }) {
   const outTradeNo = normalizeString(params.outTradeNo);
   if (!outTradeNo) {
-    throw new Error('缺少会员支付订单号');
+    throw new Error('缺少组织订单号');
   }
 
   const pendingRefund = await createVipMembershipRefundRecord(params);
@@ -2371,7 +2387,7 @@ export async function listVipMembershipRefundOrders(params: {
 }) {
   const customerId = normalizeString(params.customerId);
   if (!customerId) {
-    throw new Error('缺少租户信息，无法读取会员订单');
+    throw new Error('缺少组织空间信息，无法读取组织订单');
   }
   if (
     !params.allowCrossCustomerRead &&
@@ -2504,7 +2520,7 @@ export async function listVipMembershipRefundOrders(params: {
         } else if (
           isRefundableEntitlementStartNotBeforeToday(entitlement.startAt)
         ) {
-          refundDisabledReason = '需先退款更新的会员订单';
+          refundDisabledReason = '需先退款更新的组织订单';
         } else {
           refundDisabledReason = '权益已开始，不能退款';
         }
@@ -2543,7 +2559,7 @@ export async function listVipMembershipRefundOrders(params: {
           normalizeString(
             payment.targetCustomerId || payment.sourceCustomerId,
           ) || undefined,
-        tenantProvisioningJob: provisioningJob
+        organizationProvisioningJob: provisioningJob
           ? {
               id: Number(provisioningJob.id),
               sourceOrgId:
@@ -2572,7 +2588,7 @@ export async function createVipMembershipRefundBatch(params: {
     .map((outTradeNo) => normalizeString(outTradeNo))
     .filter(Boolean);
   if (outTradeNos.length === 0) {
-    throw new Error('缺少会员支付订单号');
+    throw new Error('缺少组织订单号');
   }
   if (new Set(outTradeNos).size !== outTradeNos.length) {
     throw new Error('批量退款订单号不能重复');

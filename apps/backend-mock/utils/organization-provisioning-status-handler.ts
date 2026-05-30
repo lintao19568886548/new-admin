@@ -2,9 +2,9 @@ import { systemDbClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
 import { verifyVipCheckoutFlowTokenFromEvent } from '~/utils/vip-checkout-flow-token';
-import { getTenantProvisioningProfileState } from '~/utils/vip-membership';
+import { getOrganizationProvisioningProfileState } from '~/utils/vip-membership';
 
-export default eventHandler(async (event) => {
+export async function handleOrganizationProvisioningStatus(event: any) {
   const flowTokenPayload =
     event.context.vipCheckoutFlow ?? verifyVipCheckoutFlowTokenFromEvent(event);
   const userinfo = flowTokenPayload ? null : await verifyAccessToken(event);
@@ -22,7 +22,7 @@ export default eventHandler(async (event) => {
   const sourceCustomerId =
     flowTokenPayload?.sourceCustomerId ?? userinfo?.customerId;
   const [provisioningState, centerUser] = await Promise.all([
-    getTenantProvisioningProfileState(
+    getOrganizationProvisioningProfileState(
       centerUserId,
       systemDbClient,
       sourceCustomerId,
@@ -48,4 +48,4 @@ export default eventHandler(async (event) => {
       currentCustomerId !== sourceCustomerId,
     ),
   });
-});
+}

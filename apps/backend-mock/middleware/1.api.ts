@@ -17,7 +17,7 @@ function isMembershipAllowedApiRequest(method: string, requestPath: string) {
     return true;
   }
 
-  if (requestPath.startsWith('/api/tenant/invitation')) {
+  if (requestPath.startsWith('/api/organization/invitation')) {
     return true;
   }
 
@@ -28,9 +28,9 @@ function isMembershipAllowedApiRequest(method: string, requestPath: string) {
       '/api/hrm/attendance/today',
       '/api/hrm/employee/accounts',
       '/api/menu/all',
+      '/api/organization/provisioning/status',
       '/api/reimbursement/summary',
       '/api/system/version',
-      '/api/tenant/provisioning/status',
       '/api/user/info',
     ].includes(requestPath)
   ) {
@@ -141,10 +141,11 @@ export default defineEventHandler(async (event) => {
     event.method === 'POST' && requestPath === '/api/wechat/pay/refund-notify';
   const isWechatPayOrderQueryApi =
     event.method === 'GET' && requestPath === '/api/wechat/pay/query';
-  const isTenantProvisioningStatusApi =
-    event.method === 'GET' && requestPath === '/api/tenant/provisioning/status';
+  const isOrganizationProvisioningStatusApi =
+    event.method === 'GET' &&
+    requestPath === '/api/organization/provisioning/status';
   const isVipCheckoutFlowApi =
-    isWechatPayOrderQueryApi || isTenantProvisioningStatusApi;
+    isWechatPayOrderQueryApi || isOrganizationProvisioningStatusApi;
   const isPublicAppVersionApi =
     event.method === 'GET' && requestPath === '/api/system/version';
   const vipCheckoutFlow = isVipCheckoutFlowApi
@@ -265,7 +266,7 @@ export default defineEventHandler(async (event) => {
     const isProvisioningWriteAllowed =
       requestPath.startsWith('/api/auth') ||
       requestPath.startsWith('/api/wechat/pay') ||
-      isTenantProvisioningStatusApi ||
+      isOrganizationProvisioningStatusApi ||
       requestPath === '/api/user/info';
 
     if (

@@ -564,8 +564,162 @@ export async function assertOrganizationRolesRequireActiveMembership(params: {
   }
 }
 
+export async function ensureLegacyOrganizationMembershipsForRoleAssignment(params: {
+  centerDb?: CenterDb;
+  centerUserId: number;
+  prisma?: CustomerDb;
+  roleIds: number[];
+  sourceCustomerId: string;
+  sourceUserId: number;
+}) {
+  const centerUserId = normalizePositiveInteger(
+    params.centerUserId,
+    'centerUserId',
+  );
+  const sourceUserId = normalizePositiveInteger(
+    params.sourceUserId,
+    'sourceUserId',
+  );
+  const sourceCustomerId = normalizeCustomerId(params.sourceCustomerId);
+  const roleOrganizationIds = await getOrganizationRoleOrganizationIds({
+    prisma: params.prisma,
+    roleIds: params.roleIds,
+  });
+  const organizationIds = [...roleOrganizationIds];
+  if (organizationIds.length === 0) {
+    return { createdMemberIds: [], ensuredOrganizationIds: [] };
+  }
+
+  const centerDb = params.centerDb ?? systemDbClient;
+  const memberships = await centerDb.organizationMember.findMany({
+    select: {
+      id: true,
+      memberRole: true,
+      organizationId: true,
+      sourceCustomerId: true,
+      sourceUserId: true,
+      status: true,
+    },
+    where: {
+      centerUserId,
+      organizationId: { in: organizationIds },
+    },
+  });
+  const membershipByOrganizationId = new Map(
+    memberships.map((item) => [Number(item.organizationId), item]),
+  );
+  const activeMembershipOrgIds = new Set(
+    memberships
+      .filter(
+        (item) =>
+          item.status === 'active' &&
+          item.sourceCustomerId === sourceCustomerId,
+      )
+      .map((item) => Number(item.organizationId)),
+  );
+  const organizationIdsToEnsure = organizationIds.filter(
+    (organizationId) => !activeMembershipOrgIds.has(organizationId),
+  );
+  if (organizationIdsToEnsure.length === 0) {
+    return { createdMemberIds: [], ensuredOrganizationIds: [] };
+  }
+
+  const [legacyOrganizations, legacyMappings] = await Promise.all([
+    centerDb.organization.findMany({
+      select: { id: true },
+      where: {
+        id: { in: organizationIdsToEnsure },
+        legacy: true,
+        sourceCustomerId,
+        status: 'active',
+      },
+    }),
+    centerDb.organizationTenantMapping.findMany({
+      select: { organizationId: true },
+      where: {
+        legacy: true,
+        organizationId: { in: organizationIdsToEnsure },
+        status: 'active',
+        targetCustomerId: sourceCustomerId,
+      },
+    }),
+  ]);
+  const legacyOrganizationIds = new Set(
+    legacyOrganizations.map((item) => Number(item.id)),
+  );
+  const legacyMappedOrganizationIds = new Set(
+    legacyMappings.map((item) => Number(item.organizationId)),
+  );
+  const eligibleOrganizationIds = organizationIdsToEnsure.filter(
+    (organizationId) =>
+      legacyOrganizationIds.has(organizationId) &&
+      legacyMappedOrganizationIds.has(organizationId),
+  );
+  const mismatchedMembershipOrganizationIds = organizationIdsToEnsure.filter(
+    (organizationId) => {
+      const existing = membershipByOrganizationId.get(organizationId);
+      return existing && existing.sourceCustomerId !== sourceCustomerId;
+    },
+  );
+  if (
+    eligibleOrganizationIds.length !== organizationIdsToEnsure.length ||
+    mismatchedMembershipOrganizationIds.length > 0
+  ) {
+    return { createdMemberIds: [], ensuredOrganizationIds: [] };
+  }
+
+  const createdMemberIds: number[] = [];
+  const ensuredOrganizationIds: number[] = [];
+  const joinedAt = new Date();
+
+  for (const organizationId of eligibleOrganizationIds) {
+    const existing = membershipByOrganizationId.get(organizationId);
+    if (!existing) {
+      const created = await centerDb.organizationMember.create({
+        data: {
+          centerUserId,
+          joinedAt,
+          memberRole: ORGANIZATION_MEMBER_ROLE_MEMBER,
+          organizationId,
+          sourceCustomerId,
+          sourceUserId,
+          status: 'active',
+        },
+        select: { id: true },
+      });
+      createdMemberIds.push(Number(created.id));
+      ensuredOrganizationIds.push(organizationId);
+      continue;
+    }
+
+    if (existing.status !== 'active') {
+      await centerDb.organizationMember.update({
+        data: {
+          ...(existing.memberRole === ORGANIZATION_MEMBER_ROLE_OWNER
+            ? {}
+            : { memberRole: ORGANIZATION_MEMBER_ROLE_MEMBER }),
+          joinedAt,
+          sourceCustomerId,
+          sourceUserId: existing.sourceUserId || sourceUserId,
+          status: 'active',
+        },
+        where: {
+          organizationId_centerUserId: {
+            centerUserId,
+            organizationId,
+          },
+        },
+      });
+      ensuredOrganizationIds.push(organizationId);
+    }
+  }
+
+  return { createdMemberIds, ensuredOrganizationIds };
+}
+
 export async function syncSourceOrganizationMembershipsAfterRoleChange(params: {
   centerUserId: number;
+  excludeOrganizationIds?: number[];
   prisma?: CustomerDb;
   roleIds: number[];
   sourceCustomerId: string;
@@ -590,9 +744,18 @@ export async function syncSourceOrganizationMembershipsAfterRoleChange(params: {
     prisma: params.prisma,
     roleIds: params.roleIds,
   });
+  const excludedOrganizationIds = new Set(
+    (params.excludeOrganizationIds || [])
+      .map(Number)
+      .filter((id) => Number.isInteger(id) && id > 0),
+  );
   const inactiveOrganizationIds = ordinaryMemberships
     .map((item) => Number(item.organizationId))
-    .filter((organizationId) => !roleOrganizationIds.has(organizationId));
+    .filter(
+      (organizationId) =>
+        !roleOrganizationIds.has(organizationId) &&
+        !excludedOrganizationIds.has(organizationId),
+    );
   if (inactiveOrganizationIds.length === 0) {
     return { count: 0 };
   }

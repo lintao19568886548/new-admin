@@ -27,7 +27,7 @@
     "menu-template:sync-execute": "node ./scripts/menu-template-sync-dry-run.mjs --execute",
     "organization:backfill-default-roles": "node ./scripts/backfill-organization-default-roles.mjs",
     "organization:backfill-legacy": "node ./scripts/backfill-legacy-organizations.mjs",
-    "tenant-provisioning:requeue-failed-manual": "node ./scripts/requeue-failed-manual-tenant-provisioning.mjs",
+    "organization-provisioning:requeue-failed-manual": "node ./scripts/requeue-failed-manual-organization-provisioning.mjs",
     "vip-membership:migrate-legacy": "node ./scripts/migrate-legacy-vip-membership.mjs",
     "trial:reset-public": "node ./scripts/reset-public-trial-start.mjs"
   },

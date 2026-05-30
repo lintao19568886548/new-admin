@@ -17,11 +17,11 @@ export interface CreateWechatAppPrepayParams {
   currency?: string;
   description: string;
   deviceId?: string;
-  outTradeNo?: string;
-  tenantIdentity?: {
+  organizationIdentity?: {
     city: string;
     companyShortName: string;
   };
+  outTradeNo?: string;
 }
 
 export interface CreateWechatAppPrepayResponse {
@@ -35,7 +35,7 @@ export interface WechatPayAppConfig {
   mchId: string;
 }
 
-export type TenantProvisioningStatusValue =
+export type OrganizationProvisioningStatusValue =
   | 'active'
   | 'failed_manual'
   | 'failed_retryable'
@@ -43,9 +43,11 @@ export type TenantProvisioningStatusValue =
   | 'pending'
   | 'provisioning';
 
-export interface TenantProvisioningStatus {
+export interface OrganizationProvisioningStatus {
   currentCustomerId?: string;
-  isTenantProvisioning: boolean;
+  isOrganizationProvisioning: boolean;
+  organizationProvisioningMessage?: string;
+  organizationProvisioningStatus: OrganizationProvisioningStatusValue;
   requiresRelogin?: boolean;
   sourceCustomerId?: string;
   sourceOrganization?: {
@@ -60,8 +62,6 @@ export interface TenantProvisioningStatus {
   targetCity?: string;
   targetCompanyShortName?: string;
   targetCustomerId?: string;
-  tenantProvisioningMessage?: string;
-  tenantProvisioningStatus: TenantProvisioningStatusValue;
 }
 
 export type VipMembershipWechatOrderReason =
@@ -94,7 +94,7 @@ export interface WechatPayOrderStatus {
     alreadyApplied: boolean;
     applied: boolean;
     matched: boolean;
-    provisioningStatus?: TenantProvisioningStatusValue;
+    provisioningStatus?: OrganizationProvisioningStatusValue;
     reason?: VipMembershipWechatOrderReason;
     vipExpireAt?: string;
   };
@@ -124,10 +124,21 @@ export interface VipMembershipRefundOrder {
     status: string;
     successAt?: string;
   };
+  organizationProvisioningJob?: {
+    id: number;
+    sourceOrgId?: number;
+    status: string;
+    targetCustomerId?: string;
+  };
   outTradeNo: string;
   paidAt?: string;
   refundable: boolean;
   refundDisabledReason?: string;
+  sourceOrganization?: {
+    id: number;
+    name: string;
+    sourceCustomerId: string;
+  };
   targetCustomerId?: string;
   tradeState: string;
   transactionId?: string;
@@ -202,11 +213,11 @@ export async function listVipMembershipRefundOrders() {
   );
 }
 
-export async function getTenantProvisioningStatus(
+export async function getOrganizationProvisioningStatus(
   options?: VipCheckoutFlowRequestOptions,
 ) {
-  return requestClient.get<TenantProvisioningStatus>(
-    '/tenant/provisioning/status',
+  return requestClient.get<OrganizationProvisioningStatus>(
+    '/organization/provisioning/status',
     {
       headers: buildVipCheckoutFlowHeaders(options),
     },
