@@ -283,9 +283,9 @@ watch(
           <p class="organization-invite-hero__eyebrow">
             Organization Invitation
           </p>
-          <h1>企业邀请码</h1>
+          <h1>组织邀请码</h1>
           <p class="organization-invite-hero__desc">
-            为同一企业租户生成加入凭证，受邀用户填写邀请码后会被切换到当前企业空间。
+            为同一组织空间生成加入凭证，受邀用户填写邀请码后会进入当前组织空间。
           </p>
         </div>
         <div class="organization-invite-hero__stats">
@@ -295,12 +295,12 @@ watch(
       </section>
 
       <Card v-if="!canManageOrganizationInvitations" :bordered="false">
-        <Empty description="当前账号不能管理企业邀请码">
+        <Empty description="当前账号不能管理组织邀请码">
           <template #image>
             <VbenIcon icon="mdi:shield-lock-outline" class="empty-icon" />
           </template>
           <p class="organization-invite-page__empty-desc">
-            只有专属租户内的 Super 角色账号可以创建、查看和撤销邀请码。
+            只有组织空间内的 Super 角色账号可以创建、查看和撤销邀请码。
           </p>
         </Empty>
       </Card>
@@ -369,13 +369,13 @@ watch(
             <template #title>使用规则</template>
             <div class="organization-invite-rules">
               <p>
-                邀请码只属于当前企业租户，不会由支付建库自动生成，需要 Super
+                邀请码只属于当前组织空间，不会由支付建库自动生成，需要 Super
                 角色主动创建。
               </p>
               <p>
-                受邀用户必须在公开库；加入成功后会吊销旧登录态，重新登录后进入企业空间。
+                受邀用户必须在公开库；加入成功后会吊销旧登录态，重新登录后进入组织空间。
               </p>
-              <p>已属于其他企业租户的账号不能通过邀请码直接加入。</p>
+              <p>已属于其他组织空间的账号不能通过邀请码直接加入。</p>
             </div>
           </Card>
         </div>

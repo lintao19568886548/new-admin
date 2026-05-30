@@ -19,7 +19,7 @@ export default eventHandler(async (event) => {
   }
 
   if (!canManageOrganizationProvisioningAdmin(userinfo)) {
-    return forbiddenResponse(event, '仅平台 Super 可重排租户开通任务');
+    return forbiddenResponse(event, '仅平台 Super 可重排组织空间开通任务');
   }
 
   const body = (await readBody(event)) as Record<string, unknown>;
@@ -39,11 +39,11 @@ export default eventHandler(async (event) => {
       return badRequestResponse(error.message, event, error.statusCode);
     }
 
-    console.error('重排租户开通 failed_manual 任务失败:', error);
+    console.error('重排组织空间开通 failed_manual 任务失败:', error);
     return serverErrorResponse(
       error instanceof Error
         ? error.message
-        : '重排租户开通 failed_manual 任务失败',
+        : '重排组织空间开通 failed_manual 任务失败',
       event,
     );
   }

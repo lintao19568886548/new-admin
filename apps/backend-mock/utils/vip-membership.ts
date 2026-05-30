@@ -1110,7 +1110,7 @@ function assertVipMembershipRefundStackSelection(params: {
       !isRefundableEntitlementStartNotBeforeToday(entitlement.startAt, now),
   );
   if (invalidEntitlement) {
-    throw new Error('仅支持退款权益开始日期不早于今天的会员订单');
+    throw new Error('仅支持退款权益开始日期不早于今天的组织订单');
   }
 
   return stackPrefix;
@@ -1135,7 +1135,7 @@ async function assertVipMembershipRefundableEntitlementsWithClient(
       ),
   );
   if (missingOutTradeNo) {
-    throw new Error('会员订单没有可退款的有效权益流水');
+    throw new Error('组织订单没有可退款的有效权益流水');
   }
 
   return assertVipMembershipRefundStackSelection({
@@ -1283,7 +1283,7 @@ async function resolveVipMembershipRefundStackOrderWithClient(
     (outTradeNo) => !paymentMap.has(outTradeNo),
   );
   if (missingOutTradeNo) {
-    throw new Error('会员支付订单不存在');
+    throw new Error('组织订单不存在');
   }
 
   const membershipCustomerIds = new Set(
@@ -1292,11 +1292,11 @@ async function resolveVipMembershipRefundStackOrderWithClient(
     ),
   );
   if (membershipCustomerIds.size !== 1) {
-    throw new Error('批量退款只支持同一租户的会员订单');
+    throw new Error('批量退款只支持同一组织空间的组织订单');
   }
   const [membershipCustomerId] = [...membershipCustomerIds];
   if (!membershipCustomerId) {
-    throw new Error('会员订单缺少租户归属，无法退款');
+    throw new Error('组织订单缺少组织空间归属，无法退款');
   }
 
   const requesterCustomerId = normalizeString(params.requesterCustomerId);
@@ -1305,7 +1305,7 @@ async function resolveVipMembershipRefundStackOrderWithClient(
     requesterCustomerId &&
     requesterCustomerId !== membershipCustomerId
   ) {
-    throw new Error('无权退款其他租户的会员订单');
+    throw new Error('无权退款其他组织空间的组织订单');
   }
 
   await lockCustomerForVipMembership(membershipCustomerId, prisma);
@@ -1329,21 +1329,21 @@ async function createVipMembershipRefundRecord(params: {
 }) {
   const outTradeNo = normalizeString(params.outTradeNo);
   if (!outTradeNo) {
-    throw new Error('缺少会员支付订单号');
+    throw new Error('缺少组织订单号');
   }
 
   return withVipMembershipDb(() =>
     systemDbClient.$transaction(async (tx) => {
       const payment = await getVipMembershipPaymentByOutTradeNo(outTradeNo, tx);
       if (!payment) {
-        throw new Error('会员支付订单不存在');
+        throw new Error('组织订单不存在');
       }
 
       const membershipCustomerId = normalizeString(
         payment.targetCustomerId || payment.sourceCustomerId,
       );
       if (!membershipCustomerId) {
-        throw new Error('会员订单缺少租户归属，无法退款');
+        throw new Error('组织订单缺少组织空间归属，无法退款');
       }
 
       const requesterCustomerId = normalizeString(params.requesterCustomerId);
@@ -1352,7 +1352,7 @@ async function createVipMembershipRefundRecord(params: {
         requesterCustomerId &&
         requesterCustomerId !== membershipCustomerId
       ) {
-        throw new Error('无权退款其他租户的会员订单');
+        throw new Error('无权退款其他组织空间的组织订单');
       }
 
       await lockCustomerForVipMembership(membershipCustomerId, tx);
@@ -1373,10 +1373,10 @@ async function createVipMembershipRefundRecord(params: {
       }
 
       if (normalizeString(payment.tradeState) !== 'SUCCESS') {
-        throw new Error('仅已支付成功的会员订单可以退款');
+        throw new Error('仅已支付成功的组织订单可以退款');
       }
       if (!payment.transactionId) {
-        throw new Error('会员订单缺少微信支付交易号，无法退款');
+        throw new Error('组织订单缺少微信支付交易号，无法退款');
       }
 
       await assertVipMembershipRefundableEntitlementsWithClient(
@@ -1791,7 +1791,7 @@ export function buildVipMembershipAttach(input: {
   const sourceCustomerId = normalizeString(input.customerId);
 
   if (!centerUserId || !tenantUserId || !sourceCustomerId) {
-    throw new Error('缺少会员订单归属信息，无法创建微信支付 attach');
+    throw new Error('缺少组织订单归属信息，无法创建微信支付 attach');
   }
 
   const attach = JSON.stringify({
@@ -1802,7 +1802,7 @@ export function buildVipMembershipAttach(input: {
   });
 
   if (Buffer.byteLength(attach, 'utf8') > 128) {
-    throw new Error('会员订单微信 attach 超过 128 字节限制');
+    throw new Error('组织订单微信 attach 超过 128 字节限制');
   }
 
   return attach;
@@ -2374,7 +2374,7 @@ export async function createVipMembershipRefund(params: {
 }) {
   const outTradeNo = normalizeString(params.outTradeNo);
   if (!outTradeNo) {
-    throw new Error('缺少会员支付订单号');
+    throw new Error('缺少组织订单号');
   }
 
   const pendingRefund = await createVipMembershipRefundRecord(params);
@@ -2387,7 +2387,7 @@ export async function listVipMembershipRefundOrders(params: {
 }) {
   const customerId = normalizeString(params.customerId);
   if (!customerId) {
-    throw new Error('缺少租户信息，无法读取会员订单');
+    throw new Error('缺少组织空间信息，无法读取组织订单');
   }
   if (
     !params.allowCrossCustomerRead &&
@@ -2520,7 +2520,7 @@ export async function listVipMembershipRefundOrders(params: {
         } else if (
           isRefundableEntitlementStartNotBeforeToday(entitlement.startAt)
         ) {
-          refundDisabledReason = '需先退款更新的会员订单';
+          refundDisabledReason = '需先退款更新的组织订单';
         } else {
           refundDisabledReason = '权益已开始，不能退款';
         }
@@ -2588,7 +2588,7 @@ export async function createVipMembershipRefundBatch(params: {
     .map((outTradeNo) => normalizeString(outTradeNo))
     .filter(Boolean);
   if (outTradeNos.length === 0) {
-    throw new Error('缺少会员支付订单号');
+    throw new Error('缺少组织订单号');
   }
   if (new Set(outTradeNos).size !== outTradeNos.length) {
     throw new Error('批量退款订单号不能重复');

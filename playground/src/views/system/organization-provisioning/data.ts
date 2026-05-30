@@ -81,7 +81,7 @@ export function useColumns(
       field: 'targetCustomerId',
       formatter: ({ cellValue }) => cellValue || '-',
       minWidth: 160,
-      title: '目标租户',
+      title: '目标组织空间',
     },
     {
       field: 'step',

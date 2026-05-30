@@ -46,7 +46,7 @@ const requeueReason = ref('');
 const requeuePreview = ref<null | RequeueResult>(null);
 
 const selectedJobTitle = computed(() =>
-  selectedJob.value ? `Job #${selectedJob.value.id}` : '租户开通任务',
+  selectedJob.value ? `Job #${selectedJob.value.id}` : '组织空间开通任务',
 );
 const canExecuteRequeue = computed(
   () =>
@@ -78,9 +78,11 @@ const [Grid, gridApi] = useVbenVxeGrid({
               Number(formValues.limit || 50),
             );
           } catch (error) {
-            console.error('读取租户开通任务失败:', error);
+            console.error('读取组织空间开通任务失败:', error);
             message.error(
-              error instanceof Error ? error.message : '读取租户开通任务失败',
+              error instanceof Error
+                ? error.message
+                : '读取组织空间开通任务失败',
             );
             return {
               total: 0,
@@ -173,14 +175,14 @@ function executeRequeue() {
         executeLoading.value = false;
       }
     },
-    title: '确认重排租户开通任务',
+    title: '确认重排组织空间开通任务',
   });
 }
 </script>
 
 <template>
   <Page auto-content-height>
-    <Grid table-title="租户开通任务">
+    <Grid table-title="组织空间开通任务">
       <template #toolbar-tools>
         <Space>
           <Button @click="gridApi.query">刷新</Button>
@@ -218,7 +220,7 @@ function executeRequeue() {
           <Descriptions.Item label="sourceOrgId">
             {{ selectedJob.sourceOrgId || '-' }}
           </Descriptions.Item>
-          <Descriptions.Item label="目标租户">
+          <Descriptions.Item label="目标组织空间">
             {{ selectedJob.targetCustomerId || '-' }}
           </Descriptions.Item>
           <Descriptions.Item label="目标库">

@@ -128,8 +128,8 @@ async function loadOrders() {
     const result = await listVipMembershipRefundOrders();
     orders.value = result.items;
   } catch (error) {
-    console.error('读取会员退款订单失败:', error);
-    message.error('读取会员退款订单失败');
+    console.error('读取组织订单失败:', error);
+    message.error('读取组织订单失败');
   } finally {
     loading.value = false;
   }
@@ -167,7 +167,7 @@ function handleRefundOrder(order: VipMembershipRefundOrder) {
   Modal.confirm({
     cancelText: '取消',
     centered: true,
-    content: `将对会员支付订单 ${order.outTradeNo} 发起微信退款。退款成功后，会撤销该订单对应的企业会员权益。`,
+    content: `将对组织订单 ${order.outTradeNo} 发起微信退款。退款成功后，会撤销该订单对应的组织会员权益。`,
     okButtonProps: { danger: true },
     okText: '确认退款',
     onOk: async () => {
@@ -222,10 +222,8 @@ watch(
       <section class="vip-refund-hero">
         <div>
           <p class="vip-refund-hero__eyebrow">Order Management</p>
-          <h1>企业订单管理</h1>
-          <p class="vip-refund-hero__desc">
-            这里展示当前企业租户的会员支付订单。
-          </p>
+          <h1>组织订单管理</h1>
+          <p class="vip-refund-hero__desc">这里展示当前组织空间的组织订单。</p>
           <p class="vip-refund-hero__desc">
             退款资格由后端按权益流水栈判断，只能从最新且尚未开始生效的订单往旧退。
           </p>
@@ -238,24 +236,24 @@ watch(
       </section>
 
       <Card v-if="!canManageRefunds" :bordered="false">
-        <Empty description="当前账号不能管理会员退款订单">
+        <Empty description="当前账号不能管理组织订单">
           <template #image>
             <VbenIcon icon="mdi:shield-lock-outline" class="empty-icon" />
           </template>
           <p class="vip-refund-page__empty-desc">
-            只有企业租户内的 Super 角色账号可以查看订单并发起退款。
+            只有组织空间内的 Super 角色账号可以查看组织订单并发起退款。
           </p>
         </Empty>
       </Card>
 
       <Spin v-else :spinning="loading">
         <Card :bordered="false" class="vip-refund-card">
-          <template #title>订单列表</template>
+          <template #title>组织订单列表</template>
           <template #extra>
             <Button size="small" @click="loadOrders">刷新</Button>
           </template>
 
-          <Empty v-if="orders.length === 0" description="暂无会员支付订单" />
+          <Empty v-if="orders.length === 0" description="暂无组织订单" />
 
           <div v-else class="vip-refund-list">
             <article
@@ -318,7 +316,7 @@ watch(
                   </small>
                 </div>
                 <div>
-                  <span>目标租户</span>
+                  <span>目标组织空间</span>
                   <strong>{{ order.targetCustomerId || '-' }}</strong>
                 </div>
                 <div>

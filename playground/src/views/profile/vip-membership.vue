@@ -1565,7 +1565,7 @@ onMounted(() => {
         <div v-if="isSuperUser" class="order-card__management">
           <div>
             <strong>订单管理</strong>
-            <p>可查看当前组织的所有会员支付订单并按规则退款。</p>
+            <p>可查看当前组织的所有组织订单并按规则退款。</p>
           </div>
           <Button @click="handleOpenRefundOrders"> 管理组织订单 </Button>
         </div>

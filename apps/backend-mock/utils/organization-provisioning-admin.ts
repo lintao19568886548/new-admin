@@ -252,7 +252,7 @@ export async function requeueFailedManualOrganizationProvisioningJob(input: {
   });
   if (!job) {
     throw new OrganizationProvisioningRequeueError(
-      `租户开通任务不存在: ${jobId}`,
+      `组织空间开通任务不存在: ${jobId}`,
       404,
     );
   }
@@ -266,7 +266,7 @@ export async function requeueFailedManualOrganizationProvisioningJob(input: {
 
   if (job.sourceCustomerId !== 'public') {
     throw new OrganizationProvisioningRequeueError(
-      `仅允许重排 public -> 租户任务，当前 sourceCustomerId=${job.sourceCustomerId}`,
+      `仅允许重排 public -> 组织空间任务，当前 sourceCustomerId=${job.sourceCustomerId}`,
       409,
     );
   }
@@ -357,7 +357,7 @@ export async function requeueFailedManualOrganizationProvisioningJob(input: {
     });
   });
 
-  console.info('租户开通 failed_manual 任务已手动重排', {
+  console.info('组织空间开通 failed_manual 任务已手动重排', {
     jobId: job.id,
     operator,
     organizationId: organization.id,

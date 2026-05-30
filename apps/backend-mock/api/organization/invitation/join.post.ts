@@ -29,9 +29,9 @@ export default eventHandler(async (event) => {
       return badRequestResponse(error.message, event, error.statusCode);
     }
 
-    console.error('加入已有租户失败:', error);
+    console.error('加入组织空间失败:', error);
     return serverErrorResponse(
-      error instanceof Error ? error.message : '加入已有租户失败',
+      error instanceof Error ? error.message : '加入组织空间失败',
       event,
     );
   }
