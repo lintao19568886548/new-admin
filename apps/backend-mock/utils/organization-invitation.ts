@@ -45,6 +45,13 @@ interface OrganizationInvitationInput {
   roleIds?: unknown;
 }
 
+interface TargetOrganizationRecord {
+  id: number;
+  sourceCustomerId: string;
+  targetCustomerId: string;
+  targetDbName: null | string;
+}
+
 interface PreparedTenantUser {
   created: boolean;
   customerUserId: number;
@@ -164,6 +171,17 @@ function normalizeRemark(value: unknown) {
     throw new OrganizationInvitationError('备注不能超过 200 个字符');
   }
   return remark;
+}
+
+function normalizeTargetOrganizationRow(
+  row: TargetOrganizationRecord,
+): TargetOrganizationRecord {
+  return {
+    id: Number(row.id),
+    sourceCustomerId: String(row.sourceCustomerId || ''),
+    targetCustomerId: String(row.targetCustomerId || ''),
+    targetDbName: row.targetDbName ? String(row.targetDbName) : null,
+  };
 }
 
 function normalizeDateValue(value: Date | null | string) {
@@ -304,12 +322,42 @@ async function resolveManageableCustomer(customerId: string) {
       403,
     );
   }
+  const organization =
+    await resolveActiveTargetOrganizationForCustomer(normalizedCustomerId);
 
   return {
     customerId: String(customer.customerId),
     dbName: customer.dbName ? String(customer.dbName) : null,
     name: String(customer.name || customer.customerId),
+    organizationId: organization.id,
+    organizationSourceCustomerId: organization.sourceCustomerId,
   };
+}
+
+async function resolveActiveTargetOrganizationForCustomer(
+  customerId: string,
+  db: CenterDb = systemDbClient,
+) {
+  const rows = await db.$queryRaw<TargetOrganizationRecord[]>(Prisma.sql`
+    SELECT
+      o.id,
+      o.source_customer_id AS sourceCustomerId,
+      m.target_customer_id AS targetCustomerId,
+      m.target_db_name AS targetDbName
+    FROM organization_tenant_mapping m
+    INNER JOIN organization o ON o.id = m.organization_id
+    WHERE m.target_customer_id = ${customerId}
+      AND m.status = 'active'
+      AND o.status = 'active'
+    LIMIT 1
+  `);
+  if (!rows[0]) {
+    throw new OrganizationInvitationError(
+      '目标组织空间未完成组织映射，请先回填组织关系',
+      409,
+    );
+  }
+  return normalizeTargetOrganizationRow(rows[0]);
 }
 
 async function prepareTenantUserForJoin(params: {
@@ -452,6 +500,179 @@ async function prepareTenantUserForJoin(params: {
       };
     },
   );
+}
+
+async function resolveExistingTenantUserForJoin(params: {
+  centerDb: CenterDb;
+  centerUser: CenterUserSnapshot;
+  customerId: string;
+  dbName: null | string;
+}): Promise<PreparedTenantUser> {
+  const centerUserId = Number(params.centerUser.id);
+  const username = String(params.centerUser.username || '').trim();
+
+  if (!username) {
+    throw new OrganizationInvitationError('当前账号缺少用户名，不能加入组织');
+  }
+
+  return prismaScopeStorage.run(
+    {
+      customerId: params.customerId,
+      dbName: params.dbName,
+    },
+    async () => {
+      const mapped = await params.centerDb.userCustomerMapping.findUnique({
+        where: {
+          centerUserId_customerId: {
+            centerUserId,
+            customerId: params.customerId,
+          },
+        },
+        select: {
+          customerUserId: true,
+        },
+      });
+
+      if (mapped) {
+        const mappedTenantUser = await prismaClient.user.findUnique({
+          where: { id: Number(mapped.customerUserId) },
+          select: { id: true, status: true },
+        });
+        if (!mappedTenantUser || Number(mappedTenantUser.status ?? 1) !== 1) {
+          throw new OrganizationInvitationError(
+            '当前账号在目标组织空间的映射异常，请联系管理员处理',
+            409,
+          );
+        }
+
+        return {
+          created: false,
+          customerUserId: Number(mappedTenantUser.id),
+        };
+      }
+
+      const existingTenantUser = await prismaClient.user.findUnique({
+        where: { username },
+        select: { id: true, status: true },
+      });
+      if (!existingTenantUser || Number(existingTenantUser.status ?? 1) !== 1) {
+        throw new OrganizationInvitationError(
+          '当前账号在目标组织空间的账号不存在或已停用，请联系管理员处理',
+          409,
+        );
+      }
+
+      const mappedByTenantUser =
+        await params.centerDb.userCustomerMapping.findUnique({
+          where: {
+            customerId_customerUserId: {
+              customerId: params.customerId,
+              customerUserId: Number(existingTenantUser.id),
+            },
+          },
+          select: {
+            centerUserId: true,
+          },
+        });
+
+      if (
+        mappedByTenantUser &&
+        Number(mappedByTenantUser.centerUserId) !== centerUserId
+      ) {
+        throw new OrganizationInvitationError(
+          '目标组织空间已存在同名账号，请联系管理员处理',
+          409,
+        );
+      }
+
+      return {
+        created: false,
+        customerUserId: Number(existingTenantUser.id),
+      };
+    },
+  );
+}
+
+async function upsertUserCustomerMappingForTenantJoin(params: {
+  centerDb: CenterDb;
+  centerUserId: number;
+  customerId: string;
+  customerUserId: number;
+  dbName: null | string;
+}) {
+  await params.centerDb.userCustomerMapping.upsert({
+    create: {
+      centerUserId: params.centerUserId,
+      customerId: params.customerId,
+      customerUserId: params.customerUserId,
+      dbName: params.dbName,
+    },
+    update: {
+      customerUserId: params.customerUserId,
+      dbName: params.dbName,
+    },
+    where: {
+      centerUserId_customerId: {
+        centerUserId: params.centerUserId,
+        customerId: params.customerId,
+      },
+    },
+  });
+}
+
+async function ensureOrganizationMemberForTenantJoin(params: {
+  centerDb: CenterDb;
+  centerUserId: number;
+  organizationId: number;
+  sourceCustomerId: string;
+  sourceUserId: number;
+}) {
+  const where = {
+    organizationId_centerUserId: {
+      centerUserId: params.centerUserId,
+      organizationId: params.organizationId,
+    },
+  };
+  const existing = await params.centerDb.organizationMember.findUnique({
+    select: {
+      memberRole: true,
+      sourceCustomerId: true,
+      sourceUserId: true,
+      status: true,
+    },
+    where,
+  });
+  const joinedAt = new Date();
+
+  if (!existing) {
+    await params.centerDb.organizationMember.create({
+      data: {
+        centerUserId: params.centerUserId,
+        joinedAt,
+        memberRole: 'member',
+        organizationId: params.organizationId,
+        sourceCustomerId: params.sourceCustomerId,
+        sourceUserId: params.sourceUserId,
+        status: 'active',
+      },
+    });
+    return;
+  }
+
+  if (existing.status === 'active') {
+    return;
+  }
+
+  await params.centerDb.organizationMember.update({
+    data: {
+      ...(existing.memberRole === 'owner' ? {} : { memberRole: 'member' }),
+      joinedAt,
+      sourceCustomerId: existing.sourceCustomerId || params.sourceCustomerId,
+      sourceUserId: existing.sourceUserId || params.sourceUserId,
+      status: 'active',
+    },
+    where,
+  });
 }
 
 async function cleanupCreatedTenantUser(params: {
@@ -725,26 +946,17 @@ export async function joinOrganizationByInvitationCode(params: {
         : null;
       const defaultCustomerId = getDefaultCustomerId();
       const targetDbName = customer.dbName ? String(customer.dbName) : null;
+      const targetOrganization =
+        await resolveActiveTargetOrganizationForCustomer(targetCustomerId, tx);
       failureContext = {
         customerId: targetCustomerId,
         invitationId: Number(invitation.id),
         previousCustomerId,
       };
 
-      if (previousCustomerId === targetCustomerId) {
-        return {
-          alreadyJoined: true,
-          customerId: targetCustomerId,
-          customerName: String(customer.name || targetCustomerId),
-          joined: true,
-          organizationSpaceId: targetCustomerId,
-          organizationSpaceName: String(customer.name || targetCustomerId),
-          requiresRelogin: false,
-        };
-      }
-
       if (
         previousCustomerId &&
+        previousCustomerId !== targetCustomerId &&
         previousCustomerId !== 'public' &&
         previousCustomerId !== defaultCustomerId
       ) {
@@ -767,13 +979,21 @@ export async function joinOrganizationByInvitationCode(params: {
         roleIds,
       });
 
-      const tenantUser = await prepareTenantUserForJoin({
-        centerDb: tx,
-        centerUser: centerUser as CenterUserSnapshot,
-        customerId: targetCustomerId,
-        dbName: targetDbName,
-        roleIds,
-      });
+      const alreadyJoined = previousCustomerId === targetCustomerId;
+      const tenantUser = alreadyJoined
+        ? await resolveExistingTenantUserForJoin({
+            centerDb: tx,
+            centerUser: centerUser as CenterUserSnapshot,
+            customerId: targetCustomerId,
+            dbName: targetDbName,
+          })
+        : await prepareTenantUserForJoin({
+            centerDb: tx,
+            centerUser: centerUser as CenterUserSnapshot,
+            customerId: targetCustomerId,
+            dbName: targetDbName,
+            roleIds,
+          });
       if (tenantUser.created) {
         createdTenantUser = {
           customerId: targetCustomerId,
@@ -782,24 +1002,35 @@ export async function joinOrganizationByInvitationCode(params: {
         };
       }
 
-      await tx.userCustomerMapping.upsert({
-        create: {
-          centerUserId,
-          customerId: targetCustomerId,
-          customerUserId: tenantUser.customerUserId,
-          dbName: targetDbName,
-        },
-        update: {
-          customerUserId: tenantUser.customerUserId,
-          dbName: targetDbName,
-        },
-        where: {
-          centerUserId_customerId: {
-            centerUserId,
-            customerId: targetCustomerId,
-          },
-        },
+      await upsertUserCustomerMappingForTenantJoin({
+        centerDb: tx,
+        centerUserId,
+        customerId: targetCustomerId,
+        customerUserId: tenantUser.customerUserId,
+        dbName: targetDbName,
       });
+
+      await ensureOrganizationMemberForTenantJoin({
+        centerDb: tx,
+        centerUserId,
+        organizationId: targetOrganization.id,
+        sourceCustomerId: targetCustomerId,
+        sourceUserId: tenantUser.customerUserId,
+      });
+
+      if (alreadyJoined) {
+        createdTenantUser = null;
+
+        return {
+          alreadyJoined: true,
+          customerId: targetCustomerId,
+          customerName: String(customer.name || targetCustomerId),
+          joined: true,
+          organizationSpaceId: targetCustomerId,
+          organizationSpaceName: String(customer.name || targetCustomerId),
+          requiresRelogin: false,
+        };
+      }
 
       await tx.user.update({
         data: {
