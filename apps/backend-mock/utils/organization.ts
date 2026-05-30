@@ -1,6 +1,6 @@
 import type { Prisma as CenterPrisma } from '@prisma/.prisma/center-client/index.js';
 
-import { normalizeTenantIdentityProfile } from '~/utils/customer-identity';
+import { normalizeOrganizationIdentityProfile } from '~/utils/customer-identity';
 import { prismaClient, prismaScopeStorage, systemDbClient } from '~/utils/db';
 import {
   ensureDefaultOrganizationRole,
@@ -262,7 +262,7 @@ async function ensureSourceOrganizationDefaultRole(params: {
 async function completeExistingSourceOrganizationIdentity(params: {
   centerDb: CenterDb;
   organization: OrganizationOverview;
-  tenantIdentity?: {
+  organizationIdentity?: {
     city?: unknown;
     companyShortName?: unknown;
   };
@@ -275,11 +275,12 @@ async function completeExistingSourceOrganizationIdentity(params: {
     return params.organization;
   }
 
-  const profile = normalizeTenantIdentityProfile({
-    city: hasCity ? params.organization.city : params.tenantIdentity?.city,
+  const identity = params.organizationIdentity;
+  const profile = normalizeOrganizationIdentityProfile({
+    city: hasCity ? params.organization.city : identity?.city,
     companyShortName: hasCompanyShortName
       ? params.organization.companyShortName
-      : params.tenantIdentity?.companyShortName,
+      : identity?.companyShortName,
   });
   const data: CenterPrisma.OrganizationUpdateInput = {};
   if (!hasCity) {
@@ -307,12 +308,12 @@ async function resolveOrCreateSourceOrganizationAnchorInTransaction(params: {
     username: string;
   };
   centerUserId: number;
-  sourceCustomerId: string;
-  sourceUserId: number;
-  tenantIdentity?: {
+  organizationIdentity?: {
     city?: unknown;
     companyShortName?: unknown;
   };
+  sourceCustomerId: string;
+  sourceUserId: number;
 }) {
   await lockCenterUserForOrganizationProvisioning(
     params.centerDb,
@@ -336,14 +337,14 @@ async function resolveOrCreateSourceOrganizationAnchorInTransaction(params: {
   if (existingMembership) {
     if (existingMembership.memberRole !== ORGANIZATION_MEMBER_ROLE_OWNER) {
       throw new OrganizationLifecycleError(
-        '只有组织 owner 可以开通专属空间',
+        '只有组织所有者可以开通组织空间',
         403,
       );
     }
     const organization = await completeExistingSourceOrganizationIdentity({
       centerDb: params.centerDb,
       organization: existingMembership.organization,
-      tenantIdentity: params.tenantIdentity,
+      organizationIdentity: params.organizationIdentity,
     });
     if (!existingMembership.sourceUserId) {
       await params.centerDb.organizationMember.update({
@@ -367,7 +368,9 @@ async function resolveOrCreateSourceOrganizationAnchorInTransaction(params: {
     };
   }
 
-  const profile = normalizeTenantIdentityProfile(params.tenantIdentity || {});
+  const profile = normalizeOrganizationIdentityProfile(
+    params.organizationIdentity || {},
+  );
   const organization = await params.centerDb.organization.create({
     data: {
       city: profile.city,
@@ -410,11 +413,11 @@ async function resolveOrCreateSourceOrganizationAnchorInTransaction(params: {
 
 export async function ensureSingleOwnerSourceOrganizationForCenterUser(params: {
   centerUserId: number;
-  sourceCustomerId: string;
-  tenantIdentity?: {
+  organizationIdentity?: {
     city?: unknown;
     companyShortName?: unknown;
   };
+  sourceCustomerId: string;
 }) {
   const centerUserId = normalizePositiveInteger(
     params.centerUserId,
@@ -434,9 +437,9 @@ export async function ensureSingleOwnerSourceOrganizationForCenterUser(params: {
         username: sourceUser.centerUser.username,
       },
       centerUserId,
+      organizationIdentity: params.organizationIdentity,
       sourceCustomerId,
       sourceUserId: sourceUser.sourceUserId,
-      tenantIdentity: params.tenantIdentity,
     }),
   );
 

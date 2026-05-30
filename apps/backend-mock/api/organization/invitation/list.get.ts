@@ -1,15 +1,15 @@
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
+  listOrganizationInvitations,
+  OrganizationInvitationError,
+} from '~/utils/organization-invitation';
+import {
   badRequestResponse,
   forbiddenResponse,
   serverErrorResponse,
   unAuthorizedResponse,
   useResponseSuccess,
 } from '~/utils/response';
-import {
-  listTenantInvitations,
-  TenantInvitationError,
-} from '~/utils/tenant-invitation';
 
 export default eventHandler(async (event) => {
   const userinfo = verifyAccessToken(event);
@@ -22,12 +22,12 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const result = await listTenantInvitations(
+    const result = await listOrganizationInvitations(
       String(userinfo.customerId || ''),
     );
     return useResponseSuccess(result);
   } catch (error) {
-    if (error instanceof TenantInvitationError) {
+    if (error instanceof OrganizationInvitationError) {
       return badRequestResponse(error.message, event, error.statusCode);
     }
 

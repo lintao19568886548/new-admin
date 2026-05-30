@@ -16,7 +16,7 @@ const WORKER_ID = `${hostname()}:${process.pid}:${randomUUID()}`;
 
 type DbConnection = Awaited<ReturnType<typeof mariadb.createConnection>>;
 
-interface TenantProvisioningJobRecord {
+interface OrganizationProvisioningJobRecord {
   id: number;
   initiatorCenterUserId: number;
   lockOwner: string;
@@ -130,8 +130,8 @@ interface SuperPermissionClosure {
   roleMenuCount: number;
 }
 
-const globalForTenantProvisioning = globalThis as typeof globalThis & {
-  __tenantProvisioningWorker?: {
+const globalForOrganizationProvisioning = globalThis as typeof globalThis & {
+  __organizationProvisioningWorker?: {
     intervalId: ReturnType<typeof setInterval>;
     running: boolean;
   };
@@ -158,18 +158,18 @@ function getPositiveIntegerEnv(name: string, fallback: number) {
 
 function getWorkerMaxRetry() {
   return getPositiveIntegerEnv(
-    'TENANT_PROVISIONING_MAX_RETRY',
+    'ORGANIZATION_PROVISIONING_MAX_RETRY',
     DEFAULT_WORKER_MAX_RETRY,
   );
 }
 
 function getWorkerBatchSize() {
-  return getPositiveIntegerEnv('TENANT_PROVISIONING_BATCH_SIZE', 1);
+  return getPositiveIntegerEnv('ORGANIZATION_PROVISIONING_BATCH_SIZE', 1);
 }
 
 function isWorkerEnabled() {
   return (
-    String(process.env.TENANT_PROVISIONING_WORKER_ENABLED ?? 'true')
+    String(process.env.ORGANIZATION_PROVISIONING_WORKER_ENABLED ?? 'true')
       .trim()
       .toLowerCase() !== 'false'
   );
@@ -479,7 +479,7 @@ async function cloneSchemaFromTemplate(params: {
   }
 }
 
-async function updateJobHeartbeat(job: TenantProvisioningJobRecord) {
+async function updateJobHeartbeat(job: OrganizationProvisioningJobRecord) {
   const result = await systemDbClient.tenantProvisioningJob.updateMany({
     data: {
       heartbeatAt: new Date(),
@@ -497,7 +497,7 @@ async function updateJobHeartbeat(job: TenantProvisioningJobRecord) {
 }
 
 async function updateJobStep(
-  job: TenantProvisioningJobRecord,
+  job: OrganizationProvisioningJobRecord,
   step: string,
   message?: string,
 ) {
@@ -524,7 +524,7 @@ async function updateJobStep(
 async function claimNextProvisioningJob() {
   const maxRetry = getWorkerMaxRetry();
   const staleAfterMs = getPositiveIntegerEnv(
-    'TENANT_PROVISIONING_STALE_AFTER_MS',
+    'ORGANIZATION_PROVISIONING_STALE_AFTER_MS',
     DEFAULT_WORKER_STALE_AFTER_MS,
   );
   const staleBefore = new Date(Date.now() - staleAfterMs);
@@ -1194,7 +1194,7 @@ async function copyOrganizationRoleSnapshot(params: {
   return { roleMap, snapshots };
 }
 
-async function saveTenantProvisioningRoleSnapshots(params: {
+async function saveOrganizationProvisioningRoleSnapshots(params: {
   jobId: number;
   snapshots: OrganizationRoleSnapshotItem[];
   sourceOrgId: number;
@@ -1719,7 +1719,7 @@ async function migrateOrganizationScopedData(params: {
   }
 }
 
-async function ensureJobTargetIdentity(job: TenantProvisioningJobRecord) {
+async function ensureJobTargetIdentity(job: OrganizationProvisioningJobRecord) {
   if (!job.targetCustomerId) {
     throw new Error(
       `租户开通任务缺少 targetCustomerId，无法建库 jobId=${job.id}`,
@@ -1753,7 +1753,10 @@ async function ensureJobTargetIdentity(job: TenantProvisioningJobRecord) {
   };
 }
 
-async function markJobFailed(job: TenantProvisioningJobRecord, error: unknown) {
+async function markJobFailed(
+  job: OrganizationProvisioningJobRecord,
+  error: unknown,
+) {
   const retryCount = Number(job.retryCount || 0) + 1;
   const maxRetry = getWorkerMaxRetry();
   const failedManual = retryCount >= maxRetry;
@@ -2376,7 +2379,7 @@ async function validateProvisionedOrganizationTenant(params: {
   }
 }
 
-async function processProvisioningJob(job: TenantProvisioningJobRecord) {
+async function processProvisioningJob(job: OrganizationProvisioningJobRecord) {
   const centerUser = await systemDbClient.user.findUnique({
     select: {
       customerType: true,
@@ -2565,7 +2568,7 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
   }
 
   await updateJobStep(job, 'switching_customer');
-  await saveTenantProvisioningRoleSnapshots({
+  await saveOrganizationProvisioningRoleSnapshots({
     jobId: job.id,
     snapshots: roleSnapshots,
     sourceOrgId,
@@ -2586,7 +2589,7 @@ async function processProvisioningJob(job: TenantProvisioningJobRecord) {
   });
 }
 
-export async function runTenantProvisioningWorkerOnce() {
+export async function runOrganizationProvisioningWorkerOnce() {
   let processed = 0;
   const batchSize = getWorkerBatchSize();
 
@@ -2611,7 +2614,7 @@ export async function runTenantProvisioningWorkerOnce() {
         ? String(claimed.targetCustomerId)
         : null,
       targetDbName: claimed.targetDbName ? String(claimed.targetDbName) : null,
-    } satisfies TenantProvisioningJobRecord;
+    } satisfies OrganizationProvisioningJobRecord;
 
     try {
       await processProvisioningJob(job);
@@ -2627,14 +2630,16 @@ export async function runTenantProvisioningWorkerOnce() {
   return processed;
 }
 
-async function runTenantProvisioningWorkerTick(state: { running: boolean }) {
+async function runOrganizationProvisioningWorkerTick(state: {
+  running: boolean;
+}) {
   if (state.running) {
     return;
   }
 
   state.running = true;
   try {
-    await runTenantProvisioningWorkerOnce();
+    await runOrganizationProvisioningWorkerOnce();
   } catch (error) {
     console.error('租户开通 worker 执行失败:', error);
   } finally {
@@ -2642,29 +2647,29 @@ async function runTenantProvisioningWorkerTick(state: { running: boolean }) {
   }
 }
 
-export function startTenantProvisioningWorker() {
+export function startOrganizationProvisioningWorker() {
   if (!isWorkerEnabled()) {
-    console.info('[tenant-provisioning] worker disabled');
+    console.info('[organization-provisioning] worker disabled');
     return;
   }
-  if (globalForTenantProvisioning.__tenantProvisioningWorker) {
+  if (globalForOrganizationProvisioning.__organizationProvisioningWorker) {
     return;
   }
 
   const intervalMs = getPositiveIntegerEnv(
-    'TENANT_PROVISIONING_WORKER_INTERVAL_MS',
+    'ORGANIZATION_PROVISIONING_WORKER_INTERVAL_MS',
     DEFAULT_WORKER_INTERVAL_MS,
   );
   const state = {
     intervalId: setInterval(() => {
-      void runTenantProvisioningWorkerTick(state);
+      void runOrganizationProvisioningWorkerTick(state);
     }, intervalMs),
     running: false,
   };
   state.intervalId.unref?.();
-  globalForTenantProvisioning.__tenantProvisioningWorker = state;
+  globalForOrganizationProvisioning.__organizationProvisioningWorker = state;
 
   setTimeout(() => {
-    void runTenantProvisioningWorkerTick(state);
+    void runOrganizationProvisioningWorkerTick(state);
   }, 1000).unref?.();
 }

@@ -2,7 +2,7 @@ import type { UserInfoForToken } from '~/utils/user-service';
 
 import { systemDbClient } from '~/utils/db';
 
-type TenantProvisioningRequeueJob = {
+type OrganizationProvisioningRequeueJob = {
   completedAt: Date | null;
   createTime: Date | null;
   errorMessage: null | string;
@@ -25,13 +25,13 @@ type TenantProvisioningRequeueJob = {
   updateTime: Date | null;
 };
 
-export class TenantProvisioningRequeueError extends Error {
+export class OrganizationProvisioningRequeueError extends Error {
   constructor(
     message: string,
     public readonly statusCode = 400,
   ) {
     super(message);
-    this.name = 'TenantProvisioningRequeueError';
+    this.name = 'OrganizationProvisioningRequeueError';
   }
 }
 
@@ -60,7 +60,7 @@ function serializeDate(value: Date | null) {
   return value ? value.toISOString() : null;
 }
 
-function serializeJob(job: TenantProvisioningRequeueJob) {
+function serializeJob(job: OrganizationProvisioningRequeueJob) {
   return {
     completedAt: serializeDate(job.completedAt),
     createTime: serializeDate(job.createTime),
@@ -92,7 +92,9 @@ function buildRequeueConfirmation(job: {
   return `requeue_failed_manual:${job.id}:${job.targetCustomerId || 'missing_target'}`;
 }
 
-export function canManageTenantProvisioningAdmin(userinfo: UserInfoForToken) {
+export function canManageOrganizationProvisioningAdmin(
+  userinfo: UserInfoForToken,
+) {
   const defaultCustomerId = String(
     process.env.DEFAULT_CUSTOMER_ID || 'default',
   );
@@ -103,7 +105,7 @@ export function canManageTenantProvisioningAdmin(userinfo: UserInfoForToken) {
   );
 }
 
-export async function listFailedManualTenantProvisioningJobs(
+export async function listFailedManualOrganizationProvisioningJobs(
   input: {
     limit?: unknown;
   } = {},
@@ -228,7 +230,7 @@ export async function listFailedManualTenantProvisioningJobs(
   };
 }
 
-export async function requeueFailedManualTenantProvisioningJob(input: {
+export async function requeueFailedManualOrganizationProvisioningJob(input: {
   confirmation?: unknown;
   execute?: unknown;
   jobId?: unknown;
@@ -237,7 +239,7 @@ export async function requeueFailedManualTenantProvisioningJob(input: {
 }) {
   const jobId = normalizePositiveInteger(input.jobId);
   if (!jobId) {
-    throw new TenantProvisioningRequeueError('jobId 必须是正整数');
+    throw new OrganizationProvisioningRequeueError('jobId 必须是正整数');
   }
 
   const execute = input.execute === true;
@@ -249,35 +251,35 @@ export async function requeueFailedManualTenantProvisioningJob(input: {
     where: { id: jobId },
   });
   if (!job) {
-    throw new TenantProvisioningRequeueError(
+    throw new OrganizationProvisioningRequeueError(
       `租户开通任务不存在: ${jobId}`,
       404,
     );
   }
 
   if (job.status !== 'failed_manual') {
-    throw new TenantProvisioningRequeueError(
+    throw new OrganizationProvisioningRequeueError(
       `仅允许重排 failed_manual 任务，当前状态为 ${job.status}`,
       409,
     );
   }
 
   if (job.sourceCustomerId !== 'public') {
-    throw new TenantProvisioningRequeueError(
+    throw new OrganizationProvisioningRequeueError(
       `仅允许重排 public -> 租户任务，当前 sourceCustomerId=${job.sourceCustomerId}`,
       409,
     );
   }
 
   if (!job.targetCustomerId) {
-    throw new TenantProvisioningRequeueError(
+    throw new OrganizationProvisioningRequeueError(
       '任务缺少 targetCustomerId，不能安全重排，请先定位根因',
       409,
     );
   }
 
   if (!job.sourceOrgId) {
-    throw new TenantProvisioningRequeueError(
+    throw new OrganizationProvisioningRequeueError(
       '任务缺少 sourceOrgId，不能安全重排，请先按组织补齐开通任务',
       409,
     );
@@ -297,7 +299,7 @@ export async function requeueFailedManualTenantProvisioningJob(input: {
     },
   });
   if (!organization) {
-    throw new TenantProvisioningRequeueError(
+    throw new OrganizationProvisioningRequeueError(
       `任务关联组织不存在或不可用: sourceOrgId=${job.sourceOrgId}`,
       409,
     );
@@ -318,7 +320,7 @@ export async function requeueFailedManualTenantProvisioningJob(input: {
   }
 
   if (confirmation !== expectedConfirmation) {
-    throw new TenantProvisioningRequeueError(
+    throw new OrganizationProvisioningRequeueError(
       `确认串不匹配，请使用 confirmation=${expectedConfirmation}`,
       400,
     );
@@ -344,7 +346,7 @@ export async function requeueFailedManualTenantProvisioningJob(input: {
     });
 
     if (result.count === 0) {
-      throw new TenantProvisioningRequeueError(
+      throw new OrganizationProvisioningRequeueError(
         '任务状态已变化，重排未执行，请重新预览后再操作',
         409,
       );

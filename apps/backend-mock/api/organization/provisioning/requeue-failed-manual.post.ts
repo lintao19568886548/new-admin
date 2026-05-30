@@ -1,16 +1,16 @@
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
+  canManageOrganizationProvisioningAdmin,
+  OrganizationProvisioningRequeueError,
+  requeueFailedManualOrganizationProvisioningJob,
+} from '~/utils/organization-provisioning-admin';
+import {
   badRequestResponse,
   forbiddenResponse,
   serverErrorResponse,
   unAuthorizedResponse,
   useResponseSuccess,
 } from '~/utils/response';
-import {
-  canManageTenantProvisioningAdmin,
-  requeueFailedManualTenantProvisioningJob,
-  TenantProvisioningRequeueError,
-} from '~/utils/tenant-provisioning-admin';
 
 export default eventHandler(async (event) => {
   const userinfo = verifyAccessToken(event);
@@ -18,14 +18,14 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
-  if (!canManageTenantProvisioningAdmin(userinfo)) {
+  if (!canManageOrganizationProvisioningAdmin(userinfo)) {
     return forbiddenResponse(event, '仅平台 Super 可重排租户开通任务');
   }
 
   const body = (await readBody(event)) as Record<string, unknown>;
 
   try {
-    const result = await requeueFailedManualTenantProvisioningJob({
+    const result = await requeueFailedManualOrganizationProvisioningJob({
       confirmation: body.confirmation,
       execute: body.execute,
       jobId: body.jobId,
@@ -35,7 +35,7 @@ export default eventHandler(async (event) => {
 
     return useResponseSuccess(result);
   } catch (error) {
-    if (error instanceof TenantProvisioningRequeueError) {
+    if (error instanceof OrganizationProvisioningRequeueError) {
       return badRequestResponse(error.message, event, error.statusCode);
     }
 

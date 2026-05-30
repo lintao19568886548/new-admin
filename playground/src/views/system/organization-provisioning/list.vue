@@ -3,7 +3,7 @@ import type {
   OnActionClickParams,
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
-import type { TenantProvisioningAdminApi } from '#/api/system/tenant-provisioning';
+import type { OrganizationProvisioningAdminApi } from '#/api/system/organization-provisioning';
 
 import { computed, ref } from 'vue';
 
@@ -23,9 +23,9 @@ import {
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
-  getFailedManualTenantProvisioningJobs,
-  requeueFailedManualTenantProvisioningJob,
-} from '#/api/system/tenant-provisioning';
+  getFailedManualOrganizationProvisioningJobs,
+  requeueFailedManualOrganizationProvisioningJob,
+} from '#/api/system/organization-provisioning';
 
 import {
   formatMoney,
@@ -35,8 +35,8 @@ import {
   useGridFormSchema,
 } from './data';
 
-type FailedManualJob = TenantProvisioningAdminApi.FailedManualJob;
-type RequeueResult = TenantProvisioningAdminApi.RequeueResult;
+type FailedManualJob = OrganizationProvisioningAdminApi.FailedManualJob;
+type RequeueResult = OrganizationProvisioningAdminApi.RequeueResult;
 
 const selectedJob = ref<FailedManualJob | null>(null);
 const drawerOpen = ref(false);
@@ -74,7 +74,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
         query: async () => {
           try {
             const formValues = (await gridApi.formApi?.getValues?.()) || {};
-            return await getFailedManualTenantProvisioningJobs(
+            return await getFailedManualOrganizationProvisioningJobs(
               Number(formValues.limit || 50),
             );
           } catch (error) {
@@ -123,10 +123,12 @@ async function previewRequeue() {
 
   previewLoading.value = true;
   try {
-    requeuePreview.value = await requeueFailedManualTenantProvisioningJob({
-      execute: false,
-      jobId: selectedJob.value.id,
-    });
+    requeuePreview.value = await requeueFailedManualOrganizationProvisioningJob(
+      {
+        execute: false,
+        jobId: selectedJob.value.id,
+      },
+    );
     message.success('重排预览已生成');
   } catch (error) {
     console.error('预览重排失败:', error);
@@ -154,7 +156,7 @@ function executeRequeue() {
     onOk: async () => {
       executeLoading.value = true;
       try {
-        const result = await requeueFailedManualTenantProvisioningJob({
+        const result = await requeueFailedManualOrganizationProvisioningJob({
           confirmation: requeuePreview.value?.confirmation,
           execute: true,
           jobId: selectedJob.value!.id,

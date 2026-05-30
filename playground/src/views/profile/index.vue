@@ -51,7 +51,7 @@ const currentUserRoles = computed(() => {
   const roles = (userInfo.value as any)?.roles;
   return Array.isArray(roles) ? roles.map(String) : [];
 });
-const canManageTenantInvitations = computed(
+const canManageOrganizationInvitations = computed(
   () =>
     currentUserRoles.value.includes('Super') &&
     Boolean(currentCustomerId.value) &&
@@ -364,8 +364,8 @@ function handleOpenVipMembership() {
   void router.push({ name: 'ProfileVipMembership' });
 }
 
-function handleOpenTenantInvitations() {
-  void router.push({ name: 'ProfileTenantInvitations' });
+function handleOpenOrganizationInvitations() {
+  void router.push({ name: 'ProfileOrganizationInvitations' });
 }
 
 function handleOpenPrivacyPolicy() {
@@ -407,10 +407,10 @@ const actions = computed(() => {
       icon: 'mdi:crown-outline',
       title: '会员服务',
     },
-    ...(canManageTenantInvitations.value
+    ...(canManageOrganizationInvitations.value
       ? [
           {
-            handler: handleOpenTenantInvitations,
+            handler: handleOpenOrganizationInvitations,
             icon: 'mdi:ticket-confirmation-outline',
             title: '企业邀请码',
           },

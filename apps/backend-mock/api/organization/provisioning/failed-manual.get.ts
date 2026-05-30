@@ -1,14 +1,14 @@
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
+  canManageOrganizationProvisioningAdmin,
+  listFailedManualOrganizationProvisioningJobs,
+} from '~/utils/organization-provisioning-admin';
+import {
   forbiddenResponse,
   serverErrorResponse,
   unAuthorizedResponse,
   useResponseSuccess,
 } from '~/utils/response';
-import {
-  canManageTenantProvisioningAdmin,
-  listFailedManualTenantProvisioningJobs,
-} from '~/utils/tenant-provisioning-admin';
 
 export default eventHandler(async (event) => {
   const userinfo = verifyAccessToken(event);
@@ -16,13 +16,13 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
-  if (!canManageTenantProvisioningAdmin(userinfo)) {
+  if (!canManageOrganizationProvisioningAdmin(userinfo)) {
     return forbiddenResponse(event, '仅平台 Super 可查看租户开通任务');
   }
 
   const query = getQuery(event);
   try {
-    const result = await listFailedManualTenantProvisioningJobs({
+    const result = await listFailedManualOrganizationProvisioningJobs({
       limit: query.limit,
     });
     return useResponseSuccess(result);

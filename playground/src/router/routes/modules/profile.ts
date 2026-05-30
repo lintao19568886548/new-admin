@@ -19,13 +19,13 @@ const routes: RouteRecordRaw[] = [
     path: '/profile/vip-membership',
   },
   {
-    component: () => import('#/views/profile/tenant-invitations.vue'),
+    component: () => import('#/views/profile/organization-invitations.vue'),
     meta: {
       hideMenu: true,
       title: '企业邀请码',
     },
-    name: 'ProfileTenantInvitations',
-    path: '/profile/tenant-invitations',
+    name: 'ProfileOrganizationInvitations',
+    path: '/profile/organization-invitations',
   },
   {
     component: () => import('#/views/profile/vip-refunds.vue'),

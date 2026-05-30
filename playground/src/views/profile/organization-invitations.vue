@@ -1,11 +1,11 @@
 <script lang="ts" setup>
 import type { Dayjs } from 'dayjs';
 
-import type { SystemRoleApi } from '#/api/system/role';
 import type {
-  CreateTenantInvitationPayload,
-  TenantInvitation,
-} from '#/api/tenant-invitation';
+  CreateOrganizationInvitationPayload,
+  OrganizationInvitation,
+} from '#/api/organization-invitation';
+import type { SystemRoleApi } from '#/api/system/role';
 
 import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -29,14 +29,14 @@ import {
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
-import { getRoleList } from '#/api/system/role';
 import {
-  createTenantInvitationApi,
-  listTenantInvitationsApi,
-  revokeTenantInvitationApi,
-} from '#/api/tenant-invitation';
+  createOrganizationInvitationApi,
+  listOrganizationInvitationsApi,
+  revokeOrganizationInvitationApi,
+} from '#/api/organization-invitation';
+import { getRoleList } from '#/api/system/role';
 
-defineOptions({ name: 'ProfileTenantInvitations' });
+defineOptions({ name: 'ProfileOrganizationInvitations' });
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -49,7 +49,7 @@ const currentUserRoles = computed(() => {
   const roles = userInfo.value?.roles;
   return Array.isArray(roles) ? roles.map(String) : [];
 });
-const canManageTenantInvitations = computed(
+const canManageOrganizationInvitations = computed(
   () =>
     currentUserRoles.value.includes('Super') &&
     Boolean(currentCustomerId.value) &&
@@ -59,7 +59,7 @@ const canManageTenantInvitations = computed(
 const loading = ref(false);
 const creating = ref(false);
 const loaded = ref(false);
-const invitations = ref<TenantInvitation[]>([]);
+const invitations = ref<OrganizationInvitation[]>([]);
 const roles = ref<SystemRoleApi.SystemRole[]>([]);
 const selectedRoleIds = ref<number[]>([]);
 const maxUses = ref<number>();
@@ -111,7 +111,7 @@ function isRoleEnabled(role: SystemRoleApi.SystemRole) {
   return role.status === true || Number(role.status) === 1;
 }
 
-function getInvitationState(invitation: TenantInvitation) {
+function getInvitationState(invitation: OrganizationInvitation) {
   if (invitation.status === 'revoked') {
     return { color: 'default', label: '已撤销', status: 'revoked' };
   }
@@ -131,7 +131,7 @@ function formatDate(value: null | string) {
   return value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '长期有效';
 }
 
-function formatMaxUses(invitation: TenantInvitation) {
+function formatMaxUses(invitation: OrganizationInvitation) {
   if (invitation.maxUses === null) {
     return `${invitation.usedCount} / 不限`;
   }
@@ -155,14 +155,14 @@ function resetCreateForm() {
 }
 
 async function loadPageData() {
-  if (!canManageTenantInvitations.value) {
+  if (!canManageOrganizationInvitations.value) {
     return;
   }
 
   loading.value = true;
   try {
     const [invitationResult, roleResult] = await Promise.all([
-      listTenantInvitationsApi(),
+      listOrganizationInvitationsApi(),
       getRoleList(),
     ]);
 
@@ -183,7 +183,7 @@ async function handleCreateInvitation() {
     return;
   }
 
-  const payload: CreateTenantInvitationPayload = {
+  const payload: CreateOrganizationInvitationPayload = {
     roleIds: selectedRoleIds.value,
   };
   if (maxUses.value !== undefined && maxUses.value !== null) {
@@ -198,7 +198,7 @@ async function handleCreateInvitation() {
 
   creating.value = true;
   try {
-    const result = await createTenantInvitationApi(payload);
+    const result = await createOrganizationInvitationApi(payload);
     message.success(`邀请码 ${result.invitation.code} 已创建`);
     resetCreateForm();
     await loadPageData();
@@ -227,7 +227,7 @@ async function copyText(text: string) {
   }
 }
 
-function handleRevokeInvitation(invitation: TenantInvitation) {
+function handleRevokeInvitation(invitation: OrganizationInvitation) {
   Modal.confirm({
     cancelText: '取消',
     centered: true,
@@ -237,7 +237,7 @@ function handleRevokeInvitation(invitation: TenantInvitation) {
     onOk: async () => {
       revokingInvitationId.value = invitation.id;
       try {
-        await revokeTenantInvitationApi(invitation.id);
+        await revokeOrganizationInvitationApi(invitation.id);
         message.success('邀请码已撤销');
         await loadPageData();
       } catch (error) {
@@ -256,7 +256,7 @@ function handleBack() {
 }
 
 watch(
-  canManageTenantInvitations,
+  canManageOrganizationInvitations,
   (canManage) => {
     if (canManage && !loaded.value) {
       void loadPageData();
@@ -267,10 +267,10 @@ watch(
 </script>
 
 <template>
-  <div class="tenant-invite-page">
-    <div class="tenant-invite-page__shell">
+  <div class="organization-invite-page">
+    <div class="organization-invite-page__shell">
       <button
-        class="tenant-invite-page__back"
+        class="organization-invite-page__back"
         type="button"
         @click="handleBack"
       >
@@ -278,37 +278,39 @@ watch(
         返回个人中心
       </button>
 
-      <section class="tenant-invite-hero">
+      <section class="organization-invite-hero">
         <div>
-          <p class="tenant-invite-hero__eyebrow">Tenant Invitation</p>
+          <p class="organization-invite-hero__eyebrow">
+            Organization Invitation
+          </p>
           <h1>企业邀请码</h1>
-          <p class="tenant-invite-hero__desc">
+          <p class="organization-invite-hero__desc">
             为同一企业租户生成加入凭证，受邀用户填写邀请码后会被切换到当前企业空间。
           </p>
         </div>
-        <div class="tenant-invite-hero__stats">
+        <div class="organization-invite-hero__stats">
           <span>可用邀请码</span>
           <strong>{{ activeInvitationCount }}</strong>
         </div>
       </section>
 
-      <Card v-if="!canManageTenantInvitations" :bordered="false">
+      <Card v-if="!canManageOrganizationInvitations" :bordered="false">
         <Empty description="当前账号不能管理企业邀请码">
           <template #image>
             <VbenIcon icon="mdi:shield-lock-outline" class="empty-icon" />
           </template>
-          <p class="tenant-invite-page__empty-desc">
+          <p class="organization-invite-page__empty-desc">
             只有专属租户内的 Super 角色账号可以创建、查看和撤销邀请码。
           </p>
         </Empty>
       </Card>
 
       <Spin v-else :spinning="loading">
-        <div class="tenant-invite-layout">
-          <Card :bordered="false" class="tenant-invite-card">
+        <div class="organization-invite-layout">
+          <Card :bordered="false" class="organization-invite-card">
             <template #title>创建邀请码</template>
-            <div class="tenant-invite-form">
-              <label class="tenant-invite-field">
+            <div class="organization-invite-form">
+              <label class="organization-invite-field">
                 <span>加入后角色</span>
                 <Select
                   v-model:value="selectedRoleIds"
@@ -320,8 +322,8 @@ watch(
                 />
               </label>
 
-              <div class="tenant-invite-form__grid">
-                <label class="tenant-invite-field">
+              <div class="organization-invite-form__grid">
+                <label class="organization-invite-field">
                   <span>最大使用次数</span>
                   <InputNumber
                     v-model:value="maxUses"
@@ -330,7 +332,7 @@ watch(
                     placeholder="留空表示不限次数"
                   />
                 </label>
-                <label class="tenant-invite-field">
+                <label class="organization-invite-field">
                   <span>过期时间</span>
                   <DatePicker
                     v-model:value="expiresAt"
@@ -341,7 +343,7 @@ watch(
                 </label>
               </div>
 
-              <label class="tenant-invite-field">
+              <label class="organization-invite-field">
                 <span>备注</span>
                 <Input
                   v-model:value="remark"
@@ -363,9 +365,9 @@ watch(
             </div>
           </Card>
 
-          <Card :bordered="false" class="tenant-invite-card">
+          <Card :bordered="false" class="organization-invite-card">
             <template #title>使用规则</template>
-            <div class="tenant-invite-rules">
+            <div class="organization-invite-rules">
               <p>
                 邀请码只属于当前企业租户，不会由支付建库自动生成，需要 Super
                 角色主动创建。
@@ -378,22 +380,25 @@ watch(
           </Card>
         </div>
 
-        <Card :bordered="false" class="tenant-invite-card tenant-invite-list">
+        <Card
+          :bordered="false"
+          class="organization-invite-card organization-invite-list"
+        >
           <template #title>邀请码列表</template>
           <template #extra>
             <Button size="small" @click="loadPageData">刷新</Button>
           </template>
 
           <Empty v-if="invitations.length === 0" description="暂无邀请码" />
-          <div v-else class="tenant-invite-list__grid">
+          <div v-else class="organization-invite-list__grid">
             <article
               v-for="invitation in invitations"
               :key="invitation.id"
-              class="tenant-invite-item"
+              class="organization-invite-item"
             >
-              <div class="tenant-invite-item__head">
+              <div class="organization-invite-item__head">
                 <div>
-                  <span class="tenant-invite-item__code">
+                  <span class="organization-invite-item__code">
                     {{ invitation.code }}
                   </span>
                   <Tag :color="getInvitationState(invitation).color">
@@ -416,7 +421,7 @@ watch(
                 </Space>
               </div>
 
-              <dl class="tenant-invite-item__meta">
+              <dl class="organization-invite-item__meta">
                 <div>
                   <dt>角色</dt>
                   <dd>{{ formatRoles(invitation.roleIds) }}</dd>
@@ -435,7 +440,10 @@ watch(
                 </div>
               </dl>
 
-              <p v-if="invitation.remark" class="tenant-invite-item__remark">
+              <p
+                v-if="invitation.remark"
+                class="organization-invite-item__remark"
+              >
                 {{ invitation.remark }}
               </p>
             </article>
@@ -447,7 +455,7 @@ watch(
 </template>
 
 <style scoped>
-.tenant-invite-page {
+.organization-invite-page {
   --invite-accent: #0f766e;
   --invite-accent-soft: rgb(15 118 110 / 12%);
   --invite-border: rgb(15 23 42 / 8%);
@@ -464,12 +472,12 @@ watch(
     linear-gradient(180deg, #f5f7fb 0%, #eef4f2 52%, #fff 100%);
 }
 
-.tenant-invite-page__shell {
+.organization-invite-page__shell {
   width: min(1120px, 100%);
   margin: 0 auto;
 }
 
-.tenant-invite-page__back {
+.organization-invite-page__back {
   display: inline-flex;
   gap: 8px;
   align-items: center;
@@ -481,14 +489,14 @@ watch(
   border: 0;
 }
 
-.tenant-invite-page__empty-desc {
+.organization-invite-page__empty-desc {
   max-width: 420px;
   margin: 12px auto 0;
   line-height: 1.8;
   color: var(--invite-muted);
 }
 
-.tenant-invite-hero {
+.organization-invite-hero {
   display: flex;
   gap: 24px;
   align-items: flex-end;
@@ -503,7 +511,7 @@ watch(
   box-shadow: 0 16px 42px rgb(15 23 42 / 8%);
 }
 
-.tenant-invite-hero__eyebrow {
+.organization-invite-hero__eyebrow {
   margin: 0 0 10px;
   font-size: 12px;
   font-weight: 800;
@@ -512,13 +520,13 @@ watch(
   letter-spacing: 0.2em;
 }
 
-.tenant-invite-hero h1 {
+.organization-invite-hero h1 {
   margin: 0;
   font-size: clamp(28px, 4vw, 44px);
   line-height: 1.1;
 }
 
-.tenant-invite-hero__desc {
+.organization-invite-hero__desc {
   max-width: 620px;
   margin: 14px 0 0;
   font-size: 15px;
@@ -526,7 +534,7 @@ watch(
   color: var(--invite-muted);
 }
 
-.tenant-invite-hero__stats {
+.organization-invite-hero__stats {
   min-width: 148px;
   padding: 18px;
   text-align: center;
@@ -535,55 +543,55 @@ watch(
   border-radius: 22px;
 }
 
-.tenant-invite-hero__stats span {
+.organization-invite-hero__stats span {
   display: block;
   margin-bottom: 8px;
   font-size: 13px;
   color: var(--invite-muted);
 }
 
-.tenant-invite-hero__stats strong {
+.organization-invite-hero__stats strong {
   font-size: 34px;
   color: var(--invite-accent);
 }
 
-.tenant-invite-layout {
+.organization-invite-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
   gap: 18px;
   margin-bottom: 18px;
 }
 
-.tenant-invite-card {
+.organization-invite-card {
   overflow: hidden;
   background: var(--invite-card);
   border-radius: 24px;
   box-shadow: 0 10px 30px rgb(15 23 42 / 5%);
 }
 
-.tenant-invite-form,
-.tenant-invite-rules {
+.organization-invite-form,
+.organization-invite-rules {
   display: grid;
   gap: 16px;
 }
 
-.tenant-invite-form__grid {
+.organization-invite-form__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
-.tenant-invite-field {
+.organization-invite-field {
   display: grid;
   gap: 8px;
 }
 
-.tenant-invite-field span {
+.organization-invite-field span {
   font-size: 13px;
   font-weight: 700;
 }
 
-.tenant-invite-rules p {
+.organization-invite-rules p {
   padding: 14px;
   margin: 0;
   line-height: 1.75;
@@ -593,30 +601,30 @@ watch(
   border-radius: 16px;
 }
 
-.tenant-invite-list {
+.organization-invite-list {
   margin-bottom: 24px;
 }
 
-.tenant-invite-list__grid {
+.organization-invite-list__grid {
   display: grid;
   gap: 14px;
 }
 
-.tenant-invite-item {
+.organization-invite-item {
   padding: 18px;
   background: linear-gradient(135deg, rgb(255 255 255 / 96%), #f8fbfb);
   border: 1px solid var(--invite-border);
   border-radius: 20px;
 }
 
-.tenant-invite-item__head {
+.organization-invite-item__head {
   display: flex;
   gap: 12px;
   align-items: center;
   justify-content: space-between;
 }
 
-.tenant-invite-item__code {
+.organization-invite-item__code {
   display: inline-flex;
   padding: 8px 12px;
   margin-right: 8px;
@@ -629,27 +637,27 @@ watch(
   border-radius: 999px;
 }
 
-.tenant-invite-item__meta {
+.organization-invite-item__meta {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin: 16px 0 0;
 }
 
-.tenant-invite-item__meta div {
+.organization-invite-item__meta div {
   min-width: 0;
   padding: 12px;
   background: rgb(255 255 255 / 74%);
   border-radius: 14px;
 }
 
-.tenant-invite-item__meta dt {
+.organization-invite-item__meta dt {
   margin-bottom: 6px;
   font-size: 12px;
   color: var(--invite-muted);
 }
 
-.tenant-invite-item__meta dd {
+.organization-invite-item__meta dd {
   margin: 0;
   overflow: hidden;
   font-weight: 700;
@@ -657,7 +665,7 @@ watch(
   white-space: nowrap;
 }
 
-.tenant-invite-item__remark {
+.organization-invite-item__remark {
   padding: 12px;
   margin: 14px 0 0;
   line-height: 1.7;
@@ -672,23 +680,23 @@ watch(
 }
 
 @media (max-width: 900px) {
-  .tenant-invite-page {
+  .organization-invite-page {
     padding: 16px;
   }
 
-  .tenant-invite-hero,
-  .tenant-invite-item__head {
+  .organization-invite-hero,
+  .organization-invite-item__head {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .tenant-invite-layout,
-  .tenant-invite-form__grid,
-  .tenant-invite-item__meta {
+  .organization-invite-layout,
+  .organization-invite-form__grid,
+  .organization-invite-item__meta {
     grid-template-columns: 1fr;
   }
 
-  .tenant-invite-item__meta dd {
+  .organization-invite-item__meta dd {
     white-space: normal;
   }
 }

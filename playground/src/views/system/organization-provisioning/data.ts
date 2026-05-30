@@ -1,6 +1,6 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { TenantProvisioningAdminApi } from '#/api/system/tenant-provisioning';
+import type { OrganizationProvisioningAdminApi } from '#/api/system/organization-provisioning';
 
 import { formatDateTime } from '@vben/utils';
 
@@ -42,8 +42,8 @@ export function useGridFormSchema(): VbenFormSchema[] {
 }
 
 export function useColumns(
-  onActionClick: OnActionClickFn<TenantProvisioningAdminApi.FailedManualJob>,
-): VxeTableGridOptions<TenantProvisioningAdminApi.FailedManualJob>['columns'] {
+  onActionClick: OnActionClickFn<OrganizationProvisioningAdminApi.FailedManualJob>,
+): VxeTableGridOptions<OrganizationProvisioningAdminApi.FailedManualJob>['columns'] {
   return [
     {
       field: 'id',

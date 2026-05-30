@@ -308,8 +308,8 @@ watch(
                   <strong>
                     {{
                       order.sourceOrganization?.name ||
-                      (order.tenantProvisioningJob?.sourceOrgId
-                        ? `组织 #${order.tenantProvisioningJob.sourceOrgId}`
+                      (order.organizationProvisioningJob?.sourceOrgId
+                        ? `组织 #${order.organizationProvisioningJob.sourceOrgId}`
                         : '-')
                     }}
                   </strong>
@@ -323,26 +323,28 @@ watch(
                 </div>
                 <div>
                   <span>开通任务</span>
-                  <strong v-if="order.tenantProvisioningJob">
-                    #{{ order.tenantProvisioningJob.id }}
+                  <strong v-if="order.organizationProvisioningJob">
+                    #{{ order.organizationProvisioningJob.id }}
                     <Tag
                       class="vip-refund-item__job-tag"
                       :color="
                         getProvisioningStatusView(
-                          order.tenantProvisioningJob.status,
+                          order.organizationProvisioningJob.status,
                         ).color
                       "
                     >
                       {{
                         getProvisioningStatusView(
-                          order.tenantProvisioningJob.status,
+                          order.organizationProvisioningJob.status,
                         ).label
                       }}
                     </Tag>
                   </strong>
                   <strong v-else>-</strong>
-                  <small v-if="order.tenantProvisioningJob?.targetCustomerId">
-                    {{ order.tenantProvisioningJob.targetCustomerId }}
+                  <small
+                    v-if="order.organizationProvisioningJob?.targetCustomerId"
+                  >
+                    {{ order.organizationProvisioningJob.targetCustomerId }}
                   </small>
                 </div>
               </div>

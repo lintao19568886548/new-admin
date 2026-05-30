@@ -23,7 +23,7 @@ interface CenterUserSnapshot {
   username: string;
 }
 
-interface TenantInvitationRecord {
+interface OrganizationInvitationRecord {
   code: string;
   createTime: Date | null | string;
   createdByCenterUserId: number;
@@ -38,7 +38,7 @@ interface TenantInvitationRecord {
   usedCount: number;
 }
 
-interface TenantInvitationInput {
+interface OrganizationInvitationInput {
   expiresAt?: unknown;
   maxUses?: unknown;
   remark?: unknown;
@@ -50,13 +50,13 @@ interface PreparedTenantUser {
   customerUserId: number;
 }
 
-export class TenantInvitationError extends Error {
+export class OrganizationInvitationError extends Error {
   constructor(
     message: string,
     public readonly statusCode = 400,
   ) {
     super(message);
-    this.name = 'TenantInvitationError';
+    this.name = 'OrganizationInvitationError';
   }
 }
 
@@ -67,7 +67,7 @@ function getDefaultCustomerId() {
 function normalizeCustomerId(value: unknown) {
   const customerId = String(value || '').trim();
   if (!customerId || !/^\w+$/.test(customerId)) {
-    throw new TenantInvitationError('租户 customerId 不合法');
+    throw new OrganizationInvitationError('组织 customerId 不合法');
   }
   return customerId;
 }
@@ -78,10 +78,10 @@ function normalizeInvitationCode(value: unknown) {
     .replaceAll(/[\s-]+/g, '')
     .toUpperCase();
   if (!code) {
-    throw new TenantInvitationError('邀请码不能为空');
+    throw new OrganizationInvitationError('邀请码不能为空');
   }
   if (!/^[A-Z0-9]{6,32}$/.test(code)) {
-    throw new TenantInvitationError('邀请码格式不正确');
+    throw new OrganizationInvitationError('邀请码格式不正确');
   }
   return code;
 }
@@ -108,11 +108,11 @@ function parseRoleIds(value: unknown) {
   ];
 
   if (roleIds.length === 0) {
-    throw new TenantInvitationError('创建邀请码必须指定至少一个租户角色');
+    throw new OrganizationInvitationError('创建邀请码必须指定至少一个组织角色');
   }
 
   if (roleIds.length > 20) {
-    throw new TenantInvitationError('邀请码角色数量不能超过 20 个');
+    throw new OrganizationInvitationError('邀请码角色数量不能超过 20 个');
   }
 
   return roleIds;
@@ -125,12 +125,12 @@ function parseMaxUses(value: unknown) {
 
   const maxUses = Number(value);
   if (!Number.isFinite(maxUses) || maxUses <= 0) {
-    throw new TenantInvitationError('最大使用次数必须为正整数');
+    throw new OrganizationInvitationError('最大使用次数必须为正整数');
   }
 
   const normalized = Math.floor(maxUses);
   if (normalized > MAX_INVITATION_USES) {
-    throw new TenantInvitationError(
+    throw new OrganizationInvitationError(
       `单个邀请码最多允许使用 ${MAX_INVITATION_USES} 次`,
     );
   }
@@ -145,11 +145,11 @@ function parseExpiresAt(value: unknown) {
 
   const expiresAt = new Date(String(value));
   if (Number.isNaN(expiresAt.getTime())) {
-    throw new TenantInvitationError('邀请码过期时间格式不正确');
+    throw new OrganizationInvitationError('邀请码过期时间格式不正确');
   }
 
   if (expiresAt.getTime() <= Date.now()) {
-    throw new TenantInvitationError('邀请码过期时间必须晚于当前时间');
+    throw new OrganizationInvitationError('邀请码过期时间必须晚于当前时间');
   }
 
   return expiresAt;
@@ -161,7 +161,7 @@ function normalizeRemark(value: unknown) {
     return null;
   }
   if (remark.length > 200) {
-    throw new TenantInvitationError('备注不能超过 200 个字符');
+    throw new OrganizationInvitationError('备注不能超过 200 个字符');
   }
   return remark;
 }
@@ -191,7 +191,7 @@ function parseStoredRoleIds(value: unknown) {
     .map((item) => Math.floor(item));
 }
 
-function serializeInvitation(record: TenantInvitationRecord) {
+function serializeInvitation(record: OrganizationInvitationRecord) {
   return {
     code: record.code,
     createTime: serializeDate(record.createTime),
@@ -231,7 +231,7 @@ async function queryInvitationByCode(
   code: string,
   db: CenterDb = systemDbClient,
 ) {
-  const rows = await db.$queryRaw<TenantInvitationRecord[]>(Prisma.sql`
+  const rows = await db.$queryRaw<OrganizationInvitationRecord[]>(Prisma.sql`
     ${invitationSelectSql()}
     WHERE code = ${code}
     LIMIT 1
@@ -240,7 +240,7 @@ async function queryInvitationByCode(
 }
 
 async function queryInvitationByCodeForUpdate(code: string, db: CenterDb) {
-  const rows = await db.$queryRaw<TenantInvitationRecord[]>(Prisma.sql`
+  const rows = await db.$queryRaw<OrganizationInvitationRecord[]>(Prisma.sql`
     ${invitationSelectSql()}
     WHERE code = ${code}
     LIMIT 1
@@ -278,8 +278,8 @@ async function validateTargetRoles(params: {
     (id) => !existingRoleIds.has(id),
   );
   if (missingRoleIds.length > 0) {
-    throw new TenantInvitationError(
-      `租户角色不存在或已停用: ${missingRoleIds.join(', ')}`,
+    throw new OrganizationInvitationError(
+      `组织角色不存在或已停用: ${missingRoleIds.join(', ')}`,
     );
   }
 }
@@ -292,14 +292,17 @@ async function resolveManageableCustomer(customerId: string) {
   });
 
   if (!customer || Number(customer.status ?? 1) !== 1) {
-    throw new TenantInvitationError('租户不存在或已停用', 404);
+    throw new OrganizationInvitationError('组织空间不存在或已停用', 404);
   }
 
   if (
     normalizedCustomerId === 'public' ||
     normalizedCustomerId === getDefaultCustomerId()
   ) {
-    throw new TenantInvitationError('公共库和默认库不能创建租户邀请码', 403);
+    throw new OrganizationInvitationError(
+      '公共库和默认库不能创建组织邀请码',
+      403,
+    );
   }
 
   return {
@@ -320,7 +323,7 @@ async function prepareTenantUserForJoin(params: {
   const username = String(params.centerUser.username || '').trim();
 
   if (!username) {
-    throw new TenantInvitationError('当前账号缺少用户名，不能加入租户');
+    throw new OrganizationInvitationError('当前账号缺少用户名，不能加入组织');
   }
 
   return prismaScopeStorage.run(
@@ -347,8 +350,8 @@ async function prepareTenantUserForJoin(params: {
           select: { id: true, status: true },
         });
         if (!mappedTenantUser || Number(mappedTenantUser.status ?? 1) !== 1) {
-          throw new TenantInvitationError(
-            '当前账号在目标租户的映射异常，请联系管理员处理',
+          throw new OrganizationInvitationError(
+            '当前账号在目标组织空间的映射异常，请联系管理员处理',
             409,
           );
         }
@@ -372,8 +375,8 @@ async function prepareTenantUserForJoin(params: {
 
       if (existingTenantUser) {
         if (Number(existingTenantUser.status ?? 1) !== 1) {
-          throw new TenantInvitationError(
-            '目标租户已存在同名停用账号，请联系管理员处理',
+          throw new OrganizationInvitationError(
+            '目标组织空间已存在同名停用账号，请联系管理员处理',
             409,
           );
         }
@@ -395,8 +398,8 @@ async function prepareTenantUserForJoin(params: {
           mappedByTenantUser &&
           Number(mappedByTenantUser.centerUserId) !== centerUserId
         ) {
-          throw new TenantInvitationError(
-            '目标租户已存在同名账号，请联系管理员处理',
+          throw new OrganizationInvitationError(
+            '目标组织空间已存在同名账号，请联系管理员处理',
             409,
           );
         }
@@ -521,28 +524,28 @@ async function recordJoinFailureBestEffort(params: {
     .catch(() => undefined);
 }
 
-function assertInvitationUsable(invitation: TenantInvitationRecord) {
+function assertInvitationUsable(invitation: OrganizationInvitationRecord) {
   if (invitation.status !== 'active') {
-    throw new TenantInvitationError('邀请码已失效');
+    throw new OrganizationInvitationError('邀请码已失效');
   }
 
   const expiresAt = normalizeDateValue(invitation.expiresAt);
   if (expiresAt && expiresAt.getTime() <= Date.now()) {
-    throw new TenantInvitationError('邀请码已过期');
+    throw new OrganizationInvitationError('邀请码已过期');
   }
 
   if (
     invitation.maxUses !== null &&
     Number(invitation.usedCount) >= Number(invitation.maxUses)
   ) {
-    throw new TenantInvitationError('邀请码使用次数已用完');
+    throw new OrganizationInvitationError('邀请码使用次数已用完');
   }
 }
 
-export async function createTenantInvitation(params: {
+export async function createOrganizationInvitation(params: {
   createdByCenterUserId: number;
   customerId: string;
-  input: TenantInvitationInput;
+  input: OrganizationInvitationInput;
 }) {
   const customer = await resolveManageableCustomer(params.customerId);
   const roleIds = parseRoleIds(params.input.roleIds);
@@ -594,7 +597,7 @@ export async function createTenantInvitation(params: {
 
       return {
         invitation: serializeInvitation(invitation),
-        tenant: customer,
+        organizationSpace: customer,
       };
     } catch (error) {
       if (attempt < MAX_INVITATION_RETRY - 1) {
@@ -607,9 +610,9 @@ export async function createTenantInvitation(params: {
   throw new Error('邀请码创建失败');
 }
 
-export async function listTenantInvitations(customerId: string) {
+export async function listOrganizationInvitations(customerId: string) {
   const customer = await resolveManageableCustomer(customerId);
-  const rows = await systemDbClient.$queryRaw<TenantInvitationRecord[]>(
+  const rows = await systemDbClient.$queryRaw<OrganizationInvitationRecord[]>(
     Prisma.sql`
       ${invitationSelectSql()}
       WHERE customer_id = ${customer.customerId}
@@ -624,14 +627,14 @@ export async function listTenantInvitations(customerId: string) {
   };
 }
 
-export async function revokeTenantInvitation(params: {
+export async function revokeOrganizationInvitation(params: {
   customerId: string;
   invitationId: unknown;
 }) {
   const customer = await resolveManageableCustomer(params.customerId);
   const invitationId = Number(params.invitationId);
   if (!Number.isFinite(invitationId) || invitationId <= 0) {
-    throw new TenantInvitationError('邀请码 ID 不合法');
+    throw new OrganizationInvitationError('邀请码 ID 不合法');
   }
 
   const affected = await systemDbClient.$executeRaw(Prisma.sql`
@@ -643,20 +646,20 @@ export async function revokeTenantInvitation(params: {
   `);
 
   if (affected === 0) {
-    throw new TenantInvitationError('邀请码不存在或已失效', 404);
+    throw new OrganizationInvitationError('邀请码不存在或已失效', 404);
   }
 
   return { revoked: true };
 }
 
-export async function joinTenantByInvitationCode(params: {
+export async function joinOrganizationByInvitationCode(params: {
   centerUserId: number;
   code: unknown;
 }) {
   const code = normalizeInvitationCode(params.code);
   const centerUserId = Number(params.centerUserId);
   if (!Number.isFinite(centerUserId) || centerUserId <= 0) {
-    throw new TenantInvitationError('登录状态异常', 401);
+    throw new OrganizationInvitationError('登录状态异常', 401);
   }
 
   let createdTenantUser: null | {
@@ -674,13 +677,13 @@ export async function joinTenantByInvitationCode(params: {
     return await systemDbClient.$transaction(async (tx) => {
       const invitation = await queryInvitationByCodeForUpdate(code, tx);
       if (!invitation) {
-        throw new TenantInvitationError('邀请码不存在或已失效', 404);
+        throw new OrganizationInvitationError('邀请码不存在或已失效', 404);
       }
       assertInvitationUsable(invitation);
 
       const roleIds = parseStoredRoleIds(invitation.roleIds);
       if (roleIds.length === 0) {
-        throw new TenantInvitationError(
+        throw new OrganizationInvitationError(
           '邀请码未配置角色，请联系管理员重新创建',
           409,
         );
@@ -707,10 +710,13 @@ export async function joinTenantByInvitationCode(params: {
       ]);
 
       if (!customer || Number(customer.status ?? 1) !== 1) {
-        throw new TenantInvitationError('目标租户不存在或已停用', 404);
+        throw new OrganizationInvitationError(
+          '目标组织空间不存在或已停用',
+          404,
+        );
       }
       if (!centerUser || Number(centerUser.status ?? 1) !== 1) {
-        throw new TenantInvitationError('当前账号不存在或已停用', 401);
+        throw new OrganizationInvitationError('当前账号不存在或已停用', 401);
       }
 
       const targetCustomerId = normalizeCustomerId(invitation.customerId);
@@ -731,6 +737,8 @@ export async function joinTenantByInvitationCode(params: {
           customerId: targetCustomerId,
           customerName: String(customer.name || targetCustomerId),
           joined: true,
+          organizationSpaceId: targetCustomerId,
+          organizationSpaceName: String(customer.name || targetCustomerId),
           requiresRelogin: false,
         };
       }
@@ -740,15 +748,15 @@ export async function joinTenantByInvitationCode(params: {
         previousCustomerId !== 'public' &&
         previousCustomerId !== defaultCustomerId
       ) {
-        throw new TenantInvitationError(
-          '当前账号已属于其他租户，不能直接加入新的租户',
+        throw new OrganizationInvitationError(
+          '当前账号已属于其他组织空间，不能直接加入新的组织',
           409,
         );
       }
 
       if (previousCustomerId === defaultCustomerId) {
-        throw new TenantInvitationError(
-          '默认库账号不能通过邀请码加入租户',
+        throw new OrganizationInvitationError(
+          '默认库账号不能通过邀请码加入组织',
           403,
         );
       }
@@ -856,6 +864,8 @@ export async function joinTenantByInvitationCode(params: {
         customerId: targetCustomerId,
         customerName: String(customer.name || targetCustomerId),
         joined: true,
+        organizationSpaceId: targetCustomerId,
+        organizationSpaceName: String(customer.name || targetCustomerId),
         requiresRelogin: true,
       };
     });

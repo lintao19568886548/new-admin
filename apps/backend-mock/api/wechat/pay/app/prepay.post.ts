@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { normalizeTenantIdentityProfile } from '~/utils/customer-identity';
+import { normalizeOrganizationIdentityProfile } from '~/utils/customer-identity';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   ensureSingleOwnerSourceOrganizationForCenterUser,
@@ -15,8 +15,8 @@ import {
 import { issueVipCheckoutFlowToken } from '~/utils/vip-checkout-flow-token';
 import {
   buildVipMembershipAttach,
-  getTenantProvisioningPaymentBlockedMessage,
-  getTenantProvisioningProfileState,
+  getOrganizationProvisioningPaymentBlockedMessage,
+  getOrganizationProvisioningProfileState,
   isVipMembershipAttach,
   isVipMembershipTestPayment,
   recordVipMembershipPaymentPending,
@@ -37,25 +37,27 @@ function normalizeOptionalString(value: unknown) {
   return normalized || undefined;
 }
 
-function normalizeTenantIdentityInput(body: Record<string, unknown>) {
-  const nested =
-    body.tenantIdentity &&
-    typeof body.tenantIdentity === 'object' &&
-    !Array.isArray(body.tenantIdentity)
-      ? (body.tenantIdentity as Record<string, unknown>)
-      : {};
+function normalizeOrganizationIdentityInput(body: Record<string, unknown>) {
+  let nested: Record<string, unknown> = {};
+  if (
+    body.organizationIdentity &&
+    typeof body.organizationIdentity === 'object' &&
+    !Array.isArray(body.organizationIdentity)
+  ) {
+    nested = body.organizationIdentity as Record<string, unknown>;
+  }
 
   return {
-    city: nested.city ?? body.tenantCity,
+    city: nested.city ?? body.organizationCity,
     companyShortName:
       nested.companyShortName ??
       nested.companyName ??
-      body.tenantCompanyShortName ??
-      body.tenantCompanyName,
+      body.organizationCompanyShortName ??
+      body.organizationCompanyName,
   };
 }
 
-function hasTenantIdentityInput(input: {
+function hasOrganizationIdentityInput(input: {
   city?: unknown;
   companyShortName?: unknown;
 }) {
@@ -111,8 +113,8 @@ export default eventHandler(async (event) => {
         amount = expectedAmount;
       }
 
-      let tenantIdentity:
-        | ReturnType<typeof normalizeTenantIdentityProfile>
+      let organizationIdentity:
+        | ReturnType<typeof normalizeOrganizationIdentityProfile>
         | undefined;
       let sourceOwnedOrganization:
         | Awaited<
@@ -121,16 +123,17 @@ export default eventHandler(async (event) => {
         | undefined;
       let paymentSourceOrgId: null | number = null;
       if (customerId === 'public') {
-        const tenantIdentityInput = normalizeTenantIdentityInput(body);
+        const organizationIdentityInput =
+          normalizeOrganizationIdentityInput(body);
         const existingProvisioningState =
-          await getTenantProvisioningProfileState(
+          await getOrganizationProvisioningProfileState(
             centerUserId,
             undefined,
             customerId,
           );
         const provisioningBlockedMessage =
-          getTenantProvisioningPaymentBlockedMessage(
-            existingProvisioningState.tenantProvisioningStatus,
+          getOrganizationProvisioningPaymentBlockedMessage(
+            existingProvisioningState.organizationProvisioningStatus,
           );
         if (provisioningBlockedMessage) {
           return badRequestResponse(provisioningBlockedMessage, event);
@@ -141,16 +144,16 @@ export default eventHandler(async (event) => {
         );
 
         try {
-          let requestedTenantIdentity:
+          let requestedOrganizationIdentity:
             | undefined
             | {
                 city?: unknown;
                 companyShortName?: unknown;
               };
-          if (hasTenantIdentityInput(tenantIdentityInput)) {
-            requestedTenantIdentity = tenantIdentityInput;
+          if (hasOrganizationIdentityInput(organizationIdentityInput)) {
+            requestedOrganizationIdentity = organizationIdentityInput;
           } else if (canReuseExistingIdentity) {
-            requestedTenantIdentity = {
+            requestedOrganizationIdentity = {
               city: existingProvisioningState.targetCity,
               companyShortName:
                 existingProvisioningState.targetCompanyShortName,
@@ -159,10 +162,10 @@ export default eventHandler(async (event) => {
           sourceOwnedOrganization =
             await ensureSingleOwnerSourceOrganizationForCenterUser({
               centerUserId,
+              organizationIdentity: requestedOrganizationIdentity,
               sourceCustomerId: customerId,
-              tenantIdentity: requestedTenantIdentity,
             });
-          tenantIdentity = normalizeTenantIdentityProfile({
+          organizationIdentity = normalizeOrganizationIdentityProfile({
             city: sourceOwnedOrganization.organization.city,
             companyShortName:
               sourceOwnedOrganization.organization.companyShortName,
@@ -170,7 +173,7 @@ export default eventHandler(async (event) => {
           paymentSourceOrgId = sourceOwnedOrganization.organization.id;
         } catch (error) {
           return badRequestResponse(
-            error instanceof Error ? error.message : '专属空间信息不完整',
+            error instanceof Error ? error.message : '组织信息不完整',
             event,
           );
         }
@@ -181,11 +184,11 @@ export default eventHandler(async (event) => {
             targetCustomerId: customerId,
           });
         if (!organizationMembership) {
-          return badRequestResponse('当前租户缺少可续费组织', event);
+          return badRequestResponse('当前空间缺少可续费组织', event);
         }
         if (organizationMembership.memberRole !== 'owner') {
           return badRequestResponse(
-            '只有组织所有者可以为该组织支付会员',
+            '只有组织所有者可以为该组织开通或续费会员',
             event,
           );
         }
@@ -201,10 +204,10 @@ export default eventHandler(async (event) => {
         amountTotal: amount,
         centerUserId,
         outTradeNo,
+        organizationIdentity,
         rawAttach: attach,
         sourceCustomerId: customerId,
         sourceOrgId: paymentSourceOrgId,
-        tenantIdentity,
         username: userinfo.username,
       });
 

@@ -3,7 +3,7 @@ import { pinyin } from 'pinyin-pro';
 const CUSTOMER_ID_MAX_LENGTH = 50;
 const CUSTOMER_ID_MIN_BASE_LENGTH = 3;
 
-export interface TenantIdentityProfile {
+export interface OrganizationIdentityProfile {
   city: string;
   companyShortName: string;
 }
@@ -77,7 +77,7 @@ export function toPinyinSlug(value: string) {
     .replaceAll(/^_+|_+$/g, '');
 }
 
-export function normalizeTenantIdentityProfile(input: {
+export function normalizeOrganizationIdentityProfile(input: {
   city?: unknown;
   companyShortName?: unknown;
 }) {
@@ -85,28 +85,30 @@ export function normalizeTenantIdentityProfile(input: {
   const companyShortName = normalizeText(input.companyShortName);
 
   if (!city) {
-    throw new Error('请填写专属空间所在城市');
+    throw new Error('请填写 组织/公司 所在城市');
   }
 
   if (!companyShortName) {
-    throw new Error('请填写公司简称');
+    throw new Error('请填写 组织/公司 简称');
   }
 
   if (city.length > 30) {
-    throw new Error('专属空间所在城市不能超过 30 个字符');
+    throw new Error('所在城市不能超过 30 个字符');
   }
 
   if (companyShortName.length > 50) {
-    throw new Error('公司简称不能超过 50 个字符');
+    throw new Error('简称不能超过 50 个字符');
   }
 
   return {
     city,
     companyShortName,
-  } satisfies TenantIdentityProfile;
+  } satisfies OrganizationIdentityProfile;
 }
 
-export function buildTenantCustomerIdBase(profile: TenantIdentityProfile) {
+export function buildOrganizationCustomerIdBase(
+  profile: OrganizationIdentityProfile,
+) {
   const citySlug = toPinyinSlug(stripCitySuffix(profile.city));
   const companySlug = toPinyinSlug(profile.companyShortName);
   const base = `${citySlug}_${companySlug}`
@@ -114,20 +116,23 @@ export function buildTenantCustomerIdBase(profile: TenantIdentityProfile) {
     .replaceAll(/^_+|_+$/g, '');
 
   if (base.length < CUSTOMER_ID_MIN_BASE_LENGTH) {
-    throw new Error('城市或公司简称无法转换为有效的专属空间标识');
+    throw new Error('城市或组织简称无法转换为有效的组织空间标识');
   }
 
   return base.slice(0, CUSTOMER_ID_MAX_LENGTH).replaceAll(/_+$/g, '');
 }
 
-export function buildTenantCustomerIdCandidate(base: string, ordinal: number) {
+export function buildOrganizationCustomerIdCandidate(
+  base: string,
+  ordinal: number,
+) {
   const suffix = ordinal <= 1 ? '' : `_${ordinal}`;
   const maxBaseLength = CUSTOMER_ID_MAX_LENGTH - suffix.length;
   const truncatedBase = base.slice(0, maxBaseLength).replaceAll(/_+$/g, '');
   const candidate = `${truncatedBase}${suffix}`;
 
   if (!/^\w+$/.test(candidate)) {
-    throw new Error(`专属空间标识不合法: ${candidate}`);
+    throw new Error(`组织空间标识不合法: ${candidate}`);
   }
 
   return candidate;

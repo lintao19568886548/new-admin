@@ -18,11 +18,11 @@ function shouldPrintHelp(argv) {
 }
 
 function printHelp() {
-  console.log(`重排 failed_manual 租户开通任务
+  console.log(`重排 failed_manual 组织空间开通任务
 
 用法:
-  pnpm -F @vben/backend-mock run tenant-provisioning:requeue-failed-manual -- --job-id=123
-  pnpm -F @vben/backend-mock run tenant-provisioning:requeue-failed-manual -- --job-id=123 --execute --confirmation=requeue_failed_manual:123:target_customer_id
+  pnpm -F @vben/backend-mock run organization-provisioning:requeue-failed-manual -- --job-id=123
+  pnpm -F @vben/backend-mock run organization-provisioning:requeue-failed-manual -- --job-id=123 --execute --confirmation=requeue_failed_manual:123:target_customer_id
 
 参数:
   --job-id=<id>            必填，tenant_provisioning_job.id
@@ -122,14 +122,14 @@ function buildConfirmation(job) {
 
 function assertRequeueable(job) {
   if (!job) {
-    throw new Error('租户开通任务不存在');
+    throw new Error('组织空间开通任务不存在');
   }
   if (job.status !== 'failed_manual') {
     throw new Error(`仅允许重排 failed_manual 任务，当前状态为 ${job.status}`);
   }
   if (job.sourceCustomerId !== 'public') {
     throw new Error(
-      `仅允许重排 public -> 租户任务，当前 sourceCustomerId=${job.sourceCustomerId}`,
+      `仅允许重排 public -> 组织空间任务，当前 sourceCustomerId=${job.sourceCustomerId}`,
     );
   }
   if (!job.targetCustomerId) {

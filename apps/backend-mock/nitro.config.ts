@@ -6,7 +6,7 @@ export default defineNitroConfig({
   errorHandler: '~/error',
   node: true,
   plugins: [
-    '~/plugins/tenant-provisioning-worker',
+    '~/plugins/organization-provisioning-worker',
     '~/plugins/rental-expense-finance-worker',
     '~/plugins/vip-membership-refund-worker',
     '~/plugins/investment-radar-public-crawler',

@@ -1,6 +1,6 @@
 import { requestClient } from '#/api/request';
 
-export namespace TenantProvisioningAdminApi {
+export namespace OrganizationProvisioningAdminApi {
   export interface SerializedJob {
     completedAt: null | string;
     createTime: null | string;
@@ -70,23 +70,23 @@ export namespace TenantProvisioningAdminApi {
   }
 }
 
-export function getFailedManualTenantProvisioningJobs(limit = 50) {
-  return requestClient.get<TenantProvisioningAdminApi.FailedManualJobList>(
-    '/tenant/provisioning/failed-manual',
+export function getFailedManualOrganizationProvisioningJobs(limit = 50) {
+  return requestClient.get<OrganizationProvisioningAdminApi.FailedManualJobList>(
+    '/organization/provisioning/failed-manual',
     {
       params: { limit },
     },
   );
 }
 
-export function requeueFailedManualTenantProvisioningJob(data: {
+export function requeueFailedManualOrganizationProvisioningJob(data: {
   confirmation?: string;
   execute?: boolean;
   jobId: number;
   reason?: string;
 }) {
-  return requestClient.post<TenantProvisioningAdminApi.RequeueResult>(
-    '/tenant/provisioning/requeue-failed-manual',
+  return requestClient.post<OrganizationProvisioningAdminApi.RequeueResult>(
+    '/organization/provisioning/requeue-failed-manual',
     data,
   );
 }
