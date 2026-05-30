@@ -21,6 +21,10 @@ function isMembershipAllowedApiRequest(method: string, requestPath: string) {
     return true;
   }
 
+  if (method === 'POST' && requestPath === '/api/organization/create') {
+    return true;
+  }
+
   if (
     method === 'GET' &&
     [

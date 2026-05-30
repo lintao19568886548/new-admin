@@ -12,6 +12,7 @@ import { useUserStore } from '@vben/stores';
 
 import { Button, Checkbox, Input, message, Modal, Tag } from 'ant-design-vue';
 
+import { createSourceOrganizationApi } from '#/api/organization';
 import { joinOrganizationByInvitationCodeApi } from '#/api/organization-invitation';
 import { getOrganizationProvisioningStatus } from '#/api/wechat-pay';
 import { useAuthStore } from '#/store';
@@ -171,6 +172,7 @@ const checkoutResultModalOpen = ref(false);
 const membershipCheckoutResult = ref<MembershipCheckoutResult>('unknown');
 const organizationCity = ref('');
 const organizationCompanyShortName = ref('');
+const organizationCreateLoading = ref(false);
 const organizationIdentityTouched = ref(false);
 const organizationInvitationCode = ref('');
 const organizationInvitationTouched = ref(false);
@@ -181,6 +183,7 @@ const latestPaymentState = ref<MembershipPaymentState | null>(null);
 const latestOrganizationProvisioningStatus =
   ref<null | OrganizationProvisioningStatus>(null);
 const paymentSectionRef = ref<HTMLElement | null>(null);
+const organizationSetupRef = ref<HTMLElement | null>(null);
 const wechatOpenAppId = ref('');
 
 const userInfo = computed(() => userStore.userInfo);
@@ -258,6 +261,22 @@ const sourceOrganizationState = computed<null | SourceOrganizationState>(() =>
     latestOrganizationProvisioningStatus.value || userInfo.value,
   ),
 );
+const sourceOrganizationCount = computed(() => {
+  const record = (latestOrganizationProvisioningStatus.value ||
+    userInfo.value) as Record<string, unknown> | undefined;
+  const count = Number(record?.sourceOrganizationCount ?? 0);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+});
+const hasAnySourceOrganization = computed(
+  () =>
+    Boolean(sourceOrganizationState.value) || sourceOrganizationCount.value > 0,
+);
+const sourceOrganizationConflict = computed(
+  () =>
+    currentCustomerId.value === 'public' &&
+    !sourceOrganizationState.value &&
+    sourceOrganizationCount.value > 1,
+);
 const sourceOrganizationIdentityComplete = computed(
   () =>
     Boolean(sourceOrganizationState.value?.city?.trim()) &&
@@ -272,7 +291,28 @@ const requiresOrganizationIdentity = computed(
   () =>
     currentCustomerId.value === 'public' &&
     !sourceOrganizationIdentityComplete.value &&
+    (!hasAnySourceOrganization.value ||
+      Boolean(sourceOrganizationState.value)) &&
     !profileOrganizationProvisioningState.value,
+);
+const canCreateSourceOrganization = computed(
+  () =>
+    currentCustomerId.value === 'public' &&
+    !hasAnySourceOrganization.value &&
+    !profileOrganizationProvisioningState.value,
+);
+const canSaveSourceOrganizationIdentity = computed(
+  () =>
+    currentCustomerId.value === 'public' &&
+    Boolean(sourceOrganizationState.value) &&
+    sourceOrganizationState.value?.memberRole === 'owner' &&
+    !sourceOrganizationIdentityComplete.value &&
+    !profileOrganizationProvisioningState.value,
+);
+const canSetupSourceOrganization = computed(
+  () =>
+    canCreateSourceOrganization.value ||
+    canSaveSourceOrganizationIdentity.value,
 );
 const membershipScopeName = computed(() => {
   const companyShortName = (
@@ -311,10 +351,7 @@ const membershipScopeName = computed(() => {
   return '当前组织空间';
 });
 const canJoinExistingOrganization = computed(
-  () =>
-    currentCustomerId.value === 'public' &&
-    !sourceOrganizationState.value &&
-    !profileOrganizationProvisioningState.value,
+  () => canCreateSourceOrganization.value,
 );
 const organizationInvitationError = computed(() => {
   if (!canJoinExistingOrganization.value) {
@@ -377,6 +414,10 @@ const payButtonText = computed(() => {
     );
   }
 
+  if (sourceOrganizationConflict.value) {
+    return '请选择一个组织';
+  }
+
   if (!sourceOrganizationPaymentAllowed.value) {
     return '仅组织所有者可支付';
   }
@@ -391,7 +432,9 @@ const payButtonDisabled = computed(
   () =>
     payLoading.value ||
     wechatConfigLoading.value ||
+    organizationCreateLoading.value ||
     organizationProvisioningPaymentBlocked.value ||
+    sourceOrganizationConflict.value ||
     !sourceOrganizationPaymentAllowed.value ||
     !wechatOpenAppId.value ||
     !appPaySupported.value,
@@ -404,6 +447,10 @@ const paymentAgreementHint = computed(() => {
     );
   }
 
+  if (sourceOrganizationConflict.value) {
+    return '当前账号绑定多个组织，请先联系管理员确认要开通或续费的组织。';
+  }
+
   if (!sourceOrganizationPaymentAllowed.value) {
     return '当前账号是组织成员，只有组织所有者可以为该组织开通或续费会员。';
   }
@@ -413,7 +460,7 @@ const paymentAgreementHint = computed(() => {
   }
 
   if (requiresOrganizationIdentity.value) {
-    return '支付前请填写组织信息，并阅读勾选相关协议。';
+    return '可先免费创建组织空间；直接支付时也会使用这份组织信息。';
   }
 
   return '支付前请先阅读并勾选相关协议。';
@@ -885,9 +932,8 @@ function handleContactSupport() {
   message.info('如支付遇到问题，请联系客服处理；组织会员开通以订单状态为准。');
 }
 
-function handleMobileCheckoutNavigate() {
-  const paymentSection = paymentSectionRef.value;
-  if (!paymentSection) {
+function scrollToPageElement(element: HTMLElement | null) {
+  if (!element) {
     return;
   }
 
@@ -897,8 +943,16 @@ function handleMobileCheckoutNavigate() {
     ? 'auto'
     : 'smooth';
 
-  paymentSection.focus({ preventScroll: true });
-  paymentSection.scrollIntoView({ behavior, block: 'start' });
+  element.focus({ preventScroll: true });
+  element.scrollIntoView({ behavior, block: 'start' });
+}
+
+function handleOrganizationSetupNavigate() {
+  scrollToPageElement(organizationSetupRef.value || paymentSectionRef.value);
+}
+
+function handleMobileCheckoutNavigate() {
+  scrollToPageElement(paymentSectionRef.value);
 }
 
 function applyOrganizationIdentityDraft(value: null | object | undefined) {
@@ -940,8 +994,57 @@ function validateOrganizationIdentity() {
     return true;
   }
 
-  handleMobileCheckoutNavigate();
+  handleOrganizationSetupNavigate();
   return false;
+}
+
+async function handleCreateSourceOrganization() {
+  if (organizationCreateLoading.value || !canSetupSourceOrganization.value) {
+    return;
+  }
+
+  if (!validateOrganizationIdentity()) {
+    return;
+  }
+
+  organizationCreateLoading.value = true;
+  const creatingNewOrganization = canCreateSourceOrganization.value;
+  try {
+    const result = await createSourceOrganizationApi({
+      organizationIdentity: {
+        city: organizationCity.value.trim(),
+        companyShortName: organizationCompanyShortName.value.trim(),
+      },
+    });
+
+    latestOrganizationProvisioningStatus.value = {
+      currentCustomerId: currentCustomerId.value,
+      isOrganizationProvisioning: false,
+      organizationProvisioningStatus: 'none',
+      sourceCustomerId: currentCustomerId.value,
+      sourceOrganization: result.sourceOrganization,
+      sourceOrganizationCount: result.sourceOrganizationCount,
+    };
+
+    await Promise.all([
+      authStore.fetchUserInfo().catch((error) => {
+        console.warn('创建组织后刷新用户信息失败:', error);
+      }),
+      refreshOrganizationProvisioningStatus().catch((error) => {
+        console.warn('创建组织后刷新组织状态失败:', error);
+      }),
+    ]);
+
+    message.success(
+      creatingNewOrganization
+        ? `${result.sourceOrganization.name || '组织空间'}已创建`
+        : '组织信息已保存',
+    );
+  } catch (error) {
+    console.error('创建组织空间失败:', error);
+  } finally {
+    organizationCreateLoading.value = false;
+  }
 }
 
 async function handleJoinExistingOrganization() {
@@ -1303,6 +1406,9 @@ onMounted(() => {
   void refreshOrganizationProvisioningStatus().catch((error) => {
     console.warn('读取组织空间信息草稿失败:', error);
   });
+  if (route.query.section === 'org') {
+    window.setTimeout(handleOrganizationSetupNavigate, 80);
+  }
 });
 </script>
 
@@ -1325,6 +1431,65 @@ onMounted(() => {
         <div class="pay-alert__scope">
           <span>当前仍可访问</span>
           <strong>{{ RESTRICTED_PAGE_LABEL }}</strong>
+        </div>
+      </section>
+
+      <section
+        v-if="requiresOrganizationIdentity"
+        ref="organizationSetupRef"
+        class="organization-setup-card organization-identity-card"
+        tabindex="-1"
+      >
+        <div>
+          <p class="pay-card__eyebrow">Organization</p>
+          <h3>
+            {{ canCreateSourceOrganization ? '创建组织空间' : '补全组织信息' }}
+          </h3>
+          <p>
+            {{
+              canCreateSourceOrganization
+                ? '组织空间可以先创建，后续再由所有者按需要开通或续费组织会员。'
+                : '补全后可以由组织所有者开通或续费组织会员。'
+            }}
+          </p>
+        </div>
+        <label class="organization-identity-field">
+          <span>所在城市</span>
+          <Input
+            v-model:value="organizationCity"
+            placeholder="如 深圳市"
+            @blur="organizationIdentityTouched = true"
+          />
+        </label>
+        <label class="organization-identity-field">
+          <span>公司简称</span>
+          <Input
+            v-model:value="organizationCompanyShortName"
+            placeholder="如 腾讯"
+            @blur="organizationIdentityTouched = true"
+            @press-enter="handleCreateSourceOrganization"
+          />
+        </label>
+        <p
+          v-if="organizationIdentityTouched && organizationIdentityError"
+          class="organization-identity-card__error"
+        >
+          {{ organizationIdentityError }}
+        </p>
+        <div
+          v-if="canSetupSourceOrganization"
+          class="organization-identity-card__actions"
+        >
+          <Button
+            block
+            type="primary"
+            :loading="organizationCreateLoading"
+            @click="handleCreateSourceOrganization"
+          >
+            {{
+              canCreateSourceOrganization ? '免费创建组织空间' : '保存组织信息'
+            }}
+          </Button>
         </div>
       </section>
 
@@ -1491,41 +1656,6 @@ onMounted(() => {
                 <span>微信流水号</span>
                 <span>{{ latestPaymentState.transactionId }}</span>
               </div>
-            </div>
-
-            <div
-              v-if="requiresOrganizationIdentity"
-              class="organization-identity-card"
-            >
-              <div>
-                <h3>组织信息</h3>
-                <p>
-                  用于生成独立数据库标识，如
-                  深圳市腾讯计算机系统有限公司，填深圳市、腾讯
-                </p>
-              </div>
-              <label class="organization-identity-field">
-                <span>所在城市</span>
-                <Input
-                  v-model:value="organizationCity"
-                  placeholder="如 深圳市"
-                  @blur="organizationIdentityTouched = true"
-                />
-              </label>
-              <label class="organization-identity-field">
-                <span>公司简称</span>
-                <Input
-                  v-model:value="organizationCompanyShortName"
-                  placeholder="如 腾讯"
-                  @blur="organizationIdentityTouched = true"
-                />
-              </label>
-              <p
-                v-if="organizationIdentityTouched && organizationIdentityError"
-                class="organization-identity-card__error"
-              >
-                {{ organizationIdentityError }}
-              </p>
             </div>
 
             <div class="order-card__agreement">
@@ -2018,6 +2148,15 @@ onMounted(() => {
   border-radius: 20px;
 }
 
+.organization-setup-card {
+  scroll-margin-top: 18px;
+}
+
+.organization-setup-card:focus {
+  outline: 2px solid rgb(23 100 255 / 38%);
+  outline-offset: 4px;
+}
+
 .organization-invitation-card {
   display: grid;
   gap: 14px;
@@ -2068,6 +2207,11 @@ onMounted(() => {
 
 .organization-identity-card__error {
   color: #d4380d !important;
+}
+
+.organization-identity-card__actions {
+  display: flex;
+  gap: 12px;
 }
 
 .order-card__agreement {

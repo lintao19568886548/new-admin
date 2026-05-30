@@ -47,15 +47,61 @@ const specialCustomerIds = new Set(['center', 'default', 'public']);
 const currentCustomerId = computed(() =>
   String((userInfo.value as any)?.customerId || ''),
 );
+const ORGANIZATION_PROVISIONING_BLOCKING_STATUSES = new Set([
+  'failed_manual',
+  'failed_retryable',
+  'pending',
+  'provisioning',
+]);
 const currentUserRoles = computed(() => {
   const roles = (userInfo.value as any)?.roles;
   return Array.isArray(roles) ? roles.map(String) : [];
+});
+const sourceOrganizationState = computed(() => {
+  const record = userInfo.value as Record<string, unknown> | undefined;
+  const sourceOrganization = record?.sourceOrganization;
+  if (!sourceOrganization || typeof sourceOrganization !== 'object') {
+    return null;
+  }
+
+  const organizationRecord = sourceOrganization as Record<string, unknown>;
+  const id = Number(organizationRecord.id);
+  const sourceCustomerId = readStringField(
+    organizationRecord,
+    'sourceCustomerId',
+  );
+  if (!Number.isInteger(id) || id <= 0 || !sourceCustomerId) {
+    return null;
+  }
+
+  return {
+    id,
+    sourceCustomerId,
+  };
+});
+const sourceOrganizationCount = computed(() => {
+  const record = userInfo.value as Record<string, unknown> | undefined;
+  const count = Number(record?.sourceOrganizationCount ?? 0);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+});
+const organizationProvisioningStatus = computed(() => {
+  const record = userInfo.value as Record<string, unknown> | undefined;
+  return readStringField(record || {}, 'organizationProvisioningStatus');
 });
 const canManageOrganizationInvitations = computed(
   () =>
     currentUserRoles.value.includes('Super') &&
     Boolean(currentCustomerId.value) &&
     !['default', 'public'].includes(currentCustomerId.value),
+);
+const canCreateOrganizationSpace = computed(
+  () =>
+    currentCustomerId.value === 'public' &&
+    !sourceOrganizationState.value &&
+    sourceOrganizationCount.value === 0 &&
+    !ORGANIZATION_PROVISIONING_BLOCKING_STATUSES.has(
+      organizationProvisioningStatus.value,
+    ),
 );
 const membershipStatusBar = computed(() => {
   const record = userInfo.value as Record<string, unknown> | undefined;
@@ -364,6 +410,10 @@ function handleOpenVipMembership() {
   void router.push({ name: 'ProfileVipMembership' });
 }
 
+function handleOpenOrganizationCreate() {
+  void router.push({ name: 'ProfileVipMembership', query: { section: 'org' } });
+}
+
 function handleOpenOrganizationInvitations() {
   void router.push({ name: 'ProfileOrganizationInvitations' });
 }
@@ -402,6 +452,15 @@ const actions = computed(() => {
     //   icon: UserRoundPen,
     //   title: '修改个人信息',
     // },
+    ...(canCreateOrganizationSpace.value
+      ? [
+          {
+            handler: handleOpenOrganizationCreate,
+            icon: 'mdi:domain-plus',
+            title: '创建组织空间',
+          },
+        ]
+      : []),
     {
       handler: handleOpenVipMembership,
       icon: 'mdi:crown-outline',
