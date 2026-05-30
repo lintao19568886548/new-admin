@@ -5,6 +5,7 @@ import {
   assertCenterUserCanLeaveCustomerOrganizations,
   assertOrganizationRolesRequireActiveMembership,
   deactivateCenterUserCustomerOrganizationMemberships,
+  ensureLegacyOrganizationMembershipsForRoleAssignment,
   OrganizationLifecycleError,
   removeOrganizationRolesForUser,
   syncSourceOrganizationMembershipsAfterRoleChange,
@@ -136,7 +137,11 @@ export default eventHandler(async (event) => {
     : null;
   const statusToWrite =
     nextStatus === null ? Number(tenantUser.status ?? 1) : nextStatus;
+  let createdCenterUserId: null | number = null;
+  let createdOrganizationMemberIds: number[] = [];
   let deactivatedOrganizationIds: number[] = [];
+  let ensuredRoleAssignmentOrganizationIds: number[] = [];
+  let tenantTransactionCommitted = false;
 
   try {
     if (statusToWrite === 0 && centerUser?.id) {
@@ -146,11 +151,60 @@ export default eventHandler(async (event) => {
       });
     }
 
+    let centerUserId = centerUser?.id ? Number(centerUser.id) : null;
+    const shouldBumpTokenVersion =
+      Boolean(hashedPassword) || statusToWrite === 0;
+
+    if (
+      !centerUserId &&
+      statusToWrite !== 0 &&
+      nextRoleIds &&
+      nextRoleIds.length > 0
+    ) {
+      const createdCenterUser = await systemDbClient.user.create({
+        data: {
+          customerType: customerId,
+          password: hashedPassword || tenantUser.password,
+          phone: nextPhone || null,
+          realName: nextRealName,
+          status: statusToWrite,
+          tokenVersion: 1,
+          username: tenantUser.username,
+        },
+        select: { id: true },
+      });
+      centerUserId = Number(createdCenterUser.id);
+      createdCenterUserId = centerUserId;
+    }
+
     await prismaScopeStorage.run({ customerId }, async () =>
       prismaClient.$transaction(async (prisma) => {
-        if (statusToWrite !== 0 && nextRoleIds) {
+        if (statusToWrite !== 0 && nextRoleIds && centerUserId) {
+          const membershipResult =
+            await ensureLegacyOrganizationMembershipsForRoleAssignment({
+              centerUserId,
+              prisma,
+              roleIds: nextRoleIds,
+              sourceCustomerId: customerId,
+              sourceUserId: id,
+            });
+          ensuredRoleAssignmentOrganizationIds = [
+            ...ensuredRoleAssignmentOrganizationIds,
+            ...membershipResult.ensuredOrganizationIds,
+          ];
+          createdOrganizationMemberIds = [
+            ...createdOrganizationMemberIds,
+            ...membershipResult.createdMemberIds,
+          ];
           await assertOrganizationRolesRequireActiveMembership({
-            centerUserId: centerUser?.id ? Number(centerUser.id) : null,
+            centerUserId,
+            prisma,
+            roleIds: nextRoleIds,
+            sourceCustomerId: customerId,
+          });
+        } else if (statusToWrite !== 0 && nextRoleIds) {
+          await assertOrganizationRolesRequireActiveMembership({
+            centerUserId,
             prisma,
             roleIds: nextRoleIds,
             sourceCustomerId: customerId,
@@ -194,10 +248,7 @@ export default eventHandler(async (event) => {
         }
       }),
     );
-
-    let centerUserId = centerUser?.id ? Number(centerUser.id) : null;
-    const shouldBumpTokenVersion =
-      Boolean(hashedPassword) || statusToWrite === 0;
+    tenantTransactionCommitted = true;
 
     if (centerUserId) {
       await systemDbClient.user.update({
@@ -227,6 +278,7 @@ export default eventHandler(async (event) => {
         select: { id: true },
       });
       centerUserId = Number(createdCenterUser.id);
+      createdCenterUserId = centerUserId;
     }
 
     if (shouldBumpTokenVersion && centerUserId) {
@@ -249,6 +301,7 @@ export default eventHandler(async (event) => {
       } else if (nextRoleIds) {
         await syncSourceOrganizationMembershipsAfterRoleChange({
           centerUserId,
+          excludeOrganizationIds: ensuredRoleAssignmentOrganizationIds,
           roleIds: nextRoleIds,
           sourceCustomerId: customerId,
         });
@@ -294,6 +347,23 @@ export default eventHandler(async (event) => {
       tenantUserId: id,
     });
   } catch (error) {
+    if (!tenantTransactionCommitted) {
+      if (createdOrganizationMemberIds.length > 0) {
+        await systemDbClient.organizationMember
+          .deleteMany({
+            where: { id: { in: createdOrganizationMemberIds } },
+          })
+          .catch(() => undefined);
+      }
+      if (createdCenterUserId) {
+        await systemDbClient.user
+          .delete({
+            where: { id: createdCenterUserId },
+          })
+          .catch(() => undefined);
+      }
+    }
+
     if (error instanceof OrganizationLifecycleError) {
       return badRequestResponse(error.message, event, error.statusCode);
     }

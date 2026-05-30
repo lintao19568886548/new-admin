@@ -22,7 +22,7 @@ function shouldPrintHelp(argv) {
 }
 
 function printHelp() {
-  console.log(`回填组织默认员工角色和成员 user_role 绑定
+  console.log(`回填组织角色基线
 
 用法:
   pnpm -F @vben/backend-mock run organization:backfill-default-roles
@@ -37,10 +37,12 @@ function printHelp() {
   --help, -h            输出帮助
 
 说明:
-  - 脚本补业务库 role(scope=organization, name=员工, organization_id=?)。
-  - 普通 active 成员如果没有组织角色，则绑定默认员工角色。
+  - public 组织补业务库 role(scope=organization, name=员工, organization_id=?)。
+  - legacy 旧租户组织会把租户库既有 role 采纳为当前 organization 的组织角色。
+  - 普通 active 成员如果没有任何可迁移角色，则绑定默认员工角色兜底。
   - owner 不绑定员工角色，owner 迁移时映射为目标租户 Super。
-  - 默认员工角色不授予 menu/code/park 权限。`);
+  - 默认员工角色不授予 menu/code/park 权限。
+  - 非 public 来源只允许处理 legacy organization，避免误改新租户角色。`);
 }
 
 function parseArgs(argv) {
@@ -210,6 +212,10 @@ function buildConfirmation(plan) {
           centerUserId: item.centerUserId,
           defaultRoleId: item.defaultRoleId,
           organizationId: item.organizationId,
+          previousOrganizationId: item.previousOrganizationId,
+          previousScope: item.previousScope,
+          roleId: item.roleId,
+          roleName: item.roleName,
           sourceCustomerId: item.sourceCustomerId,
           sourceUserId: item.sourceUserId,
         })),
@@ -238,6 +244,7 @@ async function listOrganizations(centerConnection, options) {
       SELECT
         o.id,
         o.source_customer_id AS sourceCustomerId,
+        o.legacy,
         c.db_name AS dbName
       FROM organization o
       LEFT JOIN customer c ON c.customer_id = o.source_customer_id
@@ -246,6 +253,58 @@ async function listOrganizations(centerConnection, options) {
     `,
     params,
   );
+}
+
+function isTruthyDatabaseFlag(value) {
+  return value === true || value === 1 || value === '1';
+}
+
+async function assertLegacyOrganizationCanAdoptRoles(
+  centerConnection,
+  organization,
+) {
+  if (!isTruthyDatabaseFlag(organization.legacy)) {
+    throw new Error(
+      `非 public 来源只允许处理 legacy organization: organizationId=${organization.id}, sourceCustomerId=${organization.sourceCustomerId}`,
+    );
+  }
+
+  const mappings = await centerConnection.query(
+    `
+      SELECT
+        target_customer_id AS targetCustomerId,
+        target_db_name AS targetDbName,
+        legacy
+      FROM organization_tenant_mapping
+      WHERE organization_id = ?
+        AND status = 'active'
+      ORDER BY id ASC
+    `,
+    [Number(organization.id)],
+  );
+
+  if (mappings.length !== 1) {
+    throw new Error(
+      `legacy organization 必须且只能有一个 active 租户映射: organizationId=${organization.id}, activeMappingCount=${mappings.length}`,
+    );
+  }
+
+  const mapping = mappings[0];
+  if (
+    String(mapping.targetCustomerId || '') !== organization.sourceCustomerId
+  ) {
+    throw new Error(
+      `legacy organization 映射目标必须等于来源租户: organizationId=${organization.id}, sourceCustomerId=${organization.sourceCustomerId}, targetCustomerId=${mapping.targetCustomerId}`,
+    );
+  }
+
+  if (!isTruthyDatabaseFlag(mapping.legacy)) {
+    throw new Error(
+      `legacy organization 的 active 映射缺少 legacy 标记: organizationId=${organization.id}`,
+    );
+  }
+
+  return mapping;
 }
 
 async function getDefaultRole(customerConnection, organizationId) {
@@ -262,6 +321,25 @@ async function getDefaultRole(customerConnection, organizationId) {
     [organizationId, DEFAULT_ROLE_NAME],
   );
   return rows[0] ? Number(rows[0].roleId) : null;
+}
+
+async function listRolesToAdopt(customerConnection, organizationId) {
+  return await customerConnection.query(
+    `
+      SELECT
+        role_id AS roleId,
+        name AS roleName,
+        scope AS previousScope,
+        organization_id AS previousOrganizationId,
+        status
+      FROM role
+      WHERE scope <> 'organization'
+         OR organization_id IS NULL
+         OR organization_id <> ?
+      ORDER BY role_id ASC
+    `,
+    [Number(organizationId)],
+  );
 }
 
 async function listActiveMembers(centerConnection, organization) {
@@ -339,8 +417,105 @@ async function hasOrganizationRole(customerConnection, organizationId, userId) {
   return rows.length > 0;
 }
 
+async function hasAnyRole(customerConnection, userId) {
+  const rows = await customerConnection.query(
+    `
+      SELECT user_role.id
+      FROM user_role
+      INNER JOIN role ON role.role_id = user_role.role_id
+      WHERE user_role.user_id = ?
+      LIMIT 1
+    `,
+    [Number(userId)],
+  );
+  return rows.length > 0;
+}
+
+function pushCreateDefaultRoleOnce(plan, params) {
+  const exists = plan.some(
+    (item) =>
+      item.action === 'create_default_role' &&
+      item.organizationId === params.organizationId &&
+      item.sourceCustomerId === params.sourceCustomerId,
+  );
+  if (exists) {
+    return;
+  }
+
+  plan.push({
+    action: 'create_default_role',
+    organizationId: params.organizationId,
+    roleName: DEFAULT_ROLE_NAME,
+    sourceCustomerId: params.sourceCustomerId,
+  });
+}
+
+async function buildDefaultRolePlanForMembers(params) {
+  const {
+    centerConnection,
+    customerConnection,
+    defaultRoleId,
+    organizationId,
+    plan,
+    sourceCustomerId,
+    useAnyRoleAsMigratable,
+  } = params;
+  const members = await listActiveMembers(centerConnection, {
+    id: organizationId,
+    sourceCustomerId,
+  });
+
+  for (const member of members) {
+    if (String(member.memberRole || '') === 'owner') {
+      continue;
+    }
+
+    const sourceUserId = await resolveSourceUserId(customerConnection, member);
+    if (!sourceUserId) {
+      plan.push({
+        centerUserId: Number(member.centerUserId),
+        action: 'skip_missing_source_user',
+        organizationId,
+        sourceCustomerId,
+      });
+      continue;
+    }
+
+    const hasRole = useAnyRoleAsMigratable
+      ? await hasAnyRole(customerConnection, sourceUserId)
+      : await hasOrganizationRole(
+          customerConnection,
+          organizationId,
+          sourceUserId,
+        );
+    if (hasRole) {
+      continue;
+    }
+
+    if (!defaultRoleId) {
+      pushCreateDefaultRoleOnce(plan, {
+        organizationId,
+        sourceCustomerId,
+      });
+    }
+    plan.push({
+      action: 'bind_default_role',
+      centerUserId: Number(member.centerUserId),
+      defaultRoleId,
+      organizationId,
+      sourceCustomerId,
+      sourceUserId,
+    });
+  }
+}
+
 async function buildPlanForOrganization(centerConnection, organization) {
   const sourceCustomerId = normalizeCustomerId(organization.sourceCustomerId);
+  const organizationId = Number(organization.id);
+  if (sourceCustomerId !== 'public') {
+    await assertLegacyOrganizationCanAdoptRoles(centerConnection, organization);
+  }
+
   const customerConnection = await openConnection(
     resolveCustomerDbUrl({
       customerId: sourceCustomerId,
@@ -348,63 +523,44 @@ async function buildPlanForOrganization(centerConnection, organization) {
     }),
   );
   try {
-    const organizationId = Number(organization.id);
     const defaultRoleId = await getDefaultRole(
       customerConnection,
       organizationId,
     );
     const plan = [];
 
-    if (!defaultRoleId) {
-      plan.push({
-        action: 'create_default_role',
-        organizationId,
-        roleName: DEFAULT_ROLE_NAME,
-        sourceCustomerId,
-      });
-    }
-
-    const members = await listActiveMembers(centerConnection, {
-      id: organizationId,
-      sourceCustomerId,
-    });
-    for (const member of members) {
-      if (String(member.memberRole || '') === 'owner') {
-        continue;
-      }
-
-      const sourceUserId = await resolveSourceUserId(
+    if (sourceCustomerId !== 'public') {
+      const rolesToAdopt = await listRolesToAdopt(
         customerConnection,
-        member,
+        organizationId,
       );
-      if (!sourceUserId) {
+      for (const role of rolesToAdopt) {
         plan.push({
-          action: 'skip_missing_source_user',
-          centerUserId: Number(member.centerUserId),
+          action: 'adopt_legacy_role',
           organizationId,
+          previousOrganizationId: numberOrNull(role.previousOrganizationId),
+          previousScope: String(role.previousScope || ''),
+          roleId: Number(role.roleId),
+          roleName: role.roleName ? String(role.roleName) : null,
           sourceCustomerId,
         });
-        continue;
       }
-
-      const hasRole = await hasOrganizationRole(
-        customerConnection,
-        organizationId,
-        sourceUserId,
-      );
-      if (hasRole) {
-        continue;
-      }
-
-      plan.push({
-        action: 'bind_default_role',
-        centerUserId: Number(member.centerUserId),
-        defaultRoleId,
+    } else if (!defaultRoleId) {
+      pushCreateDefaultRoleOnce(plan, {
         organizationId,
         sourceCustomerId,
-        sourceUserId,
       });
     }
+
+    await buildDefaultRolePlanForMembers({
+      centerConnection,
+      customerConnection,
+      defaultRoleId,
+      organizationId,
+      plan,
+      sourceCustomerId,
+      useAnyRoleAsMigratable: sourceCustomerId !== 'public',
+    });
 
     return plan;
   } finally {
@@ -425,6 +581,8 @@ async function buildPlan(centerConnection, options) {
 
 function summarizePlan(plan) {
   return {
+    adoptLegacyRole: plan.filter((item) => item.action === 'adopt_legacy_role')
+      .length,
     bindDefaultRole: plan.filter((item) => item.action === 'bind_default_role')
       .length,
     createDefaultRole: plan.filter(
@@ -463,6 +621,7 @@ async function findOrganization(centerConnection, organizationId) {
       SELECT
         o.id,
         o.source_customer_id AS sourceCustomerId,
+        o.legacy,
         c.db_name AS dbName
       FROM organization o
       LEFT JOIN customer c ON c.customer_id = o.source_customer_id
@@ -503,6 +662,9 @@ async function executePlanGroup(centerConnection, group) {
   if (!organization) {
     throw new Error(`组织不存在: ${group.organizationId}`);
   }
+  if (group.sourceCustomerId !== 'public') {
+    await assertLegacyOrganizationCanAdoptRoles(centerConnection, organization);
+  }
 
   const customerConnection = await openConnection(
     resolveCustomerDbUrl({
@@ -512,13 +674,30 @@ async function executePlanGroup(centerConnection, group) {
   );
   await customerConnection.beginTransaction();
   try {
-    const defaultRoleId = await ensureDefaultRole(
-      customerConnection,
-      group.organizationId,
+    const needsDefaultRole = group.items.some((item) =>
+      ['bind_default_role', 'create_default_role'].includes(item.action),
     );
+    const defaultRoleId = needsDefaultRole
+      ? await ensureDefaultRole(customerConnection, group.organizationId)
+      : null;
     const results = [];
 
     for (const item of group.items) {
+      if (item.action === 'adopt_legacy_role') {
+        await customerConnection.query(
+          `
+            UPDATE role
+            SET scope = 'organization',
+                organization_id = ?,
+                update_time = NOW()
+            WHERE role_id = ?
+          `,
+          [group.organizationId, Number(item.roleId)],
+        );
+        results.push(item);
+        continue;
+      }
+
       if (item.action === 'create_default_role') {
         results.push({
           ...item,
