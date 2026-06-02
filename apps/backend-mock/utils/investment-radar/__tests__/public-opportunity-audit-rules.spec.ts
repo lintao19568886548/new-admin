@@ -6,6 +6,7 @@ import {
   buildAuditScopeParams,
   buildAuditScopeSql,
   buildIssueReasons,
+  buildPublishedObservedAtSql,
   buildStrictEffectiveOpportunityWhereParams,
   buildStrictEffectiveOpportunityWhereSql,
   CREATED_PUBLISHED_TOLERANCE_DAYS,
@@ -24,7 +25,7 @@ import {
 describe('public opportunity audit rules', () => {
   it('keeps audit constants aligned with Guangdong public crawl quality policy', () => {
     expect(AUDIT_PREVIEW_LIMIT).toBe(50);
-    expect(FUTURE_PUBLISHED_TOLERANCE_DAYS).toBe(1);
+    expect(FUTURE_PUBLISHED_TOLERANCE_DAYS).toBe(2);
     expect(CREATED_PUBLISHED_TOLERANCE_DAYS).toBe(7);
     expect(EARLIEST_REASONABLE_PUBLISHED_AT).toBe('2000-01-01 00:00:00');
     expect(TRACEABLE_SOURCE_URL_PATTERN).toBe('^https?://');
@@ -38,6 +39,12 @@ describe('public opportunity audit rules', () => {
     expect(HASH_OR_DETAIL_FIELD_PATTERN).toContain('rawEvidenceText');
     expect(HASH_OR_DETAIL_FIELD_PATTERN).not.toContain('extractionPolicy');
     expect(HASH_OR_DETAIL_FIELD_PATTERN).not.toContain('publishedDateTextRaw');
+    expect(buildPublishedObservedAtSql()).toBe(
+      'COALESCE(last_synced_at, update_time, create_time)',
+    );
+    expect(buildPublishedObservedAtSql('opo')).toBe(
+      'COALESCE(opo.last_synced_at, opo.update_time, opo.create_time)',
+    );
   });
 
   it('builds SQL and params in the same order as the placeholder sequence', () => {
@@ -55,6 +62,7 @@ describe('public opportunity audit rules', () => {
     expect(sql).toContain('LOWER(TRIM(city)) NOT REGEXP ?');
     expect(sql).toContain('LOWER(TRIM(city)) REGEXP ?');
     expect(sql).toContain('END AS missingCity');
+    expect(sql).toContain('NOT REGEXP ?');
     expect(sql.indexOf("WHEN missingCity = 1 THEN 'INVALID'")).toBeLessThan(
       sql.indexOf("WHEN isGuangdong = 0 THEN 'OUT_OF_SCOPE'"),
     );
@@ -66,6 +74,7 @@ describe('public opportunity audit rules', () => {
     expect(sql).toContain("WHEN isGuangdong = 0 THEN 'OUT_OF_SCOPE'");
     expect(sql).toContain("WHEN missingSourceUrl = 1 THEN 'SOURCE_LOST'");
     expect(sql).toContain("THEN 'UNKNOWN_TIME'");
+    expect(sql).toContain('COALESCE(last_synced_at, update_time, create_time)');
     expect(sql).toContain("WHEN missingSupplyLocation = 1 THEN 'INVALID'");
     expect(sql).toContain(
       "WHEN missingHashOrDetailEvidence = 1 THEN 'INVALID'",
@@ -74,6 +83,7 @@ describe('public opportunity audit rules', () => {
       GUANGDONG_REGION_PATTERN,
       UNKNOWN_CITY_VALUE_PATTERN,
       GUANGDONG_REGION_PATTERN,
+      expect.any(String),
       UNKNOWN_CITY_VALUE_PATTERN,
       TRACEABLE_SOURCE_URL_PATTERN,
       FUTURE_PUBLISHED_TOLERANCE_DAYS,
@@ -84,6 +94,28 @@ describe('public opportunity audit rules', () => {
     ]);
   });
 
+  it('can limit repair candidates while preserving verified display state', () => {
+    const sql = buildAuditScopeSql(['EFFECTIVE']);
+
+    expect(sql).toContain("opportunity_status IN ('EFFECTIVE')");
+    expect(sql).toContain("opportunity_status IN ('EFFECTIVE', 'VERIFIED')");
+    expect(sql).not.toContain('crawler_task_item');
+  });
+
+  it('keeps Guangdong scope checks on core business fields only', () => {
+    const sql = buildStrictEffectiveOpportunityWhereSql('opo');
+    const normalizedSql = sql.replaceAll(/\s+/g, ' ');
+
+    expect(normalizedSql).toContain(
+      'opo.city, opo.district, opo.area_text, opo.title, opo.source_site, opo.source_url',
+    );
+    expect(normalizedSql).not.toContain('opo.description');
+    expect(normalizedSql).not.toContain('opo.detail_json ) REGEXP');
+    expect(buildAuditScopeSql()).not.toContain(
+      'description,\n            detail_json',
+    );
+  });
+
   it('requires visible effective pool rows to keep the key location fields', () => {
     const sql = buildStrictEffectiveOpportunityWhereSql('opo');
 
@@ -92,12 +124,21 @@ describe('public opportunity audit rules', () => {
     expect(sql).toContain('opo.source_url');
     expect(sql).toContain('opo.published_at IS NOT NULL');
     expect(sql).toContain(
+      'opo.published_at >= DATE_SUB(NOW(3), INTERVAL 180 DAY)',
+    );
+    expect(sql).toContain(
       'opo.published_at <= DATE_ADD(NOW(3), INTERVAL ? DAY)',
     );
     expect(sql).toContain('opo.published_at >= ?');
+    expect(sql).toContain(
+      'COALESCE(opo.last_synced_at, opo.update_time, opo.create_time)',
+    );
+    expect(sql).not.toContain('DATE_ADD(\n        opo.create_time');
     expect(sql).toContain('opo.city');
+    expect(sql).toContain('opo.title');
     expect(sql).toContain("TRIM(opo.city) <> ''");
     expect(sql).toContain('TRIM(opo.city) REGEXP ?');
+    expect(sql).toContain('NOT REGEXP ?');
     expect(sql).toContain("opo.opportunity_type <> 'SUPPLY'");
     expect(sql).toContain("TRIM(opo.district) <> ''");
     expect(sql).toContain('opo.detail_json');
@@ -105,6 +146,7 @@ describe('public opportunity audit rules', () => {
     expect(sql).toContain('opo.detail_json REGEXP ?');
     expect(buildStrictEffectiveOpportunityWhereParams()).toEqual([
       GUANGDONG_REGION_PATTERN,
+      expect.any(String),
       GUANGDONG_REGION_PATTERN,
       TRACEABLE_SOURCE_URL_PATTERN,
       FUTURE_PUBLISHED_TOLERANCE_DAYS,
@@ -112,6 +154,15 @@ describe('public opportunity audit rules', () => {
       CREATED_PUBLISHED_TOLERANCE_DAYS,
       HASH_OR_DETAIL_FIELD_PATTERN,
     ]);
+  });
+
+  it('keeps strict supply rows tied to labeled detail extraction evidence', () => {
+    const sql = buildStrictEffectiveOpportunityWhereSql('opo');
+
+    expect(sql).toContain("opo.opportunity_type <> 'SUPPLY'");
+    expect(sql).toContain('TRIM(opo.district) <>');
+    expect(sql).toContain('opo.detail_json REGEXP ?');
+    expect(HASH_OR_DETAIL_FIELD_PATTERN).not.toContain('extractionPolicy');
   });
 
   it('normalizes database count rows without leaking bigint or string values', () => {

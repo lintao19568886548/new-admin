@@ -1,11 +1,11 @@
 import { prismaClient } from '~/utils/db';
 
-import { externalLeadFixtures } from './external-lead-mock';
 import {
   buildExternalLeadDedupeKey,
   buildExternalLeadEvidenceHash,
   isSha256Hex,
 } from './lead-hash';
+import { assertInvestmentRadarTablesReady } from './schema-guard';
 
 type ExternalLeadStatus =
   | 'ASSIGNED'
@@ -28,7 +28,6 @@ const validStatuses = new Set<ExternalLeadStatus>([
 
 let externalLeadStorageReady: null | Promise<void> = null;
 let externalLeadSeedCheckReady: null | Promise<void> = null;
-let externalLeadSeedReady: null | Promise<void> = null;
 
 export interface ExternalLeadListParams {
   confidenceLevel?: string;
@@ -105,7 +104,9 @@ export class ExternalLeadValidationError extends Error {
 }
 
 function toJson(value: unknown) {
-  return JSON.stringify(value ?? []);
+  return JSON.stringify(value ?? [], (_key, item) =>
+    typeof item === 'bigint' ? item.toString() : item,
+  );
 }
 
 function parseJsonArray(value: unknown): string[] {
@@ -293,71 +294,7 @@ export async function ensureExternalLeadStorage() {
   }
 
   externalLeadStorageReady = (async () => {
-    await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS company_lead (
-      lead_id bigint NOT NULL AUTO_INCREMENT,
-      source_id bigint NULL DEFAULT NULL,
-      source_name varchar(100) NOT NULL,
-      source_url varchar(500) NOT NULL,
-      source_title varchar(255) NULL DEFAULT NULL,
-      source_type varchar(50) NOT NULL DEFAULT 'PUBLIC',
-      company_name varchar(200) NOT NULL,
-      lead_title varchar(255) NOT NULL,
-      summary text NULL,
-      demand_type varchar(50) NOT NULL DEFAULT 'UNKNOWN',
-      confidence_score int NOT NULL DEFAULT 0,
-      confidence_level varchar(20) NOT NULL DEFAULT 'LOW',
-      industry_name varchar(100) NULL DEFAULT NULL,
-      region_province varchar(100) NULL DEFAULT NULL,
-      region_city varchar(100) NULL DEFAULT NULL,
-      region_district varchar(100) NULL DEFAULT NULL,
-      hit_keywords text NULL,
-      evidence_count int NOT NULL DEFAULT 0,
-      status varchar(30) NOT NULL DEFAULT 'NEW',
-      owner_user_id int NULL DEFAULT NULL,
-      invalid_reason varchar(255) NULL DEFAULT NULL,
-      remark text NULL,
-      dedupe_key varchar(191) NOT NULL,
-      converted_radar_lead_id bigint NULL DEFAULT NULL,
-      converted_at datetime(3) NULL DEFAULT NULL,
-      first_seen_at datetime(3) NULL DEFAULT NULL,
-      last_seen_at datetime(3) NULL DEFAULT NULL,
-      crawled_at datetime(3) NULL DEFAULT NULL,
-      create_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      is_deleted tinyint NOT NULL DEFAULT 0,
-      PRIMARY KEY (lead_id),
-      UNIQUE KEY company_lead_dedupe_key_uq (dedupe_key),
-      KEY company_lead_company_name_idx (company_name),
-      KEY company_lead_status_idx (status),
-      KEY company_lead_source_name_idx (source_name),
-      KEY company_lead_converted_radar_lead_id_idx (converted_radar_lead_id)
-    ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
-  `);
-
-    await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS lead_evidence (
-      evidence_id bigint NOT NULL AUTO_INCREMENT,
-      lead_id bigint NOT NULL,
-      evidence_type varchar(50) NOT NULL,
-      source_title varchar(255) NULL DEFAULT NULL,
-      source_link varchar(500) NOT NULL,
-      raw_text text NULL,
-      matched_keywords text NULL,
-      matched_sentences text NULL,
-      score_delta int NOT NULL DEFAULT 0,
-      content_hash varchar(80) NOT NULL,
-      published_at datetime(3) NULL DEFAULT NULL,
-      crawled_at datetime(3) NULL DEFAULT NULL,
-      create_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      is_deleted tinyint NOT NULL DEFAULT 0,
-      PRIMARY KEY (evidence_id),
-      UNIQUE KEY lead_evidence_lead_hash_uq (lead_id, content_hash),
-      KEY lead_evidence_lead_id_idx (lead_id),
-      KEY lead_evidence_type_idx (evidence_type)
-    ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
-  `);
+    await assertInvestmentRadarTablesReady(['company_lead', 'lead_evidence']);
 
     await ensureColumn(
       'company_lead',
@@ -420,116 +357,6 @@ export async function ensureExternalLeadStorage() {
   return externalLeadStorageReady;
 }
 
-export async function seedExternalLeadFixtures() {
-  if (externalLeadSeedReady) {
-    return externalLeadSeedReady;
-  }
-
-  externalLeadSeedReady = (async () => {
-    await ensureExternalLeadStorage();
-
-    for (const fixture of externalLeadFixtures) {
-      const dedupeKey = buildExternalLeadDedupeKey({
-        companyName: fixture.companyName,
-        sourceUrl: fixture.sourceUrl,
-      });
-      await prismaClient.$executeRawUnsafe(
-        `
-        INSERT INTO company_lead (
-          source_name, source_url, source_title, source_type,
-          company_name, lead_title, summary, demand_type,
-          confidence_score, confidence_level, industry_name,
-          region_province, region_city, region_district, hit_keywords,
-          evidence_count, status, dedupe_key,
-          first_seen_at, last_seen_at, crawled_at,
-          create_time, update_time
-        )
-        VALUES (?, ?, ?, 'PUBLIC', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NEW', ?, ?, ?, ?, NOW(3), NOW(3))
-        ON DUPLICATE KEY UPDATE
-          source_title = VALUES(source_title),
-          summary = VALUES(summary),
-          confidence_score = VALUES(confidence_score),
-          confidence_level = VALUES(confidence_level),
-          hit_keywords = VALUES(hit_keywords),
-          evidence_count = VALUES(evidence_count),
-          last_seen_at = VALUES(last_seen_at),
-          crawled_at = VALUES(crawled_at),
-          update_time = NOW(3)
-      `,
-        fixture.sourceName,
-        fixture.sourceUrl,
-        fixture.sourceTitle,
-        fixture.companyName,
-        fixture.leadTitle,
-        fixture.summary,
-        fixture.demandType,
-        fixture.confidenceScore,
-        fixture.confidenceLevel,
-        fixture.industryName || null,
-        fixture.regionProvince || null,
-        fixture.regionCity || null,
-        fixture.regionDistrict || null,
-        toJson(fixture.hitKeywords),
-        fixture.evidences.length,
-        dedupeKey,
-        toNullableDate(fixture.crawledAt),
-        toNullableDate(fixture.crawledAt),
-        toNullableDate(fixture.crawledAt),
-      );
-
-      const lead = await getExternalLeadByDedupeKey(dedupeKey);
-      if (!lead) {
-        continue;
-      }
-
-      for (const evidence of fixture.evidences) {
-        const contentHash = buildExternalLeadEvidenceHash({
-          evidenceType: evidence.evidenceType,
-          rawText: evidence.rawText,
-          sourceLink: evidence.sourceLink,
-        });
-        await prismaClient.$executeRawUnsafe(
-          `
-          INSERT INTO lead_evidence (
-            lead_id, evidence_type, source_title, source_link, raw_text,
-            matched_keywords, matched_sentences, score_delta, content_hash,
-            published_at, crawled_at, create_time, update_time
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3), NOW(3))
-          ON DUPLICATE KEY UPDATE
-            source_title = VALUES(source_title),
-            raw_text = VALUES(raw_text),
-            matched_keywords = VALUES(matched_keywords),
-            matched_sentences = VALUES(matched_sentences),
-            score_delta = VALUES(score_delta),
-            published_at = VALUES(published_at),
-            crawled_at = VALUES(crawled_at),
-            update_time = NOW(3)
-        `,
-          lead.leadId,
-          evidence.evidenceType,
-          evidence.sourceTitle,
-          evidence.sourceLink,
-          evidence.rawText,
-          toJson(evidence.matchedKeywords),
-          toJson(evidence.matchedSentences),
-          evidence.scoreDelta,
-          contentHash,
-          toNullableDate(evidence.publishedAt),
-          toNullableDate(evidence.crawledAt),
-        );
-      }
-
-      await refreshExternalLeadEvidenceCount(lead.leadId);
-    }
-  })().catch((error) => {
-    externalLeadSeedReady = null;
-    throw error;
-  });
-
-  return externalLeadSeedReady;
-}
-
 async function ensureSeeded() {
   if (externalLeadSeedCheckReady) {
     return externalLeadSeedCheckReady;
@@ -537,19 +364,6 @@ async function ensureSeeded() {
 
   externalLeadSeedCheckReady = (async () => {
     await ensureExternalLeadStorage();
-    const rows = await prismaClient.$queryRawUnsafe<
-      Array<{ total: bigint | number }>
-    >(
-      `
-      SELECT COUNT(*) AS total
-      FROM company_lead
-      WHERE is_deleted = 0
-    `,
-    );
-    if (Number(rows[0]?.total || 0) > 0) {
-      return;
-    }
-    await seedExternalLeadFixtures();
   })().catch((error) => {
     externalLeadSeedCheckReady = null;
     throw error;
@@ -773,14 +587,23 @@ function buildLeadSelectSql() {
       COALESCE(u.real_name, u.username) AS ownerName,
       l.invalid_reason AS invalidReason,
       l.remark,
-      l.converted_radar_lead_id AS convertedRadarLeadId,
-      l.converted_at AS convertedAt,
+      CASE
+        WHEN radar_lead.lead_id IS NULL THEN NULL
+        ELSE l.converted_radar_lead_id
+      END AS convertedRadarLeadId,
+      CASE
+        WHEN radar_lead.lead_id IS NULL THEN NULL
+        ELSE l.converted_at
+      END AS convertedAt,
       l.first_seen_at AS firstSeenAt,
       l.last_seen_at AS lastSeenAt,
       l.crawled_at AS crawledAt,
       l.update_time AS updateTime
     FROM company_lead l
     LEFT JOIN user u ON u.id = l.owner_user_id
+    LEFT JOIN investment_lead radar_lead
+      ON radar_lead.lead_id = l.converted_radar_lead_id
+      AND radar_lead.is_deleted = 0
   `;
 }
 

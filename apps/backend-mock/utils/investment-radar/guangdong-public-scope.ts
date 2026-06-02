@@ -38,6 +38,299 @@ export const GUANGDONG_PRIORITY_CITY_NAMES = [
 
 export type GuangdongCityName = (typeof GUANGDONG_CITY_NAMES)[number];
 
+const NON_GUANGDONG_REGION_NAMES = [
+  '北京',
+  '北京市',
+  '天津',
+  '天津市',
+  '上海',
+  '上海市',
+  '重庆',
+  '重庆市',
+  '河北',
+  '河北省',
+  '山西',
+  '山西省',
+  '内蒙古',
+  '内蒙古自治区',
+  '辽宁',
+  '辽宁省',
+  '吉林',
+  '吉林省',
+  '黑龙江',
+  '黑龙江省',
+  '江苏',
+  '江苏省',
+  '浙江',
+  '浙江省',
+  '安徽',
+  '安徽省',
+  '福建',
+  '福建省',
+  '江西',
+  '江西省',
+  '山东',
+  '山东省',
+  '河南',
+  '河南省',
+  '湖北',
+  '湖北省',
+  '湖南',
+  '湖南省',
+  '广西',
+  '广西壮族自治区',
+  '海南',
+  '海南省',
+  '四川',
+  '四川省',
+  '贵州',
+  '贵州省',
+  '云南',
+  '云南省',
+  '西藏',
+  '西藏自治区',
+  '陕西',
+  '陕西省',
+  '甘肃',
+  '甘肃省',
+  '青海',
+  '青海省',
+  '宁夏',
+  '宁夏回族自治区',
+  '新疆',
+  '新疆维吾尔自治区',
+  '香港',
+  '香港特别行政区',
+  '澳门',
+  '澳门特别行政区',
+  '台湾',
+  '台湾省',
+] as const;
+
+const NON_GUANGDONG_CITY_NAMES = [
+  '杭州',
+  '南京',
+  '嘉兴',
+  '苏州',
+  '无锡',
+  '常州',
+  '南通',
+  '扬州',
+  '镇江',
+  '泰州',
+  '盐城',
+  '徐州',
+  '淮安',
+  '连云港',
+  '宿迁',
+  '宁波',
+  '温州',
+  '湖州',
+  '绍兴',
+  '金华',
+  '衢州',
+  '舟山',
+  '台州',
+  '丽水',
+  '合肥',
+  '芜湖',
+  '蚌埠',
+  '淮南',
+  '马鞍山',
+  '淮北',
+  '铜陵',
+  '安庆',
+  '黄山',
+  '滁州',
+  '阜阳',
+  '宿州',
+  '六安',
+  '亳州',
+  '池州',
+  '宣城',
+  '福州',
+  '厦门',
+  '泉州',
+  '漳州',
+  '莆田',
+  '三明',
+  '南平',
+  '龙岩',
+  '宁德',
+  '南昌',
+  '九江',
+  '赣州',
+  '宜春',
+  '上饶',
+  '吉安',
+  '抚州',
+  '萍乡',
+  '景德镇',
+  '鹰潭',
+  '新余',
+  '济南',
+  '青岛',
+  '烟台',
+  '潍坊',
+  '临沂',
+  '淄博',
+  '济宁',
+  '泰安',
+  '威海',
+  '日照',
+  '德州',
+  '聊城',
+  '滨州',
+  '菏泽',
+  '郑州',
+  '洛阳',
+  '开封',
+  '许昌',
+  '新乡',
+  '南阳',
+  '商丘',
+  '安阳',
+  '平顶山',
+  '焦作',
+  '濮阳',
+  '漯河',
+  '三门峡',
+  '鹤壁',
+  '周口',
+  '驻马店',
+  '信阳',
+  '武汉',
+  '襄阳',
+  '宜昌',
+  '黄石',
+  '十堰',
+  '荆州',
+  '荆门',
+  '鄂州',
+  '孝感',
+  '黄冈',
+  '咸宁',
+  '随州',
+  '长沙',
+  '株洲',
+  '湘潭',
+  '衡阳',
+  '岳阳',
+  '常德',
+  '益阳',
+  '郴州',
+  '永州',
+  '怀化',
+  '娄底',
+  '南宁',
+  '柳州',
+  '桂林',
+  '梧州',
+  '北海',
+  '防城港',
+  '钦州',
+  '贵港',
+  '玉林',
+  '百色',
+  '贺州',
+  '河池',
+  '来宾',
+  '崇左',
+  '海口',
+  '三亚',
+  '儋州',
+  '成都',
+  '绵阳',
+  '德阳',
+  '宜宾',
+  '南充',
+  '泸州',
+  '达州',
+  '乐山',
+  '自贡',
+  '内江',
+  '贵阳',
+  '遵义',
+  '六盘水',
+  '安顺',
+  '毕节',
+  '铜仁',
+  '昆明',
+  '曲靖',
+  '玉溪',
+  '保山',
+  '昭通',
+  '丽江',
+  '普洱',
+  '临沧',
+  '西安',
+  '咸阳',
+  '宝鸡',
+  '渭南',
+  '汉中',
+  '延安',
+  '榆林',
+  '兰州',
+  '天水',
+  '白银',
+  '嘉峪关',
+  '金昌',
+  '银川',
+  '石嘴山',
+  '吴忠',
+  '固原',
+  '西宁',
+  '乌鲁木齐',
+  '克拉玛依',
+  '石家庄',
+  '唐山',
+  '保定',
+  '邯郸',
+  '廊坊',
+  '沧州',
+  '邢台',
+  '秦皇岛',
+  '太原',
+  '大同',
+  '长治',
+  '临汾',
+  '运城',
+  '沈阳',
+  '大连',
+  '鞍山',
+  '抚顺',
+  '本溪',
+  '丹东',
+  '锦州',
+  '营口',
+  '辽阳',
+  '盘锦',
+  '长春',
+  '吉林市',
+  '四平',
+  '辽源',
+  '通化',
+  '松原',
+  '白城',
+  '哈尔滨',
+  '齐齐哈尔',
+  '牡丹江',
+  '佳木斯',
+  '大庆',
+  '伊春',
+  '呼和浩特',
+  '包头',
+  '赤峰',
+  '通辽',
+  '鄂尔多斯',
+  '拉萨',
+] as const;
+
+const NON_GUANGDONG_PLACE_NAMES = [
+  ...NON_GUANGDONG_REGION_NAMES,
+  ...NON_GUANGDONG_CITY_NAMES,
+] as const;
+
 function normalizeScopeText(value: null | string | undefined) {
   return String(value || '')
     .replaceAll(/\s+/g, '')
@@ -47,6 +340,19 @@ function normalizeScopeText(value: null | string | undefined) {
 
 function normalizeComparableScopeText(value: null | string | undefined) {
   return normalizeScopeText(value).replaceAll(/\s+/g, '').toLowerCase();
+}
+
+function matchesAnyText(
+  value: null | string | undefined,
+  patterns: readonly string[],
+) {
+  const normalized = normalizeComparableScopeText(value);
+  if (!normalized) {
+    return false;
+  }
+  return patterns.some((pattern) =>
+    normalized.includes(normalizeComparableScopeText(pattern)),
+  );
 }
 
 const UNKNOWN_CITY_VALUES = new Set([
@@ -92,12 +398,48 @@ const GUANGDONG_DISTRICT_TOWN_CITY_PAIRS: Array<
   ['罗湖', '深圳'],
   ['南山', '深圳'],
   ['宝安', '深圳'],
+  ['新安', '深圳'],
+  ['西乡', '深圳'],
+  ['航城', '深圳'],
+  ['福永', '深圳'],
+  ['福海', '深圳'],
+  ['沙井', '深圳'],
+  ['新桥', '深圳'],
+  ['松岗', '深圳'],
+  ['燕罗', '深圳'],
+  ['石岩', '深圳'],
   ['龙岗', '深圳'],
+  ['坂田', '深圳'],
+  ['布吉', '深圳'],
+  ['平湖', '深圳'],
+  ['横岗', '深圳'],
+  ['坪地', '深圳'],
+  ['南湾', '深圳'],
+  ['吉华', '深圳'],
+  ['园山', '深圳'],
+  ['宝龙', '深圳'],
   ['盐田', '深圳'],
   ['龙华', '深圳'],
+  ['民治', '深圳'],
+  ['大浪', '深圳'],
+  ['观湖', '深圳'],
+  ['观澜', '深圳'],
+  ['福城', '深圳'],
   ['坪山', '深圳'],
+  ['坑梓', '深圳'],
+  ['马峦', '深圳'],
+  ['碧岭', '深圳'],
+  ['石井', '深圳'],
+  ['龙田', '深圳'],
   ['光明', '深圳'],
+  ['公明', '深圳'],
+  ['凤凰', '深圳'],
+  ['玉塘', '深圳'],
+  ['马田', '深圳'],
+  ['新湖', '深圳'],
   ['大鹏', '深圳'],
+  ['葵涌', '深圳'],
+  ['南澳', '深圳'],
   ['香洲', '珠海'],
   ['斗门', '珠海'],
   ['金湾', '珠海'],
@@ -312,6 +654,10 @@ export const GUANGDONG_CITY_SCOPE_PATTERN = GUANGDONG_CITY_SCOPE_NAMES.map(
   (value) => escapeRegexp(value),
 ).join('|');
 
+export const NON_GUANGDONG_REGION_PATTERN = NON_GUANGDONG_REGION_NAMES.map(
+  (value) => escapeRegexp(value),
+).join('|');
+
 export const UNKNOWN_CITY_VALUE_PATTERN = `^(?:${[
   ...[...UNKNOWN_CITY_VALUES].map((value) => escapeRegexp(value)),
   '请选择.*城市',
@@ -373,6 +719,31 @@ export function hasExplicitNonGuangdongCity(value: null | string | undefined) {
   );
 }
 
+export function hasExplicitNonGuangdongRegion(
+  value: null | string | undefined,
+) {
+  return matchesAnyText(value, NON_GUANGDONG_REGION_NAMES);
+}
+
+export function hasExplicitNonGuangdongPlaceSignal(
+  value: null | string | undefined,
+) {
+  const normalized = normalizeComparableScopeText(value);
+  if (!normalized) {
+    return false;
+  }
+  return NON_GUANGDONG_PLACE_NAMES.some((place) => {
+    const normalizedPlace = normalizeComparableScopeText(place);
+    if (!normalizedPlace) {
+      return false;
+    }
+    return (
+      normalized.includes(normalizedPlace) ||
+      normalized.includes(`${normalizedPlace}市`)
+    );
+  });
+}
+
 export interface GuangdongScopeInput {
   city?: null | string;
   district?: null | string;
@@ -406,8 +777,6 @@ function urlContainsGuangdongSignal(sourceUrl: null | string | undefined) {
       haystack.includes('fs.') ||
       haystack.includes('/fs/') ||
       haystack.includes('huizhou') ||
-      haystack.includes('hz.') ||
-      haystack.includes('/hz/') ||
       haystack.includes('zhongshan') ||
       haystack.includes('zs.') ||
       haystack.includes('/zs/') ||
@@ -433,6 +802,14 @@ export function resolveGuangdongCityFromText(
 }
 
 export function isWithinGuangdongScope(input: GuangdongScopeInput) {
+  const regionText = [input.province, input.city, input.district, input.text]
+    .filter(Boolean)
+    .join(' ');
+
+  if (hasExplicitNonGuangdongRegion(regionText)) {
+    return false;
+  }
+
   if (hasExplicitNonGuangdongCity(input.city)) {
     return false;
   }

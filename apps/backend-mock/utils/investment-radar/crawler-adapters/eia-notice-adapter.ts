@@ -1,9 +1,6 @@
 import type { CrawlerAdapter } from './types';
 
-import {
-  DEMO_CRAWLER_SOURCE_CODE,
-  PUBLIC_EIA_NOTICE_SOURCE_CODE,
-} from '../crawler-types';
+import { PUBLIC_EIA_NOTICE_SOURCE_CODE } from '../crawler-types';
 
 interface EiaNoticeItem {
   companyName: string;
@@ -324,7 +321,7 @@ export const eiaNoticeCrawlerAdapter: CrawlerAdapter = {
 
   async fetchLeads(_context) {
     const baseUrl = 'https://www.mee.gov.cn';
-    const leads: import('../crawler-types').DemoCrawlerLead[] = [];
+    const leads: import('../crawler-types').PublicSignalCrawlerLead[] = [];
     const visitedUrls = new Set<string>();
 
     const listItems = await fetchEiaNoticeList(baseUrl, 1);
@@ -404,8 +401,4 @@ export const eiaNoticeCrawlerAdapter: CrawlerAdapter = {
 
 export function isEiaCrawlerSource(sourceCode: string): boolean {
   return sourceCode === PUBLIC_EIA_NOTICE_SOURCE_CODE;
-}
-
-export function isDemoCrawlerSource(sourceCode: string): boolean {
-  return sourceCode === DEMO_CRAWLER_SOURCE_CODE;
 }

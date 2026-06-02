@@ -5,7 +5,7 @@ import {
   getEnabledLeadScoreRules,
   seedDefaultScoreRules,
 } from './score-rule-repository';
-import { rebuildSignalEventsFromExternalLeads } from './signal-event-repository';
+import { refreshSignalEventsFromExternalLeads } from './signal-event-repository';
 
 interface ScoreHit {
   eventId: null | number;
@@ -237,7 +237,7 @@ export async function recalculateRadarLeadScore(
   options: LeadScoreRecalculateOptions = {},
 ) {
   if (!options.skipSignalRebuild) {
-    await rebuildSignalEventsFromExternalLeads();
+    await refreshSignalEventsFromExternalLeads();
   }
   await ensureProfileScoreStorage();
   await seedDefaultScoreRules();
@@ -313,11 +313,11 @@ export async function listRadarLeadScoreBreakdown(leadId: number) {
   };
 }
 
-export async function recalculateDemoLeadScores(
+export async function recalculateRadarLeadScores(
   options: LeadScoreRecalculateOptions = {},
 ) {
   if (!options.skipSignalRebuild) {
-    await rebuildSignalEventsFromExternalLeads();
+    await refreshSignalEventsFromExternalLeads();
   }
   await ensureProfileScoreStorage();
   await seedDefaultScoreRules();

@@ -1,4 +1,6 @@
 import { prismaClient } from '../db';
+import { getPropertyTagsByFactoryIds } from './property-tag-service';
+import { assertInvestmentRadarTableReady } from './schema-guard';
 
 interface RadarLeadDetail {
   city?: null | string;
@@ -129,6 +131,24 @@ function getIndustryKeywords(industryName?: null | string) {
   return uniqueValues(keywords);
 }
 
+function getAreaMatchLabel(factory: FactoryMatchSource, intentArea: number) {
+  if (intentArea <= 0 || factory.availableArea <= 0) {
+    return '';
+  }
+
+  const ratio = factory.availableArea / intentArea;
+  if (ratio >= 0.9 && ratio <= 1.25) {
+    return '面积高度贴合';
+  }
+  if (ratio >= 0.75 && ratio <= 1.5) {
+    return '面积区间匹配';
+  }
+  if (ratio > 1.5) {
+    return '面积储备充足';
+  }
+  return '面积接近需求';
+}
+
 export function calculatePropertyMatchScore(
   factory: FactoryMatchSource,
   leadDetail: RadarLeadDetail,
@@ -146,7 +166,7 @@ export function calculatePropertyMatchScore(
       factory.availableArea <= upperBound
     ) {
       score += 28;
-      reasons.push('面积匹配');
+      reasons.push(getAreaMatchLabel(factory, intentArea) || '面积匹配');
     } else if (factory.availableArea >= intentArea * 0.5) {
       score += 14;
       reasons.push(
@@ -192,7 +212,20 @@ export function calculatePropertyMatchScore(
     reasons.push(...factory.floorFeatures.slice(0, 3));
   }
 
-  if (factory.rentPrice && factory.rentPrice <= 80) {
+  if (factory.availableArea > 0 && factory.usedArea === 0) {
+    score += 6;
+    reasons.push('整层/整栋可快速排布');
+  }
+
+  if (factory.floorCount <= 2 && factory.availableArea > 0) {
+    score += 4;
+    reasons.push('楼层使用便利');
+  }
+
+  if (factory.rentPrice && factory.rentPrice <= 60) {
+    score += 8;
+    reasons.push('租金优势明显');
+  } else if (factory.rentPrice && factory.rentPrice <= 80) {
     score += 5;
     reasons.push('租金可控');
   }
@@ -237,9 +270,15 @@ export function generateMismatchReminders(
   if (factory.rentPrice && factory.rentPrice > 100) {
     reminders.push('租金偏高，建议先确认预算');
   }
+  if (!factory.rentPrice) {
+    reminders.push('租金未维护，推荐前需补充报价');
+  }
 
   if (factory.availableArea <= 0) {
     reminders.push('当前无明确空置面积');
+  }
+  if (factory.floorFeatures.length === 0) {
+    reminders.push('房源亮点不足，建议补充层高、承重、用电等信息');
   }
 
   return reminders;
@@ -265,6 +304,8 @@ export function generateSalesPitch(
   }
   if (factory.floorFeatures.length > 0) {
     parts.push(`亮点是 ${factory.floorFeatures.slice(0, 2).join('、')}`);
+  } else {
+    parts.push('建议补充层高、承重、用电等参数后再深度推荐');
   }
   if (factory.rentPrice) {
     parts.push(`租金约 ${factory.rentPrice.toLocaleString('zh-CN')}元/m²/月`);
@@ -318,36 +359,7 @@ function buildFloorFeatures(
 }
 
 export async function ensurePropertyMatchResultTable() {
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS property_match_result (
-      match_id BIGINT NOT NULL AUTO_INCREMENT,
-      lead_id BIGINT NOT NULL,
-      factory_id BIGINT NOT NULL,
-      park_id BIGINT NULL,
-      factory_name VARCHAR(200) NOT NULL,
-      park_name VARCHAR(200) NULL,
-      address VARCHAR(500) NULL,
-      match_score DECIMAL(5,2) NOT NULL DEFAULT 0,
-      available_area DECIMAL(18,2) NOT NULL DEFAULT 0,
-      total_area DECIMAL(18,2) NOT NULL DEFAULT 0,
-      used_area DECIMAL(18,2) NULL,
-      rent_price DECIMAL(18,2) NULL,
-      rent_price_text VARCHAR(100) NULL,
-      floor_count INT NULL,
-      tag VARCHAR(50) NULL,
-      match_reasons_json TEXT NULL,
-      mismatch_reminders_json TEXT NULL,
-      sales_pitch TEXT NULL,
-      snapshot_json MEDIUMTEXT NULL,
-      computed_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (match_id),
-      UNIQUE KEY uk_property_match_result_lead_factory (lead_id, factory_id),
-      KEY idx_property_match_result_lead_score (lead_id, match_score),
-      KEY idx_property_match_result_factory (factory_id)
-    )
-  `);
+  await assertInvestmentRadarTableReady('property_match_result');
 }
 
 function isMatchVisibleToUser(
@@ -582,6 +594,10 @@ export async function performPropertyMatch(
           : Number(lead.parkId),
     };
 
+    const tagsByFactoryId = await getPropertyTagsByFactoryIds(
+      factories.map((factory) => factory.factoryId),
+    );
+
     return factories
       .map((factory) => {
         const floors = factory.floors || [];
@@ -599,7 +615,11 @@ export async function performPropertyMatch(
           .filter((price) => price > 0);
         const rentPrice =
           rentPrices.length > 0 ? Math.min(...rentPrices) : undefined;
-        const floorFeatures = buildFloorFeatures(factory.description, floors);
+        const propertyTags = tagsByFactoryId.get(factory.factoryId) || [];
+        const floorFeatures = uniqueValues([
+          ...buildFloorFeatures(factory.description, floors),
+          ...propertyTags,
+        ]);
         const source: FactoryMatchSource = {
           address: factory.address,
           availableArea,
@@ -612,7 +632,7 @@ export async function performPropertyMatch(
           parkName:
             factory.park?.parkName || (factory.isOwn ? null : '入驻厂房'),
           rentPrice,
-          tag: factory.isOwn ? '自有厂房' : '入驻厂房',
+          tag: propertyTags[0] || (factory.isOwn ? '自有厂房' : '入驻厂房'),
           totalArea,
           usedArea,
         };
@@ -682,6 +702,54 @@ export async function rebuildVisiblePropertyMatches(
 ) {
   const matches = await performPropertyMatch(leadId, options);
   return matches;
+}
+
+export async function rebuildPropertyMatchesForLeads(limit = 200) {
+  await ensurePropertyMatchResultTable();
+
+  const rows = await prismaClient.$queryRawUnsafe<Array<{ leadId: unknown }>>(
+    `
+      SELECT l.lead_id AS leadId
+      FROM investment_lead l
+      WHERE l.is_deleted = 0
+        AND l.stage NOT IN ('CLOSED', 'DEAL', 'INVALID')
+      ORDER BY
+        CASE l.priority_level
+          WHEN 'A' THEN 0
+          WHEN 'B' THEN 1
+          ELSE 2
+        END,
+        l.total_score DESC,
+        l.update_time DESC
+      LIMIT ?
+    `,
+    Math.max(1, Math.min(1000, Number(limit || 200))),
+  );
+
+  const items: Array<{
+    leadId: number;
+    matchCount: number;
+    topMatchScore: number;
+  }> = [];
+
+  for (const row of rows) {
+    const leadId = toNumber(row.leadId);
+    if (leadId <= 0) {
+      continue;
+    }
+    const matches = await rebuildPropertyMatchSnapshot(leadId);
+    items.push({
+      leadId,
+      matchCount: matches.length,
+      topMatchScore: matches[0]?.matchScore || 0,
+    });
+  }
+
+  return {
+    items,
+    rebuiltAt: new Date().toISOString(),
+    rebuiltLeadCount: items.length,
+  };
 }
 
 export async function getSavedOrBuildPropertyMatches(

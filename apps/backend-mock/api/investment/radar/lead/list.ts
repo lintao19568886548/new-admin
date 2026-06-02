@@ -102,7 +102,9 @@ export default eventHandler(async (event) => {
             LEFT JOIN park p ON p.park_id = l.park_id
             LEFT JOIN user u ON u.id = l.owner_user_id
             ${whereSql}
-            ORDER BY l.total_score DESC, l.update_time DESC
+            ORDER BY
+              l.update_time DESC,
+              l.lead_id DESC
             LIMIT ? OFFSET ?
           `,
           ...whereParams,
@@ -119,20 +121,20 @@ export default eventHandler(async (event) => {
             item.intentArea === null || item.intentArea === undefined
               ? null
               : Number(item.intentArea),
-          intentScore: item.intentScore,
+          intentScore: Number(item.intentScore || 0),
           latestContactTime: item.latestContactTime,
           latestSignalTime: item.latestSignalTime,
           latestSignalType: item.latestSignalType,
-          leadId: item.leadId,
+          leadId: Number(item.leadId),
           leadSource: item.leadSource,
-          matchScore: item.matchScore,
+          matchScore: Number(item.matchScore || 0),
           ownerName: item.ownerName || undefined,
           parkName: item.parkName || undefined,
           phoneNumber: item.phoneNumber || null,
           priorityLevel: item.priorityLevel,
-          reachableScore: item.reachableScore,
+          reachableScore: Number(item.reachableScore || 0),
           stage: item.stage,
-          totalScore: item.totalScore,
+          totalScore: Number(item.totalScore || 0),
         })),
         page: {
           currentPage,

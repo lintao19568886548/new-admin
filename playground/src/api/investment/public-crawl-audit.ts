@@ -2,6 +2,11 @@ import { requestClient } from '#/api/request';
 
 export type PublicCrawlAuditMode = 'DRY_RUN' | string;
 export type PublicCrawlAuditOpportunityType = 'DEMAND' | 'SUPPLY' | 'UNKNOWN';
+export type PublicCrawlEffectiveScope =
+  | 'collected'
+  | 'raw'
+  | 'reviewable'
+  | 'strict';
 export type PublicCrawlOpportunityType = 'DEMAND' | 'SUPPLY';
 
 export interface PublicCrawlAuditCounts {
@@ -25,8 +30,63 @@ export interface PublicCrawlAuditTypeCounts extends PublicCrawlAuditCounts {
   opportunityTypeLabel: string;
 }
 
+export interface PublicCrawlDashboardSummary {
+  demandEffectiveRate?: null | number;
+  failedPlatformCount: number;
+  fetchSuccessRate?: null | number;
+  guangdongDemandEffectiveCount: number;
+  guangdongListingEffectiveCount: number;
+  lastCrawledAt?: null | string;
+  listingEffectiveRate?: null | number;
+  nonGuangdongHiddenCount: number;
+  nonGuangdongHiddenRate?: null | number;
+  pendingVerifyCount: number;
+  pendingVerifyOverdueCount?: null | number;
+  platformCount: number;
+  platformFetchedCount: number;
+  platformSuccessCount: number;
+  todayFetchedChange?: null | number;
+  todayFetchedCount: number;
+  totalEffectiveCount?: number;
+  zeroFetchedPlatformCount: number;
+}
+
+export interface PublicCrawlPlatformDistributionItem {
+  demandCount: number;
+  fetchedCount?: number;
+  hiddenCount: number;
+  latestTaskStatus?: null | string;
+  listingCount: number;
+  percent?: null | number;
+  platformCode: string;
+  platformName: string;
+  sourceCode?: null | string;
+  totalCount: number;
+  updatedCount?: number;
+  upsertedCount?: number;
+  zeroFetched?: boolean;
+}
+
+export interface PublicCrawlCityDistributionItem {
+  cityCode?: null | string;
+  cityName: string;
+  demandCount: number;
+  effectiveCount: number;
+  listingCount: number;
+  pendingVerifyCount: number;
+  percent?: null | number;
+  totalCount: number;
+}
+
+export interface PublicCrawlDashboardResult {
+  cityDistribution: PublicCrawlCityDistributionItem[];
+  platformDistribution: PublicCrawlPlatformDistributionItem[];
+  summary: PublicCrawlDashboardSummary;
+}
+
 export interface PublicCrawlAuditSummary {
   auditMode: PublicCrawlAuditMode;
+  dashboard?: PublicCrawlDashboardResult;
   dryRun: boolean;
   generatedAt: string;
   summary: PublicCrawlAuditCounts;
@@ -97,6 +157,7 @@ export interface PublicCrawlEffectiveOpportunity {
   publishedAt?: null | string;
   publishedDateText?: null | string;
   score?: null | number;
+  sourceCode?: null | string;
   sourceId?: null | number | string;
   sourceSite?: null | string;
   sourceTable?: null | string;
@@ -108,12 +169,29 @@ export interface PublicCrawlEffectiveOpportunity {
 export interface PublicCrawlEffectiveListParams {
   city?: string;
   currentPage?: number;
+  includeMeta?: boolean;
+  includeTotal?: boolean;
   keyword?: string;
   opportunityType?: PublicCrawlOpportunityType | string;
   pageSize?: number;
   publishedAgeLabel?: string;
-  scope?: 'collected' | 'strict';
+  scope?: PublicCrawlEffectiveScope;
   sourceSite?: string;
+}
+
+export interface PublicCrawlEffectiveStatsParams {
+  city?: string;
+  keyword?: string;
+  opportunityType?: PublicCrawlOpportunityType | string;
+  publishedAgeLabel?: string;
+  scope?: PublicCrawlEffectiveScope;
+  sourceSite?: string;
+}
+
+export interface PublicCrawlEffectiveStats {
+  scope: PublicCrawlEffectiveScope;
+  strictTotal: number;
+  total: number;
 }
 
 export interface PublicCrawlEffectiveList {
@@ -125,11 +203,12 @@ export interface PublicCrawlEffectiveList {
   page?: {
     currentPage: number;
     pageSize: number;
-    total: number;
+    total?: number;
   };
-  scope?: 'collected' | 'strict';
+  scope?: 'collected' | 'reviewable' | 'strict';
   strictTotal?: number;
-  total: number;
+  total?: number;
+  totalKnown?: boolean;
 }
 
 export interface PublicCrawlListResponse<T> {
@@ -171,10 +250,13 @@ export interface PublicCrawlCrawlerTask {
   updatedLeadCount: number;
 }
 
-export async function getPublicCrawlAuditSummary() {
+export async function getPublicCrawlAuditSummary(params?: {
+  refresh?: boolean | number | string;
+}) {
   return requestClient.get<PublicCrawlAuditSummary>(
     '/investment/radar/public-opportunity/audit-summary',
     {
+      params,
       silentError: true,
     },
   );
@@ -185,6 +267,18 @@ export async function getPublicCrawlEffectiveList(
 ) {
   return requestClient.get<PublicCrawlEffectiveList>(
     '/investment/radar/public-opportunity/effective-list',
+    {
+      params,
+      silentError: true,
+    },
+  );
+}
+
+export async function getPublicCrawlEffectiveStats(
+  params: PublicCrawlEffectiveStatsParams = {},
+) {
+  return requestClient.get<PublicCrawlEffectiveStats>(
+    '/investment/radar/public-opportunity/effective-stats',
     {
       params,
       silentError: true,
@@ -262,13 +356,18 @@ export interface PublicCrawlBatchRunPayload {
   freshnessDays?: number;
   ignoreInterval?: boolean;
   maxConcurrency?: number;
+  maxListPages?: number;
   maxRetryCount?: number;
+  maxRounds?: number;
   mode?: PublicCrawlBatchMode;
   reprocessSuccess?: boolean;
   retryDelayMinutes?: number;
+  staleReprocessMinutes?: number;
+  targetCount?: number;
 }
 
 export interface PublicCrawlBatchPlatformResult {
+  collectedEffectiveCount: number;
   discoveredUrlCount: number;
   effectiveCount: number;
   errorMessage?: null | string;
@@ -276,31 +375,45 @@ export interface PublicCrawlBatchPlatformResult {
   fetchedCount: number;
   fetchSuccessCount: number;
   opportunityType: PublicCrawlOpportunityType;
+  roundIndex?: number;
   skippedCount: number;
   sourceCode: string;
   sourceName?: null | string;
   status: 'FAILED' | 'SUCCESS';
   taskId?: null | number;
   upsertedCount: number;
+  yieldedEffective?: boolean;
+  zeroOutput?: boolean;
 }
 
 export interface PublicCrawlBatchRunResult {
   finishedAt: string;
   items: PublicCrawlBatchPlatformResult[];
+  maxRounds?: number;
   mode: PublicCrawlBatchMode;
+  remainingCount?: number;
+  roundCount?: number;
   sourceCodes: string[];
   startedAt: string;
+  targetCount?: null | number;
+  targetReached?: boolean;
   total: {
+    collectedEffectiveCount: number;
     discoveredUrlCount: number;
     effectiveCount: number;
     failedPlatformCount: number;
     fetchedCount: number;
     fetchSuccessCount: number;
+    hasEffectiveOutput?: boolean;
+    hasUsefulOutput?: boolean;
+    onlyZeroOutput?: boolean;
     platformCount: number;
+    productivePlatformCount?: number;
     skippedCount: number;
     successPlatformCount: number;
     taskCount: number;
     upsertedCount: number;
+    zeroOutputPlatformCount?: number;
   };
 }
 

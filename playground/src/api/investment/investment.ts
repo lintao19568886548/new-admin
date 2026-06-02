@@ -23,7 +23,7 @@ export interface RadarListResponse<T> {
     pageSize: number;
     total: number;
   };
-  scope?: 'collected' | 'strict';
+  scope?: 'collected' | 'raw' | 'reviewable' | 'strict';
   strictTotal?: number;
   total: number;
 }
@@ -124,6 +124,43 @@ export interface RadarOutreachTaskSummary {
   sentTasks: number;
   smsTasks: number;
   totalTasks: number;
+}
+
+export interface ContactRestrictionListParams {
+  currentPage?: number;
+  keyword?: string;
+  pageSize?: number;
+  restrictionType?: string;
+  status?: string;
+}
+
+export interface ContactRestrictionListItem {
+  contactName?: null | string;
+  createTime?: null | string;
+  enterpriseId?: null | number;
+  enterpriseName?: null | string;
+  leadId?: null | number;
+  parkName?: null | string;
+  phoneNumber?: null | string;
+  reason?: null | string;
+  restrictionId: number;
+  restrictionType: string;
+  status: string;
+  updateTime?: null | string;
+}
+
+export interface ContactRestrictionSummary {
+  activeRestrictions: number;
+  blacklistRestrictions: number;
+  negativeReplyRestrictions: number;
+  releasedRestrictions: number;
+  totalRestrictions: number;
+  unsubscribedRestrictions: number;
+}
+
+export interface ReleaseContactRestrictionResponse {
+  restrictionId: number;
+  status: string;
 }
 
 export interface RadarFollowRecord {
@@ -401,7 +438,9 @@ export interface PublicOpportunityItem {
   detailJson?: null | Record<string, unknown>;
   district?: null | string;
   effectiveUntil?: null | string;
+  hasDetailEvidence?: boolean;
   industryText?: null | string;
+  isGuangdong?: boolean;
   lastSyncedAt?: null | string;
   opportunityId: number | string;
   opportunityStatus: string;
@@ -411,7 +450,9 @@ export interface PublicOpportunityItem {
   publishedAgeLabel?: null | string;
   publishedAt?: null | string;
   publishedDateText?: null | string;
+  qualityGrade?: null | string;
   score?: null | number;
+  sourceCode?: null | string;
   sourceId?: null | number | string;
   sourceSite?: null | string;
   sourceTable?: null | string;
@@ -423,12 +464,70 @@ export interface PublicOpportunityItem {
 export interface PublicOpportunityListParams {
   city?: string;
   currentPage?: number;
+  includeMeta?: boolean;
+  includeTotal?: boolean;
   keyword?: string;
   opportunityType?: string;
   pageSize?: number;
   publishedAgeLabel?: string;
-  scope?: 'collected' | 'strict';
+  scope?: 'collected' | 'raw' | 'reviewable' | 'strict';
   sourceSite?: string;
+}
+
+export interface PublicOpportunityListResponse {
+  filters?: {
+    publishedAgeLabels?: string[];
+    sourceSites?: string[];
+  };
+  items: PublicOpportunityItem[];
+  page?: {
+    currentPage: number;
+    pageSize: number;
+    total?: number;
+  };
+  scope?: 'collected' | 'raw' | 'reviewable' | 'strict';
+  strictTotal?: number;
+  total?: number;
+  totalKnown?: boolean;
+}
+
+export interface PublicOpportunityEffectiveStats {
+  scope?: 'collected' | 'reviewable' | 'strict';
+  strictTotal?: number;
+  total: number;
+}
+
+export interface PublicOpportunityEffectiveOptions {
+  filters: {
+    publishedAgeLabels?: string[];
+    sourceSites?: string[];
+  };
+  scope?: 'collected' | 'reviewable' | 'strict';
+}
+
+export interface PublicOpportunityCrawlerProgressSource {
+  itemStatus: Record<string, number>;
+  latestTask: null | {
+    createdLeadCount: number;
+    errorMessage?: null | string;
+    fetchedCount: number;
+    finishedAt?: null | string;
+    skippedCount: number;
+    startedAt?: null | string;
+    status: CrawlerTaskStatus | string;
+    taskId: number;
+    updatedLeadCount: number;
+  };
+  sourceCode: string;
+  sourceId: number;
+  sourceName: string;
+}
+
+export interface PublicOpportunityCrawlerProgress {
+  note: 'crawler_progress_only_not_effective_counts' | string;
+  opportunityType?: null | string;
+  sourceCount: number;
+  sources: PublicOpportunityCrawlerProgressSource[];
 }
 
 export interface PublicOpportunityManualPayload {
@@ -449,6 +548,84 @@ export interface PublicOpportunityManualPayload {
 export interface PublicOpportunityManualResponse {
   created: boolean;
   opportunity: PublicOpportunityItem;
+}
+
+export interface PublicOpportunityQualityResult {
+  city: null | string;
+  missingFields: string[];
+  reasons: string[];
+  status: string;
+}
+
+export interface PublicDemandPageParsePayload {
+  html: string;
+  sourceSite?: string;
+  sourceUrl: string;
+}
+
+export interface PublicDemandPageParsedOpportunity {
+  areaText?: null | string;
+  city?: null | string;
+  contactName?: null | string;
+  description?: null | string;
+  detailJson?: null | Record<string, unknown>;
+  district?: null | string;
+  industryText?: null | string;
+  missingFields?: string[];
+  opportunityType: 'DEMAND';
+  phoneNumber?: null | string;
+  priceText?: null | string;
+  publishedAt?: null | string;
+  publishedDateText?: null | string;
+  sourceSite: string;
+  sourceUrl: string;
+  title?: null | string;
+}
+
+export interface PublicDemandPageParseResponse {
+  accepted: boolean;
+  created: boolean;
+  opportunity: null | PublicOpportunityItem;
+  parsed: PublicDemandPageParsedOpportunity;
+  qualityResult: null | PublicOpportunityQualityResult;
+  skipReason: null | string;
+}
+
+export interface PublicOpportunityUrlImportPayload {
+  maxRetryCount?: number;
+  requeueExisting?: boolean;
+  sourceCode: string;
+  urls?: string[];
+  urlText?: string;
+}
+
+export interface PublicOpportunityUrlImportRejectedItem {
+  index: number;
+  reason: string;
+  sourceUrl: string;
+}
+
+export interface PublicOpportunityUrlImportResponse {
+  acceptedCount: number;
+  acceptedUrls: string[];
+  duplicateInputCount: number;
+  opportunityType: 'DEMAND' | 'SUPPLY';
+  rejectedCount: number;
+  rejectedItems: PublicOpportunityUrlImportRejectedItem[];
+  seed: {
+    createdCount: number;
+    updatedCount: number;
+  };
+  source: {
+    enabled: boolean;
+    sourceCode: string;
+    sourceId: number;
+    sourceName: string;
+  };
+  sourceCode: string;
+  sourceId: number;
+  sourceName: string;
+  totalInputCount: number;
 }
 
 export type ExternalLeadConfidenceLevel = 'HIGH' | 'LOW' | 'MEDIUM';
@@ -725,6 +902,7 @@ export interface CrawlerOpsSummary {
   scheduler: {
     active: boolean;
     canRunNow: boolean;
+    dailyRunHour?: number;
     enabled: boolean;
     envEnabled: boolean;
     intervalMs: number;
@@ -733,9 +911,11 @@ export interface CrawlerOpsSummary {
     lastTaskId?: null | number;
     lastTickFinishedAt?: null | string;
     lastTickStartedAt?: null | string;
+    mode?: 'ALL' | 'DEMAND' | 'SUPPLY' | string;
     nextRunAt?: null | string;
     reason?: null | string;
     running: boolean;
+    scheduleType?: 'DAILY' | string;
     startedAt?: null | string;
     stoppedAt?: null | string;
   };
@@ -749,8 +929,10 @@ export interface PublicOpportunityCrawlerRunPayload {
   freshnessDays?: number;
   ignoreInterval?: boolean;
   maxRetryCount?: number;
+  reprocessSuccess?: boolean;
   retryDelayMinutes?: number;
   sourceCode?: string;
+  staleReprocessMinutes?: number;
 }
 
 export interface RadarAcquisitionAnalytics {
@@ -999,24 +1181,26 @@ export interface RadarLeadScoreRecalculateResponse {
   totalScore: number;
 }
 
-export interface DemoLeadScoreRecalculateResponse {
+export interface RadarLeadScoreBatchRecalculateResponse {
   items: RadarLeadScoreRecalculateResponse[];
   recalculatedCount: number;
   totalLeadCount: number;
 }
 
 export interface OutreachTemplate {
+  approvalStatus: string;
   channel: string;
   content: string;
-  createTime?: string;
+  createTime?: null | string;
   enabled: boolean;
-  placeholderJson?: string;
+  placeholderJson?: string[];
   priorityLevel: string;
   taskType: string;
   templateCode: string;
   templateId: number;
   templateName: string;
-  updateTime?: string;
+  updateTime?: null | string;
+  versionNo: number;
 }
 
 export interface OutreachTemplateListResponse {
@@ -1027,6 +1211,44 @@ export interface OutreachTemplateListResponse {
     total: number;
   };
   total: number;
+}
+
+export interface OutreachTemplatePayload {
+  channel: string;
+  content: string;
+  placeholderJson?: string[];
+  priorityLevel: string;
+  taskType: string;
+  templateCode: string;
+  templateName: string;
+}
+
+export interface OutreachTemplatePreviewResponse {
+  content: string;
+  missingPlaceholders: string[];
+  placeholders: string[];
+  usedPlaceholders: string[];
+}
+
+export interface OutreachTemplateStatsRow {
+  failedTasks: number;
+  negativeReplies: number;
+  positiveReplies: number;
+  sentTasks: number;
+  templateCode: string;
+  templateId: number;
+  templateName: string;
+  totalTasks: number;
+}
+
+export interface OutreachTemplateVersion extends OutreachTemplate {
+  changeType: string;
+  versionId: number;
+}
+
+export interface OutreachTemplateEnabledResponse {
+  enabled: boolean;
+  templateId: number | string;
 }
 
 export interface OutreachSuggestionItem {
@@ -1078,18 +1300,26 @@ export interface OutreachTask {
   templateCode?: string;
 }
 
-export interface MockSendOutreachTaskResponse {
-  resultCode?: string;
+export interface SendOutreachTaskResponse {
+  providerTaskId?: null | string;
+  resultCode?: 'CONTACT_RESTRICTED' | 'SUCCESS' | string;
   resultMessage?: string;
-  sentAt?: string;
-  sentBy?: number;
+  sentAt?: null | string;
+  sentBy?: null | number;
   status: string;
   taskId: number;
 }
 
+export type OutreachReplyStatus =
+  | 'BLACKLIST'
+  | 'NEGATIVE'
+  | 'POSITIVE'
+  | 'REPLIED'
+  | 'UNSUBSCRIBED';
+
 export interface ReplyOutreachTaskPayload {
   replyContent?: string;
-  replyStatus: 'NEGATIVE' | 'POSITIVE' | 'REPLIED';
+  replyStatus: OutreachReplyStatus;
 }
 
 export interface ReplyOutreachTaskResponse {
@@ -1251,8 +1481,44 @@ export async function getRadarCollectTask(taskId: string) {
 export async function getEffectivePublicOpportunityList(
   params: PublicOpportunityListParams,
 ) {
-  return requestClient.get<RadarListResponse<PublicOpportunityItem>>(
+  return requestClient.get<PublicOpportunityListResponse>(
     '/investment/radar/public-opportunity/effective-list',
+    {
+      params,
+      silentError: true,
+    },
+  );
+}
+
+export async function getEffectivePublicOpportunityStats(
+  params: PublicOpportunityListParams,
+) {
+  return requestClient.get<PublicOpportunityEffectiveStats>(
+    '/investment/radar/public-opportunity/effective-stats',
+    {
+      params,
+      silentError: true,
+    },
+  );
+}
+
+export async function getEffectivePublicOpportunityOptions(
+  params: PublicOpportunityListParams,
+) {
+  return requestClient.get<PublicOpportunityEffectiveOptions>(
+    '/investment/radar/public-opportunity/effective-options',
+    {
+      params,
+      silentError: true,
+    },
+  );
+}
+
+export async function getEffectivePublicOpportunityProgress(
+  params: Pick<PublicOpportunityListParams, 'opportunityType'> = {},
+) {
+  return requestClient.get<PublicOpportunityCrawlerProgress>(
+    '/investment/radar/public-opportunity/effective-progress',
     {
       params,
       silentError: true,
@@ -1276,6 +1542,24 @@ export async function createManualPublicOpportunity(
 ) {
   return requestClient.post<PublicOpportunityManualResponse>(
     '/investment/radar/public-opportunity/manual',
+    data,
+  );
+}
+
+export async function parseDemandPublicPage(
+  data: PublicDemandPageParsePayload,
+) {
+  return requestClient.post<PublicDemandPageParseResponse>(
+    '/investment/radar/public-opportunity/parse-demand-page',
+    data,
+  );
+}
+
+export async function importPublicOpportunityUrls(
+  data: PublicOpportunityUrlImportPayload,
+) {
+  return requestClient.post<PublicOpportunityUrlImportResponse>(
+    '/investment/radar/public-opportunity/import-urls',
     data,
   );
 }
@@ -1552,9 +1836,9 @@ export async function getSignalEventEvidenceList(eventId: number | string) {
   );
 }
 
-export async function rebuildSignalEventDemo() {
+export async function refreshSignalEvents() {
   return requestClient.post<SignalEventRebuildResponse>(
-    '/investment/radar/signal-event/rebuild-demo',
+    '/investment/radar/signal-event/refresh',
     {},
   );
 }
@@ -1608,9 +1892,9 @@ export async function getEnterpriseProfileTags(profileId: number | string) {
   );
 }
 
-export async function rebuildEnterpriseProfileDemo() {
+export async function refreshEnterpriseProfiles() {
   return requestClient.post<EnterpriseProfileRebuildResponse>(
-    '/investment/radar/enterprise-profile/rebuild-demo',
+    '/investment/radar/enterprise-profile/refresh',
     {},
   );
 }
@@ -1650,16 +1934,18 @@ export async function getRadarLeadScoreBreakdown(leadId: number | string) {
   );
 }
 
-export async function recalculateDemoLeadScores() {
-  return requestClient.post<DemoLeadScoreRecalculateResponse>(
-    '/investment/radar/lead/recalculate-demo-scores',
+export async function recalculateRadarLeadScores() {
+  return requestClient.post<RadarLeadScoreBatchRecalculateResponse>(
+    '/investment/radar/lead/recalculate-scores',
     {},
   );
 }
 
 export async function getOutreachTemplateList(params?: {
+  approvalStatus?: string;
   channel?: string;
   currentPage?: number;
+  enabled?: string;
   keyword?: string;
   pageSize?: number;
   taskType?: string;
@@ -1670,6 +1956,85 @@ export async function getOutreachTemplateList(params?: {
       params,
       silentError: true,
     },
+  );
+}
+
+export async function createOutreachTemplate(data: OutreachTemplatePayload) {
+  return requestClient.post<OutreachTemplate>(
+    '/investment/radar/outreach-template',
+    data,
+  );
+}
+
+export async function updateOutreachTemplate(
+  templateId: number | string,
+  data: OutreachTemplatePayload,
+) {
+  return requestClient.put<OutreachTemplate>(
+    `/investment/radar/outreach-template/${templateId}`,
+    data,
+  );
+}
+
+export async function enableOutreachTemplate(templateId: number | string) {
+  return requestClient.post<OutreachTemplateEnabledResponse>(
+    `/investment/radar/outreach-template/${templateId}/enable`,
+    {},
+  );
+}
+
+export async function disableOutreachTemplate(templateId: number | string) {
+  return requestClient.post<OutreachTemplateEnabledResponse>(
+    `/investment/radar/outreach-template/${templateId}/disable`,
+    {},
+  );
+}
+
+export async function previewOutreachTemplate(data: OutreachTemplatePayload) {
+  return requestClient.post<OutreachTemplatePreviewResponse>(
+    '/investment/radar/outreach-template/preview',
+    data,
+  );
+}
+
+export async function getOutreachTemplateStats() {
+  return requestClient.get<{
+    items: OutreachTemplateStatsRow[];
+    total: number;
+  }>('/investment/radar/outreach-template/stats', {
+    silentError: true,
+  });
+}
+
+export async function getOutreachTemplateVersions(templateId: number | string) {
+  return requestClient.get<{
+    items: OutreachTemplateVersion[];
+    total: number;
+  }>(`/investment/radar/outreach-template/${templateId}/versions`, {
+    silentError: true,
+  });
+}
+
+export async function submitOutreachTemplateApproval(
+  templateId: number | string,
+) {
+  return requestClient.post<OutreachTemplate>(
+    `/investment/radar/outreach-template/${templateId}/submit-approval`,
+    {},
+  );
+}
+
+export async function approveOutreachTemplate(templateId: number | string) {
+  return requestClient.post<OutreachTemplate>(
+    `/investment/radar/outreach-template/${templateId}/approve`,
+    {},
+  );
+}
+
+export async function rejectOutreachTemplate(templateId: number | string) {
+  return requestClient.post<OutreachTemplate>(
+    `/investment/radar/outreach-template/${templateId}/reject`,
+    {},
   );
 }
 
@@ -1834,9 +2199,9 @@ export async function createOutreachTask(data: CreateOutreachTaskPayload) {
   );
 }
 
-export async function mockSendOutreachTask(taskId: number | string) {
-  return requestClient.post<MockSendOutreachTaskResponse>(
-    `/investment/radar/outreach-task/${taskId}/mock-send`,
+export async function sendOutreachTask(taskId: number | string) {
+  return requestClient.post<SendOutreachTaskResponse>(
+    `/investment/radar/outreach-task/${taskId}/send`,
     {},
   );
 }
@@ -1855,6 +2220,28 @@ export async function replyOutreachTask(
   return requestClient.post<ReplyOutreachTaskResponse>(
     `/investment/radar/outreach-task/${taskId}/reply`,
     data,
+  );
+}
+
+export async function getContactRestrictionList(
+  params: ContactRestrictionListParams,
+) {
+  return requestClient.get<
+    RadarListResponse<ContactRestrictionListItem> & {
+      summary: ContactRestrictionSummary;
+    }
+  >('/investment/radar/contact-restriction/list', {
+    params,
+    silentError: true,
+  });
+}
+
+export async function releaseContactRestriction(
+  restrictionId: number | string,
+) {
+  return requestClient.post<ReleaseContactRestrictionResponse>(
+    `/investment/radar/contact-restriction/${restrictionId}/release`,
+    {},
   );
 }
 
@@ -1886,6 +2273,23 @@ export interface RebuildPropertyMatchResponse {
   totalCount: number;
 }
 
+export interface RebuildPropertyMatchBatchResponse {
+  items: Array<{
+    leadId: number;
+    matchCount: number;
+    topMatchScore: number;
+  }>;
+  rebuiltAt: string;
+  rebuiltLeadCount: number;
+}
+
+export interface UpdatePropertyTagsResponse {
+  factoryId: number;
+  factoryName: string;
+  tags: string[];
+  updateTime: string;
+}
+
 /**
  * 获取房源匹配结果
  */
@@ -1905,5 +2309,22 @@ export async function rebuildPropertyMatch(leadId: number | string) {
   return requestClient.post<RebuildPropertyMatchResponse>(
     `/investment/radar/lead/${leadId}/rebuild-property-match`,
     {},
+  );
+}
+
+export async function rebuildPropertyMatchBatch(limit = 200) {
+  return requestClient.post<RebuildPropertyMatchBatchResponse>(
+    '/investment/radar/lead/rebuild-property-match-batch',
+    { limit },
+  );
+}
+
+export async function updatePropertyTags(
+  propertyId: number | string,
+  tags: string[],
+) {
+  return requestClient.put<UpdatePropertyTagsResponse>(
+    `/investment/radar/property/${propertyId}/tags`,
+    { tags },
   );
 }

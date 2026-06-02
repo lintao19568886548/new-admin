@@ -1,4 +1,5 @@
 import { prismaClient } from '~/utils/db';
+import { ensureOutreachTaskTable } from '~/utils/investment-radar/outreach-action-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   badRequestResponse,
@@ -20,6 +21,8 @@ export default eventHandler(async (event) => {
 
   try {
     const result = await runWithRadarSharedScope(async () => {
+      await ensureOutreachTaskTable();
+
       const rows = await prismaClient.$queryRawUnsafe<any[]>(
         `
           SELECT
@@ -30,11 +33,14 @@ export default eventHandler(async (event) => {
             t.phone_number AS phoneNumber,
             t.status,
             t.template_code AS templateCode,
+            t.content AS content,
             t.scheduled_at AS scheduledAt,
             t.sent_at AS sentAt,
             COALESCE(sender.real_name, sender.username) AS sentByName,
             t.result_code AS resultCode,
             t.result_message AS resultMessage,
+            t.provider_task_id AS providerTaskId,
+            t.provider_response_json AS providerResponseJson,
             t.reply_status AS replyStatus,
             t.reply_content AS replyContent,
             t.reply_time AS replyTime,
@@ -84,6 +90,16 @@ export default eventHandler(async (event) => {
 
       return {
         ...task,
+        taskId: Number(task.taskId),
+        leadId: Number(task.leadId),
+        enterpriseId:
+          task.enterpriseId === null || task.enterpriseId === undefined
+            ? null
+            : Number(task.enterpriseId),
+        parkId:
+          task.parkId === null || task.parkId === undefined
+            ? null
+            : Number(task.parkId),
         enterpriseName: task.enterpriseName || '-',
         intentArea:
           task.intentArea === null || task.intentArea === undefined

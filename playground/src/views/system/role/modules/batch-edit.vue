@@ -7,12 +7,13 @@ import type { SystemRoleApi } from '#/api/system/role';
 
 import { computed, ref, watch } from 'vue';
 
-import { ApiComponent, useVbenDrawer, VbenTree } from '@vben/common-ui';
+import { useVbenDrawer, VbenTree } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import {
   Checkbox,
   InputNumber,
+  message,
   Radio,
   RadioGroup,
   Select,
@@ -70,6 +71,46 @@ const selectedRoles = ref<string[]>([]);
 const parkOptions = ref<any[]>([]);
 const parkDataLoaded = ref(false);
 
+function normalizeParkOptions(response: any) {
+  const responseItems = Array.isArray(response?.items) ? response.items : [];
+  const list = Array.isArray(response) ? response : responseItems;
+  const seenIds = new Set<number>();
+
+  return list
+    .map((item: Recordable<any>) => ({
+      ...item,
+      parkId: normalizeMenuId(item?.parkId),
+      parkName: String(item?.parkName || '').trim(),
+    }))
+    .filter((item: Recordable<any>) => {
+      if (!item.parkId || !item.parkName || seenIds.has(item.parkId)) {
+        return false;
+      }
+      seenIds.add(item.parkId);
+      return true;
+    });
+}
+
+const parkSelectOptions = computed(() =>
+  parkOptions.value.map((park) => ({
+    address: park.address,
+    label: park.parkName,
+    parkName: park.parkName,
+    value: park.parkId,
+  })),
+);
+
+function filterParkOption(input: string, option?: Recordable<any>) {
+  if (!input) return true;
+  const keyword = input.trim().toLowerCase();
+  const text = [option?.label, option?.parkName, option?.address, option?.value]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return text.includes(keyword);
+}
+
 /**
  * 获取园区数据（带缓存）
  */
@@ -78,9 +119,9 @@ const getCachedParkList = async () => {
     return parkOptions.value;
   }
   const result = await getParkList();
-  parkOptions.value = result;
+  parkOptions.value = normalizeParkOptions(result);
   parkDataLoaded.value = true;
-  return result;
+  return parkOptions.value;
 };
 
 // 角色树数据（用于角色选择）
@@ -135,6 +176,45 @@ const processedRoleTreeData = computed(() => {
 // 权限树数据
 const menuTreeData = ref<DataNode[]>([]);
 const loadingPermissions = ref(false);
+
+function normalizeMenuId(value: unknown) {
+  const menuId = Number(value);
+  return Number.isSafeInteger(menuId) && menuId > 0 ? menuId : undefined;
+}
+
+function filterPersistedMenuNodes(menus: any[]): any[] {
+  return menus
+    .map((menu) => {
+      const menuId = normalizeMenuId(menu?.menuId);
+      const children = Array.isArray(menu?.children)
+        ? filterPersistedMenuNodes(menu.children)
+        : [];
+
+      if (!menuId) {
+        return null;
+      }
+
+      return {
+        ...menu,
+        children: children.length > 0 ? children : undefined,
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeIdList(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      value
+        .map((item) => normalizeMenuId(item))
+        .filter((item): item is number => item !== undefined),
+    ),
+  ];
+}
 
 // 批量修改表单schema
 const batchEditSchema = computed(() => [
@@ -238,12 +318,18 @@ const [Drawer, drawerApi] = useVbenDrawer({
     if (valid) {
       const values = await formApi.getValues();
       const otherUpdateData: Partial<SystemRoleApi.SystemRole> = {};
+      const normalizedPermissions = normalizeIdList(values.permissions);
 
       if (fieldEnabled.value.parentId && values.parentId) {
         otherUpdateData.parentId = values.parentId;
       }
-      if (fieldEnabled.value.parkIds && Array.isArray(values.parkIds)) {
-        otherUpdateData.parkIds = values.parkIds;
+      if (fieldEnabled.value.parkIds) {
+        const normalizedParkIds = normalizeIdList(values.parkIds);
+        if (normalizedParkIds.length === 0) {
+          message.warning('启用所属园区后，请至少选择一个园区');
+          return;
+        }
+        otherUpdateData.parkIds = normalizedParkIds;
       }
       if (fieldEnabled.value.status && values.status !== undefined) {
         otherUpdateData.status = Boolean(values.status);
@@ -263,9 +349,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
 
       const hasOtherUpdates = Object.keys(otherUpdateData).length > 0;
       const hasPermissionUpdate =
-        fieldEnabled.value.permissions &&
-        Array.isArray(values.permissions) &&
-        values.permissions.length > 0;
+        fieldEnabled.value.permissions && normalizedPermissions.length > 0;
 
       if (!hasOtherUpdates && !hasPermissionUpdate) {
         console.warn('请至少启用一个字段并提供值以进行修改');
@@ -283,7 +367,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
             promises.push(
               addPermissionsToRole(roleId, {
                 batchRoleIds: selectedRoles.value,
-                permissions: values.permissions,
+                permissions: normalizedPermissions,
               }),
             );
           }
@@ -294,7 +378,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
           for (const roleId of selectedRoles.value) {
             promises.push(
               removePermissionsFromRole(roleId, {
-                permissions: values.permissions,
+                permissions: normalizedPermissions,
               }),
             );
           }
@@ -303,7 +387,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         // 处理其他字段更新以及权限覆盖
         const updatePayload = { ...otherUpdateData };
         if (hasPermissionUpdate && permissionUpdateMode.value === 'overwrite') {
-          updatePayload.permissions = values.permissions;
+          updatePayload.permissions = normalizedPermissions;
         }
 
         if (Object.keys(updatePayload).length > 0) {
@@ -380,7 +464,9 @@ async function loadPermissions() {
   loadingPermissions.value = true;
   try {
     const res = await getMenuList();
-    menuTreeData.value = res as unknown as DataNode[];
+    menuTreeData.value = filterPersistedMenuNodes(
+      res as unknown as any[],
+    ) as DataNode[];
   } finally {
     loadingPermissions.value = false;
   }
@@ -392,10 +478,37 @@ async function loadPermissions() {
 async function loadParkOptions() {
   try {
     const response = await getParkList();
-    parkOptions.value = response.items || response || [];
+    parkOptions.value = normalizeParkOptions(response);
+    parkDataLoaded.value = true;
   } catch (error) {
     console.error('加载园区数据失败:', error);
   }
+}
+
+function getPermissionNodeTitle(value: Recordable<any>) {
+  return value?.meta?.title || value?.name || value?.path || '';
+}
+
+function getPermissionNodeTags(value: Recordable<any>) {
+  const meta = value?.meta || {};
+  const pathText =
+    `${value?.path || ''} ${value?.component || ''}`.toLowerCase();
+  const tags: string[] = [];
+
+  if (value?.type === 'button') {
+    tags.push('按钮');
+  }
+  if (meta.isApp || pathText.includes('mobile') || pathText.includes('/app')) {
+    tags.push('移动端');
+  }
+  if (meta.hideInMenu) {
+    tags.push('隐藏');
+  }
+  if (pathText.includes(':') || pathText.includes('detail')) {
+    tags.push('详情');
+  }
+
+  return [...new Set(tags)];
 }
 
 /**
@@ -645,17 +758,9 @@ defineExpose({
         <div class="flex items-center gap-2" style="min-width: 330px">
           <Checkbox v-model:checked="fieldEnabled.parentId" />
           <div class="flex-1">
-            <ApiComponent
+            <TreeSelect
               v-model:value="slotProps.modelValue"
-              :api="
-                async () => {
-                  if (roleStore.isLoaded && roleStore.roleList.length > 0) {
-                    return roleStore.roleList;
-                  }
-                  return await roleStore.fetchRoles();
-                }
-              "
-              :component="TreeSelect"
+              allow-clear
               class="w-full"
               :disabled="!fieldEnabled.parentId"
               :field-names="{
@@ -670,15 +775,11 @@ defineExpose({
                   return name.includes(input);
                 }
               "
-              loading-slot="suffixIcon"
-              model-prop-name="value"
-              options-prop-name="treeData"
               placeholder="请选择上级角色"
               show-search
+              :tree-data="roleStore.roleList"
               tree-default-expand-all
               tree-node-filter-prop="name"
-              visible-event="onVisibleChange"
-              allow-clear
             />
           </div>
         </div>
@@ -689,31 +790,24 @@ defineExpose({
         <div class="flex items-center gap-2">
           <Checkbox v-model:checked="fieldEnabled.parkIds" />
           <div class="flex-1" style="min-width: 300px">
-            <ApiComponent
+            <Select
               v-model:value="slotProps.modelValue"
-              :api="getCachedParkList"
-              :component="Select"
+              allow-clear
               class="w-full"
               :disabled="!fieldEnabled.parkIds"
-              :field-names="{ label: 'parkName', value: 'parkId' }"
-              loading-slot="suffixIcon"
+              :filter-option="filterParkOption"
               mode="multiple"
-              model-prop-name="value"
-              placeholder="请选择所属园区"
+              :options="parkSelectOptions"
+              placeholder="输入搜索或下拉选择所属园区"
               show-search
               style="width: 100%; min-width: 300px"
-              visible-event="onVisibleChange"
-              @update:value="
-                (value: string[]) => {
-                  console.log('园区值变化:', {
-                    newValue: value,
-                    type: typeof value,
-                    isArray: Array.isArray(value),
-                    length: Array.isArray(value) ? value.length : 'N/A',
-                  });
-                  // 手动同步到表单字段
-                  formApi.setFieldValue('parkIds', value);
-                  console.log('已同步园区值到表单字段');
+              @change="
+                (value: unknown) =>
+                  formApi.setFieldValue('parkIds', normalizeIdList(value))
+              "
+              @dropdown-visible-change="
+                (open: boolean) => {
+                  if (open) getCachedParkList();
                 }
               "
             />
@@ -782,8 +876,20 @@ defineExpose({
                 "
               >
                 <template #node="{ value }">
-                  <IconifyIcon v-if="value.meta.icon" :icon="value.meta.icon" />
-                  {{ $t(value.meta.title) }}
+                  <span class="permission-node">
+                    <IconifyIcon
+                      v-if="value.meta?.icon"
+                      :icon="value.meta.icon"
+                    />
+                    <span>{{ $t(getPermissionNodeTitle(value)) }}</span>
+                    <span
+                      v-for="tag in getPermissionNodeTags(value)"
+                      :key="tag"
+                      class="permission-node-tag"
+                    >
+                      {{ tag }}
+                    </span>
+                  </span>
                 </template>
               </VbenTree>
             </Spin>
@@ -936,5 +1042,22 @@ defineExpose({
   border-color: #1890ff;
   outline: none;
   box-shadow: 0 0 0 2px rgb(24 144 255 / 20%);
+}
+
+.permission-node {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 22px;
+}
+
+.permission-node-tag {
+  padding: 0 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #4b5563;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
 }
 </style>

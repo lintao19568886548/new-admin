@@ -10,11 +10,11 @@ import { computed, onMounted, reactive, ref } from 'vue';
 
 import { ReloadOutlined } from '@ant-design/icons-vue';
 import {
+  AutoComplete,
   Button,
   Card,
   Drawer,
   Empty,
-  Input,
   message,
   Pagination,
   Progress,
@@ -27,9 +27,10 @@ import {
   getEnterpriseProfileList,
   getEnterpriseProfileSignals,
   getEnterpriseProfileTags,
-  rebuildEnterpriseProfileDemo,
+  refreshEnterpriseProfiles,
 } from '#/api/investment';
 
+import { searchableDropdownProps, useSearchHistory } from '../search-history';
 import { formatDateOnly } from './mobile-utils';
 
 defineOptions({ name: 'InvestmentRadarMobileEnterpriseProfiles' });
@@ -57,6 +58,18 @@ const searchForm = reactive({
   keyword: '',
   regionCity: '',
 });
+const keywordSearchHistory = useSearchHistory(
+  'radar.mobile-enterprise-profiles.keyword',
+);
+const industrySearchHistory = useSearchHistory(
+  'radar.mobile-enterprise-profiles.industryName',
+);
+const citySearchHistory = useSearchHistory(
+  'radar.mobile-enterprise-profiles.regionCity',
+);
+const keywordOptions = keywordSearchHistory.options();
+const industryOptions = industrySearchHistory.options();
+const cityOptions = citySearchHistory.options();
 
 const pagination = reactive({
   current: 1,
@@ -141,6 +154,9 @@ async function loadProfiles() {
 }
 
 function searchProfiles() {
+  keywordSearchHistory.add(searchForm.keyword);
+  industrySearchHistory.add(searchForm.industryName);
+  citySearchHistory.add(searchForm.regionCity);
   pagination.current = 1;
   filterOpen.value = false;
   void loadProfiles();
@@ -160,22 +176,22 @@ function onPageChange(page: number, pageSize: number) {
   void loadProfiles();
 }
 
-async function rebuildDemoProfiles() {
+async function refreshProfiles() {
   if (rebuilding.value) {
     return;
   }
   rebuilding.value = true;
   try {
-    const result = await rebuildEnterpriseProfileDemo();
+    const result = await refreshEnterpriseProfiles();
     rebuildSummary.value = result;
     message.success(
-      `重建完成：画像新增 ${result.createdProfileCount}，更新 ${result.updatedProfileCount}`,
+      `刷新完成：画像新增 ${result.createdProfileCount}，更新 ${result.updatedProfileCount}`,
     );
     pagination.current = 1;
     await loadProfiles();
   } catch (error) {
-    console.error('重建企业画像失败:', error);
-    message.error('重建 demo 企业画像失败');
+    console.error('刷新企业画像失败:', error);
+    message.error('刷新企业画像失败');
   } finally {
     rebuilding.value = false;
   }
@@ -224,43 +240,52 @@ onMounted(() => {
 
     <div class="radar-mobile-filter">
       <div class="mobile-search-bar">
-        <Input
+        <AutoComplete
           v-model:value="searchForm.keyword"
+          v-bind="searchableDropdownProps"
           allow-clear
           class="mobile-search-input"
+          :options="keywordOptions"
           placeholder="企业 / 行业 / 地区"
           @press-enter="searchProfiles"
+          @select="searchProfiles"
         />
         <Button type="primary" @click="searchProfiles">查询</Button>
         <Button @click="filterOpen = !filterOpen">筛选</Button>
       </div>
       <div v-show="filterOpen" class="mobile-filter-panel">
         <div class="filter-row">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.industryName"
+            v-bind="searchableDropdownProps"
             allow-clear
+            :options="industryOptions"
             placeholder="行业"
             @press-enter="searchProfiles"
+            @select="searchProfiles"
           />
-          <Input
+          <AutoComplete
             v-model:value="searchForm.regionCity"
+            v-bind="searchableDropdownProps"
             allow-clear
+            :options="cityOptions"
             placeholder="城市"
             @press-enter="searchProfiles"
+            @select="searchProfiles"
           />
         </div>
         <div class="filter-actions">
           <Button type="primary" @click="searchProfiles">应用筛选</Button>
           <Button @click="resetSearch">重置</Button>
-          <Button :loading="rebuilding" @click="rebuildDemoProfiles">
-            重建 demo
+          <Button :loading="rebuilding" @click="refreshProfiles">
+            增量刷新
           </Button>
         </div>
       </div>
     </div>
 
     <div v-if="rebuildSummary" class="rebuild-summary">
-      最近重建：信号 {{ rebuildSummary.signalEventCount }}，企业
+      最近刷新：信号 {{ rebuildSummary.signalEventCount }}，企业
       {{ rebuildSummary.sourceCompanyCount }}，画像新增
       {{ rebuildSummary.createdProfileCount }}，画像更新
       {{ rebuildSummary.updatedProfileCount }}，标签新增

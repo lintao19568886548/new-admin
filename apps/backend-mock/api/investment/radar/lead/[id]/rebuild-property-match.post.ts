@@ -1,5 +1,5 @@
 import { eventHandler, getRouterParam } from 'h3';
-import { performPropertyMatch } from '~/utils/investment-radar/property-match-service';
+import { rebuildPropertyMatches } from '~/utils/investment-radar/property-match-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   badRequestResponse,
@@ -22,7 +22,7 @@ export default eventHandler(async (event) => {
 
   try {
     const matches = await runWithRadarSharedScope(() =>
-      performPropertyMatch(leadId, {
+      rebuildPropertyMatches(leadId, {
         authorizedParkIds: userinfo.parks.map((park) => park.parkId),
       }),
     );

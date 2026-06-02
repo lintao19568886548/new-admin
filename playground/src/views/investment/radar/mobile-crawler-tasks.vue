@@ -60,7 +60,7 @@ const PUBLIC_OPPORTUNITY_SOURCE_CODE = 'PUBLIC_OPPORTUNITY_99CFW';
 
 const loading = ref(false);
 const opsSummaryLoading = ref(false);
-const runningDemo = ref(false);
+const runningIncremental = ref(false);
 const runningEia = ref(false);
 const runningPilot = ref(false);
 const runningRecruitment = ref(false);
@@ -141,7 +141,6 @@ const statusMeta: Record<string, { color: string; label: string }> = {
 };
 
 const taskTypeLabel: Record<string, string> = {
-  MANUAL_DEMO: '示例数据采集',
   MANUAL_EIA: '环评公示采集',
   MANUAL_RECRUITMENT: '招聘扩产采集',
   MANUAL_TENDER: '招投标信号采集',
@@ -238,6 +237,10 @@ function formatSourceRef(item: CrawlerTaskItem) {
   return item.sourceRefType || item.sourceRefId ? '已关联' : '-';
 }
 
+function formatSchedulerMode(mode?: null | string) {
+  return mode === 'DEMAND' ? '公开需求' : mode || '公开采集';
+}
+
 function getStatusCount(
   source: null | Record<string, number> | undefined,
   status: string,
@@ -324,22 +327,22 @@ function onPageChange(page: number, pageSize: number) {
   void loadTasks();
 }
 
-async function runDemoTask() {
-  if (runningDemo.value) {
+async function runIncrementalTask() {
+  if (runningIncremental.value) {
     return;
   }
-  runningDemo.value = true;
+  runningIncremental.value = true;
   try {
     const task = await runCrawlerTask();
-    message.success(`demo task 已结束：${task.status}`);
+    message.success(`增量采集已结束：${task.status}`);
     pagination.current = 1;
     await loadTasks();
     await loadOpsSummary();
   } catch (error) {
-    console.error('运行 demo task 失败:', error);
-    message.error('手动运行 demo task 失败');
+    console.error('运行增量采集失败:', error);
+    message.error('手动运行增量采集失败');
   } finally {
-    runningDemo.value = false;
+    runningIncremental.value = false;
   }
 }
 
@@ -354,9 +357,10 @@ async function runPublicOpportunityPilot() {
   runningPilot.value = true;
   try {
     const task = await runPublicOpportunityCrawlerTask({
-      batchSize: 80,
-      freshnessDays: 365,
+      batchSize: 10,
+      freshnessDays: 180,
       sourceCode: selectedPublicSourceCode.value,
+      staleReprocessMinutes: 24 * 60,
     });
     message.success(`99cfw 试点采集已结束：${task.status}`);
     pagination.current = 1;
@@ -448,11 +452,11 @@ async function startAutoScheduler() {
   schedulerLoading.value = true;
   try {
     await startPublicOpportunityCrawlerScheduler();
-    message.success('99cfw 自动调度已启动');
+    message.success('公开需求每日 8 点调度已启动');
     await loadOpsSummary();
   } catch (error) {
-    console.error('启动 99cfw 自动调度失败:', error);
-    message.error('启动 99cfw 自动调度失败');
+    console.error('启动公开需求每日调度失败:', error);
+    message.error('启动公开需求每日调度失败');
   } finally {
     schedulerLoading.value = false;
   }
@@ -465,11 +469,11 @@ async function stopAutoScheduler() {
   schedulerLoading.value = true;
   try {
     await stopPublicOpportunityCrawlerScheduler();
-    message.success('99cfw 自动调度已停止');
+    message.success('公开需求每日调度已停止');
     await loadOpsSummary();
   } catch (error) {
-    console.error('停止 99cfw 自动调度失败:', error);
-    message.error('停止 99cfw 自动调度失败');
+    console.error('停止公开需求每日调度失败:', error);
+    message.error('停止公开需求每日调度失败');
   } finally {
     schedulerLoading.value = false;
   }
@@ -720,7 +724,10 @@ onMounted(() => {
             <Tag :color="opsSummary.scheduler.envEnabled ? 'green' : 'default'">
               环境{{ opsSummary.scheduler.envEnabled ? '开' : '关' }}
             </Tag>
-            {{ Math.round(opsSummary.scheduler.intervalMs / 1000) }}s
+            <Tag color="blue">
+              {{ formatSchedulerMode(opsSummary.scheduler.mode) }}
+            </Tag>
+            每日 {{ opsSummary.scheduler.dailyRunHour ?? 8 }}:00
           </span>
         </div>
         <div class="ops-item">
@@ -731,6 +738,7 @@ onMounted(() => {
             </Tag>
             <span v-if="opsSummary.scheduler.nextRunAt">
               下次 {{ formatDateOnly(opsSummary.scheduler.nextRunAt) }}
+              {{ opsSummary.scheduler.dailyRunHour ?? 8 }}:00
             </span>
             <span v-if="opsSummary.scheduler.reason">
               / {{ opsSummary.scheduler.reason }}
@@ -830,7 +838,7 @@ onMounted(() => {
           type="primary"
           @click="startAutoScheduler"
         >
-          启动调度
+          启动每日调度
         </Button>
         <Button
           danger
@@ -838,7 +846,7 @@ onMounted(() => {
           :loading="schedulerLoading"
           @click="stopAutoScheduler"
         >
-          停止调度
+          停止每日调度
         </Button>
         <Button :loading="requeueLoading" @click="requeueAllFailedItems">
           恢复失败/跳过 URL
@@ -873,9 +881,13 @@ onMounted(() => {
         <div class="filter-actions">
           <Button type="primary" @click="searchTasks">应用筛选</Button>
           <Button @click="resetSearch">重置</Button>
-          <Button type="primary" :loading="runningDemo" @click="runDemoTask">
+          <Button
+            type="primary"
+            :loading="runningIncremental"
+            @click="runIncrementalTask"
+          >
             <PlayCircleOutlined class="mr-1 h-4 w-4" />
-            运行 demo
+            增量采集
           </Button>
           <Button
             :disabled="!publicOpportunityCanRun"

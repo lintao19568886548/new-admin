@@ -17,6 +17,7 @@ import { useRouter } from 'vue-router';
 import { formatDateTime } from '@vben/utils';
 
 import {
+  AutoComplete,
   Button,
   Card,
   Descriptions,
@@ -40,6 +41,8 @@ import {
   getRadarSalesUserList,
   updateExternalLead,
 } from '#/api/investment';
+
+import { searchableDropdownProps, useSearchHistory } from '../search-history';
 
 defineOptions({ name: 'InvestmentRadarExternalLeads' });
 
@@ -71,6 +74,20 @@ const searchForm = ref({
   sourceType: '',
   status: '',
 });
+const keywordSearchHistory = useSearchHistory('radar.external-leads.keyword');
+const regionCitySearchHistory = useSearchHistory(
+  'radar.external-leads.regionCity',
+);
+const industryNameSearchHistory = useSearchHistory(
+  'radar.external-leads.industryName',
+);
+const sourceNameSearchHistory = useSearchHistory(
+  'radar.external-leads.sourceName',
+);
+const keywordOptions = keywordSearchHistory.options();
+const regionCityOptions = regionCitySearchHistory.options();
+const industryNameOptions = industryNameSearchHistory.options();
+const sourceNameOptions = sourceNameSearchHistory.options();
 const editForm = ref<{
   invalidReason?: string;
   ownerUserId?: number;
@@ -118,7 +135,6 @@ const sourceTypeOptions = [
   { label: '全部来源类型', value: '' },
   { label: '内部合同', value: 'INTERNAL_CONTRACT' },
   { label: '公开机会', value: 'PUBLIC_OPPORTUNITY' },
-  { label: 'Demo', value: 'DEMO' },
 ];
 
 const statusMeta: Record<ExternalLeadStatus, { color: string; label: string }> =
@@ -216,6 +232,10 @@ async function loadSalesUsers() {
 }
 
 function searchLeads() {
+  keywordSearchHistory.add(searchForm.value.keyword);
+  regionCitySearchHistory.add(searchForm.value.regionCity);
+  industryNameSearchHistory.add(searchForm.value.industryName);
+  sourceNameSearchHistory.add(searchForm.value.sourceName);
   pagination.value.current = 1;
   void loadLeads();
 }
@@ -568,12 +588,15 @@ onMounted(() => {
     <Card class="mb-3" title="筛选">
       <Form class="radar-search-form" layout="inline">
         <Form.Item label="关键词">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.keyword"
+            v-bind="searchableDropdownProps"
             allow-clear
             class="radar-filter-keyword"
+            :options="keywordOptions"
             placeholder="企业 / 标题 / 来源"
             @press-enter="searchLeads"
+            @select="searchLeads"
           />
         </Form.Item>
         <Form.Item label="状态">
@@ -598,27 +621,36 @@ onMounted(() => {
           />
         </Form.Item>
         <Form.Item label="地区">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.regionCity"
+            v-bind="searchableDropdownProps"
             allow-clear
             class="radar-filter-control"
+            :options="regionCityOptions"
             @press-enter="searchLeads"
+            @select="searchLeads"
           />
         </Form.Item>
         <Form.Item label="行业">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.industryName"
+            v-bind="searchableDropdownProps"
             allow-clear
             class="radar-filter-control"
+            :options="industryNameOptions"
             @press-enter="searchLeads"
+            @select="searchLeads"
           />
         </Form.Item>
         <Form.Item label="来源">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.sourceName"
+            v-bind="searchableDropdownProps"
             allow-clear
             class="radar-filter-control"
+            :options="sourceNameOptions"
             @press-enter="searchLeads"
+            @select="searchLeads"
           />
         </Form.Item>
         <Form.Item label="来源类型">

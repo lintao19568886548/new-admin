@@ -1,7 +1,7 @@
 import type {
   CrawlerSource,
-  DemoCrawlerLead,
   PolicyCheckResult,
+  PublicSignalCrawlerLead,
 } from './crawler-types';
 
 import {
@@ -23,16 +23,20 @@ export const PUBLIC_OPPORTUNITY_99CFW_ALLOWED_PATHS = [
 export const PUBLIC_FACTORY_CFZSW68_ALLOWED_HOST = 'cfzsw68.com';
 export const PUBLIC_FACTORY_CFZSW68_ALLOWED_ORIGIN = 'http://cfzsw68.com';
 export const PUBLIC_FACTORY_CFZSW68_ALLOWED_PATH_PREFIX = '/sz/cfcz/';
-export const PUBLIC_FACTORY_CFZSW68_ALLOWED_PATHS = [
-  PUBLIC_FACTORY_CFZSW68_ALLOWED_PATH_PREFIX,
-] as const;
+export const CFZSW68_CITY_CODES = ['sz', 'dg', 'gz', 'fs', 'zs', 'jm'] as const;
+export const CFZSW68_CITY_PATH_PREFIXES: string[] = CFZSW68_CITY_CODES.map(
+  (code) => `/${code}/cfcz/`,
+);
+export const PUBLIC_FACTORY_CFZSW68_ALLOWED_PATHS = CFZSW68_CITY_PATH_PREFIXES;
 
 const PUBLIC_OPPORTUNITY_99CFW_DETAIL_PATH_PATTERN =
   /^\/changfangxuqiu\/[\w-]+\.(?:html|htm)$/i;
 const PUBLIC_OPPORTUNITY_99CFW_CITY_DETAIL_PATH_PATTERN =
   /^\/xuqiu\/[\w-]+\.(?:html|htm)$/i;
+const PUBLIC_OPPORTUNITY_LISTLIKE_DETAIL_FILE_PATTERN =
+  /\/(?:index|list|lists|page|pages)(?:[_-]?\d+)?\.(?:html|htm)$/i;
 const PUBLIC_FACTORY_CFZSW68_DETAIL_PATH_PATTERN =
-  /^\/sz\/cfcz\/[\w-]+\.(?:html|htm)$/i;
+  /^\/(?:sz|dg|gz|fs|zs|jm)\/cfcz\/\d+\.(?:html|htm)$/i;
 
 function normalizeText(value: unknown) {
   return String(value || '')
@@ -46,14 +50,10 @@ function normalizeList(value: null | string[] | undefined) {
     : [];
 }
 
-function resolveDemoPath(sourceUrl: string) {
+function resolveCrawlerLeadPath(sourceUrl: string) {
   const trimmed = String(sourceUrl || '').trim();
   if (!trimmed) {
     return '/';
-  }
-  const demoPrefix = 'demo://';
-  if (trimmed.startsWith(demoPrefix)) {
-    return `/${trimmed.slice(demoPrefix.length).replace(/^\/+/, '')}`;
   }
   try {
     return new URL(trimmed).pathname || '/';
@@ -94,10 +94,8 @@ export function isPublicFactoryCfzsw68AllowedPathPolicy(
 ) {
   const normalizedPaths = normalizeList(paths);
   return (
-    normalizedPaths.length === PUBLIC_FACTORY_CFZSW68_ALLOWED_PATHS.length &&
-    normalizedPaths.every(
-      (path, index) => path === PUBLIC_FACTORY_CFZSW68_ALLOWED_PATHS[index],
-    )
+    normalizedPaths.length > 0 &&
+    normalizedPaths.every((path) => CFZSW68_CITY_PATH_PREFIXES.includes(path))
   );
 }
 
@@ -129,6 +127,9 @@ export function buildPublicOpportunity99CfwUrlPolicyFailureReason(
       !PUBLIC_OPPORTUNITY_99CFW_DETAIL_PATH_PATTERN.test(url.pathname) &&
       !PUBLIC_OPPORTUNITY_99CFW_CITY_DETAIL_PATH_PATTERN.test(url.pathname)
     ) {
+      return 'URL_DETAIL_PATH_NOT_ALLOWED';
+    }
+    if (PUBLIC_OPPORTUNITY_LISTLIKE_DETAIL_FILE_PATTERN.test(url.pathname)) {
       return 'URL_DETAIL_PATH_NOT_ALLOWED';
     }
 
@@ -252,7 +253,7 @@ export function buildPublicFactoryCfzsw68ListUrlPolicyFailureReason(
     if (url.search || url.hash) {
       return 'URL_QUERY_NOT_ALLOWED';
     }
-    return url.pathname === PUBLIC_FACTORY_CFZSW68_ALLOWED_PATH_PREFIX
+    return CFZSW68_CITY_PATH_PREFIXES.includes(url.pathname)
       ? null
       : 'URL_LIST_PATH_NOT_ALLOWED';
   } catch {
@@ -343,11 +344,11 @@ export function checkCrawlerIntervalPolicy(
   return { allowed: true };
 }
 
-export function checkDemoLeadPolicy(
+export function checkPublicSignalLeadPolicy(
   source: CrawlerSource,
-  lead: DemoCrawlerLead,
+  lead: PublicSignalCrawlerLead,
 ): PolicyCheckResult {
-  const pathname = resolveDemoPath(lead.sourceUrl);
+  const pathname = resolveCrawlerLeadPath(lead.sourceUrl);
   const allowedPaths = normalizeList(source.allowedPathsJson);
   const blockedPaths = normalizeList(source.blockedPathsJson);
 
@@ -397,3 +398,5 @@ export function checkDemoLeadPolicy(
 
   return { allowed: true };
 }
+
+export const checkDemoLeadPolicy = checkPublicSignalLeadPolicy;

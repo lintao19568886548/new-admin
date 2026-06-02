@@ -4,7 +4,7 @@ import type { CrawlerTask, CrawlerTaskType } from './crawler-types';
 import {
   checkCrawlerIntervalPolicy,
   checkCrawlerSourcePolicy,
-  checkDemoLeadPolicy,
+  checkPublicSignalLeadPolicy,
 } from './crawler-policy';
 import {
   getPublicCrawlerSourceByCode,
@@ -125,7 +125,7 @@ export async function runPublicSignalCrawlerTask(
     });
 
     for (const lead of leads) {
-      const leadPolicy = checkDemoLeadPolicy(source, lead);
+      const leadPolicy = checkPublicSignalLeadPolicy(source, lead);
       if (!leadPolicy.allowed) {
         skippedCount += 1;
         await appendCrawlerTaskLog({

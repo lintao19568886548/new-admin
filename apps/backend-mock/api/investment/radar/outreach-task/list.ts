@@ -1,4 +1,5 @@
 import { prismaClient } from '~/utils/db';
+import { ensureOutreachTaskTable } from '~/utils/investment-radar/outreach-action-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   serverErrorResponse,
@@ -25,6 +26,8 @@ export default eventHandler(async (event) => {
     const priorityLevel = String(query.priorityLevel || '').trim();
 
     const result = await runWithRadarSharedScope(async () => {
+      await ensureOutreachTaskTable();
+
       const whereClauses = ['l.is_deleted = 0'];
       const whereParams: any[] = [];
 
@@ -122,11 +125,14 @@ export default eventHandler(async (event) => {
               t.phone_number AS phoneNumber,
               t.status,
               t.template_code AS templateCode,
+              t.content AS content,
               t.scheduled_at AS scheduledAt,
               t.sent_at AS sentAt,
               COALESCE(u.real_name, u.username) AS sentByName,
               t.result_code AS resultCode,
               t.result_message AS resultMessage,
+              t.provider_task_id AS providerTaskId,
+              t.provider_response_json AS providerResponseJson,
               t.reply_status AS replyStatus,
               t.reply_content AS replyContent,
               t.reply_time AS replyTime,
@@ -175,6 +181,8 @@ export default eventHandler(async (event) => {
       return {
         items: rows.map((item) => ({
           ...item,
+          taskId: Number(item.taskId),
+          leadId: Number(item.leadId),
           enterpriseName: item.enterpriseName || '-',
           totalScore: Number(item.totalScore || 0),
         })),

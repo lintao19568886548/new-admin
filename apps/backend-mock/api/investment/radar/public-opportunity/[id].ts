@@ -1,5 +1,6 @@
 import { prismaClient } from '~/utils/db';
 import { ensurePublicOpportunityStorage } from '~/utils/investment-radar/public-opportunity-repository';
+import { serializePublicOpportunityRow } from '~/utils/investment-radar/public-opportunity-serializer';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   badRequestResponse,
@@ -46,6 +47,10 @@ export default eventHandler(async (event) => {
             published_date_text AS publishedDateText,
             effective_until AS effectiveUntil,
             opportunity_status AS opportunityStatus,
+            source_code AS sourceCode,
+            is_guangdong AS isGuangdong,
+            has_detail_evidence AS hasDetailEvidence,
+            quality_grade AS qualityGrade,
             score,
             tags_json AS tagsJson,
             detail_json AS detailJson,
@@ -69,7 +74,7 @@ export default eventHandler(async (event) => {
       return badRequestResponse('公开机会不存在', event, 404);
     }
 
-    return useResponseSuccess(item);
+    return useResponseSuccess(serializePublicOpportunityRow(item));
   } catch (error) {
     console.error('get public opportunity detail failed:', error);
     return serverErrorResponse('获取公开机会详情失败', event);

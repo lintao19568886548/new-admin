@@ -1,4 +1,4 @@
-import { appendProfileAuxiliaryRouteMenus } from '~/utils/profile-route-menus';
+import { normalizeParkManagementMenuPlacement } from '~/utils/park-menu-placement';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -40,7 +40,10 @@ export default eventHandler(async (event) => {
     removeEmptyChildren: true,
   });
 
-  const normalizedMenus = appendProfileAuxiliaryRouteMenus(processedMenus);
-
-  return useResponseSuccess(normalizedMenus);
+  return useResponseSuccess(
+    normalizeParkManagementMenuPlacement(processedMenus, {
+      ensureParkWhenMissing: userinfo.roles?.includes('Super') ?? false,
+      preferLegacyMenu: true,
+    }),
+  );
 });

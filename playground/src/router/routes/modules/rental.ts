@@ -34,6 +34,7 @@ const routes: RouteRecordRaw[] = [
       {
         component: () => import('#/views/rental/manage/list.vue'),
         meta: {
+          hideInMenu: true,
           icon: 'mdi:clipboard-list', // 更改为管理/列表图标
           title: $t('page.rental.management'),
         },
@@ -43,6 +44,7 @@ const routes: RouteRecordRaw[] = [
       {
         component: () => import('#/views/rental/manage/mobile.vue'),
         meta: {
+          hideInMenu: true,
           hideMenu: true,
           icon: 'mdi:cellphone-cog', // 手机和设置图标结合
           title: $t('page.rental.managementMobile'),

@@ -16,7 +16,6 @@ import {
   PUBLIC_OPPORTUNITY_99CFW_ALLOWED_PATHS,
 } from './crawler-policy';
 import {
-  DEMO_CRAWLER_SOURCE_CODE,
   INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE,
   PUBLIC_BUSINESS_CHANGE_SOURCE_CODE,
   PUBLIC_EIA_NOTICE_SOURCE_CODE,
@@ -26,6 +25,7 @@ import {
   PUBLIC_OPPORTUNITY_PLATFORM_SOURCE_CODES,
   PUBLIC_RECRUITMENT_SOURCE_CODE,
   PUBLIC_TENDER_SOURCE_CODE,
+  RETIRED_PUBLIC_OPPORTUNITY_SOURCE_CODES,
 } from './crawler-types';
 import {
   GUANGDONG_CITY_NAMES,
@@ -37,6 +37,7 @@ import {
   getPublicCrawlerAdapterAllowedPaths,
   listPublicCrawlerAdapters,
 } from './public-crawler-adapters';
+import { assertInvestmentRadarTablesReady } from './schema-guard';
 
 export class CrawlerSourceValidationError extends Error {
   constructor(message: string) {
@@ -64,17 +65,37 @@ const PUBLIC_CRAWLER_CITY_REGION_SCOPE_BY_CODE: Record<string, string[]> = {
   [PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE]: ['深圳'],
 };
 
+const DEFAULT_ENABLED_PUBLIC_OPPORTUNITY_SOURCE_CODES = new Set<string>([
+  'PUBLIC_DEMAND_99CFW_GD',
+  PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE,
+]);
+
 const CITY_SCOPE_RULES = [
   { patterns: ['dg.', '/dg/', 'dongguan', '441900'], scope: ['东莞'] },
   { patterns: ['sz.', '/sz/', 'shenzhen', '440300'], scope: ['深圳'] },
   { patterns: ['gz.', '/gz/', 'guangzhou', '440100'], scope: ['广州'] },
   { patterns: ['fs.', '/fs/', 'foshan', '440600'], scope: ['佛山'] },
-  { patterns: ['hz.', '/hz/', 'huizhou', '441300'], scope: ['惠州'] },
+  { patterns: ['huizhou', '441300'], scope: ['惠州'] },
   { patterns: ['zs.', '/zs/', 'zhongshan', '442000'], scope: ['中山'] },
   { patterns: ['zh.', '/zh/', 'zhuhai', '440400'], scope: ['珠海'] },
   { patterns: ['jm.', '/jm/', 'jiangmen', '440700'], scope: ['江门'] },
   { patterns: ['zq.', '/zq/', 'zhaoqing', '441200'], scope: ['肇庆'] },
 ] as const;
+
+const DEFAULT_PUBLIC_CRAWLER_RATE_LIMIT_PER_MINUTE = 120;
+const DEFAULT_PUBLIC_CRAWLER_INTERVAL_MINUTES = 24 * 60;
+const RETIRED_PUBLIC_OPPORTUNITY_SOURCE_CODE_SET = new Set<string>(
+  RETIRED_PUBLIC_OPPORTUNITY_SOURCE_CODES,
+);
+
+function getPublicCrawlerRateLimitPerMinute() {
+  const value = Number(
+    process.env.INVESTMENT_RADAR_PUBLIC_CRAWLER_RATE_LIMIT_PER_MINUTE,
+  );
+  return Number.isFinite(value) && value > 0
+    ? Math.floor(value)
+    : DEFAULT_PUBLIC_CRAWLER_RATE_LIMIT_PER_MINUTE;
+}
 
 function listUrlMatchesScope(listUrl: string, scope: string) {
   const normalizedListUrl = listUrl.toLowerCase();
@@ -115,6 +136,10 @@ function resolvePublicCrawlerRegionScope(params: {
 
 function getPublicCrawlerListUrls(adapter: PublicCrawlerAdapter) {
   return adapter.buildListUrls?.() || [adapter.buildListUrl()];
+}
+
+function isDefaultEnabledPublicOpportunitySource(sourceCode: string) {
+  return DEFAULT_ENABLED_PUBLIC_OPPORTUNITY_SOURCE_CODES.has(sourceCode);
 }
 
 interface CandidateCrawlerSourceSeed {
@@ -258,7 +283,6 @@ function mapSourceRow(row: any): CrawlerSource {
   const sourceCode = row.sourceCode || '';
   const storedAllowedPaths = parseStoredJsonArray(row.allowedPathsJson);
   const readySourceCodes = new Set([
-    DEMO_CRAWLER_SOURCE_CODE,
     INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE,
     PUBLIC_EIA_NOTICE_SOURCE_CODE,
     PUBLIC_RECRUITMENT_SOURCE_CODE,
@@ -307,7 +331,7 @@ function mapSourceRow(row: any): CrawlerSource {
     sourceCode,
     sourceId: Number(row.sourceId),
     sourceName: row.sourceName || '',
-    sourceType: row.sourceType || 'DEMO',
+    sourceType: row.sourceType || 'PUBLIC_OPPORTUNITY',
     updateTime: row.updateTime || null,
   };
 }
@@ -337,111 +361,15 @@ async function ensureColumnExists(params: {
 }
 
 let crawlerStorageReady: null | Promise<void> = null;
-let demoCrawlerSourceReady: null | Promise<void> = null;
+let crawlerSourceCatalogReady: null | Promise<void> = null;
 
 async function ensureCrawlerStorageUncached() {
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS crawler_source (
-      source_id bigint NOT NULL AUTO_INCREMENT,
-      source_code varchar(100) NOT NULL,
-      source_name varchar(100) NOT NULL,
-      source_type varchar(50) NOT NULL,
-      base_url varchar(500) NOT NULL,
-      robots_url varchar(500) NULL DEFAULT NULL,
-      enabled tinyint(1) NOT NULL DEFAULT 1,
-      crawl_interval_minutes int NOT NULL DEFAULT 1440,
-      rate_limit_per_minute int NOT NULL DEFAULT 30,
-      allowed_paths_json text NULL,
-      blocked_paths_json text NULL,
-      keyword_include_json text NULL,
-      keyword_exclude_json text NULL,
-      region_scope_json text NULL,
-      last_crawled_at datetime(3) NULL DEFAULT NULL,
-      create_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (source_id),
-      UNIQUE KEY crawler_source_source_code_uq (source_code),
-      KEY crawler_source_enabled_idx (enabled),
-      KEY crawler_source_source_type_idx (source_type)
-    ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
-  `);
-
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS crawler_task (
-      task_id bigint NOT NULL AUTO_INCREMENT,
-      source_id bigint NOT NULL,
-      task_type varchar(50) NOT NULL,
-      status varchar(30) NOT NULL DEFAULT 'PENDING',
-      started_at datetime(3) NULL DEFAULT NULL,
-      finished_at datetime(3) NULL DEFAULT NULL,
-      crawl_started_at datetime(3) NULL DEFAULT NULL,
-      crawl_ended_at datetime(3) NULL DEFAULT NULL,
-      fetched_count int NOT NULL DEFAULT 0,
-      created_lead_count int NOT NULL DEFAULT 0,
-      updated_lead_count int NOT NULL DEFAULT 0,
-      skipped_count int NOT NULL DEFAULT 0,
-      error_message text NULL,
-      retry_count int NOT NULL DEFAULT 0,
-      max_retry_count int NOT NULL DEFAULT 0,
-      next_retry_at datetime(3) NULL DEFAULT NULL,
-      skip_reason varchar(255) NULL DEFAULT NULL,
-      request_config_json text NULL,
-      create_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (task_id),
-      KEY crawler_task_source_id_idx (source_id),
-      KEY crawler_task_status_idx (status),
-      KEY crawler_task_create_time_idx (create_time)
-    ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
-  `);
-
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS crawler_task_log (
-      log_id bigint NOT NULL AUTO_INCREMENT,
-      task_id bigint NOT NULL,
-      level varchar(20) NOT NULL,
-      stage varchar(50) NOT NULL,
-      message varchar(500) NOT NULL,
-      detail_json text NULL,
-      create_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (log_id),
-      KEY crawler_task_log_task_id_idx (task_id),
-      KEY crawler_task_log_stage_idx (stage)
-    ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
-  `);
-
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS crawler_task_item (
-      item_id bigint NOT NULL AUTO_INCREMENT,
-      source_id bigint NOT NULL,
-      last_task_id bigint NULL DEFAULT NULL,
-      source_ref_type varchar(50) NULL DEFAULT NULL,
-      source_ref_id bigint NULL DEFAULT NULL,
-      source_url varchar(800) NOT NULL,
-      url_hash varchar(80) NOT NULL,
-      status varchar(30) NOT NULL DEFAULT 'PENDING',
-      retry_count int NOT NULL DEFAULT 0,
-      max_retry_count int NOT NULL DEFAULT 3,
-      next_retry_at datetime(3) NULL DEFAULT NULL,
-      last_http_status int NULL DEFAULT NULL,
-      last_error text NULL,
-      skip_reason varchar(255) NULL DEFAULT NULL,
-      published_at datetime(3) NULL DEFAULT NULL,
-      last_started_at datetime(3) NULL DEFAULT NULL,
-      last_finished_at datetime(3) NULL DEFAULT NULL,
-      last_success_at datetime(3) NULL DEFAULT NULL,
-      response_hash varchar(80) NULL DEFAULT NULL,
-      parsed_payload_json text NULL,
-      create_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (item_id),
-      UNIQUE KEY crawler_task_item_source_url_uq (source_id, url_hash),
-      KEY crawler_task_item_last_task_id_idx (last_task_id),
-      KEY crawler_task_item_source_status_idx (source_id, status),
-      KEY crawler_task_item_next_retry_idx (next_retry_at),
-      KEY crawler_task_item_source_ref_idx (source_ref_type, source_ref_id)
-    ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
-  `);
+  await assertInvestmentRadarTablesReady([
+    'crawler_source',
+    'crawler_task',
+    'crawler_task_log',
+    'crawler_task_item',
+  ]);
 
   await ensureColumnExists({
     columnDefinition:
@@ -464,43 +392,14 @@ export async function ensureCrawlerStorage() {
   return crawlerStorageReady;
 }
 
-async function ensureDemoCrawlerSourceUncached() {
+async function ensureCrawlerSourceCatalogUncached() {
   await ensureCrawlerStorage();
-  const manualReadySourceCodes = [
-    PUBLIC_EIA_NOTICE_SOURCE_CODE,
-    PUBLIC_RECRUITMENT_SOURCE_CODE,
-    PUBLIC_TENDER_SOURCE_CODE,
-  ];
   const publicOpportunity99CfwAdapter = getPublicCrawlerAdapter(
     PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE,
   );
   const publicOpportunity99CfwListUrls = publicOpportunity99CfwAdapter
     ? getPublicCrawlerListUrls(publicOpportunity99CfwAdapter)
     : [];
-
-  await prismaClient.$executeRawUnsafe(
-    `
-      INSERT INTO crawler_source (
-        source_code, source_name, source_type, base_url, robots_url, enabled,
-        crawl_interval_minutes, rate_limit_per_minute,
-        allowed_paths_json, blocked_paths_json,
-        keyword_include_json, keyword_exclude_json, region_scope_json,
-        create_time, update_time
-      )
-      VALUES (?, 'External lead demo source', 'DEMO', 'demo://public', NULL, 1,
-        0, 60, ?, ?, ?, NULL, ?, NOW(3), NOW(3))
-      ON DUPLICATE KEY UPDATE
-        source_name = VALUES(source_name),
-        source_type = VALUES(source_type),
-        base_url = VALUES(base_url),
-        update_time = update_time
-    `,
-    DEMO_CRAWLER_SOURCE_CODE,
-    JSON.stringify(['/public']),
-    JSON.stringify(['/blocked']),
-    JSON.stringify(['扩建', '扩产', '新增产线', '搬迁', '技改', '仓储']),
-    JSON.stringify(['惠州', '东莞', '广州']),
-  );
 
   await prismaClient.$executeRawUnsafe(
     `
@@ -538,13 +437,14 @@ async function ensureDemoCrawlerSourceUncached() {
         create_time, update_time
       )
       VALUES (?, '99cfw public opportunity URL pilot', 'PUBLIC_OPPORTUNITY',
-        ?, NULL, 1,
-        5, 30, ?, ?, ?, ?, ?, NOW(3), NOW(3))
+        ?, NULL, 0,
+        ?, ?, ?, ?, ?, ?, ?, NOW(3), NOW(3))
       ON DUPLICATE KEY UPDATE
         source_name = VALUES(source_name),
         source_type = VALUES(source_type),
         base_url = VALUES(base_url),
         robots_url = VALUES(robots_url),
+        enabled = VALUES(enabled),
         crawl_interval_minutes = VALUES(crawl_interval_minutes),
         rate_limit_per_minute = VALUES(rate_limit_per_minute),
         allowed_paths_json = VALUES(allowed_paths_json),
@@ -554,6 +454,8 @@ async function ensureDemoCrawlerSourceUncached() {
     PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE,
     publicOpportunity99CfwListUrls[0] ||
       PUBLIC_OPPORTUNITY_99CFW_ALLOWED_ORIGIN,
+    DEFAULT_PUBLIC_CRAWLER_INTERVAL_MINUTES,
+    getPublicCrawlerRateLimitPerMinute(),
     JSON.stringify(PUBLIC_OPPORTUNITY_99CFW_ALLOWED_PATHS),
     JSON.stringify([]),
     JSON.stringify([
@@ -599,12 +501,13 @@ async function ensureDemoCrawlerSourceUncached() {
       )
       VALUES (?, 'cfzsw68 public factory listing URL pilot', 'PUBLIC_OPPORTUNITY',
         ?, NULL, 1,
-        5, 30, ?, ?, ?, ?, ?, NOW(3), NOW(3))
+        ?, ?, ?, ?, ?, ?, ?, NOW(3), NOW(3))
       ON DUPLICATE KEY UPDATE
         source_name = VALUES(source_name),
         source_type = VALUES(source_type),
         base_url = VALUES(base_url),
         robots_url = VALUES(robots_url),
+        enabled = VALUES(enabled),
         crawl_interval_minutes = VALUES(crawl_interval_minutes),
         rate_limit_per_minute = VALUES(rate_limit_per_minute),
         allowed_paths_json = VALUES(allowed_paths_json),
@@ -613,6 +516,8 @@ async function ensureDemoCrawlerSourceUncached() {
     `,
     PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE,
     PUBLIC_FACTORY_CFZSW68_ALLOWED_ORIGIN,
+    DEFAULT_PUBLIC_CRAWLER_INTERVAL_MINUTES,
+    getPublicCrawlerRateLimitPerMinute(),
     JSON.stringify(PUBLIC_FACTORY_CFZSW68_ALLOWED_PATHS),
     JSON.stringify([]),
     JSON.stringify(['厂房', '出租', '招租', '分租', '平方', '平米']),
@@ -629,6 +534,9 @@ async function ensureDemoCrawlerSourceUncached() {
     const listUrls = adapter
       ? getPublicCrawlerListUrls(adapter)
       : source.listUrls;
+    const enabled = isDefaultEnabledPublicOpportunitySource(source.sourceCode)
+      ? 1
+      : 0;
     await prismaClient.$executeRawUnsafe(
       `
         INSERT INTO crawler_source (
@@ -639,8 +547,8 @@ async function ensureDemoCrawlerSourceUncached() {
           create_time, update_time
         )
         VALUES (?, ?, 'PUBLIC_OPPORTUNITY',
-          ?, NULL, 1,
-          5, 30, ?, ?, ?, ?, ?, NOW(3), NOW(3))
+          ?, NULL, ?,
+          ?, ?, ?, ?, ?, ?, ?, NOW(3), NOW(3))
         ON DUPLICATE KEY UPDATE
           source_name = VALUES(source_name),
           source_type = VALUES(source_type),
@@ -659,6 +567,9 @@ async function ensureDemoCrawlerSourceUncached() {
       source.sourceCode,
       source.sourceName,
       listUrls[0] || source.allowedHosts[0],
+      enabled,
+      DEFAULT_PUBLIC_CRAWLER_INTERVAL_MINUTES,
+      getPublicCrawlerRateLimitPerMinute(),
       JSON.stringify(
         getPublicCrawlerAdapterAllowedPaths(source.sourceCode) ||
           source.detailPathPrefixes ||
@@ -685,6 +596,9 @@ async function ensureDemoCrawlerSourceUncached() {
       continue;
     }
     const isSupply = adapter.opportunityType === 'SUPPLY';
+    const enabled = isDefaultEnabledPublicOpportunitySource(adapter.sourceCode)
+      ? 1
+      : 0;
     const listUrls = getPublicCrawlerListUrls(adapter);
     await prismaClient.$executeRawUnsafe(
       `
@@ -696,8 +610,8 @@ async function ensureDemoCrawlerSourceUncached() {
           create_time, update_time
         )
         VALUES (?, ?, 'PUBLIC_OPPORTUNITY',
-          ?, NULL, 1,
-          5, 30, ?, ?, ?, ?, ?, NOW(3), NOW(3))
+          ?, NULL, ?,
+          ?, ?, ?, ?, ?, ?, ?, NOW(3), NOW(3))
         ON DUPLICATE KEY UPDATE
           source_name = VALUES(source_name),
           source_type = VALUES(source_type),
@@ -716,6 +630,9 @@ async function ensureDemoCrawlerSourceUncached() {
       adapter.sourceCode,
       adapter.platformName || adapter.sourceCode,
       listUrls[0] || adapter.buildListUrl(),
+      enabled,
+      DEFAULT_PUBLIC_CRAWLER_INTERVAL_MINUTES,
+      getPublicCrawlerRateLimitPerMinute(),
       JSON.stringify(adapter.allowedPaths),
       JSON.stringify([]),
       JSON.stringify(
@@ -758,8 +675,7 @@ async function ensureDemoCrawlerSourceUncached() {
           create_time, update_time
         )
         VALUES (
-          ?, ?, ?, ?, ?,
-          CASE WHEN ? IN (?, ?, ?) THEN 1 ELSE 0 END,
+          ?, ?, ?, ?, ?, 0,
           ?, ?, ?, ?, ?, ?, ?, NOW(3), NOW(3)
         )
         ON DUPLICATE KEY UPDATE
@@ -767,7 +683,7 @@ async function ensureDemoCrawlerSourceUncached() {
           source_type = VALUES(source_type),
           base_url = VALUES(base_url),
           robots_url = VALUES(robots_url),
-          enabled = CASE WHEN source_code IN (?, ?, ?) THEN 1 ELSE enabled END,
+          enabled = VALUES(enabled),
           crawl_interval_minutes = VALUES(crawl_interval_minutes),
           rate_limit_per_minute = VALUES(rate_limit_per_minute),
           allowed_paths_json = VALUES(allowed_paths_json),
@@ -782,8 +698,6 @@ async function ensureDemoCrawlerSourceUncached() {
       source.sourceType,
       source.baseUrl,
       source.robotsUrl,
-      source.sourceCode,
-      ...manualReadySourceCodes,
       source.crawlIntervalMinutes,
       source.rateLimitPerMinute,
       JSON.stringify(source.allowedPathsJson),
@@ -791,26 +705,27 @@ async function ensureDemoCrawlerSourceUncached() {
       JSON.stringify(source.keywordIncludeJson),
       JSON.stringify(source.keywordExcludeJson),
       JSON.stringify(source.regionScopeJson),
-      ...manualReadySourceCodes,
     );
   }
 }
 
-export async function ensureDemoCrawlerSource() {
-  if (demoCrawlerSourceReady) {
-    return demoCrawlerSourceReady;
+export async function ensureCrawlerSourceCatalog() {
+  if (crawlerSourceCatalogReady) {
+    return crawlerSourceCatalogReady;
   }
 
-  demoCrawlerSourceReady = ensureDemoCrawlerSourceUncached().catch((error) => {
-    demoCrawlerSourceReady = null;
-    throw error;
-  });
+  crawlerSourceCatalogReady = ensureCrawlerSourceCatalogUncached().catch(
+    (error) => {
+      crawlerSourceCatalogReady = null;
+      throw error;
+    },
+  );
 
-  return demoCrawlerSourceReady;
+  return crawlerSourceCatalogReady;
 }
 
 export async function listCrawlerSources(): Promise<CrawlerSourceListResult> {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
 
   const rows = await prismaClient.$queryRawUnsafe<any[]>(
     `
@@ -837,16 +752,22 @@ export async function listCrawlerSources(): Promise<CrawlerSourceListResult> {
     `,
   );
 
+  const visibleRows = rows.filter(
+    (row) =>
+      row.sourceType !== 'DEMO' &&
+      !RETIRED_PUBLIC_OPPORTUNITY_SOURCE_CODE_SET.has(row.sourceCode || ''),
+  );
+
   return {
-    items: rows.map((row) => mapSourceRow(row)),
-    total: rows.length,
+    items: visibleRows.map((row) => mapSourceRow(row)),
+    total: visibleRows.length,
   };
 }
 
 export async function getCrawlerSourceById(
   sourceId: number,
 ): Promise<CrawlerSource | null> {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
 
   const rows = await prismaClient.$queryRawUnsafe<any[]>(
     `
@@ -878,7 +799,11 @@ export async function getCrawlerSourceById(
 }
 
 async function getCrawlerSourceByCode(sourceCode: string) {
-  await ensureDemoCrawlerSource();
+  if (RETIRED_PUBLIC_OPPORTUNITY_SOURCE_CODE_SET.has(sourceCode)) {
+    return null;
+  }
+
+  await ensureCrawlerSourceCatalog();
   const rows = await prismaClient.$queryRawUnsafe<Array<{ sourceId: bigint }>>(
     `
       SELECT source_id AS sourceId
@@ -896,10 +821,6 @@ export function getPublicCrawlerSourceByCode(sourceCode: string) {
   return getCrawlerSourceByCode(sourceCode);
 }
 
-export function getDemoCrawlerSource() {
-  return getCrawlerSourceByCode(DEMO_CRAWLER_SOURCE_CODE);
-}
-
 export function getInternalContractExpiryCrawlerSource() {
   return getCrawlerSourceByCode(INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE);
 }
@@ -907,6 +828,8 @@ export function getInternalContractExpiryCrawlerSource() {
 export function getPublicOpportunityCrawlerSource() {
   return getCrawlerSourceByCode(PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE);
 }
+
+export const getDemoCrawlerSource = getPublicOpportunityCrawlerSource;
 
 export function getPublicFactoryListingCrawlerSource() {
   return getCrawlerSourceByCode(PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE);
@@ -1007,9 +930,12 @@ export async function updateCrawlerSource(
         sourceCode: source.sourceCode,
       });
       normalized.robotsUrl = null;
-    } else if (normalized.robotsUrl === null && source.sourceType !== 'DEMO') {
+    } else if (
+      normalized.robotsUrl === null &&
+      source.sourceType !== 'INTERNAL_CONTRACT'
+    ) {
       throw new CrawlerSourceValidationError(
-        'robotsUrl can only be empty for DEMO sources',
+        'robotsUrl can only be empty for sources with built-in fetch policy',
       );
     }
   }

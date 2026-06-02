@@ -114,36 +114,36 @@ const metricItems = computed(() => {
     {
       color: 'blue',
       key: 'guangdongListingEffectiveCount',
-      label: '广东房源有效数',
-      meta: `有效率 ${formatPercent(summary.listingEffectiveRate)}`,
+      label: '老板口径房源 EFFECTIVE',
+      meta: `广东房源有效率 ${formatPercent(summary.listingEffectiveRate)}`,
       value: summary.guangdongListingEffectiveCount,
     },
     {
       color: 'green',
       key: 'guangdongDemandEffectiveCount',
-      label: '广东需求有效数',
-      meta: `有效率 ${formatPercent(summary.demandEffectiveRate)}`,
+      label: '老板口径需求 EFFECTIVE',
+      meta: `广东需求有效率 ${formatPercent(summary.demandEffectiveRate)}`,
       value: summary.guangdongDemandEffectiveCount,
     },
     {
       color: 'cyan',
       key: 'todayFetchedCount',
-      label: '今日新增有效',
-      meta: `有效池入库 ${formatSignedNumber(summary.todayFetchedChange)}`,
+      label: '今日 EFFECTIVE 新增',
+      meta: `有效池新增 ${formatSignedNumber(summary.todayFetchedChange)}`,
       value: summary.todayFetchedCount,
     },
     {
       color: 'purple',
       key: 'platformCount',
-      label: '多平台运行',
-      meta: `${formatNumber(summary.platformSuccessCount)} 个成功 / ${formatNumber(summary.failedPlatformCount)} 个失败`,
+      label: '采集任务平台',
+      meta: `过程任务 ${formatNumber(summary.platformSuccessCount)} 个成功 / ${formatNumber(summary.failedPlatformCount)} 个失败`,
       value: summary.platformCount,
     },
     {
       color: summary.zeroFetchedPlatformCount > 0 ? 'red' : 'green',
       key: 'zeroFetchedPlatformCount',
       label: '零抓取平台',
-      meta: `最近抓取详情 ${formatNumber(summary.platformFetchedCount)} 条`,
+      meta: `过程抓取详情 ${formatNumber(summary.platformFetchedCount)} 条`,
       value: summary.zeroFetchedPlatformCount,
     },
     {
@@ -272,7 +272,10 @@ function getTaskStatusText(status?: null | string, zeroFetched?: boolean) {
 
       <Row :gutter="[12, 12]">
         <Col :lg="12" :md="24" :sm="24" :xs="24">
-          <Card class="distribution-card" title="平台分布">
+          <Card
+            class="distribution-card"
+            title="平台分布（过程指标 / EFFECTIVE）"
+          >
             <div
               v-if="resolvedPlatformDistribution.length > 0"
               class="distribution-list"
@@ -286,9 +289,9 @@ function getTaskStatusText(status?: null | string, zeroFetched?: boolean) {
                   <div>
                     <strong>{{ item.platformName }}</strong>
                     <span>
-                      房源 {{ formatNumber(item.listingCount) }} / 需求
-                      {{ formatNumber(item.demandCount) }} / 抓取
-                      {{ formatNumber(item.fetchedCount) }} / 入库
+                      房源EFFECTIVE {{ formatNumber(item.listingCount) }} /
+                      需求EFFECTIVE {{ formatNumber(item.demandCount) }} /
+                      过程抓取 {{ formatNumber(item.fetchedCount) }} / 过程入库
                       {{ formatNumber(item.upsertedCount) }}
                     </span>
                   </div>
@@ -329,7 +332,10 @@ function getTaskStatusText(status?: null | string, zeroFetched?: boolean) {
         </Col>
 
         <Col :lg="12" :md="24" :sm="24" :xs="24">
-          <Card class="distribution-card" title="城市分布">
+          <Card
+            class="distribution-card"
+            title="城市分布（老板口径 EFFECTIVE）"
+          >
             <div
               v-if="resolvedCityDistribution.length > 0"
               class="distribution-list"
@@ -343,8 +349,9 @@ function getTaskStatusText(status?: null | string, zeroFetched?: boolean) {
                   <div>
                     <strong>{{ item.cityName }}</strong>
                     <span>
-                      房源 {{ formatNumber(item.listingCount) }} / 需求
-                      {{ formatNumber(item.demandCount) }} / 待核验
+                      房源EFFECTIVE {{ formatNumber(item.listingCount) }} /
+                      需求EFFECTIVE {{ formatNumber(item.demandCount) }} /
+                      待核验
                       {{ formatNumber(item.pendingVerifyCount) }}
                     </span>
                   </div>

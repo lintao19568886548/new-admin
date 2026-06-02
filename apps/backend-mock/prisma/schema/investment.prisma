@@ -331,3 +331,363 @@ model LeadScoreBreakdown {
   @@index([eventId])
   @@map("lead_score_breakdown")
 }
+
+model InvestmentEnterprise {
+  enterpriseId             BigInt    @id @default(autoincrement()) @map("enterprise_id")
+  enterpriseName           String    @map("enterprise_name") @db.VarChar(200)
+  unifiedSocialCreditCode  String?   @map("unified_social_credit_code") @db.VarChar(100)
+  phoneNumber              String?   @map("phone_number") @db.VarChar(30)
+  contactName              String?   @map("contact_name") @db.VarChar(100)
+  industryName             String?   @map("industry_name") @db.VarChar(100)
+  address                  String?   @db.VarChar(500)
+  city                     String?   @db.VarChar(100)
+  registerCapital          Decimal?  @map("register_capital") @db.Decimal(18, 2)
+  sourceFirst              String?   @map("source_first") @db.VarChar(100)
+  sourceLatest             String?   @map("source_latest") @db.VarChar(100)
+  lastSignalTime           DateTime? @map("last_signal_time")
+  createTime               DateTime  @default(now()) @map("create_time")
+  updateTime               DateTime  @updatedAt @map("update_time")
+  isDeleted                Int       @default(0) @map("is_deleted") @db.TinyInt
+
+  @@index([enterpriseName], map: "idx_investment_enterprise_name")
+  @@index([phoneNumber], map: "idx_investment_enterprise_phone")
+  @@index([lastSignalTime], map: "idx_investment_enterprise_signal_time")
+  @@map("investment_enterprise")
+}
+
+model InvestmentLead {
+  leadId            BigInt    @id @default(autoincrement()) @map("lead_id")
+  enterpriseId      BigInt    @map("enterprise_id")
+  parkId            BigInt?   @map("park_id")
+  leadSource        String    @default("MANUAL_IMPORT") @map("lead_source") @db.VarChar(100)
+  intentArea        Decimal?  @map("intent_area") @db.Decimal(18, 2)
+  intentScore       Int       @default(0) @map("intent_score")
+  matchScore        Int       @default(0) @map("match_score")
+  reachableScore    Int       @default(0) @map("reachable_score")
+  totalScore        Int       @default(0) @map("total_score")
+  priorityLevel     String    @default("C") @map("priority_level") @db.VarChar(10)
+  stage             String    @default("NEW") @db.VarChar(30)
+  ownerUserId       Int?      @map("owner_user_id")
+  latestTaskId      String?   @map("latest_task_id") @db.VarChar(100)
+  latestContactTime DateTime? @map("latest_contact_time")
+  invalidReason     String?   @map("invalid_reason") @db.VarChar(255)
+  createTime        DateTime  @default(now()) @map("create_time")
+  updateTime        DateTime  @updatedAt @map("update_time")
+  isDeleted         Int       @default(0) @map("is_deleted") @db.TinyInt
+
+  @@index([enterpriseId], map: "idx_investment_lead_enterprise")
+  @@index([parkId], map: "idx_investment_lead_park")
+  @@index([stage], map: "idx_investment_lead_stage")
+  @@index([priorityLevel, totalScore], map: "idx_investment_lead_priority_score")
+  @@index([isDeleted, updateTime], map: "idx_investment_lead_deleted_update")
+  @@index([ownerUserId], map: "idx_investment_lead_owner")
+  @@map("investment_lead")
+}
+
+model InvestmentPublicOpportunity {
+  opportunityId     BigInt    @id @default(autoincrement()) @map("opportunity_id")
+  opportunityType   String    @map("opportunity_type") @db.VarChar(20)
+  sourceSite        String?   @map("source_site") @db.VarChar(100)
+  sourceUrl         String    @map("source_url") @db.VarChar(500)
+  sourceKey         String?   @map("source_key") @db.VarChar(160)
+  sourceTable       String?   @map("source_table") @db.VarChar(100)
+  sourceId          String?   @map("source_id") @db.VarChar(100)
+  title             String    @db.VarChar(255)
+  city              String?   @db.VarChar(100)
+  district          String?   @db.VarChar(100)
+  areaText          String?   @map("area_text") @db.VarChar(100)
+  areaSqm           Decimal?  @map("area_sqm") @db.Decimal(18, 2)
+  priceText         String?   @map("price_text") @db.VarChar(100)
+  industryText      String?   @map("industry_text") @db.VarChar(100)
+  contactName       String?   @map("contact_name") @db.VarChar(100)
+  phoneNumber       String?   @map("phone_number") @db.VarChar(50)
+  description       String?   @db.Text
+  publishedAt       DateTime? @map("published_at")
+  publishedDateText String?   @map("published_date_text") @db.VarChar(100)
+  effectiveUntil    DateTime? @map("effective_until")
+  opportunityStatus String    @default("EFFECTIVE") @map("opportunity_status") @db.VarChar(30)
+  sourceCode        String?   @map("source_code") @db.VarChar(80)
+  isGuangdong       Int       @default(0) @map("is_guangdong") @db.TinyInt
+  hasDetailEvidence Int       @default(0) @map("has_detail_evidence") @db.TinyInt
+  qualityGrade      String?   @map("quality_grade") @db.VarChar(30)
+  score             Int?
+  tagsJson          String?   @map("tags_json") @db.Text
+  detailJson        String?   @map("detail_json") @db.LongText
+  lastSyncedAt      DateTime  @default(now()) @map("last_synced_at")
+  createTime        DateTime  @default(now()) @map("create_time")
+  updateTime        DateTime  @default(now()) @updatedAt @map("update_time")
+  @@index([opportunityType], map: "investment_public_opportunity_type_idx")
+  @@index([sourceSite], map: "investment_public_opportunity_source_site_idx")
+  @@index([sourceUrl(length: 191)], map: "investment_public_opportunity_source_url_idx")
+  @@index([lastSyncedAt], map: "investment_public_opportunity_last_synced_at_idx")
+  @@index([opportunityType, opportunityStatus, publishedAt], map: "investment_public_opportunity_effective_idx")
+  @@index([opportunityStatus, isGuangdong, hasDetailEvidence], map: "investment_public_opportunity_quality_idx")
+  @@index([sourceCode, opportunityStatus], map: "investment_public_opportunity_source_code_idx")
+  @@index([opportunityType, opportunityStatus, qualityGrade, isGuangdong, hasDetailEvidence, publishedAt, lastSyncedAt, opportunityId], map: "investment_public_opportunity_strict_list_idx")
+  @@index([opportunityType, opportunityStatus, sourceSite, qualityGrade, isGuangdong, hasDetailEvidence, publishedAt, lastSyncedAt, opportunityId], map: "investment_public_opportunity_strict_source_list_idx")
+  @@map("investment_public_opportunity")
+}
+
+model InvestmentRadarCollectTask {
+  taskId       String    @id @map("task_id") @db.VarChar(80)
+  status       String    @default("PENDING") @db.VarChar(20)
+  created      Int       @default(0)
+  updated      Int       @default(0)
+  skipped      Int       @default(0)
+  total        Int       @default(0)
+  durationMs   Int?      @map("duration_ms")
+  errorReason  String?   @map("error_reason") @db.VarChar(500)
+  startedAt    DateTime? @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  createTime   DateTime  @default(now()) @map("create_time")
+  updateTime   DateTime  @updatedAt @map("update_time")
+
+  @@index([status], map: "investment_radar_collect_task_status_idx")
+  @@index([createTime], map: "investment_radar_collect_task_create_time_idx")
+  @@map("investment_radar_collect_task")
+}
+
+model InvestmentOutreachTemplate {
+  templateId      BigInt   @id @default(autoincrement()) @map("template_id")
+  templateCode    String   @unique(map: "uk_investment_outreach_template_code") @map("template_code") @db.VarChar(100)
+  templateName    String   @map("template_name") @db.VarChar(100)
+  taskType        String   @map("task_type") @db.VarChar(50)
+  channel         String   @db.VarChar(50)
+  priorityLevel   String   @map("priority_level") @db.VarChar(20)
+  content         String   @db.Text
+  placeholderJson String?  @map("placeholder_json") @db.Text
+  enabled         Boolean  @default(true)
+  approvalStatus  String   @default("APPROVED") @map("approval_status") @db.VarChar(30)
+  versionNo       Int      @default(1) @map("version_no")
+  createTime      DateTime @default(now()) @map("create_time")
+  updateTime      DateTime @updatedAt @map("update_time")
+
+  @@index([enabled], map: "idx_investment_outreach_template_enabled")
+  @@index([taskType, channel], map: "idx_investment_outreach_template_type_channel")
+  @@index([priorityLevel], map: "idx_investment_outreach_template_priority")
+  @@map("investment_outreach_template")
+}
+
+model InvestmentOutreachTemplateVersion {
+  versionId       BigInt   @id @default(autoincrement()) @map("version_id")
+  templateId      BigInt   @map("template_id")
+  templateCode    String   @map("template_code") @db.VarChar(100)
+  templateName    String   @map("template_name") @db.VarChar(100)
+  taskType        String   @map("task_type") @db.VarChar(50)
+  channel         String   @db.VarChar(50)
+  priorityLevel   String   @map("priority_level") @db.VarChar(20)
+  content         String   @db.Text
+  placeholderJson String?  @map("placeholder_json") @db.Text
+  approvalStatus  String   @map("approval_status") @db.VarChar(30)
+  versionNo       Int      @map("version_no")
+  changeType      String   @map("change_type") @db.VarChar(50)
+  createTime      DateTime @default(now()) @map("create_time")
+
+  @@index([templateId, versionNo], map: "idx_investment_outreach_template_version_template")
+  @@map("investment_outreach_template_version")
+}
+
+model InvestmentOutreachTask {
+  taskId               BigInt    @id @default(autoincrement()) @map("task_id")
+  leadId               BigInt    @map("lead_id")
+  taskType             String    @map("task_type") @db.VarChar(50)
+  channel              String    @db.VarChar(50)
+  phoneNumber          String    @map("phone_number") @db.VarChar(50)
+  status               String    @default("PENDING") @db.VarChar(30)
+  templateCode         String?   @map("template_code") @db.VarChar(100)
+  content              String?   @db.Text
+  scheduledAt          DateTime? @map("scheduled_at")
+  sentAt               DateTime? @map("sent_at")
+  resultCode           String?   @map("result_code") @db.VarChar(50)
+  resultMessage        String?   @map("result_message") @db.Text
+  providerTaskId       String?   @map("provider_task_id") @db.VarChar(100)
+  providerResponseJson String?   @map("provider_response_json") @db.MediumText
+  replyStatus          String    @default("NO_REPLY") @map("reply_status") @db.VarChar(30)
+  replyContent         String?   @map("reply_content") @db.Text
+  replyTime            DateTime? @map("reply_time")
+  sentBy               BigInt?   @map("sent_by")
+  createTime           DateTime  @default(now()) @map("create_time")
+  updateTime           DateTime  @updatedAt @map("update_time")
+
+  @@index([leadId, status], map: "idx_investment_outreach_task_lead_status")
+  @@index([status, scheduledAt], map: "idx_investment_outreach_task_status_time")
+  @@index([channel], map: "idx_investment_outreach_task_channel")
+  @@index([sentBy], map: "idx_investment_outreach_task_sent_by")
+  @@index([replyStatus], map: "idx_investment_outreach_task_reply_status")
+  @@index([taskType], map: "idx_investment_outreach_task_type")
+  @@index([createTime], map: "idx_investment_outreach_task_create_time")
+  @@map("investment_outreach_task")
+}
+
+model ContactRestriction {
+  restrictionId      BigInt    @id @default(autoincrement()) @map("restriction_id")
+  leadId             BigInt?   @map("lead_id")
+  enterpriseId       BigInt?   @map("enterprise_id")
+  phoneNumber        String?   @map("phone_number") @db.VarChar(50)
+  restrictionType    String    @map("restriction_type") @db.VarChar(50)
+  reason             String?   @db.VarChar(255)
+  status             String    @default("ACTIVE") @db.VarChar(30)
+  releaseStatus      String?   @map("release_status") @db.VarChar(30)
+  releaseReason      String?   @map("release_reason") @db.VarChar(255)
+  releaseRequestTime DateTime? @map("release_request_time")
+  releaseReviewTime  DateTime? @map("release_review_time")
+  releaseReviewerId  BigInt?   @map("release_reviewer_id")
+  createTime         DateTime  @default(now()) @map("create_time")
+  updateTime         DateTime  @updatedAt @map("update_time")
+
+  @@unique([leadId, restrictionType], map: "uk_contact_restriction_lead_type")
+  @@index([phoneNumber, status], map: "idx_contact_restriction_phone_status")
+  @@index([enterpriseId, status], map: "idx_contact_restriction_enterprise_status")
+  @@index([status], map: "idx_contact_restriction_status")
+  @@index([releaseStatus], map: "idx_contact_restriction_release_status")
+  @@map("contact_restriction")
+}
+
+model ContactRestrictionAuditLog {
+  auditId       BigInt   @id @default(autoincrement()) @map("audit_id")
+  restrictionId BigInt?  @map("restriction_id")
+  action        String   @db.VarChar(50)
+  actorId       BigInt?  @map("actor_id")
+  actorName     String?  @map("actor_name") @db.VarChar(100)
+  beforeJson    Json?    @map("before_json")
+  afterJson     Json?    @map("after_json")
+  remark        String?  @db.VarChar(255)
+  createTime    DateTime @default(now()) @map("create_time")
+
+  @@index([restrictionId], map: "idx_contact_restriction_audit_restriction")
+  @@index([action], map: "idx_contact_restriction_audit_action")
+  @@index([createTime], map: "idx_contact_restriction_audit_time")
+  @@map("contact_restriction_audit_log")
+}
+
+model PropertyMatchResult {
+  matchId               BigInt    @id @default(autoincrement()) @map("match_id")
+  leadId                BigInt    @map("lead_id")
+  factoryId             BigInt    @map("factory_id")
+  parkId                BigInt?   @map("park_id")
+  factoryName           String    @map("factory_name") @db.VarChar(200)
+  parkName              String?   @map("park_name") @db.VarChar(200)
+  address               String?   @db.VarChar(500)
+  matchScore            Decimal   @default(0) @map("match_score") @db.Decimal(5, 2)
+  availableArea         Decimal   @default(0) @map("available_area") @db.Decimal(18, 2)
+  totalArea             Decimal   @default(0) @map("total_area") @db.Decimal(18, 2)
+  usedArea              Decimal?  @map("used_area") @db.Decimal(18, 2)
+  rentPrice             Decimal?  @map("rent_price") @db.Decimal(18, 2)
+  rentPriceText         String?   @map("rent_price_text") @db.VarChar(100)
+  floorCount            Int?      @map("floor_count")
+  tag                   String?   @db.VarChar(50)
+  matchReasonsJson      String?   @map("match_reasons_json") @db.Text
+  mismatchRemindersJson String?   @map("mismatch_reminders_json") @db.Text
+  salesPitch            String?   @map("sales_pitch") @db.Text
+  snapshotJson          String?   @map("snapshot_json") @db.MediumText
+  computedAt            DateTime  @default(now()) @map("computed_at")
+  createTime            DateTime  @default(now()) @map("create_time")
+  updateTime            DateTime  @updatedAt @map("update_time")
+
+  @@unique([leadId, factoryId], map: "uk_property_match_result_lead_factory")
+  @@index([leadId, matchScore], map: "idx_property_match_result_lead_score")
+  @@index([factoryId], map: "idx_property_match_result_factory")
+  @@map("property_match_result")
+}
+
+model InvestmentPropertyTag {
+  tagId          BigInt   @id @default(autoincrement()) @map("tag_id")
+  factoryId      BigInt   @unique(map: "uk_investment_property_tag_factory") @map("factory_id")
+  tagsJson       String?  @map("tags_json") @db.Text
+  operatorUserId BigInt?  @map("operator_user_id")
+  createTime     DateTime @default(now()) @map("create_time")
+  updateTime     DateTime @updatedAt @map("update_time")
+
+  @@index([updateTime], map: "idx_investment_property_tag_update_time")
+  @@map("investment_property_tag")
+}
+
+model InvestmentFollowRecord {
+  recordId       BigInt    @id @default(autoincrement()) @map("record_id")
+  leadId         BigInt    @map("lead_id")
+  followType     String    @default("PHONE") @map("follow_type") @db.VarChar(30)
+  followResult   String    @default("CONTACTED") @map("follow_result") @db.VarChar(30)
+  content        String    @db.Text
+  nextAction     String?   @map("next_action") @db.VarChar(255)
+  nextFollowTime DateTime? @map("next_follow_time")
+  operatorUserId BigInt?   @map("operator_user_id")
+  createTime     DateTime  @default(now()) @map("create_time")
+  updateTime     DateTime  @updatedAt @map("update_time")
+
+  @@index([leadId, createTime], map: "idx_investment_follow_record_lead_time")
+  @@index([followResult], map: "idx_investment_follow_record_result")
+  @@map("investment_follow_record")
+}
+
+model InvestmentVisitRecord {
+  visitId        BigInt    @id @default(autoincrement()) @map("visit_id")
+  leadId         BigInt    @map("lead_id")
+  factoryFloorId BigInt?   @map("factory_floor_id")
+  scheduledTime  DateTime  @map("scheduled_time")
+  actualTime     DateTime? @map("actual_time")
+  visitorName    String?   @map("visitor_name") @db.VarChar(100)
+  visitorPhone   String?   @map("visitor_phone") @db.VarChar(50)
+  visitStatus    String    @default("PLANNED") @map("visit_status") @db.VarChar(30)
+  feedback       String?   @db.Text
+  operatorUserId BigInt?   @map("operator_user_id")
+  createTime     DateTime  @default(now()) @map("create_time")
+  updateTime     DateTime  @updatedAt @map("update_time")
+
+  @@index([leadId, scheduledTime], map: "idx_investment_visit_record_lead_time")
+  @@index([visitStatus], map: "idx_investment_visit_record_status")
+  @@map("investment_visit_record")
+}
+
+model InvestmentSopReminder {
+  reminderId     BigInt    @id @default(autoincrement()) @map("reminder_id")
+  leadId         BigInt    @map("lead_id")
+  reminderType   String    @map("reminder_type") @db.VarChar(50)
+  title          String    @db.VarChar(100)
+  description    String?   @db.Text
+  dueTime        DateTime  @map("due_time")
+  reminderStatus String    @default("PENDING") @map("reminder_status") @db.VarChar(30)
+  handledTime    DateTime? @map("handled_time")
+  createTime     DateTime  @default(now()) @map("create_time")
+  updateTime     DateTime  @default(now()) @updatedAt @map("update_time")
+  @@unique([leadId, reminderType], map: "uk_investment_sop_reminder_lead_type")
+  @@index([leadId, reminderStatus], map: "idx_investment_sop_reminder_lead_status")
+  @@index([dueTime], map: "idx_investment_sop_reminder_due_time")
+  @@map("investment_sop_reminder")
+}
+
+model InvestmentLeadAssignmentLog {
+  assignmentId        BigInt   @id @default(autoincrement()) @map("assignment_id")
+  leadId              BigInt   @map("lead_id")
+  previousOwnerUserId BigInt?  @map("previous_owner_user_id")
+  ownerUserId         BigInt   @map("owner_user_id")
+  ownerName           String?  @map("owner_name") @db.VarChar(100)
+  assignmentSource    String   @map("assignment_source") @db.VarChar(50)
+  assignReason        String?  @map("assign_reason") @db.VarChar(255)
+  createTime          DateTime @default(now()) @map("create_time")
+
+  @@index([leadId], map: "idx_investment_lead_assignment_log_lead")
+  @@index([ownerUserId], map: "idx_investment_lead_assignment_log_owner")
+  @@index([createTime], map: "idx_investment_lead_assignment_log_time")
+  @@map("investment_lead_assignment_log")
+}
+
+model InvestmentRadarOperationAuditLog {
+  auditId     BigInt   @id @default(autoincrement()) @map("audit_id")
+  action      String   @db.VarChar(80)
+  objectType  String?  @map("object_type") @db.VarChar(80)
+  objectId    String?  @map("object_id") @db.VarChar(100)
+  result      String   @default("SUCCESS") @db.VarChar(30)
+  actorId     BigInt?  @map("actor_id")
+  actorName   String?  @map("actor_name") @db.VarChar(100)
+  source      String?  @db.VarChar(80)
+  requestPath String?  @map("request_path") @db.VarChar(255)
+  ipAddress   String?  @map("ip_address") @db.VarChar(80)
+  detailJson  Json?    @map("detail_json")
+  createTime  DateTime @default(now()) @map("create_time")
+
+  @@index([action, createTime], map: "idx_radar_operation_audit_action_time")
+  @@index([objectType, objectId], map: "idx_radar_operation_audit_object")
+  @@index([result, createTime], map: "idx_radar_operation_audit_result_time")
+  @@index([actorId, createTime], map: "idx_radar_operation_audit_actor_time")
+  @@map("investment_radar_operation_audit_log")
+}

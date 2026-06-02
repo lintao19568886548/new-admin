@@ -85,10 +85,12 @@ const taskStatusMetaMap: Record<string, { color: string; label: string }> = {
 };
 
 const replyStatusMetaMap: Record<string, { color: string; label: string }> = {
+  BLACKLIST: { color: 'black', label: '黑名单' },
   NEGATIVE: { color: 'red', label: '负向反馈' },
   NO_REPLY: { color: 'default', label: '未回复' },
   POSITIVE: { color: 'green', label: '正向反馈' },
   REPLIED: { color: 'cyan', label: '已回复' },
+  UNSUBSCRIBED: { color: 'orange', label: '退订/拒触' },
 };
 
 const taskTypeLabelMap: Record<string, string> = {

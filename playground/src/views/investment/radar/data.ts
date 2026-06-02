@@ -3,6 +3,11 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
 import { getParkList } from '#/api/park';
 
+import {
+  getSearchHistoryOptions,
+  searchableDropdownProps,
+} from '../search-history';
+
 export interface RadarLead {
   enterpriseName: string;
   intentArea?: null | number;
@@ -57,7 +62,12 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: '园区',
     },
     {
-      component: 'Input',
+      component: 'AutoComplete',
+      componentProps: {
+        ...searchableDropdownProps,
+        allowClear: true,
+        options: getSearchHistoryOptions('radar.list.lead.keyword'),
+      },
       fieldName: 'keyword',
       label: '关键字',
     },

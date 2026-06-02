@@ -1,6 +1,13 @@
+import { createRadarOperationAudit } from '~/utils/investment-radar/crawler-operation-audit-service';
+import {
+  checkRadarPermission,
+  getRadarActorFromUserInfo,
+  RADAR_PERMISSION_CODES,
+} from '~/utils/investment-radar/crawler-permission-service';
 import { startPublicOpportunityCrawlerScheduler } from '~/utils/investment-radar/public-opportunity-crawler-scheduler';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
+  forbiddenResponse,
   serverErrorResponse,
   unAuthorizedResponse,
   useResponseSuccess,
@@ -11,14 +18,32 @@ export default eventHandler(async (event) => {
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
+  const permission = checkRadarPermission(
+    userinfo,
+    RADAR_PERMISSION_CODES.crawlerOpsManage,
+  );
+  if (!permission.allowed) {
+    return forbiddenResponse(event, permission.message);
+  }
 
   try {
-    const result = await runWithRadarSharedScope(async () =>
-      startPublicOpportunityCrawlerScheduler({
+    const result = await runWithRadarSharedScope(async () => {
+      const scheduler = startPublicOpportunityCrawlerScheduler({
         force: true,
         runImmediately: false,
-      }),
-    );
+        startSource: 'api',
+      });
+      await createRadarOperationAudit({
+        action: 'CRAWLER_SCHEDULER_START',
+        ...getRadarActorFromUserInfo(userinfo),
+        detailJson: scheduler,
+        objectType: 'CRAWLER_SCHEDULER',
+        requestPath: getRequestURL(event).pathname,
+        result: 'SUCCESS',
+        source: 'api',
+      });
+      return scheduler;
+    });
     return useResponseSuccess(result);
   } catch (error) {
     console.error('start public opportunity crawler scheduler failed:', error);

@@ -1,8 +1,9 @@
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import { bumpPermissionCacheVersion } from '~/utils/permission-cache';
 import {
+  badRequestResponse,
+  serverErrorResponse,
   unAuthorizedResponse,
-  useResponseError,
   useResponseSuccess,
 } from '~/utils/response';
 import {
@@ -11,20 +12,260 @@ import {
   resolveRoleScopeContext,
 } from '~/utils/role-scope';
 
+class RoleWriteRequestError extends Error {
+  statusCode: number;
+
+  constructor(message: string, statusCode = 400) {
+    super(message);
+    this.name = 'RoleWriteRequestError';
+    this.statusCode = statusCode;
+  }
+}
+
+function hasOwn(data: Record<string, unknown>, key: string) {
+  return Object.prototype.hasOwnProperty.call(data, key);
+}
+
+function normalizeBoolean(value: unknown, label: string) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true'].includes(normalized)) return true;
+    if (['0', 'false'].includes(normalized)) return false;
+  }
+  throw new RoleWriteRequestError(`${label}只能是启用或禁用`);
+}
+
+function normalizePositiveId(value: unknown, label: string) {
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    throw new RoleWriteRequestError(`${label}ID无效`);
+  }
+  return id;
+}
+
+function normalizeOptionalPositiveId(value: unknown, label: string) {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  return normalizePositiveId(value, label);
+}
+
+function normalizeIdList(value: unknown, label: string) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new RoleWriteRequestError(`${label}必须是数组`);
+  }
+  return [...new Set(value.map((item) => normalizePositiveId(item, label)))];
+}
+
+async function assertMenusExist(prisma: any, menuIds: number[]) {
+  if (menuIds.length === 0) return;
+
+  const menus = await prisma.menu.findMany({
+    where: { menuId: { in: menuIds } },
+    select: { menuId: true },
+  });
+  const existingIds = new Set(
+    menus.map((menu: { menuId: number }) => menu.menuId),
+  );
+  const missingIds = menuIds.filter((menuId) => !existingIds.has(menuId));
+
+  if (missingIds.length > 0) {
+    throw new RoleWriteRequestError(
+      `权限项不存在或已不是可配置权限：${missingIds.join(', ')}`,
+    );
+  }
+}
+
+async function assertParksExist(prisma: any, parkIds: number[]) {
+  if (parkIds.length === 0) return;
+
+  const parks = await prisma.park.findMany({
+    where: {
+      isDeleted: false,
+      parkId: { in: parkIds },
+    },
+    select: { parkId: true },
+  });
+  const existingIds = new Set(
+    parks.map((park: { parkId: number }) => park.parkId),
+  );
+  const missingIds = parkIds.filter((parkId) => !existingIds.has(parkId));
+
+  if (missingIds.length > 0) {
+    throw new RoleWriteRequestError(
+      `园区不存在或已停用：${missingIds.join(', ')}`,
+    );
+  }
+}
+
+async function assertPermissionsWithinParent(
+  prisma: any,
+  parentRoleId: number | undefined,
+  menuIds: number[],
+) {
+  if (parentRoleId === undefined || menuIds.length === 0) return;
+
+  const parentRole = await prisma.role.findUnique({
+    where: { roleId: parentRoleId },
+    include: {
+      roleMenus: {
+        where: { isDeleted: false },
+        select: { menuId: true },
+      },
+    },
+  });
+  if (!parentRole) return;
+
+  const parentMenuIds = new Set(
+    parentRole.roleMenus.map((roleMenu: { menuId: number }) => roleMenu.menuId),
+  );
+  const invalidMenuIds = menuIds.filter((menuId) => !parentMenuIds.has(menuId));
+  if (invalidMenuIds.length > 0) {
+    throw new RoleWriteRequestError(
+      `子角色权限不能超出父角色范围，无效权限ID：${invalidMenuIds.join(', ')}`,
+    );
+  }
+}
+
+async function syncRoleMenus(
+  prisma: any,
+  roleId: number,
+  nextMenuIds: number[],
+) {
+  const existingRoleMenus = await prisma.roleMenu.findMany({
+    where: { isDeleted: false, roleId },
+    select: { menuId: true },
+  });
+
+  const existingMenuIds = existingRoleMenus.map(
+    (roleMenu: { menuId: number }) => roleMenu.menuId,
+  );
+  const menuIdsToDelete = existingMenuIds.filter(
+    (menuId: number) => !nextMenuIds.includes(menuId),
+  );
+  const menuIdsToAdd = nextMenuIds.filter(
+    (menuId) => !existingMenuIds.includes(menuId),
+  );
+
+  if (menuIdsToDelete.length > 0) {
+    await prisma.roleMenu.updateMany({
+      data: { isDeleted: true },
+      where: { menuId: { in: menuIdsToDelete }, roleId },
+    });
+  }
+
+  if (menuIdsToAdd.length === 0) return;
+
+  const deletedRecords = await prisma.roleMenu.findMany({
+    where: {
+      isDeleted: true,
+      menuId: { in: menuIdsToAdd },
+      roleId,
+    },
+  });
+  const deletedMenuIds = deletedRecords.map(
+    (record: { menuId: number }) => record.menuId,
+  );
+
+  if (deletedMenuIds.length > 0) {
+    await prisma.roleMenu.updateMany({
+      data: { isDeleted: false },
+      where: { menuId: { in: deletedMenuIds }, roleId },
+    });
+  }
+
+  const menuIdsToCreate = menuIdsToAdd.filter(
+    (menuId) => !deletedMenuIds.includes(menuId),
+  );
+  if (menuIdsToCreate.length > 0) {
+    await prisma.roleMenu.createMany({
+      data: menuIdsToCreate.map((menuId) => ({ menuId, roleId })),
+    });
+  }
+}
+
+async function syncRoleParks(
+  prisma: any,
+  roleId: number,
+  nextParkIds: number[],
+) {
+  const existingRoleParks = await prisma.rolePark.findMany({
+    where: { isDeleted: false, roleId },
+    select: { parkId: true },
+  });
+
+  const existingParkIds = existingRoleParks.map(
+    (rolePark: { parkId: number }) => rolePark.parkId,
+  );
+  const parkIdsToDelete = existingParkIds.filter(
+    (parkId: number) => !nextParkIds.includes(parkId),
+  );
+  const parkIdsToAdd = nextParkIds.filter(
+    (parkId) => !existingParkIds.includes(parkId),
+  );
+
+  if (parkIdsToDelete.length > 0) {
+    await prisma.rolePark.updateMany({
+      data: { isDeleted: true },
+      where: { parkId: { in: parkIdsToDelete }, roleId },
+    });
+  }
+
+  if (parkIdsToAdd.length === 0) return;
+
+  const deletedRecords = await prisma.rolePark.findMany({
+    where: {
+      isDeleted: true,
+      parkId: { in: parkIdsToAdd },
+      roleId,
+    },
+  });
+  const deletedParkIds = deletedRecords.map(
+    (record: { parkId: number }) => record.parkId,
+  );
+
+  if (deletedParkIds.length > 0) {
+    await prisma.rolePark.updateMany({
+      data: { isDeleted: false },
+      where: { parkId: { in: deletedParkIds }, roleId },
+    });
+  }
+
+  const parkIdsToCreate = parkIdsToAdd.filter(
+    (parkId) => !deletedParkIds.includes(parkId),
+  );
+  if (parkIdsToCreate.length > 0) {
+    await prisma.rolePark.createMany({
+      data: parkIdsToCreate.map((parkId) => ({ parkId, roleId })),
+    });
+  }
+}
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
     return unAuthorizedResponse(event);
   }
+
   const customerId = String(userinfo.customerId);
   const roleScope = await resolveRoleScopeContext(userinfo);
   if (!roleScope) {
     return noRoleScopeResponse(event);
   }
+
   const id = event.context.params?.id;
   if (!id) {
-    return useResponseError('id is required', 400);
+    return badRequestResponse('id is required', event);
   }
+
   const body = await readBody(event);
   const {
     organizationId: _organizationId,
@@ -34,245 +275,63 @@ export default eventHandler(async (event) => {
     scope: _scope,
     ...roleData
   } = body;
-  // roleData.status = !!roleData.status;
-  if (roleData.status) {
-    roleData.status = Boolean(roleData.status);
-  }
+
   try {
+    const roleId = normalizePositiveId(id, '角色');
+    const parentRoleId = normalizeOptionalPositiveId(parentId, '上级角色');
+    const nextMenuIds = normalizeIdList(permissions, '权限');
+    const nextParkIds = normalizeIdList(parkIds, '园区');
+
+    if (hasOwn(roleData, 'status')) {
+      roleData.status = normalizeBoolean(roleData.status, '角色状态');
+    }
+
     const res = await prismaClient.$transaction(async (prisma) => {
       await assertRoleInScope({
         context: roleScope,
-        roleId: Number(id),
+        roleId,
         roleModel: prisma.role,
       });
-      if (parentId) {
+
+      if (parentRoleId !== undefined) {
         await assertRoleInScope({
           context: roleScope,
-          roleId: Number(parentId),
+          roleId: parentRoleId,
           roleModel: prisma.role,
         });
       }
 
-      // 1. 更新角色基本信息
       await prisma.role.update({
-        where: {
-          roleId: Number(id),
-        },
         data: {
           ...roleData,
-          parent: parentId // 处理 parentId 更新
-            ? {
-                connect: { roleId: Number(parentId) },
-              }
-            : undefined,
+          parent:
+            parentRoleId === undefined
+              ? undefined
+              : { connect: { roleId: parentRoleId } },
         },
+        where: { roleId },
       });
 
-      // 2. 如果提供了permissions，则更新角色菜单关联
-      if (permissions && Array.isArray(permissions)) {
-        // 2.0 安全验证：检查子角色权限是否超出父角色范围
-        if (parentId) {
-          // 获取父角色的权限信息
-          const parentRole = await prisma.role.findUnique({
-            where: { roleId: Number(parentId) },
-            include: {
-              roleMenus: {
-                where: { isDeleted: false },
-                select: { menuId: true },
-              },
-            },
-          });
-
-          if (parentRole) {
-            const parentMenuIds = new Set(
-              parentRole.roleMenus.map((rm) => rm.menuId),
-            );
-            const requestedMenuIds = permissions.map(Number);
-
-            // 检查是否有超出父角色权限范围的菜单ID
-            const invalidMenuIds = requestedMenuIds.filter(
-              (menuId) => !parentMenuIds.has(menuId),
-            );
-
-            if (invalidMenuIds.length > 0) {
-              throw new Error(
-                `子角色权限不能超出父角色范围。无效的菜单ID: ${invalidMenuIds.join(', ')}`,
-              );
-            }
-          }
-        }
-
-        // 2.1 获取当前角色已有的菜单关联
-        const existingRoleMenus = await prisma.roleMenu.findMany({
-          where: {
-            roleId: Number(id),
-            isDeleted: false, // 只查询未删除的记录
-          },
-          select: {
-            menuId: true,
-          },
-        });
-
-        const existingMenuIds = existingRoleMenus.map((rm) => rm.menuId);
-        const newMenuIds = permissions.map(Number);
-
-        // 2.2 找出需要删除的菜单关联（在现有列表中但不在新列表中）
-        const menuIdsToDelete = existingMenuIds.filter(
-          (menuId) => !newMenuIds.includes(menuId),
-        );
-
-        // 2.3 找出需要添加的菜单关联（在新列表中但不在现有列表中）
-        const menuIdsToAdd = newMenuIds.filter(
-          (menuId) => !existingMenuIds.includes(menuId),
-        );
-
-        // 2.4 删除不再需要的菜单关联
-        if (menuIdsToDelete.length > 0) {
-          // 将硬删除改为软删除
-          await prisma.roleMenu.updateMany({
-            where: {
-              roleId: Number(id),
-              menuId: {
-                in: menuIdsToDelete,
-              },
-            },
-            data: {
-              isDeleted: true,
-            },
-          });
-        }
-
-        // 2.5 添加新的菜单关联
-        if (menuIdsToAdd.length > 0) {
-          // 检查是否有被软删除的记录可以恢复
-          const deletedRecords = await prisma.roleMenu.findMany({
-            where: {
-              roleId: Number(id),
-              menuId: {
-                in: menuIdsToAdd,
-              },
-              isDeleted: true,
-            },
-          });
-
-          // 恢复已软删除的记录
-          const deletedMenuIds = deletedRecords.map((record) => record.menuId);
-          if (deletedMenuIds.length > 0) {
-            await prisma.roleMenu.updateMany({
-              where: {
-                roleId: Number(id),
-                menuId: {
-                  in: deletedMenuIds,
-                },
-              },
-              data: {
-                isDeleted: false,
-              },
-            });
-          }
-
-          // 创建新记录（排除已恢复的记录）
-          const menuIdsToCreate = menuIdsToAdd.filter(
-            (menuId) => !deletedMenuIds.includes(menuId),
-          );
-
-          if (menuIdsToCreate.length > 0) {
-            await prisma.roleMenu.createMany({
-              data: menuIdsToCreate.map((menuId) => ({
-                roleId: Number(id),
-                menuId,
-              })),
-            });
-          }
-        }
+      if (nextMenuIds !== undefined) {
+        await assertMenusExist(prisma, nextMenuIds);
+        await assertPermissionsWithinParent(prisma, parentRoleId, nextMenuIds);
+        await syncRoleMenus(prisma, roleId, nextMenuIds);
       }
 
-      // 3. 如果提供了parkIds，则更新角色园区关联
-      if (parkIds && Array.isArray(parkIds)) {
-        // 3.1 获取当前角色已有的园区关联
-        const existingRoleParks = await prisma.rolePark.findMany({
-          where: {
-            roleId: Number(id),
-            isDeleted: false, // 只查询未删除的记录
-          },
-          select: {
-            parkId: true,
-          },
-        });
-        const existingParkIds = existingRoleParks.map((rp) => rp.parkId);
-        const newParkIds = parkIds.map(Number);
-        // 3.2 找出需要删除的园区关联（在现有列表中但不在新列表中）
-        const parkIdsToDelete = existingParkIds.filter(
-          (parkId) => !newParkIds.includes(parkId),
-        );
-        // 3.3 找出需要添加的园区关联（在新列表中但不在现有列表中）
-        const parkIdsToAdd = newParkIds.filter(
-          (parkId) => !existingParkIds.includes(parkId),
-        );
-        // 3.4 删除不再需要的园区关联
-        if (parkIdsToDelete.length > 0) {
-          // 将硬删除改为软删除
-          await prisma.rolePark.updateMany({
-            where: {
-              roleId: Number(id),
-              parkId: {
-                in: parkIdsToDelete,
-              },
-            },
-            data: {
-              isDeleted: true,
-            },
-          });
-        }
-        // 3.5 添加新的园区关联
-        if (parkIdsToAdd.length > 0) {
-          // 检查是否有被软删除的记录可以恢复
-          const deletedRecords = await prisma.rolePark.findMany({
-            where: {
-              roleId: Number(id),
-              parkId: {
-                in: parkIdsToAdd,
-              },
-              isDeleted: true, // 添加这个条件，只查询已软删除的记录
-            },
-          });
-          // 恢复已软删除的记录
-          const deletedParkIds = deletedRecords.map((record) => record.parkId);
-          if (deletedParkIds.length > 0) {
-            await prisma.rolePark.updateMany({
-              where: {
-                roleId: Number(id),
-                parkId: {
-                  in: deletedParkIds,
-                },
-              },
-              data: {
-                isDeleted: false,
-              },
-            });
-          }
-
-          // 创建新记录（排除已恢复的记录）
-          const parkIdsToCreate = parkIdsToAdd.filter(
-            (parkId) => !deletedParkIds.includes(parkId),
-          );
-
-          if (parkIdsToCreate.length > 0) {
-            await prisma.rolePark.createMany({
-              data: parkIdsToCreate.map((parkId) => ({
-                roleId: Number(id),
-                parkId,
-              })),
-            });
-          }
-        }
+      if (nextParkIds !== undefined) {
+        await assertParksExist(prisma, nextParkIds);
+        await syncRoleParks(prisma, roleId, nextParkIds);
       }
     });
 
     await bumpPermissionCacheVersion(customerId).catch(() => undefined);
     return useResponseSuccess(res);
   } catch (error) {
-    console.error('更新数据失败:', error);
-    return useResponseError('更新数据失败', 500);
+    if (error instanceof RoleWriteRequestError) {
+      return badRequestResponse(error.message, event, error.statusCode);
+    }
+
+    console.error('更新角色权限失败:', error);
+    return serverErrorResponse('更新角色权限失败，请稍后重试', event);
   }
 });

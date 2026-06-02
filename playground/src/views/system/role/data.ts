@@ -7,7 +7,6 @@ import { h } from 'vue';
 
 import { formatDateTime, getPopupContainer } from '@vben/utils';
 
-import { getParkList } from '#/api/park/park';
 import { $t } from '#/locales';
 import { useRoleStore } from '#/store/modules/role';
 
@@ -74,18 +73,10 @@ export function useFormSchema(): VbenFormSchema[] {
       label: $t('system.role.status'),
     },
     {
-      component: 'ApiSelect',
-      componentProps: {
-        allowClear: true,
-        api: getParkList,
-        class: 'w-full',
-        labelField: 'parkName',
-        mode: 'multiple',
-        options: [],
-        valueField: 'parkId',
-      },
+      component: 'Select',
       fieldName: 'parkIds',
       label: $t('page.common.park'),
+      rules: 'required',
     },
     {
       component: 'Input', // component 类型不重要，因为会被 slot 覆盖

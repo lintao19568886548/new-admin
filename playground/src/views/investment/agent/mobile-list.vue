@@ -24,12 +24,12 @@ import {
   PlusOutlined,
 } from '@ant-design/icons-vue';
 import {
+  AutoComplete,
   Button,
   Card,
   Empty,
   Form,
   Image,
-  Input,
   message,
   Pagination,
   Select,
@@ -45,6 +45,7 @@ import {
 import MobileDateRange from '#/components/MobileDateRange.vue';
 import { $t } from '#/locales';
 
+import { searchableDropdownProps, useSearchHistory } from '../search-history';
 import { getTagTypeOptions } from './data';
 import AgentForm from './modules/form.vue';
 import RecommendFab from './modules/recommend-fab.vue';
@@ -60,6 +61,12 @@ const searchForm = reactive({
   progress: undefined as string | undefined,
   tenantName: '',
 });
+const tenantNameSearchHistory = useSearchHistory(
+  'agent.mobile-list.tenantName',
+);
+const agentNameSearchHistory = useSearchHistory('agent.mobile-list.agentName');
+const tenantNameOptions = tenantNameSearchHistory.options();
+const agentNameOptions = agentNameSearchHistory.options();
 
 const parkOptions = ref<{ label: string; value: number }[]>([
   { label: '全部区域', value: -1 },
@@ -288,6 +295,8 @@ function handlePageChange(page: number, pageSize: number) {
 }
 
 function handleSearch() {
+  tenantNameSearchHistory.add(searchForm.tenantName);
+  agentNameSearchHistory.add(searchForm.agentName);
   pagination.current = 1;
   filterOpen.value = false;
   fetchList();
@@ -399,12 +408,15 @@ function resolveParkName(id?: null | number, name?: string) {
       <Form class="investment-mobile-filter-form" layout="vertical">
         <div class="investment-mobile-search-bar">
           <Form.Item>
-            <Input
+            <AutoComplete
               v-model:value="searchForm.tenantName"
+              v-bind="searchableDropdownProps"
               placeholder="租户 / 中介人"
               size="small"
               allow-clear
+              :options="tenantNameOptions"
               @press-enter="handleSearch"
+              @select="handleSearch"
             />
           </Form.Item>
           <Button type="primary" size="small" @click="handleSearch">
@@ -437,11 +449,15 @@ function resolveParkName(id?: null | number, name?: string) {
               />
             </Form.Item>
             <Form.Item>
-              <Input
+              <AutoComplete
                 v-model:value="searchForm.agentName"
+                v-bind="searchableDropdownProps"
                 placeholder="中介人"
                 size="small"
                 allow-clear
+                :options="agentNameOptions"
+                @press-enter="handleSearch"
+                @select="handleSearch"
               />
             </Form.Item>
             <Form.Item>

@@ -22,8 +22,9 @@ function isLocalPublicPageUrl(sourceUrl: string) {
 }
 
 export const demandLocalPublicPageAdapter: PublicDemandCrawlerAdapter = {
-  extractFromHtml: (html, sourceUrl) =>
+  extractFromHtml: (html, sourceUrl, crawledAt) =>
     buildPublicDemandOpportunity({
+      crawledAt,
       html,
       sourceSite: 'local-public-page',
       sourceUrl,

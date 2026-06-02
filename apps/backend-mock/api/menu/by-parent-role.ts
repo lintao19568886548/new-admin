@@ -1,4 +1,5 @@
 import { verifyAccessToken } from '~/utils/jwt-utils';
+import { normalizeParkManagementMenuPlacement } from '~/utils/park-menu-placement';
 import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
 import { processMenuData } from '~/utils/tools';
 
@@ -50,7 +51,12 @@ export default eventHandler(async (event) => {
       removeEmptyChildren: true,
     });
 
-    return useResponseSuccess(processedMenus);
+    return useResponseSuccess(
+      normalizeParkManagementMenuPlacement(processedMenus, {
+        ensureParkWhenMissing: userinfo.roles?.includes('Super') ?? false,
+        preferLegacyMenu: true,
+      }),
+    );
   }
 
   // 根据父角色ID获取父角色的权限菜单
@@ -120,5 +126,9 @@ export default eventHandler(async (event) => {
     removeEmptyChildren: true,
   });
 
-  return useResponseSuccess(processedMenus);
+  return useResponseSuccess(
+    normalizeParkManagementMenuPlacement(processedMenus, {
+      preferLegacyMenu: true,
+    }),
+  );
 });

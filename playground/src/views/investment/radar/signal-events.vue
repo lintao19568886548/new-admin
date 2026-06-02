@@ -17,6 +17,7 @@ import { formatDateTime } from '@vben/utils';
 
 import {
   Alert,
+  AutoComplete,
   Button,
   Card,
   Descriptions,
@@ -38,9 +39,11 @@ import {
   getSignalEventDetail,
   getSignalEventEvidenceList,
   getSignalEventList,
-  rebuildSignalEventDemo,
+  refreshSignalEvents,
   updateSignalEvent,
 } from '#/api/investment';
+
+import { searchableDropdownProps, useSearchHistory } from '../search-history';
 
 defineOptions({ name: 'InvestmentRadarSignalEvents' });
 
@@ -78,6 +81,16 @@ const searchForm = ref({
   sourceType: '',
   status: '',
 });
+const keywordSearchHistory = useSearchHistory('radar.signal-events.keyword');
+const companyNameSearchHistory = useSearchHistory(
+  'radar.signal-events.companyName',
+);
+const sourceNameSearchHistory = useSearchHistory(
+  'radar.signal-events.sourceName',
+);
+const keywordOptions = keywordSearchHistory.options();
+const companyNameOptions = companyNameSearchHistory.options();
+const sourceNameOptions = sourceNameSearchHistory.options();
 const editForm = ref<{
   ownerUserId?: number;
   remark?: string;
@@ -110,7 +123,6 @@ const sourceTypeOptions = [
   { label: '全部来源类型', value: '' },
   { label: '内部合同', value: 'INTERNAL_CONTRACT' },
   { label: '公开机会', value: 'PUBLIC_OPPORTUNITY' },
-  { label: 'Demo', value: 'DEMO' },
 ];
 const eventTypeMeta: Record<SignalEventType, { color: string; label: string }> =
   {
@@ -205,6 +217,9 @@ async function loadSalesUsers() {
 }
 
 function searchEvents() {
+  keywordSearchHistory.add(searchForm.value.keyword);
+  companyNameSearchHistory.add(searchForm.value.companyName);
+  sourceNameSearchHistory.add(searchForm.value.sourceName);
   pagination.value.current = 1;
   void loadEvents();
 }
@@ -294,22 +309,22 @@ async function saveEventStatus() {
   }
 }
 
-async function rebuildDemoSignals() {
+async function refreshSignals() {
   if (rebuilding.value) {
     return;
   }
   rebuilding.value = true;
   try {
-    const result = await rebuildSignalEventDemo();
+    const result = await refreshSignalEvents();
     rebuildSummary.value = result;
     message.success(
-      `重建完成：新增 ${result.createdEventCount}，更新 ${result.updatedEventCount}`,
+      `刷新完成：新增 ${result.createdEventCount}，更新 ${result.updatedEventCount}`,
     );
     pagination.value.current = 1;
     await loadEvents();
   } catch (error) {
-    console.error('rebuild signal events failed:', error);
-    message.error('重建 demo 企业信号失败');
+    console.error('refresh signal events failed:', error);
+    message.error('刷新企业信号失败');
   } finally {
     rebuilding.value = false;
   }
@@ -492,7 +507,7 @@ onMounted(() => {
   <div class="signal-events-pane">
     <Alert
       class="mb-3"
-      message="企业信号由外部公开线索和证据链重建生成，是后续企业画像和评分引擎的统一输入。"
+      message="企业信号由外部公开线索和证据链增量刷新生成，是后续企业画像和评分引擎的统一输入。"
       show-icon
       type="info"
     />
@@ -500,20 +515,26 @@ onMounted(() => {
     <Card class="mb-3" title="筛选">
       <Form class="radar-search-form" layout="inline">
         <Form.Item label="关键词">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.keyword"
+            v-bind="searchableDropdownProps"
             allow-clear
             class="radar-filter-keyword"
+            :options="keywordOptions"
             placeholder="企业 / 标题 / 来源"
             @press-enter="searchEvents"
+            @select="searchEvents"
           />
         </Form.Item>
         <Form.Item label="企业名">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.companyName"
+            v-bind="searchableDropdownProps"
             allow-clear
             class="radar-filter-control"
+            :options="companyNameOptions"
             @press-enter="searchEvents"
+            @select="searchEvents"
           />
         </Form.Item>
         <Form.Item label="事件类型">
@@ -531,11 +552,14 @@ onMounted(() => {
           />
         </Form.Item>
         <Form.Item label="来源">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.sourceName"
+            v-bind="searchableDropdownProps"
             allow-clear
             class="radar-filter-control"
+            :options="sourceNameOptions"
             @press-enter="searchEvents"
+            @select="searchEvents"
           />
         </Form.Item>
         <Form.Item label="来源类型">
@@ -553,15 +577,15 @@ onMounted(() => {
             <Button
               type="primary"
               :loading="rebuilding"
-              @click="rebuildDemoSignals"
+              @click="refreshSignals"
             >
-              重建 demo 信号
+              增量刷新信号
             </Button>
           </Space>
         </Form.Item>
       </Form>
       <div v-if="rebuildSummary" class="text-text-secondary mt-3 text-sm">
-        最近重建：来源线索 {{ rebuildSummary.totalSourceLeadCount }}，新增事件
+        最近刷新：来源线索 {{ rebuildSummary.totalSourceLeadCount }}，新增事件
         {{ rebuildSummary.createdEventCount }}，更新事件
         {{ rebuildSummary.updatedEventCount }}，新增证据
         {{ rebuildSummary.createdEvidenceCount }}，更新证据

@@ -29,7 +29,7 @@ import {
 
 import {
   getLeadScoreRuleList,
-  recalculateDemoLeadScores,
+  recalculateRadarLeadScores,
   updateLeadScoreRule,
 } from '#/api/investment';
 
@@ -196,21 +196,21 @@ async function toggleRule(rule: LeadScoreRule) {
   }
 }
 
-async function recalculateDemoScores() {
+async function recalculateScores() {
   if (recalculating.value) {
     return;
   }
   recalculating.value = true;
   try {
-    const result = await recalculateDemoLeadScores();
+    const result = await recalculateRadarLeadScores();
     recalculateSummary.value = {
       recalculatedCount: result.recalculatedCount,
       totalLeadCount: result.totalLeadCount,
     };
-    message.success(`已重算 ${result.recalculatedCount} 条 demo 潜客评分`);
+    message.success(`已重算 ${result.recalculatedCount} 条潜客评分`);
   } catch (error) {
-    console.error('重算 demo 评分失败:', error);
-    message.error('重算 demo 评分失败');
+    console.error('重算潜客评分失败:', error);
+    message.error('重算潜客评分失败');
   } finally {
     recalculating.value = false;
   }
@@ -226,7 +226,7 @@ onMounted(() => {
     <div class="radar-mobile-header">
       <div>
         <h2>评分规则</h2>
-        <p>维护信号评分规则并重算 demo 潜客分数。</p>
+        <p>维护信号评分规则并重算潜客分数。</p>
       </div>
       <Button type="primary" :loading="loading" @click="loadRules">
         <ReloadOutlined class="mr-1 h-4 w-4" />
@@ -265,10 +265,10 @@ onMounted(() => {
       <Button
         type="primary"
         :loading="recalculating"
-        @click="recalculateDemoScores"
+        @click="recalculateScores"
       >
         <ThunderboltOutlined class="mr-1 h-4 w-4" />
-        重算 demo 评分
+        重算潜客评分
       </Button>
     </div>
 

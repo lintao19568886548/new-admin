@@ -26,6 +26,8 @@ export const replyStatusOptions = [
   { label: '已回复', value: 'REPLIED' },
   { label: '正向反馈', value: 'POSITIVE' },
   { label: '负向反馈', value: 'NEGATIVE' },
+  { label: '退订/拒绝继续触达', value: 'UNSUBSCRIBED' },
+  { label: '加入黑名单', value: 'BLACKLIST' },
 ];
 
 export const taskStatusOptions = [
@@ -58,10 +60,12 @@ const opportunityTypeMetaMap: Record<string, { color: string; label: string }> =
   };
 
 const replyStatusMetaMap: Record<string, { color: string; label: string }> = {
+  BLACKLIST: { color: 'black', label: '黑名单' },
   NEGATIVE: { color: 'red', label: '负向反馈' },
   NO_REPLY: { color: 'default', label: '未回复' },
   POSITIVE: { color: 'green', label: '正向反馈' },
   REPLIED: { color: 'cyan', label: '已回复' },
+  UNSUBSCRIBED: { color: 'orange', label: '退订/拒触' },
 };
 
 const taskStatusMetaMap: Record<string, { color: string; label: string }> = {

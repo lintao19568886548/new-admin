@@ -117,7 +117,9 @@ function stringifyJsonValue(value: unknown) {
     return value;
   }
   try {
-    return JSON.stringify(value);
+    return JSON.stringify(value, (_key, item) =>
+      typeof item === 'bigint' ? item.toString() : item,
+    );
   } catch {
     return String(value);
   }

@@ -40,6 +40,20 @@ const PROFILE_AUXILIARY_ROUTE_MENUS = [
   },
 ] as const;
 
+const INVESTMENT_PUBLIC_CRAWL_ROOT_ROUTE = {
+  authCode: 'investment:public-crawl',
+  component: 'BasicLayout',
+  meta: {
+    icon: 'lucide:briefcase-business',
+    order: 2,
+    title: '招商管理',
+  },
+  name: 'InvestmentPublicCrawl',
+  path: '/investment-public-crawl',
+  redirect: '/investment/radar-factory-listings',
+  type: 'menu',
+} as const;
+
 const INVESTMENT_RADAR_AUXILIARY_ROUTE_MENUS = [
   {
     authCode: 'investment:radar',
@@ -331,6 +345,50 @@ const INVESTMENT_MOBILE_APP_ROUTE_MENUS = [
   },
 ] as const;
 
+type InvestmentAuxiliaryScope = 'full' | 'publicCrawlOnly';
+
+const PUBLIC_CRAWL_ROUTE_NAMES = new Set([
+  'InvestmentRadarFactoryListings',
+  'InvestmentRadarPublicDemands',
+]);
+
+const PUBLIC_CRAWL_ROUTE_PATHS = new Set([
+  '/investment/radar-factory-listings',
+  '/investment/radar-public-demands',
+]);
+
+const PUBLIC_CRAWL_MOBILE_ROUTE_NAMES = new Set([
+  'InvestmentRadarMobileFactoryListings',
+  'InvestmentRadarMobilePublicDemands',
+]);
+
+function isRouteInSet(
+  route: any,
+  names: ReadonlySet<string>,
+  paths: ReadonlySet<string>,
+) {
+  return (
+    names.has(String(route?.name || '')) || paths.has(String(route?.path || ''))
+  );
+}
+
+const PUBLIC_CRAWL_AUXILIARY_ROUTE_MENUS =
+  INVESTMENT_RADAR_AUXILIARY_ROUTE_MENUS.filter((route) =>
+    isRouteInSet(route, PUBLIC_CRAWL_ROUTE_NAMES, PUBLIC_CRAWL_ROUTE_PATHS),
+  ).map((route) => ({
+    ...route,
+    meta: {
+      ...route.meta,
+      activePath: INVESTMENT_PUBLIC_CRAWL_ROOT_ROUTE.path,
+      hideInMenu: false,
+    },
+  }));
+
+const PUBLIC_CRAWL_MOBILE_ROUTE_MENUS =
+  INVESTMENT_MOBILE_APP_ROUTE_MENUS.filter((route) =>
+    PUBLIC_CRAWL_MOBILE_ROUTE_NAMES.has(route.name),
+  );
+
 function hasRouteMenu(
   menus: any[],
   route: {
@@ -409,6 +467,13 @@ function appendChildRouteMenus(
   return parentFound ? nextMenus : menus;
 }
 
+function buildPublicCrawlRootRoute(children: readonly any[]) {
+  return {
+    ...INVESTMENT_PUBLIC_CRAWL_ROOT_ROUTE,
+    children: appendRouteMenus([], children),
+  };
+}
+
 function shouldAppendInvestmentRadarRouteMenus(menus: any[]) {
   return (
     hasRouteMenu(menus, {
@@ -422,14 +487,29 @@ function shouldAppendInvestmentRadarRouteMenus(menus: any[]) {
   );
 }
 
-export function appendProfileAuxiliaryRouteMenus(menus: any[]) {
+export function appendProfileAuxiliaryRouteMenus(
+  menus: any[],
+  options: { investmentScope?: InvestmentAuxiliaryScope } = {},
+) {
   const normalizedMenus = appendRouteMenus(
     menus,
     PROFILE_AUXILIARY_ROUTE_MENUS,
   );
+
+  if (options.investmentScope === 'publicCrawlOnly') {
+    const publicCrawlRouteMenus = [
+      ...PUBLIC_CRAWL_AUXILIARY_ROUTE_MENUS,
+      ...PUBLIC_CRAWL_MOBILE_ROUTE_MENUS,
+    ];
+    return appendRouteMenus(normalizedMenus, [
+      buildPublicCrawlRootRoute(publicCrawlRouteMenus),
+    ]);
+  }
+
   if (!shouldAppendInvestmentRadarRouteMenus(normalizedMenus)) {
     return normalizedMenus;
   }
+
   const withRadarMenus = appendRouteMenus(
     normalizedMenus,
     INVESTMENT_RADAR_AUXILIARY_ROUTE_MENUS,
@@ -448,4 +528,5 @@ export {
   INVESTMENT_MOBILE_APP_ROUTE_MENUS,
   INVESTMENT_RADAR_AUXILIARY_ROUTE_MENUS,
   PROFILE_AUXILIARY_ROUTE_MENUS,
+  PUBLIC_CRAWL_AUXILIARY_ROUTE_MENUS,
 };

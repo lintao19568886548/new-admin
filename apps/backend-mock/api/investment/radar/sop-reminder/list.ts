@@ -1,4 +1,5 @@
 import { prismaClient } from '~/utils/db';
+import { assertInvestmentRadarTableReady } from '~/utils/investment-radar/schema-guard';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   serverErrorResponse,
@@ -7,24 +8,7 @@ import {
 } from '~/utils/response';
 
 async function ensureSopReminderTable() {
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS investment_sop_reminder (
-      reminder_id BIGINT NOT NULL AUTO_INCREMENT,
-      lead_id BIGINT NOT NULL,
-      reminder_type VARCHAR(50) NOT NULL,
-      title VARCHAR(100) NOT NULL,
-      description TEXT NULL,
-      due_time DATETIME(3) NOT NULL,
-      reminder_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
-      handled_time DATETIME(3) NULL,
-      create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (reminder_id),
-      UNIQUE KEY uk_investment_sop_reminder_lead_type (lead_id, reminder_type),
-      INDEX idx_investment_sop_reminder_lead_status (lead_id, reminder_status),
-      INDEX idx_investment_sop_reminder_due_time (due_time)
-    )
-  `);
+  await assertInvestmentRadarTableReady('investment_sop_reminder');
 }
 
 export default eventHandler(async (event) => {

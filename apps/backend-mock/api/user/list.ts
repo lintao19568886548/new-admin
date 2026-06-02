@@ -1,6 +1,7 @@
 import { prismaClient, prismaScopeStorage, systemDbClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
+import { getLegacyUserPark, getUserDirectParks } from '~/utils/user-park-scope';
 
 function toSafeInt(value: unknown, fallback: number, min = 1, max = 200) {
   const num = Number(value);
@@ -87,6 +88,7 @@ export default eventHandler(async (event) => {
             username: true,
             realName: true,
             phone: true,
+            parkId: true,
             status: true,
             tokenVersion: true,
             customerType: true,
@@ -151,6 +153,25 @@ export default eventHandler(async (event) => {
   );
   const centerUserById = new Map(centerUsers.map((item) => [item.id, item]));
 
+  const userParkEntries = await prismaScopeStorage.run(
+    { customerId },
+    async () =>
+      Promise.all(
+        tenantUsers.map(async (item) => {
+          const directParks = await getUserDirectParks(
+            Number(item.id),
+            prismaClient,
+          ).catch(() => []);
+          const parks =
+            directParks.length > 0
+              ? directParks
+              : await getLegacyUserPark(Number(item.id), prismaClient);
+          return [Number(item.id), parks] as const;
+        }),
+      ),
+  );
+  const parksByUserId = new Map(userParkEntries);
+
   const items = tenantUsers.map((item) => {
     const roleIds = [...new Set(item.roles.map((row) => Number(row.roleId)))];
     const roles = [
@@ -162,6 +183,7 @@ export default eventHandler(async (event) => {
     ];
     const centerUserId = mappingByTenantUserId.get(item.id);
     const centerUser = centerUserId ? centerUserById.get(centerUserId) : null;
+    const parks = parksByUserId.get(Number(item.id)) || [];
 
     return {
       id: Number(item.id),
@@ -171,6 +193,8 @@ export default eventHandler(async (event) => {
       customerType: item.customerType ? String(item.customerType) : null,
       customerUserId: Number(item.id),
       phone: item.phone ? String(item.phone) : '',
+      parkIds: parks.map((park) => park.parkId),
+      parks,
       realName: String(item.realName || ''),
       roleIds,
       roles,

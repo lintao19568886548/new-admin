@@ -4,6 +4,11 @@ import { isAllowedHost } from '../public-parser-utils';
 import { extractListingDetailUrlsFromListHtml } from './listing-url-discovery';
 import { extractStrictListingFromHtml } from './strict-listing-parser';
 
+const CANGXIAOER_GUANGDONG_HOST_PATTERN =
+  /^(?:www|guangdong|dg|gz|sz|fs|hz|zs|zh|jm|zq)\.cangxiaoer\.com$/i;
+const CANGXIAOER_NON_GUANGDONG_DETAIL_PATH_PATTERN =
+  /^\/(?:d\/)?(?:cangku|changfang|yuanqu)\/(?:bj|cd|cq|nj|sh|tj|wh|wx)[-_]/i;
+
 export const listingCangxiaoerGuangdongAdapter: PublicListingCrawlerAdapter = {
   extractDetailUrlsFromListHtml: (html, listUrl) =>
     extractListingDetailUrlsFromListHtml(html, listUrl, {
@@ -36,13 +41,18 @@ export const listingCangxiaoerGuangdongAdapter: PublicListingCrawlerAdapter = {
       return false;
     }
     try {
-      const { pathname } = new URL(sourceUrl);
+      const { hostname, pathname } = new URL(sourceUrl);
+      if (!CANGXIAOER_GUANGDONG_HOST_PATTERN.test(hostname)) {
+        return false;
+      }
+      if (CANGXIAOER_NON_GUANGDONG_DETAIL_PATH_PATTERN.test(pathname)) {
+        return false;
+      }
       return (
         /^\/d\/(?:cangku|changfang)\/[\w-]+\.html$/i.test(pathname) ||
+        /^\/d\/yuanqu\/[\w-]+\.html$/i.test(pathname) ||
         /^\/(?:cangku|changfang)\/[\w-]+\.html$/i.test(pathname) ||
-        ['/d/cangku/', '/d/changfang/', '/d/yuanqu/'].some((prefix) =>
-          pathname.startsWith(prefix),
-        )
+        /^\/yuanqu\/[\w-]+\.html$/i.test(pathname)
       );
     } catch {
       return false;

@@ -26,6 +26,7 @@ model Park {
   elevator           Elevator[]           @relation("ParkToElevator")
   images             ParkImage[]          @relation("ParkToParkImage")
   users              User[]               @relation("ParkToUser")
+  userParks          UserPark[]           @relation("ParkToUserPark")
   leaveApplications  LeaveApplication[]   @relation("ParkLeaveApplications")
   createTime         DateTime             @default(now()) @map("create_time")
   updateTime         DateTime?            @updatedAt @map("update_time")

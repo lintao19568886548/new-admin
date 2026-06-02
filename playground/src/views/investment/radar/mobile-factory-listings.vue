@@ -1,13 +1,17 @@
 <script lang="ts" setup>
-import type { PublicOpportunityItem } from '#/api/investment';
+import type {
+  PublicOpportunityCrawlerProgress,
+  PublicOpportunityItem,
+} from '#/api/investment';
 
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 
 import { ChevronDown, ExternalLink, Search } from '@vben/icons';
 
 import { FileTextOutlined } from '@ant-design/icons-vue';
 import {
   Alert,
+  AutoComplete,
   Button,
   Card,
   Empty,
@@ -23,10 +27,23 @@ import {
 import {
   createManualPublicOpportunity,
   getEffectivePublicOpportunityList,
+  getEffectivePublicOpportunityOptions,
+  getEffectivePublicOpportunityProgress,
+  getEffectivePublicOpportunityStats,
   getPublicOpportunityDetail,
 } from '#/api/investment';
 
-import { formatArea, formatDateOnly, formatNumber } from './mobile-utils';
+import {
+  mergeSearchOptions,
+  searchableDropdownProps,
+  useSearchHistory,
+} from '../search-history';
+import {
+  formatArea,
+  formatDateOnly,
+  formatNumber,
+  formatTime,
+} from './mobile-utils';
 import OpportunityDetailDrawer from './opportunity-detail-drawer.vue';
 
 defineOptions({ name: 'InvestmentRadarMobileFactoryListings' });
@@ -40,10 +57,16 @@ const manualSaving = ref(false);
 const items = ref<PublicOpportunityItem[]>([]);
 const currentItem = ref<null | PublicOpportunityItem>(null);
 const filterExpanded = ref(false);
+const crawlerProgress = ref<null | PublicOpportunityCrawlerProgress>(null);
+let loadFactoryListingsVersion = 0;
+let refreshFactoryListingStatsVersion = 0;
+const factoryListingListScope = 'raw' as const;
+let autoRefreshTimer: ReturnType<typeof setInterval> | undefined;
+let statsRefreshTimer: ReturnType<typeof setInterval> | undefined;
 
 const pagination = reactive({
   current: 1,
-  pageSize: 10,
+  pageSize: 20,
   total: 0,
 });
 
@@ -54,8 +77,34 @@ const searchForm = reactive({
   sourceSite: '',
 });
 
-const publishedAgeLabelOptions = ref<Array<{ value: string }>>([]);
-const sourceSiteOptions = ref<Array<{ value: string }>>([]);
+const citySearchHistory = useSearchHistory(
+  'radar.mobile-factory-listings.city',
+);
+const keywordSearchHistory = useSearchHistory(
+  'radar.mobile-factory-listings.keyword',
+);
+const publishedAgeSearchHistory = useSearchHistory(
+  'radar.mobile-factory-listings.publishedAgeLabel',
+);
+const sourceSiteSearchHistory = useSearchHistory(
+  'radar.mobile-factory-listings.sourceSite',
+);
+const publishedAgeLabelServerOptions = ref<Array<{ value: string }>>([]);
+const sourceSiteServerOptions = ref<Array<{ value: string }>>([]);
+const cityOptions = citySearchHistory.options();
+const keywordOptions = keywordSearchHistory.options();
+const publishedAgeLabelOptions = computed(() =>
+  mergeSearchOptions(
+    publishedAgeSearchHistory.history.value,
+    publishedAgeLabelServerOptions.value.map((item) => item.value),
+  ),
+);
+const sourceSiteOptions = computed(() =>
+  mergeSearchOptions(
+    sourceSiteSearchHistory.history.value,
+    sourceSiteServerOptions.value.map((item) => item.value),
+  ),
+);
 
 const manualForm = reactive({
   areaText: '',
@@ -72,6 +121,10 @@ const manualForm = reactive({
 
 const summary = computed(() => ({
   currentPageCount: items.value.length,
+  processSourceCount: crawlerProgress.value?.sourceCount || 0,
+  recentTaskSourceCount:
+    crawlerProgress.value?.sources.filter((source) => source.latestTask)
+      .length || 0,
   total: pagination.total,
 }));
 
@@ -79,7 +132,60 @@ const pageSummaryText = computed(
   () => `第 ${pagination.current} 页 / 每页 ${pagination.pageSize} 条`,
 );
 
+const latestCrawlerTask = computed(() => {
+  const candidates = [];
+  for (const source of crawlerProgress.value?.sources || []) {
+    if (source.latestTask) {
+      candidates.push({
+        sourceCode: source.sourceCode,
+        sourceName: source.sourceName,
+        task: source.latestTask,
+      });
+    }
+  }
+  return (
+    candidates.sort(
+      (left, right) =>
+        getSortableTime(right.task.finishedAt || right.task.startedAt) -
+        getSortableTime(left.task.finishedAt || left.task.startedAt),
+    )[0] || null
+  );
+});
+
+const latestCrawlerTaskAlertType = computed(() => {
+  const status = latestCrawlerTask.value?.task.status;
+  if (status === 'FAILED') {
+    return 'error';
+  }
+  if (status === 'RUNNING') {
+    return 'info';
+  }
+  return 'success';
+});
+
+const latestCrawlerTaskMessage = computed(() => {
+  const latest = latestCrawlerTask.value;
+  if (!latest) {
+    const latestItem = items.value[0];
+    if (latestItem?.lastSyncedAt) {
+      return `最近入库记录：${latestItem.title || '公开房源'}，采集时间 ${formatTime(latestItem.lastSyncedAt)}；页面会每 60 秒自动刷新。`;
+    }
+    return '自动采集已开启，正在等待最近任务返回；页面会每 60 秒自动刷新。';
+  }
+  const task = latest.task;
+  return [
+    `最近采集：${latest.sourceName || latest.sourceCode}`,
+    `状态 ${formatCrawlerTaskStatus(task.status)}`,
+    `抓取 ${Number(task.fetchedCount || 0).toLocaleString('zh-CN')} 条`,
+    `新增 ${Number(task.createdLeadCount || 0).toLocaleString('zh-CN')} 条`,
+    `更新 ${Number(task.updatedLeadCount || 0).toLocaleString('zh-CN')} 条`,
+    `过滤 ${Number(task.skippedCount || 0).toLocaleString('zh-CN')} 条`,
+    `时间 ${formatTime(task.finishedAt || task.startedAt)}`,
+  ].join('，');
+});
+
 function handleSearch() {
+  rememberFactoryListingSearch();
   pagination.current = 1;
   filterExpanded.value = false;
   void loadFactoryListings();
@@ -110,40 +216,168 @@ function toAutoCompleteOptions(values?: string[]) {
   ].map((value) => ({ value }));
 }
 
+function rememberFactoryListingSearch() {
+  citySearchHistory.add(searchForm.city);
+  keywordSearchHistory.add(searchForm.keyword);
+  publishedAgeSearchHistory.add(searchForm.publishedAgeLabel);
+  sourceSiteSearchHistory.add(searchForm.sourceSite);
+}
+
+function formatCrawlerTaskStatus(status?: null | string) {
+  if (status === 'SUCCESS') {
+    return '成功';
+  }
+  if (status === 'RUNNING') {
+    return '运行中';
+  }
+  if (status === 'FAILED') {
+    return '失败';
+  }
+  if (status === 'PENDING') {
+    return '等待中';
+  }
+  return status || '未知';
+}
+
+function getSortableTime(value?: null | string) {
+  if (!value) {
+    return Number.NEGATIVE_INFINITY;
+  }
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+}
+
+function sortPublicOpportunityItemsByPublishedAtDesc(
+  rows: PublicOpportunityItem[],
+) {
+  return [...rows].sort((left, right) => {
+    const syncedDiff =
+      getSortableTime(right.lastSyncedAt) - getSortableTime(left.lastSyncedAt);
+    if (syncedDiff !== 0) {
+      return syncedDiff;
+    }
+
+    const publishedDiff =
+      getSortableTime(right.publishedAt) - getSortableTime(left.publishedAt);
+    if (publishedDiff !== 0) {
+      return publishedDiff;
+    }
+
+    return Number(right.opportunityId || 0) - Number(left.opportunityId || 0);
+  });
+}
+
+function buildQuery() {
+  return {
+    city: searchForm.city || undefined,
+    currentPage: pagination.current,
+    includeMeta: false,
+    includeTotal: false,
+    keyword: searchForm.keyword || undefined,
+    opportunityType: 'SUPPLY',
+    pageSize: pagination.pageSize,
+    publishedAgeLabel: searchForm.publishedAgeLabel || undefined,
+    scope: factoryListingListScope,
+    sourceSite: searchForm.sourceSite || undefined,
+  };
+}
+
+function buildStatsQuery() {
+  return {
+    city: searchForm.city || undefined,
+    keyword: searchForm.keyword || undefined,
+    opportunityType: 'SUPPLY',
+    publishedAgeLabel: searchForm.publishedAgeLabel || undefined,
+    scope: factoryListingListScope,
+    sourceSite: searchForm.sourceSite || undefined,
+  };
+}
+
+function updateFactoryListingFilters(filters?: {
+  publishedAgeLabels?: string[];
+  sourceSites?: string[];
+}) {
+  publishedAgeLabelServerOptions.value = toAutoCompleteOptions(
+    filters?.publishedAgeLabels,
+  );
+  sourceSiteServerOptions.value = toAutoCompleteOptions(filters?.sourceSites);
+}
+
+async function refreshFactoryListingProgress(version: number) {
+  const progress = await Promise.allSettled([
+    getEffectivePublicOpportunityProgress({ opportunityType: 'SUPPLY' }),
+  ]);
+
+  if (version !== loadFactoryListingsVersion) {
+    return;
+  }
+
+  const [progressResult] = progress;
+  if (progressResult?.status === 'fulfilled') {
+    crawlerProgress.value = progressResult.value;
+  }
+
+  if (progressResult?.status === 'rejected') {
+    console.warn(
+      'load mobile factory listing progress failed',
+      progressResult.reason,
+    );
+  }
+}
+
+async function refreshFactoryListingStats() {
+  const version = ++refreshFactoryListingStatsVersion;
+  try {
+    const [stats, options] = await Promise.all([
+      getEffectivePublicOpportunityStats(buildStatsQuery()),
+      getEffectivePublicOpportunityOptions(buildStatsQuery()),
+    ]);
+    if (version !== refreshFactoryListingStatsVersion) {
+      return;
+    }
+    pagination.total = Number(stats.total || 0);
+    updateFactoryListingFilters(options.filters);
+  } catch (error) {
+    console.warn('load mobile factory listing stats failed', error);
+  }
+}
+
 async function loadFactoryListings() {
+  const version = ++loadFactoryListingsVersion;
   loading.value = true;
   loadError.value = '';
   try {
-    const result = await getEffectivePublicOpportunityList({
-      city: searchForm.city || undefined,
-      currentPage: pagination.current,
-      keyword: searchForm.keyword || undefined,
-      opportunityType: 'SUPPLY',
-      pageSize: pagination.pageSize,
-      publishedAgeLabel: searchForm.publishedAgeLabel || undefined,
-      sourceSite: searchForm.sourceSite || undefined,
-    });
+    const query = buildQuery();
+    const result = await getEffectivePublicOpportunityList(query);
+    if (version !== loadFactoryListingsVersion) {
+      return;
+    }
     items.value = Array.isArray(result.items)
-      ? result.items.filter((item) => item.opportunityType === 'SUPPLY')
+      ? sortPublicOpportunityItemsByPublishedAtDesc(result.items)
       : [];
     const itemCount = items.value.length;
-    pagination.total =
-      typeof result.total === 'number'
-        ? result.total
-        : result.page?.total || itemCount;
-    publishedAgeLabelOptions.value = toAutoCompleteOptions(
-      result.filters?.publishedAgeLabels,
-    );
-    sourceSiteOptions.value = toAutoCompleteOptions(
-      result.filters?.sourceSites,
-    );
+    const total = result.total ?? result.page?.total;
+    if (typeof total === 'number') {
+      pagination.total = total;
+    } else if (pagination.current === 1 && itemCount < query.pageSize) {
+      pagination.total = itemCount;
+    }
+    loading.value = false;
+    void refreshFactoryListingStats();
+    void refreshFactoryListingProgress(version);
   } catch (error) {
+    if (version !== loadFactoryListingsVersion) {
+      return;
+    }
     console.error('加载公开房源采集失败:', error);
     items.value = [];
+    crawlerProgress.value = null;
     pagination.total = 0;
     loadError.value = '房源数据加载失败，请检查公开机会相关接口是否可用。';
   } finally {
-    loading.value = false;
+    if (version === loadFactoryListingsVersion) {
+      loading.value = false;
+    }
   }
 }
 
@@ -190,6 +424,10 @@ function formatScore(record: PublicOpportunityItem) {
   return record.score === null || record.score === undefined
     ? '-'
     : formatNumber(record.score);
+}
+
+function formatSyncedTime(record: PublicOpportunityItem) {
+  return String(formatTime(record.lastSyncedAt));
 }
 
 function resetManualForm() {
@@ -245,6 +483,21 @@ async function submitManualFactoryListing() {
 
 onMounted(() => {
   void loadFactoryListings();
+  autoRefreshTimer = setInterval(() => {
+    void loadFactoryListings();
+  }, 60_000);
+  statsRefreshTimer = setInterval(() => {
+    void refreshFactoryListingStats();
+  }, 10_000);
+});
+
+onBeforeUnmount(() => {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+  }
+  if (statsRefreshTimer) {
+    clearInterval(statsRefreshTimer);
+  }
 });
 </script>
 
@@ -269,6 +522,11 @@ onMounted(() => {
       </div>
 
       <Alert v-if="loadError" :message="loadError" show-icon type="warning" />
+      <Alert
+        :message="latestCrawlerTaskMessage"
+        show-icon
+        :type="latestCrawlerTaskAlertType"
+      />
 
       <div class="radar-mobile-stats">
         <div class="radar-mobile-stat-card">
@@ -279,22 +537,39 @@ onMounted(() => {
           <div class="radar-stat-note">{{ pageSummaryText }}</div>
         </div>
         <div class="radar-mobile-stat-card">
-          <div class="radar-stat-label">总房源数</div>
+          <div class="radar-stat-label">合格采集数</div>
           <div class="radar-stat-value">
             {{ formatNumber(summary.total) }}
           </div>
           <div class="radar-stat-note">当前筛选条件下的房源</div>
         </div>
+        <div class="radar-mobile-stat-card">
+          <div class="radar-stat-label">过程来源数</div>
+          <div class="radar-stat-value">
+            {{ formatNumber(summary.processSourceCount) }}
+          </div>
+          <div class="radar-stat-note">不计入有效数</div>
+        </div>
+        <div class="radar-mobile-stat-card">
+          <div class="radar-stat-label">最近任务来源</div>
+          <div class="radar-stat-value">
+            {{ formatNumber(summary.recentTaskSourceCount) }}
+          </div>
+          <div class="radar-stat-note">采集过程参考</div>
+        </div>
       </div>
 
       <div class="radar-mobile-filter">
         <div class="mobile-search-bar">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.keyword"
+            v-bind="searchableDropdownProps"
             allow-clear
             class="mobile-search-input"
+            :options="keywordOptions"
             placeholder="标题 / 联系人 / 来源"
             @press-enter="handleSearch"
+            @select="handleSearch"
           />
           <Button type="primary" @click="handleSearch">查询</Button>
           <Button @click="toggleFilter">
@@ -308,27 +583,36 @@ onMounted(() => {
         <div v-show="filterExpanded" class="radar-filter-content">
           <Form layout="vertical">
             <Form.Item label="城市">
-              <Input
+              <AutoComplete
                 v-model:value="searchForm.city"
+                v-bind="searchableDropdownProps"
                 allow-clear
+                :options="cityOptions"
                 placeholder="惠州"
                 @press-enter="handleSearch"
+                @select="handleSearch"
               />
             </Form.Item>
             <Form.Item label="来源站点">
-              <Input
+              <AutoComplete
                 v-model:value="searchForm.sourceSite"
+                v-bind="searchableDropdownProps"
                 allow-clear
+                :options="sourceSiteOptions"
                 placeholder="99cfw"
                 @press-enter="handleSearch"
+                @select="handleSearch"
               />
             </Form.Item>
             <Form.Item label="时效">
-              <Input
+              <AutoComplete
                 v-model:value="searchForm.publishedAgeLabel"
+                v-bind="searchableDropdownProps"
                 allow-clear
+                :options="publishedAgeLabelOptions"
                 placeholder="7 天前"
                 @press-enter="handleSearch"
+                @select="handleSearch"
               />
             </Form.Item>
             <div class="radar-mobile-filter-actions">
@@ -367,6 +651,7 @@ onMounted(() => {
             <div class="radar-card-tags">
               <span>{{ item.publishedAgeLabel || '时效未知' }}</span>
               <span>发布 {{ formatDateOnly(item.publishedAt) }}</span>
+              <span>采集 {{ formatSyncedTime(item) }}</span>
               <span>评分 {{ formatScore(item) }}</span>
             </div>
             <div class="radar-card-meta">

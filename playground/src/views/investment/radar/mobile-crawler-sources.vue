@@ -43,14 +43,13 @@ import { formatDateOnly } from './mobile-utils';
 
 defineOptions({ name: 'InvestmentRadarMobileCrawlerSources' });
 
-const DEMO_SOURCE_CODE = 'DEMO_EXTERNAL_LEAD';
 const INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE = 'INTERNAL_CONTRACT_EXPIRY';
 const PUBLIC_FACTORY_LISTING_SOURCE_CODE = 'PUBLIC_FACTORY_LISTING_CFZSW68';
 const PUBLIC_OPPORTUNITY_SOURCE_CODE = 'PUBLIC_OPPORTUNITY_99CFW';
 
 const loading = ref(false);
 const saving = ref(false);
-const runningDemo = ref(false);
+const runningIncremental = ref(false);
 const runningInternalContract = ref(false);
 const runningPilot = ref(false);
 const syncingInternalContract = ref(false);
@@ -91,7 +90,6 @@ const jsonPlaceholders = {
 const sourceTypeLabel: Record<string, string> = {
   BA_NOTICE: '企业公告',
   BUSINESS_CHANGE: '工商变更',
-  DEMO: '演示数据',
   EXTERNAL_LEAD: '外部线索',
   INTERNAL_CONTRACT: '内部合同',
   MAP_POLAR: '地图POI',
@@ -276,21 +274,21 @@ function rememberRunResult(task: {
   };
 }
 
-async function runDemoTask() {
-  if (runningDemo.value) {
+async function runIncrementalTask() {
+  if (runningIncremental.value) {
     return;
   }
-  runningDemo.value = true;
+  runningIncremental.value = true;
   try {
     const task = await runCrawlerTask();
     rememberRunResult(task);
-    message.success(`demo task 已结束：${task.status}`);
+    message.success(`增量采集已结束：${task.status}`);
     await loadSources();
   } catch (error) {
-    console.error('运行 demo task 失败:', error);
-    message.error('手动运行 demo task 失败');
+    console.error('运行增量采集失败:', error);
+    message.error('手动运行增量采集失败');
   } finally {
-    runningDemo.value = false;
+    runningIncremental.value = false;
   }
 }
 
@@ -346,9 +344,10 @@ async function runPublicOpportunityPilot(
   runningPilot.value = true;
   try {
     const task = await runPublicOpportunityCrawlerTask({
-      batchSize: 80,
-      freshnessDays: 365,
+      batchSize: 10,
+      freshnessDays: 180,
       sourceCode,
+      staleReprocessMinutes: 5,
     });
     rememberRunResult(task);
     message.success(`99cfw 试点采集已结束：${task.status}`);
@@ -362,7 +361,8 @@ async function runPublicOpportunityPilot(
 }
 
 function renderSourceType(source: CrawlerSource) {
-  const color = source.sourceType === 'DEMO' ? 'blue' : 'purple';
+  const color =
+    source.sourceType === 'INTERNAL_CONTRACT' ? 'geekblue' : 'purple';
   return {
     color,
     label: sourceTypeLabel[source.sourceType] || source.sourceType,
@@ -426,9 +426,13 @@ onMounted(() => {
     />
 
     <div class="radar-mobile-actions">
-      <Button type="primary" :loading="runningDemo" @click="runDemoTask">
+      <Button
+        type="primary"
+        :loading="runningIncremental"
+        @click="runIncrementalTask"
+      >
         <PlayCircleOutlined class="mr-1 h-4 w-4" />
-        运行 demo
+        增量采集
       </Button>
       <Button
         :disabled="!hasPublicOpportunitySource"
@@ -573,19 +577,6 @@ onMounted(() => {
               size="small"
               class="radar-action-btn"
               :type="
-                item.sourceCode === DEMO_SOURCE_CODE ? 'primary' : 'default'
-              "
-              :loading="runningDemo && item.sourceCode === DEMO_SOURCE_CODE"
-              :disabled="item.sourceCode !== DEMO_SOURCE_CODE"
-              @click="runDemoTask"
-            >
-              <PlayCircleOutlined class="mr-1 h-4 w-4" />
-              运行 demo
-            </Button>
-            <Button
-              size="small"
-              class="radar-action-btn"
-              :type="
                 item.sourceCode === INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE
                   ? 'primary'
                   : 'default'
@@ -678,7 +669,7 @@ onMounted(() => {
           <Input
             v-model:value="editForm.robotsUrl"
             allow-clear
-            placeholder="DEMO 可为空"
+            placeholder="内置采集源可为空"
           />
         </Form.Item>
         <Form.Item label="允许路径">

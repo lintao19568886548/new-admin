@@ -1,4 +1,4 @@
-import type { DemoCrawlerLead } from '../crawler-types';
+import type { PublicSignalCrawlerLead } from '../crawler-types';
 
 export interface CrawlerAdapterContext {
   sourceCode: string;
@@ -6,7 +6,9 @@ export interface CrawlerAdapterContext {
 }
 
 export interface CrawlerAdapter {
-  fetchLeads: (context: CrawlerAdapterContext) => Promise<DemoCrawlerLead[]>;
+  fetchLeads: (
+    context: CrawlerAdapterContext,
+  ) => Promise<PublicSignalCrawlerLead[]>;
   sourceCode: string;
 }
 
@@ -14,7 +16,9 @@ export type ParsedOpportunityType = 'DEMAND' | 'SUPPLY';
 
 export interface ParsedPublicOpportunityDetailJson {
   extractionPolicy: 'STRICT_DETAIL_PAGE_LABELS_ONLY';
+  locationEvidenceText?: null | string;
   missingFields: string[];
+  primaryContentText?: null | string;
   publishedDateTextRaw: null | string;
   responseHash: string;
 }

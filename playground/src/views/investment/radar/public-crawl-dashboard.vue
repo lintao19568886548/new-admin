@@ -4,11 +4,11 @@ import type {
   PublicCrawlAuditPreviewItem,
   PublicCrawlAuditSummary,
   PublicCrawlBatchMode,
+  PublicCrawlBatchPlatformResult,
   PublicCrawlBatchRunResult,
-  PublicCrawlCrawlerSource,
-  PublicCrawlCrawlerTask,
-  PublicCrawlEffectiveList,
-  PublicCrawlEffectiveOpportunity,
+  PublicCrawlCityDistributionItem,
+  PublicCrawlDashboardSummary,
+  PublicCrawlPlatformDistributionItem,
 } from '#/api/investment/public-crawl-audit';
 
 import { computed, onMounted, ref } from 'vue';
@@ -29,9 +29,6 @@ import {
 import {
   getPublicCrawlAuditPreview,
   getPublicCrawlAuditSummary,
-  getPublicCrawlCrawlerSourceList,
-  getPublicCrawlCrawlerTaskList,
-  getPublicCrawlEffectiveList,
   repairPublicCrawlHistory,
   runPublicCrawlBatch,
 } from '#/api/investment/public-crawl-audit';
@@ -45,57 +42,10 @@ type PublicCrawlIssueLevel = 'HIGH' | 'LOW' | 'MEDIUM';
 type PublicCrawlIssueStatus = 'FIXED' | 'IGNORED' | 'PENDING' | 'VERIFYING';
 type PublicCrawlOpportunityType = 'DEMAND' | 'SUPPLY' | 'UNKNOWN';
 
-type PublicCrawlStatsSummary = {
-  demandEffectiveRate?: null | number;
-  failedPlatformCount: number;
-  fetchSuccessRate?: null | number;
-  guangdongDemandEffectiveCount: number;
-  guangdongListingEffectiveCount: number;
-  lastCrawledAt?: null | string;
-  listingEffectiveRate?: null | number;
-  nonGuangdongHiddenCount: number;
-  nonGuangdongHiddenRate?: null | number;
-  pendingVerifyCount: number;
-  pendingVerifyOverdueCount?: null | number;
-  platformCount: number;
-  platformFetchedCount: number;
-  platformSuccessCount: number;
-  todayFetchedChange?: null | number;
-  todayFetchedCount: number;
-  zeroFetchedPlatformCount: number;
-};
-
-type PublicCrawlPlatformDistributionItem = {
-  demandCount: number;
-  fetchedCount?: number;
-  hiddenCount: number;
-  latestTaskStatus?: null | string;
-  listingCount: number;
-  percent?: null | number;
-  platformCode: string;
-  platformName: string;
-  sourceCode?: null | string;
-  totalCount: number;
-  updatedCount?: number;
-  upsertedCount?: number;
-  zeroFetched?: boolean;
-};
-
 type PublicCrawlIssueReasonDistributionItem = {
   issueType: string;
   label: string;
   level: PublicCrawlIssueLevel | string;
-  percent?: null | number;
-  totalCount: number;
-};
-
-type PublicCrawlCityDistributionItem = {
-  cityCode?: null | string;
-  cityName: string;
-  demandCount: number;
-  effectiveCount: number;
-  listingCount: number;
-  pendingVerifyCount: number;
   percent?: null | number;
   totalCount: number;
 };
@@ -128,23 +78,17 @@ type PublicCrawlDashboardApiResult = {
   platformDistribution: PublicCrawlPlatformDistributionItem[];
   refreshedAt?: null | string;
   statDate: string;
-  summary: PublicCrawlStatsSummary;
-};
-
-type PublicCrawlPlatformRuntime = {
-  fetchedCount: number;
-  latestTask?: null | PublicCrawlCrawlerTask;
-  source: PublicCrawlCrawlerSource;
-  updatedCount: number;
-  upsertedCount: number;
+  summary: PublicCrawlDashboardSummary;
 };
 
 const loading = ref(false);
+const previewLoading = ref(false);
 const batchRunning = ref(false);
 const repairing = ref(false);
 const loadError = ref('');
 const dashboard = ref<null | PublicCrawlDashboardApiResult>(null);
 const lastBatchResult = ref<null | PublicCrawlBatchRunResult>(null);
+let dashboardLoadVersion = 0;
 
 const summary = computed(() => dashboard.value?.summary || null);
 const platformDistribution = computed(
@@ -189,7 +133,7 @@ const targetProgressItems = computed(() => {
     {
       count: currentSummary.guangdongListingEffectiveCount,
       key: 'supply',
-      label: '公开房源',
+      label: '公开房源 EFFECTIVE',
       percent: getTargetProgressPercent(
         currentSummary.guangdongListingEffectiveCount,
         TARGET_LISTING_COUNT,
@@ -203,7 +147,7 @@ const targetProgressItems = computed(() => {
     {
       count: currentSummary.guangdongDemandEffectiveCount,
       key: 'demand',
-      label: '公开需求',
+      label: '公开需求 EFFECTIVE',
       percent: getTargetProgressPercent(
         currentSummary.guangdongDemandEffectiveCount,
         TARGET_DEMAND_COUNT,
@@ -225,6 +169,7 @@ const batchProblemItems = computed(() => {
   return result.items.filter(
     (item) =>
       item.status === 'FAILED' ||
+      item.zeroOutput ||
       item.effectiveCount === 0 ||
       item.skippedCount > item.effectiveCount * 2,
   );
@@ -261,51 +206,114 @@ const bossVerdict = computed(() => {
   };
 });
 
+const batchOutputNotice = computed(() => {
+  const result = lastBatchResult.value;
+  if (!result) {
+    return null;
+  }
+
+  if (result.total.onlyZeroOutput || result.total.hasUsefulOutput === false) {
+    return {
+      description:
+        '抓取、入库和任务成功是过程指标；老板口径只统计 investment_public_opportunity 中状态为 EFFECTIVE 的广东公开房源/需求。',
+      message: '本轮未产生老板口径有效新增',
+      type: 'warning' as const,
+    };
+  }
+
+  if (result.total.hasEffectiveOutput === false) {
+    return {
+      description:
+        '本轮可能有发现、抓取或入库动作，但未形成 investment_public_opportunity.EFFECTIVE，不能抵扣老板验收缺口。',
+      message: '本轮过程有产出，但未转成老板口径 EFFECTIVE',
+      type: 'warning' as const,
+    };
+  }
+
+  if (toSafeNumber(result.total.zeroOutputPlatformCount) > 0) {
+    return {
+      description:
+        '空跑平台不会增加老板口径有效数，优先排查源站列表发现、详情解析和区域过滤。',
+      message: '存在空跑平台，需优先处理',
+      type: 'warning' as const,
+    };
+  }
+
+  return null;
+});
+
 const TARGET_DEMAND_COUNT = 3000;
 const TARGET_LISTING_COUNT = 3000;
 
-async function requestPublicCrawlDashboard(): Promise<PublicCrawlDashboardApiResult> {
-  const [
-    summaryResult,
-    previewResult,
-    supplyList,
-    demandList,
-    crawlerSourceResult,
-    crawlerTaskResult,
-  ] = await Promise.all([
-    getPublicCrawlAuditSummary(),
-    getPublicCrawlAuditPreview(),
-    getAllEffectiveOpportunities('SUPPLY'),
-    getAllEffectiveOpportunities('DEMAND'),
-    getPublicCrawlCrawlerSourceList(),
-    getPublicCrawlCrawlerTaskList({
-      currentPage: 1,
-      pageSize: 100,
-    }),
-  ]);
-
-  return mapAuditDashboard(
-    summaryResult,
-    previewResult,
-    [...supplyList, ...demandList],
-    normalizeCrawlerSourceItems(crawlerSourceResult.items),
-    normalizeCrawlerTaskItems(crawlerTaskResult.items),
-  );
+function createEmptyAuditPreview(
+  summaryResult: PublicCrawlAuditSummary,
+): PublicCrawlAuditPreview {
+  return {
+    auditMode: summaryResult.auditMode,
+    dryRun: summaryResult.dryRun,
+    generatedAt: summaryResult.generatedAt,
+    limit: 0,
+    totalPreviewCount: toSafeNumber(
+      summaryResult.summary?.proposedDowngradeCount,
+    ),
+    items: [],
+  };
 }
 
-async function loadDashboard() {
+async function loadAuditPreview(
+  summaryResult: PublicCrawlAuditSummary,
+  version: number,
+) {
+  previewLoading.value = true;
+  try {
+    const previewResult = await getPublicCrawlAuditPreview();
+    if (version !== dashboardLoadVersion) {
+      return;
+    }
+    dashboard.value = normalizeDashboard(
+      mapAuditDashboard(summaryResult, previewResult),
+    );
+  } catch (error) {
+    if (version !== dashboardLoadVersion) {
+      return;
+    }
+    console.warn('load public crawl audit preview failed:', error);
+  } finally {
+    if (version === dashboardLoadVersion) {
+      previewLoading.value = false;
+    }
+  }
+}
+
+async function loadDashboard(options: { refresh?: boolean } = {}) {
+  const version = (dashboardLoadVersion += 1);
   loading.value = true;
   loadError.value = '';
 
   try {
-    const result = await requestPublicCrawlDashboard();
+    const summaryResult = await getPublicCrawlAuditSummary({
+      refresh: options.refresh ? 1 : undefined,
+    });
+    const result = mapAuditDashboard(
+      summaryResult,
+      createEmptyAuditPreview(summaryResult),
+    );
+    if (version !== dashboardLoadVersion) {
+      return;
+    }
     dashboard.value = normalizeDashboard(result);
+    void loadAuditPreview(summaryResult, version);
   } catch (error) {
+    if (version !== dashboardLoadVersion) {
+      return;
+    }
     console.error('load public crawl dashboard failed:', error);
     dashboard.value = null;
     loadError.value = '公开机会历史数据审计接口加载失败。';
   } finally {
-    loading.value = false;
+    if (version === dashboardLoadVersion) {
+      loading.value = false;
+    }
   }
 }
 
@@ -337,7 +345,7 @@ async function applyRepairHistory() {
     message.success(
       `已清洗 ${result.repairedCount.toLocaleString('zh-CN')} 条历史数据`,
     );
-    await loadDashboard();
+    await loadDashboard({ refresh: true });
   } catch (error) {
     console.error('apply public crawl repair failed:', error);
     message.warning('历史数据清洗执行失败');
@@ -363,6 +371,32 @@ function getBatchStatusColor(status: string) {
   return status === 'SUCCESS' ? 'green' : 'red';
 }
 
+function getBatchOutputStatusColor(item: PublicCrawlBatchPlatformResult) {
+  if (item.status === 'FAILED') {
+    return 'red';
+  }
+  if (item.yieldedEffective) {
+    return 'green';
+  }
+  if (item.zeroOutput) {
+    return 'orange';
+  }
+  return 'blue';
+}
+
+function getBatchOutputStatusText(item: PublicCrawlBatchPlatformResult) {
+  if (item.status === 'FAILED') {
+    return '失败';
+  }
+  if (item.yieldedEffective) {
+    return '本次入库有效';
+  }
+  if (item.zeroOutput) {
+    return '空跑';
+  }
+  return '无新增 EFFECTIVE';
+}
+
 function formatFailureReasons(
   reasons: Array<{ count: number; reason: string }> = [],
 ) {
@@ -382,20 +416,22 @@ async function runBatch(mode: PublicCrawlBatchMode) {
   batchRunning.value = true;
   try {
     const result = await runPublicCrawlBatch({
-      batchSize: 500,
+      batchSize: 10,
       continueOnError: true,
       discoverList: true,
-      freshnessDays: 365,
+      freshnessDays: 180,
       ignoreInterval: true,
       maxConcurrency: 4,
+      maxListPages: 60,
       mode,
       reprocessSuccess: false,
+      staleReprocessMinutes: 5,
     });
     lastBatchResult.value = result;
     message.success(
-      `${getBatchModeLabel(mode)}跑批完成：有效 ${result.total.effectiveCount.toLocaleString('zh-CN')} 条`,
+      `${getBatchModeLabel(mode)}跑批结束：本次入库有效 ${result.total.effectiveCount.toLocaleString('zh-CN')} 条，老板口径累计 ${result.total.collectedEffectiveCount.toLocaleString('zh-CN')} 条`,
     );
-    await loadDashboard();
+    await loadDashboard({ refresh: true });
   } catch (error) {
     console.error('run public crawl batch failed:', error);
     message.warning(`${getBatchModeLabel(mode)}跑批失败`);
@@ -407,9 +443,6 @@ async function runBatch(mode: PublicCrawlBatchMode) {
 function mapAuditDashboard(
   summaryResult: PublicCrawlAuditSummary,
   previewResult: PublicCrawlAuditPreview,
-  effectiveItems: PublicCrawlEffectiveOpportunity[],
-  crawlerSources: PublicCrawlCrawlerSource[],
-  crawlerTasks: PublicCrawlCrawlerTask[],
 ): PublicCrawlDashboardApiResult {
   const summaryCounts = normalizeAuditCounts(summaryResult.summary);
   const issueItems = normalizeAuditPreviewItems(previewResult.items);
@@ -418,69 +451,33 @@ function mapAuditDashboard(
       ? previewResult.totalPreviewCount
       : issueItems.length;
   const generatedAt = summaryResult.generatedAt || previewResult.generatedAt;
-  const supplyItems = effectiveItems.filter(
-    (item) => item.opportunityType === 'SUPPLY',
-  );
-  const demandItems = effectiveItems.filter(
-    (item) => item.opportunityType === 'DEMAND',
-  );
-  const sourceSites = new Set(
-    effectiveItems
-      .map((item) => String(item.sourceSite || '').trim())
-      .filter(Boolean),
-  );
-  const platformRuntime = buildPublicPlatformRuntime(
-    crawlerSources,
-    crawlerTasks,
-  );
-  const platformRuntimeItems = [...platformRuntime.values()];
-  const todayEffectiveCount = effectiveItems.filter((item) =>
-    isTodayInShanghai(item.lastSyncedAt || item.publishedAt),
-  ).length;
-  const platformFetchedCount = platformRuntimeItems.reduce(
-    (sum, item) => sum + item.fetchedCount,
-    0,
-  );
-  const platformSuccessCount = platformRuntimeItems.filter(
-    (item) => item.latestTask?.status === 'SUCCESS',
-  ).length;
-  const failedPlatformCount = platformRuntimeItems.filter((item) =>
-    ['CANCELED', 'FAILED'].includes(String(item.latestTask?.status || '')),
-  ).length;
-  const zeroFetchedPlatformCount = platformRuntimeItems.filter(
-    (item) =>
-      item.latestTask &&
-      item.latestTask.status === 'SUCCESS' &&
-      item.fetchedCount <= 0,
-  ).length;
+  const dashboardResult = summaryResult.dashboard;
+  const dashboardSummary = dashboardResult?.summary;
 
   return {
     auditMode: summaryResult.auditMode || previewResult.auditMode,
-    cityDistribution: buildEffectiveCityDistribution(effectiveItems),
+    cityDistribution: dashboardResult?.cityDistribution || [],
     dryRun: summaryResult.dryRun || previewResult.dryRun,
     issueDistribution: buildIssueDistribution(previewResult.items),
     issueList: issueItems,
     issueReasonDistribution: buildIssueReasonDistribution(issueItems),
     issueTotal: issuePreviewTotal,
-    platformDistribution: buildEffectivePlatformDistribution(
-      effectiveItems,
-      platformRuntime,
-    ),
+    platformDistribution: dashboardResult?.platformDistribution || [],
     refreshedAt: generatedAt,
     statDate: getDateText(generatedAt),
     summary: {
-      demandEffectiveRate: getTargetProgressPercent(
-        demandItems.length,
-        TARGET_DEMAND_COUNT,
+      demandEffectiveRate:
+        dashboardSummary?.demandEffectiveRate ||
+        getTargetProgressPercent(0, TARGET_DEMAND_COUNT),
+      failedPlatformCount: toSafeNumber(dashboardSummary?.failedPlatformCount),
+      fetchSuccessRate: dashboardSummary?.fetchSuccessRate || 0,
+      guangdongDemandEffectiveCount: toSafeNumber(
+        dashboardSummary?.guangdongDemandEffectiveCount,
       ),
-      failedPlatformCount,
-      fetchSuccessRate: getPercent(
-        platformSuccessCount,
-        platformRuntimeItems.length,
+      guangdongListingEffectiveCount: toSafeNumber(
+        dashboardSummary?.guangdongListingEffectiveCount,
       ),
-      guangdongDemandEffectiveCount: demandItems.length,
-      guangdongListingEffectiveCount: supplyItems.length,
-      lastCrawledAt: getLatestTaskTime(platformRuntimeItems) || generatedAt,
+      lastCrawledAt: dashboardSummary?.lastCrawledAt || generatedAt,
       nonGuangdongHiddenCount: summaryCounts.nonGuangdongCount,
       nonGuangdongHiddenRate: getPercent(
         summaryCounts.nonGuangdongCount,
@@ -488,77 +485,24 @@ function mapAuditDashboard(
       ),
       pendingVerifyCount: issuePreviewTotal,
       pendingVerifyOverdueCount: summaryCounts.suspiciousPublishedAtCount,
-      platformCount: Math.max(sourceSites.size, platformRuntimeItems.length),
-      platformFetchedCount,
-      platformSuccessCount,
-      todayFetchedChange: null,
-      todayFetchedCount: todayEffectiveCount,
-      zeroFetchedPlatformCount,
-      listingEffectiveRate: getTargetProgressPercent(
-        supplyItems.length,
-        TARGET_LISTING_COUNT,
+      platformCount: toSafeNumber(dashboardSummary?.platformCount),
+      platformFetchedCount: toSafeNumber(
+        dashboardSummary?.platformFetchedCount,
       ),
+      platformSuccessCount: toSafeNumber(
+        dashboardSummary?.platformSuccessCount,
+      ),
+      todayFetchedChange: null,
+      todayFetchedCount: toSafeNumber(dashboardSummary?.todayFetchedCount),
+      totalEffectiveCount: toSafeNumber(dashboardSummary?.totalEffectiveCount),
+      zeroFetchedPlatformCount: toSafeNumber(
+        dashboardSummary?.zeroFetchedPlatformCount,
+      ),
+      listingEffectiveRate:
+        dashboardSummary?.listingEffectiveRate ||
+        getTargetProgressPercent(0, TARGET_LISTING_COUNT),
     },
   };
-}
-
-function normalizeCrawlerSourceItems(items?: PublicCrawlCrawlerSource[]) {
-  return (Array.isArray(items) ? items : []).filter(
-    (item) =>
-      item.sourceType === 'PUBLIC_OPPORTUNITY' &&
-      item.adapterStatus === 'READY' &&
-      item.enabled,
-  );
-}
-
-function normalizeCrawlerTaskItems(items?: PublicCrawlCrawlerTask[]) {
-  return (Array.isArray(items) ? items : []).filter((item) =>
-    ['PUBLIC_OPPORTUNITY_DISCOVER', 'PUBLIC_OPPORTUNITY_URL_BATCH'].includes(
-      item.taskType,
-    ),
-  );
-}
-
-function buildPublicPlatformRuntime(
-  sources: PublicCrawlCrawlerSource[],
-  tasks: PublicCrawlCrawlerTask[],
-) {
-  const runtime = new Map<string, PublicCrawlPlatformRuntime>();
-  const taskBySourceCode = new Map<string, PublicCrawlCrawlerTask>();
-
-  for (const task of tasks) {
-    const sourceCode = String(task.sourceCode || '').trim();
-    if (!sourceCode || taskBySourceCode.has(sourceCode)) {
-      continue;
-    }
-    taskBySourceCode.set(sourceCode, task);
-  }
-
-  for (const source of sources) {
-    const latestTask = taskBySourceCode.get(source.sourceCode) || null;
-    runtime.set(source.sourceCode, {
-      fetchedCount: toSafeNumber(latestTask?.fetchedCount),
-      latestTask,
-      source,
-      updatedCount: toSafeNumber(latestTask?.updatedLeadCount),
-      upsertedCount:
-        toSafeNumber(latestTask?.createdLeadCount) +
-        toSafeNumber(latestTask?.updatedLeadCount),
-    });
-  }
-
-  return runtime;
-}
-
-function getLatestTaskTime(items: PublicCrawlPlatformRuntime[]) {
-  return items
-    .map((item) => item.latestTask?.finishedAt || item.latestTask?.createTime)
-    .filter(Boolean)
-    .sort((left, right) => {
-      const leftTime = new Date(left as string).getTime();
-      const rightTime = new Date(right as string).getTime();
-      return rightTime - leftTime;
-    })[0] as string | undefined;
 }
 
 function normalizeDashboard(
@@ -693,93 +637,6 @@ function buildIssueDistribution(
   return withDistributionPercent([...groups.values()]);
 }
 
-function buildEffectivePlatformDistribution(
-  items: PublicCrawlEffectiveOpportunity[],
-  runtime: Map<string, PublicCrawlPlatformRuntime>,
-): PublicCrawlPlatformDistributionItem[] {
-  const groups = new Map<string, PublicCrawlPlatformDistributionItem>();
-
-  for (const item of items) {
-    const platformName = item.sourceSite || item.sourceTable || '未知来源';
-    const group = groups.get(platformName) || {
-      demandCount: 0,
-      hiddenCount: 0,
-      platformCode: platformName,
-      platformName,
-      sourceCode: null,
-      totalCount: 0,
-      listingCount: 0,
-    };
-
-    group.totalCount += 1;
-    if (item.opportunityType === 'DEMAND') {
-      group.demandCount += 1;
-    } else {
-      group.listingCount += 1;
-    }
-    groups.set(platformName, group);
-  }
-
-  for (const runtimeItem of runtime.values()) {
-    const key = runtimeItem.source.sourceCode;
-    const group = groups.get(key) || {
-      demandCount: 0,
-      fetchedCount: 0,
-      hiddenCount: 0,
-      latestTaskStatus: null,
-      platformCode: key,
-      platformName: runtimeItem.source.sourceName,
-      sourceCode: key,
-      totalCount: 0,
-      updatedCount: 0,
-      upsertedCount: 0,
-      zeroFetched: false,
-      listingCount: 0,
-    };
-    group.fetchedCount = runtimeItem.fetchedCount;
-    group.latestTaskStatus = runtimeItem.latestTask?.status || null;
-    group.sourceCode = key;
-    group.updatedCount = runtimeItem.updatedCount;
-    group.upsertedCount = runtimeItem.upsertedCount;
-    group.zeroFetched = Boolean(
-      runtimeItem.latestTask?.status === 'SUCCESS' &&
-      runtimeItem.fetchedCount <= 0,
-    );
-    groups.set(key, group);
-  }
-
-  return withDistributionPercent([...groups.values()]);
-}
-
-function buildEffectiveCityDistribution(
-  items: PublicCrawlEffectiveOpportunity[],
-): PublicCrawlCityDistributionItem[] {
-  const groups = new Map<string, PublicCrawlCityDistributionItem>();
-
-  for (const item of items) {
-    const cityName = item.city || '未识别城市';
-    const group = groups.get(cityName) || {
-      cityName,
-      demandCount: 0,
-      effectiveCount: 0,
-      pendingVerifyCount: 0,
-      totalCount: 0,
-      listingCount: 0,
-    };
-
-    group.effectiveCount += 1;
-    group.totalCount += 1;
-    if (item.opportunityType === 'DEMAND') {
-      group.demandCount += 1;
-    } else {
-      group.listingCount += 1;
-    }
-    groups.set(cityName, group);
-  }
-
-  return withDistributionPercent([...groups.values()]);
-}
-
 function withDistributionPercent<
   T extends {
     effectiveCount?: number;
@@ -867,60 +724,6 @@ function getTargetProgressPercent(value: number, target: number) {
   return Number(Math.min(100, (value / target) * 100).toFixed(1));
 }
 
-async function getAllEffectiveOpportunities(
-  opportunityType: 'DEMAND' | 'SUPPLY',
-) {
-  const pageSize = 500;
-  const firstPage = await getPublicCrawlEffectiveList({
-    currentPage: 1,
-    opportunityType,
-    pageSize,
-    scope: 'collected',
-  });
-  const total = normalizeListTotal(firstPage);
-  const items = [...normalizeEffectiveListItems(firstPage)];
-  const pageCount = Math.ceil(total / pageSize);
-
-  if (pageCount <= 1) {
-    return items;
-  }
-
-  const restPages = await Promise.all(
-    Array.from({ length: pageCount - 1 }, (_, index) =>
-      getPublicCrawlEffectiveList({
-        currentPage: index + 2,
-        opportunityType,
-        pageSize,
-        scope: 'collected',
-      }),
-    ),
-  );
-  for (const page of restPages) {
-    items.push(...normalizeEffectiveListItems(page));
-  }
-  return items;
-}
-
-function normalizeEffectiveListItems(
-  result: PublicCrawlEffectiveList,
-): PublicCrawlEffectiveOpportunity[] {
-  return Array.isArray(result.items) ? result.items : [];
-}
-
-function normalizeListTotal(result: PublicCrawlEffectiveList) {
-  const total = Number(result.page?.total ?? result.total ?? 0);
-  return Number.isFinite(total) && total > 0
-    ? total
-    : normalizeEffectiveListItems(result).length;
-}
-
-function isTodayInShanghai(value?: null | string) {
-  if (!value) {
-    return false;
-  }
-  return getDateText(value) === getDateText(new Date().toISOString());
-}
-
 function toSafeNumber(value?: null | number) {
   const numericValue = Number(value || 0);
   return Number.isFinite(numericValue) ? numericValue : 0;
@@ -976,6 +779,10 @@ onMounted(() => {
         <div>
           <h2>广东公开采集结果看板</h2>
           <p>统计日 {{ statDateText }} / 更新 {{ refreshedAtText }}</p>
+          <p class="dashboard-toolbar-note">
+            老板验收只看
+            investment_public_opportunity.EFFECTIVE；抓取、入库、队列数仅作为过程诊断。
+          </p>
         </div>
         <Space wrap>
           <Tag :color="auditModeColor">{{ auditModeText }}</Tag>
@@ -1002,7 +809,11 @@ onMounted(() => {
           >
             <Button danger :loading="repairing">执行清洗</Button>
           </Popconfirm>
-          <Button :loading="loading" type="primary" @click="loadDashboard">
+          <Button
+            :loading="loading"
+            type="primary"
+            @click="loadDashboard({ refresh: true })"
+          >
             刷新
           </Button>
         </Space>
@@ -1019,14 +830,14 @@ onMounted(() => {
         <template #description>
           <div class="boss-verdict-description">
             <span>
-              广东有效房源
+              广东房源 EFFECTIVE
               {{
                 summary.guangdongListingEffectiveCount.toLocaleString('zh-CN')
               }}
               / {{ TARGET_LISTING_COUNT.toLocaleString('zh-CN') }}
             </span>
             <span>
-              广东有效需求
+              广东需求 EFFECTIVE
               {{
                 summary.guangdongDemandEffectiveCount.toLocaleString('zh-CN')
               }}
@@ -1053,9 +864,13 @@ onMounted(() => {
         <template #description>
           <div class="batch-result-description">
             <span>
-              平台 {{ lastBatchResult.total.successPlatformCount }}/{{
-                lastBatchResult.total.platformCount
+              有效产出平台
+              {{
+                (
+                  lastBatchResult.total.productivePlatformCount || 0
+                ).toLocaleString('zh-CN')
               }}
+              / {{ lastBatchResult.total.platformCount }}
             </span>
             <span>
               发现 URL
@@ -1072,8 +887,29 @@ onMounted(() => {
               {{ lastBatchResult.total.upsertedCount.toLocaleString('zh-CN') }}
             </span>
             <span>
-              有效
+              本次入库有效
               {{ lastBatchResult.total.effectiveCount.toLocaleString('zh-CN') }}
+            </span>
+            <span>
+              老板口径累计
+              {{
+                lastBatchResult.total.collectedEffectiveCount.toLocaleString(
+                  'zh-CN',
+                )
+              }}
+            </span>
+            <span v-if="lastBatchResult.targetCount">
+              目标
+              {{ lastBatchResult.targetCount.toLocaleString('zh-CN') }}
+            </span>
+            <span v-if="lastBatchResult.roundCount">
+              轮次 {{ lastBatchResult.roundCount }}/{{
+                lastBatchResult.maxRounds || lastBatchResult.roundCount
+              }}
+            </span>
+            <span v-if="lastBatchResult.remainingCount !== undefined">
+              缺口
+              {{ lastBatchResult.remainingCount.toLocaleString('zh-CN') }}
             </span>
             <span>
               跳过
@@ -1087,21 +923,43 @@ onMounted(() => {
                 )
               }}
             </span>
+            <span v-if="lastBatchResult.total.zeroOutputPlatformCount">
+              空跑平台
+              {{
+                lastBatchResult.total.zeroOutputPlatformCount.toLocaleString(
+                  'zh-CN',
+                )
+              }}
+            </span>
           </div>
         </template>
       </Alert>
 
       <Alert
+        v-if="batchOutputNotice"
+        show-icon
+        :description="batchOutputNotice.description"
+        :message="batchOutputNotice.message"
+        :type="batchOutputNotice.type"
+      />
+
+      <Alert
         v-if="batchProblemItems.length > 0"
         show-icon
         type="warning"
-        message="低产出平台需要优先处理"
+        message="低产出/空跑平台需要优先处理"
       >
         <template #description>
           <div class="batch-problem-list">
             <span v-for="item in batchProblemItems" :key="item.sourceCode">
               {{ item.sourceName || item.sourceCode }}：
-              {{ item.status === 'FAILED' ? '运行失败' : '有效产出偏低' }}
+              {{
+                item.status === 'FAILED'
+                  ? '运行失败'
+                  : item.zeroOutput
+                    ? '空跑无产出'
+                    : '有效产出偏低'
+              }}
               / {{ formatFailureReasons(item.failedReasonTop5) }}
             </span>
           </div>
@@ -1111,7 +969,7 @@ onMounted(() => {
       <Card
         v-if="lastBatchResult"
         class="batch-platform-card"
-        title="最近跑批平台明细"
+        title="最近跑批平台明细（过程指标）"
       >
         <div class="batch-platform-list">
           <div
@@ -1131,14 +989,19 @@ onMounted(() => {
                 <Tag :color="getBatchStatusColor(item.status)">
                   {{ item.status === 'SUCCESS' ? '成功' : '失败' }}
                 </Tag>
+                <Tag :color="getBatchOutputStatusColor(item)">
+                  {{ getBatchOutputStatusText(item) }}
+                </Tag>
               </Space>
             </div>
             <div class="batch-platform-metrics">
+              <span v-if="item.roundIndex">第 {{ item.roundIndex }} 轮</span>
               <span>发现 {{ item.discoveredUrlCount }}</span>
               <span>抓取 {{ item.fetchedCount }}</span>
               <span>成功抓取 {{ item.fetchSuccessCount }}</span>
               <span>入库 {{ item.upsertedCount }}</span>
-              <span>有效 {{ item.effectiveCount }}</span>
+              <span>本次入库有效 {{ item.effectiveCount }}</span>
+              <span>老板口径累计 {{ item.collectedEffectiveCount }}</span>
               <span>跳过 {{ item.skippedCount }}</span>
             </div>
             <p>
@@ -1150,7 +1013,11 @@ onMounted(() => {
         </div>
       </Card>
 
-      <Card v-if="summary" class="boss-result-card" title="老板验收口径">
+      <Card
+        v-if="summary"
+        class="boss-result-card"
+        title="老板验收口径 EFFECTIVE"
+      >
         <div class="boss-result-grid">
           <div
             v-for="item in targetProgressItems"
@@ -1191,7 +1058,7 @@ onMounted(() => {
         :items="issueItems"
         :issue-distribution="dashboard?.issueDistribution || []"
         :issue-reason-distribution="issueReasonDistribution"
-        :loading="loading"
+        :loading="loading || previewLoading"
         :mock-fallback="false"
         :total="issueTotal"
       />
@@ -1236,6 +1103,10 @@ onMounted(() => {
   font-size: 13px;
   line-height: 20px;
   color: var(--ant-color-text-secondary);
+}
+
+.dashboard-toolbar-note {
+  max-width: 720px;
 }
 
 .boss-result-card :deep(.ant-card-body) {

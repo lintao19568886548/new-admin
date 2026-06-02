@@ -1,5 +1,6 @@
 import { getPublicOpportunityAuditPreview } from '~/utils/investment-radar/public-opportunity-audit-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
+import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   serverErrorResponse,
   unAuthorizedResponse,

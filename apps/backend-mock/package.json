@@ -12,6 +12,7 @@
     "generate": "pnpm run prisma:generate",
     "migrate:deploy": "pnpm run migrate:check-safe && pnpm exec prisma migrate deploy",
     "migrate:dev": "pnpm exec prisma migrate dev",
+    "menu:sync-park-to-system": "node ./scripts/sync-park-menu-to-system.mjs",
     "push": "pnpm run prisma:push",
     "push:multi": "node ./scripts/prisma-push-multi.mjs",
     "push:multi:execute": "node ./scripts/prisma-push-multi.mjs --execute",
@@ -52,12 +53,14 @@
     "mysql2": "^3.16.1",
     "nzh": "^1.0.14",
     "pinyin-pro": "^3.28.1",
+    "qrcode": "catalog:",
     "redis": "^4.7.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
     "@types/crypto-js": "^4.2.2",
     "@types/jsonwebtoken": "catalog:",
+    "@types/qrcode": "catalog:",
     "h3": "catalog:",
     "nitropack": "^2.13.1",
     "prisma": "^7.6.0"

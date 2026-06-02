@@ -14,6 +14,11 @@ import {
   useResponseError,
   useResponseSuccess,
 } from '~/utils/response';
+import {
+  normalizeParkIds,
+  syncUserParks,
+  UserParkScopeError,
+} from '~/utils/user-park-scope';
 
 function normalizeRoleIds(input: unknown) {
   if (!Array.isArray(input)) {
@@ -48,6 +53,7 @@ export default eventHandler(async (event) => {
   const password = String(body.password || '').trim();
   const status = normalizeStatus(body.status, 1);
   const roleIds = normalizeRoleIds(body.roleIds);
+  const parkIds = normalizeParkIds(body.parkIds);
 
   if (!username) {
     return badRequestResponse('账号不能为空', event);
@@ -190,6 +196,18 @@ export default eventHandler(async (event) => {
       );
     }
 
+    if (parkIds.length > 0) {
+      await prismaScopeStorage.run({ customerId }, async () =>
+        prismaClient.$transaction(async (prisma) => {
+          await syncUserParks({
+            parkIds,
+            prisma,
+            userId: Number(tenantUser.id),
+          });
+        }),
+      );
+    }
+
     if (centerUserBeforeCreate) {
       await systemDbClient.user.update({
         where: { id: Number(centerUser.id) },
@@ -281,6 +299,9 @@ export default eventHandler(async (event) => {
         .catch(() => undefined);
     }
 
+    if (error instanceof UserParkScopeError) {
+      return badRequestResponse(error.message, event, error.statusCode);
+    }
     if (error instanceof OrganizationLifecycleError) {
       return badRequestResponse(error.message, event, error.statusCode);
     }

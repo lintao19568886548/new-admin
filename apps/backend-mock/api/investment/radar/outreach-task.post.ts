@@ -1,5 +1,9 @@
 import { prismaClient } from '~/utils/db';
-import { checkContactRestriction } from '~/utils/investment-radar/contact-restriction-service';
+import {
+  checkContactRestriction,
+  normalizeContactPhone,
+} from '~/utils/investment-radar/contact-restriction-service';
+import { ensureOutreachTaskTable } from '~/utils/investment-radar/outreach-action-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   badRequestResponse,
@@ -16,7 +20,7 @@ export default eventHandler(async (event) => {
 
   const body = await readBody<Record<string, unknown>>(event);
   const leadId = Number(body.leadId);
-  const phoneNumber = String(body.phoneNumber || '').trim();
+  const phoneNumber = normalizeContactPhone(body.phoneNumber as string);
   if (!Number.isFinite(leadId) || leadId <= 0) {
     return badRequestResponse('leadId 无效', event);
   }
@@ -26,6 +30,7 @@ export default eventHandler(async (event) => {
 
   try {
     const task = await runWithRadarSharedScope(async () => {
+      await ensureOutreachTaskTable();
       const taskId = await prismaClient.$transaction(async (tx) => {
         const leadRows = await tx.$queryRawUnsafe<any[]>(
           `
@@ -64,15 +69,16 @@ export default eventHandler(async (event) => {
         await tx.$executeRawUnsafe(
           `
             INSERT INTO investment_outreach_task
-              (lead_id, task_type, channel, phone_number, status, template_code, scheduled_at, result_code, result_message, reply_status, sent_by, create_time, update_time)
+              (lead_id, task_type, channel, phone_number, status, template_code, content, scheduled_at, result_code, result_message, reply_status, sent_by, create_time, update_time)
             VALUES
-              (?, ?, ?, ?, 'PENDING', ?, NOW(3), NULL, ?, 'NO_REPLY', ?, NOW(3), NOW(3))
+              (?, ?, ?, ?, 'PENDING', ?, ?, NOW(3), NULL, ?, 'NO_REPLY', ?, NOW(3), NOW(3))
           `,
           leadId,
           String(body.taskType || 'OUTREACH'),
           String(body.channel || 'SMS'),
           phoneNumber,
           String(body.templateCode || '').trim() || null,
+          String(body.content || '').trim() || null,
           String(body.content || '').trim() || null,
           Number(userinfo.id),
         );

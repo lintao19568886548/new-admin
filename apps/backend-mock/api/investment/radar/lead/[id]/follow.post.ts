@@ -1,5 +1,8 @@
 import { prismaClient } from '~/utils/db';
-import { upsertContactRestriction } from '~/utils/investment-radar/contact-restriction-service';
+import {
+  inferContactRestrictionFromReply,
+  upsertContactRestriction,
+} from '~/utils/investment-radar/contact-restriction-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import { ensureFollowRecordTable } from '~/utils/investment-radar/sop-record-service';
 import {
@@ -19,6 +22,7 @@ function normalizeDate(value: unknown) {
 }
 
 const allowedFollowResults = new Set([
+  'BLACKLIST',
   'CONTACTED',
   'INTENTED',
   'INVALID',
@@ -26,6 +30,7 @@ const allowedFollowResults = new Set([
   'NO_ANSWER',
   'POSITIVE',
   'REPLIED',
+  'UNSUBSCRIBED',
 ]);
 
 const allowedFollowTypes = new Set(['PHONE', 'VISIT', 'WECHAT']);
@@ -114,13 +119,17 @@ export default eventHandler(async (event) => {
         };
       });
 
-      if (followResult === 'NEGATIVE') {
+      const restriction = inferContactRestrictionFromReply({
+        replyContent: content,
+        replyStatus: followResult,
+      });
+      if (restriction) {
         await upsertContactRestriction({
           enterpriseId: inserted.enterpriseId,
           leadId,
           phoneNumber: inserted.phoneNumber,
-          reason: content || '客户负向反馈',
-          restrictionType: 'NEGATIVE_REPLY',
+          reason: restriction.reason,
+          restrictionType: restriction.restrictionType,
         });
       }
 

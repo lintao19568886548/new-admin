@@ -64,6 +64,7 @@ function isMembershipAllowedApiRequest(method: string, requestPath: string) {
       '/api/hrm/employee',
       '/api/image/upload',
       '/api/park',
+      '/api/system/park',
       '/api/user/cancel',
       '/api/user/feedback',
     ].includes(requestPath)
@@ -80,7 +81,8 @@ function isMembershipAllowedApiRequest(method: string, requestPath: string) {
     (/^\/api\/dormitory\/\d+$/.test(requestPath) ||
       /^\/api\/factory\/\d+$/.test(requestPath) ||
       /^\/api\/hrm\/employee\/\d+$/.test(requestPath) ||
-      /^\/api\/park\/\d+$/.test(requestPath))
+      /^\/api\/park\/\d+$/.test(requestPath) ||
+      /^\/api\/system\/park\/\d+$/.test(requestPath))
   ) {
     return true;
   }
@@ -143,6 +145,10 @@ export default defineEventHandler(async (event) => {
     event.method === 'POST' && requestPath === '/api/wechat/pay/notify';
   const isPublicWechatPayRefundNotifyApi =
     event.method === 'POST' && requestPath === '/api/wechat/pay/refund-notify';
+  const isPublicCrmApi =
+    requestPath === '/api/crm/mini/session' ||
+    requestPath.startsWith('/api/crm/landing/') ||
+    requestPath === '/api/crm/wecom/callback';
   const isWechatPayOrderQueryApi =
     event.method === 'GET' && requestPath === '/api/wechat/pay/query';
   const isOrganizationProvisioningStatusApi =
@@ -163,6 +169,7 @@ export default defineEventHandler(async (event) => {
     isPublicWechatPayConfigApi ||
     isPublicWechatPayNotifyApi ||
     isPublicWechatPayRefundNotifyApi ||
+    isPublicCrmApi ||
     isPublicAppVersionApi ||
     Boolean(vipCheckoutFlow);
   let currentCustomerDbName: null | string = null;

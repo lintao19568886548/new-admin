@@ -816,9 +816,7 @@ function handleGoBack() {
   }
 
   void router.push(
-    membershipAccessState.value.accessRestricted
-      ? '/rental/manage'
-      : '/profile',
+    membershipAccessState.value.accessRestricted ? '/system/park' : '/profile',
   );
 }
 

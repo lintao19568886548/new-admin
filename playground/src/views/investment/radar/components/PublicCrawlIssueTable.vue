@@ -103,7 +103,7 @@ const reasonDistributionTotal = computed(() =>
 );
 
 const tableLocale = {
-  emptyText: '暂无问题数据',
+  emptyText: '暂无待纠偏数据',
 };
 
 const issueTypeLabelMap: Record<string, string> = {
@@ -168,7 +168,7 @@ const columns: TableColumnsType<PublicCrawlIssueItem> = [
         ),
       ]),
     key: 'title',
-    title: '问题数据',
+    title: '待核验数据',
     width: 300,
   },
   {
@@ -182,7 +182,7 @@ const columns: TableColumnsType<PublicCrawlIssueItem> = [
     customRender: ({ record }) => getIssueTypeLabel(record.issueType),
     dataIndex: 'issueType',
     key: 'issueType',
-    title: '问题类型',
+    title: '质量问题类型',
     width: 130,
   },
   {
@@ -203,7 +203,7 @@ const columns: TableColumnsType<PublicCrawlIssueItem> = [
     customRender: ({ record }) => renderStatus(record.status),
     dataIndex: 'status',
     key: 'status',
-    title: '状态',
+    title: '核验状态',
     width: 110,
   },
   {
@@ -211,7 +211,7 @@ const columns: TableColumnsType<PublicCrawlIssueItem> = [
       h('div', { class: 'issue-reason-cell' }, record.reason || '-'),
     dataIndex: 'reason',
     key: 'reason',
-    title: '问题原因',
+    title: '命中原因',
     width: 280,
   },
   {
@@ -343,7 +343,7 @@ function toSafeNumber(value?: null | number) {
 </script>
 
 <template>
-  <Card class="public-crawl-issue-card" title="问题数据列表">
+  <Card class="public-crawl-issue-card" title="待纠偏/待核验数据列表">
     <template #extra>
       <span class="issue-total">共 {{ displayTotal }} 条</span>
     </template>
@@ -368,7 +368,7 @@ function toSafeNumber(value?: null | number) {
     </div>
 
     <div v-if="issueReasonDistribution.length > 0" class="issue-reason-ranking">
-      <div class="issue-section-title">失败原因排行</div>
+      <div class="issue-section-title">质量问题排行</div>
       <div class="issue-reason-grid">
         <div
           v-for="item in issueReasonDistribution"
@@ -453,7 +453,7 @@ function toSafeNumber(value?: null | number) {
           </Button>
         </article>
       </template>
-      <Empty v-else description="暂无问题数据" />
+      <Empty v-else description="暂无待纠偏数据" />
     </div>
   </Card>
 </template>

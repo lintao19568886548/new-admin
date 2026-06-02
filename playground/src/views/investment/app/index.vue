@@ -13,6 +13,7 @@ import type {
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
+import { useUserStore } from '@vben/stores';
 import { formatDateTime } from '@vben/utils';
 
 import {
@@ -90,6 +91,7 @@ interface OverviewCard {
 }
 
 const router = useRouter();
+const userStore = useUserStore();
 const loading = ref(false);
 const sectionErrors = ref<string[]>([]);
 const todayMeetingTotal = ref(0);
@@ -154,6 +156,13 @@ const quickActions: QuickAction[] = [
   },
 ];
 
+const publicCrawlQuickActions: QuickAction[] = quickActions.filter((action) =>
+  [
+    '/investment/radar/mobile-factory-listings',
+    '/investment/radar/mobile-public-demands',
+  ].includes(action.route),
+);
+
 const managementActions: ManagementAction[] = [
   {
     description: '复核公开来源线索并转雷达潜客',
@@ -177,7 +186,7 @@ const managementActions: ManagementAction[] = [
     tone: 'green',
   },
   {
-    description: '维护评分规则并重算 demo 线索评分',
+    description: '维护评分规则并重算线索评分',
     icon: SettingOutlined,
     label: '评分规则',
     route: '/investment/radar/mobile-score-rules',
@@ -199,43 +208,57 @@ const managementActions: ManagementAction[] = [
   },
 ];
 
-const overviewCards = computed<OverviewCard[]>(() => [
-  {
-    hint:
-      meetingItems.value.length > 0
-        ? `列表展示 ${meetingItems.value.length} 条`
-        : '暂无今日安排',
-    label: '今日会谈',
-    route: '/investment/mobile',
-    suffix: '场',
-    tone: 'orange',
-    value: todayMeetingTotal.value,
-  },
-  {
-    hint: 'A/B 级重点客户',
-    label: '重点线索',
-    route: '/investment/radar/mobile',
-    suffix: '条',
-    tone: 'blue',
-    value: highPriorityTotal.value,
-  },
-  {
-    hint: '已回复可推进',
-    label: '待安排带看',
-    route: '/investment/radar/mobile',
-    suffix: '条',
-    tone: 'green',
-    value: visitCandidateTotal.value,
-  },
-  {
-    hint: `待执行 ${taskSummary.value.pendingTasks}`,
-    label: '触达任务',
-    route: '/investment/radar/mobile-tasks',
-    suffix: '项',
-    tone: 'cyan',
-    value: taskSummary.value.totalTasks,
-  },
-]);
+const hasSuperRole = computed(() => userStore.userRoles.includes('Super'));
+const visibleQuickActions = computed(() =>
+  hasSuperRole.value ? quickActions : publicCrawlQuickActions,
+);
+const visibleManagementActions = computed(() =>
+  hasSuperRole.value ? managementActions : [],
+);
+
+const overviewCards = computed<OverviewCard[]>(() => {
+  if (!hasSuperRole.value) {
+    return [];
+  }
+
+  return [
+    {
+      hint:
+        meetingItems.value.length > 0
+          ? `列表展示 ${meetingItems.value.length} 条`
+          : '暂无今日安排',
+      label: '今日会谈',
+      route: '/investment/mobile',
+      suffix: '场',
+      tone: 'orange',
+      value: todayMeetingTotal.value,
+    },
+    {
+      hint: 'A/B 级重点客户',
+      label: '重点线索',
+      route: '/investment/radar/mobile',
+      suffix: '条',
+      tone: 'blue',
+      value: highPriorityTotal.value,
+    },
+    {
+      hint: '已回复可推进',
+      label: '待安排带看',
+      route: '/investment/radar/mobile',
+      suffix: '条',
+      tone: 'green',
+      value: visitCandidateTotal.value,
+    },
+    {
+      hint: `待执行 ${taskSummary.value.pendingTasks}`,
+      label: '触达任务',
+      route: '/investment/radar/mobile-tasks',
+      suffix: '项',
+      tone: 'cyan',
+      value: taskSummary.value.totalTasks,
+    },
+  ];
+});
 
 const partialErrorText = computed(() => {
   if (sectionErrors.value.length === 0) {
@@ -410,7 +433,30 @@ function goToLeadDetail(leadId: number) {
   router.push(`/investment/radar/mobile/${leadId}`);
 }
 
+function resetRestrictedWorkbenchData() {
+  todayMeetingTotal.value = 0;
+  recentMeetingTotal.value = 0;
+  highPriorityTotal.value = 0;
+  visitCandidateTotal.value = 0;
+  meetingItems.value = [];
+  leadItems.value = [];
+  taskItems.value = [];
+  taskSummary.value = createEmptyTaskSummary();
+}
+
+function loadPublicCrawlWorkbench() {
+  sectionErrors.value = [];
+  resetRestrictedWorkbenchData();
+  opportunityItems.value = [];
+  opportunityTotal.value = 0;
+}
+
 async function loadWorkbench() {
+  if (!hasSuperRole.value) {
+    loadPublicCrawlWorkbench();
+    return;
+  }
+
   loading.value = true;
   const errors: string[] = [];
   const todayRange = getTodayRange();
@@ -457,7 +503,10 @@ async function loadWorkbench() {
     }),
     getEffectivePublicOpportunityList({
       currentPage: 1,
+      includeMeta: false,
+      includeTotal: false,
       pageSize: 4,
+      scope: 'raw',
     }),
   ]);
 
@@ -533,7 +582,11 @@ onMounted(() => {
     />
 
     <Spin :spinning="loading">
-      <section class="overview-grid" aria-label="招商关键统计">
+      <section
+        v-if="overviewCards.length > 0"
+        class="overview-grid"
+        aria-label="招商关键统计"
+      >
         <Card
           v-for="card in overviewCards"
           :key="card.label"
@@ -563,7 +616,7 @@ onMounted(() => {
         </div>
         <div class="quick-grid">
           <button
-            v-for="action in quickActions"
+            v-for="action in visibleQuickActions"
             :key="action.route"
             type="button"
             class="quick-action"
@@ -580,7 +633,7 @@ onMounted(() => {
         </div>
       </section>
 
-      <section class="section-panel">
+      <section v-if="visibleManagementActions.length > 0" class="section-panel">
         <div class="section-heading">
           <div>
             <h2>雷达管理</h2>
@@ -588,7 +641,7 @@ onMounted(() => {
         </div>
         <div class="management-grid">
           <button
-            v-for="action in managementActions"
+            v-for="action in visibleManagementActions"
             :key="action.route"
             type="button"
             class="management-action"
@@ -605,7 +658,7 @@ onMounted(() => {
         </div>
       </section>
 
-      <section class="section-panel">
+      <section v-if="hasSuperRole" class="section-panel">
         <div class="section-heading">
           <div>
             <h2>重点线索</h2>
@@ -665,7 +718,7 @@ onMounted(() => {
         <Empty v-else class="empty-block" description="暂无 A/B 级重点线索" />
       </section>
 
-      <section class="section-panel">
+      <section v-if="hasSuperRole" class="section-panel">
         <div class="section-heading">
           <div>
             <h2>{{ meetingSectionTitle }}</h2>
@@ -703,7 +756,7 @@ onMounted(() => {
         <Empty v-else class="empty-block" description="暂无会谈记录" />
       </section>
 
-      <section class="section-panel">
+      <section v-if="hasSuperRole" class="section-panel">
         <div class="section-heading">
           <div>
             <h2>触达任务</h2>

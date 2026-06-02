@@ -31,6 +31,25 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/role/list.vue'),
       },
       {
+        path: '/system/park',
+        name: 'SystemPark',
+        meta: {
+          icon: 'mdi:office-building-cog-outline',
+          title: $t('system.park.title'),
+        },
+        component: () => import('#/views/system/park/list.vue'),
+      },
+      {
+        path: '/system/park/mobile',
+        name: 'SystemParkMobile',
+        meta: {
+          hideInMenu: true,
+          icon: 'mdi:cellphone-cog',
+          title: $t('system.park.title'),
+        },
+        component: () => import('#/views/rental/manage/mobile.vue'),
+      },
+      {
         path: '/system/menu',
         name: 'SystemMenu',
         meta: {

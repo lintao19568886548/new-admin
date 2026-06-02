@@ -127,6 +127,7 @@ const loadError = ref('');
 const analysis = ref<null | RadarAnalysisSummary>(null);
 const leads = ref<RadarLead[]>([]);
 const opportunities = ref<PublicOpportunityItem[]>([]);
+const opportunityTotal = ref(0);
 const latestTask = ref<null | RadarCollectTask>(null);
 const pipelineRebuilding = ref(false);
 const pipelineSummary = ref<null | RadarPipelineRebuildResult>(null);
@@ -985,34 +986,117 @@ function goToLeadDetail(leadId: number) {
   router.push(`${detailBasePath}/${leadId}`);
 }
 
-async function loadDashboard() {
-  loading.value = true;
-  loadError.value = '';
-  try {
-    const [
-      leadResult,
-      opportunityResult,
-      analysisResult,
-      acquisitionResult,
-      channelResult,
-      salesResult,
-      templateResult,
-    ] = await Promise.allSettled([
-      getRadarLeadList({
-        currentPage: 1,
-        pageSize: 8,
-      }),
-      getEffectivePublicOpportunityList({
-        currentPage: 1,
-        pageSize: 6,
-        scope: 'collected',
-      }),
-      getRadarAnalysisSummary(),
+function getEmptyAnalysis(): RadarAnalysisSummary {
+  return {
+    channelStats: [],
+    funnel: {
+      activeLeads: 0,
+      contactedLeads: 0,
+      contactRate: 0,
+      dealLeads: 0,
+      dealRate: 0,
+      highPriorityLeads: 0,
+      repliedLeads: 0,
+      replyRate: 0,
+      totalLeads: 0,
+      visitLeads: 0,
+      visitRate: 0,
+    },
+    generatedAt: new Date().toISOString(),
+    ownerStats: [],
+    signalTypeStats: [],
+    sopStats: {
+      followCount: 0,
+      overdueReminders: 0,
+      pendingReminders: 0,
+      visitCount: 0,
+    },
+    sourceStats: [],
+    suggestions: [],
+    templateStats: [],
+  };
+}
+
+async function refreshDashboardAnalytics() {
+  const [acquisitionResult, channelResult, salesResult, templateResult] =
+    await Promise.allSettled([
       getRadarAcquisitionAnalytics(),
       getRadarChannelAnalytics(),
       getRadarSalesAnalytics(),
       getRadarTemplateAnalytics(),
     ]);
+
+  const currentAnalysis = analysis.value || getEmptyAnalysis();
+  const loadedAcquisition =
+    acquisitionResult.status === 'fulfilled' ? acquisitionResult.value : null;
+
+  analysis.value = {
+    ...currentAnalysis,
+    channelStats:
+      channelResult.status === 'fulfilled' && Array.isArray(channelResult.value)
+        ? channelResult.value
+        : currentAnalysis.channelStats,
+    ownerStats:
+      salesResult.status === 'fulfilled' && Array.isArray(salesResult.value)
+        ? salesResult.value
+        : currentAnalysis.ownerStats,
+    signalTypeStats:
+      loadedAcquisition && Array.isArray(loadedAcquisition.signalTypeConversion)
+        ? loadedAcquisition.signalTypeConversion
+        : currentAnalysis.signalTypeStats,
+    sourceStats:
+      loadedAcquisition && Array.isArray(loadedAcquisition.sourceConversion)
+        ? loadedAcquisition.sourceConversion
+        : currentAnalysis.sourceStats,
+    templateStats:
+      templateResult.status === 'fulfilled' &&
+      Array.isArray(templateResult.value)
+        ? templateResult.value
+        : currentAnalysis.templateStats,
+  };
+
+  if (
+    acquisitionResult.status === 'rejected' ||
+    channelResult.status === 'rejected' ||
+    salesResult.status === 'rejected' ||
+    templateResult.status === 'rejected'
+  ) {
+    loadError.value =
+      loadError.value ||
+      'Dashboard partial data failed to load. Please retry later.';
+  }
+}
+
+async function refreshLatestTask() {
+  const possibleTaskId = window.sessionStorage.getItem('latest_radar_task_id');
+  if (!possibleTaskId) {
+    latestTask.value = null;
+    return;
+  }
+  try {
+    latestTask.value = await getRadarCollectTask(possibleTaskId);
+  } catch {
+    latestTask.value = null;
+  }
+}
+
+async function loadDashboard() {
+  loading.value = true;
+  loadError.value = '';
+  try {
+    const [leadResult, opportunityResult, analysisResult] =
+      await Promise.allSettled([
+        getRadarLeadList({
+          currentPage: 1,
+          pageSize: 8,
+        }),
+        getEffectivePublicOpportunityList({
+          currentPage: 1,
+          pageSize: 6,
+          scope: 'collected',
+        }),
+        getRadarAnalysisSummary(),
+      ]);
 
     const loadedLeads =
       leadResult.status === 'fulfilled' ? leadResult.value : null;
@@ -1020,93 +1104,28 @@ async function loadDashboard() {
       opportunityResult.status === 'fulfilled' ? opportunityResult.value : null;
     const loadedAnalysis =
       analysisResult.status === 'fulfilled' ? analysisResult.value : null;
-    const loadedAcquisition =
-      acquisitionResult.status === 'fulfilled' ? acquisitionResult.value : null;
-    const loadedChannels =
-      channelResult.status === 'fulfilled' ? channelResult.value : null;
-    const loadedSales =
-      salesResult.status === 'fulfilled' ? salesResult.value : null;
-    const loadedTemplates =
-      templateResult.status === 'fulfilled' ? templateResult.value : null;
-
-    const fallbackAnalysis = loadedAnalysis || {
-      channelStats: [],
-      funnel: {
-        activeLeads: 0,
-        contactedLeads: 0,
-        contactRate: 0,
-        dealLeads: 0,
-        dealRate: 0,
-        highPriorityLeads: 0,
-        repliedLeads: 0,
-        replyRate: 0,
-        totalLeads: 0,
-        visitLeads: 0,
-        visitRate: 0,
-      },
-      generatedAt: new Date().toISOString(),
-      ownerStats: [],
-      signalTypeStats: [],
-      sopStats: {
-        followCount: 0,
-        overdueReminders: 0,
-        pendingReminders: 0,
-        visitCount: 0,
-      },
-      sourceStats: [],
-      suggestions: [],
-      templateStats: [],
-    };
+    const fallbackAnalysis = loadedAnalysis || getEmptyAnalysis();
 
     leads.value = Array.isArray(loadedLeads?.items) ? loadedLeads.items : [];
     opportunities.value = Array.isArray(loadedOpportunities?.items)
       ? loadedOpportunities.items
       : [];
-    analysis.value = {
-      ...fallbackAnalysis,
-      channelStats: Array.isArray(loadedChannels)
-        ? loadedChannels
-        : fallbackAnalysis.channelStats,
-      ownerStats: Array.isArray(loadedSales)
-        ? loadedSales
-        : fallbackAnalysis.ownerStats,
-      signalTypeStats:
-        loadedAcquisition &&
-        Array.isArray(loadedAcquisition.signalTypeConversion)
-          ? loadedAcquisition.signalTypeConversion
-          : fallbackAnalysis.signalTypeStats,
-      sourceStats:
-        loadedAcquisition && Array.isArray(loadedAcquisition.sourceConversion)
-          ? loadedAcquisition.sourceConversion
-          : fallbackAnalysis.sourceStats,
-      templateStats: Array.isArray(loadedTemplates)
-        ? loadedTemplates
-        : fallbackAnalysis.templateStats,
-    };
+    opportunityTotal.value =
+      typeof loadedOpportunities?.total === 'number'
+        ? loadedOpportunities.total
+        : (loadedOpportunities?.page?.total ?? opportunities.value.length);
+    analysis.value = fallbackAnalysis;
 
-    const failedLoads = [
-      leadResult,
-      opportunityResult,
-      analysisResult,
-      acquisitionResult,
-      channelResult,
-      salesResult,
-      templateResult,
-    ].filter((item) => item.status === 'rejected');
+    const failedLoads = [leadResult, opportunityResult, analysisResult].filter(
+      (item) => item.status === 'rejected',
+    );
     if (failedLoads.length > 0) {
       loadError.value = '部分看板数据加载失败，请检查相关接口是否可用。';
     }
 
-    const possibleTaskId = window.sessionStorage.getItem(
-      'latest_radar_task_id',
-    );
-    if (possibleTaskId) {
-      try {
-        latestTask.value = await getRadarCollectTask(possibleTaskId);
-      } catch {
-        latestTask.value = null;
-      }
-    }
+    loading.value = false;
+    void refreshDashboardAnalytics();
+    void refreshLatestTask();
   } catch (error) {
     console.error('加载招商看板失败:', error);
     loadError.value = '看板数据加载失败，请检查雷达相关接口是否已接入。';
@@ -1121,6 +1140,31 @@ function goToRadarList() {
       ? '/investment/radar/mobile'
       : '/investment/radar',
   );
+}
+
+function goToPublicOpportunities() {
+  router.push(
+    route.path.includes('/mobile-dashboard')
+      ? '/investment/radar/mobile?tab=publicOpportunities'
+      : {
+          path: '/investment/radar',
+          query: { tab: 'publicOpportunities' },
+        },
+  );
+}
+
+function goToPublicDemands() {
+  router.push({
+    path: '/investment/radar',
+    query: { tab: 'publicDemands' },
+  });
+}
+
+function goToFactoryListings() {
+  router.push({
+    path: '/investment/radar',
+    query: { tab: 'factoryListings' },
+  });
 }
 
 function goToTasks() {
@@ -1227,7 +1271,7 @@ onMounted(() => {
             </div>
             <div>
               <span>公开机会</span>
-              <strong>{{ opportunities.length }}</strong>
+              <strong>{{ opportunityTotal }}</strong>
             </div>
             <div>
               <span>同步状态</span>
@@ -1439,8 +1483,13 @@ onMounted(() => {
           <div class="radar-mobile-section-head">
             <div>
               <h3>最新公开机会</h3>
-              <p>需求和房源供给的最新入口</p>
+              <p>
+                合格公开机会 {{ opportunityTotal.toLocaleString('zh-CN') }} 条
+              </p>
             </div>
+            <Button size="small" type="link" @click="goToPublicOpportunities">
+              全部
+            </Button>
           </div>
           <div v-if="opportunities.length > 0" class="mobile-opportunity-list">
             <article
@@ -1731,6 +1780,19 @@ onMounted(() => {
         </Card>
 
         <Card title="最新公开机会">
+          <template #extra>
+            <Space>
+              <Tag color="blue">
+                合格 {{ opportunityTotal.toLocaleString('zh-CN') }} 条
+              </Tag>
+              <Button size="small" type="link" @click="goToPublicDemands">
+                需求
+              </Button>
+              <Button size="small" type="link" @click="goToFactoryListings">
+                房源
+              </Button>
+            </Space>
+          </template>
           <div v-if="opportunities.length > 0" class="radar-opportunity-list">
             <article
               v-for="item in opportunities"

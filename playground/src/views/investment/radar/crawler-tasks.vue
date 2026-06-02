@@ -54,7 +54,7 @@ const PUBLIC_FACTORY_LISTING_SOURCE_CODE = 'PUBLIC_FACTORY_LISTING_CFZSW68';
 const PUBLIC_OPPORTUNITY_SOURCE_CODE = 'PUBLIC_OPPORTUNITY_99CFW';
 
 const loading = ref(false);
-const runningDemo = ref(false);
+const runningIncremental = ref(false);
 const runningEia = ref(false);
 const runningPilot = ref(false);
 const runningRecruitment = ref(false);
@@ -128,7 +128,6 @@ const statusMeta: Record<string, { color: string; label: string }> = {
   SUCCESS: { color: 'green', label: '成功' },
 };
 const taskTypeLabel: Record<string, string> = {
-  MANUAL_DEMO: '示例数据采集',
   MANUAL_EIA: '环评公示采集',
   MANUAL_RECRUITMENT: '招聘扩产采集',
   MANUAL_TENDER: '招投标信号采集',
@@ -186,6 +185,10 @@ const activeOpsSourceId = computed(
 
 function formatOptionalTime(value?: null | string) {
   return value ? formatDateTime(value) : '-';
+}
+
+function formatSchedulerMode(mode?: null | string) {
+  return mode === 'DEMAND' ? '公开需求' : mode || '公开采集';
 }
 
 function getStatusMeta(status: string) {
@@ -278,11 +281,11 @@ async function startAutoScheduler() {
   schedulerLoading.value = true;
   try {
     await startPublicOpportunityCrawlerScheduler();
-    message.success('公开采集自动调度已启动');
+    message.success('公开需求每日 8 点调度已启动');
     await loadOpsSummary();
   } catch (error) {
     console.error('start public opportunity crawler scheduler failed:', error);
-    message.error('Start 99cfw auto scheduler failed');
+    message.error('启动公开需求每日调度失败');
   } finally {
     schedulerLoading.value = false;
   }
@@ -295,11 +298,11 @@ async function stopAutoScheduler() {
   schedulerLoading.value = true;
   try {
     await stopPublicOpportunityCrawlerScheduler();
-    message.success('公开采集自动调度已停止');
+    message.success('公开需求每日调度已停止');
     await loadOpsSummary();
   } catch (error) {
     console.error('stop public opportunity crawler scheduler failed:', error);
-    message.error('Stop 99cfw auto scheduler failed');
+    message.error('停止公开需求每日调度失败');
   } finally {
     schedulerLoading.value = false;
   }
@@ -339,22 +342,22 @@ function handleTableChange(page: { current?: number; pageSize?: number }) {
   void loadTasks();
 }
 
-async function runDemoTask() {
-  if (runningDemo.value) {
+async function runIncrementalTask() {
+  if (runningIncremental.value) {
     return;
   }
-  runningDemo.value = true;
+  runningIncremental.value = true;
   try {
     const task = await runCrawlerTask();
-    message.success(`demo task 已结束：${task.status}`);
+    message.success(`增量采集已结束：${task.status}`);
     pagination.value.current = 1;
     await loadTasks();
     await loadOpsSummary();
   } catch (error) {
-    console.error('run demo crawler task failed:', error);
-    message.error('手动运行 demo task 失败');
+    console.error('run incremental crawler task failed:', error);
+    message.error('手动运行增量采集失败');
   } finally {
-    runningDemo.value = false;
+    runningIncremental.value = false;
   }
 }
 
@@ -369,9 +372,10 @@ async function runPublicOpportunityPilot() {
   runningPilot.value = true;
   try {
     const task = await runPublicOpportunityCrawlerTask({
-      batchSize: 80,
-      freshnessDays: 365,
+      batchSize: 10,
+      freshnessDays: 180,
       sourceCode: selectedPublicSourceCode.value,
+      staleReprocessMinutes: 24 * 60,
     });
     message.success(`公开采集已结束：${task.status}`);
     pagination.value.current = 1;
@@ -844,7 +848,7 @@ onMounted(() => {
   <div class="crawler-tasks-pane">
     <Alert
       class="mb-3"
-      message="采集任务按数据源异步执行。demo 使用本地固定数据；99cfw 试点按 5 分钟后台调度、批量 URL 队列、白名单列表发现和失败重试执行；环评公示采集会沉淀为外部线索和证据链。"
+      message="采集任务按数据源异步执行。公开采集按后台调度、批量 URL 队列、白名单列表发现和失败重试执行；环评公示采集会沉淀为外部线索和证据链。"
       show-icon
       type="info"
     />
@@ -873,7 +877,10 @@ onMounted(() => {
           <Tag :color="opsSummary.scheduler.envEnabled ? 'green' : 'default'">
             环境 {{ opsSummary.scheduler.envEnabled ? '开启' : '关闭' }}
           </Tag>
-          {{ Math.round(opsSummary.scheduler.intervalMs / 1000) }}秒
+          <Tag color="blue">
+            {{ formatSchedulerMode(opsSummary.scheduler.mode) }}
+          </Tag>
+          每日 {{ opsSummary.scheduler.dailyRunHour ?? 8 }}:00
         </Descriptions.Item>
         <Descriptions.Item label="是否可运行">
           <Tag :color="opsSummary.scheduler.canRunNow ? 'green' : 'orange'">
@@ -949,14 +956,14 @@ onMounted(() => {
           type="primary"
           @click="startAutoScheduler"
         >
-          启动 99cfw 自动调度
+          启动公开需求每日调度
         </Button>
         <Button
           :disabled="!opsSummary?.scheduler.active"
           :loading="schedulerLoading"
           @click="stopAutoScheduler"
         >
-          停止 99cfw 自动调度
+          停止公开需求每日调度
         </Button>
         <Button :loading="requeueLoading" @click="requeueAllFailedItems">
           恢复失败/跳过 URL
@@ -999,8 +1006,12 @@ onMounted(() => {
             >
               刷新
             </Button>
-            <Button type="primary" :loading="runningDemo" @click="runDemoTask">
-              手动运行 demo task
+            <Button
+              type="primary"
+              :loading="runningIncremental"
+              @click="runIncrementalTask"
+            >
+              手动运行增量采集
             </Button>
             <Button
               :disabled="!publicOpportunityCanRun"

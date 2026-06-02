@@ -1,6 +1,7 @@
 import { prismaClient } from '~/utils/db';
 
 import { tableExists } from './analytics-service';
+import { assertInvestmentRadarTableReady } from './schema-guard';
 
 export interface RadarSalesActionRebuildResult {
   assignedLeadCount: number;
@@ -31,43 +32,11 @@ interface AssignableUser {
 const inactiveStages = new Set(['CLOSED', 'DEAL', 'INVALID']);
 
 async function ensureSopReminderTable() {
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS investment_sop_reminder (
-      reminder_id BIGINT NOT NULL AUTO_INCREMENT,
-      lead_id BIGINT NOT NULL,
-      reminder_type VARCHAR(50) NOT NULL,
-      title VARCHAR(100) NOT NULL,
-      description TEXT NULL,
-      due_time DATETIME(3) NOT NULL,
-      reminder_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
-      handled_time DATETIME(3) NULL,
-      create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (reminder_id),
-      UNIQUE KEY uk_investment_sop_reminder_lead_type (lead_id, reminder_type),
-      INDEX idx_investment_sop_reminder_lead_status (lead_id, reminder_status),
-      INDEX idx_investment_sop_reminder_due_time (due_time)
-    )
-  `);
+  await assertInvestmentRadarTableReady('investment_sop_reminder');
 }
 
 async function ensureAssignmentLogTable() {
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS investment_lead_assignment_log (
-      assignment_id BIGINT NOT NULL AUTO_INCREMENT,
-      lead_id BIGINT NOT NULL,
-      previous_owner_user_id BIGINT NULL,
-      owner_user_id BIGINT NOT NULL,
-      owner_name VARCHAR(100) NULL,
-      assignment_source VARCHAR(50) NOT NULL,
-      assign_reason VARCHAR(255) NULL,
-      create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (assignment_id),
-      INDEX idx_investment_lead_assignment_log_lead (lead_id),
-      INDEX idx_investment_lead_assignment_log_owner (owner_user_id),
-      INDEX idx_investment_lead_assignment_log_time (create_time)
-    )
-  `);
+  await assertInvestmentRadarTableReady('investment_lead_assignment_log');
 }
 
 function toDate(value: unknown, fallback = new Date()) {

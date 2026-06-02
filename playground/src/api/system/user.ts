@@ -7,6 +7,11 @@ export namespace SystemUserApi {
     customerType?: null | string;
     customerUserId?: null | number;
     id: number;
+    parkIds?: number[];
+    parks?: Array<{
+      parkId: number;
+      parkName: string;
+    }>;
     phone?: string;
     realName: string;
     roleIds?: number[];

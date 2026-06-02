@@ -1,4 +1,4 @@
-import type { DemoCrawlerLead } from '../crawler-types';
+import type { PublicSignalCrawlerLead } from '../crawler-types';
 import type { CrawlerAdapter } from './types';
 
 import { PUBLIC_RECRUITMENT_SOURCE_CODE } from '../crawler-types';
@@ -30,27 +30,6 @@ const RECRUITMENT_KEYWORDS_EXCLUDE = [
   '门店',
   '培训',
   '销售代表',
-];
-
-const FALLBACK_RECRUITMENT_ITEMS: RecruitmentNoticeItem[] = [
-  {
-    companyName: '惠州芯启电子科技有限公司',
-    content:
-      '公开招聘生产经理、设备工程师和新产线调试岗位，岗位描述提到新增电子装配生产线和产能爬坡。',
-    detailUrl: 'https://www.51job.com/jobs/huizhou-demo-expansion.html',
-    location: '广东省惠州市仲恺高新区',
-    publishedDate: '2026-05-18',
-    title: '生产经理 / 设备工程师招聘',
-  },
-  {
-    companyName: '东莞锐科智能制造有限公司',
-    content:
-      '招聘厂长、制造经理与自动化设备工程师，负责扩产项目、生产线规划和新厂区导入。',
-    detailUrl: 'https://www.51job.com/jobs/dongguan-demo-new-line.html',
-    location: '广东省东莞市松山湖',
-    publishedDate: '2026-05-17',
-    title: '厂长及新产线工程师招聘',
-  },
 ];
 
 function decodeBasicHtmlEntities(value: string) {
@@ -178,7 +157,7 @@ function calculateScore(content: string, keywords: string[]) {
   return Math.min(score, 92);
 }
 
-function toLead(item: RecruitmentNoticeItem): DemoCrawlerLead | null {
+function toLead(item: RecruitmentNoticeItem): null | PublicSignalCrawlerLead {
   const fullContent = [
     item.companyName,
     item.title,
@@ -324,7 +303,7 @@ async function fetchRecruitmentList(): Promise<RecruitmentNoticeItem[]> {
     console.warn('[Recruitment Adapter] Failed to fetch 51job list:', error);
   }
 
-  return results.length > 0 ? results : FALLBACK_RECRUITMENT_ITEMS;
+  return results;
 }
 
 export const recruitmentExpansionCrawlerAdapter: CrawlerAdapter = {

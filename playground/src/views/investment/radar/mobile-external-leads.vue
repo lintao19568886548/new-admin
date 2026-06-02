@@ -19,6 +19,7 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons-vue';
 import {
+  AutoComplete,
   Button,
   Card,
   Drawer,
@@ -41,6 +42,7 @@ import {
   updateExternalLead,
 } from '#/api/investment';
 
+import { searchableDropdownProps, useSearchHistory } from '../search-history';
 import { formatDateOnly } from './mobile-utils';
 
 defineOptions({ name: 'InvestmentRadarMobileExternalLeads' });
@@ -70,6 +72,22 @@ const searchForm = reactive({
   sourceType: '',
   status: '',
 });
+const keywordSearchHistory = useSearchHistory(
+  'radar.mobile-external-leads.keyword',
+);
+const regionCitySearchHistory = useSearchHistory(
+  'radar.mobile-external-leads.regionCity',
+);
+const industryNameSearchHistory = useSearchHistory(
+  'radar.mobile-external-leads.industryName',
+);
+const sourceNameSearchHistory = useSearchHistory(
+  'radar.mobile-external-leads.sourceName',
+);
+const keywordOptions = keywordSearchHistory.options();
+const regionCityOptions = regionCitySearchHistory.options();
+const industryNameOptions = industryNameSearchHistory.options();
+const sourceNameOptions = sourceNameSearchHistory.options();
 
 const editForm = reactive<{
   invalidReason?: string;
@@ -127,7 +145,6 @@ const sourceTypeOptions = [
   { label: '全部来源类型', value: '' },
   { label: '内部合同', value: 'INTERNAL_CONTRACT' },
   { label: '公开机会', value: 'PUBLIC_OPPORTUNITY' },
-  { label: 'Demo', value: 'DEMO' },
 ];
 
 const editableStatusOptions = statusOptions.filter((item) => item.value);
@@ -161,7 +178,6 @@ const demandTypeLabel: Record<ExternalLeadDemandType, string> = {
 };
 
 const evidenceTypeLabel: Record<string, string> = {
-  DEMO_EVIDENCE: '演示证据',
   KEYWORD_MATCH: '关键词匹配',
   STRUCTURED_DATA: '结构化数据',
   TEXT_EVIDENCE: '文本证据',
@@ -289,6 +305,10 @@ async function loadSalesUsers() {
 }
 
 function searchLeads() {
+  keywordSearchHistory.add(searchForm.keyword);
+  regionCitySearchHistory.add(searchForm.regionCity);
+  industryNameSearchHistory.add(searchForm.industryName);
+  sourceNameSearchHistory.add(searchForm.sourceName);
   pagination.current = 1;
   filterOpen.value = false;
   void loadLeads();
@@ -429,12 +449,15 @@ onMounted(() => {
 
     <div class="radar-mobile-filter">
       <div class="mobile-search-bar">
-        <Input
+        <AutoComplete
           v-model:value="searchForm.keyword"
+          v-bind="searchableDropdownProps"
           allow-clear
           class="mobile-search-input"
+          :options="keywordOptions"
           placeholder="企业 / 标题 / 来源"
           @press-enter="searchLeads"
+          @select="searchLeads"
         />
         <Button type="primary" @click="searchLeads">查询</Button>
         <Button @click="filterOpen = !filterOpen">筛选</Button>
@@ -458,25 +481,34 @@ onMounted(() => {
             :options="demandTypeOptions"
             @change="searchLeads"
           />
-          <Input
+          <AutoComplete
             v-model:value="searchForm.regionCity"
+            v-bind="searchableDropdownProps"
             allow-clear
+            :options="regionCityOptions"
             placeholder="地区"
             @press-enter="searchLeads"
+            @select="searchLeads"
           />
         </div>
         <div class="filter-grid">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.industryName"
+            v-bind="searchableDropdownProps"
             allow-clear
+            :options="industryNameOptions"
             placeholder="行业"
             @press-enter="searchLeads"
+            @select="searchLeads"
           />
-          <Input
+          <AutoComplete
             v-model:value="searchForm.sourceName"
+            v-bind="searchableDropdownProps"
             allow-clear
+            :options="sourceNameOptions"
             placeholder="来源"
             @press-enter="searchLeads"
+            @select="searchLeads"
           />
         </div>
         <Select

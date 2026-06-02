@@ -27,7 +27,7 @@ import {
 
 import {
   getLeadScoreRuleList,
-  recalculateDemoLeadScores,
+  recalculateRadarLeadScores,
   updateLeadScoreRule,
 } from '#/api/investment';
 
@@ -164,21 +164,21 @@ async function saveRule() {
   }
 }
 
-async function recalculateDemoScores() {
+async function recalculateScores() {
   if (recalculating.value) {
     return;
   }
   recalculating.value = true;
   try {
-    const result = await recalculateDemoLeadScores();
+    const result = await recalculateRadarLeadScores();
     recalculateSummary.value = {
       recalculatedCount: result.recalculatedCount,
       totalLeadCount: result.totalLeadCount,
     };
-    message.success(`已重算 ${result.recalculatedCount} 条 demo 潜客评分`);
+    message.success(`已重算 ${result.recalculatedCount} 条潜客评分`);
   } catch (error) {
-    console.error('recalculate demo scores failed:', error);
-    message.error('重算 demo 评分失败');
+    console.error('recalculate radar lead scores failed:', error);
+    message.error('重算潜客评分失败');
   } finally {
     recalculating.value = false;
   }
@@ -278,9 +278,9 @@ onMounted(() => {
         <Button
           type="primary"
           :loading="recalculating"
-          @click="recalculateDemoScores"
+          @click="recalculateScores"
         >
-          重算 demo lead 评分
+          重算潜客评分
         </Button>
         <span v-if="recalculateSummary" class="text-text-secondary text-sm">
           最近重算：候选 {{ recalculateSummary.totalLeadCount }}，完成

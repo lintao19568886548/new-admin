@@ -1,6 +1,7 @@
 import { prismaClient } from '~/utils/db';
 import {
   ensureContactRestrictionTable,
+  inferContactRestrictionFromReply,
   upsertContactRestriction,
 } from '~/utils/investment-radar/contact-restriction-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
@@ -11,7 +12,13 @@ import {
   useResponseSuccess,
 } from '~/utils/response';
 
-const allowedReplyStatuses = new Set(['NEGATIVE', 'POSITIVE', 'REPLIED']);
+const allowedReplyStatuses = new Set([
+  'BLACKLIST',
+  'NEGATIVE',
+  'POSITIVE',
+  'REPLIED',
+  'UNSUBSCRIBED',
+]);
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -107,13 +114,17 @@ export default eventHandler(async (event) => {
           );
         }
 
-        if (leadId > 0 && replyStatus === 'NEGATIVE') {
+        const restriction = inferContactRestrictionFromReply({
+          replyContent: String(body.replyContent || '').trim(),
+          replyStatus,
+        });
+        if (leadId > 0 && restriction) {
           await upsertContactRestriction({
             enterpriseId: Number(task.enterpriseId || 0) || null,
             leadId,
             phoneNumber: task.phoneNumber || null,
-            reason: String(body.replyContent || '').trim() || '客户负向反馈',
-            restrictionType: 'NEGATIVE_REPLY',
+            reason: restriction.reason,
+            restrictionType: restriction.restrictionType,
           });
         }
       });

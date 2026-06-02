@@ -20,6 +20,7 @@ import {
 } from '@ant-design/icons-vue';
 import {
   Alert,
+  AutoComplete,
   Button,
   Card,
   Drawer,
@@ -39,10 +40,11 @@ import {
   getSignalEventDetail,
   getSignalEventEvidenceList,
   getSignalEventList,
-  rebuildSignalEventDemo,
+  refreshSignalEvents,
   updateSignalEvent,
 } from '#/api/investment';
 
+import { searchableDropdownProps, useSearchHistory } from '../search-history';
 import { formatDateOnly } from './mobile-utils';
 
 defineOptions({ name: 'InvestmentRadarMobileSignalEvents' });
@@ -78,6 +80,18 @@ const searchForm = reactive({
   sourceType: '',
   status: '',
 });
+const keywordSearchHistory = useSearchHistory(
+  'radar.mobile-signal-events.keyword',
+);
+const companyNameSearchHistory = useSearchHistory(
+  'radar.mobile-signal-events.companyName',
+);
+const sourceNameSearchHistory = useSearchHistory(
+  'radar.mobile-signal-events.sourceName',
+);
+const keywordOptions = keywordSearchHistory.options();
+const companyNameOptions = companyNameSearchHistory.options();
+const sourceNameOptions = sourceNameSearchHistory.options();
 
 const editForm = reactive<{
   ownerUserId?: number;
@@ -119,7 +133,6 @@ const sourceTypeOptions = [
   { label: '全部来源类型', value: '' },
   { label: '内部合同', value: 'INTERNAL_CONTRACT' },
   { label: '公开机会', value: 'PUBLIC_OPPORTUNITY' },
-  { label: 'Demo', value: 'DEMO' },
 ];
 
 const editableStatusOptions = statusOptions.filter((item) => item.value);
@@ -144,7 +157,6 @@ const statusMeta: Record<SignalEventStatus, { color: string; label: string }> =
   };
 
 const evidenceTypeLabel: Record<string, string> = {
-  DEMO_EVIDENCE: '演示证据',
   KEYWORD_MATCH: '关键词匹配',
   STRUCTURED_DATA: '结构化数据',
   TEXT_EVIDENCE: '文本证据',
@@ -184,7 +196,7 @@ const rebuildSummaryText = computed(() => {
   const totalEvidence =
     rebuildSummary.value.createdEvidenceCount +
     rebuildSummary.value.updatedEvidenceCount;
-  return `最近重建：来源 ${rebuildSummary.value.totalSourceLeadCount}，新增 ${rebuildSummary.value.createdEventCount}，更新 ${rebuildSummary.value.updatedEventCount}，证据 ${totalEvidence}`;
+  return `最近刷新：来源 ${rebuildSummary.value.totalSourceLeadCount}，新增 ${rebuildSummary.value.createdEventCount}，更新 ${rebuildSummary.value.updatedEventCount}，证据 ${totalEvidence}`;
 });
 
 function buildQuery() {
@@ -257,6 +269,9 @@ async function loadSalesUsers() {
 }
 
 function searchEvents() {
+  keywordSearchHistory.add(searchForm.keyword);
+  companyNameSearchHistory.add(searchForm.companyName);
+  sourceNameSearchHistory.add(searchForm.sourceName);
   pagination.current = 1;
   filterOpen.value = false;
   void loadEvents();
@@ -337,23 +352,23 @@ async function saveEventStatus() {
   }
 }
 
-async function rebuildDemoSignals() {
+async function refreshSignals() {
   if (rebuilding.value) {
     return;
   }
 
   rebuilding.value = true;
   try {
-    const result = await rebuildSignalEventDemo();
+    const result = await refreshSignalEvents();
     rebuildSummary.value = result;
     message.success(
-      `重建完成：新增 ${result.createdEventCount}，更新 ${result.updatedEventCount}`,
+      `刷新完成：新增 ${result.createdEventCount}，更新 ${result.updatedEventCount}`,
     );
     pagination.current = 1;
     await loadEvents();
   } catch (error) {
-    console.error('重建 demo 企业信号失败:', error);
-    message.error('重建 demo 企业信号失败');
+    console.error('刷新企业信号失败:', error);
+    message.error('刷新企业信号失败');
   } finally {
     rebuilding.value = false;
   }
@@ -414,12 +429,15 @@ onMounted(() => {
 
     <div class="radar-mobile-filter">
       <div class="mobile-search-bar">
-        <Input
+        <AutoComplete
           v-model:value="searchForm.keyword"
+          v-bind="searchableDropdownProps"
           allow-clear
           class="mobile-search-input"
+          :options="keywordOptions"
           placeholder="企业 / 标题 / 来源"
           @press-enter="searchEvents"
+          @select="searchEvents"
         />
         <Button type="primary" @click="searchEvents">查询</Button>
         <Button @click="filterOpen = !filterOpen">筛选</Button>
@@ -438,17 +456,23 @@ onMounted(() => {
           />
         </div>
         <div class="filter-grid">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.companyName"
+            v-bind="searchableDropdownProps"
             allow-clear
+            :options="companyNameOptions"
             placeholder="企业名"
             @press-enter="searchEvents"
+            @select="searchEvents"
           />
-          <Input
+          <AutoComplete
             v-model:value="searchForm.sourceName"
+            v-bind="searchableDropdownProps"
             allow-clear
+            :options="sourceNameOptions"
             placeholder="来源"
             @press-enter="searchEvents"
+            @select="searchEvents"
           />
         </div>
         <Select
@@ -464,10 +488,10 @@ onMounted(() => {
             class="filter-action-wide"
             type="primary"
             :loading="rebuilding"
-            @click="rebuildDemoSignals"
+            @click="refreshSignals"
           >
             <ThunderboltOutlined class="mr-1 h-4 w-4" />
-            重建 demo
+            增量刷新
           </Button>
         </div>
       </div>

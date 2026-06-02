@@ -7,6 +7,19 @@ import {
   useResponseSuccess,
 } from '~/utils/response';
 
+function toNumber(value: unknown) {
+  const numericValue = Number(value ?? 0);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function toNullableNumber(value: unknown) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -68,7 +81,8 @@ export default eventHandler(async (event) => {
         return null;
       }
 
-      const [orderedLeadRows, outreachTasks, collectTaskRows] =
+      const updateTime = lead.updateTime;
+      const [prevLeadRows, nextLeadRows, outreachTasks, collectTaskRows] =
         await Promise.all([
           prismaClient.$queryRawUnsafe<any[]>(
             `
@@ -80,8 +94,31 @@ export default eventHandler(async (event) => {
             FROM investment_lead l
             LEFT JOIN investment_enterprise e ON e.enterprise_id = l.enterprise_id
             WHERE l.is_deleted = 0
-            ORDER BY l.total_score DESC, l.update_time DESC
+              AND (l.update_time > ? OR (l.update_time = ? AND l.lead_id > ?))
+            ORDER BY l.update_time ASC, l.lead_id ASC
+            LIMIT 1
           `,
+            updateTime,
+            updateTime,
+            leadId,
+          ),
+          prismaClient.$queryRawUnsafe<any[]>(
+            `
+            SELECT
+              l.lead_id AS leadId,
+              e.enterprise_name AS enterpriseName,
+              l.total_score AS totalScore,
+              l.stage AS stage
+            FROM investment_lead l
+            LEFT JOIN investment_enterprise e ON e.enterprise_id = l.enterprise_id
+            WHERE l.is_deleted = 0
+              AND (l.update_time < ? OR (l.update_time = ? AND l.lead_id < ?))
+            ORDER BY l.update_time DESC, l.lead_id DESC
+            LIMIT 1
+          `,
+            updateTime,
+            updateTime,
+            leadId,
           ),
           prismaClient.$queryRawUnsafe<any[]>(
             `
@@ -133,43 +170,56 @@ export default eventHandler(async (event) => {
             : Promise.resolve([]),
         ]);
 
-      const currentLeadIndex = orderedLeadRows.findIndex(
-        (item) => Number(item.leadId) === leadId,
-      );
-      const previousLead =
-        currentLeadIndex > 0 ? orderedLeadRows[currentLeadIndex - 1] : null;
-      const nextLead =
-        currentLeadIndex >= 0 && currentLeadIndex < orderedLeadRows.length - 1
-          ? orderedLeadRows[currentLeadIndex + 1]
-          : null;
+      const previousLead = prevLeadRows[0] || null;
+      const nextLead = nextLeadRows[0] || null;
+      const collectTask = collectTaskRows[0] || null;
 
       return {
         ...lead,
-        collectTask: collectTaskRows[0] || null,
+        collectTask: collectTask
+          ? {
+              ...collectTask,
+              created: toNumber(collectTask.created),
+              durationMs: toNullableNumber(collectTask.durationMs),
+              skipped: toNumber(collectTask.skipped),
+              total: toNumber(collectTask.total),
+              updated: toNumber(collectTask.updated),
+            }
+          : null,
+        enterpriseId: toNullableNumber(lead.enterpriseId),
         intentArea:
           lead.intentArea === null || lead.intentArea === undefined
             ? null
             : Number(lead.intentArea),
+        intentScore: toNumber(lead.intentScore),
+        leadId: toNumber(lead.leadId),
+        matchScore: toNumber(lead.matchScore),
+        ownerUserId: toNullableNumber(lead.ownerUserId),
+        parkId: toNullableNumber(lead.parkId),
         outreachSummary: {
           count: outreachTasks.length,
           latestSentAt: outreachTasks[0]?.sentAt || null,
         },
-        outreachTasks,
+        outreachTasks: outreachTasks.map((task) => ({
+          ...task,
+          taskId: toNumber(task.taskId),
+        })),
+        reachableScore: toNumber(lead.reachableScore),
         navigation: {
           nextLead: nextLead
             ? {
                 enterpriseName: nextLead.enterpriseName || '-',
-                leadId: Number(nextLead.leadId),
+                leadId: toNumber(nextLead.leadId),
                 stage: nextLead.stage || '',
-                totalScore: Number(nextLead.totalScore || 0),
+                totalScore: toNumber(nextLead.totalScore),
               }
             : null,
           previousLead: previousLead
             ? {
                 enterpriseName: previousLead.enterpriseName || '-',
-                leadId: Number(previousLead.leadId),
+                leadId: toNumber(previousLead.leadId),
                 stage: previousLead.stage || '',
-                totalScore: Number(previousLead.totalScore || 0),
+                totalScore: toNumber(previousLead.totalScore),
               }
             : null,
         },
@@ -177,6 +227,7 @@ export default eventHandler(async (event) => {
           lead.registerCapital === null || lead.registerCapital === undefined
             ? null
             : Number(lead.registerCapital),
+        totalScore: toNumber(lead.totalScore),
       };
     });
 

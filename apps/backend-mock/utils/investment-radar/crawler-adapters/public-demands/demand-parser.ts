@@ -1,6 +1,10 @@
 import type { ParsedPublicOpportunity } from '../types';
 
 import {
+  hasExplicitNonGuangdongPlaceSignal,
+  normalizeGuangdongCity,
+} from '../../guangdong-public-scope';
+import {
   buildDetailJson,
   cleanText,
   collectMissingFields,
@@ -11,11 +15,11 @@ import {
   extractIndustryText,
   extractPriceText,
   extractPublishedDateText,
-  extractTitle,
   normalizePublishedAt,
 } from '../public-parser-utils';
 
 interface BuildPublicDemandOpportunityOptions {
+  crawledAt?: Date;
   html: string;
   sourceSite: string;
   sourceUrl: string;
@@ -44,6 +48,14 @@ const GUANGDONG_CITY_ALIASES = [
   ['揭阳', ['揭阳', '揭阳市', 'jieyang', 'jy']],
   ['云浮', ['云浮', '云浮市', 'yunfu', 'yf']],
 ] as const;
+
+const CFW_99_CITY_CODE_MAP = new Map<string, string>(
+  GUANGDONG_CITY_ALIASES.flatMap(([city, aliases]) =>
+    aliases
+      .filter((alias) => /^[a-z]{2,}$/.test(alias))
+      .map((alias) => [alias, city] as const),
+  ),
+);
 
 const DEMAND_CITY_LABELS = [
   '需求城市',
@@ -362,6 +374,25 @@ function extractMetaContent(html: string, names: string[]) {
   return null;
 }
 
+function extractPrimaryContentText(html: string) {
+  const candidates: string[] = [];
+  const blockPatterns = [
+    /<(article|main)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi,
+    /<(section|div)\s[^>]*(?:class|id)=["'][^"']*(?:detail|content|article|main|body|info|xq|desc|intro)[^"']*["'][^>]*>([\s\S]*?)<\/\1>/gi,
+  ];
+
+  for (const pattern of blockPatterns) {
+    for (const match of html.matchAll(pattern)) {
+      const content = htmlToReadableLines(match[2] || '');
+      if (content.length >= 20) {
+        candidates.push(content);
+      }
+    }
+  }
+
+  return candidates.join(' ').slice(0, 2000) || null;
+}
+
 function parseJsonLikeBlocks(html: string) {
   const records: Record<string, unknown>[] = [];
   const pattern =
@@ -417,6 +448,11 @@ function extractDemandGuangdongCity(
   value: null | string | undefined,
   options: { allowShortCodes?: boolean } = {},
 ) {
+  const cityFromScope = normalizeGuangdongCity(value);
+  if (cityFromScope) {
+    return cityFromScope;
+  }
+
   const normalized = String(value || '').toLowerCase();
   if (!normalized) {
     return null;
@@ -437,46 +473,56 @@ function extractDemandGuangdongCity(
   return null;
 }
 
-function extractDemandCityFromUrl(sourceUrl: string) {
+function infer99CfwCityFromSourceUrl(sourceUrl: string) {
   try {
     const url = new URL(sourceUrl);
-    const tokens = [
-      ...url.hostname.toLowerCase().split('.'),
-      ...url.pathname.toLowerCase().split(/[^a-z0-9]+/),
-    ].filter(Boolean);
-    for (const token of tokens) {
-      for (const [city, aliases] of GUANGDONG_CITY_ALIASES) {
-        if (
-          aliases.some((alias) => {
-            const normalizedAlias = alias.toLowerCase();
-            return (
-              token === normalizedAlias ||
-              (/^[a-z]{2}$/.test(normalizedAlias) &&
-                token.endsWith(normalizedAlias) &&
-                token.length <= 8)
-            );
-          })
-        ) {
-          return city;
-        }
+    if (!/(?:^|\.)99cfw\.com$/i.test(url.hostname)) {
+      return null;
+    }
+    const hostCode = url.hostname.split('.')[0]?.toLowerCase();
+    if (hostCode && hostCode !== 'www') {
+      return CFW_99_CITY_CODE_MAP.get(hostCode) || null;
+    }
+    const pathSegments = url.pathname
+      .split('/')
+      .map((segment) => segment.trim().toLowerCase())
+      .filter(Boolean);
+    for (const segment of pathSegments) {
+      const matched = /^3929([a-z]+)$/.exec(segment)?.[1] || segment;
+      const city = CFW_99_CITY_CODE_MAP.get(matched);
+      if (city) {
+        return city;
       }
     }
   } catch {
     return null;
   }
-
   return null;
 }
 
-function extractDemandCity(linesText: string, text: string, sourceUrl: string) {
+function extractDemandCity(
+  linesText: string,
+  evidenceText: string,
+  sourceUrl: string,
+) {
   const labeledValue = extractLabeledValue(linesText, [
     ...DEMAND_CITY_LABELS,
     ...LEGACY_FIELD_LABELS,
   ]);
+  const labeledCity = extractDemandGuangdongCity(labeledValue);
+  if (labeledCity) {
+    return labeledCity;
+  }
+  if (hasExplicitNonGuangdongPlaceSignal(labeledValue)) {
+    return null;
+  }
+  if (hasExplicitNonGuangdongPlaceSignal(evidenceText)) {
+    return null;
+  }
   return (
-    extractDemandGuangdongCity(labeledValue) ||
-    extractDemandGuangdongCity(text) ||
-    extractDemandCityFromUrl(sourceUrl)
+    infer99CfwCityFromSourceUrl(sourceUrl) ||
+    extractDemandGuangdongCity(evidenceText) ||
+    null
   );
 }
 
@@ -626,8 +672,11 @@ function extractDemandPublishedDateText(linesText: string, text: string) {
   );
 }
 
-function normalizeDemandPublishedAt(publishedDateText: null | string) {
-  const parsed = normalizePublishedAt(publishedDateText);
+function normalizeDemandPublishedAt(
+  publishedDateText: null | string,
+  crawledAt = new Date(),
+) {
+  const parsed = normalizePublishedAt(publishedDateText, crawledAt);
   if (parsed) {
     return parsed;
   }
@@ -637,7 +686,7 @@ function normalizeDemandPublishedAt(publishedDateText: null | string) {
     return null;
   }
   if (/刚刚|刚发布/.test(text)) {
-    return new Date().toISOString();
+    return crawledAt.toISOString();
   }
 
   const compactDateMatch = /^(20\d{2})([01]\d)([0-3]\d)$/.exec(text);
@@ -653,20 +702,22 @@ function normalizeDemandPublishedAt(publishedDateText: null | string) {
   const minuteMatch = /(\d+)\s*分钟前/.exec(text);
   if (minuteMatch?.[1]) {
     return new Date(
-      Date.now() - Number(minuteMatch[1]) * 60 * 1000,
+      crawledAt.getTime() - Number(minuteMatch[1]) * 60 * 1000,
     ).toISOString();
   }
   const hourMatch = /(\d+)\s*小时前/.exec(text);
   if (hourMatch?.[1]) {
     return new Date(
-      Date.now() - Number(hourMatch[1]) * 60 * 60 * 1000,
+      crawledAt.getTime() - Number(hourMatch[1]) * 60 * 60 * 1000,
     ).toISOString();
   }
   const dayRelativeMatch =
     /^(今天|昨日|昨天)\s*(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(text);
   if (dayRelativeMatch) {
     const dayOffset = dayRelativeMatch[1] === '今天' ? 0 : 1;
-    const base = new Date(Date.now() - dayOffset * 24 * 60 * 60 * 1000);
+    const base = new Date(
+      crawledAt.getTime() - dayOffset * 24 * 60 * 60 * 1000,
+    );
     const shanghaiDate = new Date(base.getTime() + 8 * 60 * 60 * 1000);
     const date = new Date(
       `${shanghaiDate.getUTCFullYear()}-${String(
@@ -690,25 +741,63 @@ function extractVisibleTitle(html: string) {
     /<h2[^>]*>([\s\S]*?)<\/h2>/i,
     /<h3[^>]*>([\s\S]*?)<\/h3>/i,
     /<[^>]+class=["'][^"']*(?:title|tit|bt)[^"']*["'][^>]*>([\s\S]*?)<\/[^>]+>/i,
-    /<title[^>]*>([\s\S]*?)<\/title>/i,
   ]);
-  return title
-    ? cleanText(decodeHtmlEntities(title))
-        .replace(/\s*[-_|]\s*(?:99厂房网|厂房在线|中工招商网).*$/, '')
-        .trim()
-    : null;
+  return title ? normalizeDemandTitle(title) : null;
+}
+
+function extractDocumentTitle(html: string) {
+  const title = extractFirstMatch(html, [/<title[^>]*>([\s\S]*?)<\/title>/i]);
+  return title ? normalizeDemandTitle(title) : null;
+}
+
+function normalizeDemandTitle(value: null | string | undefined) {
+  const normalized = cleanText(decodeHtmlEntities(value || ''))
+    .replaceAll(/\s+/g, ' ')
+    .replaceAll(
+      /[-_|](广东|广州|深圳|东莞|佛山|惠州|珠海|中山|江门|肇庆|清远|云浮|揭阳|潮州|汕头|汕尾|河源|阳江|茂名|湛江|韶关|梅州)?(厂房求租|仓库求租|厂房出租|仓库出租|求租厂房|求租仓库)?[-_|]?(久久厂房网|99厂房网|厂房在线|中工招商网|中工招商|99cfw).*$/gi,
+      '',
+    )
+    .replaceAll(
+      /\s[-_|]\s.*(?:久久厂房网|99厂房网|厂房在线|中工招商网|中工招商|99cfw).*$/gi,
+      '',
+    )
+    .replaceAll(/\s*[-_|]\s*专业的?厂房仓库租赁平台.*$/g, '')
+    .trim();
+  return normalized || null;
+}
+
+function isUsableDemandTitle(value: null | string | undefined) {
+  const normalized = String(value || '').trim();
+  if (normalized.length < 2) {
+    return false;
+  }
+  if (
+    /^(?:广东|广州|深圳|东莞|佛山|惠州|珠海|中山|江门|肇庆)?(?:久久厂房网|99厂房网|厂房在线|中工招商网|中工招商)$/.test(
+      normalized,
+    )
+  ) {
+    return false;
+  }
+  if (
+    /(?:专业的?)?厂房仓库租赁平台/.test(normalized) ||
+    /^(?:首页|厂房出租|仓库出租|厂房求租|仓库求租)$/.test(normalized)
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function extractDemandTitle(
   html: string,
   jsonRecords: Record<string, unknown>[],
 ) {
-  return (
-    extractVisibleTitle(html) ||
-    extractTitle(html) ||
-    extractMetaContent(html, ['og:title', 'twitter:title']) ||
-    extractJsonField(jsonRecords, ['title', 'name', 'headline'])
-  );
+  const candidates = [
+    extractJsonField(jsonRecords, ['headline', 'name', 'title']),
+    extractMetaContent(html, ['og:title', 'twitter:title']),
+    extractVisibleTitle(html),
+    extractDocumentTitle(html),
+  ].map((value) => normalizeDemandTitle(value));
+  return candidates.find((candidate) => isUsableDemandTitle(candidate)) || null;
 }
 
 function extractDemandDescription(
@@ -722,6 +811,38 @@ function extractDemandDescription(
     text.slice(0, 2000) ||
     null
   );
+}
+
+function extractTrustedDemandDescription(
+  html: string,
+  jsonRecords: Record<string, unknown>[],
+) {
+  return (
+    extractMetaContent(html, ['description', 'og:description']) ||
+    extractJsonField(jsonRecords, ['description', 'articleBody']) ||
+    null
+  );
+}
+
+function buildDemandLocationEvidenceText(params: {
+  jsonRecords: Record<string, unknown>[];
+  linesText: string;
+  primaryContentText: null | string;
+  title: null | string;
+  trustedDescription: null | string;
+}) {
+  return [
+    extractLabeledValue(params.linesText, [
+      ...DEMAND_CITY_LABELS,
+      ...LEGACY_FIELD_LABELS,
+    ]),
+    params.title,
+    params.trustedDescription,
+    params.primaryContentText,
+    extractJsonField(params.jsonRecords, ['description', 'articleBody']),
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 function buildDemandText(params: {
@@ -743,6 +864,7 @@ function buildDemandText(params: {
 }
 
 export function buildPublicDemandOpportunity({
+  crawledAt = new Date(),
   html,
   sourceSite,
   sourceUrl,
@@ -751,7 +873,16 @@ export function buildPublicDemandOpportunity({
   const text = cleanText(decodeHtmlEntities(html));
   const jsonRecords = parseJsonLikeBlocks(html);
   const title = extractDemandTitle(html, jsonRecords);
+  const primaryContentText = extractPrimaryContentText(html);
+  const trustedDescription = extractTrustedDemandDescription(html, jsonRecords);
   const description = extractDemandDescription(html, text, jsonRecords);
+  const locationEvidenceText = buildDemandLocationEvidenceText({
+    jsonRecords,
+    linesText,
+    primaryContentText,
+    title,
+    trustedDescription,
+  });
   const demandText = buildDemandText({
     description,
     jsonRecords,
@@ -762,19 +893,21 @@ export function buildPublicDemandOpportunity({
   const publishedDateText =
     extractDemandPublishedDateText(linesText, demandText) ||
     extractJsonField(jsonRecords, ['datePublished', 'dateModified']);
+  const city = extractDemandCity(linesText, locationEvidenceText, sourceUrl);
+  const district = city ? extractDemandDistrict(linesText, demandText) : null;
   const result = {
     areaText: extractDemandArea(linesText, demandText),
-    city: extractDemandCity(linesText, demandText, sourceUrl),
+    city,
     contactName: extractDemandContactName(linesText, demandText),
     description,
     detailJson: null,
-    district: extractDemandDistrict(linesText, demandText),
+    district,
     industryText: extractDemandIndustry(linesText, demandText),
     missingFields: [],
     opportunityType: 'DEMAND' as const,
     phoneNumber: extractDemandPhoneNumber(linesText, demandText),
     priceText: extractDemandBudget(linesText, demandText),
-    publishedAt: normalizeDemandPublishedAt(publishedDateText),
+    publishedAt: normalizeDemandPublishedAt(publishedDateText, crawledAt),
     publishedDateText,
     sourceSite,
     sourceUrl,
@@ -790,7 +923,11 @@ export function buildPublicDemandOpportunity({
 
   return {
     ...result,
-    detailJson: buildDetailJson(html, missingFields, publishedDateText),
+    detailJson: {
+      ...buildDetailJson(html, missingFields, publishedDateText),
+      locationEvidenceText: locationEvidenceText.slice(0, 1000) || null,
+      primaryContentText: primaryContentText?.slice(0, 2000) || null,
+    },
     missingFields,
   };
 }

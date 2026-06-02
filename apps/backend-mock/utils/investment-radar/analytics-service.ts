@@ -102,6 +102,37 @@ export interface SalesStats {
   dealRate: number;
 }
 
+export interface SalesFunnelStats {
+  assignedLeads: number;
+  contactedLeads: number;
+  contactRate: number;
+  dealLeads: number;
+  dealRate: number;
+  newLeads: number;
+  repliedLeads: number;
+  replyRate: number;
+  visitLeads: number;
+  visitRate: number;
+}
+
+export interface RoiStats {
+  channel: string;
+  dealLeads: number;
+  estimatedCost: number;
+  estimatedRevenue: number;
+  roi: number;
+  sentTasks: number;
+}
+
+export interface TemplateConversionStats extends TemplateStats {
+  dealLeads: number;
+  dealRate: number;
+  sentTasks: number;
+  templateId?: null | number;
+  visitLeads: number;
+  visitRate: number;
+}
+
 /**
  * 获取获客漏斗数据
  */
@@ -244,6 +275,7 @@ export async function getChannelStats(): Promise<ChannelStats[]> {
       SUM(CASE WHEN reply_status IN ('REPLIED', 'POSITIVE', 'NEGATIVE') THEN 1 ELSE 0 END) AS repliedTasks,
       SUM(CASE WHEN reply_status = 'POSITIVE' THEN 1 ELSE 0 END) AS positiveReplies
     FROM investment_outreach_task
+    WHERE create_time >= DATE_SUB(NOW(), INTERVAL 90 DAY)
     GROUP BY channel
     ORDER BY totalTasks DESC
     LIMIT 10
@@ -290,6 +322,7 @@ export async function getTemplateStats(): Promise<TemplateStats[]> {
       SUM(CASE WHEN reply_status IN ('REPLIED', 'POSITIVE', 'NEGATIVE') THEN 1 ELSE 0 END) AS repliedTasks,
       SUM(CASE WHEN reply_status = 'POSITIVE' THEN 1 ELSE 0 END) AS positiveReplies
     FROM investment_outreach_task
+    WHERE create_time >= DATE_SUB(NOW(), INTERVAL 90 DAY)
     GROUP BY templateCode, templateName
     ORDER BY totalTasks DESC
     LIMIT 10
@@ -305,6 +338,173 @@ export async function getTemplateStats(): Promise<TemplateStats[]> {
       replyRate: toRate(repliedTasks, item.totalTasks),
       positiveReplies: toNumber(item.positiveReplies),
       positiveRate: toRate(item.positiveReplies, repliedTasks),
+    };
+  });
+}
+
+export async function getSalesFunnelStats(): Promise<SalesFunnelStats> {
+  const rows = await prismaClient.$queryRawUnsafe<
+    Array<Record<string, CountValue>>
+  >(`
+    SELECT
+      COUNT(*) AS totalLeads,
+      SUM(CASE WHEN owner_user_id IS NOT NULL THEN 1 ELSE 0 END) AS assignedLeads,
+      SUM(CASE WHEN stage IN ('NEW', 'PENDING_CONTACT') THEN 1 ELSE 0 END) AS newLeads,
+      SUM(CASE WHEN latest_contact_time IS NOT NULL OR stage IN ('CONTACTED', 'REPLIED', 'VISIT', 'DEAL') THEN 1 ELSE 0 END) AS contactedLeads,
+      SUM(CASE WHEN stage IN ('REPLIED', 'VISIT', 'DEAL') THEN 1 ELSE 0 END) AS repliedLeads,
+      SUM(CASE WHEN stage IN ('VISIT', 'DEAL') THEN 1 ELSE 0 END) AS visitLeads,
+      SUM(CASE WHEN stage = 'DEAL' THEN 1 ELSE 0 END) AS dealLeads
+    FROM investment_lead
+    WHERE is_deleted = 0
+  `);
+
+  const item = rows[0] || {};
+  const totalLeads = toNumber(item.totalLeads);
+  const contactedLeads = toNumber(item.contactedLeads);
+  const repliedLeads = toNumber(item.repliedLeads);
+  const visitLeads = toNumber(item.visitLeads);
+  return {
+    assignedLeads: toNumber(item.assignedLeads),
+    contactedLeads,
+    contactRate: toRate(contactedLeads, totalLeads),
+    dealLeads: toNumber(item.dealLeads),
+    dealRate: toRate(item.dealLeads, totalLeads),
+    newLeads: toNumber(item.newLeads),
+    repliedLeads,
+    replyRate: toRate(repliedLeads, contactedLeads),
+    visitLeads,
+    visitRate: toRate(visitLeads, repliedLeads),
+  };
+}
+
+export async function getRoiStats(): Promise<RoiStats[]> {
+  const hasOutreachTaskTable = await tableExists('investment_outreach_task');
+  if (!hasOutreachTaskTable) {
+    return [];
+  }
+
+  const rows = await prismaClient.$queryRawUnsafe<
+    Array<Record<string, CountValue> & { channel: string }>
+  >(`
+    SELECT
+      COALESCE(NULLIF(t.channel, ''), 'UNKNOWN') AS channel,
+      SUM(CASE WHEN t.status IN ('SENT', 'SUCCESS') THEN 1 ELSE 0 END) AS sentTasks,
+      COUNT(DISTINCT CASE WHEN l.stage = 'DEAL' THEN l.lead_id ELSE NULL END) AS dealLeads
+    FROM investment_outreach_task t
+    LEFT JOIN investment_lead l ON l.lead_id = t.lead_id AND l.is_deleted = 0
+    WHERE t.create_time >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+    GROUP BY channel
+    ORDER BY sentTasks DESC
+    LIMIT 10
+  `);
+
+  const channelCost: Record<string, number> = {
+    CALL: 8,
+    EMAIL: 1,
+    SMS: 0.08,
+    VISIT: 120,
+    WECHAT: 2,
+  };
+  const estimatedDealValue = 10_000;
+
+  return rows.map((item) => {
+    const sentTasks = toNumber(item.sentTasks);
+    const dealLeads = toNumber(item.dealLeads);
+    const estimatedCost = Number(
+      (sentTasks * (channelCost[item.channel] ?? 1)).toFixed(2),
+    );
+    const estimatedRevenue = dealLeads * estimatedDealValue;
+    return {
+      channel: item.channel || 'UNKNOWN',
+      dealLeads,
+      estimatedCost,
+      estimatedRevenue,
+      roi:
+        estimatedCost > 0
+          ? Number(
+              ((estimatedRevenue - estimatedCost) / estimatedCost).toFixed(2),
+            )
+          : 0,
+      sentTasks,
+    };
+  });
+}
+
+export async function getTemplateConversionStats(): Promise<
+  TemplateConversionStats[]
+> {
+  const [hasOutreachTaskTable, hasTemplateTable] = await Promise.all([
+    tableExists('investment_outreach_task'),
+    tableExists('investment_outreach_template'),
+  ]);
+
+  if (!hasOutreachTaskTable) {
+    return [];
+  }
+
+  const templateJoin = hasTemplateTable
+    ? `
+      LEFT JOIN investment_outreach_template tpl
+        ON tpl.template_code COLLATE utf8mb4_unicode_ci =
+          t.template_code COLLATE utf8mb4_unicode_ci
+    `
+    : '';
+  const templateIdSelect = hasTemplateTable
+    ? 'tpl.template_id AS templateId,'
+    : 'NULL AS templateId,';
+  const templateNameSelect = hasTemplateTable
+    ? "COALESCE(NULLIF(tpl.template_name, ''), NULLIF(t.template_code, ''), '未设置话术') AS templateName,"
+    : "COALESCE(NULLIF(t.template_code, ''), '未设置话术') AS templateName,";
+  const groupByTemplateId = hasTemplateTable ? 'templateId,' : '';
+
+  const rows = await prismaClient.$queryRawUnsafe<
+    Array<
+      Record<string, CountValue> & {
+        templateCode: string;
+        templateName: string;
+      }
+    >
+  >(`
+    SELECT
+      ${templateIdSelect}
+      COALESCE(NULLIF(t.template_code, ''), 'UNSET') AS templateCode,
+      ${templateNameSelect}
+      COUNT(*) AS totalTasks,
+      SUM(CASE WHEN t.status IN ('SENT', 'SUCCESS') THEN 1 ELSE 0 END) AS sentTasks,
+      SUM(CASE WHEN t.reply_status IN ('REPLIED', 'POSITIVE', 'NEGATIVE') THEN 1 ELSE 0 END) AS repliedTasks,
+      SUM(CASE WHEN t.reply_status = 'POSITIVE' THEN 1 ELSE 0 END) AS positiveReplies,
+      COUNT(DISTINCT CASE WHEN l.stage IN ('VISIT', 'DEAL') THEN l.lead_id ELSE NULL END) AS visitLeads,
+      COUNT(DISTINCT CASE WHEN l.stage = 'DEAL' THEN l.lead_id ELSE NULL END) AS dealLeads
+    FROM investment_outreach_task t
+    LEFT JOIN investment_lead l ON l.lead_id = t.lead_id AND l.is_deleted = 0
+    ${templateJoin}
+    WHERE t.create_time >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+    GROUP BY ${groupByTemplateId} templateCode, templateName
+    ORDER BY dealLeads DESC, positiveReplies DESC, totalTasks DESC
+    LIMIT 20
+  `);
+
+  return rows.map((item) => {
+    const totalTasks = toNumber(item.totalTasks);
+    const repliedTasks = toNumber(item.repliedTasks);
+    const sentTasks = toNumber(item.sentTasks);
+    return {
+      dealLeads: toNumber(item.dealLeads),
+      dealRate: toRate(item.dealLeads, sentTasks),
+      positiveRate: toRate(item.positiveReplies, repliedTasks),
+      positiveReplies: toNumber(item.positiveReplies),
+      repliedTasks,
+      replyRate: toRate(repliedTasks, sentTasks || totalTasks),
+      sentTasks,
+      templateCode: item.templateCode || 'UNSET',
+      templateId:
+        item.templateId === null || item.templateId === undefined
+          ? null
+          : Number(item.templateId),
+      templateName: item.templateName || '未设置话术',
+      totalTasks,
+      visitLeads: toNumber(item.visitLeads),
+      visitRate: toRate(item.visitLeads, sentTasks),
     };
   });
 }

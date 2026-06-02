@@ -17,6 +17,7 @@ model User {
   feedbacks                  Feedback[]         @relation("UserToFeedback")
   parkId                     Int?               @map("park_id")
   park                       Park?              @relation("ParkToUser", fields: [parkId], references: [parkId])
+  userParks                  UserPark[]         @relation("UserToUserPark")
   attendances                Attendance[]       @relation("UserToAttendance")
   createTime                 DateTime?          @default(now()) @map("create_time")
   updateTime                 DateTime?          @updatedAt @map("update_time")
@@ -35,4 +36,20 @@ model UserCode {
 
   @@index([userId])
   @@map("user_code")
+}
+
+model UserPark {
+  id         Int       @id @default(autoincrement())
+  userId     Int       @map("user_id")
+  parkId     Int       @map("park_id")
+  isDeleted  Boolean   @default(false) @map("is_deleted")
+  user       User      @relation("UserToUserPark", fields: [userId], references: [id], onDelete: Cascade)
+  park       Park      @relation("ParkToUserPark", fields: [parkId], references: [parkId])
+  createTime DateTime? @default(now()) @map("create_time")
+  updateTime DateTime? @updatedAt @map("update_time")
+
+  @@index([userId])
+  @@index([parkId])
+  @@unique([userId, parkId])
+  @@map("user_park")
 }

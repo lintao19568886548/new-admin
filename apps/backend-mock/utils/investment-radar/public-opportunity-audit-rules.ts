@@ -1,16 +1,23 @@
+import { PUBLIC_OPPORTUNITY_FRESHNESS_DAYS } from './crawler-types';
 import {
   GUANGDONG_CITY_SCOPE_PATTERN,
+  NON_GUANGDONG_REGION_PATTERN,
   UNKNOWN_CITY_VALUE_PATTERN,
 } from './guangdong-public-scope';
 
 export const AUDIT_PREVIEW_LIMIT = 50;
 export const EARLIEST_REASONABLE_PUBLISHED_AT = '2000-01-01 00:00:00';
-export const FUTURE_PUBLISHED_TOLERANCE_DAYS = 1;
+export const FUTURE_PUBLISHED_TOLERANCE_DAYS = 2;
 export const CREATED_PUBLISHED_TOLERANCE_DAYS = 7;
 export const TRACEABLE_SOURCE_URL_PATTERN = '^https?://';
 export const HASH_OR_DETAIL_FIELD_PATTERN =
   '"(responseHash|sourceSnapshotHash|rawEvidenceText)"[[:space:]]*:';
 export const GUANGDONG_REGION_PATTERN = GUANGDONG_CITY_SCOPE_PATTERN;
+
+export function buildPublishedObservedAtSql(tableAlias = '') {
+  const prefix = tableAlias ? `${tableAlias}.` : '';
+  return `COALESCE(${prefix}last_synced_at, ${prefix}update_time, ${prefix}create_time)`;
+}
 
 export type PublicOpportunityAuditDowngradeStatus =
   | 'INVALID'
@@ -128,7 +135,22 @@ export interface PublicOpportunityAuditPreviewItem {
   updateTime: null | string;
 }
 
-export function buildAuditScopeSql() {
+export type PublicOpportunityAuditScopeStatus = 'EFFECTIVE' | 'VERIFIED';
+
+export function buildAuditScopeSql(
+  statuses: readonly PublicOpportunityAuditScopeStatus[] = [
+    'EFFECTIVE',
+    'VERIFIED',
+  ],
+) {
+  const normalizedStatuses = [...new Set(statuses)].filter((status) =>
+    ['EFFECTIVE', 'VERIFIED'].includes(status),
+  );
+  const repairCandidateStatusSql =
+    normalizedStatuses.length > 0
+      ? normalizedStatuses.map((status) => `'${status}'`).join(', ')
+      : "'EFFECTIVE'";
+
   return `
     SELECT
       audit_base.*,
@@ -189,19 +211,26 @@ export function buildAuditScopeSql() {
             area_text,
             title,
             source_site,
-            source_url,
-            description,
-            detail_json
+            source_url
           ) REGEXP ?
+            AND CONCAT_WS(
+              ' ',
+              city,
+              district,
+              area_text,
+              title,
+              source_site,
+              source_url
+            ) NOT REGEXP ?
             THEN 1
           ELSE 0
         END AS isGuangdong,
         CASE
-          WHEN opportunity_status = 'EFFECTIVE' THEN 1
+          WHEN opportunity_status IN ('EFFECTIVE', 'VERIFIED') THEN 1
           ELSE 0
         END AS isEffective,
         CASE
-          WHEN opportunity_status IN ('EFFECTIVE', 'VERIFIED') THEN 1
+          WHEN opportunity_status IN (${repairCandidateStatusSql}) THEN 1
           ELSE 0
         END AS isRepairCandidate,
         CASE
@@ -228,8 +257,11 @@ export function buildAuditScopeSql() {
               published_at > DATE_ADD(NOW(3), INTERVAL ? DAY)
               OR published_at < ?
               OR (
-                create_time IS NOT NULL
-                AND published_at > DATE_ADD(create_time, INTERVAL ? DAY)
+                ${buildPublishedObservedAtSql()} IS NOT NULL
+                AND published_at > DATE_ADD(
+                  ${buildPublishedObservedAtSql()},
+                  INTERVAL ? DAY
+                )
               )
             )
             THEN 1
@@ -265,6 +297,7 @@ export function buildAuditScopeParams() {
     GUANGDONG_REGION_PATTERN,
     UNKNOWN_CITY_VALUE_PATTERN,
     GUANGDONG_REGION_PATTERN,
+    NON_GUANGDONG_REGION_PATTERN,
     UNKNOWN_CITY_VALUE_PATTERN,
     TRACEABLE_SOURCE_URL_PATTERN,
     FUTURE_PUBLISHED_TOLERANCE_DAYS,
@@ -288,10 +321,17 @@ export function buildStrictEffectiveOpportunityWhereSql(tableAlias = '') {
       ${column('area_text')},
       ${column('title')},
       ${column('source_site')},
-      ${column('source_url')},
-      ${column('description')},
-      ${column('detail_json')}
+      ${column('source_url')}
     ) REGEXP ?
+    AND CONCAT_WS(
+      ' ',
+      ${column('city')},
+      ${column('district')},
+      ${column('area_text')},
+      ${column('title')},
+      ${column('source_site')},
+      ${column('source_url')}
+    ) NOT REGEXP ?
     AND ${column('city')} IS NOT NULL
     AND TRIM(${column('city')}) <> ''
     AND TRIM(${column('city')}) REGEXP ?
@@ -299,6 +339,7 @@ export function buildStrictEffectiveOpportunityWhereSql(tableAlias = '') {
     AND TRIM(${column('source_url')}) <> ''
     AND LOWER(TRIM(${column('source_url')})) REGEXP ?
     AND ${column('published_at')} IS NOT NULL
+    AND ${column('published_at')} >= DATE_SUB(NOW(3), INTERVAL ${PUBLIC_OPPORTUNITY_FRESHNESS_DAYS} DAY)
     AND ${column('published_at')} <= DATE_ADD(NOW(3), INTERVAL ? DAY)
     AND ${column('published_at')} >= ?
     AND (
@@ -309,9 +350,9 @@ export function buildStrictEffectiveOpportunityWhereSql(tableAlias = '') {
       )
     )
     AND (
-      ${column('create_time')} IS NULL
+      ${buildPublishedObservedAtSql(tableAlias)} IS NULL
       OR ${column('published_at')} <= DATE_ADD(
-        ${column('create_time')},
+        ${buildPublishedObservedAtSql(tableAlias)},
         INTERVAL ? DAY
       )
     )
@@ -324,6 +365,7 @@ export function buildStrictEffectiveOpportunityWhereSql(tableAlias = '') {
 export function buildStrictEffectiveOpportunityWhereParams() {
   return [
     GUANGDONG_REGION_PATTERN,
+    NON_GUANGDONG_REGION_PATTERN,
     GUANGDONG_REGION_PATTERN,
     TRACEABLE_SOURCE_URL_PATTERN,
     FUTURE_PUBLISHED_TOLERANCE_DAYS,

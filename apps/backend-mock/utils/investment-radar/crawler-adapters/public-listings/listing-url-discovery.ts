@@ -8,10 +8,12 @@ interface ListingUrlDiscoveryOptions {
 
 function decodeHtmlEntities(value: string) {
   return value
-    .replaceAll('&amp;', '&')
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&quot;', '"')
+    .replaceAll(/\\u002f/gi, '/')
+    .replaceAll(String.raw`\/`, '/')
+    .replaceAll(/&amp;/gi, '&')
+    .replaceAll(/&lt;/gi, '<')
+    .replaceAll(/&gt;/gi, '>')
+    .replaceAll(/&quot;/gi, '"')
     .replaceAll('&#39;', "'")
     .replaceAll(/&nbsp;/gi, ' ')
     .replaceAll(/&#x([\da-f]+);/gi, (_, hex: string) =>
@@ -42,7 +44,6 @@ function normalizeDiscoveredUrl(value: string, listUrl: string) {
 
     const url = new URL(normalizedValue, listUrl);
     url.hash = '';
-    url.search = '';
     return url.toString();
   } catch {
     return null;
@@ -67,7 +68,7 @@ function extractJsonLikeUrls(html: string, listUrl: string) {
   };
 
   const jsonUrlPattern =
-    /["'](?:url|href|link|detailUrl|detail_url|houseUrl|house_url)["']\s*:\s*["']([^"']+)["']/gi;
+    /["'](?:url|href|link|detailUrl|detail_url|detailHref|detail_href|houseUrl|house_url|pcUrl|pc_url|jumpUrl|jump_url|sourceUrl|source_url|urlPath|url_path|path)["']\s*:\s*["']([^"']+)["']/gi;
   for (const match of html.matchAll(jsonUrlPattern)) {
     const before = html.slice(
       Math.max(0, (match.index || 0) - 300),
@@ -78,6 +79,28 @@ function extractJsonLikeUrls(html: string, listUrl: string) {
         before,
       )?.[1] || null;
     pushUrl(match[1] || '', title || undefined);
+  }
+
+  const scriptNavigationPattern =
+    /\b(?:window\.open|open|goDetail|toDetail)\s*\(\s*["']([^"']+)["']/gi;
+  for (const match of html.matchAll(scriptNavigationPattern)) {
+    pushUrl(match[1] || '');
+  }
+
+  const locationAssignmentPattern =
+    /\b(?:location\.href|window\.location|location)\s*=\s*["']([^"']+)["']/gi;
+  for (const match of html.matchAll(locationAssignmentPattern)) {
+    pushUrl(match[1] || '');
+  }
+
+  const escapedAbsoluteUrlPattern = /https?:\\\/\\\/[^\s"'<>]+/gi;
+  for (const match of html.matchAll(escapedAbsoluteUrlPattern)) {
+    pushUrl(match[0] || '');
+  }
+
+  const absoluteUrlPattern = /(?:https?:)?\/\/[^\s"'<>\\]+/gi;
+  for (const match of html.matchAll(absoluteUrlPattern)) {
+    pushUrl(match[0] || '');
   }
 
   return urls;
@@ -118,7 +141,7 @@ export function extractListingDetailUrlsFromListHtml(
   }
 
   const dataUrlPattern =
-    /\b(?:data-url|data-href|data-link|data-detail-url)\s*=\s*["']([^"']+)["']/gi;
+    /\b(?:data-url|data-href|data-link|data-detail-url|data-source-url|data-clipboard-text|data-src|data-original|data-jump-url|data-pc-url)\s*=\s*["']([^"']+)["']/gi;
   for (const match of html.matchAll(dataUrlPattern)) {
     const sourceUrl = normalizeDiscoveredUrl(match[1] || '', listUrl);
     if (!sourceUrl) {

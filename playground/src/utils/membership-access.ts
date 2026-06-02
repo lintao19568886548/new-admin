@@ -25,6 +25,8 @@ export const MEMBERSHIP_ALLOWED_ROUTE_PATHS = new Set([
   '/profile/vip-membership',
   '/rental/manage',
   '/rental/manage/mobile',
+  '/system/park',
+  '/system/park/mobile',
   '/workbench',
 ]);
 

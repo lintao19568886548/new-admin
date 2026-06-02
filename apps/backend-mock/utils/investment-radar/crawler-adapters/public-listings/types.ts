@@ -10,11 +10,16 @@ export interface PublicListingCrawlerAdapter {
     html: string,
     listUrl: string,
   ) => PublicListingDiscoveredDetailUrl[];
-  extractFromHtml: (html: string, sourceUrl: string) => ParsedPublicOpportunity;
+  extractFromHtml: (
+    html: string,
+    sourceUrl: string,
+    crawledAt?: Date,
+  ) => ParsedPublicOpportunity;
   listUrls: string[];
   opportunityType: 'SUPPLY';
   platformName: string;
   sourceCode: string;
   sourceSite: string;
   validateDetailUrl: (sourceUrl: string) => boolean;
+  validateListUrl?: (sourceUrl: string) => null | string;
 }

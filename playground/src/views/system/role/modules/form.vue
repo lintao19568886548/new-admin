@@ -11,9 +11,18 @@ import { computed, ref } from 'vue';
 import { useVbenDrawer, VbenTree } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Spin } from 'ant-design-vue';
+import {
+  Button,
+  Input,
+  InputNumber,
+  message,
+  Modal,
+  Select,
+  Spin,
+} from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
+import { createPark, getParkList } from '#/api/park/park';
 // 引入菜单 API 用于权限树
 import { getMenuList, getMenusByParentRole } from '#/api/system/menu';
 import {
@@ -54,12 +63,223 @@ const originalCodeSelections = ref<Set<number>>(new Set()); // 原始权限码�
 const currentCodeSelections = ref<Set<number>>(new Set()); // 当前权限码选中状态
 
 const id = ref();
+const parkOptions = ref<Recordable<any>[]>([]);
+const parkLoading = ref(false);
+const parkSearchText = ref('');
+const quickParkModalOpen = ref(false);
+const quickParkSaving = ref(false);
+const quickParkForm = ref<{
+  address: string;
+  area?: number;
+  parkName: string;
+}>({
+  address: '',
+  area: undefined,
+  parkName: '',
+});
+
+function normalizeMenuId(value: unknown) {
+  const menuId = Number(value);
+  return Number.isSafeInteger(menuId) && menuId > 0 ? menuId : undefined;
+}
+
+function filterPersistedMenuNodes(menus: any[]): any[] {
+  return menus
+    .map((menu) => {
+      const menuId = normalizeMenuId(menu?.menuId);
+      const children = Array.isArray(menu?.children)
+        ? filterPersistedMenuNodes(menu.children)
+        : [];
+
+      if (!menuId) {
+        return null;
+      }
+
+      return {
+        ...menu,
+        children: children.length > 0 ? children : undefined,
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizePermissionIds(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      value
+        .map((item) => normalizeMenuId(item))
+        .filter((item): item is number => item !== undefined),
+    ),
+  ];
+}
+
+function normalizeParkOptions(response: any) {
+  const responseItems = Array.isArray(response?.items) ? response.items : [];
+  const list = Array.isArray(response) ? response : responseItems;
+  const seenIds = new Set<number>();
+
+  return list
+    .map((item: Recordable<any>) => ({
+      ...item,
+      parkId: normalizeMenuId(item?.parkId),
+      parkName: String(item?.parkName || '').trim(),
+    }))
+    .filter((item: Recordable<any>) => {
+      if (!item.parkId || !item.parkName || seenIds.has(item.parkId)) {
+        return false;
+      }
+      seenIds.add(item.parkId);
+      return true;
+    });
+}
+
+const parkSelectOptions = computed(() =>
+  parkOptions.value.map((park) => ({
+    address: park.address,
+    label: park.parkName,
+    parkName: park.parkName,
+    value: park.parkId,
+  })),
+);
+
+function upsertParkOption(park: Recordable<any>) {
+  const parkId = normalizeMenuId(park?.parkId);
+  const parkName = String(park?.parkName || '').trim();
+  if (!parkId || !parkName) return;
+
+  const nextPark = {
+    ...park,
+    parkId,
+    parkName,
+  };
+  const index = parkOptions.value.findIndex((item) => item.parkId === parkId);
+  if (index === -1) {
+    parkOptions.value = [...parkOptions.value, nextPark];
+  } else {
+    parkOptions.value[index] = { ...parkOptions.value[index], ...nextPark };
+  }
+}
+
+async function loadParkOptions() {
+  if (parkLoading.value) return;
+  parkLoading.value = true;
+  try {
+    parkOptions.value = normalizeParkOptions(await getParkList());
+  } catch (error) {
+    console.error('加载园区列表失败:', error);
+    message.error('加载园区列表失败');
+  } finally {
+    parkLoading.value = false;
+  }
+}
+
+function filterParkOption(input: string, option?: Recordable<any>) {
+  if (!input) return true;
+  const keyword = input.trim().toLowerCase();
+  const text = [option?.label, option?.parkName, option?.address, option?.value]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return text.includes(keyword);
+}
+
+function resetQuickParkForm(parkName = '') {
+  quickParkForm.value = {
+    address: '',
+    area: undefined,
+    parkName,
+  };
+}
+
+function openQuickCreatePark() {
+  resetQuickParkForm(parkSearchText.value.trim());
+  quickParkModalOpen.value = true;
+}
+
+function closeQuickCreatePark() {
+  quickParkModalOpen.value = false;
+  resetQuickParkForm();
+}
+
+async function submitQuickCreatePark() {
+  const parkName = quickParkForm.value.parkName.trim();
+  const address = quickParkForm.value.address.trim();
+  const area = Number(quickParkForm.value.area);
+
+  if (!parkName) {
+    message.warning('请输入园区名称');
+    return;
+  }
+  if (!address) {
+    message.warning('请输入园区地址');
+    return;
+  }
+  if (!Number.isFinite(area) || area <= 0) {
+    message.warning('请输入有效的园区面积');
+    return;
+  }
+
+  quickParkSaving.value = true;
+  try {
+    const createdPark = await createPark({
+      address,
+      area,
+      parkName,
+      status: '运营中',
+    });
+    await loadParkOptions();
+
+    const createdParkId = normalizeMenuId((createdPark as any)?.parkId);
+    const createdOption =
+      (createdParkId
+        ? parkOptions.value.find((park) => park.parkId === createdParkId)
+        : undefined) ||
+      parkOptions.value.find((park) => park.parkName === parkName) ||
+      (createdParkId
+        ? { address, area, parkId: createdParkId, parkName }
+        : null);
+
+    if (!createdOption?.parkId) {
+      message.warning('园区已新增，但未能自动选中，请刷新后再选择');
+      closeQuickCreatePark();
+      return;
+    }
+
+    upsertParkOption(createdOption);
+    const values = await formApi.getValues();
+    const selectedParkIds = normalizePermissionIds(values.parkIds);
+    formApi.setFieldValue('parkIds', [
+      ...new Set([createdOption.parkId, ...selectedParkIds]),
+    ]);
+    message.success('园区已新增');
+    closeQuickCreatePark();
+  } catch (error) {
+    console.error('新增园区失败:', error);
+    message.error('新增园区失败');
+  } finally {
+    quickParkSaving.value = false;
+  }
+}
+
 const [Drawer, drawerApi] = useVbenDrawer({
   async onConfirm() {
     const { valid } = await formApi.validate();
     if (!valid) return;
     // 获取表单值并进行类型断言
     const values = (await formApi.getValues()) as UpsertRole;
+    values.permissions = normalizePermissionIds(values.permissions);
+    values.parkIds = normalizePermissionIds(values.parkIds);
+
+    if (values.parkIds.length === 0) {
+      message.warning('请选择所属园区');
+      return;
+    }
+
     drawerApi.lock();
 
     try {
@@ -131,6 +351,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
       // 每次打开都重新加载权限树，确保根据当前角色的父角色权限正确显示
       // 加载完成后再初始化权限码选中状态
       loadPermissions();
+      loadParkOptions();
     }
   },
 });
@@ -143,7 +364,9 @@ async function loadPermissions() {
     const res = parentRoleId
       ? await getMenusByParentRole(parentRoleId) // 有父角色时，根据父角色权限限制显示范围
       : await getMenuList(); // 顶级角色显示所有权限
-    menuTreeData.value = res as unknown as DataNode[]; // 更新 menuTreeData
+    menuTreeData.value = filterPersistedMenuNodes(
+      res as unknown as any[],
+    ) as DataNode[]; // 更新 menuTreeData
 
     // 菜单树数据加载完成后，如果是编辑模式，初始化权限码选中状态
     if (formData.value?.roleId) {
@@ -170,6 +393,32 @@ function getNodeClass(node: Recordable<any>) {
   }
 
   return classes.join(' ');
+}
+
+function getPermissionNodeTitle(value: Recordable<any>) {
+  return value?.meta?.title || value?.name || value?.path || '';
+}
+
+function getPermissionNodeTags(value: Recordable<any>) {
+  const meta = value?.meta || {};
+  const pathText =
+    `${value?.path || ''} ${value?.component || ''}`.toLowerCase();
+  const tags: string[] = [];
+
+  if (value?.type === 'button') {
+    tags.push('按钮');
+  }
+  if (meta.isApp || pathText.includes('mobile') || pathText.includes('/app')) {
+    tags.push('移动端');
+  }
+  if (meta.hideInMenu) {
+    tags.push('隐藏');
+  }
+  if (pathText.includes(':') || pathText.includes('detail')) {
+    tags.push('详情');
+  }
+
+  return [...new Set(tags)];
 }
 
 /**
@@ -219,7 +468,7 @@ function initializeCodeSelections(roleData: SystemRoleApi.SystemRole) {
 async function handleCodeSelectionChanges(roleId: number) {
   // 获取当前表单中选中的权限项
   const formValues = await formApi.getValues();
-  const selectedPermissions = formValues.permissions || [];
+  const selectedPermissions = normalizePermissionIds(formValues.permissions);
 
   // 从选中的权限中提取权限码ID
   const newCodeSelections = new Set<number>();
@@ -229,9 +478,12 @@ async function handleCodeSelectionChanges(roleId: number) {
       if (
         menu.type === 'button' &&
         menu.authCode &&
-        selectedIds.includes(menu.menuId)
+        selectedIds.includes(Number(menu.menuId))
       ) {
-        newCodeSelections.add(menu.code.codeId);
+        const codeId = Number(menu.code?.codeId);
+        if (Number.isSafeInteger(codeId) && codeId > 0) {
+          newCodeSelections.add(codeId);
+        }
       }
       if (menu.children) {
         extractSelectedCodes(menu.children, selectedIds);
@@ -291,6 +543,42 @@ defineExpose({
 <template>
   <Drawer :title="getDrawerTitle">
     <Form>
+      <template #parkIds="slotProps">
+        <div class="space-y-2">
+          <div class="flex gap-2">
+            <Select
+              v-model:value="slotProps.modelValue"
+              allow-clear
+              class="min-w-0 flex-1"
+              :filter-option="filterParkOption"
+              :loading="parkLoading"
+              mode="multiple"
+              :not-found-content="parkLoading ? undefined : '暂无匹配园区'"
+              :options="parkSelectOptions"
+              placeholder="输入搜索或下拉选择所属园区"
+              show-search
+              @change="
+                (value: unknown) =>
+                  formApi.setFieldValue(
+                    'parkIds',
+                    normalizePermissionIds(value),
+                  )
+              "
+              @dropdown-visible-change="
+                (open: boolean) => {
+                  if (open) loadParkOptions();
+                }
+              "
+              @search="(value: string) => (parkSearchText = value)"
+            />
+            <Button @click="openQuickCreatePark">新增园区</Button>
+          </div>
+          <div class="text-xs text-gray-500">
+            可直接输入园区名称过滤，也可以展开下拉选择；保存时会自动去重。
+          </div>
+        </div>
+      </template>
+
       <template #permissions="slotProps">
         <Spin :spinning="loadingPermissions">
           <VbenTree
@@ -308,13 +596,58 @@ defineExpose({
             icon-field="meta.icon"
           >
             <template #node="{ value }">
-              <IconifyIcon v-if="value.meta.icon" :icon="value.meta.icon" />
-              {{ $t(value.meta.title) }}
+              <span class="permission-node">
+                <IconifyIcon v-if="value.meta?.icon" :icon="value.meta.icon" />
+                <span>{{ $t(getPermissionNodeTitle(value)) }}</span>
+                <span
+                  v-for="tag in getPermissionNodeTags(value)"
+                  :key="tag"
+                  class="permission-node-tag"
+                >
+                  {{ tag }}
+                </span>
+              </span>
             </template>
           </VbenTree>
         </Spin>
       </template>
     </Form>
+    <Modal
+      v-model:open="quickParkModalOpen"
+      cancel-text="取消"
+      :confirm-loading="quickParkSaving"
+      ok-text="保存并选中"
+      title="新增园区"
+      @cancel="closeQuickCreatePark"
+      @ok="submitQuickCreatePark"
+    >
+      <div class="space-y-3">
+        <div>
+          <div class="mb-1 text-sm">园区名称</div>
+          <Input
+            v-model:value="quickParkForm.parkName"
+            placeholder="请输入园区名称"
+          />
+        </div>
+        <div>
+          <div class="mb-1 text-sm">园区地址</div>
+          <Input
+            v-model:value="quickParkForm.address"
+            placeholder="请输入园区地址"
+          />
+        </div>
+        <div>
+          <div class="mb-1 text-sm">园区面积（㎡）</div>
+          <InputNumber
+            v-model:value="quickParkForm.area"
+            class="w-full"
+            :min="0.01"
+            :precision="2"
+            placeholder="请输入园区面积"
+          />
+        </div>
+      </div>
+    </Modal>
   </Drawer>
 </template>
 <style lang="css" scoped>
@@ -332,5 +665,22 @@ defineExpose({
     justify-content: flex-end;
     margin-left: 20px;
   }
+}
+
+.permission-node {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 22px;
+}
+
+.permission-node-tag {
+  padding: 0 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #4b5563;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
 }
 </style>

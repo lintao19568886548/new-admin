@@ -10,7 +10,7 @@ import type {
 import type { PublicOpportunityItem, RadarCollectTask } from '#/api/investment';
 
 import { computed, h, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 
@@ -19,6 +19,7 @@ import { useMediaQuery } from '@vueuse/core';
 import {
   Alert,
   Upload as AUpload,
+  AutoComplete,
   Button,
   Card,
   Empty,
@@ -46,6 +47,12 @@ import {
   runRadarCollect,
 } from '#/api/investment';
 
+import {
+  getSearchHistoryOptions,
+  rememberSearchHistory,
+  searchableDropdownProps,
+  useSearchHistory,
+} from '../search-history';
 import CrawlerSources from './crawler-sources.vue';
 import CrawlerTasks from './crawler-tasks.vue';
 import {
@@ -72,9 +79,7 @@ const FactoryListingsComponent = FactoryListings;
 const PublicDemandsComponent = PublicDemands;
 const ScoreRulesComponent = ScoreRules;
 const SignalEventsComponent = SignalEvents;
-const router = useRouter();
-const isMobile = useMediaQuery('(max-width: 767px)');
-const activeTab = ref<
+type RadarTabKey =
   | 'crawlerSources'
   | 'crawlerTasks'
   | 'enterpriseProfiles'
@@ -84,8 +89,41 @@ const activeTab = ref<
   | 'publicDemands'
   | 'publicOpportunities'
   | 'scoreRules'
-  | 'signalEvents'
->('leads');
+  | 'signalEvents';
+
+const router = useRouter();
+const route = useRoute();
+const isMobile = useMediaQuery('(max-width: 767px)');
+const radarTabKeys = new Set<RadarTabKey>([
+  'crawlerSources',
+  'crawlerTasks',
+  'enterpriseProfiles',
+  'externalLeads',
+  'factoryListings',
+  'leads',
+  'publicDemands',
+  'publicOpportunities',
+  'scoreRules',
+  'signalEvents',
+]);
+const mobileRadarTabKeys = new Set<RadarTabKey>([
+  'leads',
+  'publicOpportunities',
+]);
+
+function normalizeRadarTab(value: unknown, mobile = isMobile.value) {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  const tab = String(rawValue || '').trim() as RadarTabKey;
+  if (!radarTabKeys.has(tab)) {
+    return 'leads';
+  }
+  if (mobile && !mobileRadarTabKeys.has(tab)) {
+    return 'publicOpportunities';
+  }
+  return tab;
+}
+
+const activeTab = ref<RadarTabKey>(normalizeRadarTab(route.query.tab));
 const importModalOpen = ref(false);
 const importModalMode = ref<'json' | 'result'>('json');
 const importJsonText = ref('');
@@ -172,6 +210,19 @@ const publicOpportunitySearch = ref({
   opportunityType: '',
   sourceSite: '',
 });
+const publicOpportunityKeywordHistory = useSearchHistory(
+  'radar.list.publicOpportunity.keyword',
+);
+const publicOpportunityCityHistory = useSearchHistory(
+  'radar.list.publicOpportunity.city',
+);
+const publicOpportunitySourceHistory = useSearchHistory(
+  'radar.list.publicOpportunity.sourceSite',
+);
+const publicOpportunityKeywordOptions =
+  publicOpportunityKeywordHistory.options();
+const publicOpportunityCityOptions = publicOpportunityCityHistory.options();
+const publicOpportunitySourceOptions = publicOpportunitySourceHistory.options();
 const publicOpportunityPagination = ref({
   current: 1,
   pageSize: 20,
@@ -184,6 +235,10 @@ const mobileLeadSearch = ref({
   priorityLevel: undefined as string | undefined,
   stage: undefined as string | undefined,
 });
+const mobileLeadKeywordHistory = useSearchHistory(
+  'radar.list.mobileLead.keyword',
+);
+const mobileLeadKeywordOptions = mobileLeadKeywordHistory.options();
 const mobileLeadPagination = ref({
   current: 1,
   pageSize: 10,
@@ -405,7 +460,7 @@ function downloadImportTemplate() {
       '14',
       '800',
       '示例地址',
-      'manual-demo-001',
+      'manual-import-sample-001',
     ],
   ]);
 }
@@ -567,6 +622,7 @@ function buildPublicOpportunityQuery() {
     keyword: publicOpportunitySearch.value.keyword || undefined,
     opportunityType: publicOpportunitySearch.value.opportunityType || undefined,
     pageSize: publicOpportunityPagination.value.pageSize,
+    scope: 'collected' as const,
     sourceSite: publicOpportunitySearch.value.sourceSite || undefined,
   };
 }
@@ -578,11 +634,13 @@ async function loadPublicOpportunities() {
     const result = await getEffectivePublicOpportunityList(
       buildPublicOpportunityQuery(),
     );
-    const effectiveItems = result.items.filter(
-      (item) => item.opportunityStatus === 'EFFECTIVE',
-    );
-    publicOpportunityItems.value = effectiveItems;
-    publicOpportunityPagination.value.total = result.total;
+    publicOpportunityItems.value = Array.isArray(result.items)
+      ? result.items
+      : [];
+    publicOpportunityPagination.value.total =
+      typeof result.total === 'number'
+        ? result.total
+        : (result.page?.total ?? publicOpportunityItems.value.length);
   } catch (error) {
     console.error('获取公开有效机会失败:', error);
     publicOpportunityItems.value = [];
@@ -620,6 +678,7 @@ async function loadMobileLeads() {
 }
 
 function searchMobileLeads() {
+  mobileLeadKeywordHistory.add(mobileLeadSearch.value.keyword);
   mobileLeadPagination.value.current = 1;
   void loadMobileLeads();
 }
@@ -646,6 +705,9 @@ function handlePublicOpportunityPageChange(page: number, nextPageSize: number) {
 }
 
 function searchPublicOpportunities() {
+  publicOpportunityKeywordHistory.add(publicOpportunitySearch.value.keyword);
+  publicOpportunityCityHistory.add(publicOpportunitySearch.value.city);
+  publicOpportunitySourceHistory.add(publicOpportunitySearch.value.sourceSite);
   publicOpportunityPagination.value.current = 1;
   void loadPublicOpportunities();
 }
@@ -686,14 +748,18 @@ function handlePublicOpportunityDetailOpen(value: boolean) {
   publicOpportunityDetailOpen.value = value;
 }
 
-function handleTabChange(key: number | string) {
-  activeTab.value = key as typeof activeTab.value;
+function ensurePublicOpportunitiesLoaded() {
   if (
     activeTab.value === 'publicOpportunities' &&
     publicOpportunityItems.value.length === 0
   ) {
     void loadPublicOpportunities();
   }
+}
+
+function handleTabChange(key: number | string) {
+  activeTab.value = normalizeRadarTab(key, false);
+  ensurePublicOpportunitiesLoaded();
 }
 
 function handleMobileTabChange(key: number | string) {
@@ -719,18 +785,27 @@ onMounted(() => {
   if (isMobile.value) {
     void loadMobileLeads();
   }
+  ensurePublicOpportunitiesLoaded();
 });
 
 watch(isMobile, (value) => {
   if (value) {
     if (!['leads', 'publicOpportunities'].includes(activeTab.value)) {
-      activeTab.value = 'leads';
+      activeTab.value = normalizeRadarTab(activeTab.value, true);
     }
     if (mobileLeadItems.value.length === 0) {
       void loadMobileLeads();
     }
   }
 });
+
+watch(
+  () => route.query.tab,
+  (value) => {
+    activeTab.value = normalizeRadarTab(value);
+    ensurePublicOpportunitiesLoaded();
+  },
+);
 
 watch(activeTab, (value) => {
   if (
@@ -740,6 +815,7 @@ watch(activeTab, (value) => {
   ) {
     void loadMobileLeads();
   }
+  ensurePublicOpportunitiesLoaded();
 });
 
 function onActionClick({ code, row }: OnActionClickParams<any>) {
@@ -881,6 +957,17 @@ const [Grid, gridApi] = useVbenVxeGrid({
       ajax: {
         query: async (page) => {
           const formData = (await gridApi.formApi?.getValues?.()) || {};
+          rememberSearchHistory('radar.list.lead.keyword', formData.keyword);
+          gridApi.formApi?.updateSchema?.([
+            {
+              componentProps: {
+                ...searchableDropdownProps,
+                allowClear: true,
+                options: getSearchHistoryOptions('radar.list.lead.keyword'),
+              },
+              fieldName: 'keyword',
+            },
+          ]);
           return await getRadarLeadList({
             ...formData,
             currentPage: page.page?.currentPage || 1,
@@ -959,11 +1046,14 @@ const [Grid, gridApi] = useVbenVxeGrid({
       >
         <Tabs.TabPane key="leads" tab="潜客">
           <div class="radar-mobile-filter">
-            <Input
+            <AutoComplete
               v-model:value="mobileLeadSearch.keyword"
+              v-bind="searchableDropdownProps"
               allow-clear
+              :options="mobileLeadKeywordOptions"
               placeholder="企业 / 电话 / 园区"
               @press-enter="searchMobileLeads"
+              @select="searchMobileLeads"
             />
             <div class="radar-mobile-filter-grid">
               <Select
@@ -1063,29 +1153,38 @@ const [Grid, gridApi] = useVbenVxeGrid({
           />
 
           <div class="radar-mobile-filter">
-            <Input
+            <AutoComplete
               v-model:value="publicOpportunitySearch.keyword"
+              v-bind="searchableDropdownProps"
               allow-clear
+              :options="publicOpportunityKeywordOptions"
               placeholder="标题 / 联系人 / 来源"
               @press-enter="searchPublicOpportunities"
+              @select="searchPublicOpportunities"
             />
             <div class="radar-mobile-filter-grid">
               <Select
                 v-model:value="publicOpportunitySearch.opportunityType"
                 :options="opportunityTypeOptions"
               />
-              <Input
+              <AutoComplete
                 v-model:value="publicOpportunitySearch.city"
+                v-bind="searchableDropdownProps"
                 allow-clear
+                :options="publicOpportunityCityOptions"
                 placeholder="城市"
                 @press-enter="searchPublicOpportunities"
+                @select="searchPublicOpportunities"
               />
             </div>
-            <Input
+            <AutoComplete
               v-model:value="publicOpportunitySearch.sourceSite"
+              v-bind="searchableDropdownProps"
               allow-clear
+              :options="publicOpportunitySourceOptions"
               placeholder="来源站点"
               @press-enter="searchPublicOpportunities"
+              @select="searchPublicOpportunities"
             />
             <div class="radar-mobile-filter-actions">
               <Button block type="primary" @click="searchPublicOpportunities">
@@ -1273,30 +1372,39 @@ const [Grid, gridApi] = useVbenVxeGrid({
                 />
               </Form.Item>
               <Form.Item label="城市">
-                <Input
+                <AutoComplete
                   v-model:value="publicOpportunitySearch.city"
+                  v-bind="searchableDropdownProps"
                   allow-clear
                   class="radar-filter-control"
+                  :options="publicOpportunityCityOptions"
                   placeholder="惠州"
                   @press-enter="searchPublicOpportunities"
+                  @select="searchPublicOpportunities"
                 />
               </Form.Item>
               <Form.Item label="来源">
-                <Input
+                <AutoComplete
                   v-model:value="publicOpportunitySearch.sourceSite"
+                  v-bind="searchableDropdownProps"
                   allow-clear
                   class="radar-filter-control"
+                  :options="publicOpportunitySourceOptions"
                   placeholder="99cfw"
                   @press-enter="searchPublicOpportunities"
+                  @select="searchPublicOpportunities"
                 />
               </Form.Item>
               <Form.Item label="关键词">
-                <Input
+                <AutoComplete
                   v-model:value="publicOpportunitySearch.keyword"
+                  v-bind="searchableDropdownProps"
                   allow-clear
                   class="radar-filter-keyword"
+                  :options="publicOpportunityKeywordOptions"
                   placeholder="标题 / 联系人 / 来源 URL"
                   @press-enter="searchPublicOpportunities"
+                  @select="searchPublicOpportunities"
                 />
               </Form.Item>
               <Form.Item>

@@ -1,9 +1,11 @@
-export const DEMO_CRAWLER_SOURCE_CODE = 'DEMO_EXTERNAL_LEAD';
 export const INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE = 'INTERNAL_CONTRACT_EXPIRY';
 export const PUBLIC_FACTORY_LISTING_CRAWLER_SOURCE_CODE =
   'PUBLIC_FACTORY_LISTING_CFZSW68';
 export const PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE =
   'PUBLIC_OPPORTUNITY_99CFW';
+export const DEMO_CRAWLER_SOURCE_CODE = PUBLIC_OPPORTUNITY_CRAWLER_SOURCE_CODE;
+export const PUBLIC_OPPORTUNITY_FRESHNESS_DAYS = 180;
+export const PUBLIC_OPPORTUNITY_TASK_BUDGET_MS = 90_000;
 export const PUBLIC_BUSINESS_CHANGE_SOURCE_CODE =
   'PUBLIC_BUSINESS_CHANGE_API_CANDIDATE';
 export const PUBLIC_EIA_NOTICE_SOURCE_CODE = 'PUBLIC_EIA_NOTICE_MEE_CANDIDATE';
@@ -14,27 +16,59 @@ export const PUBLIC_MAP_POI_SOURCE_CODE = 'PUBLIC_MAP_POI_API_CANDIDATE';
 
 export const GENERIC_PUBLIC_FACTORY_LISTING_SOURCE_CODES = [
   'PUBLIC_FACTORY_LISTING_99CFW_DG',
-  'PUBLIC_FACTORY_LISTING_58_DG',
   'PUBLIC_FACTORY_LISTING_TOODC_DG',
-  'PUBLIC_FACTORY_LISTING_CANGXIAOER_DG',
   'PUBLIC_FACTORY_LISTING_SZAQFDC_DG',
   'PUBLIC_FACTORY_LISTING_FANG_DG',
+  'PUBLIC_FACTORY_LISTING_TZGD_GD',
+  'PUBLIC_FACTORY_LISTING_TTCHANGFANG_GD',
+  'PUBLIC_FACTORY_LISTING_GDCFZS_GD',
+  'PUBLIC_FACTORY_LISTING_SZCFW_GD',
+  'PUBLIC_FACTORY_LISTING_SZKKW_GD',
+  'PUBLIC_FACTORY_LISTING_HFDPT_GD',
+  'PUBLIC_FACTORY_LISTING_CHANGFANG88_GD',
+  'PUBLIC_FACTORY_LISTING_YSOL_GD',
 ] as const;
 
 export const PUBLIC_FACTORY_LISTING_PLATFORM_SOURCE_CODES = [
   'PUBLIC_FACTORY_LISTING_99CFW_GD',
-  'PUBLIC_FACTORY_LISTING_58_GD',
   'PUBLIC_FACTORY_LISTING_TOODC_GD',
-  'PUBLIC_FACTORY_LISTING_CANGXIAOER_GD',
-  'PUBLIC_FACTORY_LISTING_CFZX_GD',
   'PUBLIC_FACTORY_LISTING_FANG_GD',
-  'PUBLIC_FACTORY_LISTING_ZGZSW_GD',
+] as const;
+
+export const GENERIC_PUBLIC_DEMAND_SOURCE_CODES = [
+  'PUBLIC_DEMAND_ZHAOSHANG_NET_GD',
 ] as const;
 
 export const PUBLIC_DEMAND_PLATFORM_SOURCE_CODES = [
   'PUBLIC_DEMAND_99CFW_GD',
+  ...GENERIC_PUBLIC_DEMAND_SOURCE_CODES,
+] as const;
+
+export const RETIRED_PUBLIC_OPPORTUNITY_SOURCE_CODES = [
+  'PUBLIC_DEMAND_021CF_GD',
   'PUBLIC_DEMAND_CFZX_GD',
+  'PUBLIC_DEMAND_CHANGFANGHOME_GD',
   'PUBLIC_DEMAND_ZGZSW_GD',
+  'PUBLIC_FACTORY_LISTING_021CF_GD',
+  'PUBLIC_FACTORY_LISTING_58_DG',
+  'PUBLIC_FACTORY_LISTING_58_GD',
+  'PUBLIC_FACTORY_LISTING_CANGXIAOER_DG',
+  'PUBLIC_FACTORY_LISTING_CANGXIAOER_GD',
+  'PUBLIC_FACTORY_LISTING_CFZX_GD',
+  'PUBLIC_FACTORY_LISTING_CHANGFANGHOME_GD',
+  'PUBLIC_FACTORY_LISTING_ZGZSW_GD',
+] as const;
+
+export const RETIRED_PUBLIC_OPPORTUNITY_SOURCE_SITES = [
+  '021cf',
+  '021cf.com',
+  '58.com',
+  'cangxiaoer',
+  'cangxiaoer.com',
+  'cfzx',
+  'changfanghome',
+  'changfanghome.com',
+  'zgzsw',
 ] as const;
 
 export const PUBLIC_OPPORTUNITY_PLATFORM_SOURCE_CODES = [
@@ -47,7 +81,6 @@ export const PUBLIC_OPPORTUNITY_PLATFORM_SOURCE_CODES = [
 
 export type CrawlerSourceType =
   | 'BUSINESS_CHANGE_API'
-  | 'DEMO'
   | 'INTERNAL_CONTRACT'
   | 'MAP_POI_API'
   | 'PUBLIC_EIA_NOTICE'
@@ -69,7 +102,6 @@ export type CrawlerTaskStatus =
   | 'SUCCESS';
 export type CrawlerTaskType =
   | 'INTERNAL_CONTRACT_EXPIRY'
-  | 'MANUAL_DEMO'
   | 'MANUAL_EIA'
   | 'MANUAL_RECRUITMENT'
   | 'MANUAL_TENDER'
@@ -247,6 +279,7 @@ export interface CrawlerOpsSummary {
   scheduler: {
     active: boolean;
     canRunNow: boolean;
+    dailyRunHour?: number;
     enabled: boolean;
     envEnabled: boolean;
     intervalMs: number;
@@ -255,9 +288,11 @@ export interface CrawlerOpsSummary {
     lastTaskId?: null | number;
     lastTickFinishedAt?: null | string;
     lastTickStartedAt?: null | string;
+    mode?: 'ALL' | 'DEMAND' | 'SUPPLY' | string;
     nextRunAt?: null | string;
     reason?: null | string;
     running: boolean;
+    scheduleType?: 'DAILY' | string;
     startedAt?: null | string;
     stoppedAt?: null | string;
   };
@@ -269,13 +304,16 @@ export interface PublicOpportunityCrawlerRunOptions {
   discoverList?: boolean;
   freshnessDays?: number;
   ignoreInterval?: boolean;
+  listDiscoveryDelayMs?: number;
+  maxListPages?: number;
   maxRetryCount?: number;
   reprocessSuccess?: boolean;
   retryDelayMinutes?: number;
   sourceCode?: string;
+  staleReprocessMinutes?: number;
 }
 
-export interface DemoCrawlerEvidence {
+export interface PublicSignalCrawlerEvidence {
   crawledAt?: null | string;
   evidenceType: 'BODY' | 'EIA' | 'NOTICE' | 'RECRUITMENT' | 'TITLE';
   matchedKeywords: string[];
@@ -287,13 +325,13 @@ export interface DemoCrawlerEvidence {
   sourceTitle: string;
 }
 
-export interface DemoCrawlerLead {
+export interface PublicSignalCrawlerLead {
   companyName: string;
   confidenceLevel: 'HIGH' | 'LOW' | 'MEDIUM';
   confidenceScore: number;
   crawledAt: string;
   demandType: 'EXPAND' | 'NEW_LINE' | 'RELOCATION' | 'RENT_FACTORY' | 'UNKNOWN';
-  evidences: DemoCrawlerEvidence[];
+  evidences: PublicSignalCrawlerEvidence[];
   hitKeywords: string[];
   industryName?: string;
   leadTitle: string;

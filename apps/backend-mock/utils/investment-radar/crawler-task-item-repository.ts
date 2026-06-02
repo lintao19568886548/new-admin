@@ -7,11 +7,11 @@ import type {
 
 import { createHash } from 'node:crypto';
 
-import { prismaClient } from '~/utils/db';
-
-import { ensureDemoCrawlerSource } from './crawler-source-repository';
+import { prismaClient } from '../db';
+import { ensureCrawlerSourceCatalog } from './crawler-source-repository';
 
 interface QueueSeedInput {
+  forcePending?: boolean;
   maxRetryCount: number;
   publishedAt?: null | string;
   sourceId: number;
@@ -43,6 +43,16 @@ function parseJsonObject(value: unknown): null | Record<string, unknown> {
   }
 }
 
+function stringifyJsonPayload(value: unknown) {
+  return JSON.stringify(value, (_key, item) => {
+    if (typeof item !== 'bigint') {
+      return item;
+    }
+    const numberValue = Number(item);
+    return Number.isSafeInteger(numberValue) ? numberValue : item.toString();
+  });
+}
+
 function toNullableDate(value: unknown) {
   if (!value) {
     return null;
@@ -53,6 +63,12 @@ function toNullableDate(value: unknown) {
 
 function truncateSkipReason(value: string) {
   return String(value || '').slice(0, 255);
+}
+
+function resolveRetryBackoffMinutes(nextRetryCount: number) {
+  const schedule = [5, 15, 45];
+  const index = Math.max(0, Math.floor(nextRetryCount) - 1);
+  return schedule[Math.min(index, schedule.length - 1)];
 }
 
 function mapItemRow(row: any): CrawlerTaskItem {
@@ -89,7 +105,7 @@ function mapItemRow(row: any): CrawlerTaskItem {
 }
 
 export async function seedCrawlerTaskItems(inputs: QueueSeedInput[]) {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
   let createdCount = 0;
   let updatedCount = 0;
 
@@ -124,9 +140,25 @@ export async function seedCrawlerTaskItems(inputs: QueueSeedInput[]) {
           source_ref_id = VALUES(source_ref_id),
           source_url = VALUES(source_url),
           max_retry_count = VALUES(max_retry_count),
-          published_at = VALUES(published_at),
+          published_at = COALESCE(VALUES(published_at), published_at),
+          retry_count = CASE
+            WHEN ? = 1 AND status IN ('FAILED', 'RETRY_WAITING', 'SKIPPED') THEN 0
+            ELSE retry_count
+          END,
+          next_retry_at = CASE
+            WHEN ? = 1 AND status IN ('FAILED', 'RETRY_WAITING', 'SKIPPED') THEN NULL
+            ELSE next_retry_at
+          END,
+          last_error = CASE
+            WHEN ? = 1 AND status IN ('FAILED', 'RETRY_WAITING', 'SKIPPED') THEN NULL
+            ELSE last_error
+          END,
+          skip_reason = CASE
+            WHEN ? = 1 AND status IN ('FAILED', 'RETRY_WAITING', 'SKIPPED') THEN NULL
+            ELSE skip_reason
+          END,
           status = CASE
-            WHEN status IN ('FAILED', 'SKIPPED') THEN status
+            WHEN ? = 1 AND status IN ('FAILED', 'RETRY_WAITING', 'SKIPPED') THEN 'PENDING'
             ELSE status
           END,
           update_time = NOW(3)
@@ -138,6 +170,11 @@ export async function seedCrawlerTaskItems(inputs: QueueSeedInput[]) {
       urlHash,
       input.maxRetryCount,
       toNullableDate(input.publishedAt),
+      input.forcePending ? 1 : 0,
+      input.forcePending ? 1 : 0,
+      input.forcePending ? 1 : 0,
+      input.forcePending ? 1 : 0,
+      input.forcePending ? 1 : 0,
     );
 
     if (existing[0]) {
@@ -157,14 +194,17 @@ export async function listRunnableCrawlerTaskItems(params: {
   prioritySourceRefIds?: number[];
   reprocessSuccess?: boolean;
   sourceId: number;
+  staleReprocessAfter?: Date;
 }) {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
   const priorityIds = (params.prioritySourceRefIds || [])
     .map(Number)
     .filter((id) => Number.isFinite(id) && id > 0);
   const queryParams = [
     params.sourceId,
     params.reprocessSuccess ? 1 : 0,
+    params.staleReprocessAfter || null,
+    params.staleReprocessAfter || null,
     params.freshAfter || null,
     params.freshAfter || null,
     params.allowUnknownPublishedAt ? 1 : 0,
@@ -205,11 +245,22 @@ export async function listRunnableCrawlerTaskItems(params: {
           status = 'PENDING'
           OR (status = 'RETRY_WAITING' AND (next_retry_at IS NULL OR next_retry_at <= NOW(3)))
           OR (? = 1 AND status = 'SUCCESS')
+          OR (
+            ? IS NOT NULL
+            AND status = 'SUCCESS'
+            AND (last_finished_at IS NULL OR last_finished_at <= ?)
+          )
         )
         AND retry_count < max_retry_count
         AND (? IS NULL OR published_at >= ? OR (? = 1 AND published_at IS NULL))
-      ORDER BY
+        ORDER BY
         ${priorityOrderSql}
+        CASE
+          WHEN status = 'PENDING' THEN 0
+          WHEN status = 'RETRY_WAITING' THEN 1
+          ELSE 2
+        END,
+        COALESCE(last_finished_at, create_time) ASC,
         CASE WHEN published_at IS NULL THEN 1 ELSE 0 END,
         published_at DESC,
         item_id ASC
@@ -221,7 +272,7 @@ export async function listRunnableCrawlerTaskItems(params: {
 }
 
 export async function countCrawlerTaskItemsByStatus(sourceId: number) {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
   const rows = await prismaClient.$queryRawUnsafe<
     Array<{ count: bigint | number; status: string }>
   >(
@@ -244,7 +295,7 @@ export async function listLatestFailedCrawlerTaskItems(params: {
   limit: number;
   sourceId: number;
 }) {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
   const rows = await prismaClient.$queryRawUnsafe<any[]>(
     `
       SELECT
@@ -284,7 +335,7 @@ export async function requeueCrawlerTaskItems(params: {
   sourceId: number;
   statuses?: string[];
 }): Promise<CrawlerTaskItemRequeueResult> {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
   const itemIds = (params.itemIds || [])
     .map(Number)
     .filter((itemId) => Number.isFinite(itemId) && itemId > 0);
@@ -345,7 +396,7 @@ export async function reclaimStaleRunningCrawlerTaskItems(params: {
   staleMinutes?: number;
   taskId?: number;
 }) {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
   const staleMinutes = Math.max(
     1,
     Math.floor(Number(params.staleMinutes) || DEFAULT_STALE_RUNNING_MINUTES),
@@ -382,6 +433,7 @@ export async function reclaimStaleRunningCrawlerTaskItems(params: {
 export async function claimCrawlerTaskItem(params: {
   itemId: number;
   reprocessSuccess?: boolean;
+  staleReprocessAfter?: Date;
   taskId: number;
 }) {
   const affected = await prismaClient.$executeRawUnsafe(
@@ -398,12 +450,19 @@ export async function claimCrawlerTaskItem(params: {
           status = 'PENDING'
           OR (status = 'RETRY_WAITING' AND (next_retry_at IS NULL OR next_retry_at <= NOW(3)))
           OR (? = 1 AND status = 'SUCCESS')
+          OR (
+            ? IS NOT NULL
+            AND status = 'SUCCESS'
+            AND (last_finished_at IS NULL OR last_finished_at <= ?)
+          )
         )
         AND retry_count < max_retry_count
     `,
     params.taskId,
     params.itemId,
     params.reprocessSuccess ? 1 : 0,
+    params.staleReprocessAfter || null,
+    params.staleReprocessAfter || null,
   );
   return Number(affected || 0) > 0;
 }
@@ -414,6 +473,7 @@ export async function markCrawlerTaskItemSuccess(params: {
   httpStatus?: null | number;
   itemId: number;
   parsedPayload?: null | Record<string, unknown>;
+  publishedAt?: null | string;
   responseText?: null | string;
   taskId: number;
 }) {
@@ -430,6 +490,7 @@ export async function markCrawlerTaskItemSuccess(params: {
         last_success_at = NOW(3),
         response_hash = ?,
         parsed_payload_json = ?,
+        published_at = COALESCE(?, published_at),
         last_error = NULL,
         skip_reason = NULL,
         update_time = NOW(3)
@@ -438,13 +499,16 @@ export async function markCrawlerTaskItemSuccess(params: {
     params.taskId,
     params.httpStatus || null,
     responseHash,
-    params.parsedPayload ? JSON.stringify(params.parsedPayload) : null,
+    params.parsedPayload ? stringifyJsonPayload(params.parsedPayload) : null,
+    toNullableDate(params.publishedAt),
     params.itemId,
   );
 }
 
 export async function markCrawlerTaskItemSkipped(params: {
   itemId: number;
+  parsedPayload?: null | Record<string, unknown>;
+  publishedAt?: null | string;
   reason: string;
   taskId: number;
 }) {
@@ -455,11 +519,15 @@ export async function markCrawlerTaskItemSkipped(params: {
         last_task_id = ?,
         last_finished_at = NOW(3),
         skip_reason = ?,
+        parsed_payload_json = ?,
+        published_at = COALESCE(?, published_at),
         update_time = NOW(3)
       WHERE item_id = ?
     `,
     params.taskId,
     truncateSkipReason(params.reason),
+    params.parsedPayload ? stringifyJsonPayload(params.parsedPayload) : null,
+    toNullableDate(params.publishedAt),
     params.itemId,
   );
 }
@@ -486,6 +554,7 @@ export async function markCrawlerTaskItemFailed(params: {
   const nextRetryCount = Number(rows[0]?.retryCount || 0) + 1;
   const finalStatus =
     nextRetryCount >= params.maxRetryCount ? 'FAILED' : 'RETRY_WAITING';
+  const retryBackoffMinutes = resolveRetryBackoffMinutes(nextRetryCount);
 
   await prismaClient.$executeRawUnsafe(
     `
@@ -509,7 +578,7 @@ export async function markCrawlerTaskItemFailed(params: {
     nextRetryCount,
     params.maxRetryCount,
     finalStatus,
-    params.retryDelayMinutes,
+    retryBackoffMinutes,
     params.httpStatus || null,
     params.message,
     params.itemId,
@@ -521,7 +590,7 @@ export async function markCrawlerTaskItemFailed(params: {
 export async function listCrawlerTaskItems(
   params: CrawlerTaskItemListParams,
 ): Promise<CrawlerTaskItemListResult> {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
   const whereClauses = ['1 = 1'];
   const whereParams: unknown[] = [];
   if (params.sourceId && params.sourceId > 0) {

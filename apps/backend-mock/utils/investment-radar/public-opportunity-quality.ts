@@ -2,10 +2,14 @@ import { createHash } from 'node:crypto';
 
 import {
   hasExplicitNonGuangdongCity,
+  hasExplicitNonGuangdongPlaceSignal,
+  hasExplicitNonGuangdongRegion,
   isUnknownCityValue,
   isWithinGuangdongScope,
   normalizeGuangdongCity,
 } from './guangdong-public-scope';
+
+const PUBLIC_OPPORTUNITY_MAX_AGE_DAYS = 180;
 
 export type PublicOpportunityQualityStatus =
   | 'EFFECTIVE'
@@ -48,6 +52,43 @@ export interface PublicOpportunityQualityResult {
 
 function normalizeString(value: null | string | undefined) {
   return String(value || '').trim();
+}
+
+function isValidDateParts(params: {
+  day: number;
+  hour: number;
+  minute: number;
+  month: number;
+  second: number;
+  year: number;
+}) {
+  if (
+    params.month < 1 ||
+    params.month > 12 ||
+    params.day < 1 ||
+    params.day > 31 ||
+    params.hour < 0 ||
+    params.hour > 23 ||
+    params.minute < 0 ||
+    params.minute > 59 ||
+    params.second < 0 ||
+    params.second > 59
+  ) {
+    return false;
+  }
+  const date = new Date(
+    params.year,
+    params.month - 1,
+    params.day,
+    params.hour,
+    params.minute,
+    params.second,
+  );
+  return (
+    date.getFullYear() === params.year &&
+    date.getMonth() + 1 === params.month &&
+    date.getDate() === params.day
+  );
 }
 
 function hasSourceUrl(value: null | string | undefined) {
@@ -103,6 +144,12 @@ function getStrictExtractionMissingFields(
     .map((field) => normalizeString(String(field)))
     .filter(Boolean);
 }
+
+const DEMAND_OPTIONAL_STRICT_FIELDS = new Set([
+  'contactName',
+  'phoneNumber',
+  'priceText',
+]);
 
 export function parsePublicPublishedAt(
   publishedDateText: null | string | undefined,
@@ -165,13 +212,24 @@ export function parsePublicPublishedAt(
   if (dateTimeMatch) {
     const [, year, month, day, hour = '0', minute = '0', second = '0'] =
       dateTimeMatch;
+    const parts = {
+      day: Number(day),
+      hour: Number(hour),
+      minute: Number(minute),
+      month: Number(month),
+      second: Number(second),
+      year: Number(year),
+    };
+    if (!isValidDateParts(parts)) {
+      return null;
+    }
     return new Date(
-      Number(year),
-      Number(month) - 1,
-      Number(day),
-      Number(hour),
-      Number(minute),
-      Number(second),
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hour,
+      parts.minute,
+      parts.second,
     );
   }
 
@@ -180,12 +238,23 @@ export function parsePublicPublishedAt(
   );
   if (monthDayMatch) {
     const [, month, day, hour = '0', minute = '0'] = monthDayMatch;
+    const parts = {
+      day: Number(day),
+      hour: Number(hour),
+      minute: Number(minute),
+      month: Number(month),
+      second: 0,
+      year: crawledAt.getFullYear(),
+    };
+    if (!isValidDateParts(parts)) {
+      return null;
+    }
     return new Date(
-      crawledAt.getFullYear(),
-      Number(month) - 1,
-      Number(day),
-      Number(hour),
-      Number(minute),
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hour,
+      parts.minute,
     );
   }
 
@@ -199,13 +268,38 @@ function hasPublishedAt(input: PublicOpportunityQualityInput) {
   return Boolean(parsePublicPublishedAt(input.publishedDateText));
 }
 
+function resolvePublishedAtDate(input: PublicOpportunityQualityInput) {
+  if (input.publishedAt) {
+    const date = new Date(input.publishedAt);
+    if (!Number.isNaN(date.getTime())) {
+      return date;
+    }
+  }
+  return parsePublicPublishedAt(input.publishedDateText);
+}
+
+function isPublishedAtExpired(input: PublicOpportunityQualityInput) {
+  const publishedAt = resolvePublishedAtDate(input);
+  if (!publishedAt) {
+    return false;
+  }
+  const maxAgeMs = PUBLIC_OPPORTUNITY_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+  return publishedAt.getTime() < Date.now() - maxAgeMs;
+}
+
 function hasArea(input: PublicOpportunityQualityInput) {
   return Boolean(input.areaSqm && input.areaSqm > 0) || Boolean(input.areaText);
 }
 
+function isSupply(input: PublicOpportunityQualityInput) {
+  return input.opportunityType === 'SUPPLY';
+}
+
 function collectMissingFields(input: PublicOpportunityQualityInput) {
   const missingFields = new Set<string>(
-    getStrictExtractionMissingFields(input.detailJson),
+    getStrictExtractionMissingFields(input.detailJson).filter(
+      (field) => isSupply(input) || !DEMAND_OPTIONAL_STRICT_FIELDS.has(field),
+    ),
   );
   if (!input.title) {
     missingFields.add('title');
@@ -213,7 +307,7 @@ function collectMissingFields(input: PublicOpportunityQualityInput) {
   if (!input.city) {
     missingFields.add('city');
   }
-  if (input.opportunityType === 'SUPPLY' && !input.district) {
+  if (isSupply(input) && !input.district) {
     missingFields.add('district');
   }
   if (!hasSourceUrl(input.sourceUrl)) {
@@ -225,13 +319,13 @@ function collectMissingFields(input: PublicOpportunityQualityInput) {
   if (!hasArea(input)) {
     missingFields.add('area');
   }
-  if (!input.priceText) {
+  if (isSupply(input) && !input.priceText) {
     missingFields.add('priceText');
   }
-  if (!input.contactName) {
+  if (isSupply(input) && !input.contactName) {
     missingFields.add('contactName');
   }
-  if (!input.phoneNumber) {
+  if (isSupply(input) && !input.phoneNumber) {
     missingFields.add('phoneNumber');
   }
   if (!hasDetailEvidence(input.detailJson)) {
@@ -244,12 +338,49 @@ function resolveConfirmedGuangdongCity(input: PublicOpportunityQualityInput) {
   return normalizeGuangdongCity(input.city);
 }
 
+function getDetailStringField(
+  detailJson: null | Record<string, unknown> | undefined,
+  fieldName: string,
+) {
+  const value = detailJson?.[fieldName];
+  return typeof value === 'string' ? value : '';
+}
+
+function buildCoreDetailRegionText(input: PublicOpportunityQualityInput) {
+  return [
+    input.province,
+    input.city,
+    input.district,
+    input.title,
+    getDetailStringField(input.detailJson, 'locationEvidenceText'),
+    getDetailStringField(input.detailJson, 'primaryContentText'),
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
 export function evaluatePublicOpportunityQuality(
   input: PublicOpportunityQualityInput,
 ): PublicOpportunityQualityResult {
-  const scopeText = [input.title, input.description, input.sourceSite]
+  const scopeText = [
+    input.province,
+    input.city,
+    input.district,
+    input.title,
+    input.sourceSite,
+    input.sourceUrl,
+  ]
     .filter(Boolean)
     .join(' ');
+  const coreRegionText = [
+    input.province,
+    input.city,
+    input.district,
+    input.title,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const coreDetailRegionText = buildCoreDetailRegionText(input);
   const city = resolveConfirmedGuangdongCity(input);
   const missingFields = collectMissingFields(input);
 
@@ -275,6 +406,24 @@ export function evaluatePublicOpportunityQuality(
     };
   }
 
+  if (hasExplicitNonGuangdongRegion(coreRegionText)) {
+    return {
+      city,
+      missingFields,
+      reasons: ['CITY_OUT_OF_GUANGDONG_SCOPE'],
+      status: 'OUT_OF_SCOPE',
+    };
+  }
+
+  if (hasExplicitNonGuangdongPlaceSignal(coreDetailRegionText)) {
+    return {
+      city,
+      missingFields,
+      reasons: ['CITY_OUT_OF_GUANGDONG_SCOPE'],
+      status: 'OUT_OF_SCOPE',
+    };
+  }
+
   if (!isWithinGuangdongScope({ ...input, text: scopeText })) {
     return {
       city,
@@ -289,6 +438,15 @@ export function evaluatePublicOpportunityQuality(
       city,
       missingFields,
       reasons: ['SOURCE_EXPIRED'],
+      status: 'EXPIRED',
+    };
+  }
+
+  if (isPublishedAtExpired(input)) {
+    return {
+      city,
+      missingFields,
+      reasons: ['PUBLISHED_AT_EXPIRED'],
       status: 'EXPIRED',
     };
   }

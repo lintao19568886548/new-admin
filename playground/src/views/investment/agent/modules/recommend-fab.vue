@@ -2,7 +2,20 @@
 import { defineComponent, ref } from 'vue';
 
 import { EnvironmentOutlined } from '@ant-design/icons-vue';
-import { Button, Drawer, Input, message, Modal, Space } from 'ant-design-vue';
+import {
+  AutoComplete,
+  Button,
+  Drawer,
+  Input,
+  message,
+  Modal,
+  Space,
+} from 'ant-design-vue';
+
+import {
+  searchableDropdownProps,
+  useSearchHistory,
+} from '../../search-history';
 
 interface UseSmartRecommendOptions {
   onSelect?: (park: NearbyFactoryRecord) => void;
@@ -38,6 +51,10 @@ export function useSmartRecommend(options: UseSmartRecommendOptions = {}) {
   const nearbyParks = ref<NearbyFactoryRecord[]>([]);
   const manualLocationModalVisible = ref(false);
   const manualAddress = ref('');
+  const manualAddressSearchHistory = useSearchHistory(
+    'agent.recommend.manualAddress',
+  );
+  const manualAddressOptions = manualAddressSearchHistory.options();
 
   async function searchNearbyParks(longitude: number, latitude: number) {
     const key = import.meta.env.VITE_AMAP_KEY;
@@ -91,6 +108,7 @@ export function useSmartRecommend(options: UseSmartRecommendOptions = {}) {
       return;
     }
 
+    manualAddressSearchHistory.add(manualAddress.value);
     recommendLoading.value = true;
 
     try {
@@ -243,11 +261,13 @@ export function useSmartRecommend(options: UseSmartRecommendOptions = {}) {
     closeManualLocationModal,
     closeRecommendModal,
     manualAddress,
+    manualAddressOptions,
     manualLocationModalVisible,
     nearbyParks,
     onSmartRecommend,
     recommendLoading,
     recommendModalVisible,
+    searchableDropdownProps,
     searchByManualAddress,
     selectPark,
   };
@@ -255,6 +275,7 @@ export function useSmartRecommend(options: UseSmartRecommendOptions = {}) {
 
 export default defineComponent({
   components: {
+    AutoComplete,
     Button,
     Drawer,
     EnvironmentOutlined,
@@ -349,16 +370,23 @@ export default defineComponent({
         <p>请输入您要搜索的地址，系统将为您推荐附近的工厂：</p>
       </div>
       <div class="mb-2">
-        <Input
+        <AutoComplete
           v-model:value="manualAddress"
-          placeholder="请输入详细地址，如：北京市朝阳区建国路"
-          size="large"
-          @press-enter="searchByManualAddress"
+          v-bind="searchableDropdownProps"
+          :options="manualAddressOptions"
+          @select="searchByManualAddress"
         >
-          <template #prefix>
-            <EnvironmentOutlined class="text-gray-400" />
-          </template>
-        </Input>
+          <Input
+            v-model:value="manualAddress"
+            placeholder="请输入详细地址，如：北京市朝阳区建国路"
+            size="large"
+            @press-enter="searchByManualAddress"
+          >
+            <template #prefix>
+              <EnvironmentOutlined class="text-gray-400" />
+            </template>
+          </Input>
+        </AutoComplete>
       </div>
       <div class="text-sm text-gray-500">
         <p>提示：地址越详细，搜索结果越准确</p>

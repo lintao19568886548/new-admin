@@ -8,10 +8,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { prismaClient } from '~/utils/db';
 
 import { rebuildExternalLeadsFromPublicOpportunity } from './public-opportunity-lead-rebuilder';
+import { buildPublicOpportunityMaterializedFields } from './public-opportunity-materialized-fields';
 import {
   evaluatePublicOpportunityQuality,
   parsePublicPublishedAt,
 } from './public-opportunity-quality';
+import { assertInvestmentRadarTableReady } from './schema-guard';
 
 type PublicOpportunityType = 'DEMAND' | 'SUPPLY';
 
@@ -123,7 +125,9 @@ function inferSourceSite(sourceUrl: string) {
 }
 
 function toJson(value: unknown) {
-  return JSON.stringify(value);
+  return JSON.stringify(value, (_key, v) =>
+    typeof v === 'bigint' ? v.toString() : v,
+  );
 }
 
 function normalizeDetailJsonObject(value: unknown) {
@@ -245,6 +249,82 @@ function normalizeCrawlerInput(input: PublicOpportunityCrawlerInput) {
   };
 }
 
+type NormalizedCrawlerInput = ReturnType<typeof normalizeCrawlerInput>;
+
+async function findExistingCrawlerPublicOpportunityId(
+  normalized: NormalizedCrawlerInput,
+) {
+  const existingRows = await prismaClient.$queryRawUnsafe<
+    Array<{ opportunityId: bigint | number }>
+  >(
+    `
+      SELECT opportunity_id AS opportunityId
+      FROM investment_public_opportunity
+      WHERE (opportunity_type = ? AND source_table = ? AND source_key = ?)
+        OR (opportunity_type = ? AND source_url = ?)
+      ORDER BY
+        CASE
+          WHEN opportunity_type = ? AND source_url = ? THEN 0
+          ELSE 1
+        END,
+        opportunity_id ASC
+      LIMIT 1
+    `,
+    normalized.opportunityType,
+    normalized.sourceTable,
+    normalized.sourceKey,
+    normalized.opportunityType,
+    normalized.sourceUrl,
+    normalized.opportunityType,
+    normalized.sourceUrl,
+  );
+  return existingRows[0]?.opportunityId
+    ? Number(existingRows[0].opportunityId)
+    : 0;
+}
+
+async function downgradeExistingCrawlerPublicOpportunity(
+  existingId: number,
+  normalized: NormalizedCrawlerInput,
+) {
+  if (existingId <= 0) {
+    return false;
+  }
+
+  const materializedFields = buildPublicOpportunityMaterializedFields({
+    detailJson: normalized.detailJson,
+    opportunityType: normalized.opportunityType,
+    qualityResult: normalized.qualityResult,
+    sourceSite: normalized.sourceSite,
+    tagsJson: normalized.tagsJson,
+  });
+  const affectedRows = await prismaClient.$executeRawUnsafe(
+    `
+      UPDATE investment_public_opportunity
+      SET
+        opportunity_status = ?,
+        source_code = ?,
+        is_guangdong = ?,
+        has_detail_evidence = ?,
+        quality_grade = ?,
+        detail_json = ?,
+        last_synced_at = NOW(3),
+        update_time = NOW(3)
+      WHERE opportunity_id = ?
+        AND opportunity_status IN ('EFFECTIVE', 'VERIFIED')
+    `,
+    normalized.qualityResult.status,
+    materializedFields.sourceCode,
+    materializedFields.isGuangdong ? 1 : 0,
+    materializedFields.hasDetailEvidence ? 1 : 0,
+    materializedFields.qualityGrade,
+    toJson(normalized.detailJson),
+    existingId,
+  );
+
+  return Number(affectedRows || 0) > 0;
+}
+
 async function hasTableColumn(tableName: string, columnName: string) {
   const rows = await prismaClient.$queryRawUnsafe<Array<{ total: number }>>(
     `
@@ -260,6 +340,21 @@ async function hasTableColumn(tableName: string, columnName: string) {
   return Number(rows[0]?.total || 0) > 0;
 }
 
+async function hasTableIndex(tableName: string, indexName: string) {
+  const rows = await prismaClient.$queryRawUnsafe<Array<{ total: number }>>(
+    `
+      SELECT COUNT(*) AS total
+      FROM information_schema.statistics
+      WHERE table_schema = DATABASE()
+        AND table_name = ?
+        AND index_name = ?
+    `,
+    tableName,
+    indexName,
+  );
+  return Number(rows[0]?.total || 0) > 0;
+}
+
 async function ensureColumn(
   tableName: string,
   columnName: string,
@@ -271,42 +366,15 @@ async function ensureColumn(
   await prismaClient.$executeRawUnsafe(`ALTER TABLE ${tableName} ${ddl}`);
 }
 
+async function ensureIndex(tableName: string, indexName: string, ddl: string) {
+  if (await hasTableIndex(tableName, indexName)) {
+    return;
+  }
+  await prismaClient.$executeRawUnsafe(`ALTER TABLE ${tableName} ${ddl}`);
+}
+
 export async function ensurePublicOpportunityStorage() {
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS investment_public_opportunity (
-      opportunity_id bigint NOT NULL AUTO_INCREMENT,
-      opportunity_type varchar(20) NOT NULL,
-      source_site varchar(100) NULL DEFAULT NULL,
-      source_url varchar(500) NOT NULL,
-      source_table varchar(100) NULL DEFAULT NULL,
-      source_id varchar(100) NULL DEFAULT NULL,
-      title varchar(255) NOT NULL,
-      city varchar(100) NULL DEFAULT NULL,
-      district varchar(100) NULL DEFAULT NULL,
-      area_text varchar(100) NULL DEFAULT NULL,
-      area_sqm decimal(18,2) NULL DEFAULT NULL,
-      price_text varchar(100) NULL DEFAULT NULL,
-      industry_text varchar(100) NULL DEFAULT NULL,
-      contact_name varchar(100) NULL DEFAULT NULL,
-      phone_number varchar(50) NULL DEFAULT NULL,
-      description text NULL,
-      published_at datetime(3) NULL DEFAULT NULL,
-      published_date_text varchar(100) NULL DEFAULT NULL,
-      effective_until datetime(3) NULL DEFAULT NULL,
-      opportunity_status varchar(30) NOT NULL DEFAULT 'EFFECTIVE',
-      score int NULL DEFAULT NULL,
-      tags_json text NULL,
-      detail_json longtext NULL,
-      last_synced_at datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      create_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (opportunity_id),
-      KEY investment_public_opportunity_type_idx (opportunity_type),
-      KEY investment_public_opportunity_source_site_idx (source_site),
-      KEY investment_public_opportunity_source_url_idx (source_url(191)),
-      KEY investment_public_opportunity_last_synced_at_idx (last_synced_at)
-    ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
-  `);
+  await assertInvestmentRadarTableReady('investment_public_opportunity');
 
   await ensureColumn(
     'investment_public_opportunity',
@@ -333,28 +401,60 @@ export async function ensurePublicOpportunityStorage() {
     'last_synced_at',
     'ADD COLUMN last_synced_at datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) AFTER detail_json',
   );
+  await ensureColumn(
+    'investment_public_opportunity',
+    'source_code',
+    'ADD COLUMN source_code varchar(80) NULL DEFAULT NULL AFTER opportunity_status',
+  );
+  await ensureColumn(
+    'investment_public_opportunity',
+    'is_guangdong',
+    'ADD COLUMN is_guangdong tinyint NOT NULL DEFAULT 0 AFTER source_code',
+  );
+  await ensureColumn(
+    'investment_public_opportunity',
+    'has_detail_evidence',
+    'ADD COLUMN has_detail_evidence tinyint NOT NULL DEFAULT 0 AFTER is_guangdong',
+  );
+  await ensureColumn(
+    'investment_public_opportunity',
+    'quality_grade',
+    'ADD COLUMN quality_grade varchar(30) NULL DEFAULT NULL AFTER has_detail_evidence',
+  );
+  await ensureIndex(
+    'investment_public_opportunity',
+    'investment_public_opportunity_effective_idx',
+    'ADD KEY investment_public_opportunity_effective_idx (opportunity_type, opportunity_status, published_at)',
+  );
+  await ensureIndex(
+    'investment_public_opportunity',
+    'investment_public_opportunity_type_published_synced_idx',
+    'ADD KEY investment_public_opportunity_type_published_synced_idx (opportunity_type, published_at, last_synced_at, opportunity_id)',
+  );
+  await ensureIndex(
+    'investment_public_opportunity',
+    'investment_public_opportunity_quality_idx',
+    'ADD KEY investment_public_opportunity_quality_idx (opportunity_status, is_guangdong, has_detail_evidence)',
+  );
+  await ensureIndex(
+    'investment_public_opportunity',
+    'investment_public_opportunity_source_code_idx',
+    'ADD KEY investment_public_opportunity_source_code_idx (source_code, opportunity_status)',
+  );
+  await ensureIndex(
+    'investment_public_opportunity',
+    'investment_public_opportunity_strict_list_idx',
+    'ADD KEY investment_public_opportunity_strict_list_idx (opportunity_type, opportunity_status, quality_grade, is_guangdong, has_detail_evidence, published_at, last_synced_at, opportunity_id)',
+  );
+  await ensureIndex(
+    'investment_public_opportunity',
+    'investment_public_opportunity_strict_source_list_idx',
+    'ADD KEY investment_public_opportunity_strict_source_list_idx (opportunity_type, opportunity_status, source_site, quality_grade, is_guangdong, has_detail_evidence, published_at, last_synced_at, opportunity_id)',
+  );
 }
 
 export async function ensureRadarCollectTaskStorage() {
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS investment_radar_collect_task (
-      task_id varchar(80) NOT NULL,
-      status varchar(20) NOT NULL DEFAULT 'PENDING',
-      created int NOT NULL DEFAULT 0,
-      updated int NOT NULL DEFAULT 0,
-      skipped int NOT NULL DEFAULT 0,
-      total int NOT NULL DEFAULT 0,
-      duration_ms int NULL DEFAULT NULL,
-      error_reason varchar(500) NULL DEFAULT NULL,
-      started_at datetime(3) NULL DEFAULT NULL,
-      completed_at datetime(3) NULL DEFAULT NULL,
-      create_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (task_id),
-      KEY investment_radar_collect_task_status_idx (status),
-      KEY investment_radar_collect_task_create_time_idx (create_time)
-    ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci
-  `);
+  await assertInvestmentRadarTableReady('investment_radar_collect_task');
 
   await ensureColumn(
     'investment_radar_collect_task',
@@ -379,11 +479,38 @@ export async function upsertManualPublicOpportunity(
   await ensurePublicOpportunityStorage();
 
   const normalized = normalizeManualInput(input);
-  const detailJson = toJson({
+  const manualDetailJson = {
     manual: true,
     source: 'manual_emergency_input',
+  };
+  const manualQualityResult = evaluatePublicOpportunityQuality({
+    areaText: normalized.areaText,
+    city: normalized.city,
+    contactName: normalized.contactName,
+    description: normalized.description,
+    detailJson: manualDetailJson,
+    district: normalized.district,
+    opportunityType: normalized.opportunityType,
+    phoneNumber: normalized.phoneNumber,
+    priceText: normalized.priceText,
+    publishedAt: new Date(),
+    publishedDateText: new Date().toISOString().slice(0, 10),
+    sourceSite: normalized.sourceSite,
+    sourceUrl: normalized.sourceUrl,
+    title: normalized.title,
+  });
+  const detailJson = toJson({
+    ...manualDetailJson,
+    qualityResult: manualQualityResult,
   });
   const tagsJson = toJson(['manual', normalized.opportunityType]);
+  const materializedFields = buildPublicOpportunityMaterializedFields({
+    detailJson: manualDetailJson,
+    opportunityType: normalized.opportunityType,
+    qualityResult: manualQualityResult,
+    sourceSite: normalized.sourceSite,
+    tagsJson,
+  });
   const sourceId = buildManualSourceId(normalized.sourceUrl);
   const sourceKey = normalized.sourceUrl.slice(0, 160);
   const existingRows = await prismaClient.$queryRawUnsafe<
@@ -424,6 +551,10 @@ export async function upsertManualPublicOpportunity(
           published_at = NOW(3),
           published_date_text = DATE_FORMAT(NOW(), '%Y-%m-%d'),
           opportunity_status = 'EFFECTIVE',
+          source_code = ?,
+          is_guangdong = ?,
+          has_detail_evidence = ?,
+          quality_grade = ?,
           score = 70,
           tags_json = ?,
           detail_json = ?,
@@ -444,6 +575,10 @@ export async function upsertManualPublicOpportunity(
       normalized.contactName,
       normalized.phoneNumber,
       normalized.description,
+      materializedFields.sourceCode,
+      materializedFields.isGuangdong ? 1 : 0,
+      materializedFields.hasDetailEvidence ? 1 : 0,
+      materializedFields.qualityGrade,
       tagsJson,
       detailJson,
       existingId,
@@ -460,14 +595,15 @@ export async function upsertManualPublicOpportunity(
         opportunity_type, source_site, source_url, source_key, source_table, source_id,
         title, city, district, area_text, price_text, industry_text,
         contact_name, phone_number, description, published_at,
-        published_date_text, opportunity_status, score, tags_json,
+        published_date_text, opportunity_status, source_code, is_guangdong,
+        has_detail_evidence, quality_grade, score, tags_json,
         detail_json, last_synced_at, create_time, update_time
       )
       VALUES (
         ?, ?, ?, ?, 'manual_input', ?,
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, NOW(3),
-        DATE_FORMAT(NOW(), '%Y-%m-%d'), 'EFFECTIVE', 70, ?,
+        DATE_FORMAT(NOW(), '%Y-%m-%d'), 'EFFECTIVE', ?, ?, ?, ?, 70, ?,
         ?, NOW(3), NOW(3), NOW(3)
       )
     `,
@@ -485,6 +621,10 @@ export async function upsertManualPublicOpportunity(
     normalized.contactName,
     normalized.phoneNumber,
     normalized.description,
+    materializedFields.sourceCode,
+    materializedFields.isGuangdong ? 1 : 0,
+    materializedFields.hasDetailEvidence ? 1 : 0,
+    materializedFields.qualityGrade,
     tagsJson,
     detailJson,
   );
@@ -517,38 +657,21 @@ export async function upsertCrawlerPublicOpportunity(
   await ensurePublicOpportunityStorage();
 
   const normalized = normalizeCrawlerInput(input);
+  const existingId = await findExistingCrawlerPublicOpportunityId(normalized);
   if (!CRAWLER_WRITABLE_QUALITY_STATUSES.has(normalized.qualityResult.status)) {
+    await downgradeExistingCrawlerPublicOpportunity(existingId, normalized);
     throw new PublicOpportunityQualitySkipError(normalized.qualityResult);
   }
 
   const detailJson = toJson(normalized.detailJson);
   const tagsJson = toJson(normalized.tagsJson);
-  const existingRows = await prismaClient.$queryRawUnsafe<
-    Array<{ opportunityId: bigint | number }>
-  >(
-    `
-      SELECT opportunity_id AS opportunityId
-      FROM investment_public_opportunity
-      WHERE (source_table = ? AND source_key = ?)
-        OR (opportunity_type = ? AND source_url = ?)
-      ORDER BY
-        CASE
-          WHEN opportunity_type = ? AND source_url = ? THEN 0
-          ELSE 1
-        END,
-        opportunity_id ASC
-      LIMIT 1
-    `,
-    normalized.sourceTable,
-    normalized.sourceKey,
-    normalized.opportunityType,
-    normalized.sourceUrl,
-    normalized.opportunityType,
-    normalized.sourceUrl,
-  );
-  const existingId = existingRows[0]?.opportunityId
-    ? Number(existingRows[0].opportunityId)
-    : 0;
+  const materializedFields = buildPublicOpportunityMaterializedFields({
+    detailJson: normalized.detailJson,
+    opportunityType: normalized.opportunityType,
+    qualityResult: normalized.qualityResult,
+    sourceSite: normalized.sourceSite,
+    tagsJson: normalized.tagsJson,
+  });
 
   if (existingId > 0) {
     await prismaClient.$executeRawUnsafe(
@@ -573,6 +696,10 @@ export async function upsertCrawlerPublicOpportunity(
           published_at = ?,
           published_date_text = ?,
           opportunity_status = ?,
+          source_code = ?,
+          is_guangdong = ?,
+          has_detail_evidence = ?,
+          quality_grade = ?,
           score = ?,
           tags_json = ?,
           detail_json = ?,
@@ -598,6 +725,10 @@ export async function upsertCrawlerPublicOpportunity(
       normalized.publishedAt ? new Date(normalized.publishedAt) : null,
       normalized.publishedDateText,
       normalized.opportunityStatus,
+      materializedFields.sourceCode,
+      materializedFields.isGuangdong ? 1 : 0,
+      materializedFields.hasDetailEvidence ? 1 : 0,
+      materializedFields.qualityGrade,
       normalized.score,
       tagsJson,
       detailJson,
@@ -616,14 +747,15 @@ export async function upsertCrawlerPublicOpportunity(
         opportunity_type, source_site, source_url, source_key, source_table, source_id,
         title, city, district, area_text, price_text, industry_text,
         contact_name, phone_number, description, published_at,
-        published_date_text, opportunity_status, score, tags_json,
+        published_date_text, opportunity_status, source_code, is_guangdong,
+        has_detail_evidence, quality_grade, score, tags_json,
         detail_json, last_synced_at, create_time, update_time
       )
       VALUES (
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?,
-        ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?,
         ?, NOW(3), NOW(3), NOW(3)
       )
     `,
@@ -645,6 +777,10 @@ export async function upsertCrawlerPublicOpportunity(
     normalized.publishedAt ? new Date(normalized.publishedAt) : null,
     normalized.publishedDateText,
     normalized.opportunityStatus,
+    materializedFields.sourceCode,
+    materializedFields.isGuangdong ? 1 : 0,
+    materializedFields.hasDetailEvidence ? 1 : 0,
+    materializedFields.qualityGrade,
     normalized.score,
     tagsJson,
     detailJson,
@@ -656,10 +792,11 @@ export async function upsertCrawlerPublicOpportunity(
     `
       SELECT opportunity_id AS opportunityId
       FROM investment_public_opportunity
-      WHERE source_table = ? AND source_key = ?
+      WHERE opportunity_type = ? AND source_table = ? AND source_key = ?
       ORDER BY opportunity_id DESC
       LIMIT 1
     `,
+    normalized.opportunityType,
     normalized.sourceTable,
     normalized.sourceKey,
   );
@@ -698,6 +835,10 @@ export async function getPublicOpportunityById(opportunityId: number) {
         published_date_text AS publishedDateText,
         effective_until AS effectiveUntil,
         opportunity_status AS opportunityStatus,
+        source_code AS sourceCode,
+        is_guangdong AS isGuangdong,
+        has_detail_evidence AS hasDetailEvidence,
+        quality_grade AS qualityGrade,
         score,
         tags_json AS tagsJson,
         detail_json AS detailJson,

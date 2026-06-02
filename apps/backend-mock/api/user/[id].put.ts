@@ -18,6 +18,11 @@ import {
   useResponseError,
   useResponseSuccess,
 } from '~/utils/response';
+import {
+  normalizeParkIds,
+  syncUserParks,
+  UserParkScopeError,
+} from '~/utils/user-park-scope';
 
 function normalizeRoleIds(input: unknown) {
   if (!Array.isArray(input)) {
@@ -57,6 +62,8 @@ export default eventHandler(async (event) => {
   const nextPassword = String(body.password || '').trim();
   const nextStatus = normalizeStatus(body.status);
   const nextRoleIds = normalizeRoleIds(body.roleIds);
+  const shouldSyncParkIds = Object.hasOwn(body, 'parkIds');
+  const nextParkIds = shouldSyncParkIds ? normalizeParkIds(body.parkIds) : null;
 
   const tenantUser = await prismaScopeStorage.run({ customerId }, async () =>
     prismaClient.user.findUnique({
@@ -153,7 +160,7 @@ export default eventHandler(async (event) => {
 
     let centerUserId = centerUser?.id ? Number(centerUser.id) : null;
     const shouldBumpTokenVersion =
-      Boolean(hashedPassword) || statusToWrite === 0;
+      Boolean(hashedPassword) || statusToWrite === 0 || shouldSyncParkIds;
 
     if (
       !centerUserId &&
@@ -245,6 +252,14 @@ export default eventHandler(async (event) => {
               });
             }
           }
+        }
+
+        if (nextParkIds) {
+          await syncUserParks({
+            parkIds: nextParkIds,
+            prisma,
+            userId: id,
+          });
         }
       }),
     );
@@ -364,6 +379,9 @@ export default eventHandler(async (event) => {
       }
     }
 
+    if (error instanceof UserParkScopeError) {
+      return badRequestResponse(error.message, event, error.statusCode);
+    }
     if (error instanceof OrganizationLifecycleError) {
       return badRequestResponse(error.message, event, error.statusCode);
     }

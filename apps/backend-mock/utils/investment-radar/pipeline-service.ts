@@ -1,8 +1,8 @@
-import { rebuildEnterpriseProfilesFromSignals } from './enterprise-profile-repository';
-import { recalculateDemoLeadScores } from './lead-score-service';
+import { refreshEnterpriseProfilesFromSignals } from './enterprise-profile-repository';
+import { recalculateRadarLeadScores } from './lead-score-service';
 import { rebuildRadarOutreachActions } from './outreach-action-service';
 import { rebuildRadarSalesActions } from './sales-action-service';
-import { rebuildSignalEventsFromExternalLeads } from './signal-event-repository';
+import { refreshSignalEventsFromExternalLeads } from './signal-event-repository';
 
 export interface RadarAcquisitionPipelineRebuildResult {
   assignedLeadCount: number;
@@ -29,11 +29,11 @@ export interface RadarAcquisitionPipelineRebuildResult {
 }
 
 export async function rebuildRadarAcquisitionPipeline(): Promise<RadarAcquisitionPipelineRebuildResult> {
-  const signalResult = await rebuildSignalEventsFromExternalLeads();
-  const profileResult = await rebuildEnterpriseProfilesFromSignals({
+  const signalResult = await refreshSignalEventsFromExternalLeads();
+  const profileResult = await refreshEnterpriseProfilesFromSignals({
     skipSignalRebuild: true,
   });
-  const scoreResult = await recalculateDemoLeadScores({
+  const scoreResult = await recalculateRadarLeadScores({
     skipSignalRebuild: true,
   });
   const salesActionResult = await rebuildRadarSalesActions();

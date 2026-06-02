@@ -1,4 +1,4 @@
-import type { DemoCrawlerLead } from '../crawler-types';
+import type { PublicSignalCrawlerLead } from '../crawler-types';
 import type { CrawlerAdapter } from './types';
 
 import { PUBLIC_TENDER_SOURCE_CODE } from '../crawler-types';
@@ -24,27 +24,6 @@ const TENDER_KEYWORDS_INCLUDE = [
 ];
 
 const TENDER_KEYWORDS_EXCLUDE = ['物业服务', '办公用品', '培训服务', '保洁'];
-
-const FALLBACK_TENDER_ITEMS: TenderNoticeItem[] = [
-  {
-    companyName: '惠州仲恺高新区产业投资发展有限公司',
-    content:
-      '公开招标公告显示项目包含智能制造产业园标准厂房改造、生产线配套和设备采购。',
-    detailUrl: 'https://www.ccgp.gov.cn/cggg/dfgg/gkzb/demo-huizhou-park.html',
-    location: '广东省惠州市仲恺高新区',
-    publishedDate: '2026-05-18',
-    title: '智能制造产业园标准厂房改造及设备采购项目公开招标公告',
-  },
-  {
-    companyName: '东莞松山湖新材料产业服务中心',
-    content:
-      '招标公告提到新材料中试生产线建设工程、洁净厂房装修和配套设备采购。',
-    detailUrl: 'https://www.ccgp.gov.cn/cggg/dfgg/gkzb/demo-dongguan-line.html',
-    location: '广东省东莞市松山湖',
-    publishedDate: '2026-05-17',
-    title: '新材料中试生产线建设工程及洁净厂房装修招标公告',
-  },
-];
 
 function decodeBasicHtmlEntities(value: string) {
   return value
@@ -172,7 +151,7 @@ function calculateScore(content: string, keywords: string[]) {
   return Math.min(score, 94);
 }
 
-function toLead(item: TenderNoticeItem): DemoCrawlerLead | null {
+function toLead(item: TenderNoticeItem): null | PublicSignalCrawlerLead {
   const fullContent = [
     item.companyName,
     item.title,
@@ -312,7 +291,7 @@ async function fetchTenderList(): Promise<TenderNoticeItem[]> {
     console.warn('[Tender Adapter] Failed to fetch CCGP list:', error);
   }
 
-  return results.length > 0 ? results : FALLBACK_TENDER_ITEMS;
+  return results;
 }
 
 export const tenderNoticeCrawlerAdapter: CrawlerAdapter = {

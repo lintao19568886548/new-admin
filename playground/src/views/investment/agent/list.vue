@@ -13,7 +13,15 @@ import { Plus } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
 import { BulbOutlined, EnvironmentOutlined } from '@ant-design/icons-vue';
-import { Button, Input, message, Modal, Space, Table } from 'ant-design-vue';
+import {
+  AutoComplete,
+  Button,
+  Input,
+  message,
+  Modal,
+  Space,
+  Table,
+} from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
@@ -23,6 +31,11 @@ import {
 } from '#/api/investment';
 import { $t } from '#/locales';
 
+import {
+  getSearchHistoryOptions,
+  rememberSearchHistories,
+  searchableDropdownProps,
+} from '../search-history';
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 import { useSmartRecommend } from './modules/recommend-fab.vue';
@@ -32,6 +45,7 @@ const {
   closeManualLocationModal,
   closeRecommendModal,
   manualAddress,
+  manualAddressOptions,
   manualLocationModalVisible,
   nearbyParks,
   onSmartRecommend,
@@ -196,6 +210,28 @@ const [Grid, gridApi] = useVbenVxeGrid({
       ajax: {
         query: async (page) => {
           const formData = (await gridApi.formApi?.getValues?.()) || {};
+          rememberSearchHistories([
+            ['agent.list.agentName', formData.agentName],
+            ['agent.list.tenantName', formData.tenantName],
+          ]);
+          gridApi.formApi?.updateSchema?.([
+            {
+              componentProps: {
+                ...searchableDropdownProps,
+                allowClear: true,
+                options: getSearchHistoryOptions('agent.list.agentName'),
+              },
+              fieldName: 'agentName',
+            },
+            {
+              componentProps: {
+                ...searchableDropdownProps,
+                allowClear: true,
+                options: getSearchHistoryOptions('agent.list.tenantName'),
+              },
+              fieldName: 'tenantName',
+            },
+          ]);
 
           const params = {
             ...formData,
@@ -391,16 +427,23 @@ const recommendColumns = [
         </div>
 
         <div class="mb-4">
-          <Input
+          <AutoComplete
             v-model:value="manualAddress"
-            placeholder="请输入详细地址，如：北京市朝阳区建国路"
-            size="large"
-            @press-enter="searchByManualAddress"
+            v-bind="searchableDropdownProps"
+            :options="manualAddressOptions"
+            @select="searchByManualAddress"
           >
-            <template #prefix>
-              <EnvironmentOutlined class="text-gray-400" />
-            </template>
-          </Input>
+            <Input
+              v-model:value="manualAddress"
+              placeholder="请输入详细地址，如：北京市朝阳区建国路"
+              size="large"
+              @press-enter="searchByManualAddress"
+            >
+              <template #prefix>
+                <EnvironmentOutlined class="text-gray-400" />
+              </template>
+            </Input>
+          </AutoComplete>
         </div>
 
         <div class="text-sm text-gray-500">

@@ -2,6 +2,10 @@
 import type { TableColumnsType } from 'ant-design-vue';
 
 import type {
+  ContactRestrictionListItem,
+  ContactRestrictionListParams,
+  ContactRestrictionSummary,
+  OutreachReplyStatus,
   RadarOutreachTaskDetail,
   RadarOutreachTaskListItem,
   RadarOutreachTaskListParams,
@@ -20,6 +24,7 @@ import { formatDateTime } from '@vben/utils';
 import { useMediaQuery } from '@vueuse/core';
 import {
   Alert,
+  AutoComplete,
   Button,
   Card,
   Col,
@@ -42,13 +47,17 @@ import {
 import {
   cancelOutreachTask,
   completeRadarSopReminder,
+  getContactRestrictionList,
   getRadarOutreachTaskDetail,
   getRadarOutreachTaskList,
   getRadarSopReminderList,
-  mockSendOutreachTask,
+  releaseContactRestriction,
   replyOutreachTask,
+  sendOutreachTask,
 } from '#/api/investment';
 
+import { searchableDropdownProps, useSearchHistory } from '../search-history';
+import OutreachTemplateManagerDrawer from './components/OutreachTemplateManagerDrawer.vue';
 import { RADAR_STAGE_LABEL_MAP, RADAR_STAGE_OPTIONS } from './data';
 
 defineOptions({ name: 'InvestmentRadarTasks' });
@@ -60,7 +69,11 @@ const loadError = ref('');
 const tableLoading = ref(false);
 const detailDrawerOpen = ref(false);
 const detailLoading = ref(false);
+const restrictionDrawerOpen = ref(false);
+const templateDrawerOpen = ref(false);
 const mobileFilterOpen = ref(false);
+const restrictionLoading = ref(false);
+const restrictionReleasingId = ref<null | number>(null);
 const reminderCompletingId = ref<null | number>(null);
 const reminderLoading = ref(false);
 const replyModalOpen = ref(false);
@@ -69,9 +82,13 @@ const taskDetail = ref<null | RadarOutreachTaskDetail>(null);
 const replyTask = ref<null | RadarOutreachTaskListItem>(null);
 const items = ref<RadarOutreachTaskListItem[]>([]);
 const reminders = ref<RadarSopReminderListItem[]>([]);
+const restrictions = ref<ContactRestrictionListItem[]>([]);
 const total = ref(0);
 const currentPage = ref(1);
 const pageSize = ref(20);
+const restrictionTotal = ref(0);
+const restrictionCurrentPage = ref(1);
+const restrictionPageSize = ref(10);
 const reminderTotal = ref(0);
 const reminderCurrentPage = ref(1);
 const reminderPageSize = ref(10);
@@ -94,11 +111,22 @@ const reminderSummary = ref<RadarSopReminderSummary>({
   visitFeedbackReminders: 0,
   weeklyFollowUpReminders: 0,
 });
+const restrictionSummary = ref<ContactRestrictionSummary>({
+  activeRestrictions: 0,
+  negativeReplyRestrictions: 0,
+  releasedRestrictions: 0,
+  totalRestrictions: 0,
+  unsubscribedRestrictions: 0,
+  blacklistRestrictions: 0,
+});
 const tableLocale = {
   emptyText: '暂无触达任务',
 };
 const reminderTableLocale = {
   emptyText: '暂无SOP待办',
+};
+const restrictionTableLocale = {
+  emptyText: '暂无触达限制记录',
 };
 
 const searchForm = ref({
@@ -110,10 +138,12 @@ const searchForm = ref({
   status: undefined as string | undefined,
   taskType: undefined as string | undefined,
 });
+const taskKeywordSearchHistory = useSearchHistory('radar.tasks.keyword');
+const taskKeywordOptions = taskKeywordSearchHistory.options();
 
 const replyForm = ref<{
   replyContent: string;
-  replyStatus: 'NEGATIVE' | 'POSITIVE' | 'REPLIED';
+  replyStatus: OutreachReplyStatus;
 }>({
   replyContent: '',
   replyStatus: 'POSITIVE',
@@ -126,6 +156,20 @@ const reminderSearchForm = ref({
   reminderType: undefined as string | undefined,
   stage: undefined as string | undefined,
 });
+const reminderKeywordSearchHistory = useSearchHistory(
+  'radar.tasks.reminderKeyword',
+);
+const reminderKeywordOptions = reminderKeywordSearchHistory.options();
+
+const restrictionSearchForm = ref({
+  keyword: '',
+  restrictionType: undefined as string | undefined,
+  status: 'ACTIVE' as string | undefined,
+});
+const restrictionKeywordSearchHistory = useSearchHistory(
+  'radar.tasks.restrictionKeyword',
+);
+const restrictionKeywordOptions = restrictionKeywordSearchHistory.options();
 
 const channelLabelMap: Record<string, string> = {
   CALL: '电话',
@@ -144,10 +188,15 @@ const channelColorMap: Record<string, string> = {
 };
 
 const replyStatusMetaMap: Record<string, { color: string; label: string }> = {
+  BLACKLIST: { color: 'black', label: '黑名单' },
+  BLACKLISTED: { color: 'black', label: '黑名单' },
+  INTERESTED: { color: 'green', label: '有兴趣' },
   NEGATIVE: { color: 'red', label: '负向反馈' },
   NO_REPLY: { color: 'default', label: '未回复' },
   POSITIVE: { color: 'green', label: '正向反馈' },
+  REFUSED: { color: 'red', label: '已拒绝' },
   REPLIED: { color: 'cyan', label: '已回复' },
+  UNSUBSCRIBED: { color: 'orange', label: '退订/拒触' },
 };
 
 const taskStatusMetaMap: Record<string, { color: string; label: string }> = {
@@ -200,6 +249,8 @@ const replyStatusOptions = [
   { label: '已回复', value: 'REPLIED' },
   { label: '正向反馈', value: 'POSITIVE' },
   { label: '负向反馈', value: 'NEGATIVE' },
+  { label: '退订/拒绝继续触达', value: 'UNSUBSCRIBED' },
+  { label: '加入黑名单', value: 'BLACKLIST' },
 ];
 
 const statusOptions = [
@@ -218,10 +269,41 @@ const taskTypeOptions = [
   { label: '预约拜访', value: 'VISIT' },
 ];
 
+const finalReplyStatuses = new Set<string>([
+  'BLACKLIST',
+  'BLACKLISTED',
+  'INTERESTED',
+  'NEGATIVE',
+  'POSITIVE',
+  'REFUSED',
+  'REPLIED',
+  'UNSUBSCRIBED',
+]);
+
+const restrictionStatusMetaMap: Record<
+  string,
+  { color: string; label: string }
+> = {
+  ACTIVE: { color: 'red', label: '限制中' },
+  RELEASED: { color: 'green', label: '已解除' },
+};
+
 const reminderStatusOptions = [
   { label: '待处理', value: 'PENDING' },
   { label: '已超时', value: 'OVERDUE' },
   { label: '已完成', value: 'DONE' },
+];
+
+const restrictionStatusOptions = [
+  { label: '限制中', value: 'ACTIVE' },
+  { label: '已解除', value: 'RELEASED' },
+  { label: '全部', value: 'ALL' },
+];
+
+const restrictionTypeOptions = [
+  { label: '黑名单', value: 'BLACKLIST' },
+  { label: '退订/拒触', value: 'UNSUBSCRIBED' },
+  { label: '负向反馈', value: 'NEGATIVE_REPLY' },
 ];
 
 const reminderTypeOptions = [
@@ -343,6 +425,51 @@ const reminderColumns: TableColumnsType<RadarSopReminderListItem> = [
   },
 ];
 
+const restrictionColumns: TableColumnsType<ContactRestrictionListItem> = [
+  {
+    customRender: ({ record }) => renderRestrictionContact(record),
+    dataIndex: 'enterpriseName',
+    key: 'enterpriseName',
+    title: '限制对象',
+    width: 260,
+  },
+  {
+    customRender: ({ record }) => renderRestrictionStatus(record),
+    dataIndex: 'restrictionType',
+    key: 'restrictionType',
+    title: '限制状态',
+    width: 170,
+  },
+  {
+    customRender: ({ record }) => record.reason || '-',
+    dataIndex: 'reason',
+    key: 'reason',
+    title: '限制原因',
+    width: 300,
+  },
+  {
+    customRender: ({ text }) => formatTime(text),
+    dataIndex: 'createTime',
+    key: 'createTime',
+    title: '创建时间',
+    width: 180,
+  },
+  {
+    customRender: ({ text }) => formatTime(text),
+    dataIndex: 'updateTime',
+    key: 'updateTime',
+    title: '更新时间',
+    width: 180,
+  },
+  {
+    customRender: ({ record }) => renderRestrictionActions(record),
+    fixed: 'right',
+    key: 'operation',
+    title: '操作',
+    width: 160,
+  },
+];
+
 function buildParams(): RadarOutreachTaskListParams {
   return {
     channel: searchForm.value.channel,
@@ -366,6 +493,16 @@ function buildReminderParams(): RadarSopReminderListParams {
     reminderStatus: reminderSearchForm.value.reminderStatus,
     reminderType: reminderSearchForm.value.reminderType,
     stage: reminderSearchForm.value.stage,
+  };
+}
+
+function buildRestrictionParams(): ContactRestrictionListParams {
+  return {
+    currentPage: restrictionCurrentPage.value,
+    keyword: restrictionSearchForm.value.keyword || undefined,
+    pageSize: restrictionPageSize.value,
+    restrictionType: restrictionSearchForm.value.restrictionType,
+    status: restrictionSearchForm.value.status,
   };
 }
 
@@ -549,7 +686,7 @@ function renderTaskActions(record: RadarOutreachTaskListItem) {
   const canSend = ['PENDING', 'RUNNING'].includes(record.status);
   const canReply =
     ['SENT', 'SUCCESS'].includes(record.status) &&
-    !['NEGATIVE', 'POSITIVE', 'REPLIED'].includes(record.replyStatus || '');
+    !finalReplyStatuses.has(record.replyStatus || '');
   const canCancel = ['PENDING', 'RUNNING'].includes(record.status);
 
   return [
@@ -560,7 +697,7 @@ function renderTaskActions(record: RadarOutreachTaskListItem) {
       {
         disabled: !canSend,
         loading: sending && canSend,
-        onClick: () => handleMockSend(record),
+        onClick: () => handleSendTask(record),
         size: 'small',
         type: canSend ? 'primary' : 'default',
       },
@@ -607,6 +744,46 @@ function renderReminderActions(record: RadarSopReminderListItem) {
       },
       () => (record.reminderStatus === 'DONE' ? '已完成' : '完成'),
     ),
+  ]);
+}
+
+function renderRestrictionActions(record: ContactRestrictionListItem) {
+  const restrictionId = Number(record.restrictionId || 0);
+  const canRelease = record.status === 'ACTIVE' && restrictionId > 0;
+
+  return h(
+    Button,
+    {
+      disabled: !canRelease,
+      loading: restrictionReleasingId.value === restrictionId,
+      onClick: () => handleReleaseRestriction(record),
+      size: 'small',
+      type: canRelease ? 'primary' : 'default',
+    },
+    () => (record.status === 'ACTIVE' ? '解除限制' : '已解除'),
+  );
+}
+
+function renderRestrictionContact(record: ContactRestrictionListItem) {
+  return h('div', { class: 'leading-6' }, [
+    h('div', { class: 'truncate font-medium' }, record.enterpriseName || '-'),
+    h(
+      'div',
+      { class: 'text-text-secondary truncate text-xs' },
+      `${record.contactName || '-'} | ${record.phoneNumber || '-'}`,
+    ),
+    h(
+      'div',
+      { class: 'text-text-secondary truncate text-xs' },
+      record.parkName || '-',
+    ),
+  ]);
+}
+
+function renderRestrictionStatus(record: ContactRestrictionListItem) {
+  return h(Space, { size: 4, wrap: true }, () => [
+    renderStatusTag(record.restrictionType, replyStatusMetaMap),
+    renderStatusTag(record.status, restrictionStatusMetaMap),
   ]);
 }
 
@@ -706,6 +883,26 @@ async function loadTasks() {
   }
 }
 
+async function loadRestrictions() {
+  restrictionLoading.value = true;
+  try {
+    const result = await getContactRestrictionList(buildRestrictionParams());
+    restrictions.value = Array.isArray(result.items) ? result.items : [];
+    restrictionTotal.value =
+      typeof result.total === 'number'
+        ? result.total
+        : result.page?.total || Math.max(restrictions.value.length, 0);
+    restrictionSummary.value = result.summary || restrictionSummary.value;
+  } catch (error) {
+    console.error('加载触达限制名单失败:', error);
+    restrictions.value = [];
+    restrictionTotal.value = 0;
+    message.error('触达限制名单加载失败');
+  } finally {
+    restrictionLoading.value = false;
+  }
+}
+
 async function handleCancelTask(record: RadarOutreachTaskListItem) {
   const taskId = Number(record.taskId || 0);
   if (taskId <= 0 || taskActionLoadingId.value) {
@@ -727,22 +924,28 @@ async function handleCancelTask(record: RadarOutreachTaskListItem) {
   }
 }
 
-async function handleMockSend(record: RadarOutreachTaskListItem) {
+async function handleSendTask(record: RadarOutreachTaskListItem) {
   const taskId = Number(record.taskId || 0);
   if (taskId <= 0 || taskActionLoadingId.value) {
     return;
   }
   taskActionLoadingId.value = taskId;
   try {
-    await mockSendOutreachTask(taskId);
-    message.success('触达任务已发送');
+    const result = await sendOutreachTask(taskId);
+    if (result.resultCode === 'CONTACT_RESTRICTED') {
+      message.warning(result.resultMessage || '联系人已被限制触达，任务已取消');
+    } else if (result.status === 'FAILED' || result.resultCode !== 'SUCCESS') {
+      message.error(result.resultMessage || '发送触达任务失败');
+    } else {
+      message.success('触达任务已发送');
+    }
     await loadTasks();
     await loadReminders();
     if (taskDetail.value?.taskId === record.taskId) {
       await openTaskDetail(record.taskId);
     }
   } catch (error) {
-    console.error('模拟发送触达任务失败:', error);
+    console.error('发送触达任务失败:', error);
     message.error('发送触达任务失败');
   } finally {
     taskActionLoadingId.value = null;
@@ -765,6 +968,29 @@ async function handleCompleteReminder(reminder: RadarSopReminderListItem) {
   } finally {
     reminderCompletingId.value = null;
   }
+}
+
+async function handleReleaseRestriction(record: ContactRestrictionListItem) {
+  const restrictionId = Number(record.restrictionId || 0);
+  if (restrictionId <= 0 || restrictionReleasingId.value) {
+    return;
+  }
+  restrictionReleasingId.value = restrictionId;
+  try {
+    await releaseContactRestriction(restrictionId);
+    message.success('触达限制已解除');
+    await loadRestrictions();
+  } catch (error) {
+    console.error('解除触达限制失败:', error);
+    message.error('解除触达限制失败');
+  } finally {
+    restrictionReleasingId.value = null;
+  }
+}
+
+function openRestrictionDrawer() {
+  restrictionDrawerOpen.value = true;
+  void loadRestrictions();
 }
 
 function openReplyModal(record: RadarOutreachTaskListItem) {
@@ -804,14 +1030,22 @@ async function submitReply() {
 }
 
 function handleSearch() {
+  taskKeywordSearchHistory.add(searchForm.value.keyword);
   currentPage.value = 1;
   mobileFilterOpen.value = false;
   void loadTasks();
 }
 
 function handleReminderSearch() {
+  reminderKeywordSearchHistory.add(reminderSearchForm.value.keyword);
   reminderCurrentPage.value = 1;
   void loadReminders();
+}
+
+function handleRestrictionSearch() {
+  restrictionKeywordSearchHistory.add(restrictionSearchForm.value.keyword);
+  restrictionCurrentPage.value = 1;
+  void loadRestrictions();
 }
 
 function handleReset() {
@@ -839,6 +1073,15 @@ function handleReminderReset() {
   handleReminderSearch();
 }
 
+function handleRestrictionReset() {
+  restrictionSearchForm.value = {
+    keyword: '',
+    restrictionType: undefined,
+    status: 'ACTIVE',
+  };
+  handleRestrictionSearch();
+}
+
 function handleTableChange(page: { current?: number; pageSize?: number }) {
   currentPage.value = page.current || 1;
   pageSize.value = page.pageSize || 20;
@@ -852,6 +1095,15 @@ function handleReminderTableChange(page: {
   reminderCurrentPage.value = page.current || 1;
   reminderPageSize.value = page.pageSize || 10;
   void loadReminders();
+}
+
+function handleRestrictionTableChange(page: {
+  current?: number;
+  pageSize?: number;
+}) {
+  restrictionCurrentPage.value = page.current || 1;
+  restrictionPageSize.value = page.pageSize || 10;
+  void loadRestrictions();
 }
 
 function goToLeadDetail(leadId: number) {
@@ -891,6 +1143,8 @@ onMounted(() => {
             </div>
           </div>
           <Space wrap>
+            <Button @click="templateDrawerOpen = true">触达模板管理</Button>
+            <Button @click="openRestrictionDrawer">触达限制名单</Button>
             <Button @click="goToRadarList">返回雷达列表</Button>
             <Button type="primary" @click="loadTasks">刷新数据</Button>
           </Space>
@@ -970,12 +1224,15 @@ onMounted(() => {
         <Card v-if="!isMobile" title="查询条件">
           <Form class="radar-task-filter radar-search-form" layout="inline">
             <Form.Item label="关键字">
-              <Input
+              <AutoComplete
                 v-model:value="searchForm.keyword"
+                v-bind="searchableDropdownProps"
                 allow-clear
                 class="radar-filter-keyword"
+                :options="taskKeywordOptions"
                 placeholder="企业 / 电话 / 园区 / 模板"
                 @press-enter="handleSearch"
+                @select="handleSearch"
               />
             </Form.Item>
             <Form.Item label="任务状态">
@@ -1048,12 +1305,15 @@ onMounted(() => {
           </template>
           <Form class="radar-task-filter radar-search-form" layout="inline">
             <Form.Item label="关键字">
-              <Input
+              <AutoComplete
                 v-model:value="reminderSearchForm.keyword"
+                v-bind="searchableDropdownProps"
                 allow-clear
                 class="radar-filter-keyword"
+                :options="reminderKeywordOptions"
                 placeholder="企业 / 联系人 / 园区 / 待办"
                 @press-enter="handleReminderSearch"
+                @select="handleReminderSearch"
               />
             </Form.Item>
             <Form.Item label="待办状态">
@@ -1137,11 +1397,14 @@ onMounted(() => {
 
             <div class="radar-task-mobile-filter">
               <div class="radar-task-mobile-search">
-                <Input
+                <AutoComplete
                   v-model:value="reminderSearchForm.keyword"
+                  v-bind="searchableDropdownProps"
                   allow-clear
+                  :options="reminderKeywordOptions"
                   placeholder="企业 / 联系人 / 园区"
                   @press-enter="handleReminderSearch"
+                  @select="handleReminderSearch"
                 />
                 <Button type="primary" @click="handleReminderSearch">
                   查询
@@ -1284,11 +1547,14 @@ onMounted(() => {
 
           <div class="radar-task-mobile-filter">
             <div class="radar-task-mobile-search">
-              <Input
+              <AutoComplete
                 v-model:value="searchForm.keyword"
+                v-bind="searchableDropdownProps"
                 allow-clear
+                :options="taskKeywordOptions"
                 placeholder="企业 / 电话 / 园区 / 模板"
                 @press-enter="handleSearch"
+                @select="handleSearch"
               />
               <Button type="primary" @click="handleSearch">查询</Button>
               <Button @click="mobileFilterOpen = !mobileFilterOpen">
@@ -1413,16 +1679,14 @@ onMounted(() => {
                   :loading="taskActionLoadingId === Number(item.taskId)"
                   size="small"
                   type="primary"
-                  @click="handleMockSend(item)"
+                  @click="handleSendTask(item)"
                 >
                   发送
                 </Button>
                 <Button
                   :disabled="
                     !['SENT', 'SUCCESS'].includes(item.status) ||
-                    ['NEGATIVE', 'POSITIVE', 'REPLIED'].includes(
-                      item.replyStatus || '',
-                    )
+                    finalReplyStatuses.has(item.replyStatus || '')
                   "
                   size="small"
                   @click="openReplyModal(item)"
@@ -1638,16 +1902,14 @@ onMounted(() => {
                       !['PENDING', 'RUNNING'].includes(taskDetail.status)
                     "
                     :loading="taskActionLoadingId === Number(taskDetail.taskId)"
-                    @click="handleMockSend(taskDetail)"
+                    @click="handleSendTask(taskDetail)"
                   >
-                    模拟发送
+                    发送
                   </Button>
                   <Button
                     :disabled="
                       !['SENT', 'SUCCESS'].includes(taskDetail.status) ||
-                      ['NEGATIVE', 'POSITIVE', 'REPLIED'].includes(
-                        taskDetail.replyStatus || '',
-                      )
+                      finalReplyStatuses.has(taskDetail.replyStatus || '')
                     "
                     @click="openReplyModal(taskDetail)"
                   >
@@ -1665,6 +1927,118 @@ onMounted(() => {
           </template>
           <Empty v-else description="未找到触达任务详情" />
         </Drawer>
+
+        <Drawer
+          v-model:open="restrictionDrawerOpen"
+          destroy-on-close
+          placement="right"
+          title="触达限制名单"
+          :width="isMobile ? '100%' : 960"
+        >
+          <div class="space-y-4">
+            <Row :gutter="[12, 12]">
+              <Col :md="6" :xs="12">
+                <Card class="radar-stat-card">
+                  <Statistic
+                    title="限制中"
+                    :value="restrictionSummary.activeRestrictions"
+                  />
+                </Card>
+              </Col>
+              <Col :md="6" :xs="12">
+                <Card class="radar-stat-card">
+                  <Statistic
+                    title="黑名单"
+                    :value="restrictionSummary.blacklistRestrictions"
+                  />
+                </Card>
+              </Col>
+              <Col :md="6" :xs="12">
+                <Card class="radar-stat-card">
+                  <Statistic
+                    title="退订/拒触"
+                    :value="restrictionSummary.unsubscribedRestrictions"
+                  />
+                </Card>
+              </Col>
+              <Col :md="6" :xs="12">
+                <Card class="radar-stat-card">
+                  <Statistic
+                    title="已解除"
+                    :value="restrictionSummary.releasedRestrictions"
+                  />
+                </Card>
+              </Col>
+            </Row>
+
+            <Form class="radar-task-filter radar-search-form" layout="inline">
+              <Form.Item label="关键字">
+                <AutoComplete
+                  v-model:value="restrictionSearchForm.keyword"
+                  v-bind="searchableDropdownProps"
+                  allow-clear
+                  class="radar-filter-keyword"
+                  :options="restrictionKeywordOptions"
+                  placeholder="企业 / 联系人 / 电话 / 原因"
+                  @press-enter="handleRestrictionSearch"
+                  @select="handleRestrictionSearch"
+                />
+              </Form.Item>
+              <Form.Item label="限制类型">
+                <Select
+                  v-model:value="restrictionSearchForm.restrictionType"
+                  allow-clear
+                  class="radar-filter-control"
+                  :options="restrictionTypeOptions"
+                />
+              </Form.Item>
+              <Form.Item label="状态">
+                <Select
+                  v-model:value="restrictionSearchForm.status"
+                  class="radar-filter-control"
+                  :options="restrictionStatusOptions"
+                />
+              </Form.Item>
+              <Form.Item>
+                <Space>
+                  <Button type="primary" @click="handleRestrictionSearch">
+                    查询
+                  </Button>
+                  <Button @click="handleRestrictionReset">重置</Button>
+                </Space>
+              </Form.Item>
+            </Form>
+
+            <Table
+              bordered
+              :columns="restrictionColumns"
+              :data-source="restrictions"
+              :loading="restrictionLoading"
+              :locale="restrictionTableLocale"
+              :pagination="{
+                current: restrictionCurrentPage,
+                pageSize: restrictionPageSize,
+                total: restrictionTotal,
+                showSizeChanger: true,
+                showTotal: (value: number) => `共 ${value} 条`,
+              }"
+              :scroll="{ x: 1250 }"
+              row-key="restrictionId"
+              size="small"
+              table-layout="fixed"
+              @change="handleRestrictionTableChange"
+            >
+              <template #emptyText>
+                <Empty description="暂无触达限制记录" />
+              </template>
+            </Table>
+          </div>
+        </Drawer>
+
+        <OutreachTemplateManagerDrawer
+          v-model:open="templateDrawerOpen"
+          :mobile="isMobile"
+        />
 
         <Modal
           v-model:open="replyModalOpen"

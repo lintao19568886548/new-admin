@@ -1,5 +1,6 @@
 import { prismaClient, systemDbClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
+import { normalizeParkManagementMenuPlacement } from '~/utils/park-menu-placement';
 import { appendProfileAuxiliaryRouteMenus } from '~/utils/profile-route-menus';
 import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
 import { processMenuData } from '~/utils/tools';
@@ -67,6 +68,30 @@ const MEMBERSHIP_RESTRICTED_ROUTE_MENUS = [
     type: 'menu',
   },
   {
+    authCode: 'system:park',
+    component: '/system/park/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:office-building-cog-outline',
+      title: '园区管理',
+    },
+    name: 'SystemPark',
+    path: '/system/park',
+    type: 'menu',
+  },
+  {
+    authCode: 'system:park-mobile',
+    component: '/rental/manage/mobile',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:cellphone-cog',
+      title: '园区管理',
+    },
+    name: 'SystemParkMobile',
+    path: '/system/park/mobile',
+    type: 'menu',
+  },
+  {
     authCode: 'hrm:information',
     component: '/hrm/information/list',
     meta: {
@@ -100,6 +125,21 @@ const MEMBERSHIP_RESTRICTED_ROUTE_MENUS = [
     },
     name: 'HrmInformationMobile',
     path: '/hrm/information/mobile',
+    type: 'menu',
+  },
+] as const;
+
+const CRM_ROUTE_MENUS = [
+  {
+    authCode: 'crm:acquisition',
+    component: '/crm/acquisition/index',
+    meta: {
+      icon: 'mdi:qrcode-scan',
+      order: 60,
+      title: '获客推广',
+    },
+    name: 'CrmAcquisition',
+    path: '/crm/acquisition',
     type: 'menu',
   },
 ] as const;
@@ -139,6 +179,48 @@ function appendRouteMenus(menus: any[], routes: readonly any[]) {
     }
   }
   return normalizedMenus;
+}
+
+function appendCrmRouteMenus(menus: any[]) {
+  return appendRouteMenus(menus, CRM_ROUTE_MENUS);
+}
+
+function isInvestmentRoute(menu: any) {
+  const path = String(menu?.path || '');
+  const authCode = String(menu?.authCode || '');
+  const name = String(menu?.name || '');
+  return (
+    path === '/investment' ||
+    path.startsWith('/investment/') ||
+    authCode.startsWith('investment:') ||
+    name.startsWith('Investment')
+  );
+}
+
+function filterInvestmentPublicCrawlMenus(menus: any[]) {
+  const visit = (items: any[]): any[] => {
+    const result: any[] = [];
+    for (const item of items) {
+      if (!item || typeof item !== 'object') {
+        continue;
+      }
+
+      const investmentRoute = isInvestmentRoute(item);
+      if (investmentRoute) {
+        continue;
+      }
+
+      const children = Array.isArray(item.children) ? visit(item.children) : [];
+
+      result.push({
+        ...item,
+        ...(children.length > 0 ? { children } : {}),
+      });
+    }
+    return result;
+  };
+
+  return visit(menus);
 }
 
 async function isMembershipRestrictedUser(userinfo: {
@@ -183,13 +265,32 @@ async function isMembershipRestrictedUser(userinfo: {
   return accessState.accessRestricted;
 }
 
-async function appendMembershipRouteMenus(menus: any[], userinfo: any) {
-  const baseMenus = appendProfileAuxiliaryRouteMenus(menus);
+async function appendMembershipRouteMenus(
+  menus: any[],
+  userinfo: any,
+  options: { hasSuperRole: boolean },
+) {
+  const investmentScope = options.hasSuperRole ? 'full' : 'publicCrawlOnly';
+  const scopedMenus = options.hasSuperRole
+    ? menus
+    : filterInvestmentPublicCrawlMenus(menus);
+  const baseMenus = appendProfileAuxiliaryRouteMenus(scopedMenus, {
+    investmentScope,
+  });
   if (!(await isMembershipRestrictedUser(userinfo))) {
     return baseMenus;
   }
 
   return appendRouteMenus(baseMenus, MEMBERSHIP_RESTRICTED_ROUTE_MENUS);
+}
+
+function normalizeRouteMenus(menus: any[], options: { hasSuperRole: boolean }) {
+  return normalizeParkManagementMenuPlacement(menus, {
+    ensureParkWhenMissing: options.hasSuperRole,
+    includeCompatibilityRoutes: true,
+    includeMobileRoute: true,
+    preferLegacyMenu: false,
+  });
 }
 
 export default eventHandler(async (event) => {
@@ -252,8 +353,16 @@ export default eventHandler(async (event) => {
       removeEmptyChildren: true,
     });
 
+    const normalizedMenus = normalizeRouteMenus(processedMenus, {
+      hasSuperRole,
+    });
+
     return useResponseSuccess(
-      await appendMembershipRouteMenus(processedMenus, userinfo),
+      await appendMembershipRouteMenus(
+        appendCrmRouteMenus(normalizedMenus),
+        userinfo,
+        { hasSuperRole },
+      ),
     );
   }
 
@@ -345,7 +454,13 @@ export default eventHandler(async (event) => {
     removeEmptyChildren: true,
   });
 
+  const normalizedMenus = normalizeRouteMenus(processedMenus, {
+    hasSuperRole,
+  });
+
   return useResponseSuccess(
-    await appendMembershipRouteMenus(processedMenus, userinfo),
+    await appendMembershipRouteMenus(normalizedMenus, userinfo, {
+      hasSuperRole,
+    }),
   );
 });

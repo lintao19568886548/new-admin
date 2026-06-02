@@ -1,10 +1,20 @@
 import { getPublicOpportunityAuditSummary } from '~/utils/investment-radar/public-opportunity-audit-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
+import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   serverErrorResponse,
   unAuthorizedResponse,
   useResponseSuccess,
 } from '~/utils/response';
+
+function isRefreshQuery(value: unknown) {
+  const normalized = Array.isArray(value) ? value[0] : value;
+  return ['1', 'on', 'true', 'yes'].includes(
+    String(normalized || '')
+      .trim()
+      .toLowerCase(),
+  );
+}
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -13,8 +23,11 @@ export default eventHandler(async (event) => {
   }
 
   try {
+    const query = getQuery(event);
     const result = await runWithRadarSharedScope(() =>
-      getPublicOpportunityAuditSummary(),
+      getPublicOpportunityAuditSummary({
+        refresh: isRefreshQuery(query.refresh),
+      }),
     );
 
     return useResponseSuccess(result);

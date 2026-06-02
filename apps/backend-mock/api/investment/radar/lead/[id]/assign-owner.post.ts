@@ -1,4 +1,5 @@
 import { prismaClient } from '~/utils/db';
+import { assertInvestmentRadarTableReady } from '~/utils/investment-radar/schema-guard';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   badRequestResponse,
@@ -8,22 +9,7 @@ import {
 } from '~/utils/response';
 
 async function ensureAssignmentLogTable() {
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS investment_lead_assignment_log (
-      assignment_id BIGINT NOT NULL AUTO_INCREMENT,
-      lead_id BIGINT NOT NULL,
-      previous_owner_user_id BIGINT NULL,
-      owner_user_id BIGINT NOT NULL,
-      owner_name VARCHAR(100) NULL,
-      assignment_source VARCHAR(50) NOT NULL,
-      assign_reason VARCHAR(255) NULL,
-      create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (assignment_id),
-      INDEX idx_investment_lead_assignment_log_lead (lead_id),
-      INDEX idx_investment_lead_assignment_log_owner (owner_user_id),
-      INDEX idx_investment_lead_assignment_log_time (create_time)
-    )
-  `);
+  await assertInvestmentRadarTableReady('investment_lead_assignment_log');
 }
 
 export default eventHandler(async (event) => {

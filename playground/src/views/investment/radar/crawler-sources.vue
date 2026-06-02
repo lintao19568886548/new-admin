@@ -38,14 +38,13 @@ import {
 
 defineOptions({ name: 'InvestmentRadarCrawlerSources' });
 
-const DEMO_SOURCE_CODE = 'DEMO_EXTERNAL_LEAD';
 const INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE = 'INTERNAL_CONTRACT_EXPIRY';
 const PUBLIC_FACTORY_LISTING_SOURCE_CODE = 'PUBLIC_FACTORY_LISTING_CFZSW68';
 const PUBLIC_OPPORTUNITY_SOURCE_CODE = 'PUBLIC_OPPORTUNITY_99CFW';
 
 const loading = ref(false);
 const saving = ref(false);
-const runningDemo = ref(false);
+const runningIncremental = ref(false);
 const runningInternalContract = ref(false);
 const syncingInternalContract = ref(false);
 const runningPilot = ref(false);
@@ -243,21 +242,21 @@ function rememberRunResult(task: {
   };
 }
 
-async function runDemoTask() {
-  if (runningDemo.value) {
+async function runIncrementalTask() {
+  if (runningIncremental.value) {
     return;
   }
-  runningDemo.value = true;
+  runningIncremental.value = true;
   try {
     const task = await runCrawlerTask();
     rememberRunResult(task);
-    message.success(`demo task 已结束：${task.status}`);
+    message.success(`增量采集已结束：${task.status}`);
     await loadSources();
   } catch (error) {
-    console.error('run demo crawler task failed:', error);
-    message.error('手动运行 demo task 失败');
+    console.error('run incremental crawler task failed:', error);
+    message.error('手动运行增量采集失败');
   } finally {
-    runningDemo.value = false;
+    runningIncremental.value = false;
   }
 }
 
@@ -313,9 +312,10 @@ async function runPublicOpportunityPilot(
   runningPilot.value = true;
   try {
     const task = await runPublicOpportunityCrawlerTask({
-      batchSize: 80,
-      freshnessDays: 365,
+      batchSize: 10,
+      freshnessDays: 180,
       sourceCode,
+      staleReprocessMinutes: 5,
     });
     rememberRunResult(task);
     message.success(`公开采集已结束：${task.status}`);
@@ -331,7 +331,6 @@ async function runPublicOpportunityPilot(
 const sourceTypeLabel: Record<string, string> = {
   BA_NOTICE: '企业公告',
   BUSINESS_CHANGE: '工商变更',
-  DEMO: '演示数据',
   EXTERNAL_LEAD: '外部线索',
   INTERNAL_CONTRACT: '内部合同',
   MAP_POLAR: '地图POI',
@@ -342,7 +341,8 @@ const sourceTypeLabel: Record<string, string> = {
 };
 
 function renderSourceType(record: CrawlerSource) {
-  const color = record.sourceType === 'DEMO' ? 'blue' : 'purple';
+  const color =
+    record.sourceType === 'INTERNAL_CONTRACT' ? 'geekblue' : 'purple';
   const label = sourceTypeLabel[record.sourceType] || record.sourceType;
   return h(Tag, { color }, () => label);
 }
@@ -442,17 +442,6 @@ const columns: TableColumnsType<CrawlerSource> = [
         h(
           Button,
           {
-            disabled: record.sourceCode !== DEMO_SOURCE_CODE,
-            loading: runningDemo.value,
-            onClick: () => void runDemoTask(),
-            size: 'small',
-            type: 'link',
-          },
-          () => '运行 demo',
-        ),
-        h(
-          Button,
-          {
             disabled:
               record.sourceCode !== INTERNAL_CONTRACT_EXPIRY_SOURCE_CODE,
             loading: runningInternalContract.value,
@@ -503,7 +492,7 @@ onMounted(() => {
   <div class="crawler-sources-pane">
     <Alert
       class="mb-3"
-      message="当前支持本地 demo adapter 和公开采集 URL 试点。试点按 365 天时效、批量 80 条、路径白名单和重试队列执行；失败项只保留在任务项和日志里，不进入外部线索或企业信号。"
+      message="当前支持公开采集 URL 增量任务。任务按 180 天时效、批量 10 条、路径白名单和重试队列执行；失败项只保留在任务项和日志里，不进入外部线索或企业信号。"
       show-icon
       type="info"
     />
@@ -511,8 +500,12 @@ onMounted(() => {
     <Card class="crawler-source-toolbar">
       <Space wrap>
         <Button :loading="loading" @click="loadSources">刷新</Button>
-        <Button type="primary" :loading="runningDemo" @click="runDemoTask">
-          手动运行 demo task
+        <Button
+          type="primary"
+          :loading="runningIncremental"
+          @click="runIncrementalTask"
+        >
+          手动运行增量采集
         </Button>
         <Button
           :loading="runningPilot"
@@ -591,7 +584,7 @@ onMounted(() => {
           <Input
             v-model:value="editForm.robotsUrl"
             allow-clear
-            placeholder="DEMO 可为空；真实/试点 source 需要配置"
+            placeholder="内置采集源可为空；外部/试点 source 建议配置"
           />
         </Form.Item>
         <Form.Item label="允许路径">

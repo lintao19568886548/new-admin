@@ -19,6 +19,10 @@ describe('guangdong public crawl scope', () => {
     ['松山湖', '东莞'],
     ['虎门镇', '东莞'],
     ['宝安区', '深圳'],
+    ['松岗高速口附近', '深圳'],
+    ['沙井大王山厂房', '深圳'],
+    ['福永和平厂房', '深圳'],
+    ['观澜高新科技园', '深圳'],
   ])('normalizes %s as %s', (input, expected) => {
     expect(normalizeGuangdongCity(input)).toBe(expected);
     expect(isGuangdongCity(input)).toBe(true);
@@ -49,6 +53,11 @@ describe('guangdong public crawl scope', () => {
     expect(
       isWithinGuangdongScope({ sourceUrl: 'https://dg.99cfw.com/changfang/' }),
     ).toBe(true);
+    expect(
+      isWithinGuangdongScope({
+        sourceUrl: 'https://www.99cfw.com/xuqiu/huizhou/100.html',
+      }),
+    ).toBe(true);
   });
 
   it('rejects records with no guangdong signal', () => {
@@ -64,6 +73,11 @@ describe('guangdong public crawl scope', () => {
         city: '杭州',
         sourceUrl: 'https://dg.99cfw.com/changfang/1.html',
         text: '东莞标准厂房出租',
+      }),
+    ).toBe(false);
+    expect(
+      isWithinGuangdongScope({
+        sourceUrl: 'https://hz.99cfw.com/xuqiu/100.html',
       }),
     ).toBe(false);
   });

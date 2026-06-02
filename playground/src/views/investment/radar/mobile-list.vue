@@ -10,10 +10,12 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { Search } from '@vben/icons';
+import { useUserStore } from '@vben/stores';
 
 import {
   Alert,
   Upload as AUpload,
+  AutoComplete,
   Button,
   Card,
   Col,
@@ -40,6 +42,7 @@ import {
   runRadarCollect,
 } from '#/api/investment';
 
+import { searchableDropdownProps, useSearchHistory } from '../search-history';
 import { RADAR_STAGE_OPTIONS } from './data';
 import {
   formatArea,
@@ -55,7 +58,11 @@ import OpportunityDetailDrawer from './opportunity-detail-drawer.vue';
 defineOptions({ name: 'InvestmentRadarMobileList' });
 
 const router = useRouter();
-const activeTab = ref<'leads' | 'opportunities'>('leads');
+const userStore = useUserStore();
+const hasSuperRole = computed(() => userStore.userRoles.includes('Super'));
+const activeTab = ref<'leads' | 'opportunities'>(
+  hasSuperRole.value ? 'leads' : 'opportunities',
+);
 const leadLoading = ref(false);
 const opportunityLoading = ref(false);
 const loadError = ref('');
@@ -81,6 +88,10 @@ const leadSearch = reactive({
   priorityLevel: undefined as string | undefined,
   stage: undefined as string | undefined,
 });
+const leadKeywordSearchHistory = useSearchHistory(
+  'radar.mobile-list.lead.keyword',
+);
+const leadKeywordOptions = leadKeywordSearchHistory.options();
 
 const opportunitySearch = reactive({
   city: '',
@@ -88,6 +99,18 @@ const opportunitySearch = reactive({
   opportunityType: '',
   sourceSite: '',
 });
+const opportunityKeywordSearchHistory = useSearchHistory(
+  'radar.mobile-list.opportunity.keyword',
+);
+const opportunityCitySearchHistory = useSearchHistory(
+  'radar.mobile-list.opportunity.city',
+);
+const opportunitySourceSearchHistory = useSearchHistory(
+  'radar.mobile-list.opportunity.sourceSite',
+);
+const opportunityKeywordOptions = opportunityKeywordSearchHistory.options();
+const opportunityCityOptions = opportunityCitySearchHistory.options();
+const opportunitySourceOptions = opportunitySourceSearchHistory.options();
 
 const leadPagination = reactive({
   current: 1,
@@ -153,6 +176,10 @@ function goToLeadDetail(leadId: number) {
 }
 
 function showLeads() {
+  if (!hasSuperRole.value) {
+    showOpportunities();
+    return;
+  }
   activeTab.value = 'leads';
 }
 
@@ -228,7 +255,7 @@ function downloadImportTemplate() {
       '14',
       '800',
       '示例地址',
-      'manual-demo-001',
+      'manual-import-sample-001',
     ],
   ]);
 }
@@ -337,6 +364,12 @@ async function handleImportFileBeforeUpload(file: File) {
 }
 
 async function loadLeads() {
+  if (!hasSuperRole.value) {
+    leads.value = [];
+    leadPagination.total = 0;
+    return;
+  }
+
   leadLoading.value = true;
   loadError.value = '';
   try {
@@ -366,9 +399,12 @@ async function loadOpportunities() {
     const result = await getEffectivePublicOpportunityList({
       city: opportunitySearch.city || undefined,
       currentPage: opportunityPagination.current,
+      includeMeta: false,
+      includeTotal: false,
       keyword: opportunitySearch.keyword || undefined,
       opportunityType: opportunitySearch.opportunityType || undefined,
       pageSize: opportunityPagination.pageSize,
+      scope: 'raw',
       sourceSite: opportunitySearch.sourceSite || undefined,
     });
     opportunities.value = Array.isArray(result.items) ? result.items : [];
@@ -385,6 +421,7 @@ async function loadOpportunities() {
 }
 
 function searchLeads() {
+  leadKeywordSearchHistory.add(leadSearch.keyword);
   leadPagination.current = 1;
   leadFilterOpen.value = false;
   void loadLeads();
@@ -399,6 +436,9 @@ function resetLeads() {
 }
 
 function searchOpportunities() {
+  opportunityKeywordSearchHistory.add(opportunitySearch.keyword);
+  opportunityCitySearchHistory.add(opportunitySearch.city);
+  opportunitySourceSearchHistory.add(opportunitySearch.sourceSite);
   opportunityPagination.current = 1;
   opportunityFilterOpen.value = false;
   void loadOpportunities();
@@ -496,6 +536,11 @@ async function startCollect() {
 }
 
 function onTabChange(key: number | string) {
+  if (String(key) === 'leads' && !hasSuperRole.value) {
+    showOpportunities();
+    return;
+  }
+
   if (
     String(key) === 'opportunities' &&
     (!opportunityLoaded.value || opportunities.value.length === 0)
@@ -505,7 +550,12 @@ function onTabChange(key: number | string) {
 }
 
 onMounted(() => {
-  void loadLeads();
+  if (hasSuperRole.value) {
+    void loadLeads();
+    return;
+  }
+
+  void loadOpportunities();
 });
 </script>
 
@@ -521,6 +571,7 @@ onMounted(() => {
     <!-- 统计卡片 -->
     <div class="radar-mobile-stats">
       <button
+        v-if="hasSuperRole"
         class="radar-mobile-stat"
         :class="{ 'is-active': activeTab === 'leads' }"
         type="button"
@@ -543,7 +594,7 @@ onMounted(() => {
     </div>
 
     <!-- 操作按钮区 -->
-    <div class="radar-mobile-actions">
+    <div v-if="hasSuperRole" class="radar-mobile-actions">
       <Button block @click="goToDashboard">看板</Button>
       <Button block @click="goToTasks">触达任务</Button>
       <Button block @click="downloadImportTemplate">下载模板</Button>
@@ -583,16 +634,19 @@ onMounted(() => {
       class="radar-mobile-tabs"
       @change="onTabChange"
     >
-      <Tabs.TabPane key="leads" tab="线索">
+      <Tabs.TabPane v-if="hasSuperRole" key="leads" tab="线索">
         <div class="radar-mobile-filter">
           <Form layout="vertical">
             <div class="mobile-search-bar">
-              <Input
+              <AutoComplete
                 v-model:value="leadSearch.keyword"
+                v-bind="searchableDropdownProps"
                 allow-clear
                 class="mobile-search-input"
+                :options="leadKeywordOptions"
                 placeholder="企业 / 电话 / 园区"
                 @press-enter="searchLeads"
+                @select="searchLeads"
               />
               <Button type="primary" @click="searchLeads"> 查询 </Button>
               <Button @click="leadFilterOpen = !leadFilterOpen">筛选</Button>
@@ -703,12 +757,15 @@ onMounted(() => {
         <div class="radar-mobile-filter">
           <Form layout="vertical">
             <div class="mobile-search-bar">
-              <Input
+              <AutoComplete
                 v-model:value="opportunitySearch.keyword"
+                v-bind="searchableDropdownProps"
                 allow-clear
                 class="mobile-search-input"
+                :options="opportunityKeywordOptions"
                 placeholder="标题 / 联系人 / 来源"
                 @press-enter="searchOpportunities"
+                @select="searchOpportunities"
               />
               <Button type="primary" @click="searchOpportunities">
                 查询
@@ -729,21 +786,27 @@ onMounted(() => {
                 </Col>
                 <Col :span="12">
                   <Form.Item label="城市">
-                    <Input
+                    <AutoComplete
                       v-model:value="opportunitySearch.city"
+                      v-bind="searchableDropdownProps"
                       allow-clear
+                      :options="opportunityCityOptions"
                       placeholder="城市"
                       @press-enter="searchOpportunities"
+                      @select="searchOpportunities"
                     />
                   </Form.Item>
                 </Col>
               </Row>
               <Form.Item label="来源站点">
-                <Input
+                <AutoComplete
                   v-model:value="opportunitySearch.sourceSite"
+                  v-bind="searchableDropdownProps"
                   allow-clear
+                  :options="opportunitySourceOptions"
                   placeholder="来源站点"
                   @press-enter="searchOpportunities"
+                  @select="searchOpportunities"
                 />
               </Form.Item>
               <div class="radar-mobile-filter-actions">

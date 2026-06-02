@@ -1,6 +1,15 @@
 import { prismaClient } from '~/utils/db';
 
-import { ensureContactRestrictionTable } from './contact-restriction-service';
+import {
+  ensureContactRestrictionTable,
+  normalizeContactPhone,
+} from './contact-restriction-service';
+import {
+  fillOutreachTemplateContent,
+  listEnabledOutreachTemplates,
+  pickOutreachTemplate,
+} from './outreach-template-service';
+import { assertInvestmentRadarTableReady } from './schema-guard';
 
 interface OutreachCandidateLead {
   companyName: string;
@@ -14,49 +23,10 @@ interface OutreachCandidateLead {
   totalScore: number;
 }
 
-interface OutreachTemplate {
-  channel: string;
-  content: string;
-  priorityLevel: string;
-  taskType: string;
-  templateCode: string;
-}
-
 export interface RadarOutreachActionRebuildResult {
   createdOutreachTaskCount: number;
   outreachTargetLeadCount: number;
   pendingOutreachTaskCount: number;
-}
-
-const templates: OutreachTemplate[] = [
-  {
-    channel: 'SMS',
-    content:
-      '您好，{companyName}近期有{intentArea}厂房需求，我们在{parkName}有匹配房源，可安排专人对接。',
-    priorityLevel: 'A',
-    taskType: 'OUTREACH',
-    templateCode: 'RADAR_A_SMS',
-  },
-  {
-    channel: 'SMS',
-    content:
-      '您好，关注到贵司可能有扩产或租赁需求，我们可提供{parkName}可租厂房清单供参考。',
-    priorityLevel: 'B',
-    taskType: 'OUTREACH',
-    templateCode: 'RADAR_B_SMS',
-  },
-  {
-    channel: 'WECHAT',
-    content:
-      '补充核实{companyName}的具体需求和时间窗口，确认后进入正式招商跟进。',
-    priorityLevel: 'C',
-    taskType: 'FOLLOW_UP',
-    templateCode: 'RADAR_C_WECHAT',
-  },
-];
-
-function fillTemplate(content: string, data: Record<string, string>) {
-  return content.replaceAll(/\{(\w+)\}/g, (_, key: string) => data[key] || '-');
 }
 
 function formatIntentArea(intentArea?: null | number) {
@@ -65,42 +35,34 @@ function formatIntentArea(intentArea?: null | number) {
     : '待确认面积';
 }
 
-function pickTemplate(priorityLevel: string, totalScore: number) {
-  if (priorityLevel === 'A' || totalScore >= 80) {
-    return templates[0];
+async function executeIgnoreDuplicate(sql: string) {
+  try {
+    await prismaClient.$executeRawUnsafe(sql);
+  } catch (error) {
+    const message = String((error as Error)?.message || error || '');
+    if (
+      !message.includes('Duplicate column') &&
+      !message.includes('Duplicate key name')
+    ) {
+      throw error;
+    }
   }
-  if (priorityLevel === 'B' || totalScore >= 60) {
-    return templates[1];
-  }
-  return templates[2];
 }
 
-async function ensureOutreachTaskTable() {
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS investment_outreach_task (
-      task_id BIGINT NOT NULL AUTO_INCREMENT,
-      lead_id BIGINT NOT NULL,
-      task_type VARCHAR(50) NOT NULL,
-      channel VARCHAR(50) NOT NULL,
-      phone_number VARCHAR(50) NOT NULL,
-      status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
-      template_code VARCHAR(100) NULL,
-      scheduled_at DATETIME(3) NULL,
-      sent_at DATETIME(3) NULL,
-      result_code VARCHAR(50) NULL,
-      result_message TEXT NULL,
-      reply_status VARCHAR(30) NOT NULL DEFAULT 'NO_REPLY',
-      reply_content TEXT NULL,
-      reply_time DATETIME(3) NULL,
-      sent_by BIGINT NULL,
-      create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (task_id),
-      INDEX idx_investment_outreach_task_lead_status (lead_id, status),
-      INDEX idx_investment_outreach_task_status_time (status, scheduled_at),
-      INDEX idx_investment_outreach_task_channel (channel),
-      INDEX idx_investment_outreach_task_sent_by (sent_by)
-    )
+export async function ensureOutreachTaskTable() {
+  await assertInvestmentRadarTableReady('investment_outreach_task');
+
+  await executeIgnoreDuplicate(`
+    ALTER TABLE investment_outreach_task
+    ADD COLUMN content TEXT NULL
+  `);
+  await executeIgnoreDuplicate(`
+    ALTER TABLE investment_outreach_task
+    ADD COLUMN provider_task_id VARCHAR(100) NULL
+  `);
+  await executeIgnoreDuplicate(`
+    ALTER TABLE investment_outreach_task
+    ADD COLUMN provider_response_json MEDIUMTEXT NULL
   `);
 }
 
@@ -168,15 +130,24 @@ async function listOutreachCandidates(
     leadId: Number(item.leadId),
     ownerUserId: Number(item.ownerUserId),
     parkName: item.parkName || '园区',
-    phoneNumber: String(item.phoneNumber || '').trim(),
+    phoneNumber: normalizeContactPhone(item.phoneNumber),
     priorityLevel: item.priorityLevel || 'C',
     totalScore: Number(item.totalScore || 0),
   }));
 }
 
 async function createOutreachTask(lead: OutreachCandidateLead) {
-  const template = pickTemplate(lead.priorityLevel, lead.totalScore);
-  const content = fillTemplate(template.content, {
+  const enabledTemplates = await listEnabledOutreachTemplates();
+  const template = pickOutreachTemplate(
+    enabledTemplates,
+    lead.priorityLevel,
+    lead.totalScore,
+  );
+  if (!template) {
+    return false;
+  }
+
+  const content = fillOutreachTemplateContent(template.content, {
     companyName: lead.companyName || '该企业',
     intentArea: formatIntentArea(lead.intentArea),
     parkName: lead.parkName || '园区',
@@ -185,14 +156,24 @@ async function createOutreachTask(lead: OutreachCandidateLead) {
   const affected = await prismaClient.$executeRawUnsafe(
     `
       INSERT INTO investment_outreach_task
-        (lead_id, task_type, channel, phone_number, status, template_code, scheduled_at, result_code, result_message, reply_status, sent_by, create_time, update_time)
-      SELECT ?, ?, ?, ?, 'PENDING', ?, NOW(3), NULL, ?, 'NO_REPLY', ?, NOW(3), NOW(3)
+        (lead_id, task_type, channel, phone_number, status, template_code, content, scheduled_at, result_code, result_message, reply_status, sent_by, create_time, update_time)
+      SELECT ?, ?, ?, ?, 'PENDING', ?, ?, NOW(3), NULL, ?, 'NO_REPLY', ?, NOW(3), NOW(3)
       WHERE NOT EXISTS (
         SELECT 1
         FROM investment_outreach_task
         WHERE lead_id = ?
           AND status IN ('PENDING', 'RUNNING', 'SENT')
       )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM contact_restriction cr
+          WHERE cr.status = 'ACTIVE'
+            AND (
+              cr.lead_id = ?
+              OR cr.enterprise_id = ?
+              OR cr.phone_number = ?
+            )
+        )
     `,
     lead.leadId,
     template.taskType,
@@ -200,8 +181,12 @@ async function createOutreachTask(lead: OutreachCandidateLead) {
     lead.phoneNumber,
     template.templateCode,
     content,
+    content,
     lead.ownerUserId,
     lead.leadId,
+    lead.leadId,
+    lead.enterpriseId || null,
+    lead.phoneNumber,
   );
 
   return Number(affected || 0) > 0;

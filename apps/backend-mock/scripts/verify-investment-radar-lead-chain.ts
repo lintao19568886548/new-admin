@@ -6,7 +6,7 @@ import {
   buildExternalLeadInputFromPublicOpportunityRow,
   rebuildExternalLeadsFromPublicOpportunity,
 } from '../utils/investment-radar/public-opportunity-lead-rebuilder';
-import { rebuildSignalEventsFromExternalLeads } from '../utils/investment-radar/signal-event-repository';
+import { refreshSignalEventsFromExternalLeads } from '../utils/investment-radar/signal-event-repository';
 
 type VerificationRecord = Record<string, unknown>;
 
@@ -172,8 +172,8 @@ async function verify() {
 
     const firstExternal = await rebuildExternalLeadsFromPublicOpportunity();
     const secondExternal = await rebuildExternalLeadsFromPublicOpportunity();
-    const firstSignal = await rebuildSignalEventsFromExternalLeads();
-    const secondSignal = await rebuildSignalEventsFromExternalLeads();
+    const firstSignal = await refreshSignalEventsFromExternalLeads();
+    const secondSignal = await refreshSignalEventsFromExternalLeads();
 
     const lowConfidenceSignalCount = await countRows(
       'signal_event se INNER JOIN company_lead cl ON cl.lead_id = se.related_external_lead_id',

@@ -82,6 +82,11 @@ export function useFormSchema(): VbenFormSchema[] {
       label: '角色',
     },
     {
+      component: 'Select',
+      fieldName: 'parkIds',
+      label: '可管理园区',
+    },
+    {
       component: 'RadioGroup',
       componentProps: {
         buttonStyle: 'solid',
@@ -159,6 +164,17 @@ export function useColumns(
       },
       minWidth: 180,
       title: '角色',
+    },
+    {
+      field: 'parks',
+      formatter: ({ row }) => {
+        if (!Array.isArray(row.parks) || row.parks.length === 0) {
+          return '-';
+        }
+        return row.parks.map((park) => park.parkName).join(', ');
+      },
+      minWidth: 220,
+      title: '可管理园区',
     },
     {
       cellRender: {

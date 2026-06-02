@@ -14,12 +14,12 @@ import { formatDateTime } from '@vben/utils';
 
 import {
   Alert,
+  AutoComplete,
   Button,
   Card,
   Descriptions,
   Drawer,
   Form,
-  Input,
   message,
   Progress,
   Space,
@@ -32,8 +32,10 @@ import {
   getEnterpriseProfileList,
   getEnterpriseProfileSignals,
   getEnterpriseProfileTags,
-  rebuildEnterpriseProfileDemo,
+  refreshEnterpriseProfiles,
 } from '#/api/investment';
+
+import { searchableDropdownProps, useSearchHistory } from '../search-history';
 
 defineOptions({ name: 'InvestmentRadarEnterpriseProfiles' });
 
@@ -58,6 +60,18 @@ const searchForm = ref({
   keyword: '',
   regionCity: '',
 });
+const keywordSearchHistory = useSearchHistory(
+  'radar.enterprise-profiles.keyword',
+);
+const industrySearchHistory = useSearchHistory(
+  'radar.enterprise-profiles.industryName',
+);
+const citySearchHistory = useSearchHistory(
+  'radar.enterprise-profiles.regionCity',
+);
+const keywordOptions = keywordSearchHistory.options();
+const industryOptions = industrySearchHistory.options();
+const cityOptions = citySearchHistory.options();
 const pagination = ref({
   current: 1,
   pageSize: 20,
@@ -138,6 +152,9 @@ async function loadProfiles() {
 }
 
 function searchProfiles() {
+  keywordSearchHistory.add(searchForm.value.keyword);
+  industrySearchHistory.add(searchForm.value.industryName);
+  citySearchHistory.add(searchForm.value.regionCity);
   pagination.value.current = 1;
   void loadProfiles();
 }
@@ -157,22 +174,22 @@ function handleTableChange(page: { current?: number; pageSize?: number }) {
   void loadProfiles();
 }
 
-async function rebuildDemoProfiles() {
+async function refreshProfiles() {
   if (rebuilding.value) {
     return;
   }
   rebuilding.value = true;
   try {
-    const result = await rebuildEnterpriseProfileDemo();
+    const result = await refreshEnterpriseProfiles();
     rebuildSummary.value = result;
     message.success(
-      `重建完成：画像新增 ${result.createdProfileCount}，更新 ${result.updatedProfileCount}`,
+      `刷新完成：画像新增 ${result.createdProfileCount}，更新 ${result.updatedProfileCount}`,
     );
     pagination.value.current = 1;
     await loadProfiles();
   } catch (error) {
-    console.error('rebuild enterprise profiles failed:', error);
-    message.error('重建 demo 企业画像失败');
+    console.error('refresh enterprise profiles failed:', error);
+    message.error('刷新企业画像失败');
   } finally {
     rebuilding.value = false;
   }
@@ -350,7 +367,7 @@ onMounted(() => {
   <div class="enterprise-profiles-pane">
     <Alert
       class="mb-3"
-      message="企业画像由企业信号事件重建生成，本阶段只沉淀画像、标签和评分输入，不接真实网站。"
+      message="企业画像由企业信号事件增量刷新生成，用于沉淀画像、标签和评分输入。"
       show-icon
       type="info"
     />
@@ -358,28 +375,37 @@ onMounted(() => {
     <Card class="mb-3" title="筛选">
       <Form class="radar-search-form" layout="inline">
         <Form.Item label="关键词">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.keyword"
+            v-bind="searchableDropdownProps"
             allow-clear
             class="radar-filter-keyword"
+            :options="keywordOptions"
             placeholder="企业 / 行业 / 地区"
             @press-enter="searchProfiles"
+            @select="searchProfiles"
           />
         </Form.Item>
         <Form.Item label="行业">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.industryName"
+            v-bind="searchableDropdownProps"
             allow-clear
             class="radar-filter-control"
+            :options="industryOptions"
             @press-enter="searchProfiles"
+            @select="searchProfiles"
           />
         </Form.Item>
         <Form.Item label="城市">
-          <Input
+          <AutoComplete
             v-model:value="searchForm.regionCity"
+            v-bind="searchableDropdownProps"
             allow-clear
             class="radar-filter-control"
+            :options="cityOptions"
             @press-enter="searchProfiles"
+            @select="searchProfiles"
           />
         </Form.Item>
         <Form.Item>
@@ -390,15 +416,15 @@ onMounted(() => {
             <Button
               type="primary"
               :loading="rebuilding"
-              @click="rebuildDemoProfiles"
+              @click="refreshProfiles"
             >
-              重建 demo 画像
+              增量刷新画像
             </Button>
           </Space>
         </Form.Item>
       </Form>
       <div v-if="rebuildSummary" class="text-text-secondary mt-3 text-sm">
-        最近重建：信号 {{ rebuildSummary.signalEventCount }}，企业
+        最近刷新：信号 {{ rebuildSummary.signalEventCount }}，企业
         {{ rebuildSummary.sourceCompanyCount }}，画像新增
         {{ rebuildSummary.createdProfileCount }}，画像更新
         {{ rebuildSummary.updatedProfileCount }}，标签新增

@@ -16,7 +16,7 @@ import {
   checkCrawlerSourcePolicy,
 } from './crawler-policy';
 import {
-  ensureDemoCrawlerSource,
+  ensureCrawlerSourceCatalog,
   getCrawlerSourceById,
 } from './crawler-source-repository';
 import {
@@ -25,7 +25,7 @@ import {
 } from './crawler-task-item-repository';
 import { getPublicOpportunityCrawlerSchedulerConfig } from './public-opportunity-crawler-scheduler';
 
-const DEFAULT_STALE_ACTIVE_TASK_MINUTES = 15;
+const DEFAULT_STALE_ACTIVE_TASK_MINUTES = 5;
 
 export class CrawlerTaskValidationError extends Error {
   constructor(message: string) {
@@ -49,6 +49,16 @@ function parseJsonObject(value: unknown): null | Record<string, unknown> {
   } catch {
     return null;
   }
+}
+
+function stringifyJsonPayload(value: unknown) {
+  return JSON.stringify(value, (_key, item) => {
+    if (typeof item !== 'bigint') {
+      return item;
+    }
+    const numberValue = Number(item);
+    return Number.isSafeInteger(numberValue) ? numberValue : item.toString();
+  });
 }
 
 function mapTaskRow(row: any): CrawlerTask {
@@ -152,7 +162,7 @@ function buildTaskSelectSql() {
 export async function listCrawlerTasks(
   params: CrawlerTaskListParams,
 ): Promise<CrawlerTaskListResult> {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
 
   const whereClauses = ['1 = 1'];
   const whereParams: unknown[] = [];
@@ -201,7 +211,7 @@ export async function listCrawlerTasks(
 }
 
 export async function countCrawlerTasksByStatus(sourceId: number) {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
   const rows = await prismaClient.$queryRawUnsafe<
     Array<{ count: bigint | number; status: string }>
   >(
@@ -243,15 +253,6 @@ export async function getCrawlerOpsSummary(sourceId: number) {
     source && sourcePolicy.allowed
       ? checkCrawlerIntervalPolicy(source)
       : { allowed: false, reason: sourcePolicy.reason };
-  const lastCrawledAt = source?.lastCrawledAt
-    ? new Date(source.lastCrawledAt)
-    : null;
-  const nextRunAt =
-    lastCrawledAt && source && source.crawlIntervalMinutes > 0
-      ? new Date(
-          lastCrawledAt.getTime() + source.crawlIntervalMinutes * 60 * 1000,
-        ).toISOString()
-      : null;
 
   return {
     itemStatus,
@@ -260,7 +261,6 @@ export async function getCrawlerOpsSummary(sourceId: number) {
     scheduler: {
       ...schedulerConfig,
       canRunNow: Boolean(sourcePolicy.allowed && intervalPolicy.allowed),
-      nextRunAt,
       reason: sourcePolicy.reason || intervalPolicy.reason || null,
     },
     source,
@@ -269,7 +269,7 @@ export async function getCrawlerOpsSummary(sourceId: number) {
 }
 
 export async function getCrawlerTaskDetail(taskId: number) {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
 
   const rows = await prismaClient.$queryRawUnsafe<any[]>(
     `
@@ -283,7 +283,7 @@ export async function getCrawlerTaskDetail(taskId: number) {
 }
 
 export async function listCrawlerTaskLogs(taskId: number) {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
 
   const rows = await prismaClient.$queryRawUnsafe<any[]>(
     `
@@ -312,7 +312,7 @@ export async function createCrawlerTask(params: {
   sourceId: number;
   taskType: string;
 }) {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
   await reclaimStaleActiveCrawlerTasks(params.sourceId);
 
   const activeRows = await prismaClient.$queryRawUnsafe<
@@ -343,7 +343,7 @@ export async function createCrawlerTask(params: {
     `,
     params.sourceId,
     params.taskType,
-    params.requestConfig ? JSON.stringify(params.requestConfig) : null,
+    params.requestConfig ? stringifyJsonPayload(params.requestConfig) : null,
   );
   const rows = await prismaClient.$queryRawUnsafe<Array<{ taskId: bigint }>>(
     `
@@ -380,6 +380,41 @@ export async function reclaimStaleActiveCrawlerTasks(
         AND create_time < DATE_SUB(NOW(3), INTERVAL ? MINUTE)
     `,
     sourceId,
+    normalizedStaleMinutes,
+  );
+  return Number(affected || 0);
+}
+
+export async function reclaimStaleOrDisabledActiveCrawlerTasks(
+  staleMinutes = DEFAULT_STALE_ACTIVE_TASK_MINUTES,
+) {
+  await ensureCrawlerSourceCatalog();
+  const normalizedStaleMinutes = Math.max(
+    1,
+    Math.floor(Number(staleMinutes) || DEFAULT_STALE_ACTIVE_TASK_MINUTES),
+  );
+  const affected = await prismaClient.$executeRawUnsafe(
+    `
+      UPDATE crawler_task t
+      INNER JOIN crawler_source s ON s.source_id = t.source_id
+      SET t.status = 'FAILED',
+        t.finished_at = NOW(3),
+        t.crawl_ended_at = COALESCE(t.crawl_ended_at, NOW(3)),
+        t.error_message = CASE
+          WHEN s.enabled = 0 THEN 'SOURCE_DISABLED_ACTIVE_TASK_RECLAIMED'
+          ELSE 'STALE_ACTIVE_TASK_RECLAIMED'
+        END,
+        t.skip_reason = CASE
+          WHEN s.enabled = 0 THEN 'SOURCE_DISABLED_ACTIVE_TASK_RECLAIMED'
+          ELSE 'STALE_ACTIVE_TASK_RECLAIMED'
+        END,
+        t.update_time = NOW(3)
+      WHERE t.status IN ('PENDING', 'RUNNING')
+        AND (
+          s.enabled = 0
+          OR t.create_time < DATE_SUB(NOW(3), INTERVAL ? MINUTE)
+        )
+    `,
     normalizedStaleMinutes,
   );
   return Number(affected || 0);
@@ -466,12 +501,12 @@ export async function appendCrawlerTaskLog(params: {
     params.level,
     params.stage,
     params.message,
-    params.detail ? JSON.stringify(params.detail) : null,
+    params.detail ? stringifyJsonPayload(params.detail) : null,
   );
 }
 
 export async function cancelCrawlerTask(taskId: number) {
-  await ensureDemoCrawlerSource();
+  await ensureCrawlerSourceCatalog();
   const task = await getCrawlerTaskDetail(taskId);
   if (!task) {
     return null;

@@ -1,4 +1,5 @@
 import { prismaClient } from '~/utils/db';
+import { assertInvestmentRadarTableReady } from '~/utils/investment-radar/schema-guard';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   badRequestResponse,
@@ -27,44 +28,39 @@ interface Reminder {
   title: string;
 }
 
+function toNumber(value: unknown) {
+  const numericValue = Number(value ?? 0);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function toNullableNumber(value: unknown) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
 async function ensureAssignmentLogTable() {
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS investment_lead_assignment_log (
-      assignment_id BIGINT NOT NULL AUTO_INCREMENT,
-      lead_id BIGINT NOT NULL,
-      previous_owner_user_id BIGINT NULL,
-      owner_user_id BIGINT NOT NULL,
-      owner_name VARCHAR(100) NULL,
-      assignment_source VARCHAR(50) NOT NULL,
-      assign_reason VARCHAR(255) NULL,
-      create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (assignment_id),
-      INDEX idx_investment_lead_assignment_log_lead (lead_id),
-      INDEX idx_investment_lead_assignment_log_owner (owner_user_id),
-      INDEX idx_investment_lead_assignment_log_time (create_time)
-    )
-  `);
+  await assertInvestmentRadarTableReady('investment_lead_assignment_log');
 }
 
 async function ensureSopReminderTable() {
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS investment_sop_reminder (
-      reminder_id BIGINT NOT NULL AUTO_INCREMENT,
-      lead_id BIGINT NOT NULL,
-      reminder_type VARCHAR(50) NOT NULL,
-      title VARCHAR(100) NOT NULL,
-      description TEXT NULL,
-      due_time DATETIME(3) NOT NULL,
-      reminder_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
-      handled_time DATETIME(3) NULL,
-      create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (reminder_id),
-      UNIQUE KEY uk_investment_sop_reminder_lead_type (lead_id, reminder_type),
-      INDEX idx_investment_sop_reminder_lead_status (lead_id, reminder_status),
-      INDEX idx_investment_sop_reminder_due_time (due_time)
-    )
-  `);
+  await assertInvestmentRadarTableReady('investment_sop_reminder');
+}
+
+async function isOptionalSopTableReady(
+  tableName: 'investment_lead_assignment_log' | 'investment_sop_reminder',
+) {
+  try {
+    await (tableName === 'investment_lead_assignment_log'
+      ? ensureAssignmentLogTable()
+      : ensureSopReminderTable());
+    return true;
+  } catch (error) {
+    console.warn(`radar optional SOP table unavailable: ${tableName}`, error);
+    return false;
+  }
 }
 
 function generateReminders(
@@ -282,9 +278,6 @@ export default eventHandler(async (event) => {
 
   try {
     const result = await runWithRadarSharedScope(async () => {
-      await ensureAssignmentLogTable();
-      await ensureSopReminderTable();
-
       const leadRows = await prismaClient.$queryRawUnsafe<any[]>(
         `
           SELECT lead_id AS leadId, stage, create_time AS createTime, latest_contact_time AS latestContactTime
@@ -299,10 +292,16 @@ export default eventHandler(async (event) => {
         return null;
       }
 
+      const [hasAssignmentLogTable, hasSopReminderTable] = await Promise.all([
+        isOptionalSopTableReady('investment_lead_assignment_log'),
+        isOptionalSopTableReady('investment_sop_reminder'),
+      ]);
+
       const [assignmentRecords, followRecords, visitRecords] =
         await Promise.all([
-          optionalQuery<any>(
-            `
+          hasAssignmentLogTable
+            ? optionalQuery<any>(
+                `
             SELECT
               owner_name AS ownerName,
               assignment_source AS assignmentSource,
@@ -313,8 +312,9 @@ export default eventHandler(async (event) => {
             ORDER BY create_time DESC, assignment_id DESC
             LIMIT 20
           `,
-            leadId,
-          ),
+                leadId,
+              )
+            : Promise.resolve([]),
           optionalQuery<any>(
             `
             SELECT
@@ -363,6 +363,25 @@ export default eventHandler(async (event) => {
         visitRecords,
       );
 
+      if (!hasSopReminderTable) {
+        return {
+          assignmentRecords,
+          followRecords: followRecords.map((record) => ({
+            ...record,
+            recordId: toNumber(record.recordId),
+          })),
+          reminders: generatedReminders.map((reminder) => ({
+            ...reminder,
+            reminderId: toNumber(reminder.reminderId),
+          })),
+          visitRecords: visitRecords.map((record) => ({
+            ...record,
+            factoryFloorId: toNullableNumber(record.factoryFloorId),
+            visitId: toNumber(record.visitId),
+          })),
+        };
+      }
+
       await (['CLOSED', 'DEAL', 'INVALID'].includes(String(lead.stage || ''))
         ? completeOpenRemindersForInactiveLead(leadId)
         : syncGeneratedReminders(leadId, generatedReminders));
@@ -400,9 +419,19 @@ export default eventHandler(async (event) => {
 
       return {
         assignmentRecords,
-        followRecords,
-        reminders,
-        visitRecords,
+        followRecords: followRecords.map((record) => ({
+          ...record,
+          recordId: toNumber(record.recordId),
+        })),
+        reminders: reminders.map((reminder) => ({
+          ...reminder,
+          reminderId: toNumber(reminder.reminderId),
+        })),
+        visitRecords: visitRecords.map((record) => ({
+          ...record,
+          factoryFloorId: toNullableNumber(record.factoryFloorId),
+          visitId: toNumber(record.visitId),
+        })),
       };
     });
 

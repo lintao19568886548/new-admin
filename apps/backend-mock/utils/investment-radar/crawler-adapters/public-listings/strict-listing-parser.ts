@@ -117,15 +117,51 @@ const DISTRICT_NAMES = [
   '越秀',
   '荔湾',
   '宝安',
+  '新安',
+  '西乡',
+  '航城',
+  '福永',
+  '福海',
+  '沙井',
+  '新桥',
+  '松岗',
+  '燕罗',
+  '石岩',
   '龙岗',
   '龙华',
+  '坂田',
+  '布吉',
+  '平湖',
+  '横岗',
+  '坪地',
+  '南湾',
+  '吉华',
+  '园山',
+  '宝龙',
+  '民治',
+  '大浪',
+  '观湖',
+  '观澜',
+  '福城',
   '福田',
   '南山',
   '罗湖',
   '盐田',
   '坪山',
+  '坑梓',
+  '马峦',
+  '碧岭',
+  '石井',
+  '龙田',
   '光明',
+  '公明',
+  '凤凰',
+  '玉塘',
+  '马田',
+  '新湖',
   '大鹏',
+  '葵涌',
+  '南澳',
   '惠城',
   '惠阳',
   '仲恺',
@@ -290,7 +326,10 @@ function cleanFieldValue(value: null | string | undefined) {
 
 function extractInlineValue(line: string, label: string) {
   const labelPattern = buildLooseLabelPattern(label);
-  const colonPattern = new RegExp(`${labelPattern}\\s*[：:]\\s*(.+)$`, 'u');
+  const colonPattern = new RegExp(
+    `^\\s*${labelPattern}\\s*[：:]\\s*(.+)$`,
+    'u',
+  );
   const colonMatch = line.match(colonPattern);
   if (colonMatch?.[1]) {
     return cleanFieldValue(colonMatch[1]);
@@ -417,6 +456,10 @@ function normalizeAreaSqm(areaText: null | string) {
   return number * multiplier;
 }
 
+function extractAreaFromText(text: string) {
+  return normalizeAreaText(text);
+}
+
 function normalizePriceText(value: null | string) {
   if (!value) {
     return null;
@@ -428,6 +471,16 @@ function normalizePriceText(value: null | string) {
     /\d[\d,.]*(?:\s*万)?\s*[元块¥￥](?:\s*(?:[/.／·・]\s*)?(?:m²|m2|平方米|平米|平方|[㎡亩平月天日年]))*\s*起?/iu,
   );
   return priceMatch?.[0]?.trim() || null;
+}
+
+function extractPriceFromText(text: string) {
+  return (
+    normalizePriceText(
+      text.match(
+        /(?:租金|价格|单价|报价|月租|参考价)[：:\s]*[^，,。；;\n]{1,40}/u,
+      )?.[0] || null,
+    ) || normalizePriceText(text)
+  );
 }
 
 function normalizePhoneNumber(value: null | string) {
@@ -521,6 +574,15 @@ function extractCity(lines: string[], labels: string[]) {
   return null;
 }
 
+function extractCityFromText(text: string) {
+  const city = normalizeGuangdongCity(text);
+  if (city) {
+    return city;
+  }
+
+  return null;
+}
+
 function stripCityFromDistrict(value: string) {
   let result = value;
   for (const city of GUANGDONG_CITY_NAMES) {
@@ -574,6 +636,10 @@ function extractDistrict(lines: string[], labels: string[]) {
   return null;
 }
 
+function extractDistrictFromText(text: string) {
+  return normalizeDistrict(text);
+}
+
 function mergeLabels(
   defaultLabels: string[],
   overrideLabels: string[] | undefined,
@@ -593,12 +659,16 @@ export function extractStrictListingFromHtml(
     config.publishedLabels,
   );
   const publishedDateText = extractPublishedDateText(lines, publishedLabels);
-  const areaText = normalizeAreaText(
-    extractLabeledValue(
-      lines,
-      mergeLabels(DEFAULT_AREA_LABELS, config.areaLabels),
-    ),
-  );
+  const title = extractTitle(html, config.titleSuffixPattern);
+  const titleText = title || '';
+  const searchableText = [title, text].filter(Boolean).join(' ');
+  const areaText =
+    normalizeAreaText(
+      extractLabeledValue(
+        lines,
+        mergeLabels(DEFAULT_AREA_LABELS, config.areaLabels),
+      ),
+    ) || extractAreaFromText(searchableText);
   const phoneNumber =
     normalizePhoneNumber(
       extractLabeledValue(
@@ -609,10 +679,9 @@ export function extractStrictListingFromHtml(
   const result = {
     areaSqm: normalizeAreaSqm(areaText),
     areaText,
-    city: extractCity(
-      lines,
-      mergeLabels(DEFAULT_CITY_LABELS, config.cityLabels),
-    ),
+    city:
+      extractCity(lines, mergeLabels(DEFAULT_CITY_LABELS, config.cityLabels)) ||
+      extractCityFromText(titleText),
     contactName: normalizeContactName(
       extractLabeledValue(
         lines,
@@ -620,24 +689,26 @@ export function extractStrictListingFromHtml(
       ),
     ),
     description: text.slice(0, 2000) || null,
-    district: extractDistrict(
-      lines,
-      mergeLabels(DEFAULT_DISTRICT_LABELS, config.districtLabels),
-    ),
+    district:
+      extractDistrict(
+        lines,
+        mergeLabels(DEFAULT_DISTRICT_LABELS, config.districtLabels),
+      ) || extractDistrictFromText(titleText),
     industryText: null,
     opportunityType: 'SUPPLY' as const,
     phoneNumber,
-    priceText: normalizePriceText(
-      extractLabeledValue(
-        lines,
-        mergeLabels(DEFAULT_PRICE_LABELS, config.priceLabels),
-      ),
-    ),
+    priceText:
+      normalizePriceText(
+        extractLabeledValue(
+          lines,
+          mergeLabels(DEFAULT_PRICE_LABELS, config.priceLabels),
+        ),
+      ) || extractPriceFromText(searchableText),
     publishedAt: normalizePublishedAt(publishedDateText),
     publishedDateText,
     sourceSite: config.sourceSite,
     sourceUrl,
-    title: extractTitle(html, config.titleSuffixPattern),
+    title,
   };
   const missingFields = collectMissingFields(result, REQUIRED_DETAIL_FIELDS);
 

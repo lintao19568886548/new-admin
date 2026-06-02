@@ -1,5 +1,7 @@
 import { prismaClient } from '~/utils/db';
 
+import { assertInvestmentRadarTableReady } from './schema-guard';
+
 async function ensureColumn(
   tableName: string,
   columnName: string,
@@ -24,26 +26,41 @@ async function ensureColumn(
   }
 }
 
+async function ensureColumnHasDefault(
+  tableName: string,
+  columnName: string,
+  modifyDdl: string,
+) {
+  const rows = await prismaClient.$queryRawUnsafe<
+    Array<{ COLUMN_DEFAULT: null | string; IS_NULLABLE: string }>
+  >(
+    `
+      SELECT COLUMN_DEFAULT, IS_NULLABLE
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = ?
+        AND COLUMN_NAME = ?
+    `,
+    tableName,
+    columnName,
+  );
+  const col = rows[0];
+  if (col && col.IS_NULLABLE === 'NO' && col.COLUMN_DEFAULT === null) {
+    await prismaClient.$executeRawUnsafe(
+      `ALTER TABLE \`${tableName}\` MODIFY COLUMN ${modifyDdl}`,
+    );
+  }
+}
+
 export async function ensureFollowRecordTable() {
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS investment_follow_record (
-      record_id BIGINT NOT NULL AUTO_INCREMENT,
-      lead_id BIGINT NOT NULL,
-      follow_type VARCHAR(30) NOT NULL DEFAULT 'PHONE',
-      follow_result VARCHAR(30) NOT NULL DEFAULT 'CONTACTED',
-      content TEXT NOT NULL,
-      next_action VARCHAR(255) NULL,
-      next_follow_time DATETIME(3) NULL,
-      operator_user_id BIGINT NULL,
-      create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (record_id),
-      INDEX idx_investment_follow_record_lead_time (lead_id, create_time),
-      INDEX idx_investment_follow_record_result (follow_result)
-    )
-  `);
+  await assertInvestmentRadarTableReady('investment_follow_record');
 
   await ensureColumn(
+    'investment_follow_record',
+    'update_time',
+    'update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)',
+  );
+  await ensureColumnHasDefault(
     'investment_follow_record',
     'update_time',
     'update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)',
@@ -51,25 +68,7 @@ export async function ensureFollowRecordTable() {
 }
 
 export async function ensureVisitRecordTable() {
-  await prismaClient.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS investment_visit_record (
-      visit_id BIGINT NOT NULL AUTO_INCREMENT,
-      lead_id BIGINT NOT NULL,
-      factory_floor_id BIGINT NULL,
-      scheduled_time DATETIME(3) NOT NULL,
-      actual_time DATETIME(3) NULL,
-      visitor_name VARCHAR(100) NULL,
-      visitor_phone VARCHAR(50) NULL,
-      visit_status VARCHAR(30) NOT NULL DEFAULT 'PLANNED',
-      feedback TEXT NULL,
-      operator_user_id BIGINT NULL,
-      create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-      PRIMARY KEY (visit_id),
-      INDEX idx_investment_visit_record_lead_time (lead_id, scheduled_time),
-      INDEX idx_investment_visit_record_status (visit_status)
-    )
-  `);
+  await assertInvestmentRadarTableReady('investment_visit_record');
 
   await ensureColumn(
     'investment_visit_record',
@@ -87,6 +86,11 @@ export async function ensureVisitRecordTable() {
     'feedback TEXT NULL',
   );
   await ensureColumn(
+    'investment_visit_record',
+    'update_time',
+    'update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)',
+  );
+  await ensureColumnHasDefault(
     'investment_visit_record',
     'update_time',
     'update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)',

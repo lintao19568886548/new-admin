@@ -11,6 +11,11 @@ import ParkLabel from '#/components/LabelRouter.vue';
 import MultiSelect from '#/components/MultiSelect.vue'; // 导入 MultiSelect 组件
 import { $t } from '#/locales';
 
+import {
+  getSearchHistoryOptions,
+  searchableDropdownProps,
+} from '../search-history';
+
 /**
  * 投资代理项目接口
  */
@@ -161,7 +166,7 @@ export function useFormSchema(closeModal: () => void): VbenFormSchema[] {
           beforeNavigate: closeModal, // 传递关闭模态框的回调
           buttonText: '新增工厂', // 自定义按钮文本
           label: $t('page.common.park'),
-          path: '/rental/manage/', // 传递跳转路径
+          path: '/system/park', // 传递跳转路径
         }),
     },
     {
@@ -188,12 +193,22 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: $t('page.common.park'),
     },
     {
-      component: 'Input',
+      component: 'AutoComplete',
+      componentProps: {
+        ...searchableDropdownProps,
+        allowClear: true,
+        options: getSearchHistoryOptions('agent.list.agentName'),
+      },
       fieldName: 'agentName',
       label: $t('page.agent.name'),
     },
     {
-      component: 'Input',
+      component: 'AutoComplete',
+      componentProps: {
+        ...searchableDropdownProps,
+        allowClear: true,
+        options: getSearchHistoryOptions('agent.list.tenantName'),
+      },
       fieldName: 'tenantName',
       label: $t('page.tenant.name'),
     },

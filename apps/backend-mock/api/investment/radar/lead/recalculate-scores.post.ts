@@ -1,4 +1,4 @@
-import { recalculateDemoLeadScores } from '~/utils/investment-radar/lead-score-service';
+import { recalculateRadarLeadScores } from '~/utils/investment-radar/lead-score-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {
   serverErrorResponse,
@@ -14,11 +14,11 @@ export default eventHandler(async (event) => {
 
   try {
     const result = await runWithRadarSharedScope(() =>
-      recalculateDemoLeadScores(),
+      recalculateRadarLeadScores(),
     );
     return useResponseSuccess(result);
   } catch (error) {
-    console.error('recalculate demo lead scores failed:', error);
-    return serverErrorResponse('重算 demo 潜客评分失败', event);
+    console.error('recalculate radar lead scores failed:', error);
+    return serverErrorResponse('重算潜客评分失败', event);
   }
 });
