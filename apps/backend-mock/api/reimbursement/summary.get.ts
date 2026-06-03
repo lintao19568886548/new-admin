@@ -15,13 +15,26 @@ export default eventHandler(async (event) => {
   try {
     const query = getQuery(event);
     const hasAuditPermission = (userinfo.reimbursementAuth || 0) > 0;
+    const allowedParkIds = (userinfo.parks || [])
+      .map((park) => Number(park.parkId))
+      .filter((parkId) => !Number.isNaN(parkId));
 
     const where: any = {
       isDeleted: false,
     };
 
     if (hasAuditPermission) {
-      // 审核人员可查看全量数据
+      if (allowedParkIds.length === 0) {
+        return useResponseSuccess({
+          approved: 0,
+          pending: 0,
+          rejected: 0,
+          total: 0,
+        });
+      }
+      where.parkId = {
+        in: allowedParkIds,
+      };
     } else {
       where.userId = userinfo.id;
     }
@@ -64,6 +77,14 @@ export default eventHandler(async (event) => {
       const parkId = Number(query.parkId);
       if (Number.isNaN(parkId)) {
         return useResponseError('园区参数无效', 400);
+      }
+      if (hasAuditPermission && !allowedParkIds.includes(parkId)) {
+        return useResponseSuccess({
+          approved: 0,
+          pending: 0,
+          rejected: 0,
+          total: 0,
+        });
       }
       where.parkId = parkId;
     }

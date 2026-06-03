@@ -17,6 +17,9 @@ export default eventHandler(async (event) => {
     const query = getQuery(event);
     console.log('后端收到的查询参数:', query);
     const hasAuditPermission = (userinfo.reimbursementAuth || 0) > 0;
+    const allowedParkIds = (userinfo.parks || [])
+      .map((park) => Number(park.parkId))
+      .filter((parkId) => !Number.isNaN(parkId));
 
     // 构建查询条件
     const where: any = {
@@ -28,7 +31,15 @@ export default eventHandler(async (event) => {
       where.claimant = String(query.claimant);
     }
     if (hasAuditPermission) {
-      // 审核人员可查看全量数据
+      if (allowedParkIds.length === 0) {
+        return useResponseSuccess({
+          items: [],
+          total: 0,
+        });
+      }
+      where.parkId = {
+        in: allowedParkIds,
+      };
     } else {
       // 非审核人员只能查看自己的申请记录
       where.userId = userinfo.id;
@@ -72,6 +83,12 @@ export default eventHandler(async (event) => {
       const parkId = Number(query.parkId);
       if (Number.isNaN(parkId)) {
         return useResponseError('园区参数无效', 400);
+      }
+      if (hasAuditPermission && !allowedParkIds.includes(parkId)) {
+        return useResponseSuccess({
+          items: [],
+          total: 0,
+        });
       }
       where.parkId = parkId;
     }

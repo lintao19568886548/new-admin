@@ -84,8 +84,6 @@ export default eventHandler(async (event) => {
 
   const items = result.map((item) => ({
     ...item,
-    waterFee: Number(item.waterFee) + Number(item.garbageFee),
-    eleFee: Number(item.eleFee) + Number(item.serviceFee),
     tenantName: item.tenant?.tenantName || item.tenantName,
     parkName: item.park?.parkName,
   }));

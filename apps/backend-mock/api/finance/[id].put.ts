@@ -1,4 +1,8 @@
 import { prismaClient } from '~/utils/db';
+import {
+  forbiddenFinanceParkResponse,
+  hasFinanceParkAccess,
+} from '~/utils/finance-permission';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   serverErrorResponse,
@@ -21,6 +25,28 @@ export default eventHandler(async (event) => {
 
   try {
     const updatedFinance = await prismaClient.$transaction(async (prisma) => {
+      const existingFinance = await prisma.finance.findFirst({
+        select: {
+          parkId: true,
+        },
+        where: {
+          financeId,
+          isDeleted: false,
+        },
+      });
+      if (!existingFinance) {
+        throw new Error('FINANCE_NOT_FOUND');
+      }
+      if (!hasFinanceParkAccess(userinfo, existingFinance.parkId)) {
+        throw new Error('FINANCE_FORBIDDEN');
+      }
+      if (
+        financeData.parkId !== undefined &&
+        !hasFinanceParkAccess(userinfo, Number(financeData.parkId))
+      ) {
+        throw new Error('FINANCE_FORBIDDEN');
+      }
+
       // 1. 删除旧图片
       await prisma.financeImage.deleteMany({
         where: { financeId },
@@ -53,6 +79,12 @@ export default eventHandler(async (event) => {
 
     return useResponseSuccess(updatedFinance);
   } catch (error) {
+    if (error instanceof Error && error.message === 'FINANCE_NOT_FOUND') {
+      return useResponseError('未找到财务记录', 404);
+    }
+    if (error instanceof Error && error.message === 'FINANCE_FORBIDDEN') {
+      return forbiddenFinanceParkResponse(event);
+    }
     console.error('更新财务数据失败:', error);
     return serverErrorResponse('更新财务数据失败', event);
   }

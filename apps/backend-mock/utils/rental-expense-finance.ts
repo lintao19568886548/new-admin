@@ -98,9 +98,21 @@ function getWorkerIntervalMs() {
 
 function isWorkerEnabled() {
   return (
-    String(process.env.RENTAL_EXPENSE_FINANCE_WORKER_ENABLED ?? 'true')
+    String(process.env.RENTAL_EXPENSE_FINANCE_WORKER_ENABLED ?? 'false')
       .trim()
-      .toLowerCase() !== 'false'
+      .toLowerCase() === 'true'
+  );
+}
+
+function isSyncEnabled() {
+  return (
+    String(
+      process.env.RENTAL_EXPENSE_FINANCE_SYNC_ENABLED ??
+        process.env.RENTAL_EXPENSE_FINANCE_WORKER_ENABLED ??
+        'false',
+    )
+      .trim()
+      .toLowerCase() === 'true'
   );
 }
 
@@ -389,6 +401,15 @@ async function syncRentalExpenseFinanceRecordsInCurrentScope(
 export async function syncRentalExpenseFinanceRecords(
   options: SyncRentalExpenseFinanceRecordsOptions = {},
 ): Promise<SyncRentalExpenseFinanceRecordsResult> {
+  if (!isSyncEnabled()) {
+    return {
+      created: 0,
+      dueRecords: 0,
+      skipped: 0,
+      tenants: 0,
+    };
+  }
+
   const targetScope = normalizeCustomerScope(options.customerScope);
   const currentScope = normalizeCustomerScope(prismaScopeStorage.getStore());
 

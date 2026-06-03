@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import { prismaClient } from '~/utils/db';
+import { AUTO_RENTAL_EXPENSE_REVENUE_EXCLUSION_WHERE } from '~/utils/finance-revenue-policy';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
 
@@ -28,6 +29,30 @@ function createEmptyTrend(months: string[]): RevenueTrend {
   };
 }
 
+function resolveParkIds(
+  queryParkId: unknown,
+  accessibleParkIds: number[],
+): null | number[] {
+  if (
+    queryParkId === undefined ||
+    queryParkId === 'all' ||
+    Number(queryParkId) === -1
+  ) {
+    return accessibleParkIds;
+  }
+
+  const parkId = Number(queryParkId);
+  if (
+    !Number.isInteger(parkId) ||
+    parkId <= 0 ||
+    !accessibleParkIds.includes(parkId)
+  ) {
+    return null;
+  }
+
+  return [parkId];
+}
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -35,7 +60,6 @@ export default eventHandler(async (event) => {
   }
 
   const query = getQuery(event);
-  const selectedParkId = query.parkId ? Number(query.parkId) : undefined;
   const accessibleParkIds = (userinfo.parks || []).map(
     (park: { parkId: number }) => park.parkId,
   );
@@ -56,24 +80,25 @@ export default eventHandler(async (event) => {
   const emptyTrend = createEmptyTrend(monthLabels);
 
   try {
+    const parkIds = resolveParkIds(query.parkId, accessibleParkIds);
+    if (!parkIds || parkIds.length === 0) {
+      return useResponseSuccess({
+        summary: emptySummary,
+        trend: emptyTrend,
+      });
+    }
+
     const where: Record<string, any> = {
       isDeleted: false,
+      NOT: AUTO_RENTAL_EXPENSE_REVENUE_EXCLUSION_WHERE,
+      parkId: {
+        in: parkIds,
+      },
       transactionTime: {
         gte: startOfWindow.toDate(),
         lte: now.endOf('day').toDate(),
       },
     };
-
-    if (selectedParkId !== undefined && selectedParkId !== -1) {
-      if (!accessibleParkIds.includes(selectedParkId)) {
-        return useResponseSuccess({
-          summary: emptySummary,
-          trend: emptyTrend,
-        });
-      }
-
-      where.parkId = selectedParkId;
-    }
 
     const financeRecords = await prismaClient.finance.findMany({
       orderBy: {

@@ -34,7 +34,6 @@ const routes: RouteRecordRaw[] = [
         path: '/system/park',
         name: 'SystemPark',
         meta: {
-          hideInMenu: true,
           icon: 'mdi:office-building-cog-outline',
           title: $t('system.park.title'),
         },

@@ -1,5 +1,6 @@
 import Nzh from 'nzh';
 import { prismaClient } from '~/utils/db';
+import { buildFinanceAmountWhere } from '~/utils/finance-query';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import { syncRentalExpenseFinanceRecords } from '~/utils/rental-expense-finance';
 import {
@@ -81,36 +82,7 @@ export default eventHandler(async (event) => {
 
     // 金额范围查询，支持模糊查询
     if (query.amount) {
-      const amountStr = String(query.amount);
-
-      // 检查是否包含比较运算符
-      if (amountStr.startsWith('>')) {
-        // 大于查询
-        const value = Number(amountStr.slice(1));
-        where.amount = { gt: value };
-      } else if (amountStr.startsWith('>=')) {
-        // 大于等于查询
-        const value = Number(amountStr.slice(2));
-        where.amount = { gte: value };
-      } else if (amountStr.startsWith('<')) {
-        // 小于查询
-        const value = Number(amountStr.slice(1));
-        where.amount = { lt: value };
-      } else if (amountStr.startsWith('<=')) {
-        // 小于等于查询
-        const value = Number(amountStr.slice(2));
-        where.amount = { lte: value };
-      } else if (amountStr.includes('-')) {
-        // 范围查询，例如 "100-200"
-        const [min, max] = amountStr.split('-').map(Number);
-        where.amount = {
-          gte: min,
-          lte: max,
-        };
-      } else {
-        // 精确匹配
-        where.amount = Number(amountStr);
-      }
+      where.amount = buildFinanceAmountWhere(query.amount);
     }
 
     // 日期范围查询
@@ -146,8 +118,18 @@ export default eventHandler(async (event) => {
     // 区域查询
     if (query.parkId) {
       if (Number(query.parkId) === -1) {
-        // 选择全部区域时,不需要额外的过滤
-        console.log('查询所有区域数据');
+        if (accessibleParkIds.length > 0) {
+          where.parkId = {
+            in: accessibleParkIds,
+          };
+        } else {
+          return useResponseSuccess({
+            items: [],
+            total: 0,
+            currentPage: Number(query.currentPage) || 1,
+            pageSize: Number(query.pageSize) || 20,
+          });
+        }
       } else if (
         userinfo.parks &&
         accessibleParkIds.includes(Number(query.parkId))
@@ -173,7 +155,18 @@ export default eventHandler(async (event) => {
         });
       }
     } else {
-      console.log('未指定查询区域，查询所有数据');
+      if (accessibleParkIds.length > 0) {
+        where.parkId = {
+          in: accessibleParkIds,
+        };
+      } else {
+        return useResponseSuccess({
+          items: [],
+          total: 0,
+          currentPage: Number(query.currentPage) || 1,
+          pageSize: Number(query.pageSize) || 20,
+        });
+      }
     }
 
     let syncParkIds: number[] | undefined;

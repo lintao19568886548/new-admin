@@ -1,4 +1,5 @@
 import { prismaClient } from '~/utils/db';
+import { AUTO_RENTAL_EXPENSE_REVENUE_EXCLUSION_WHERE } from '~/utils/finance-revenue-policy';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   serverErrorResponse,
@@ -106,6 +107,7 @@ export default eventHandler(async (event) => {
         transactionType: {
           in: ['收入', '支出'],
         },
+        NOT: AUTO_RENTAL_EXPENSE_REVENUE_EXCLUSION_WHERE,
       },
     });
 

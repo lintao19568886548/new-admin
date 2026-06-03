@@ -22,28 +22,38 @@ export default eventHandler(async (event) => {
     let requireTenantFilter = false;
 
     const accessibleParkIds =
-      userinfo.parks?.map((park: any) => park.parkId) ?? [];
+      userinfo.parks
+        ?.map((park: any) => Number(park.parkId))
+        .filter((parkId: number) => Number.isInteger(parkId) && parkId > 0) ??
+      [];
+
+    if (accessibleParkIds.length === 0) {
+      return useResponseSuccess({
+        items: [],
+        total: 0,
+        currentPage,
+        pageSize,
+      });
+    }
+
+    tenantWhere.parkId = {
+      in: accessibleParkIds,
+    };
+    requireTenantFilter = true;
 
     if (query.currentPark !== undefined && query.currentPark !== null) {
       const currentPark = Number(query.currentPark);
       if (currentPark === -1) {
-        if (accessibleParkIds.length > 0) {
-          tenantWhere.parkId = {
-            in: accessibleParkIds,
-          };
-          requireTenantFilter = true;
-        }
+        tenantWhere.parkId = {
+          in: accessibleParkIds,
+        };
+        requireTenantFilter = true;
       } else if (accessibleParkIds.includes(currentPark)) {
         tenantWhere.parkId = currentPark;
         requireTenantFilter = true;
       } else {
         return useResponseError('没有查看权限');
       }
-    } else if (accessibleParkIds.length > 0) {
-      tenantWhere.parkId = {
-        in: accessibleParkIds,
-      };
-      requireTenantFilter = true;
     }
 
     if (query.tenantName) {

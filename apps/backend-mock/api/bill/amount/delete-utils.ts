@@ -55,15 +55,10 @@ export async function deleteAmountBillsByIds(tx: any, billIds: number[]) {
   });
 
   if (financeIds.length > 0) {
-    await tx.financeImage.deleteMany({
-      where: {
-        financeId: {
-          in: financeIds,
-        },
+    await tx.finance.updateMany({
+      data: {
+        isDeleted: true,
       },
-    });
-
-    await tx.finance.deleteMany({
       where: {
         financeId: {
           in: financeIds,

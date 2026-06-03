@@ -22,7 +22,6 @@ const SYSTEM_PARK_MENU_FALLBACK = {
   authCode: 'system:park',
   component: '/system/park/list',
   meta: {
-    hideInMenu: true,
     icon: 'mdi:office-building-cog-outline',
     order: 25,
     title: '园区管理',
@@ -206,7 +205,7 @@ function toSystemParkMenu(source?: MenuRecord) {
     component: SYSTEM_PARK_MENU_FALLBACK.component,
     meta: {
       ...base.meta,
-      hideInMenu: true,
+      hideInMenu: false,
       icon: base.meta?.icon || SYSTEM_PARK_MENU_FALLBACK.meta.icon,
       order: base.meta?.order ?? SYSTEM_PARK_MENU_FALLBACK.meta.order,
       title: SYSTEM_PARK_MENU_FALLBACK.meta.title,

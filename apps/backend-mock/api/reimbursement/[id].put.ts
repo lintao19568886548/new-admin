@@ -1,5 +1,6 @@
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
+import { syncApprovedReimbursementFinanceRecord } from '~/utils/reimbursement-finance';
 import {
   forbiddenResponse,
   unAuthorizedResponse,
@@ -73,48 +74,33 @@ export default eventHandler(async (event) => {
       ? opinionPrefix + body.auditOpinion
       : opinionPrefix;
 
-    // 更新报销记录
-    const updatedReimbursement = await prismaClient.reimbursement.update({
-      where: { id },
-      data: {
-        status: body.status === undefined ? undefined : Number(body.status),
-        auditOpinion: finalOpinion,
-        // 根据需要，可以添加其他审核相关字段的更新
-        // auditor: body.auditor,
-        // auditorId: body.auditorId,
-      },
-      include: {
-        images: {
-          include: {
-            image: true, // 包含关联的图片详情
-          },
-        },
-      },
-    });
-
-    // 如果报销已通过，则同步到财务记录
-    if (updatedReimbursement.status === 1) {
-      await prismaClient.finance.create({
+    const updatedReimbursement = await prismaClient.$transaction(async (tx) => {
+      // 更新报销记录
+      const result = await tx.reimbursement.update({
+        where: { id },
         data: {
-          billName: updatedReimbursement.purpose,
-          billCategory: '其他费用',
-          amount: updatedReimbursement.amount,
-          transactionType: '支出',
-          transactionTime: updatedReimbursement.createTime || new Date(),
-          remark: `报销 #${updatedReimbursement.id}`,
-          parkId: updatedReimbursement.parkId,
-          // 添加图片信息
+          status: body.status === undefined ? undefined : Number(body.status),
+          auditOpinion: finalOpinion,
+          // 根据需要，可以添加其他审核相关字段的更新
+          // auditor: body.auditor,
+          // auditorId: body.auditorId,
+        },
+        include: {
           images: {
-            create: updatedReimbursement.images
-              .map((reimbursementImage) => ({
-                url: reimbursementImage.image?.imgUrl || '',
-              }))
-              .filter((img) => img.url), // 过滤掉无效的图片
+            include: {
+              image: true, // 包含关联的图片详情
+            },
           },
         },
       });
-      console.log(`报销 #${updatedReimbursement.id} 已通过，同步到财务记录。`);
-    }
+
+      // 如果报销已通过，则同步到财务记录
+      if (result.status === 1) {
+        await syncApprovedReimbursementFinanceRecord(tx, result);
+      }
+
+      return result;
+    });
 
     console.log('更新报销状态成功:', updatedReimbursement);
     return useResponseSuccess(updatedReimbursement);

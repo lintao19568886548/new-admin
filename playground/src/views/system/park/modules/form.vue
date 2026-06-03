@@ -14,9 +14,9 @@ import { useFormSchema } from '../data';
 const emit = defineEmits(['success']);
 const formData = ref();
 const getTitle = computed(() => {
-  return formData.value?.investmentId
-    ? $t('ui.actionTitle.edit', [$t('system.rental.tenant.item')])
-    : $t('ui.actionTitle.create', [$t('system.rental.tenant.item')]);
+  return formData.value?.parkId
+    ? $t('ui.actionTitle.edit', [$t('page.park.item')])
+    : $t('ui.actionTitle.create', [$t('page.park.item')]);
 });
 
 const [Form, formApi] = useVbenForm({

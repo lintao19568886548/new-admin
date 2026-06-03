@@ -2,9 +2,16 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
-import dayjs from 'dayjs'; // 添加 dayjs 导入
+import { IconifyIcon } from '@vben/icons';
+
+import { Capacitor } from '@capacitor/core';
+import { Directory, Filesystem } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { Button, message, Modal } from 'ant-design-vue';
 
 import { getAmountBillDetail } from '#/api/bill';
+import { shareWechatImage } from '#/utils/native-wechat-share';
+import { loadWechatPayAppConfig } from '#/utils/wechat-pay-app-config';
 
 // 组件属性定义
 const billData = ref();
@@ -13,6 +20,13 @@ const query = ref(route.query);
 const gestureStageRef = ref<HTMLElement>();
 const billContainerRef = ref<HTMLElement>();
 const enableGesture = ref(false);
+const isCapturingImage = ref(false);
+const printing = ref(false);
+const sharingImage = ref(false);
+const sharePreviewVisible = ref(false);
+const sharePreviewUrl = ref('');
+const sharePreviewFileName = ref('');
+const sharePreviewBlob = ref<Blob>();
 const scale = ref(1);
 const translateX = ref(0);
 const translateY = ref(0);
@@ -24,9 +38,12 @@ const pinchStartDistance = ref(0);
 const pinchStartScale = ref(1);
 const pinchStartTranslate = ref({ x: 0, y: 0 });
 const pinchAnchor = ref({ x: 0, y: 0 });
+let cachedShareImage: null | { blob: Blob; fileName: string } = null;
+let preparingShareImage: null | Promise<{ blob: Blob; fileName: string }> =
+  null;
 
 const billTransformStyle = computed(() => {
-  if (!enableGesture.value) {
+  if (!enableGesture.value || isCapturingImage.value) {
     return {};
   }
   return {
@@ -34,6 +51,16 @@ const billTransformStyle = computed(() => {
     transformOrigin: '0 0',
   };
 });
+
+const shareTitle = computed(() => {
+  const tenantName =
+    billData.value?.tenant?.tenantName || billData.value?.tenantName;
+  return tenantName ? `${tenantName}收款通知单` : '收款通知单';
+});
+
+const shareButtonText = computed(() =>
+  Capacitor.isNativePlatform() ? '分享' : '生成图片',
+);
 
 function clampValue(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -205,6 +232,297 @@ function onTouchEnd(event: TouchEvent) {
   }
 }
 
+function waitForPaint() {
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+      reject(new Error('通知单图片生成失败'));
+    }, 'image/png');
+  });
+}
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('load', () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error('图片数据读取失败'));
+    });
+    reader.addEventListener('error', () => reject(reader.error));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function buildShareFileName() {
+  const billId = route.params.id ? String(route.params.id) : Date.now();
+  return `receipt-bill-${billId}.png`;
+}
+
+function downloadImage(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.style.display = 'none';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function revokeSharePreviewUrl() {
+  if (!sharePreviewUrl.value) return;
+  URL.revokeObjectURL(sharePreviewUrl.value);
+  sharePreviewUrl.value = '';
+}
+
+function openSharePreview(blob: Blob, fileName: string) {
+  revokeSharePreviewUrl();
+  sharePreviewBlob.value = blob;
+  sharePreviewFileName.value = fileName;
+  sharePreviewUrl.value = URL.createObjectURL(blob);
+  sharePreviewVisible.value = true;
+}
+
+function closeSharePreview() {
+  sharePreviewVisible.value = false;
+  revokeSharePreviewUrl();
+}
+
+async function captureBillImage() {
+  const element = billContainerRef.value;
+  if (!element) {
+    throw new Error('找不到通知单内容');
+  }
+
+  await nextTick();
+  await waitForPaint();
+
+  const html2canvasModule = await import('html2canvas');
+  const html2canvas = html2canvasModule.default;
+  return await html2canvas(element, {
+    backgroundColor: '#ffffff',
+    ignoreElements: (clonedElement: Element) =>
+      clonedElement instanceof HTMLElement &&
+      clonedElement.classList.contains('print-actions'),
+    logging: false,
+    onclone: (_document: Document, clonedElement: HTMLElement) => {
+      clonedElement.style.transform = 'none';
+      clonedElement.style.transformOrigin = '0 0';
+      clonedElement.querySelector('.print-actions')?.remove();
+    },
+    scale: Math.min(window.devicePixelRatio || 2, 3),
+    useCORS: true,
+    windowHeight: element.scrollHeight,
+    windowWidth: element.scrollWidth,
+  });
+}
+
+async function prepareShareImage() {
+  if (cachedShareImage) {
+    return cachedShareImage;
+  }
+  if (preparingShareImage) {
+    return await preparingShareImage;
+  }
+
+  preparingShareImage = (async () => {
+    const canvas = await captureBillImage();
+    const blob = await canvasToBlob(canvas);
+    cachedShareImage = {
+      blob,
+      fileName: buildShareFileName(),
+    };
+    return cachedShareImage;
+  })();
+
+  try {
+    return await preparingShareImage;
+  } finally {
+    preparingShareImage = null;
+  }
+}
+
+function warmupShareImage() {
+  window.setTimeout(() => {
+    void prepareShareImage().catch((error) => {
+      console.warn('预生成通知单图片失败:', error);
+    });
+  }, 800);
+}
+
+async function shareImageToWechatInNativeApp(blob: Blob) {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') {
+    return false;
+  }
+
+  const dataUrl = await blobToDataUrl(blob);
+  const base64Data = dataUrl.split(',')[1];
+  if (!base64Data) {
+    throw new Error('通知单图片数据生成失败');
+  }
+
+  const config = await loadWechatPayAppConfig();
+  const result = await shareWechatImage({
+    appId: config.appId,
+    base64Data,
+    scene: 'session',
+  });
+
+  if (result.ok) {
+    message.success(result.message || '已拉起微信，请继续完成发送');
+    return true;
+  }
+
+  if (result.reason === 'wechat-not-installed') {
+    message.warning('未检测到微信，已切换为系统分享');
+  } else if (!['app-id-missing', 'unavailable'].includes(result.reason || '')) {
+    message.warning(result.message || '微信图片分享不可用，已切换为系统分享');
+  }
+
+  return false;
+}
+
+async function shareImageInNativeApp(blob: Blob, fileName: string) {
+  if (await shareImageToWechatInNativeApp(blob)) {
+    return true;
+  }
+
+  const { value: canShare } = await Share.canShare();
+  if (!canShare) {
+    message.error('当前设备不支持系统分享');
+    openSharePreview(blob, fileName);
+    return false;
+  }
+
+  const dataUrl = await blobToDataUrl(blob);
+  const base64Data = dataUrl.split(',')[1];
+  if (!base64Data) {
+    throw new Error('通知单图片数据生成失败');
+  }
+
+  const filePath = `bill-share/${fileName}`;
+  await Filesystem.writeFile({
+    data: base64Data,
+    directory: Directory.Cache,
+    path: filePath,
+    recursive: true,
+  });
+
+  const { uri } = await Filesystem.getUri({
+    directory: Directory.Cache,
+    path: filePath,
+  });
+
+  await Share.share({
+    dialogTitle: '分享收款通知单图片',
+    files: [uri],
+    text: shareTitle.value,
+    title: shareTitle.value,
+  });
+  message.success('已拉起系统分享，请选择微信或QQ发送');
+  return true;
+}
+
+async function copyImageToClipboard(blob: Blob) {
+  if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+    return false;
+  }
+
+  await navigator.clipboard.write([
+    new ClipboardItem({
+      [blob.type]: blob,
+    }),
+  ]);
+  return true;
+}
+
+async function shareImageInBrowser(blob: Blob, fileName: string) {
+  openSharePreview(blob, fileName);
+
+  try {
+    if (await copyImageToClipboard(blob)) {
+      message.success('通知单图片已复制，可在微信或QQ聊天窗口粘贴发送');
+      return;
+    }
+  } catch (error) {
+    console.warn('复制通知单图片失败，改为下载图片:', error);
+  }
+
+  downloadImage(blob, fileName);
+  openSharePreview(blob, fileName);
+  message.warning('当前浏览器不支持直接分享图片，已打开图片预览并尝试下载');
+}
+
+function downloadSharePreviewImage() {
+  if (!sharePreviewBlob.value) return;
+  downloadImage(sharePreviewBlob.value, sharePreviewFileName.value);
+}
+
+async function handlePrintBill() {
+  if (printing.value) return;
+
+  printing.value = true;
+  await nextTick();
+  await waitForPaint();
+
+  const resetPrinting = () => {
+    printing.value = false;
+    window.removeEventListener('afterprint', resetPrinting);
+  };
+
+  window.addEventListener('afterprint', resetPrinting, { once: true });
+  window.setTimeout(() => {
+    window.print();
+    window.setTimeout(resetPrinting, 1200);
+  }, 80);
+}
+
+async function handleShareBillImage() {
+  if (sharingImage.value) return;
+
+  sharingImage.value = true;
+  let hideLoading: (() => void) | undefined;
+
+  try {
+    let shareImage = cachedShareImage;
+    if (!shareImage) {
+      hideLoading = message.loading({
+        content: '正在生成通知单图片...',
+        duration: 0,
+        key: 'bill-share-image',
+      });
+      shareImage = await prepareShareImage();
+      hideLoading();
+      hideLoading = undefined;
+    }
+
+    await (Capacitor.isNativePlatform()
+      ? shareImageInNativeApp(shareImage.blob, shareImage.fileName)
+      : shareImageInBrowser(shareImage.blob, shareImage.fileName));
+  } catch (error) {
+    console.error('分享通知单图片失败:', error);
+    message.error('分享图片失败，请重试');
+  } finally {
+    hideLoading?.();
+    sharingImage.value = false;
+  }
+}
+
 // 计算费用合计项目
 const feeItems = computed(() => {
   if (billData.value?.extraProjectItem) {
@@ -239,81 +557,6 @@ function shouldDisplaySummaryItem(item: { itemName?: string; value?: any }) {
   return true;
 }
 
-// 格式化停水停电日期
-const formattedCutoffDate = computed(() => {
-  if (!query.value.cutoffDate) return '';
-
-  try {
-    const date = dayjs(query.value.cutoffDate as string);
-    return `${date.date()}日${date.hour()}时`;
-  } catch (error) {
-    console.error('日期格式化错误:', error);
-    return query.value.cutoffDate as string;
-  }
-});
-
-// 新增计算属性
-const paymentDeadlineDate = computed(() => {
-  if (!query.value.cutoffDate) return '5'; // Fallback to original day
-  try {
-    return dayjs(query.value.cutoffDate as string).date();
-  } catch (error) {
-    console.error('Error parsing cutoffDate for paymentDeadlineDate:', error);
-    return '5'; // Fallback
-  }
-});
-
-const lateFeeStartFullDate = computed(() => {
-  const fallback = { day: '6', monthStr: '本' }; // Fallback to original
-  if (!query.value.cutoffDate || !query.value.billingDate) {
-    return fallback;
-  }
-
-  try {
-    const lateFeeDate = dayjs(query.value.cutoffDate as string).add(1, 'day');
-    const billing = dayjs(query.value.billingDate as string);
-    let monthDisplay;
-
-    if (lateFeeDate.isSame(billing, 'month')) {
-      monthDisplay = '本';
-    } else if (lateFeeDate.isSame(billing.add(1, 'month'), 'month')) {
-      monthDisplay = '次';
-    } else {
-      monthDisplay = lateFeeDate.format('YYYY年M');
-    }
-    return { day: lateFeeDate.date(), monthStr: monthDisplay };
-  } catch (error) {
-    console.error('Error parsing dates for lateFeeStartFullDate:', error);
-    return fallback;
-  }
-});
-
-const cutoffMonthDisplay = computed(() => {
-  const fallback = '本'; // Fallback to original '本'
-  if (!query.value.cutoffDate || !query.value.billingDate) {
-    return fallback;
-  }
-
-  try {
-    const cutoff = dayjs(query.value.cutoffDate as string);
-    const billing = dayjs(query.value.billingDate as string);
-
-    if (cutoff.isSame(billing, 'month')) {
-      return '本';
-    } else if (cutoff.isSame(billing.add(1, 'month'), 'month')) {
-      return '次';
-    } else {
-      return cutoff.format('YYYY年M');
-    }
-  } catch (error) {
-    console.error('Error parsing dates for cutoffMonthDisplay:', error);
-    return fallback;
-  }
-});
-
-const publicAccount = ref<Record<string, any>>();
-const privateAccount = ref<Record<string, any>>();
-
 onMounted(async () => {
   updateGestureMode();
   window.addEventListener('resize', updateGestureMode);
@@ -322,13 +565,8 @@ onMounted(async () => {
   const billId = route.params.id ? Number(route.params.id) : undefined;
   if (billId) {
     billData.value = await getAmountBillDetail(billId);
-    if (billData.value?.publicBankAccount) {
-      publicAccount.value = JSON.parse(billData.value.publicBankAccount);
-    }
-    if (billData.value?.privateBankAccount) {
-      privateAccount.value = JSON.parse(billData.value.privateBankAccount);
-    }
     await nextTick();
+    warmupShareImage();
     setTimeout(() => {
       // window.print();
     }, 800);
@@ -340,13 +578,14 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateGestureMode);
+  revokeSharePreviewUrl();
 });
 </script>
 
 <template>
   <div
     ref="gestureStageRef"
-    class="h-screen w-screen touch-none overflow-hidden bg-[#f5f5f5] lg:h-auto lg:w-full lg:touch-auto lg:overflow-visible lg:bg-transparent"
+    class="bill-print-stage h-screen w-screen touch-none overflow-hidden bg-[#f5f5f5] lg:h-auto lg:w-full lg:touch-auto lg:overflow-visible lg:bg-transparent"
     @touchstart="onTouchStart"
     @touchmove.prevent="onTouchMove"
     @touchend="onTouchEnd"
@@ -354,9 +593,35 @@ onBeforeUnmount(() => {
   >
     <div
       ref="billContainerRef"
-      class="min-h-[297mm] w-[210mm] bg-white px-[10mm] will-change-transform lg:mx-auto lg:will-change-auto"
+      class="bill-print-page relative box-border min-h-[297mm] w-[210mm] bg-white px-[10mm] will-change-transform lg:mx-auto lg:will-change-auto"
       :style="billTransformStyle"
     >
+      <div
+        v-if="!isCapturingImage"
+        class="print-actions absolute right-[10mm] top-[8mm] flex items-center gap-2"
+      >
+        <Button
+          size="small"
+          type="primary"
+          :loading="printing"
+          @click="handlePrintBill"
+        >
+          <template #icon>
+            <IconifyIcon icon="lucide:printer" class="size-[13px]" />
+          </template>
+          打印
+        </Button>
+        <Button
+          size="small"
+          :loading="sharingImage"
+          @click="handleShareBillImage"
+        >
+          <template #icon>
+            <IconifyIcon icon="lucide:share-2" class="size-[13px]" />
+          </template>
+          {{ shareButtonText }}
+        </Button>
+      </div>
       <div class="mb-[5px]">
         <div class="mb-[5px] text-center text-[22px] font-bold">收款通知单</div>
         <div class="mb-[3px] text-left text-[18px] font-bold">
@@ -495,71 +760,77 @@ onBeforeUnmount(() => {
           </template>
         </div>
 
-        <div class="text-[13px] leading-[1.5]">
-          <div>
-            <p class="m-0 indent-[2em]">
-              以上款项烦请贵公司核对，请于{{ cutoffMonthDisplay }}月{{
-                paymentDeadlineDate
-              }}日之前把各项费用以现金或转账方式存入账户，
-              并请将转账凭证截屏发送或传真至我公司财务部或园区负责人。
-            </p>
-          </div>
-          <div class="my-[3px]">
-            <div>
-              <div
-                class="flex flex-wrap justify-end gap-x-10 gap-y-0"
-                v-if="
-                  query.accountType?.includes('public') &&
-                  publicAccount &&
-                  Object.keys(publicAccount).length > 0
-                "
-              >
-                <div class="basis-[calc(50%-20px)]">
-                  对公户名：{{ publicAccount.name }}
-                </div>
-                <div class="basis-[calc(50%-20px)]">
-                  对公账号：{{ publicAccount.number }}
-                </div>
-                <div class="basis-full">开户行：{{ publicAccount.bank }}</div>
-              </div>
-              <div
-                class="flex flex-wrap justify-end gap-x-10 gap-y-0"
-                v-if="
-                  query.accountType?.includes('private') &&
-                  privateAccount &&
-                  Object.keys(privateAccount).length > 0
-                "
-              >
-                <div class="basis-[calc(50%-20px)]">
-                  对私户名：{{ privateAccount.name }}
-                </div>
-                <div class="basis-[calc(50%-20px)]">
-                  对私账号：{{ privateAccount.number }}
-                </div>
-                <div class="basis-full">开户行：{{ privateAccount.bank }}</div>
-              </div>
-
-              <div class="text-[#333]">
-                温馨提示：如贵司不能在规定时间内将款项交至我公司，我公司从{{
-                  lateFeeStartFullDate.monthStr
-                }}月{{ lateFeeStartFullDate.day }}日起按日收取 总金额{{
-                  billData?.penaltyRate
-                }}‰ 每天的滞纳金，并将按合同规定在{{ cutoffMonthDisplay }}月{{
-                  formattedCutoffDate
-                }}停止对贵公司的供水、
-                供电，直至缴清所有款项及滞纳金后再回复供水、供电。谢谢合作！
-              </div>
-              <div class="mt-[3px] flex justify-between">
-                <span>园区负责人： {{ billData?.park.manager }}</span>
-                <div>
-                  <span class="ml-20">制单日期：</span>
-                  <span>{{ query.billingDate }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div class="mt-[3px] flex justify-end text-[13px] leading-[1.5]">
+          <span>制单日期：</span>
+          <span>{{ query.billingDate }}</span>
         </div>
       </div>
     </div>
   </div>
+  <Modal
+    v-model:open="sharePreviewVisible"
+    title="分享收款通知单图片"
+    width="720px"
+    :footer="null"
+    @cancel="closeSharePreview"
+  >
+    <div class="space-y-3">
+      <div class="text-sm text-gray-600">
+        当前浏览器如果不能直接拉起微信/QQ，可以下载图片后发送，或右键复制图片。
+      </div>
+      <div class="max-h-[70vh] overflow-auto bg-gray-100 p-3">
+        <img
+          v-if="sharePreviewUrl"
+          :src="sharePreviewUrl"
+          alt="收款通知单图片"
+          class="mx-auto block max-w-full bg-white shadow-sm"
+        />
+      </div>
+      <div class="flex justify-end gap-2">
+        <Button @click="closeSharePreview">关闭</Button>
+        <Button type="primary" @click="downloadSharePreviewImage">
+          下载图片
+        </Button>
+      </div>
+    </div>
+  </Modal>
 </template>
+
+<style scoped>
+@page {
+  size: a4 portrait;
+  margin: 0;
+}
+
+@media print {
+  :global(html),
+  :global(body),
+  :global(#app) {
+    width: 210mm;
+    min-width: 210mm;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+  }
+
+  .bill-print-stage {
+    width: 210mm !important;
+    height: auto !important;
+    min-height: 297mm !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .bill-print-page {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    padding: 10mm !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
+
+  .print-actions {
+    display: none !important;
+  }
+}
+</style>

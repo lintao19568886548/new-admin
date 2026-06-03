@@ -12,7 +12,18 @@ export default eventHandler(async (event) => {
     const currentParkParam = body.currentPark;
 
     const accessibleParkIds =
-      userinfo.parks?.map((park: any) => park.parkId) ?? [];
+      userinfo.parks
+        ?.map((park: any) => Number(park.parkId))
+        .filter((parkId: number) => Number.isInteger(parkId) && parkId > 0) ??
+      [];
+
+    if (accessibleParkIds.length === 0) {
+      return useResponseSuccess({
+        total: 0,
+        created: 0,
+        skipped: 0,
+      });
+    }
 
     const now = new Date();
     const where: Record<string, any> = {
@@ -25,6 +36,9 @@ export default eventHandler(async (event) => {
           OR: [{ contractStart: null }, { contractStart: { lte: now } }],
         },
       ],
+      parkId: {
+        in: accessibleParkIds,
+      },
     };
 
     if (
@@ -40,7 +54,7 @@ export default eventHandler(async (event) => {
         return useResponseError('没有操作权限');
       }
       where.parkId = targetParkId;
-    } else if (accessibleParkIds.length > 0) {
+    } else {
       where.parkId = {
         in: accessibleParkIds,
       };

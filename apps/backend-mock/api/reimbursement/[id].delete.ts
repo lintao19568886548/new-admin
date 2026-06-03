@@ -1,5 +1,6 @@
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
+import { softDeleteReimbursementFinanceRecords } from '~/utils/reimbursement-finance';
 import {
   forbiddenResponse,
   unAuthorizedResponse,
@@ -27,6 +28,7 @@ export default eventHandler(async (event) => {
       },
       select: {
         parkId: true,
+        status: true,
         userId: true,
       },
     });
@@ -46,12 +48,20 @@ export default eventHandler(async (event) => {
       return forbiddenResponse(event, '无删除该报销记录权限');
     }
 
-    // 删除报销记录
-    const deletedReimbursement = await prismaClient.reimbursement.update({
-      where: { id },
-      data: {
-        isDeleted: true,
-      },
+    const deletedReimbursement = await prismaClient.$transaction(async (tx) => {
+      // 删除报销记录
+      const result = await tx.reimbursement.update({
+        where: { id },
+        data: {
+          isDeleted: true,
+        },
+      });
+
+      if (result.status === 1) {
+        await softDeleteReimbursementFinanceRecords(tx, id);
+      }
+
+      return result;
     });
 
     console.log('删除报销记录成功:', deletedReimbursement);

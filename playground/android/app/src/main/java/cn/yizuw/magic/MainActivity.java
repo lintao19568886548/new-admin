@@ -7,12 +7,14 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.text.TextUtils;
+import android.util.Base64;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import androidx.core.content.FileProvider;
 import com.getcapacitor.BridgeActivity;
 import com.tencent.mm.opensdk.modelpay.PayReq;
 import com.tencent.mm.opensdk.modelmsg.SendMessageToWX;
+import com.tencent.mm.opensdk.modelmsg.WXImageObject;
 import com.tencent.mm.opensdk.modelmsg.WXMediaMessage;
 import com.tencent.mm.opensdk.modelmsg.WXWebpageObject;
 import com.tencent.mm.opensdk.openapi.IWXAPI;
@@ -122,6 +124,38 @@ public class MainActivity extends BridgeActivity {
             scaledBitmap.recycle();
         }
         sourceBitmap.recycle();
+
+        return output.toByteArray();
+    }
+
+    private byte[] buildWechatImageThumbData(Bitmap sourceBitmap) {
+        if (sourceBitmap == null) {
+            return null;
+        }
+
+        int sourceWidth = sourceBitmap.getWidth();
+        int sourceHeight = sourceBitmap.getHeight();
+        if (sourceWidth <= 0 || sourceHeight <= 0) {
+            return null;
+        }
+
+        float scale = Math.min(150f / sourceWidth, 150f / sourceHeight);
+        scale = Math.min(scale, 1f);
+        int targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+        int targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+
+        Bitmap scaledBitmap = Bitmap.createScaledBitmap(sourceBitmap, targetWidth, targetHeight, true);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        int quality = 90;
+        do {
+            output.reset();
+            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, quality, output);
+            quality -= 10;
+        } while (output.size() > 32 * 1024 && quality > 10);
+
+        if (scaledBitmap != sourceBitmap) {
+            scaledBitmap.recycle();
+        }
 
         return output.toByteArray();
     }
@@ -427,6 +461,109 @@ public class MainActivity extends BridgeActivity {
             } catch (InterruptedException error) {
                 Thread.currentThread().interrupt();
                 return buildShareResult(false, "interrupted", "原生微信分享被中断");
+            }
+
+            return resultRef.get();
+        }
+
+        @JavascriptInterface
+        public String shareWechatImage(String payloadJson) {
+            AtomicReference<String> resultRef = new AtomicReference<>(
+                buildShareResult(false, "unknown", "原生微信图片分享未执行")
+            );
+            CountDownLatch latch = new CountDownLatch(1);
+            new Thread(() -> {
+                try {
+                    JSONObject payload = new JSONObject(payloadJson);
+                    String appId = payload.optString("appId");
+                    String base64Data = payload.optString("base64Data");
+                    String scene = payload.optString("scene", "session");
+
+                    if (TextUtils.isEmpty(appId) || TextUtils.isEmpty(base64Data)) {
+                        resultRef.set(
+                            buildShareResult(false, "invalid-params", "微信图片分享参数不完整")
+                        );
+                        latch.countDown();
+                        return;
+                    }
+
+                    byte[] imageData = Base64.decode(base64Data, Base64.DEFAULT);
+                    Bitmap sourceBitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
+                    if (sourceBitmap == null) {
+                        resultRef.set(
+                            buildShareResult(false, "decode-failed", "分享图片解析失败")
+                        );
+                        latch.countDown();
+                        return;
+                    }
+                    byte[] thumbData = buildWechatImageThumbData(sourceBitmap);
+
+                    runOnUiThread(() -> {
+                        try {
+                            IWXAPI api = WXAPIFactory.createWXAPI(MainActivity.this, appId, true);
+                            api.registerApp(appId);
+
+                            if (!api.isWXAppInstalled()) {
+                                resultRef.set(
+                                    buildShareResult(false, "wechat-not-installed", "未安装微信")
+                                );
+                                return;
+                            }
+
+                            WXImageObject imageObject = new WXImageObject(imageData);
+                            WXMediaMessage message = new WXMediaMessage(imageObject);
+                            if (thumbData != null && thumbData.length > 0) {
+                                message.thumbData = thumbData;
+                            }
+
+                            SendMessageToWX.Req req = new SendMessageToWX.Req();
+                            req.transaction = buildWechatTransaction("image");
+                            req.message = message;
+                            req.scene = "timeline".equals(scene)
+                                ? SendMessageToWX.Req.WXSceneTimeline
+                                : SendMessageToWX.Req.WXSceneSession;
+
+                            boolean sent = api.sendReq(req);
+                            resultRef.set(
+                                buildShareResult(
+                                    sent,
+                                    sent ? "ok" : "send-failed",
+                                    sent ? "已拉起微信" : "拉起微信失败"
+                                )
+                            );
+                        } catch (Exception error) {
+                            resultRef.set(
+                                buildShareResult(
+                                    false,
+                                    "native-exception",
+                                    error.getMessage() == null ? "调用微信图片分享失败" : error.getMessage()
+                                )
+                            );
+                        } finally {
+                            sourceBitmap.recycle();
+                            latch.countDown();
+                        }
+                    });
+                } catch (Exception error) {
+                    resultRef.set(
+                        buildShareResult(
+                            false,
+                            "native-exception",
+                            error.getMessage() == null ? "调用微信图片分享失败" : error.getMessage()
+                        )
+                    );
+                    latch.countDown();
+                }
+            }).start();
+
+            try {
+                boolean completed = latch.await(10, TimeUnit.SECONDS);
+                if (!completed) {
+                    return buildShareResult(false, "timeout", "原生微信图片分享超时");
+                }
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                return buildShareResult(false, "interrupted", "原生微信图片分享被中断");
             }
 
             return resultRef.get();

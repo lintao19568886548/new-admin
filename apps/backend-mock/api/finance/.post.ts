@@ -1,4 +1,8 @@
 import { prismaClient } from '~/utils/db';
+import {
+  forbiddenFinanceParkResponse,
+  hasFinanceParkAccess,
+} from '~/utils/finance-permission';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   badRequestResponse,
@@ -28,6 +32,9 @@ export default eventHandler(async (event) => {
   // 确保 billName 存在
   if (!billName) {
     return badRequestResponse('账单名称 (billName) 是必填项', event);
+  }
+  if (!hasFinanceParkAccess(userinfo, parkId ? Number(parkId) : null)) {
+    return forbiddenFinanceParkResponse(event);
   }
 
   try {

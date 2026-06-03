@@ -113,6 +113,7 @@ export async function upsertFinanceRecord(
       billName: projectName || '未知项目',
       billCategory: '账单收入',
       amount,
+      isDeleted: false,
       transactionType: '收入',
       transactionTime: new Date(receiptTime),
       parkId: parkId || undefined,
@@ -137,7 +138,12 @@ export async function upsertFinanceRecord(
   }
   // 如果不需要财务记录（金额为0或无收款时间），但之前存在关联，则删除
   else if (existingFinanceId) {
-    await tx.finance.delete({ where: { financeId: existingFinanceId } });
+    await tx.finance.update({
+      data: {
+        isDeleted: true,
+      },
+      where: { financeId: existingFinanceId },
+    });
   }
 
   return null;

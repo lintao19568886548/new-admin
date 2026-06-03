@@ -5,61 +5,17 @@ import type {
 } from '#/adapter/vxe-table';
 import type { SystemUserApi } from '#/api';
 
-import { computed, ref } from 'vue';
-
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
-import { useAccessStore } from '@vben/stores';
 
-import { Button, message, Tabs } from 'ant-design-vue';
+import { Button, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteSystemUser, getSystemUserList } from '#/api/system/user';
 import { $t } from '#/locales';
 
-import ParkManagePanel from '../park/modules/manage-panel.vue';
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
-
-type AccessRouteRecord = {
-  children?: AccessRouteRecord[];
-  name?: string | symbol;
-  path?: string;
-};
-
-const activeTab = ref('accounts');
-const accessStore = useAccessStore();
-
-function hasAccessibleRoute(
-  routes: AccessRouteRecord[],
-  names: string[],
-  paths: string[],
-) {
-  const queue = [...routes];
-  while (queue.length > 0) {
-    const route = queue.shift();
-    if (!route) continue;
-
-    if (route.name && names.includes(String(route.name))) {
-      return true;
-    }
-    if (route.path && paths.includes(route.path)) {
-      return true;
-    }
-    if (Array.isArray(route.children)) {
-      queue.push(...route.children);
-    }
-  }
-  return false;
-}
-
-const canManagePark = computed(() =>
-  hasAccessibleRoute(
-    accessStore.accessRoutes as AccessRouteRecord[],
-    ['SystemPark'],
-    ['/system/park'],
-  ),
-);
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -121,7 +77,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridOptions: {
     columns: useColumns(onActionClick),
-    height: '100%',
+    height: 'auto',
     keepSource: true,
     pagerConfig: {
       enabled: true,
@@ -169,74 +125,15 @@ function refreshGrid() {
 </script>
 
 <template>
-  <Page auto-content-height content-class="system-account-page-content">
-    <Tabs v-model:active-key="activeTab" class="system-account-tabs">
-      <Tabs.TabPane key="accounts" :tab="$t('system.user.list')">
-        <div class="system-account-tab-pane">
-          <FormModal @success="refreshGrid" />
-          <Grid :table-title="$t('system.user.list')">
-            <template #toolbar-tools>
-              <Button type="primary" @click="onCreate">
-                <Plus class="size-5" />
-                {{ $t('ui.actionTitle.create', [$t('system.user.name')]) }}
-              </Button>
-            </template>
-          </Grid>
-        </div>
-      </Tabs.TabPane>
-
-      <Tabs.TabPane
-        v-if="canManagePark"
-        key="parks"
-        :tab="$t('system.park.title')"
-      >
-        <div class="system-account-tab-pane">
-          <ParkManagePanel v-if="activeTab === 'parks'" />
-        </div>
-      </Tabs.TabPane>
-    </Tabs>
+  <Page auto-content-height>
+    <FormModal @success="refreshGrid" />
+    <Grid :table-title="$t('system.user.list')">
+      <template #toolbar-tools>
+        <Button type="primary" @click="onCreate">
+          <Plus class="size-5" />
+          {{ $t('ui.actionTitle.create', [$t('system.user.name')]) }}
+        </Button>
+      </template>
+    </Grid>
   </Page>
 </template>
-
-<style lang="less" scoped>
-:deep(.system-account-page-content) {
-  min-height: 0;
-  overflow: hidden !important;
-}
-
-.system-account-tabs {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-:deep(.system-account-tabs > .ant-tabs-nav) {
-  flex: none;
-  margin-bottom: 12px;
-}
-
-:deep(.system-account-tabs .ant-tabs-content-holder) {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-:deep(.system-account-tabs .ant-tabs-content) {
-  height: 100%;
-  min-height: 0;
-}
-
-:deep(.system-account-tabs .ant-tabs-tabpane) {
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.system-account-tab-pane {
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
-</style>

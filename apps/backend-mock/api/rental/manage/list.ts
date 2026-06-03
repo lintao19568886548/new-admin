@@ -13,41 +13,37 @@ export default eventHandler(async (event) => {
     const pageSize = Number(query.pageSize) || 20;
     const skip = (currentPage - 1) * pageSize;
 
+    const accessibleParkIds =
+      userinfo.parks
+        ?.map((park: { parkId: number }) => Number(park.parkId))
+        .filter((parkId: number) => Number.isInteger(parkId) && parkId > 0) ??
+      [];
+
+    if (accessibleParkIds.length === 0) {
+      return useResponseSuccess({
+        items: [],
+        total: 0,
+        currentPage,
+        pageSize,
+      });
+    }
+
     // 构建查询条件
-    const where: any = {};
+    const where: any = {
+      isDeleted: false,
+      parkId: {
+        in: accessibleParkIds,
+      },
+    };
 
     // 区域查询
     if (query.currentPark) {
       if (Number(query.currentPark) === -1) {
-        // 选择全部区域时,直接查询全部有权限的园区
-        const parks = await prismaClient.park.findMany({
-          where: {
-            parkId: {
-              in: userinfo.parks.map((park) => park.parkId),
-            },
-          },
-          select: { parkId: true },
-        });
-
-        if (parks.length > 0) {
-          where.parkId = {
-            in: parks.map((park) => park.parkId),
-          };
-        }
-      } else if (
-        userinfo.parks
-          .map((park) => park.parkId)
-          .includes(Number(query.currentPark))
-      ) {
-        // 当用户有权限查看特定园区时
-        const park = await prismaClient.park.findFirst({
-          where: { parkId: Number(query.currentPark) },
-          select: { parkId: true },
-        });
-
-        if (park) {
-          where.parkId = park.parkId;
-        }
+        where.parkId = {
+          in: accessibleParkIds,
+        };
+      } else if (accessibleParkIds.includes(Number(query.currentPark))) {
+        where.parkId = Number(query.currentPark);
       } else {
         return useResponseError('没有查看权限');
       }

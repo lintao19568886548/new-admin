@@ -204,6 +204,22 @@ export function useColumns<T = AmountBill>(
       title: '基本管理费',
     },
     {
+      field: 'garbageFee',
+      formatter: ({ cellValue }) => {
+        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
+      },
+      minWidth: 120,
+      title: '垃圾管理费',
+    },
+    {
+      field: 'serviceFee',
+      formatter: ({ cellValue }) => {
+        return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';
+      },
+      minWidth: 120,
+      title: '服务费',
+    },
+    {
       field: 'penaltyFee',
       formatter: ({ cellValue }) => {
         return cellValue ? `${Number(cellValue).toFixed(2)} 元` : '0.00 元';

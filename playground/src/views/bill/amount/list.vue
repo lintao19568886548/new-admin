@@ -409,6 +409,18 @@ const [Grid, gridApi] = useVbenVxeGrid({
             }, 0);
             return `${sum.toFixed(2)}元`;
           }
+          if (column.field === 'garbageFee') {
+            const sum = data.reduce((sum, row) => {
+              return sum + (Number(row.garbageFee) || 0);
+            }, 0);
+            return `${sum.toFixed(2)}元`;
+          }
+          if (column.field === 'serviceFee') {
+            const sum = data.reduce((sum, row) => {
+              return sum + (Number(row.serviceFee) || 0);
+            }, 0);
+            return `${sum.toFixed(2)}元`;
+          }
           if (column.field === 'penaltyFee') {
             const sum = data.reduce((sum, row) => {
               return sum + (Number(row.penaltyFee) || 0);

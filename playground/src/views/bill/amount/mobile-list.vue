@@ -666,7 +666,7 @@ function resetSearch() {
             <div
               class="flex justify-center gap-3 border-t border-gray-100 px-4 py-3 dark:border-neutral-700"
             >
-              <Button type="primary" @click="handlePrint(item)">打印</Button>
+              <Button type="primary" @click="handlePrint(item)">查看</Button>
               <Button danger ghost @click="handleDelete(item)">删除</Button>
             </div>
           </Card>

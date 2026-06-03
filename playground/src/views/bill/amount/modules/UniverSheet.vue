@@ -1039,7 +1039,7 @@ function getData() {
   const waterAmount = Number(waterTotal?.amount || 0);
   const waterUsage = Number(waterTotal?.totalUsage || 0);
   billData.garbageFee = waterUsage * (props.billData.garbageRate || 0);
-  billData.waterFee = waterAmount + billData.garbageFee;
+  billData.waterFee = waterAmount;
 
   const eleFee = Number(billData.eleFee || 0);
   const serviceRate = Number(props.billData.serviceRate || 0);

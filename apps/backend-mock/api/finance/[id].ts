@@ -1,4 +1,8 @@
 import { prismaClient } from '~/utils/db';
+import {
+  forbiddenFinanceParkResponse,
+  hasFinanceParkAccess,
+} from '~/utils/finance-permission';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   unAuthorizedResponse,
@@ -25,5 +29,11 @@ export default eventHandler(async (event) => {
       images: true,
     },
   });
+  if (!finance) {
+    return useResponseError('未找到财务记录', 404);
+  }
+  if (!hasFinanceParkAccess(userinfo, finance.parkId)) {
+    return forbiddenFinanceParkResponse(event);
+  }
   return useResponseSuccess(finance);
 });

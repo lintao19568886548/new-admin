@@ -4,6 +4,7 @@ type NativeWechatScene = 'session' | 'timeline';
 
 interface AndroidInterface {
   isWechatInstalled?: (appId: string) => boolean;
+  shareWechatImage?: (payloadJson: string) => string;
   shareWechatWebpage?: (payloadJson: string) => string;
 }
 
@@ -20,6 +21,12 @@ export interface NativeWechatShareOptions {
   thumbUrl?: string;
   title: string;
   url: string;
+}
+
+export interface NativeWechatImageShareOptions {
+  appId: string;
+  base64Data: string;
+  scene?: NativeWechatScene;
 }
 
 declare global {
@@ -43,8 +50,19 @@ export function canUseNativeWechatShare() {
   );
 }
 
+export function canUseNativeWechatImageShare() {
+  return (
+    Capacitor.getPlatform() === 'android' &&
+    typeof getAndroidInterface()?.shareWechatImage === 'function'
+  );
+}
+
 export function isWechatInstalled(appId: string) {
-  if (!appId || !canUseNativeWechatShare()) {
+  if (
+    !appId ||
+    Capacitor.getPlatform() !== 'android' ||
+    typeof getAndroidInterface()?.isWechatInstalled !== 'function'
+  ) {
     return false;
   }
 
@@ -107,6 +125,68 @@ export async function shareWechatWebpage(
     console.warn('调用原生微信分享失败:', error);
     return {
       message: error instanceof Error ? error.message : '调用原生微信分享失败',
+      ok: false,
+      reason: 'native-exception',
+    };
+  }
+}
+
+export async function shareWechatImage(
+  options: NativeWechatImageShareOptions,
+): Promise<NativeWechatShareResponse> {
+  if (!options.appId) {
+    return {
+      message: '未配置微信开放平台移动应用 AppID',
+      ok: false,
+      reason: 'app-id-missing',
+    };
+  }
+
+  if (!canUseNativeWechatImageShare()) {
+    return {
+      message: '当前设备不支持原生微信图片分享',
+      ok: false,
+      reason: 'unavailable',
+    };
+  }
+
+  if (!options.base64Data) {
+    return {
+      message: '分享图片数据为空',
+      ok: false,
+      reason: 'image-data-empty',
+    };
+  }
+
+  try {
+    const rawResult = getAndroidInterface()?.shareWechatImage?.(
+      JSON.stringify({
+        appId: options.appId,
+        base64Data: options.base64Data,
+        scene: options.scene || 'session',
+      }),
+    );
+
+    if (!rawResult) {
+      return {
+        message: '原生微信图片分享未返回结果',
+        ok: false,
+        reason: 'empty-result',
+      };
+    }
+
+    const parsedResult = JSON.parse(
+      rawResult,
+    ) as Partial<NativeWechatShareResponse>;
+    return {
+      message: parsedResult.message,
+      ok: parsedResult.ok === true,
+      reason: parsedResult.reason,
+    };
+  } catch (error) {
+    console.warn('调用原生微信图片分享失败:', error);
+    return {
+      message: error instanceof Error ? error.message : '调用微信图片分享失败',
       ok: false,
       reason: 'native-exception',
     };
