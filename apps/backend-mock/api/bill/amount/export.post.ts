@@ -7,12 +7,15 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
   const body = await readBody(event);
+  const parkIds = Array.isArray(body?.parkIds)
+    ? body.parkIds
+        .map(Number)
+        .filter((parkId: number) => Number.isInteger(parkId) && parkId > 0)
+    : [];
 
   const parks = await prismaClient.park.findMany({
     where: {
-      parkId: {
-        in: body.parkIds,
-      },
+      ...(parkIds.length > 0 ? { parkId: { in: parkIds } } : {}),
       isDeleted: false,
     },
     select: {

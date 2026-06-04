@@ -22,6 +22,7 @@ import { getDashboardRevenueStats } from '#/api/dashboard';
 import { getRevenueChartConfig, REVENUE_COLORS } from './chartConfigs';
 
 interface Props {
+  month?: string;
   parkId?: ParkOptionValue;
 }
 
@@ -33,6 +34,7 @@ interface RevenueTrendData {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  month: '',
   parkId: 'all',
 });
 
@@ -206,6 +208,7 @@ const formatAmount = (value: number) =>
 const fetchRevenueOverview = async () => {
   try {
     const res = await getDashboardRevenueStats({
+      month: props.month,
       parkId: props.parkId,
     });
 
@@ -232,7 +235,7 @@ const fetchRevenueOverview = async () => {
 };
 
 watch(
-  () => props.parkId,
+  () => [props.parkId, props.month],
   () => {
     fetchRevenueOverview();
   },

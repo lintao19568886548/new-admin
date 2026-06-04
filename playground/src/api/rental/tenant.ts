@@ -57,8 +57,8 @@ export async function getTenantDetail(id: number) {
   return requestClient.get(`/rental/tenant/${id}`);
 }
 
-export async function getTenantSelectList() {
-  return requestClient.get(`/rental/tenant/select`);
+export async function getTenantSelectList(params?: any) {
+  return requestClient.get(`/rental/tenant/select`, { params });
 }
 
 export async function createTenant(data: any) {

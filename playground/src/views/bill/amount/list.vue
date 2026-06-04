@@ -59,7 +59,7 @@ const deleteVerificationModalRef =
 onMounted(async () => {
   const [parkResult, tenantResult] = await Promise.allSettled([
     getVisitorParkList({ area: 'all' }),
-    getTenantSelectList(),
+    getTenantSelectList({ scope: 'all' }),
   ]);
 
   if (parkResult.status === 'fulfilled') {

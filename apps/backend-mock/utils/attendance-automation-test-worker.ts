@@ -39,6 +39,7 @@ type BeijingDayContext = {
 };
 
 type AutomationWorkerConfig = {
+  allowNonTestUsers: boolean;
   checkInWindow: TimeWindow;
   checkOutWindow: TimeWindow;
   intervalMs: number;
@@ -240,6 +241,9 @@ function getWorkerConfig(): AutomationWorkerConfig | null {
   }
 
   return {
+    allowNonTestUsers: normalizeBooleanEnv(
+      'ATTENDANCE_AUTOMATION_TEST_ALLOW_NON_TEST_USERS',
+    ),
     checkInWindow,
     checkOutWindow,
     intervalMs: normalizePositiveIntegerEnv(
@@ -578,7 +582,7 @@ async function runScopeTick(params: {
   const users = await listConfiguredUsers(params.config);
 
   for (const user of users) {
-    if (!isTestAutomationUser(user)) {
+    if (!params.config.allowNonTestUsers && !isTestAutomationUser(user)) {
       logOnce(
         `${params.customerScope.customerId}:${user.id}:not-test-user`,
         `[${WORKER_NAME}] skipped userId=${user.id} username=${user.username}: user must be a test/mock/auto account`,

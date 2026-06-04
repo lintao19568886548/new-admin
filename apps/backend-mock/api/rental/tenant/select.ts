@@ -14,6 +14,31 @@ export default eventHandler(async (event) => {
   }
 
   try {
+    const query = getQuery(event);
+    const scope = String(query.scope || query.area || '').toLowerCase();
+
+    if (scope === 'all') {
+      const tenants = await prismaClient.rentalTenant.findMany({
+        orderBy: {
+          tenantName: 'asc',
+        },
+        select: {
+          rentalTenantId: true,
+          tenantName: true,
+        },
+        where: {
+          isDeleted: false,
+        },
+      });
+
+      return useResponseSuccess(
+        tenants.map((tenant) => ({
+          tenantId: tenant.rentalTenantId,
+          tenantName: tenant.tenantName,
+        })),
+      );
+    }
+
     // 确保 userinfo.roles 是一个数组，然后检查是否包含 'Super' 角色
     const roleNames = userinfo.roles || [];
     const hasSuperRole = roleNames.includes('Super');

@@ -6,7 +6,7 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
 import { formatDate, formatDateTime } from '@vben/utils';
 
-import { getParkList } from '#/api/park';
+import { getVisitorParkList } from '#/api/park';
 import { $t } from '#/locales';
 
 /**
@@ -117,7 +117,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
       component: 'ApiSelect',
       componentProps: {
         allowClear: true,
-        api: getParkList,
+        api: getVisitorParkList,
         class: 'w-full',
         labelField: 'parkName',
         valueField: 'parkId',

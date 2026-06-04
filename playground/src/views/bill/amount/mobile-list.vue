@@ -34,7 +34,7 @@ import {
   deleteAmountBill,
   getAmountBillList,
 } from '#/api/bill';
-import { getParkList as fetchParks } from '#/api/park';
+import { getVisitorParkList as fetchParks } from '#/api/park';
 import MobileDateRange from '#/components/MobileDateRange.vue';
 import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { useSmsActionVerification } from '#/hooks/useSmsActionVerification';

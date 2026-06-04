@@ -18,6 +18,7 @@ export interface DashboardRevenueStats {
 }
 
 export async function getDashboardRevenueStats(params?: {
+  month?: string;
   parkId?: 'all' | number;
 }) {
   return requestClient.get<DashboardRevenueStats>('/dashboard/revenue-stats', {

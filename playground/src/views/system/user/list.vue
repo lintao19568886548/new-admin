@@ -5,7 +5,7 @@ import type {
 } from '#/adapter/vxe-table';
 import type { SystemUserApi } from '#/api';
 
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -27,7 +27,7 @@ type AccessRouteRecord = {
   path?: string;
 };
 
-const activeTab = ref('accounts');
+const activeTab = ref('parks');
 const accessStore = useAccessStore();
 
 function hasAccessibleRoute(
@@ -59,6 +59,19 @@ const canManagePark = computed(() =>
     ['SystemPark'],
     ['/system/park'],
   ),
+);
+
+watch(
+  canManagePark,
+  (allowed) => {
+    if (!allowed && activeTab.value === 'parks') {
+      activeTab.value = 'accounts';
+    }
+    if (allowed && activeTab.value === 'accounts') {
+      activeTab.value = 'parks';
+    }
+  },
+  { immediate: true },
 );
 
 const [FormModal, formModalApi] = useVbenModal({
@@ -171,6 +184,16 @@ function refreshGrid() {
 <template>
   <Page auto-content-height content-class="system-account-page-content">
     <Tabs v-model:active-key="activeTab" class="system-account-tabs">
+      <Tabs.TabPane
+        v-if="canManagePark"
+        key="parks"
+        :tab="$t('system.park.title')"
+      >
+        <div class="system-account-tab-pane">
+          <ParkManagePanel v-if="activeTab === 'parks'" />
+        </div>
+      </Tabs.TabPane>
+
       <Tabs.TabPane key="accounts" :tab="$t('system.user.list')">
         <div class="system-account-tab-pane">
           <FormModal @success="refreshGrid" />
@@ -182,16 +205,6 @@ function refreshGrid() {
               </Button>
             </template>
           </Grid>
-        </div>
-      </Tabs.TabPane>
-
-      <Tabs.TabPane
-        v-if="canManagePark"
-        key="parks"
-        :tab="$t('system.park.title')"
-      >
-        <div class="system-account-tab-pane">
-          <ParkManagePanel v-if="activeTab === 'parks'" />
         </div>
       </Tabs.TabPane>
     </Tabs>

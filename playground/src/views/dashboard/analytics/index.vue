@@ -1,13 +1,16 @@
 <script lang="ts" setup>
+import type { Dayjs } from 'dayjs';
+
 import type { ParkOption, ParkOptionValue } from './components/parkOptions';
 
-import { h, onMounted, onUnmounted, ref } from 'vue';
+import { computed, h, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { AnalysisChartCard } from '@vben/common-ui';
 import { useUserStore } from '@vben/stores';
 
-import { notification, Select } from 'ant-design-vue';
+import { DatePicker, notification, Select } from 'ant-design-vue';
+import dayjs from 'dayjs';
 
 import { getParkList } from '#/api/park';
 import {
@@ -33,9 +36,13 @@ const investmentSelectedParkId = ref<ParkOptionValue>('all');
 const contractSelectedParkId = ref<ParkOptionValue>('all');
 const customerSelectedParkId = ref<ParkOptionValue>('all');
 const revenueSelectedParkId = ref<ParkOptionValue>('all');
+const revenueSelectedMonth = ref<Dayjs>(dayjs());
 const energySelectedParkId = ref<ParkOptionValue>('all');
 const countSelectedParkId = ref<ParkOptionValue>('all');
 const parkOptions = ref<ParkOption[]>([allParkOption]);
+const revenueSelectedMonthText = computed(() =>
+  revenueSelectedMonth.value.format('YYYY-MM'),
+);
 
 const handleResize = () => {
   isMobile.value = window.innerWidth < 768;
@@ -146,7 +153,15 @@ onUnmounted(() => {
     <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
       <AnalysisChartCard title="营收统计">
         <template #extra>
-          <div class="w-full sm:w-auto">
+          <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <DatePicker
+              v-model:value="revenueSelectedMonth"
+              :allow-clear="false"
+              class="w-full sm:w-[150px]"
+              format="YYYY年M月"
+              picker="month"
+              size="middle"
+            />
             <Select
               v-model:value="revenueSelectedParkId"
               :options="parkOptions"
@@ -155,7 +170,10 @@ onUnmounted(() => {
             />
           </div>
         </template>
-        <AnalyticsRevenue :park-id="revenueSelectedParkId" />
+        <AnalyticsRevenue
+          :month="revenueSelectedMonthText"
+          :park-id="revenueSelectedParkId"
+        />
       </AnalysisChartCard>
       <AnalysisChartCard title="厂房租赁">
         <template #extra>

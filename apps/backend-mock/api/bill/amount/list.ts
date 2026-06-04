@@ -17,21 +17,12 @@ export default eventHandler(async (event) => {
     pageSize,
   } = query;
 
-  const accessibleParkIds = userinfo.parks.map((park) => park.parkId);
   const where: any = {};
 
   if (currentPark) {
     const parkId = Number(currentPark);
-    if (parkId === -1) {
-      if (accessibleParkIds.length > 0) {
-        where.parkId = {
-          in: accessibleParkIds,
-        };
-      }
-    } else if (accessibleParkIds.includes(parkId)) {
+    if (parkId !== -1 && Number.isInteger(parkId) && parkId > 0) {
       where.parkId = parkId;
-    } else {
-      return useResponseError('没有查看权限');
     }
   }
 

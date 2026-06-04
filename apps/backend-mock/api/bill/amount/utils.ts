@@ -4,6 +4,13 @@ const MAX_PROJECT_NAME_LENGTH = 120;
 const MAX_REMARK_LENGTH = 100;
 const MAX_TENANT_NAME_LENGTH = 60;
 
+function toPositiveInteger(value: unknown) {
+  const normalized = Number(value);
+  return Number.isInteger(normalized) && normalized > 0
+    ? Math.floor(normalized)
+    : null;
+}
+
 function normalizeText(value: unknown) {
   if (value === null || value === undefined) {
     return '';
@@ -80,6 +87,53 @@ export function sanitizeAmountBillPayload(
   };
 
   return sanitized;
+}
+
+export async function resolveAmountBillParkId(
+  tx: any,
+  params: {
+    parkId?: null | number | string;
+    tenantId?: null | number | string;
+    userinfo?: { id?: number; parks?: Array<{ parkId?: number }> };
+  },
+) {
+  const requestedParkId = toPositiveInteger(params.parkId);
+  if (requestedParkId) {
+    return requestedParkId;
+  }
+
+  const tenantId = toPositiveInteger(params.tenantId);
+  if (tenantId) {
+    const tenant = await tx.rentalTenant.findUnique({
+      select: { parkId: true },
+      where: { rentalTenantId: tenantId },
+    });
+    const tenantParkId = toPositiveInteger(tenant?.parkId);
+    if (tenantParkId) {
+      return tenantParkId;
+    }
+  }
+
+  const tokenParkId = params.userinfo?.parks
+    ?.map((park) => toPositiveInteger(park?.parkId))
+    .find((parkId): parkId is number => parkId !== null);
+  if (tokenParkId) {
+    return tokenParkId;
+  }
+
+  const userId = toPositiveInteger(params.userinfo?.id);
+  if (userId) {
+    const user = await tx.user.findUnique({
+      select: { parkId: true },
+      where: { id: userId },
+    });
+    const userParkId = toPositiveInteger(user?.parkId);
+    if (userParkId) {
+      return userParkId;
+    }
+  }
+
+  return null;
 }
 
 /**

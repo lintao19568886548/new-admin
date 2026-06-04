@@ -1,7 +1,11 @@
 import { prismaClient } from '~/utils/db';
 import { serverErrorResponse, useResponseSuccess } from '~/utils/response';
 
-import { sanitizeAmountBillPayload, upsertFinanceRecord } from './utils';
+import {
+  resolveAmountBillParkId,
+  sanitizeAmountBillPayload,
+  upsertFinanceRecord,
+} from './utils';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -10,10 +14,22 @@ export default eventHandler(async (event) => {
   }
   const body = await readBody(event);
   const sanitizedBody = sanitizeAmountBillPayload(body || {});
-  const { eleBills, waterBills, parkId, tenantId, ...billData } = sanitizedBody;
+  const {
+    eleBills = [],
+    parkId: rawParkId,
+    tenantId,
+    waterBills = [],
+    ...billData
+  } = sanitizedBody;
   try {
     // 使用事务处理创建操作
     const bill = await prismaClient.$transaction(async (prisma) => {
+      const parkId = await resolveAmountBillParkId(prisma, {
+        parkId: rawParkId,
+        tenantId,
+        userinfo,
+      });
+
       // 1. 创建或更新财务记录
       const financeId = await upsertFinanceRecord(prisma, {
         ...billData,

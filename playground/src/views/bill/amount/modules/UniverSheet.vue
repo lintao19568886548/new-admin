@@ -19,7 +19,7 @@ import { UniverSheetsDataValidationPreset } from '@univerjs/presets/preset-sheet
 import UniverPresetSheetsDataValidationZhCN from '@univerjs/presets/preset-sheets-data-validation/locales/zh-CN';
 import { message } from 'ant-design-vue';
 
-import { getParkList } from '#/api/park';
+import { getVisitorParkList } from '#/api/park';
 import { getTenantSelectList } from '#/api/rental/tenant';
 
 const props = defineProps<{
@@ -61,7 +61,7 @@ async function loadTenantOptions(prefilled: any[] = []) {
     return cachedTenantOptions;
   }
   if (!tenantOptionsPromise) {
-    tenantOptionsPromise = getTenantSelectList()
+    tenantOptionsPromise = getTenantSelectList({ scope: 'all' })
       .then((result) => rememberTenantOptions(result))
       .finally(() => {
         tenantOptionsPromise = null;
@@ -78,7 +78,7 @@ async function loadParkOptions(prefilled: any[] = []) {
     return cachedParkOptions;
   }
   if (!parkOptionsPromise) {
-    parkOptionsPromise = getParkList()
+    parkOptionsPromise = getVisitorParkList()
       .then((result) => rememberParkOptions(result))
       .finally(() => {
         parkOptionsPromise = null;

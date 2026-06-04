@@ -144,6 +144,21 @@ const CRM_ROUTE_MENUS = [
   },
 ] as const;
 
+const BILL_ROUTE_MENUS = [
+  {
+    authCode: 'bill:amount',
+    component: '/bill/amount/list',
+    meta: {
+      icon: 'mdi:file-document-multiple',
+      order: -1,
+      title: '账单管理',
+    },
+    name: 'Bill',
+    path: '/bill',
+    type: 'menu',
+  },
+] as const;
+
 function hasRouteMenu(
   menus: any[],
   route: {
@@ -183,6 +198,10 @@ function appendRouteMenus(menus: any[], routes: readonly any[]) {
 
 function appendCrmRouteMenus(menus: any[]) {
   return appendRouteMenus(menus, CRM_ROUTE_MENUS);
+}
+
+function appendBillRouteMenus(menus: any[]) {
+  return appendRouteMenus(menus, BILL_ROUTE_MENUS);
 }
 
 function isInvestmentRoute(menu: any) {
@@ -359,7 +378,7 @@ export default eventHandler(async (event) => {
 
     return useResponseSuccess(
       await appendMembershipRouteMenus(
-        appendCrmRouteMenus(normalizedMenus),
+        appendBillRouteMenus(appendCrmRouteMenus(normalizedMenus)),
         userinfo,
         { hasSuperRole },
       ),
@@ -459,8 +478,12 @@ export default eventHandler(async (event) => {
   });
 
   return useResponseSuccess(
-    await appendMembershipRouteMenus(normalizedMenus, userinfo, {
-      hasSuperRole,
-    }),
+    await appendMembershipRouteMenus(
+      appendBillRouteMenus(normalizedMenus),
+      userinfo,
+      {
+        hasSuperRole,
+      },
+    ),
   );
 });

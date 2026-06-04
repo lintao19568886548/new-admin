@@ -9,6 +9,13 @@ import {
 
 type TransactionType = '支出' | '收入';
 
+type RevenuePeriod = {
+  months: Date[];
+  periodEnd: Date;
+  periodLabel: string;
+  periodStart: Date;
+};
+
 function formatMonth(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
@@ -28,13 +35,53 @@ function getCurrentYearPeriodLabel(referenceDate: Date) {
   return `${year}年1-${month}月`;
 }
 
-function createEmptyRevenueStats(referenceDate: Date) {
-  const months = getCurrentYearMonths(referenceDate).map((month) =>
-    formatMonth(month),
-  );
+function getMonthPeriodLabel(month: Date) {
+  return `${month.getFullYear()}年${month.getMonth() + 1}月`;
+}
+
+function resolveRevenuePeriod(
+  monthValue: unknown,
+  referenceDate: Date,
+): RevenuePeriod {
+  const rawMonth = String(monthValue || '').trim();
+  const match = /^(\d{4})-(\d{2})$/.exec(rawMonth);
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    if (
+      Number.isInteger(year) &&
+      Number.isInteger(month) &&
+      month >= 1 &&
+      month <= 12
+    ) {
+      const selectedMonth = new Date(year, month - 1, 1);
+      return {
+        months: [selectedMonth],
+        periodEnd: new Date(year, month, 1),
+        periodLabel: getMonthPeriodLabel(selectedMonth),
+        periodStart: selectedMonth,
+      };
+    }
+  }
+
+  const months = getCurrentYearMonths(referenceDate);
+  return {
+    months,
+    periodEnd: new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth() + 1,
+      1,
+    ),
+    periodLabel: getCurrentYearPeriodLabel(referenceDate),
+    periodStart: months[0],
+  };
+}
+
+function createEmptyRevenueStats(period: RevenuePeriod) {
+  const months = period.months.map((month) => formatMonth(month));
 
   return {
-    periodLabel: getCurrentYearPeriodLabel(referenceDate),
+    periodLabel: period.periodLabel,
     summary: {
       expenseTotal: 0,
       incomeTotal: 0,
@@ -68,25 +115,24 @@ export default eventHandler(async (event) => {
   try {
     const authorizedParkIds =
       userinfo.parks?.map((park) => Number(park.parkId)).filter(Boolean) ?? [];
+    const query = getQuery(event);
+    const revenuePeriod = resolveRevenuePeriod(query.month, now);
 
     if (authorizedParkIds.length === 0) {
-      return useResponseSuccess(createEmptyRevenueStats(now));
+      return useResponseSuccess(createEmptyRevenueStats(revenuePeriod));
     }
 
-    const query = getQuery(event);
     const selectedParkId =
       query.parkId === undefined || query.parkId === 'all'
         ? null
         : Number(query.parkId);
 
     if (selectedParkId && !authorizedParkIds.includes(Number(selectedParkId))) {
-      return useResponseSuccess(createEmptyRevenueStats(now));
+      return useResponseSuccess(createEmptyRevenueStats(revenuePeriod));
     }
 
-    const months = getCurrentYearMonths(now);
+    const months = revenuePeriod.months;
     const monthLabels = months.map((month) => formatMonth(month));
-    const periodStart = months[0];
-    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const parkIds = selectedParkId ? [selectedParkId] : authorizedParkIds;
 
     const financeList = await prismaClient.finance.findMany({
@@ -101,8 +147,8 @@ export default eventHandler(async (event) => {
           in: parkIds,
         },
         transactionTime: {
-          gte: periodStart,
-          lt: periodEnd,
+          gte: revenuePeriod.periodStart,
+          lt: revenuePeriod.periodEnd,
         },
         transactionType: {
           in: ['收入', '支出'],
@@ -138,7 +184,7 @@ export default eventHandler(async (event) => {
     const profitCents = incomeTotalCents - expenseTotalCents;
 
     return useResponseSuccess({
-      periodLabel: getCurrentYearPeriodLabel(now),
+      periodLabel: revenuePeriod.periodLabel,
       summary: {
         expenseTotal: toMoney(expenseTotalCents),
         incomeTotal: toMoney(incomeTotalCents),

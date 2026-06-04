@@ -15,25 +15,9 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const parkIds = (userinfo.parks || [])
-      .map((park: { parkId: number }) => Number(park.parkId))
-      .filter((parkId: number) => Number.isInteger(parkId) && parkId > 0);
-
-    if (parkIds.length === 0) {
-      return useResponseSuccess({
-        deletedBillCount: 0,
-        deletedFinanceCount: 0,
-      });
-    }
-
     const bills = await prismaClient.amountBill.findMany({
       select: {
         billId: true,
-      },
-      where: {
-        parkId: {
-          in: parkIds,
-        },
       },
     });
 

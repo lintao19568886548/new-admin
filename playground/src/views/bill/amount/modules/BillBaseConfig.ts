@@ -1,7 +1,7 @@
 import type { VbenFormSchema } from '@vben/common-ui';
 
 import { getTenantSelectList } from '#/api';
-import { getParkList } from '#/api/park';
+import { getVisitorParkList } from '#/api/park';
 
 /**
  * 账单详情配置接口
@@ -87,7 +87,7 @@ export function useTenantFormSchema(): VbenFormSchema[] {
     {
       component: 'ApiSelect',
       componentProps: {
-        api: getTenantSelectList,
+        api: () => getTenantSelectList({ scope: 'all' }),
         // 确保指定了正确的 label 字段
         // 如果需要自定义过滤逻辑，可以添加 filterOption
         filterOption: (input: string, option: any) => {
@@ -110,7 +110,7 @@ export function useTenantFormSchema(): VbenFormSchema[] {
       component: 'ApiSelect',
       componentProps: {
         allowClear: true,
-        api: getParkList,
+        api: getVisitorParkList,
         class: 'w-full',
         labelField: 'parkName',
         valueField: 'parkId',
