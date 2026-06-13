@@ -1,0 +1,106 @@
+<!-- loading 阶段 -->
+<view wx:if="{{stage === 'loading'}}" class="invite-page">
+  <view class="action-panel">
+    <view class="action-title">正在处理...</view>
+    <view class="desc">请稍候</view>
+  </view>
+</view>
+
+<!-- 授权阶段 -->
+<view wx:elif="{{stage === 'auth'}}" class="invite-page">
+  <view class="poster">
+    <view class="brand-row">
+      <view class="brand-mark">瞰</view>
+      <view>
+        <view class="brand-name">瞰维智管</view>
+        <view class="brand-subtitle">园区数字化运营平台</view>
+      </view>
+    </view>
+
+    <view class="poster-title">智慧园区一体化管理系统</view>
+    <view class="poster-desc">全流程数字化管控，让园区运营降本增效</view>
+
+    <view class="value-list">
+      <view class="value-item">
+        <text>抄表/开单/催费</text>
+        <strong>2-4人减至0.5人</strong>
+      </view>
+      <view class="value-item">
+        <text>合同到期</text>
+        <strong>提前90天预警</strong>
+      </view>
+      <view class="value-item">
+        <text>空置房源去化</text>
+        <strong>1-2个月</strong>
+      </view>
+      <view class="value-item">
+        <text>租金收缴率</text>
+        <strong>提升至98%以上</strong>
+      </view>
+    </view>
+
+    <view class="price-row">
+      <view>
+        <text>基础版</text>
+        <strong>9800元</strong>
+      </view>
+      <view>
+        <text>标准版</text>
+        <strong>12800元</strong>
+      </view>
+      <view>
+        <text>集团版</text>
+        <strong>36800元</strong>
+      </view>
+    </view>
+  </view>
+
+  <view class="action-panel">
+    <view class="action-title">领取专属园区顾问服务</view>
+    <view class="desc">
+      授权手机号后，系统自动匹配对应销售顾问并完成客户归属，无需手动填写任何信息。
+    </view>
+    <button
+      class="primary"
+      open-type="getPhoneNumber"
+      bindgetphonenumber="onGetPhoneNumber"
+    >
+      一键授权领取
+    </button>
+  </view>
+</view>
+
+<!-- 绑定成功阶段 -->
+<view wx:elif="{{stage === 'bound'}}" class="invite-page">
+  <view class="poster">
+    <view class="brand-row">
+      <view class="brand-mark">瞰</view>
+      <view>
+        <view class="brand-name">瞰维智管</view>
+        <view class="brand-subtitle">园区数字化运营平台</view>
+      </view>
+    </view>
+    <view class="poster-title">智慧园区一体化管理系统</view>
+    <view class="poster-desc">全流程数字化管控，让园区运营降本增效</view>
+  </view>
+
+  <view class="action-panel">
+    <view class="bound-badge">
+      {{isFirstBind ? '已锁定专属顾问' : '已匹配原归属顾问'}}
+    </view>
+    <view class="action-title">{{ownerName || '专属销售顾问'}}</view>
+    <view class="desc">
+      您的信息已记录，后续咨询、演示和服务都会归属这位顾问，重复扫码不会自动更换销售。
+    </view>
+    <view wx:if="{{channelName}}" class="channel-tag">来源渠道：{{channelName}}</view>
+    <button class="primary" bindtap="openDownload">下载 App 继续使用</button>
+  </view>
+</view>
+
+<!-- 错误阶段 -->
+<view wx:elif="{{stage === 'error'}}" class="invite-page">
+  <view class="action-panel">
+    <view class="action-title">出现问题</view>
+    <view class="desc error">{{errorMessage || '请重新扫码'}}</view>
+  </view>
+</view>

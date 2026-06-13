@@ -14,10 +14,16 @@ import { deleteSystemPark, getSystemParkList } from '#/api/system/park';
 import { $t } from '#/locales';
 
 import { useColumns } from '../data';
+import FactoryManageModal from './factory-manage-modal.vue';
 import Form from './form.vue';
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
+  destroyOnClose: true,
+});
+
+const [FactoryModal, factoryModalApi] = useVbenModal({
+  connectedComponent: FactoryManageModal,
   destroyOnClose: true,
 });
 
@@ -57,6 +63,12 @@ async function onDelete(row: any) {
   }
 }
 
+function onFactory(row: any) {
+  factoryModalApi
+    .setData({ parkId: row.parkId, parkName: row.parkName })
+    .open();
+}
+
 function onActionClick({ code, row }: OnActionClickParams) {
   switch (code) {
     case 'delete': {
@@ -65,6 +77,10 @@ function onActionClick({ code, row }: OnActionClickParams) {
     }
     case 'edit': {
       onEdit(row);
+      break;
+    }
+    case 'factory': {
+      onFactory(row);
       break;
     }
   }
@@ -128,6 +144,7 @@ function refreshGrid() {
 <template>
   <div class="system-park-manage-panel">
     <FormModal @success="refreshGrid" />
+    <FactoryModal />
     <Grid :table-title="$t('page.park.list')">
       <template #toolbar-tools>
         <Button type="primary" @click="onCreate">

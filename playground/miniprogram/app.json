@@ -1,0 +1,10 @@
+{
+  "pages": ["pages/home/index"],
+  "window": {
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "销售顾问"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

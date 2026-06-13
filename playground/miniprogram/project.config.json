@@ -1,0 +1,13 @@
+{
+  "appid": "wxe453c197f509c5bb",
+  "compileType": "miniprogram",
+  "libVersion": "latest",
+  "projectname": "vben-playground-miniprogram",
+  "setting": {
+    "compileHotReLoad": true,
+    "es6": true,
+    "minified": true,
+    "postcss": true,
+    "urlCheck": true
+  }
+}

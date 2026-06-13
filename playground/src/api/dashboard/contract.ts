@@ -19,7 +19,10 @@ export interface DashboardContractStats {
 }
 
 export async function getDashboardContractStats(params?: {
+  date?: string;
+  endDate?: string;
   parkId?: 'all' | number;
+  startDate?: string;
 }) {
   return requestClient.get<DashboardContractStats>(
     '/dashboard/contract-stats',

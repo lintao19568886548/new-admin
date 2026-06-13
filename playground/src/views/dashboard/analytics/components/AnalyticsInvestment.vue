@@ -14,6 +14,7 @@ import {
   ref,
   watch,
 } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
@@ -22,12 +23,19 @@ import { getDashboardFactoryRentalStats } from '#/api/dashboard';
 import { getSemiPieChartConfig } from './chartConfigs';
 
 interface Props {
+  date?: string;
+  endDate?: string;
   parkId?: ParkOptionValue;
+  startDate?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  date: '',
+  endDate: '',
   parkId: 'all',
+  startDate: '',
 });
+const router = useRouter();
 
 const DashboardChart = defineComponent({
   name: 'DashboardChart',
@@ -186,11 +194,32 @@ const rentalStats = ref({
   vacantCount: 0,
 });
 
+function buildRentalQuery(status?: 'active') {
+  const query: Record<string, string> = {};
+  if (props.parkId !== 'all') {
+    query.parkId = String(props.parkId);
+  }
+  if (status) {
+    query.status = status;
+  }
+  return query;
+}
+
+function goRental(path: string, status?: 'active') {
+  router.push({
+    path,
+    query: buildRentalQuery(status),
+  });
+}
+
 // 获取统计数据
 const fetchRentalStats = async () => {
   try {
     const res = await getDashboardFactoryRentalStats({
+      date: props.endDate || props.date,
+      endDate: props.endDate,
       parkId: props.parkId,
+      startDate: props.startDate,
     });
     if (res) {
       rentalStats.value = {
@@ -209,7 +238,7 @@ const fetchRentalStats = async () => {
 };
 
 watch(
-  () => props.parkId,
+  () => [props.parkId, props.date, props.startDate, props.endDate],
   () => {
     fetchRentalStats();
   },
@@ -220,7 +249,11 @@ watch(
 <template>
   <div class="flex h-full flex-col">
     <div class="mb-3 grid flex-initial grid-cols-2 gap-2 md:grid-cols-4">
-      <div class="rounded-lg bg-gray-50 p-2 md:p-2.5">
+      <button
+        class="summary-card rounded-lg bg-gray-50 p-2 text-left md:p-2.5"
+        type="button"
+        @click="goRental('/rental/list')"
+      >
         <div class="mb-1 text-gray-500" :class="[titleFontSize]">总面积</div>
         <div
           class="whitespace-nowrap font-bold text-gray-800"
@@ -231,8 +264,12 @@ watch(
         <div class="mt-1 text-gray-400" :class="[titleFontSize]">
           总数: {{ rentalStats.totalCount }}
         </div>
-      </div>
-      <div class="rounded-lg bg-gray-50 p-2 md:p-2.5">
+      </button>
+      <button
+        class="summary-card rounded-lg bg-gray-50 p-2 text-left md:p-2.5"
+        type="button"
+        @click="goRental('/rental/tenant', 'active')"
+      >
         <div class="mb-1 text-gray-500" :class="[titleFontSize]">已租面积</div>
         <div
           class="whitespace-nowrap font-bold text-blue-500"
@@ -243,8 +280,12 @@ watch(
         <div class="mt-1 text-gray-400" :class="[titleFontSize]">
           已租数: {{ rentalStats.rentedCount }}
         </div>
-      </div>
-      <div class="rounded-lg bg-gray-50 p-2 md:p-2.5">
+      </button>
+      <button
+        class="summary-card rounded-lg bg-gray-50 p-2 text-left md:p-2.5"
+        type="button"
+        @click="goRental('/rental/list')"
+      >
         <div class="mb-1 text-gray-500" :class="[titleFontSize]">待租面积</div>
         <div
           class="whitespace-nowrap font-bold text-green-500"
@@ -255,8 +296,12 @@ watch(
         <div class="mt-1 text-gray-400" :class="[titleFontSize]">
           待租数: {{ rentalStats.vacantCount }}
         </div>
-      </div>
-      <div class="rounded-lg bg-gray-50 p-2 md:p-2.5">
+      </button>
+      <button
+        class="summary-card rounded-lg bg-gray-50 p-2 text-left md:p-2.5"
+        type="button"
+        @click="goRental('/rental/tenant', 'active')"
+      >
         <div class="mb-1 text-gray-500" :class="[titleFontSize]">出租率</div>
         <div
           class="whitespace-nowrap font-bold text-orange-500"
@@ -264,7 +309,7 @@ watch(
         >
           {{ rentalStats.rentalRate }}%
         </div>
-      </div>
+      </button>
     </div>
     <div class="grid min-h-0 flex-1 grid-cols-1 gap-2 md:grid-cols-2">
       <div
@@ -314,3 +359,20 @@ watch(
     </div>
   </div>
 </template>
+
+<style scoped>
+.summary-card {
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.summary-card:hover {
+  border-color: #d9e8ff;
+  box-shadow: 0 4px 12px rgb(15 23 42 / 8%);
+  transform: translateY(-1px);
+}
+</style>

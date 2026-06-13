@@ -11,6 +11,7 @@ import { formatDateTime } from '@vben/utils';
 
 import { message } from 'ant-design-vue';
 
+import { getFinanceBillNameOptions } from '#/api/finance';
 import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
 
@@ -197,7 +198,31 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: $t('page.common.park'),
     },
     {
-      component: 'Input',
+      component: 'ApiAutoComplete',
+      componentProps: {
+        allowClear: true,
+        alwaysLoad: true,
+        api: getFinanceBillNameOptions,
+        beforeFetch: (params: Record<string, any>) => ({
+          ...params,
+          parkId: params?.parkId ?? -1,
+        }),
+        class: 'w-full',
+        filterOption: (inputValue: string, option: { value?: string }) => {
+          const value = String(option?.value || '');
+          return value.toLowerCase().includes(inputValue.toLowerCase());
+        },
+        optionFilterProp: 'value',
+        placeholder: '请输入或选择账单名称',
+      },
+      dependencies: {
+        componentProps: (values) => ({
+          params: {
+            parkId: values.parkId ?? -1,
+          },
+        }),
+        triggerFields: ['parkId'],
+      },
       fieldName: 'billName',
       label: $t('page.finance.billName'),
     },

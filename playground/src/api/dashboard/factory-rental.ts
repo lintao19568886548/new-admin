@@ -14,7 +14,10 @@ export interface DashboardFactoryRentalStats {
 }
 
 export async function getDashboardFactoryRentalStats(params?: {
+  date?: string;
+  endDate?: string;
   parkId?: 'all' | number;
+  startDate?: string;
 }) {
   return requestClient.get<DashboardFactoryRentalStats>(
     '/dashboard/factory-rental-stats',

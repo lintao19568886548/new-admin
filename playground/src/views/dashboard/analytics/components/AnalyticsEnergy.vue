@@ -33,11 +33,17 @@ import {
 import { getEnergyConsumptionChartConfig } from './chartConfigs';
 
 interface Props {
+  date?: string;
+  endDate?: string;
   parkId?: ParkOptionValue;
+  startDate?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  date: '',
+  endDate: '',
   parkId: 'all',
+  startDate: '',
 });
 
 const DashboardChart = defineComponent({
@@ -165,6 +171,10 @@ onUnmounted(() => {
 const activeConsumptionType = ref<EnergyConsumptionType>('water');
 
 const currentYear = new Date().getFullYear();
+const selectedYear = computed(() => {
+  const year = Number(String(props.endDate || props.date || '').slice(0, 4));
+  return Number.isInteger(year) && year > 0 ? year : currentYear;
+});
 const defaultMonths = Array.from({
   length: new Date().getMonth() + 1,
 }).map((_item, index) => {
@@ -210,8 +220,11 @@ const chartData = computed(() => ({
 const fetchElectricityStats = async () => {
   try {
     const res = await getDashboardEnergyElectricityConsumption({
+      date: props.endDate || props.date,
+      endDate: props.endDate,
       parkId: props.parkId,
-      year: currentYear,
+      startDate: props.startDate,
+      year: selectedYear.value,
     });
 
     if (!res) return;
@@ -233,7 +246,7 @@ const fetchElectricityStats = async () => {
       months: Array.isArray(res.months)
         ? res.months
         : defaultElectricityStats.months,
-      year: Number(res.year || currentYear),
+      year: Number(res.year || selectedYear.value),
     };
   } catch (error) {
     console.error('获取电消耗数据失败:', error);
@@ -244,8 +257,11 @@ const fetchElectricityStats = async () => {
 const fetchWaterStats = async () => {
   try {
     const res = await getDashboardEnergyWaterConsumption({
+      date: props.endDate || props.date,
+      endDate: props.endDate,
       parkId: props.parkId,
-      year: currentYear,
+      startDate: props.startDate,
+      year: selectedYear.value,
     });
 
     if (!res) return;
@@ -265,7 +281,7 @@ const fetchWaterStats = async () => {
           ? res.water.yearOnYear.map(Number)
           : defaultWaterStats.water.yearOnYear,
       },
-      year: Number(res.year || currentYear),
+      year: Number(res.year || selectedYear.value),
     };
   } catch (error) {
     console.error('获取水消耗数据失败:', error);
@@ -274,7 +290,7 @@ const fetchWaterStats = async () => {
 };
 
 watch(
-  () => props.parkId,
+  () => [props.parkId, props.date, props.startDate, props.endDate],
   () => {
     fetchElectricityStats();
     fetchWaterStats();

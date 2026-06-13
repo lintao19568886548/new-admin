@@ -129,17 +129,41 @@ const MEMBERSHIP_RESTRICTED_ROUTE_MENUS = [
   },
 ] as const;
 
-const CRM_ROUTE_MENUS = [
+const APP_SHELL_ROUTE_MENUS = [
   {
-    authCode: 'crm:acquisition',
-    component: '/crm/acquisition/index',
+    authCode: 'dashboard:home',
+    component: '/dashboard/index',
     meta: {
-      icon: 'mdi:qrcode-scan',
-      order: 60,
-      title: '获客推广',
+      hideInMenu: true,
+      icon: 'lucide:home',
+      title: '首页',
     },
-    name: 'CrmAcquisition',
-    path: '/crm/acquisition',
+    name: 'Home',
+    path: '/home',
+    type: 'menu',
+  },
+  {
+    authCode: 'dashboard:workbench',
+    component: '/dashboard/workbench/index',
+    meta: {
+      hideInMenu: true,
+      icon: 'carbon:workspace',
+      title: '智能管理',
+    },
+    name: 'Workbench',
+    path: '/workbench',
+    type: 'menu',
+  },
+  {
+    authCode: 'profile:index',
+    component: '/profile/index',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:account-circle-outline',
+      title: '我的',
+    },
+    name: 'Profile',
+    path: '/profile',
     type: 'menu',
   },
 ] as const;
@@ -156,6 +180,305 @@ const BILL_ROUTE_MENUS = [
     name: 'Bill',
     path: '/bill',
     type: 'menu',
+  },
+] as const;
+
+const MOBILE_COMPATIBILITY_ROUTE_MENUS = [
+  {
+    route: {
+      authCode: 'bill:amount-mobile',
+      component: '/bill/amount/mobile-list',
+      meta: {
+        activePath: '/bill',
+        hideInMenu: true,
+        icon: 'mdi:cellphone',
+        title: '账单管理',
+      },
+      name: 'BillMobileList',
+      path: '/bill/mobile-list',
+      type: 'menu',
+    },
+    sources: [{ name: 'Bill', path: '/bill' }],
+  },
+  {
+    route: {
+      authCode: 'finance:manage-mobile',
+      component: '/finance/manage/mobile-list',
+      meta: {
+        activePath: '/finance/manage',
+        hideInMenu: true,
+        icon: 'mdi:cellphone-text',
+        title: '财务管理',
+      },
+      name: 'FinanceMobileManage',
+      path: '/finance/mobile-manage',
+      type: 'menu',
+    },
+    sources: [
+      { name: 'FinanceManage', path: '/finance/manage' },
+      { name: 'Finance', path: '/finance' },
+    ],
+  },
+  {
+    route: {
+      authCode: 'rental:tenant-mobile',
+      component: '/rental/tenant/mobile-list',
+      meta: {
+        activePath: '/rental/tenant',
+        hideInMenu: true,
+        icon: 'mdi:cellphone-account',
+        title: '租户管理',
+      },
+      name: 'TenantMobileList',
+      path: '/rental/tenant/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'TenantManage', path: '/rental/tenant' }],
+  },
+  {
+    route: {
+      authCode: 'rental:manage-mobile',
+      component: '/rental/manage/mobile',
+      meta: {
+        activePath: '/rental/manage',
+        hideInMenu: true,
+        icon: 'mdi:cellphone-cog',
+        title: '园区管理',
+      },
+      name: 'RentalManageMobile',
+      path: '/rental/manage/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'RentalManage', path: '/rental/manage' }],
+  },
+  {
+    route: {
+      authCode: 'system:park-mobile',
+      component: '/rental/manage/mobile',
+      meta: {
+        activePath: '/system/park',
+        hideInMenu: true,
+        icon: 'mdi:cellphone-cog',
+        title: '园区管理',
+      },
+      name: 'SystemParkMobile',
+      path: '/system/park/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'SystemPark', path: '/system/park' }],
+  },
+  {
+    route: {
+      authCode: 'rental:settled-mobile',
+      component: '/rental/settled/mobile-list',
+      meta: {
+        activePath: '/rental/settled',
+        hideInMenu: true,
+        icon: 'mdi:cellphone-home',
+        title: '入驻厂房',
+      },
+      name: 'SettledFactoryMobile',
+      path: '/rental/settled/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'SettledFactory', path: '/rental/settled' }],
+  },
+  {
+    route: {
+      authCode: 'rental:reading-mobile',
+      component: '/rental/reading/mobile',
+      meta: {
+        activePath: '/rental/reading/mobile',
+        hideInMenu: true,
+        icon: 'mdi:cellphone-text',
+        title: '水电表抄表数据',
+      },
+      name: 'ReadingMobile',
+      path: '/rental/reading/mobile',
+      type: 'menu',
+    },
+    sources: [
+      { name: 'MeterList', path: '/rental/meter' },
+      { name: 'WaterList', path: '/rental/water' },
+    ],
+  },
+  {
+    route: {
+      authCode: 'hrm:mobile-information',
+      component: '/hrm/information/mobile-list',
+      meta: {
+        activePath: '/hrm/information',
+        hideInMenu: true,
+        icon: 'mdi:cellphone-account',
+        title: '员工信息',
+      },
+      name: 'HrmMobileInformation',
+      path: '/hrm/mobile-information',
+      type: 'menu',
+    },
+    sources: [{ name: 'HrmInformation', path: '/hrm/information' }],
+  },
+  {
+    route: {
+      authCode: 'hrm:leaveapplication-mobile',
+      component: '/hrm/leaveapplication/mobile-list',
+      meta: {
+        activePath: '/hrm/leaveapplication',
+        hideInMenu: true,
+        icon: 'mdi:cellphone-text',
+        title: '请假申请',
+      },
+      name: 'HrmLeaveApplicationMobile',
+      path: '/hrm/leavemobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'HrmLeaveApplication', path: '/hrm/leaveapplication' }],
+  },
+  {
+    route: {
+      authCode: 'reimbursement:application-mobile',
+      component: '/reimbursement/application/mobile',
+      meta: {
+        activePath: '/reimbursement/application',
+        hideInMenu: true,
+        icon: 'mdi:cellphone-check',
+        title: '报销申请',
+      },
+      name: 'ReimbursementMobileApply',
+      path: '/reimbursement/mobile-apply',
+      type: 'menu',
+    },
+    sources: [
+      { name: 'ReimbursementApplication', path: '/reimbursement/application' },
+    ],
+  },
+  {
+    route: {
+      authCode: 'reimbursement:audit-mobile',
+      component: '/reimbursement/audit/mobile',
+      meta: {
+        activePath: '/reimbursement/audit',
+        hideInMenu: true,
+        icon: 'mdi:cellphone-text',
+        title: '报销审核',
+      },
+      name: 'ReimbursementMobileAudit',
+      path: '/reimbursement/mobile-audit',
+      type: 'menu',
+    },
+    sources: [{ name: 'ReimbursementAudit', path: '/reimbursement/audit' }],
+  },
+  {
+    route: {
+      authCode: 'notices:mobile',
+      component: '/notices/mobile-list',
+      meta: {
+        activePath: '/notices',
+        hideInMenu: true,
+        icon: 'mdi:bullhorn-outline',
+        title: '公告列表',
+      },
+      name: 'NoticesMobile',
+      path: '/notices/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'Notices', path: '/notices' }],
+  },
+  {
+    route: {
+      authCode: 'access:visitor-mobile',
+      component: '/access/visitor/mobile-list',
+      meta: {
+        activePath: '/access/visitor',
+        hideInMenu: true,
+        icon: 'carbon:mobile',
+        title: '访客管理',
+      },
+      name: 'VisitorMobileList',
+      path: '/access/visitor/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'VisitorAccess', path: '/access/visitor' }],
+  },
+  {
+    route: {
+      authCode: 'maintenance:firefighting-mobile',
+      component: '/maintenance/firefighting/mobile-list',
+      meta: {
+        activePath: '/maintenance/firefighting',
+        hideInMenu: true,
+        icon: 'mdi:fire-extinguisher',
+        title: '消防管理',
+      },
+      name: 'FirefightingMobile',
+      path: '/maintenance/firefighting/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'Firefighting', path: '/maintenance/firefighting' }],
+  },
+  {
+    route: {
+      authCode: 'maintenance:elevator-mobile',
+      component: '/maintenance/elevator/mobile-list',
+      meta: {
+        activePath: '/maintenance/elevator',
+        hideInMenu: true,
+        icon: 'mdi:elevator',
+        title: '电梯管理',
+      },
+      name: 'ElevatorMobile',
+      path: '/maintenance/elevator/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'Elevator', path: '/maintenance/elevator' }],
+  },
+  {
+    route: {
+      authCode: 'maintenance:factory-maint-mobile',
+      component: '/maintenance/factoryMaint/mobile-list',
+      meta: {
+        activePath: '/maintenance/factoryMaint',
+        hideInMenu: true,
+        icon: 'mdi:office-building-cog',
+        title: '厂房维护',
+      },
+      name: 'FactoryMaintMobile',
+      path: '/maintenance/factoryMaint/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'FactoryMaint', path: '/maintenance/factoryMaint' }],
+  },
+  {
+    route: {
+      authCode: 'maintenance:transformer-mobile',
+      component: '/maintenance/transformer/mobile-list',
+      meta: {
+        activePath: '/maintenance/transformer',
+        hideInMenu: true,
+        icon: 'mdi:lightning-bolt',
+        title: '变压器维保',
+      },
+      name: 'TransformerMobile',
+      path: '/maintenance/transformer/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'Transformer', path: '/maintenance/transformer' }],
+  },
+  {
+    route: {
+      authCode: 'maintenance:hygiene-check-mobile',
+      component: '/maintenance/hygieneCheck/mobile-list',
+      meta: {
+        activePath: '/maintenance/hygieneCheck',
+        hideInMenu: true,
+        icon: 'mdi:broom',
+        title: '卫生检查',
+      },
+      name: 'HygieneCheckMobile',
+      path: '/maintenance/hygieneCheck/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'HygieneCheck', path: '/maintenance/hygieneCheck' }],
   },
 ] as const;
 
@@ -196,12 +519,19 @@ function appendRouteMenus(menus: any[], routes: readonly any[]) {
   return normalizedMenus;
 }
 
-function appendCrmRouteMenus(menus: any[]) {
-  return appendRouteMenus(menus, CRM_ROUTE_MENUS);
-}
-
 function appendBillRouteMenus(menus: any[]) {
   return appendRouteMenus(menus, BILL_ROUTE_MENUS);
+}
+
+function appendAppShellRouteMenus(menus: any[]) {
+  return appendRouteMenus(menus, APP_SHELL_ROUTE_MENUS);
+}
+
+function appendAccessibleMobileRouteMenus(menus: any[]) {
+  const routes = MOBILE_COMPATIBILITY_ROUTE_MENUS.filter((entry) =>
+    entry.sources.some((source) => hasRouteMenu(menus, source)),
+  ).map((entry) => entry.route);
+  return appendRouteMenus(menus, routes);
 }
 
 function isInvestmentRoute(menu: any) {
@@ -294,22 +624,101 @@ async function appendMembershipRouteMenus(
     ? menus
     : filterInvestmentPublicCrawlMenus(menus);
   const baseMenus = appendProfileAuxiliaryRouteMenus(scopedMenus, {
+    ensureCustomerAcquisition: true,
     investmentScope,
   });
   if (!(await isMembershipRestrictedUser(userinfo))) {
-    return baseMenus;
+    return appendAccessibleMobileRouteMenus(
+      appendAppShellRouteMenus(baseMenus),
+    );
   }
 
-  return appendRouteMenus(baseMenus, MEMBERSHIP_RESTRICTED_ROUTE_MENUS);
+  return appendRouteMenus(
+    appendAccessibleMobileRouteMenus(appendAppShellRouteMenus(baseMenus)),
+    MEMBERSHIP_RESTRICTED_ROUTE_MENUS,
+  );
 }
 
-function normalizeRouteMenus(menus: any[], options: { hasSuperRole: boolean }) {
-  return normalizeParkManagementMenuPlacement(menus, {
-    ensureParkWhenMissing: options.hasSuperRole,
-    includeCompatibilityRoutes: true,
-    includeMobileRoute: true,
-    preferLegacyMenu: false,
+function normalizeMenuPath(value: unknown) {
+  const path = String(value || '').trim();
+  if (!path || path === '/') {
+    return path || '';
+  }
+  return path.replace(/\/+$/, '') || '/';
+}
+
+function isRouteMenu(
+  menu: any,
+  route: {
+    name: string;
+    path: string;
+  },
+) {
+  return (
+    menu?.name === route.name || normalizeMenuPath(menu?.path) === route.path
+  );
+}
+
+function moveRouteBefore(
+  menus: any[],
+  source: {
+    name: string;
+    path: string;
+  },
+  target: {
+    name: string;
+    path: string;
+  },
+) {
+  const sourceIndex = menus.findIndex((menu) => isRouteMenu(menu, source));
+  const targetIndex = menus.findIndex((menu) => isRouteMenu(menu, target));
+  if (sourceIndex === -1 || targetIndex === -1 || sourceIndex < targetIndex) {
+    return menus;
+  }
+
+  const nextMenus = [...menus];
+  const [sourceMenu] = nextMenus.splice(sourceIndex, 1);
+  nextMenus.splice(targetIndex, 0, sourceMenu);
+  return nextMenus;
+}
+
+function normalizeSystemChildMenuPlacement(menus: any[]): any[] {
+  return menus.map((menu) => {
+    const children = Array.isArray(menu?.children)
+      ? normalizeSystemChildMenuPlacement(menu.children)
+      : undefined;
+    const nextMenu = children ? { ...menu, children } : menu;
+
+    if (
+      isRouteMenu(nextMenu, { name: 'System', path: '/system' }) &&
+      Array.isArray(nextMenu.children)
+    ) {
+      return {
+        ...nextMenu,
+        children: moveRouteBefore(
+          nextMenu.children,
+          { name: 'SystemUser', path: '/system/user' },
+          { name: 'SystemRole', path: '/system/role' },
+        ),
+      };
+    }
+
+    return nextMenu;
   });
+}
+
+function normalizeRouteMenus(
+  menus: any[],
+  _options: { hasSuperRole: boolean },
+) {
+  return normalizeSystemChildMenuPlacement(
+    normalizeParkManagementMenuPlacement(menus, {
+      ensureParkWhenMissing: false,
+      includeCompatibilityRoutes: true,
+      includeMobileRoute: true,
+      preferLegacyMenu: false,
+    }),
+  );
 }
 
 export default eventHandler(async (event) => {
@@ -346,6 +755,7 @@ export default eventHandler(async (event) => {
             type: {
               not: 'button',
             },
+            NOT: { name: 'SystemPark' },
           },
           include: {
             meta: true,
@@ -378,7 +788,7 @@ export default eventHandler(async (event) => {
 
     return useResponseSuccess(
       await appendMembershipRouteMenus(
-        appendBillRouteMenus(appendCrmRouteMenus(normalizedMenus)),
+        appendBillRouteMenus(normalizedMenus),
         userinfo,
         { hasSuperRole },
       ),

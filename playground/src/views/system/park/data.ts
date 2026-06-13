@@ -76,11 +76,11 @@ export function useColumns(
           onClick: onActionClick,
         },
         name: 'CellOperation',
-        options: ['edit', 'delete'],
+        options: ['edit', { code: 'factory', text: '管理厂房' }, 'delete'],
       },
       field: 'operation',
       fixed: 'right',
-      minWidth: 130,
+      minWidth: 200,
       title: $t('system.role.operation'),
     },
   ];

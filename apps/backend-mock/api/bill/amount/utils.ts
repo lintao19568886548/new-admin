@@ -1,3 +1,5 @@
+import { getAmountBillProjectPeriodError } from '~/utils/amount-bill-project-period';
+
 const MAX_BANK_ACCOUNT_FIELD_LENGTH = 60;
 const MAX_METER_NAME_LENGTH = 120;
 const MAX_PROJECT_NAME_LENGTH = 120;
@@ -55,21 +57,29 @@ function sanitizeBillItems(items: unknown): any {
     return items;
   }
 
-  return items.map((item) => {
-    if (!item || typeof item !== 'object') {
-      return item;
-    }
+  return items
+    .filter((item): item is Record<string, any> => {
+      const meterName =
+        item && typeof item === 'object'
+          ? normalizeText((item as Record<string, any>).meterName)
+          : '';
 
-    return {
-      ...item,
-      meterName:
-        clipText(
-          (item as Record<string, any>).meterName,
-          MAX_METER_NAME_LENGTH,
-        ) || '',
-      remark: clipText((item as Record<string, any>).remark, MAX_REMARK_LENGTH),
-    };
-  });
+      return Boolean(meterName) && meterName !== '合计';
+    })
+    .map((item) => {
+      return {
+        ...item,
+        meterName:
+          clipText(
+            (item as Record<string, any>).meterName,
+            MAX_METER_NAME_LENGTH,
+          ) || '',
+        remark: clipText(
+          (item as Record<string, any>).remark,
+          MAX_REMARK_LENGTH,
+        ),
+      };
+    });
 }
 
 export function sanitizeAmountBillPayload(
@@ -87,6 +97,49 @@ export function sanitizeAmountBillPayload(
   };
 
   return sanitized;
+}
+
+export function validateAndNormalizeAmountBillData(
+  billData: Record<string, any>,
+  options: { tenantId?: null | number | string } = {},
+) {
+  const projectName = normalizeText(billData.projectName);
+  if (!projectName) {
+    return '项目名称不能为空';
+  }
+  const projectPeriodError = getAmountBillProjectPeriodError(projectName);
+  if (projectPeriodError) {
+    return projectPeriodError;
+  }
+  billData.projectName = projectName;
+
+  if (!options.tenantId && !normalizeText(billData.tenantName)) {
+    return '租户不能为空';
+  }
+
+  const totalFee = Number(billData.totalFee || 0);
+  if (!Number.isFinite(totalFee) || totalFee <= 0) {
+    return '本月收费金额必须大于0';
+  }
+  billData.totalFee = totalFee;
+
+  const receiptAmount = Number(billData.receiptAmount || 0);
+  if (!Number.isFinite(receiptAmount) || receiptAmount < 0) {
+    return '收款金额不能为负数';
+  }
+
+  if (receiptAmount === 0) {
+    billData.receiptAmount = 0;
+    billData.receiptTime = null;
+    return null;
+  }
+
+  billData.receiptAmount = receiptAmount;
+  if (!billData.receiptTime) {
+    return '已填写收款金额时，必须填写收款时间';
+  }
+
+  return null;
 }
 
 export async function resolveAmountBillParkId(

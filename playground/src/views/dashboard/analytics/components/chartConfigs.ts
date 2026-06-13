@@ -838,13 +838,22 @@ export function getRevenueChartConfig(
     income: number[];
     months: string[];
     profit: number[];
+    receivable?: number[];
+    received?: number[];
+    remaining?: number[];
   },
   isMobile = false,
 ): EChartsOption {
   const legendFontSize = isMobile ? 9 : 11;
-  const profitValues = data.profit.map((item) => Number(item || 0));
-  const netIncomeValues = profitValues.map((item) => (item > 0 ? item : null));
-  const netExpenseValues = profitValues.map((item) => (item < 0 ? item : null));
+  const receivableValues = (data.receivable || data.expense).map((item) =>
+    Number(item || 0),
+  );
+  const receivedValues = (data.received || data.income).map((item) =>
+    Number(item || 0),
+  );
+  const remainingValues = (data.remaining || data.profit).map((item) =>
+    Math.max(Number(item || 0), 0),
+  );
   const valueFormatter = (value: number) =>
     Math.abs(value).toLocaleString('zh-CN', {
       maximumFractionDigits: 2,
@@ -881,7 +890,7 @@ export function getRevenueChartConfig(
     },
     legend: {
       bottom: 0,
-      data: ['收入总额', '支出总额', '净收入', '净支出'],
+      data: ['应收合计', '实收合计', '未收合计'],
       textStyle: {
         fontSize: legendFontSize,
       },
@@ -890,35 +899,25 @@ export function getRevenueChartConfig(
       {
         barGap: 0.1,
         barMaxWidth: 30,
-        color: REVENUE_COLORS.income,
-        data: data.income,
-        name: '收入总额',
-        type: 'bar',
-      },
-      {
-        barGap: 0.1,
-        barMaxWidth: 30,
         color: REVENUE_COLORS.expense,
-        data: data.expense,
-        name: '支出总额',
+        data: receivableValues,
+        name: '应收合计',
         type: 'bar',
       },
       {
         barGap: 0.1,
         barMaxWidth: 30,
-        color: REVENUE_COLORS.netIncome,
-        data: netIncomeValues,
-        name: '净收入',
-        stack: 'netProfit',
+        color: REVENUE_COLORS.income,
+        data: receivedValues,
+        name: '实收合计',
         type: 'bar',
       },
       {
         barGap: 0.1,
         barMaxWidth: 30,
         color: REVENUE_COLORS.netExpense,
-        data: netExpenseValues,
-        name: '净支出',
-        stack: 'netProfit',
+        data: remainingValues,
+        name: '未收合计',
         type: 'bar',
       },
     ],

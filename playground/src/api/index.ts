@@ -1,6 +1,7 @@
 export * from './access';
 export * from './bill';
 export * from './core';
+export * from './crm';
 export * from './dashboard';
 export * from './dormitory';
 export * from './examples';

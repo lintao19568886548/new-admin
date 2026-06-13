@@ -14,6 +14,7 @@ import {
   ref,
   watch,
 } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
@@ -22,7 +23,10 @@ import { getDashboardContractStats } from '#/api/dashboard';
 import { getContractTrendChartConfig } from './chartConfigs';
 
 interface Props {
+  date?: string;
+  endDate?: string;
   parkId?: ParkOptionValue;
+  startDate?: string;
 }
 
 interface ContractTrendData {
@@ -34,8 +38,12 @@ interface ContractTrendData {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  date: '',
+  endDate: '',
   parkId: 'all',
+  startDate: '',
 });
+const router = useRouter();
 
 const DashboardChart = defineComponent({
   name: 'DashboardChart',
@@ -196,10 +204,66 @@ const contractSummary = ref({
 
 const contractTrendData = ref<ContractTrendData | null>(null);
 
+function getMonthStart(date: string) {
+  return date ? `${date.slice(0, 8)}01` : '';
+}
+
+function buildTenantQuery(
+  view?: 'active' | 'expired' | 'expiring' | 'newThisMonth',
+) {
+  const query: Record<string, string> = {};
+  if (props.parkId !== 'all') {
+    query.parkId = String(props.parkId);
+  }
+  switch (view) {
+    case 'active': {
+      query.status = 'active';
+      break;
+    }
+    case 'expired': {
+      query.status = 'expired';
+      break;
+    }
+    case 'expiring': {
+      query.contractView = 'expiring';
+      if (props.endDate || props.date) {
+        query.date = props.endDate || props.date;
+      }
+      break;
+    }
+    case 'newThisMonth': {
+      if (props.startDate && props.endDate) {
+        query.contractStart = props.startDate;
+        query.contractEnd = props.endDate;
+      } else if (props.date) {
+        query.contractStart = getMonthStart(props.date);
+        query.contractEnd = props.date;
+      }
+      break;
+    }
+  }
+  if (props.endDate || props.date) {
+    query.date = props.endDate || props.date;
+  }
+  return query;
+}
+
+function goTenantList(
+  view?: 'active' | 'expired' | 'expiring' | 'newThisMonth',
+) {
+  router.push({
+    path: '/rental/tenant',
+    query: buildTenantQuery(view),
+  });
+}
+
 const fetchContractOverview = async () => {
   try {
     const res = await getDashboardContractStats({
+      date: props.endDate || props.date,
+      endDate: props.endDate,
       parkId: props.parkId,
+      startDate: props.startDate,
     });
     if (!res) {
       return;
@@ -227,7 +291,7 @@ const fetchContractOverview = async () => {
 };
 
 watch(
-  () => props.parkId,
+  () => [props.parkId, props.date, props.startDate, props.endDate],
   () => {
     fetchContractOverview();
   },
@@ -238,7 +302,11 @@ watch(
 <template>
   <div class="flex h-full flex-col">
     <div class="mb-3 grid flex-initial grid-cols-2 gap-2 md:grid-cols-4">
-      <div class="rounded-lg bg-gray-50 p-2 text-center">
+      <button
+        class="summary-card rounded-lg bg-gray-50 p-2 text-center"
+        type="button"
+        @click="goTenantList('active')"
+      >
         <div
           class="mx-auto mb-1 flex items-center justify-center rounded-full bg-blue-100"
           :class="[iconSize]"
@@ -249,8 +317,12 @@ watch(
           {{ contractSummary.normal }}
         </div>
         <div class="text-gray-400" :class="[labelFontSize]">正常合同</div>
-      </div>
-      <div class="rounded-lg bg-gray-50 p-2 text-center">
+      </button>
+      <button
+        class="summary-card rounded-lg bg-gray-50 p-2 text-center"
+        type="button"
+        @click="goTenantList('newThisMonth')"
+      >
         <div
           class="mx-auto mb-1 flex items-center justify-center rounded-full bg-orange-100"
           :class="[iconSize]"
@@ -264,8 +336,12 @@ watch(
           {{ contractSummary.newThisMonth }}
         </div>
         <div class="text-gray-400" :class="[labelFontSize]">本月新增</div>
-      </div>
-      <div class="rounded-lg bg-gray-50 p-2 text-center">
+      </button>
+      <button
+        class="summary-card rounded-lg bg-gray-50 p-2 text-center"
+        type="button"
+        @click="goTenantList('expiring')"
+      >
         <div
           class="mx-auto mb-1 flex items-center justify-center rounded-full bg-green-100"
           :class="[iconSize]"
@@ -276,8 +352,12 @@ watch(
           {{ contractSummary.expiring }}
         </div>
         <div class="text-gray-400" :class="[labelFontSize]">即将到期</div>
-      </div>
-      <div class="rounded-lg bg-gray-50 p-2 text-center">
+      </button>
+      <button
+        class="summary-card rounded-lg bg-gray-50 p-2 text-center"
+        type="button"
+        @click="goTenantList('expired')"
+      >
         <div
           class="mx-auto mb-1 flex items-center justify-center rounded-full bg-red-100"
           :class="[iconSize]"
@@ -288,7 +368,7 @@ watch(
           {{ contractSummary.retreated }}
         </div>
         <div class="text-gray-400" :class="[labelFontSize]">已到期</div>
-      </div>
+      </button>
     </div>
     <div class="min-h-0 flex-1">
       <DashboardChart
@@ -300,3 +380,20 @@ watch(
     </div>
   </div>
 </template>
+
+<style scoped>
+.summary-card {
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.summary-card:hover {
+  border-color: #d9e8ff;
+  box-shadow: 0 4px 12px rgb(15 23 42 / 8%);
+  transform: translateY(-1px);
+}
+</style>

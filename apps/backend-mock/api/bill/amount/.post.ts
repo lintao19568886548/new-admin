@@ -1,10 +1,15 @@
 import { prismaClient } from '~/utils/db';
-import { serverErrorResponse, useResponseSuccess } from '~/utils/response';
+import {
+  serverErrorResponse,
+  useResponseError,
+  useResponseSuccess,
+} from '~/utils/response';
 
 import {
   resolveAmountBillParkId,
   sanitizeAmountBillPayload,
   upsertFinanceRecord,
+  validateAndNormalizeAmountBillData,
 } from './utils';
 
 export default eventHandler(async (event) => {
@@ -21,6 +26,13 @@ export default eventHandler(async (event) => {
     waterBills = [],
     ...billData
   } = sanitizedBody;
+  const validateError = validateAndNormalizeAmountBillData(billData, {
+    tenantId,
+  });
+  if (validateError) {
+    return useResponseError(validateError);
+  }
+
   try {
     // 使用事务处理创建操作
     const bill = await prismaClient.$transaction(async (prisma) => {

@@ -1,3 +1,4 @@
+import { resolveDashboardReferenceDate } from '~/utils/dashboard-date';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
@@ -37,6 +38,16 @@ function resolveParkIds(
   return [parkId];
 }
 
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -52,6 +63,10 @@ export default eventHandler(async (event) => {
     }
 
     const query = getQuery(event);
+    const referenceDate = resolveDashboardReferenceDate(
+      query.endDate || query.date,
+    );
+    const periodEnd = addDays(startOfDay(referenceDate), 1);
     const parkIds = resolveParkIds(query.parkId, authorizedParkIds);
     if (!parkIds) {
       return useResponseSuccess(emptyStats());
@@ -59,8 +74,14 @@ export default eventHandler(async (event) => {
 
     const floors = await prismaClient.factoryFloor.findMany({
       where: {
+        createTime: {
+          lt: periodEnd,
+        },
         isDeleted: false,
         factory: {
+          createTime: {
+            lt: periodEnd,
+          },
           isDeleted: false,
           park: {
             isDeleted: false,

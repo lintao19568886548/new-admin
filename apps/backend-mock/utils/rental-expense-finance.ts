@@ -6,6 +6,18 @@ const DEFAULT_BILL_NAME = '租金支出';
 const DEFAULT_WORKER_INTERVAL_MS = 60 * 60 * 1000;
 
 const globalForRentalExpenseFinance = globalThis as typeof globalThis & {
+  __rentalExpenseFinanceSyncCache?: Map<
+    string,
+    {
+      finishedAt: number;
+      result: SyncRentalExpenseFinanceRecordsResult;
+    }
+  >;
+  __rentalExpenseFinanceSyncLocks?: Map<string, Promise<void>>;
+  __rentalExpenseFinanceSyncPromises?: Map<
+    string,
+    Promise<SyncRentalExpenseFinanceRecordsResult>
+  >;
   __rentalExpenseFinanceWorker?: {
     intervalId: ReturnType<typeof setInterval>;
     running: boolean;
@@ -17,6 +29,7 @@ interface SyncRentalExpenseFinanceRecordsOptions {
     customerId: string;
     dbName?: null | string;
   };
+  minIntervalMs?: number;
   now?: Date;
   parkIds?: number[];
   tenantIds?: number[];
@@ -192,6 +205,18 @@ function buildDisplayRemark(tenantName: string, dueDate: Date) {
   return `${tenantName} ${getMonthNumber(dueDate)}月租金`;
 }
 
+function buildAutoRemark(params: {
+  dueDate: Date;
+  period: string;
+  tenantId: number;
+  tenantName: string;
+}) {
+  return `${buildDisplayRemark(
+    params.tenantName,
+    params.dueDate,
+  )} ${AUTO_RENTAL_EXPENSE_MARKER} tenantId=${params.tenantId};period=${params.period}`;
+}
+
 function buildDisplayRecordSignature(input: {
   amount: number;
   billName: string;
@@ -203,6 +228,22 @@ function buildDisplayRecordSignature(input: {
   return [
     input.billName,
     input.remark,
+    String(input.parkId ?? ''),
+    input.transactionType,
+    input.transactionTime.toISOString(),
+    String(input.amount),
+  ].join('|');
+}
+
+function buildBaseRecordSignature(input: {
+  amount: number;
+  billName: string;
+  parkId: null | number;
+  transactionTime: Date;
+  transactionType: string;
+}) {
+  return [
+    input.billName,
     String(input.parkId ?? ''),
     input.transactionType,
     input.transactionTime.toISOString(),
@@ -223,6 +264,78 @@ function parseAutoRemark(remark?: null | string) {
     period: match[2],
     tenantId: Number(match[1]),
   };
+}
+
+function getEmptySyncResult(): SyncRentalExpenseFinanceRecordsResult {
+  return {
+    created: 0,
+    dueRecords: 0,
+    skipped: 0,
+    tenants: 0,
+  };
+}
+
+function getSyncMapKey(
+  options: SyncRentalExpenseFinanceRecordsOptions,
+  scope?: CustomerScope | null,
+) {
+  const normalizedScope = normalizeCustomerScope(scope);
+  const parkIds = normalizeIdList(options.parkIds)?.join(',') || 'all';
+  const tenantIds = normalizeIdList(options.tenantIds)?.join(',') || 'all';
+
+  return [
+    normalizedScope?.customerId || '',
+    normalizedScope?.dbName || '',
+    `parks=${parkIds}`,
+    `tenants=${tenantIds}`,
+  ].join('|');
+}
+
+function getSyncScopeKey(scope?: CustomerScope | null) {
+  const normalizedScope = normalizeCustomerScope(scope);
+  return [
+    normalizedScope?.customerId || '',
+    normalizedScope?.dbName || '',
+  ].join('|');
+}
+
+async function runWithSyncScopeLock<T>(
+  scopeKey: string,
+  action: () => Promise<T>,
+) {
+  globalForRentalExpenseFinance.__rentalExpenseFinanceSyncLocks ??= new Map();
+
+  const previous =
+    globalForRentalExpenseFinance.__rentalExpenseFinanceSyncLocks.get(
+      scopeKey,
+    ) ?? Promise.resolve();
+  let releaseCurrentLock: () => void = () => {};
+  const currentLock = new Promise<void>((resolve) => {
+    releaseCurrentLock = resolve;
+  });
+  const lockChain = previous.catch(() => undefined).then(() => currentLock);
+
+  globalForRentalExpenseFinance.__rentalExpenseFinanceSyncLocks.set(
+    scopeKey,
+    lockChain,
+  );
+
+  await previous.catch(() => undefined);
+
+  try {
+    return await action();
+  } finally {
+    releaseCurrentLock();
+    if (
+      globalForRentalExpenseFinance.__rentalExpenseFinanceSyncLocks.get(
+        scopeKey,
+      ) === lockChain
+    ) {
+      globalForRentalExpenseFinance.__rentalExpenseFinanceSyncLocks.delete(
+        scopeKey,
+      );
+    }
+  }
 }
 
 async function syncRentalExpenseFinanceRecordsInCurrentScope(
@@ -299,6 +412,7 @@ async function syncRentalExpenseFinanceRecordsInCurrentScope(
     select: {
       amount: true,
       billName: true,
+      financeId: true,
       parkId: true,
       remark: true,
       transactionTime: true,
@@ -306,7 +420,20 @@ async function syncRentalExpenseFinanceRecordsInCurrentScope(
   });
 
   const existingPeriods = new Set<string>();
-  const existingDisplayRecords = new Set<string>();
+  const existingDisplayRecords = new Map<
+    string,
+    {
+      financeId: number;
+      remark: null | string;
+    }
+  >();
+  const existingBaseRecords = new Map<
+    string,
+    Array<{
+      financeId: number;
+      remark: null | string;
+    }>
+  >();
   for (const record of existingRecords) {
     const parsed = parseAutoRemark(record.remark);
     if (parsed) {
@@ -317,7 +444,7 @@ async function syncRentalExpenseFinanceRecordsInCurrentScope(
       record.billName === DEFAULT_BILL_NAME &&
       isValidDate(record.transactionTime)
     ) {
-      existingDisplayRecords.add(
+      existingDisplayRecords.set(
         buildDisplayRecordSignature({
           amount: Number(record.amount),
           billName: record.billName,
@@ -326,11 +453,30 @@ async function syncRentalExpenseFinanceRecordsInCurrentScope(
           transactionTime: record.transactionTime,
           transactionType: '支出',
         }),
+        {
+          financeId: record.financeId,
+          remark: record.remark,
+        },
       );
+
+      const baseSignature = buildBaseRecordSignature({
+        amount: Number(record.amount),
+        billName: record.billName,
+        parkId: record.parkId ?? null,
+        transactionTime: record.transactionTime,
+        transactionType: '支出',
+      });
+      const baseRecords = existingBaseRecords.get(baseSignature) || [];
+      baseRecords.push({
+        financeId: record.financeId,
+        remark: record.remark,
+      });
+      existingBaseRecords.set(baseSignature, baseRecords);
     }
   }
 
   const recordsToCreate: AutoFinanceCreateInput[] = [];
+  const recordsToMark: Array<{ financeId: number; remark: string }> = [];
   let dueRecords = 0;
 
   for (const tenant of tenants) {
@@ -353,6 +499,12 @@ async function syncRentalExpenseFinanceRecordsInCurrentScope(
       const period = getMonthKey(dueDate);
       const recordKey = `${tenant.rentalTenantId}:${period}`;
       const displayRemark = buildDisplayRemark(tenant.tenantName, dueDate);
+      const autoRemark = buildAutoRemark({
+        dueDate,
+        period,
+        tenantId: tenant.rentalTenantId,
+        tenantName: tenant.tenantName,
+      });
       const displayRecordSignature = buildDisplayRecordSignature({
         amount,
         billName: DEFAULT_BILL_NAME,
@@ -361,27 +513,98 @@ async function syncRentalExpenseFinanceRecordsInCurrentScope(
         transactionTime: dueDate,
         transactionType: '支出',
       });
+      const baseRecordSignature = buildBaseRecordSignature({
+        amount,
+        billName: DEFAULT_BILL_NAME,
+        parkId: tenant.parkId ?? null,
+        transactionTime: dueDate,
+        transactionType: '支出',
+      });
       dueRecords += 1;
 
-      if (
-        existingPeriods.has(recordKey) ||
-        existingDisplayRecords.has(displayRecordSignature)
-      ) {
+      if (existingPeriods.has(recordKey)) {
+        continue;
+      }
+
+      const existingDisplayRecord = existingDisplayRecords.get(
+        displayRecordSignature,
+      );
+      if (existingDisplayRecord) {
+        existingPeriods.add(recordKey);
+        const baseRecords = existingBaseRecords.get(baseRecordSignature);
+        const baseRecordIndex =
+          baseRecords?.findIndex(
+            (record) => record.financeId === existingDisplayRecord.financeId,
+          ) ?? -1;
+        if (baseRecords && baseRecordIndex >= 0) {
+          baseRecords.splice(baseRecordIndex, 1);
+        }
+        if (!parseAutoRemark(existingDisplayRecord.remark)) {
+          recordsToMark.push({
+            financeId: existingDisplayRecord.financeId,
+            remark: autoRemark,
+          });
+        }
+        continue;
+      }
+
+      const legacyBaseRecords =
+        existingBaseRecords.get(baseRecordSignature)?.filter((record) => {
+          return !parseAutoRemark(record.remark);
+        }) || [];
+      if (legacyBaseRecords.length > 0) {
+        const legacyRecord = legacyBaseRecords[0];
+        if (!legacyRecord) {
+          continue;
+        }
+        existingPeriods.add(recordKey);
+        if (legacyBaseRecords.length === 1) {
+          const baseRecords = existingBaseRecords.get(baseRecordSignature);
+          const baseRecordIndex =
+            baseRecords?.findIndex(
+              (record) => record.financeId === legacyRecord.financeId,
+            ) ?? -1;
+          if (baseRecords && baseRecordIndex >= 0) {
+            baseRecords.splice(baseRecordIndex, 1);
+          }
+          recordsToMark.push({
+            financeId: legacyRecord.financeId,
+            remark: autoRemark,
+          });
+        }
         continue;
       }
 
       existingPeriods.add(recordKey);
-      existingDisplayRecords.add(displayRecordSignature);
+      existingDisplayRecords.set(displayRecordSignature, {
+        financeId: 0,
+        remark: autoRemark,
+      });
       recordsToCreate.push({
         amount,
         billCategory: DEFAULT_BILL_CATEGORY,
         billName: DEFAULT_BILL_NAME,
         parkId: tenant.parkId ?? null,
-        remark: displayRemark,
+        remark: autoRemark,
         transactionTime: dueDate,
         transactionType: '支出',
       });
     }
+  }
+
+  if (recordsToMark.length > 0) {
+    await Promise.all(
+      recordsToMark.map((record) =>
+        prismaClient.finance.updateMany({
+          data: {
+            remark: record.remark,
+          },
+          where: {
+            financeId: record.financeId,
+          },
+        }),
+      ),
+    );
   }
 
   if (recordsToCreate.length > 0) {
@@ -402,24 +625,68 @@ export async function syncRentalExpenseFinanceRecords(
   options: SyncRentalExpenseFinanceRecordsOptions = {},
 ): Promise<SyncRentalExpenseFinanceRecordsResult> {
   if (!isSyncEnabled()) {
-    return {
-      created: 0,
-      dueRecords: 0,
-      skipped: 0,
-      tenants: 0,
-    };
+    return getEmptySyncResult();
   }
 
   const targetScope = normalizeCustomerScope(options.customerScope);
   const currentScope = normalizeCustomerScope(prismaScopeStorage.getStore());
+  const syncScope = targetScope || currentScope;
+  const syncKey = getSyncMapKey(options, syncScope);
+  const syncScopeKey = getSyncScopeKey(syncScope);
+  const minIntervalMs = Math.max(Number(options.minIntervalMs || 0), 0);
+  const now = Date.now();
 
-  if (targetScope && !isSameCustomerScope(targetScope, currentScope)) {
-    return prismaScopeStorage.run(targetScope, async () =>
-      syncRentalExpenseFinanceRecordsInCurrentScope(options),
-    );
+  globalForRentalExpenseFinance.__rentalExpenseFinanceSyncCache ??= new Map();
+  globalForRentalExpenseFinance.__rentalExpenseFinanceSyncPromises ??=
+    new Map();
+
+  const cached =
+    minIntervalMs > 0
+      ? globalForRentalExpenseFinance.__rentalExpenseFinanceSyncCache.get(
+          syncKey,
+        )
+      : undefined;
+  if (cached && now - cached.finishedAt < minIntervalMs) {
+    return cached.result;
   }
 
-  return syncRentalExpenseFinanceRecordsInCurrentScope(options);
+  const running =
+    globalForRentalExpenseFinance.__rentalExpenseFinanceSyncPromises.get(
+      syncKey,
+    );
+  if (running) {
+    return running;
+  }
+
+  const syncPromise = (async () => {
+    return runWithSyncScopeLock(syncScopeKey, async () => {
+      if (targetScope && !isSameCustomerScope(targetScope, currentScope)) {
+        return prismaScopeStorage.run(targetScope, async () =>
+          syncRentalExpenseFinanceRecordsInCurrentScope(options),
+        );
+      }
+
+      return syncRentalExpenseFinanceRecordsInCurrentScope(options);
+    });
+  })();
+
+  globalForRentalExpenseFinance.__rentalExpenseFinanceSyncPromises.set(
+    syncKey,
+    syncPromise,
+  );
+
+  try {
+    const result = await syncPromise;
+    globalForRentalExpenseFinance.__rentalExpenseFinanceSyncCache.set(syncKey, {
+      finishedAt: Date.now(),
+      result,
+    });
+    return result;
+  } finally {
+    globalForRentalExpenseFinance.__rentalExpenseFinanceSyncPromises.delete(
+      syncKey,
+    );
+  }
 }
 
 async function listActiveCustomerScopes() {

@@ -1,11 +1,13 @@
 <script lang="ts" setup>
+import type { Dayjs } from 'dayjs';
+
 import type { AmountBill } from '../data';
 
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
-import { Button, message, Skeleton } from 'ant-design-vue';
+import { Button, DatePicker, Input, message, Skeleton } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import {
@@ -14,6 +16,7 @@ import {
   updateAmountBill,
 } from '#/api/bill';
 
+import { getAmountBillProjectPeriodError } from '../project-period';
 import UniverSheet from './UniverSheet.vue';
 
 import '@univerjs/presets/lib/styles/preset-sheets-core.css';
@@ -41,6 +44,9 @@ const emit = defineEmits<{
 }>();
 
 const isSheetReady = ref(false);
+
+const receiptTimeStr = ref<string>('');
+const receiptTimeDayjs = ref<Dayjs | null>(null);
 
 // 提取配置值
 const config = computed<MultipageBillFormConfig>(() => props.config || {});
@@ -126,9 +132,54 @@ function transformItemsForNextMonth(itemsJson: string | undefined): string {
   }
 }
 
+function syncReceiptTime(dateStr: null | string) {
+  const d = dateStr ? dayjs(dateStr) : null;
+  const formatted = d?.isValid() ? d.format('YYYY-MM-DD') : null;
+  receiptTimeStr.value = formatted || '';
+  receiptTimeDayjs.value = formatted ? dayjs(formatted) : null;
+  univerSheet.value?.setReceiptTime(formatted);
+}
+
+function onReceiptTextBlur() {
+  syncReceiptTime(receiptTimeStr.value.trim() || null);
+}
+
+function onReceiptTextChange(e: Event) {
+  // allow-clear fires a change event with empty value; blur doesn't fire for clear button
+  if (
+    (e.target as HTMLInputElement | null)?.value === '' &&
+    !receiptTimeStr.value
+  ) {
+    syncReceiptTime(null);
+  }
+}
+
+function onReceiptDatePickerChange(date: Dayjs | null | string) {
+  const d = typeof date === 'string' ? dayjs(date) : date;
+  syncReceiptTime(d?.isValid() ? d.format('YYYY-MM-DD') : null);
+}
+
+function onSyncToday() {
+  syncReceiptTime(dayjs().format('YYYY-MM-DD'));
+}
+
+watch(isSheetReady, (ready) => {
+  if (ready) {
+    const rt = billData.receiptTime;
+    const d = rt ? dayjs(rt) : null;
+    receiptTimeStr.value = d?.isValid() ? d.format('YYYY-MM-DD') : '';
+    receiptTimeDayjs.value = d?.isValid() ? d : null;
+  } else {
+    receiptTimeStr.value = '';
+    receiptTimeDayjs.value = null;
+  }
+});
+
 // 关闭处理函数
 function _handleClose() {
   delete billData.billId;
+  receiptTimeStr.value = '';
+  receiptTimeDayjs.value = null;
   univerSheet.value?.dispose();
   modalApi.close();
   emit('close');
@@ -144,11 +195,53 @@ const billData = reactive<AmountBill>({
   garbageFee: 0,
   invoiceTax: 0,
   managementFee: 0,
-  receiptTime: dayjs().toISOString(),
   serviceFee: 0,
   totalFee: 0,
   waterFee: 0,
 });
+
+function normalizeReceiptFields(data: Partial<AmountBill>) {
+  const receiptAmount = Number(data.receiptAmount) || 0;
+
+  if (!Number.isFinite(receiptAmount) || receiptAmount < 0) {
+    throw new Error('收款金额不能为负数');
+  }
+
+  if (receiptAmount === 0) {
+    return {
+      receiptAmount: 0,
+      receiptTime: null,
+    };
+  }
+
+  if (!data.receiptTime) {
+    throw new Error('已填写收款金额时，必须填写收款时间');
+  }
+
+  return {
+    receiptAmount,
+    receiptTime: data.receiptTime,
+  };
+}
+
+function validateBillFields(data: Partial<AmountBill>) {
+  if (!String(data.projectName || '').trim()) {
+    throw new Error('项目名称不能为空');
+  }
+  const projectPeriodError = getAmountBillProjectPeriodError(data.projectName);
+  if (projectPeriodError) {
+    throw new Error(projectPeriodError);
+  }
+
+  if (!data.tenantId && !String(data.tenantName || '').trim()) {
+    throw new Error('租户不能为空');
+  }
+
+  const totalFee = Number(data.totalFee || 0);
+  if (!Number.isFinite(totalFee) || totalFee <= 0) {
+    throw new Error('本月收费金额必须大于0');
+  }
+}
 
 // 保存总表单
 async function handleSave() {
@@ -161,6 +254,15 @@ async function handleSave() {
     return;
   }
   // 简化后的数据保存，只保留核心字段
+  let receiptFields: { receiptAmount: number; receiptTime: null | string };
+  try {
+    validateBillFields(billData);
+    receiptFields = normalizeReceiptFields(billData);
+  } catch (error) {
+    message.warning(error instanceof Error ? error.message : '请检查收款信息');
+    return;
+  }
+
   const saveData = {
     eleBills: billData.eleBills,
     eleFee: Number(billData.eleFee) || 0,
@@ -175,8 +277,8 @@ async function handleSave() {
     privateBankAccount: billData.privateBankAccount,
     projectName: billData.projectName,
     publicBankAccount: billData.publicBankAccount,
-    receiptAmount: Number(billData.receiptAmount) || 0,
-    receiptTime: billData.receiptTime,
+    receiptAmount: receiptFields.receiptAmount,
+    receiptTime: receiptFields.receiptTime,
     remark: billData.remark,
     serviceFee: Number(billData.serviceFee) || 0,
     tenantId: billData.tenantId,
@@ -188,9 +290,14 @@ async function handleSave() {
   };
 
   // 提交数据
-  await (billData.billId
-    ? updateAmountBill(billData.billId, saveData)
-    : createAmountBill(saveData));
+  try {
+    await (billData.billId
+      ? updateAmountBill(billData.billId, saveData)
+      : createAmountBill(saveData));
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '保存失败，请重试');
+    return;
+  }
   emit('success', { ...saveData });
   _handleClose();
 }
@@ -211,7 +318,8 @@ async function open(data: AmountBill, options?: { isNextMonth?: boolean }) {
       detail.waterItem = transformItemsForNextMonth(detail.waterItem);
       // 清理ID和特定字段，为新账单做准备
       delete detail.billId;
-      detail.receiptTime = dayjs().toISOString();
+      detail.receiptAmount = 0;
+      detail.receiptTime = undefined;
       detail.penaltyFee = 0;
       detail.remark = '';
     }
@@ -220,7 +328,7 @@ async function open(data: AmountBill, options?: { isNextMonth?: boolean }) {
   } else {
     Object.assign(billData, {
       ...data,
-      receiptTime: data.receiptTime || dayjs().toISOString(), // 新账单默认日期，优先使用传入值
+      receiptTime: data.receiptTime || undefined,
     });
   }
   isSheetReady.value = true;
@@ -232,6 +340,27 @@ defineExpose({ open });
   <Modal>
     <div class="bill-items-container">
       <h3 class="mb-4 text-lg font-medium">账单详情</h3>
+      <div class="receipt-time-bar mb-3 flex items-center gap-2">
+        <span class="shrink-0 text-sm font-medium">收款时间：</span>
+        <Input
+          v-model:value="receiptTimeStr"
+          allow-clear
+          placeholder="手动输入（如 2025-06-01）"
+          style="width: 175px"
+          @blur="onReceiptTextBlur"
+          @change="onReceiptTextChange"
+          @press-enter="onReceiptTextBlur"
+        />
+        <DatePicker
+          :value="receiptTimeDayjs || undefined"
+          format="YYYY-MM-DD"
+          placeholder="选择日期"
+          style="width: 150px"
+          @change="onReceiptDatePickerChange"
+        />
+        <Button @click="onSyncToday">同步今日</Button>
+      </div>
+
       <div v-if="!isSheetReady" class="sheet-loading-placeholder">
         <Skeleton active :paragraph="{ rows: 10 }" />
       </div>

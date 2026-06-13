@@ -7,11 +7,12 @@ import { useVbenModal } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
 
 import { Button, message } from 'ant-design-vue';
-import dayjs from 'dayjs';
 
 import { useVbenForm } from '#/adapter/form';
 import { createAmountBill, updateAmountBill } from '#/api/bill/amount';
 import { $t } from '#/locales';
+
+import { getAmountBillProjectPeriodError } from '../project-period';
 
 const emits = defineEmits<{ success: [] }>();
 
@@ -28,13 +29,23 @@ const getMobileFormSchema = computed(() => {
       label: '租户名称',
       required: true,
     },
-    { component: 'Input', fieldName: 'projectName', label: '项目名称' },
+    {
+      component: 'Input',
+      fieldName: 'projectName',
+      label: '项目名称',
+      required: true,
+    },
     {
       component: 'DatePicker',
       componentProps: { class: 'w-full', valueFormat: 'YYYY-MM-DD HH:mm:ss' },
       fieldName: 'receiptTime',
       label: '收款时间',
-      required: true,
+    },
+    {
+      component: 'InputNumber',
+      componentProps: { class: 'w-full', min: 0 },
+      fieldName: 'receiptAmount',
+      label: '收款金额',
     },
     // --- Key numerical fields ---
     {
@@ -153,6 +164,49 @@ async function calculateTotalFee() {
   formApi.setValues({ totalFee: Number.parseFloat(total.toFixed(2)) });
 }
 
+function normalizeReceiptFields(data: Partial<AmountBill>) {
+  const receiptAmount = Number(data.receiptAmount) || 0;
+
+  if (!Number.isFinite(receiptAmount) || receiptAmount < 0) {
+    throw new Error('收款金额不能为负数');
+  }
+
+  if (receiptAmount === 0) {
+    return {
+      receiptAmount: 0,
+      receiptTime: null,
+    };
+  }
+
+  if (!data.receiptTime) {
+    throw new Error('已填写收款金额时，必须填写收款时间');
+  }
+
+  return {
+    receiptAmount,
+    receiptTime: new Date(data.receiptTime as string).toISOString(),
+  };
+}
+
+function validateBillFields(data: Partial<AmountBill>) {
+  if (!String(data.projectName || '').trim()) {
+    throw new Error('项目名称不能为空');
+  }
+  const projectPeriodError = getAmountBillProjectPeriodError(data.projectName);
+  if (projectPeriodError) {
+    throw new Error(projectPeriodError);
+  }
+
+  if (!data.tenantId && !String(data.tenantName || '').trim()) {
+    throw new Error('租户不能为空');
+  }
+
+  const totalFee = Number(data.totalFee || 0);
+  if (!Number.isFinite(totalFee) || totalFee <= 0) {
+    throw new Error('本月收费金额必须大于0');
+  }
+}
+
 const [Modal, modalApi] = useVbenModal({
   draggable: false,
   onCancel() {
@@ -165,11 +219,21 @@ const [Modal, modalApi] = useVbenModal({
     if (!valid) return;
 
     const values = await formApi.getValues();
+    let receiptFields: { receiptAmount: number; receiptTime: null | string };
+    try {
+      validateBillFields(values);
+      receiptFields = normalizeReceiptFields(values);
+    } catch (error) {
+      message.warning(
+        error instanceof Error ? error.message : '请检查账单信息',
+      );
+      return;
+    }
+
     const submissionData = {
       ...values,
-      receiptTime: values.receiptTime
-        ? new Date(values.receiptTime as string).toISOString()
-        : new Date().toISOString(),
+      receiptAmount: receiptFields.receiptAmount,
+      receiptTime: receiptFields.receiptTime,
     };
 
     modalApi.lock();
@@ -208,19 +272,26 @@ const [Modal, modalApi] = useVbenModal({
       if (billData?.billId) {
         recordId.value = billData.billId;
         formMode.value = mode === 'next' ? 'next' : 'edit';
+        const isNextMode = mode === 'next';
+        const receiptAmount = isNextMode
+          ? 0
+          : Number(billData.receiptAmount) || 0;
+        const receiptTime =
+          !isNextMode && billData.receiptTime
+            ? formatDateTime(billData.receiptTime)
+            : undefined;
+
         formApi.setValues({
           ...billData,
-          receiptTime: billData.receiptTime
-            ? formatDateTime(billData.receiptTime)
-            : undefined,
+          receiptAmount,
+          receiptTime,
         });
         // Recalculate total on open if editing/next
         calculateTotalFee(); // Call async function (no await needed here unless further actions depend on it)
       } else {
         formMode.value = 'create';
         formApi.resetForm(); // Use resetForm instead of resetFields
-        // Set default receiptTime to now for create mode
-        formApi.setValues({ receiptTime: formatDateTime(dayjs().valueOf()) }); // Convert Dayjs object to number timestamp
+        formApi.setValues({ receiptAmount: 0 });
         // Ensure totalFee is calculated/reset for create mode
         calculateTotalFee(); // Call async function
       }

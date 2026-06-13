@@ -17,6 +17,7 @@ import { useUserStore } from '@vben/stores';
 
 import { Capacitor } from '@capacitor/core';
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
+import { Geolocation } from '@capacitor/geolocation';
 import { Icon } from '@iconify/vue';
 import {
   Button,
@@ -124,6 +125,7 @@ const deviceAbnormalTypeMeta: Record<
 const currentLocation = ref('');
 const latitude = ref(0);
 const longitude = ref(0);
+const hasValidLocation = ref(false);
 const isInRange = ref(false);
 const locationLoading = ref(true);
 const punchLoading = ref(false);
@@ -200,14 +202,6 @@ onUnmounted(() => {
   geolocation = null;
   clearDeviceSmsCountdownTimer();
 });
-
-const getUsername = () => {
-  const username = userStore.userInfo?.realName;
-  if (!username) {
-    throw new Error('未获取到用户信息，请重新登录');
-  }
-  return username;
-};
 
 const getCurrentAccountPhone = () => {
   const accountInfo = userStore.userInfo as
@@ -737,6 +731,220 @@ const confirmOutsideRange = async () => {
   });
 };
 
+const outOfChina = (lat: number, lng: number) => {
+  return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
+};
+
+const transformLat = (lng: number, lat: number) => {
+  let ret =
+    -100 +
+    2 * lng +
+    3 * lat +
+    0.2 * lat * lat +
+    0.1 * lng * lat +
+    0.2 * Math.sqrt(Math.abs(lng));
+  ret +=
+    ((20 * Math.sin(6 * lng * Math.PI) + 20 * Math.sin(2 * lng * Math.PI)) *
+      2) /
+    3;
+  ret +=
+    ((20 * Math.sin(lat * Math.PI) + 40 * Math.sin((lat / 3) * Math.PI)) * 2) /
+    3;
+  ret +=
+    ((160 * Math.sin((lat / 12) * Math.PI) +
+      320 * Math.sin((lat * Math.PI) / 30)) *
+      2) /
+    3;
+  return ret;
+};
+
+const transformLng = (lng: number, lat: number) => {
+  let ret =
+    300 +
+    lng +
+    2 * lat +
+    0.1 * lng * lng +
+    0.1 * lng * lat +
+    0.1 * Math.sqrt(Math.abs(lng));
+  ret +=
+    ((20 * Math.sin(6 * lng * Math.PI) + 20 * Math.sin(2 * lng * Math.PI)) *
+      2) /
+    3;
+  ret +=
+    ((20 * Math.sin(lng * Math.PI) + 40 * Math.sin((lng / 3) * Math.PI)) * 2) /
+    3;
+  ret +=
+    ((150 * Math.sin((lng / 12) * Math.PI) +
+      300 * Math.sin((lng / 30) * Math.PI)) *
+      2) /
+    3;
+  return ret;
+};
+
+const wgs84ToGcj02 = (lat: number, lng: number) => {
+  if (outOfChina(lat, lng)) {
+    return { lat, lng };
+  }
+
+  const a = 6_378_245;
+  const ee = 0.006_693_421_622_965_943;
+  let dLat = transformLat(lng - 105, lat - 35);
+  let dLng = transformLng(lng - 105, lat - 35);
+  const radLat = (lat / 180) * Math.PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - ee * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180) / (((a * (1 - ee)) / (magic * sqrtMagic)) * Math.PI);
+  dLng = (dLng * 180) / ((a / sqrtMagic) * Math.cos(radLat) * Math.PI);
+  return {
+    lat: lat + dLat,
+    lng: lng + dLng,
+  };
+};
+
+const gcj02ToBd09 = (lat: number, lng: number) => {
+  const xPi = (Math.PI * 3000) / 180;
+  const z = Math.hypot(lng, lat) + 0.000_02 * Math.sin(lat * xPi);
+  const theta = Math.atan2(lat, lng) + 0.000_003 * Math.cos(lng * xPi);
+  return {
+    lat: z * Math.sin(theta) + 0.006,
+    lng: z * Math.cos(theta) + 0.0065,
+  };
+};
+
+const wgs84ToBd09 = (lat: number, lng: number) => {
+  const gcj = wgs84ToGcj02(lat, lng);
+  return gcj02ToBd09(gcj.lat, gcj.lng);
+};
+
+const haversineDistanceMeters = (
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+) => {
+  const R = 6_371_000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(to.lat - from.lat);
+  const dLng = toRad(to.lng - from.lng);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(from.lat)) *
+      Math.cos(toRad(to.lat)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const isValidCoordinate = (point: { lat: unknown; lng: unknown }) => {
+  const lat = Number(point.lat);
+  const lng = Number(point.lng);
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180 &&
+    (Math.abs(lat) > 0.000_001 || Math.abs(lng) > 0.000_001)
+  );
+};
+
+const formatCoordinateLocation = (point: { lat: number; lng: number }) =>
+  `${Number(point.lat).toFixed(6)}, ${Number(point.lng).toFixed(6)}`;
+
+const getBaiduPoint = (point: { lat: number; lng: number }) => {
+  const BMap = (window as any).BMap;
+  return new BMap.Point(point.lng, point.lat);
+};
+
+const resolveGeocoderAddress = (
+  result: any,
+  point: { lat: number; lng: number },
+) => {
+  const addressComponents = result?.addressComponents;
+  const addressParts = addressComponents
+    ? [
+        addressComponents.province,
+        addressComponents.city,
+        addressComponents.district,
+        addressComponents.street,
+        addressComponents.streetNumber,
+      ]
+    : [];
+
+  const uniqueParts: string[] = [];
+  for (const part of addressParts) {
+    const text = typeof part === 'string' ? part.trim() : '';
+    if (text && uniqueParts.at(-1) !== text) {
+      uniqueParts.push(text);
+    }
+  }
+
+  const formattedAddress =
+    typeof result?.address === 'string' ? result.address.trim() : '';
+
+  return (
+    uniqueParts.join(',') || formattedAddress || formatCoordinateLocation(point)
+  );
+};
+
+const setLocationFailed = (errorMessage = '定位失败') => {
+  latitude.value = 0;
+  longitude.value = 0;
+  hasValidLocation.value = false;
+  isInRange.value = false;
+  currentLocation.value = errorMessage;
+};
+
+const getNativeCurrentPosition = async () => {
+  if (!Capacitor.isNativePlatform()) {
+    return null;
+  }
+
+  const permissionStatus = await Geolocation.checkPermissions();
+  if (permissionStatus.location !== 'granted') {
+    const requestedStatus = await Geolocation.requestPermissions({
+      permissions: ['location'],
+    });
+    if (requestedStatus.location !== 'granted') {
+      throw new Error('定位权限未开启，请在系统设置中允许应用访问位置');
+    }
+  }
+
+  const position = await Geolocation.getCurrentPosition({
+    enableHighAccuracy: true,
+    maximumAge: 0,
+    timeout: 10_000,
+  });
+  return wgs84ToBd09(position.coords.latitude, position.coords.longitude);
+};
+
+const getBaiduCurrentPosition = async () => {
+  if (!geolocation) {
+    throw new Error('地图定位服务未初始化');
+  }
+
+  return new Promise<{ lat: number; lng: number }>((resolve, reject) => {
+    geolocation.getCurrentPosition(
+      (result: any) => {
+        if (geolocation.getStatus() === (window as any).BMAP_STATUS_SUCCESS) {
+          resolve({
+            lat: Number(result.point.lat),
+            lng: Number(result.point.lng),
+          });
+          return;
+        }
+
+        reject(new Error('定位失败，请检查设备权限或网络连接'));
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10_000,
+      },
+    );
+  });
+};
+
 const confirmEarlyLeave = async () => {
   const now = dayjs();
   const endTime = dayjs(
@@ -758,27 +966,38 @@ const locateOnce = async () => {
   }
 
   locationLoading.value = true;
-  return new Promise<void>((resolve, reject) => {
-    geolocation.getCurrentPosition(
-      (result: any) => {
-        if (geolocation.getStatus() === (window as any).BMAP_STATUS_SUCCESS) {
-          updateLocationDetails(result.point);
-          locationLoading.value = false;
-          resolve();
-          return;
-        }
+  try {
+    let point: null | { lat: number; lng: number } = null;
+    let nativeError: any;
+    try {
+      point = await getNativeCurrentPosition();
+    } catch (error: any) {
+      nativeError = error;
+      if (String(error?.message || '').includes('定位权限未开启')) {
+        throw error;
+      }
+    }
 
-        currentLocation.value = '定位失败';
-        locationLoading.value = false;
-        reject(new Error('定位失败，请检查设备权限或网络连接'));
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 10_000,
-      },
-    );
-  });
+    if (!point) {
+      try {
+        point = await getBaiduCurrentPosition();
+      } catch (error: any) {
+        throw nativeError || error;
+      }
+    }
+
+    if (!isValidCoordinate(point)) {
+      throw new Error('定位坐标无效，请重新定位后再打卡');
+    }
+
+    updateLocationDetails(point);
+  } catch (error: any) {
+    const errorMessage = error?.message || '定位失败，请检查设备权限或网络连接';
+    setLocationFailed('定位失败');
+    throw new Error(errorMessage);
+  } finally {
+    locationLoading.value = false;
+  }
 };
 
 const handleRelocate = async () => {
@@ -909,33 +1128,30 @@ const updateLocationDetails = (point: any) => {
   if (!map) {
     return;
   }
+  if (!isValidCoordinate(point)) {
+    setLocationFailed('定位失败');
+    return;
+  }
+  hasValidLocation.value = true;
   latitude.value = point.lat;
   longitude.value = point.lng;
 
   const geoc = new BMap.Geocoder();
-  geoc.getLocation(point, (rs: any) => {
-    const addComp = rs.addressComponents;
-    const addressParts = [
-      addComp.province,
-      addComp.city,
-      addComp.district,
-      addComp.street,
-      addComp.streetNumber,
-    ];
-
-    const uniqueParts: string[] = [];
-    for (const part of addressParts) {
-      if (part && uniqueParts.at(-1) !== part) {
-        uniqueParts.push(part);
-      }
-    }
-    currentLocation.value = uniqueParts.join(',');
-  });
+  try {
+    geoc.getLocation(getBaiduPoint(point), (rs: any) => {
+      currentLocation.value = resolveGeocoderAddress(rs, point);
+    });
+  } catch (error) {
+    console.error('Failed to resolve attendance address:', error);
+    currentLocation.value = formatCoordinateLocation(point);
+  }
 
   let inRange = false;
   for (const loc of officeLocations.value) {
-    const officePoint = new BMap.Point(loc.lng, loc.lat);
-    const distance = map.getDistance(officePoint, point);
+    const distance = haversineDistanceMeters(
+      { lat: loc.lat, lng: loc.lng },
+      { lat: point.lat, lng: point.lng },
+    );
     if (distance <= loc.radius) {
       inRange = true;
       break;
@@ -948,34 +1164,50 @@ const updateLocationDetails = (point: any) => {
 
 // 更新地图标记
 const updateMapMarkers = (point: any) => {
+  const baiduPoint = getBaiduPoint(point);
   if (currentMarker.value) {
-    currentMarker.value.setPosition(point);
+    currentMarker.value.setPosition(baiduPoint);
   } else {
     const BMap = (window as any).BMap;
-    currentMarker.value = new BMap.Marker(point);
+    currentMarker.value = new BMap.Marker(baiduPoint);
     map.addOverlay(currentMarker.value);
   }
-  map.centerAndZoom(point, 17);
+  map.centerAndZoom(baiduPoint, 17);
 };
 
 const getPunchPayload = () => ({
+  allowOutsideRange: !isInRange.value,
   latitude: latitude.value,
   longitude: longitude.value,
   punchTime: dayjs().toISOString(),
-  username: getUsername(),
 });
+
+const ensurePunchLocation = async () => {
+  try {
+    await locateOnce();
+  } catch (error: any) {
+    message.error(error?.message || '定位失败，请重新定位后再打卡');
+    return false;
+  }
+
+  if (!hasValidLocation.value) {
+    message.error('定位失败，请重新定位后再打卡');
+    return false;
+  }
+
+  if (!isInRange.value) {
+    const ok = await confirmOutsideRange();
+    if (!ok) return false;
+  }
+
+  return true;
+};
 
 // 上班打卡
 const handlePunchIn = async () => {
   if (punchLoading.value) return;
-  try {
-    await locateOnce();
-  } catch {}
-
-  if (!isInRange.value) {
-    const ok = await confirmOutsideRange();
-    if (!ok) return;
-  }
+  const locationReady = await ensurePunchLocation();
+  if (!locationReady) return;
 
   const deviceOptions = await resolveDevicePunchOptions();
   if (!deviceOptions) return;
@@ -1005,14 +1237,8 @@ const handlePunchOut = async () => {
   }
 
   if (punchLoading.value) return;
-  try {
-    await locateOnce();
-  } catch {}
-
-  if (!isInRange.value) {
-    const ok = await confirmOutsideRange();
-    if (!ok) return;
-  }
+  const locationReady = await ensurePunchLocation();
+  if (!locationReady) return;
 
   const okEarlyLeave = await confirmEarlyLeave();
   if (!okEarlyLeave) return;
@@ -1186,10 +1412,13 @@ watch(
           <div class="flex-1">
             <div class="mb-1 text-base font-medium text-[#333]">
               <span v-if="locationLoading">正在定位中...</span>
-              <span v-else>{{ currentLocation }}</span>
+              <span v-else>{{ currentLocation || '定位失败' }}</span>
             </div>
             <div class="text-sm text-[#666]">
               <span v-if="locationLoading">请稍候...</span>
+              <span v-else-if="!hasValidLocation">
+                请开启定位权限或点击地图右下角重新定位
+              </span>
               <span v-else>{{
                 isInRange ? '在打卡范围内' : '不在打卡范围内'
               }}</span>

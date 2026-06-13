@@ -16,6 +16,13 @@ describe('amount bill fee display policy', () => {
       ),
       'utf8',
     );
+    const amountDataSource = readFileSync(
+      resolve(
+        __dirname,
+        '../../../../playground/src/views/bill/amount/data.ts',
+      ),
+      'utf8',
+    );
     const sheetSource = readFileSync(
       resolve(
         __dirname,
@@ -26,8 +33,10 @@ describe('amount bill fee display policy', () => {
 
     expect(backendListSource).not.toContain('waterFee +');
     expect(backendListSource).not.toContain('eleFee +');
-    expect(pcListSource).toContain("column.field === 'garbageFee'");
-    expect(pcListSource).toContain("column.field === 'serviceFee'");
+    expect(amountDataSource).toContain("field: 'garbageFee'");
+    expect(amountDataSource).toContain("field: 'serviceFee'");
+    expect(pcListSource).toContain("'garbageFee'");
+    expect(pcListSource).toContain("'serviceFee'");
     expect(sheetSource).toContain('billData.waterFee = waterAmount;');
     expect(sheetSource).not.toContain(
       'billData.waterFee = waterAmount + billData.garbageFee',

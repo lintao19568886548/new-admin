@@ -146,9 +146,22 @@ export default defineEventHandler(async (event) => {
   const isPublicWechatPayRefundNotifyApi =
     event.method === 'POST' && requestPath === '/api/wechat/pay/refund-notify';
   const isPublicCrmApi =
-    requestPath === '/api/crm/mini/session' ||
-    requestPath.startsWith('/api/crm/landing/') ||
-    requestPath === '/api/crm/wecom/callback';
+    (event.method === 'POST' &&
+      [
+        '/api/crm/invite/resolve',
+        '/api/crm/miniprogram/phone',
+        '/api/crm/miniprogram/session',
+      ].includes(requestPath)) ||
+    (event.method === 'GET' &&
+      [
+        '/api/crm/invite/h5-qrcode',
+        '/api/crm/invite/url-link',
+        '/api/crm/invite/wechat-oauth/callback',
+        '/api/crm/invite/wechat-oauth/start',
+        '/api/crm/invite/wxacode',
+      ].includes(requestPath)) ||
+    (['GET', 'POST'].includes(event.method) &&
+      requestPath === '/api/wework/callback');
   const isWechatPayOrderQueryApi =
     event.method === 'GET' && requestPath === '/api/wechat/pay/query';
   const isOrganizationProvisioningStatusApi =

@@ -16,7 +16,6 @@ import {
 import { UniverSheetsCorePreset } from '@univerjs/presets/preset-sheets-core';
 import UniverPresetSheetsCoreZhCN from '@univerjs/presets/preset-sheets-core/locales/zh-CN';
 import { Button, message, Modal } from 'ant-design-vue';
-import dayjs from 'dayjs';
 
 import '@univerjs/presets/lib/styles/preset-sheets-core.css';
 
@@ -406,8 +405,8 @@ function initData(data: any) {
   }
   // 复制账单基础信息
   dataSource.value = {
-    receiptTime: data.receiptTime || ref(dayjs()),
     ...data, // 保留原始数据中的其他字段
+    receiptTime: data.receiptTime || null,
   };
 
   // 获取账单项目数据 - 自动检测字段名
@@ -497,7 +496,10 @@ function handleSave() {
         });
         return rowData;
       })
-      .filter((item) => item.meterName !== '');
+      .filter((item) => {
+        const meterName = String(item.meterName || '').trim();
+        return meterName && meterName !== '合计';
+      });
 
     // 触发成功事件并传递从 Univer 读取并转换后的数据
     emit('success', updatedData);

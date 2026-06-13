@@ -1,5 +1,7 @@
 <!-- eslint-disable vue/html-closing-bracket-newline -->
 <script lang="ts" setup>
+import type { Dayjs } from 'dayjs';
+
 import type { FinanceItem as BaseFinanceItem } from './types';
 
 import { computed, onMounted, reactive, ref, watch } from 'vue';
@@ -11,6 +13,7 @@ import { formatDateTime } from '@vben/utils';
 
 import { PlusOutlined } from '@ant-design/icons-vue';
 import {
+  AutoComplete,
   Button,
   Card,
   Carousel,
@@ -18,7 +21,6 @@ import {
   Empty,
   Form,
   Image,
-  Input,
   message,
   Modal,
   Pagination,
@@ -28,9 +30,16 @@ import {
   Switch,
   Tag,
 } from 'ant-design-vue';
+import dayjs from 'dayjs';
 
-import { deleteAllFinance, deleteFinance, getFinanceList } from '#/api/finance';
+import {
+  deleteAllFinance,
+  deleteFinance,
+  getFinanceBillNameOptions,
+  getFinanceList,
+} from '#/api/finance';
 import { getParkList as fetchParks } from '#/api/park';
+import MobileDateRange from '#/components/MobileDateRange.vue';
 import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { useSmsActionVerification } from '#/hooks/useSmsActionVerification';
 import { $t } from '#/locales';
@@ -71,6 +80,8 @@ const isDev = import.meta.env.DEV;
 const DELETE_VERIFY_STORAGE_KEY = 'finance-delete-verified-at';
 
 const parkOptions = ref<{ label: string; value: number }[]>([]);
+const billNameOptions = ref<{ label: string; value: string }[]>([]);
+const billNameOptionsLoading = ref(false);
 
 // 脱敏开关 - 从 localStorage 读取持久化状态
 const enableMask = ref(localStorage.getItem('finance-enableMask') !== 'false');
@@ -117,7 +128,54 @@ const searchForm = reactive({
   parkId: undefined,
   transactionType: undefined,
 });
+const transactionRange = ref<[Dayjs | undefined, Dayjs | undefined]>([
+  undefined,
+  undefined,
+]);
 const transactionTypeOptions = getTagTypeOptions();
+
+function getRouteQueryText(value: unknown) {
+  if (Array.isArray(value)) {
+    return String(value[0] || '').trim();
+  }
+
+  return String(value || '').trim();
+}
+
+function parseRouteDate(value: unknown) {
+  const text = getRouteQueryText(value);
+  if (!text) {
+    return undefined;
+  }
+
+  const parsedDate = dayjs(text);
+  return parsedDate.isValid() ? parsedDate : undefined;
+}
+
+function applyRouteFinanceFilters() {
+  const query = route.query;
+  const billName = getRouteQueryText(query.billName);
+  const endTime = parseRouteDate(query.endTime);
+  const parkId = Number(query.parkId);
+  const startTime = parseRouteDate(query.startTime);
+  const transactionType = getRouteQueryText(query.transactionType);
+
+  if (billName) {
+    searchForm.billName = billName;
+  }
+
+  if (Number.isInteger(parkId) && parkId > 0) {
+    searchForm.parkId = parkId as never;
+  }
+
+  if (transactionType === '收入' || transactionType === '支出') {
+    searchForm.transactionType = transactionType as never;
+  }
+
+  if (startTime && endTime) {
+    transactionRange.value = [startTime, endTime];
+  }
+}
 
 const getTagDisplay = (value: string) => {
   const option = getTagTypeOptions().find((opt) => opt.value === value);
@@ -135,10 +193,14 @@ async function fetchBillList() {
   loading.value = true;
 
   try {
+    const startDate = transactionRange.value?.[0]?.format('YYYY-MM-DD');
+    const endDate = transactionRange.value?.[1]?.format('YYYY-MM-DD');
     const params: Record<string, any> = {
       currentPage: pagination.current,
       pageSize: pagination.pageSize,
       ...searchForm,
+      endTime: endDate ? `${endDate} 23:59:59` : undefined,
+      startTime: startDate ? `${startDate} 00:00:00` : undefined,
     };
 
     const result = await getFinanceList(params);
@@ -184,9 +246,27 @@ async function fetchParkOptions() {
   }
 }
 
+async function fetchBillNameOptions(keyword = '') {
+  billNameOptionsLoading.value = true;
+  try {
+    const options = await getFinanceBillNameOptions({
+      keyword,
+      parkId: searchForm.parkId ?? -1,
+    });
+    billNameOptions.value = Array.isArray(options) ? options : [];
+  } catch (error) {
+    console.error('获取账单名称选项失败 (mobile):', error);
+    billNameOptions.value = [];
+  } finally {
+    billNameOptionsLoading.value = false;
+  }
+}
+
 function initPage() {
+  applyRouteFinanceFilters();
   fetchBillList();
   fetchParkOptions();
+  fetchBillNameOptions();
 }
 
 function onVerificationSuccess() {
@@ -248,7 +328,13 @@ function resetSearch() {
   searchForm.billName = '';
   searchForm.parkId = undefined;
   searchForm.transactionType = undefined;
+  transactionRange.value = [undefined, undefined];
+  fetchBillNameOptions();
   handleSearch();
+}
+
+function handleParkChange() {
+  fetchBillNameOptions(searchForm.billName);
 }
 
 function refreshList() {
@@ -373,15 +459,20 @@ function getTransactionTypeClass(type: string) {
                   :options="parkOptions"
                   allow-clear
                   :placeholder="$t('page.common.selectPark')"
+                  @change="handleParkChange"
                 />
               </Form.Item>
             </Col>
             <Col :span="12">
               <Form.Item :label="$t('page.finance.billName')">
-                <Input
+                <AutoComplete
                   v-model:value="searchForm.billName"
+                  :filter-option="false"
+                  :options="billNameOptions"
                   :placeholder="$t('page.finance.searchBillName')"
+                  :loading="billNameOptionsLoading"
                   allow-clear
+                  @search="fetchBillNameOptions"
                 />
               </Form.Item>
             </Col>
@@ -393,6 +484,11 @@ function getTransactionTypeClass(type: string) {
                   :placeholder="$t('page.finance.selectType')"
                   allow-clear
                 />
+              </Form.Item>
+            </Col>
+            <Col :span="24">
+              <Form.Item :label="$t('page.finance.transactionTime')">
+                <MobileDateRange v-model:value="transactionRange" />
               </Form.Item>
             </Col>
           </Row>

@@ -206,6 +206,39 @@ function resolveDateRange(value: unknown, dateType: MeterStatisticsDateType) {
   };
 }
 
+function resolveDateRangeFromQuery(input: {
+  date?: unknown;
+  dateType: MeterStatisticsDateType;
+  endDate?: unknown;
+  startDate?: unknown;
+}) {
+  const start = dayjs(String(input.startDate || ''));
+  const end = dayjs(String(input.endDate || ''));
+
+  if (start.isValid() && end.isValid()) {
+    const safeStart = start.isAfter(end) ? end : start;
+    const safeEnd = start.isAfter(end) ? start : end;
+    const timeFrom =
+      input.dateType === 'day'
+        ? safeStart.startOf('day')
+        : safeStart.startOf('month');
+    const timeTo =
+      input.dateType === 'day' ? safeEnd.endOf('day') : safeEnd.endOf('month');
+    const selectedDate =
+      input.dateType === 'day'
+        ? `${safeStart.format('YYYY-MM-DD')}~${safeEnd.format('YYYY-MM-DD')}`
+        : `${timeFrom.format('YYYY-MM')}~${timeTo.format('YYYY-MM')}`;
+
+    return {
+      selectedDate,
+      timeFrom: timeFrom.format('YYYY-MM-DD HH:mm:ss'),
+      timeTo: timeTo.format('YYYY-MM-DD HH:mm:ss'),
+    };
+  }
+
+  return resolveDateRange(input.date, input.dateType);
+}
+
 function getBillDataMonth(createTime: Date | null) {
   if (!createTime) {
     return null;
@@ -226,6 +259,45 @@ function resolveAmountBillCreateTimeRange(selectedMonth: string) {
     createTimeEnd: createTimeEnd.toDate(),
     createTimeStart: createTimeStart.toDate(),
   };
+}
+
+function resolveAmountBillCreateTimeRangeForMonths(months: string[]) {
+  const sortedMonths = [...months].sort();
+  const firstMonth = sortedMonths[0];
+  const lastMonth = sortedMonths.at(-1);
+
+  if (!firstMonth || !lastMonth) {
+    return resolveAmountBillCreateTimeRange(dayjs().format('YYYY-MM'));
+  }
+
+  const startMonth = dayjs(`${firstMonth}-01`);
+  const endMonth = dayjs(`${lastMonth}-01`);
+
+  return {
+    createTimeEnd: endMonth.add(2, 'month').startOf('month').toDate(),
+    createTimeStart: startMonth.add(1, 'month').startOf('month').toDate(),
+  };
+}
+
+function resolveDateRangeMonths(dateRange: {
+  timeFrom: string;
+  timeTo: string;
+}) {
+  const start = dayjs(dateRange.timeFrom).startOf('month');
+  const end = dayjs(dateRange.timeTo).startOf('month');
+
+  if (!start.isValid() || !end.isValid()) {
+    return [dayjs().format('YYYY-MM')];
+  }
+
+  const months: string[] = [];
+  let current = start;
+  while (current.isBefore(end) || current.isSame(end, 'month')) {
+    months.push(current.format('YYYY-MM'));
+    current = current.add(1, 'month');
+  }
+
+  return months;
 }
 
 function getEleItemCellValue(value: unknown) {
@@ -309,14 +381,15 @@ function isEmptyOrTotalAmountBillMeterName(meterName: unknown) {
 
 function buildMeterCategoryDataFromAmountBills(
   bills: Array<{ createTime: Date | null; eleItem: null | string }>,
-  selectedMonth: string,
+  selectedMonths: Set<string>,
 ) {
   let ordinary = 0;
   let timeOfUse = 0;
   let recordCount = 0;
 
   for (const bill of bills) {
-    if (getBillDataMonth(bill.createTime) !== selectedMonth) {
+    const dataMonth = getBillDataMonth(bill.createTime);
+    if (!dataMonth || !selectedMonths.has(dataMonth)) {
       continue;
     }
 
@@ -349,7 +422,7 @@ function buildMeterCategoryDataFromAmountBills(
 
 function buildPeakValleyDataFromAmountBills(
   bills: Array<{ createTime: Date | null; eleItem: null | string }>,
-  selectedMonth: string,
+  selectedMonths: Set<string>,
 ) {
   const totals = {
     flat: 0,
@@ -360,7 +433,8 @@ function buildPeakValleyDataFromAmountBills(
   let recordCount = 0;
 
   for (const bill of bills) {
-    if (getBillDataMonth(bill.createTime) !== selectedMonth) {
+    const dataMonth = getBillDataMonth(bill.createTime);
+    if (!dataMonth || !selectedMonths.has(dataMonth)) {
       continue;
     }
 
@@ -391,13 +465,15 @@ function buildPeakValleyDataFromAmountBills(
 
 function buildWaterTrendDataFromAmountBills(
   bills: AmountBillWaterItemRecord[],
-  selectedMonth: string,
+  selectedMonths: string[],
 ) {
+  const selectedMonthSet = new Set(selectedMonths);
+  const totals = new Map(selectedMonths.map((month) => [month, 0]));
   let recordCount = 0;
-  let totalUsage = 0;
 
   for (const bill of bills) {
-    if (getBillDataMonth(bill.createTime) !== selectedMonth) {
+    const dataMonth = getBillDataMonth(bill.createTime);
+    if (!dataMonth || !selectedMonthSet.has(dataMonth)) {
       continue;
     }
 
@@ -408,7 +484,10 @@ function buildWaterTrendDataFromAmountBills(
         continue;
       }
 
-      totalUsage += resolveAmountBillItemUsage(item);
+      totals.set(
+        dataMonth,
+        (totals.get(dataMonth) || 0) + resolveAmountBillItemUsage(item),
+      );
       recordCount++;
     }
   }
@@ -416,8 +495,8 @@ function buildWaterTrendDataFromAmountBills(
   return {
     recordCount,
     waterTrend: {
-      times: [selectedMonth],
-      values: [roundValue(totalUsage)],
+      times: selectedMonths,
+      values: selectedMonths.map((month) => roundValue(totals.get(month) || 0)),
     },
   };
 }
@@ -668,7 +747,12 @@ export default eventHandler(async (event) => {
   const query = getQuery(event);
   const statisticsType = resolveStatisticsType(query.type);
   const dateType = resolveDateType(query.dateType);
-  const dateRange = resolveDateRange(query.date, dateType);
+  const dateRange = resolveDateRangeFromQuery({
+    date: query.date,
+    dateType,
+    endDate: query.endDate,
+    startDate: query.startDate,
+  });
   const projCode = String(query.projCode || DEFAULT_PROJ_CODE);
   const comType =
     statisticsType === 'water' ? WATER_COM_TYPE : ELECTRICITY_COM_TYPE;
@@ -721,10 +805,12 @@ export default eventHandler(async (event) => {
       values: [] as number[],
     };
     let waterAmountBillRecordCount = 0;
+    const selectedMonths = resolveDateRangeMonths(dateRange);
+    const selectedMonthSet = new Set(selectedMonths);
 
     if (statisticsType === 'electricity' && dateType === 'month') {
       const { createTimeEnd, createTimeStart } =
-        resolveAmountBillCreateTimeRange(dateRange.selectedDate);
+        resolveAmountBillCreateTimeRangeForMonths(selectedMonths);
       const amountBills = await prismaClient.amountBill.findMany({
         select: {
           createTime: true,
@@ -745,11 +831,11 @@ export default eventHandler(async (event) => {
       });
       const peakValleyStats = buildPeakValleyDataFromAmountBills(
         amountBills,
-        dateRange.selectedDate,
+        selectedMonthSet,
       );
       const meterCategoryStats = buildMeterCategoryDataFromAmountBills(
         amountBills,
-        dateRange.selectedDate,
+        selectedMonthSet,
       );
 
       peakValleyFromAmountBills = peakValleyStats.peakValley;
@@ -759,7 +845,7 @@ export default eventHandler(async (event) => {
 
     if (statisticsType === 'water' && dateType === 'month') {
       const { createTimeEnd, createTimeStart } =
-        resolveAmountBillCreateTimeRange(dateRange.selectedDate);
+        resolveAmountBillCreateTimeRangeForMonths(selectedMonths);
       const amountBills = await prismaClient.amountBill.findMany({
         select: {
           createTime: true,
@@ -780,7 +866,7 @@ export default eventHandler(async (event) => {
       });
       const waterStats = buildWaterTrendDataFromAmountBills(
         amountBills,
-        dateRange.selectedDate,
+        selectedMonths,
       );
 
       waterTrendFromAmountBills = waterStats.waterTrend;

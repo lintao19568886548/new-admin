@@ -1,18 +1,35 @@
 import { prismaClient } from '~/utils/db';
-import { useResponseSuccess } from '~/utils/response';
+import { verifyAccessToken } from '~/utils/jwt-utils';
+import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
+import { resolveUserAuthorizedParks } from '~/utils/user-park-scope';
 
 const IMG_BASE_URL = '';
 
 export default eventHandler(async (event) => {
   try {
+    const userinfo = await verifyAccessToken(event);
+    if (!userinfo) {
+      return unAuthorizedResponse(event);
+    }
+
     const query = getQuery(event);
     const currentPage = Number(query.currentPage) || 1;
     const pageSize = Number(query.pageSize) || 9; // 默认每页9条记录
     const skip = (currentPage - 1) * pageSize;
+    const authorizedParks = await resolveUserAuthorizedParks({
+      roleNames: userinfo.roles,
+      userId: Number(userinfo.id),
+    });
+    const authorizedParkIds = authorizedParks
+      .map((park) => Number(park.parkId))
+      .filter((parkId) => Number.isInteger(parkId) && parkId > 0);
 
     // 构建查询条件
     const where: any = {
       isDeleted: false,
+      parkId: {
+        in: authorizedParkIds,
+      },
       parkName: {
         notIn: ['宜租网络', '总部', '东莞光泰园区'],
       },

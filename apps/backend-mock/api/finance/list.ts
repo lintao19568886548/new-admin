@@ -1,5 +1,6 @@
 import Nzh from 'nzh';
 import { prismaClient } from '~/utils/db';
+import { compareFinanceBillNameDesc } from '~/utils/finance-bill-name-period';
 import { buildFinanceAmountWhere } from '~/utils/finance-query';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import { syncRentalExpenseFinanceRecords } from '~/utils/rental-expense-finance';
@@ -11,6 +12,33 @@ import {
 
 // 使用nzh库的简体中文转换器
 const nzhcn = Nzh.cn;
+
+function parseDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function resolveEndTimeWhere(value: string) {
+  const endDate = parseDate(value);
+  if (!endDate) {
+    return {};
+  }
+
+  const normalizedValue = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)) {
+    const exclusiveEndDate = new Date(endDate);
+    exclusiveEndDate.setDate(exclusiveEndDate.getDate() + 1);
+    return { lt: exclusiveEndDate };
+  }
+
+  if (/[ T]23:59:59(?:\.000)?$/.test(normalizedValue)) {
+    const exclusiveEndDate = new Date(endDate);
+    exclusiveEndDate.setSeconds(exclusiveEndDate.getSeconds() + 1);
+    return { lt: exclusiveEndDate };
+  }
+
+  return { lte: endDate };
+}
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -96,21 +124,25 @@ export default eventHandler(async (event) => {
       const endTimeStr = String(query.endTime);
 
       // 转换为日期对象
-      const startDate = new Date(startTimeStr);
-      const endDate = new Date(endTimeStr);
+      const startDate = parseDate(startTimeStr);
+      const endDate = parseDate(endTimeStr);
+      const endTimeWhere = resolveEndTimeWhere(endTimeStr);
 
       // 日志输出转换后的日期，便于调试
       console.log('日期范围查询:', {
+        endTimeWhere,
         startTime: startTimeStr,
         endTime: endTimeStr,
         startDate,
         endDate,
       });
 
-      where.transactionTime = {
-        gte: startDate,
-        lte: endDate,
-      };
+      if (startDate && endDate) {
+        where.transactionTime = {
+          gte: startDate,
+          ...endTimeWhere,
+        };
+      }
     }
 
     const accessibleParkIds = userinfo.parks?.map((park) => park.parkId) ?? [];
@@ -177,6 +209,7 @@ export default eventHandler(async (event) => {
     }
 
     await syncRentalExpenseFinanceRecords({
+      minIntervalMs: 60_000,
       parkIds: syncParkIds,
     });
 
@@ -185,25 +218,23 @@ export default eventHandler(async (event) => {
     // 计算分页参数
     const currentPage = Number(query.currentPage) || 1;
     const pageSize = Number(query.pageSize) || 20;
-    const skip = (currentPage - 1) * pageSize;
 
     // 查询总记录数
     const total = await prismaClient.finance.count({
       where,
     });
 
-    // 执行分页查询
+    // 账单名称中带月份时，按账单所属月份倒序；否则回退交易时间倒序。
     const financeList = await prismaClient.finance.findMany({
       where,
       include: {
         images: true, // 包含关联的图片
       },
-      orderBy: {
-        transactionTime: 'desc',
-      },
-      skip,
-      take: pageSize,
     });
+
+    const sortedFinanceList = financeList
+      .sort(compareFinanceBillNameDesc)
+      .slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
     // console.log(
     //   `查询到 ${financeList.length} 条记录，总记录数: ${total}
@@ -213,7 +244,7 @@ export default eventHandler(async (event) => {
 
     // 返回带有分页信息的结果
     return useResponseSuccess({
-      items: financeList,
+      items: sortedFinanceList,
       total,
       currentPage,
       pageSize,

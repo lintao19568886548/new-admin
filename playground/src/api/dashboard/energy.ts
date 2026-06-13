@@ -25,7 +25,10 @@ export interface DashboardEnergyWaterStats {
 }
 
 export async function getDashboardEnergyElectricityConsumption(params?: {
+  date?: string;
+  endDate?: string;
   parkId?: 'all' | number;
+  startDate?: string;
   year?: number;
 }) {
   return requestClient.get<DashboardEnergyElectricityStats>(
@@ -37,7 +40,10 @@ export async function getDashboardEnergyElectricityConsumption(params?: {
 }
 
 export async function getDashboardEnergyWaterConsumption(params?: {
+  date?: string;
+  endDate?: string;
   parkId?: 'all' | number;
+  startDate?: string;
   year?: number;
 }) {
   return requestClient.get<DashboardEnergyWaterStats>(

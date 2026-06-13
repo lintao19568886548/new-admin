@@ -4,7 +4,7 @@ import type { FinanceItem } from './types';
 import type { OnActionClickParams } from '#/adapter/vxe-table';
 
 import { onActivated, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -26,6 +26,7 @@ import Form from './modules/form.vue';
 const { isNativePlatform } = usePlatform();
 
 // 导航
+const route = useRoute();
 const router = useRouter();
 
 // 脱敏开关 - 从 localStorage 读取持久化状态
@@ -100,8 +101,38 @@ onActivated(() => {
   ensureVerification();
 });
 
+function getRouteFinanceFilters() {
+  const query = route.query;
+  const values: Record<string, any> = {};
+  const transactionType = String(query.transactionType || '');
+  const parkId = Number(query.parkId);
+  const startTime = String(query.startTime || '');
+  const endTime = String(query.endTime || '');
+
+  if (transactionType === '收入' || transactionType === '支出') {
+    values.transactionType = transactionType;
+  }
+  if (Number.isInteger(parkId) && parkId > 0) {
+    values.parkId = parkId;
+  }
+  if (startTime && endTime) {
+    values.transactionTime = [startTime, endTime];
+  }
+
+  return values;
+}
+
+async function applyRouteFinanceFilters() {
+  const values = getRouteFinanceFilters();
+  if (Object.keys(values).length === 0) {
+    return;
+  }
+  await gridApi.formApi?.setValues?.(values);
+}
+
 // 初始化页面
-function initPage() {
+async function initPage() {
+  await applyRouteFinanceFilters();
   getParkList()
     .then((list: any[]) => {
       if (!Array.isArray(list)) return;
@@ -249,6 +280,17 @@ watch(enableMask, (val) => {
     columns: useColumns(onActionClick, val),
   });
 });
+
+watch(
+  () => route.query,
+  async () => {
+    if (!isVerified.value) {
+      return;
+    }
+    await applyRouteFinanceFilters();
+    gridApi.query();
+  },
+);
 
 function onActionClick(e: OnActionClickParams<FinanceItem>) {
   switch (e.code) {

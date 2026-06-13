@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import type { Dayjs } from 'dayjs';
-
 import type { PropType } from 'vue';
 
 import type { EchartsUIType } from '@vben/plugins/echarts';
@@ -25,7 +23,7 @@ import {
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
-import { DatePicker, message } from 'ant-design-vue';
+import { message } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { getDashboardMeterStatistics } from '#/api/dashboard';
@@ -37,11 +35,15 @@ import {
 } from './chartConfigs';
 
 interface Props {
+  endDate?: string;
   parkId?: ParkOptionValue;
+  startDate?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  endDate: '',
   parkId: 'all',
+  startDate: '',
 });
 
 const DashboardChart = defineComponent({
@@ -170,7 +172,6 @@ onUnmounted(() => {
 
 const activeStatisticsType = ref<DashboardMeterStatisticsType>('electricity');
 const dateType = ref<DashboardMeterStatisticsDateType>('month');
-const selectedDate = ref<Dayjs>(dayjs());
 const meterStatistics = ref<DashboardMeterStatisticsStats>({
   dateType: 'month',
   dayNight: [
@@ -197,14 +198,8 @@ const meterStatistics = ref<DashboardMeterStatisticsStats>({
   },
 });
 
-const datePickerMode = computed(() =>
-  dateType.value === 'month' ? 'month' : 'date',
-);
 const dateValueFormat = computed(() =>
   dateType.value === 'month' ? 'YYYY-MM' : 'YYYY-MM-DD',
-);
-const datePickerPlaceholder = computed(() =>
-  dateType.value === 'month' ? '选择月份' : '选择日期',
 );
 const getPeakValleyColor = (name: string) => {
   const colors: Record<string, string> = {
@@ -233,7 +228,10 @@ const dayNightData = computed(() =>
 );
 const emptyWaterTrendData = computed(() => {
   if (dateType.value === 'month') {
-    const daysInMonth = selectedDate.value.daysInMonth();
+    const referenceDate = dayjs(props.endDate || props.startDate);
+    const daysInMonth = referenceDate.isValid()
+      ? referenceDate.daysInMonth()
+      : dayjs().daysInMonth();
 
     return {
       times: Array.from({ length: daysInMonth }).map(
@@ -266,9 +264,11 @@ const waterChartClass = computed(() => (isMobile.value ? 'min-h-[220px]' : ''));
 const fetchMeterStatistics = async () => {
   try {
     const res = await getDashboardMeterStatistics({
-      date: selectedDate.value.format(dateValueFormat.value),
+      date: props.endDate || props.startDate,
       dateType: dateType.value,
+      endDate: props.endDate,
       parkId: props.parkId,
+      startDate: props.startDate,
       type: activeStatisticsType.value,
     });
 
@@ -281,7 +281,8 @@ const fetchMeterStatistics = async () => {
       message: res.message,
       peakValley: Array.isArray(res.peakValley) ? res.peakValley : [],
       selectedDate:
-        res.selectedDate || selectedDate.value.format(dateValueFormat.value),
+        res.selectedDate ||
+        dayjs(props.endDate || props.startDate).format(dateValueFormat.value),
       statisticsType: res.statisticsType || activeStatisticsType.value,
       summary: {
         deviceCount: Number(res.summary?.deviceCount || 0),
@@ -302,7 +303,13 @@ const fetchMeterStatistics = async () => {
 };
 
 watch(
-  [activeStatisticsType, dateType, selectedDate, () => props.parkId],
+  [
+    activeStatisticsType,
+    dateType,
+    () => props.parkId,
+    () => props.startDate,
+    () => props.endDate,
+  ],
   () => {
     fetchMeterStatistics();
   },
@@ -357,15 +364,6 @@ watch(
           按日
         </button>
       </div>
-      <DatePicker
-        v-model:value="selectedDate"
-        :picker="datePickerMode"
-        :placeholder="datePickerPlaceholder"
-        :format="dateValueFormat"
-        size="small"
-        class="meter-statistics-date-picker"
-        :allow-clear="false"
-      />
     </div>
     <div
       v-if="activeStatisticsType === 'electricity'"
@@ -411,7 +409,7 @@ watch(
 <style scoped>
 .meter-statistics-toolbar {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: repeat(2, max-content);
   gap: 8px;
   align-items: center;
 }
@@ -428,15 +426,7 @@ watch(
 }
 
 .meter-statistics-date-switch {
-  grid-row: 2;
-  grid-column: 1;
-}
-
-.meter-statistics-date-picker {
-  grid-row: 2;
   grid-column: 2;
-  width: 100%;
-  min-width: 0;
 }
 
 @media (min-width: 768px) {
@@ -447,10 +437,6 @@ watch(
 
   .meter-statistics-date-switch {
     margin-left: auto;
-  }
-
-  .meter-statistics-date-picker {
-    width: 128px;
   }
 }
 </style>

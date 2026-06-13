@@ -30,7 +30,9 @@ export interface DashboardMeterStatisticsStats {
 export async function getDashboardMeterStatistics(params?: {
   date?: string;
   dateType?: DashboardMeterStatisticsDateType;
+  endDate?: string;
   parkId?: 'all' | number;
+  startDate?: string;
   type?: DashboardMeterStatisticsType;
 }) {
   return requestClient.get<DashboardMeterStatisticsStats>(

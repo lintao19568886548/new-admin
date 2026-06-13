@@ -1,41 +1,50 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
-import {
-  AUTO_RENTAL_EXPENSE_REVENUE_EXCLUSION_WHERE,
-  isAutoRentalExpenseFinanceRecord,
-} from '../finance-revenue-policy';
-
 describe('finance revenue policy', () => {
-  it('builds one shared Prisma exclusion for automatic rental expense rows', () => {
-    expect(AUTO_RENTAL_EXPENSE_REVENUE_EXCLUSION_WHERE).toEqual({
+  it('keeps dashboard revenue aligned with amount bill project months', () => {
+    const dashboardRevenueSource = readFileSync(
+      resolve(__dirname, '../../api/dashboard/revenue-stats.ts'),
+      'utf8',
+    );
+
+    expect(dashboardRevenueSource).toContain('amountBill.findMany');
+    expect(dashboardRevenueSource).toContain('getSingleProjectMonthSortKey');
+    expect(dashboardRevenueSource).toContain('receivableTotal');
+    expect(dashboardRevenueSource).toContain('receivedTotal');
+    expect(dashboardRevenueSource).toContain('remainingTotal');
+    expect(dashboardRevenueSource).not.toContain(
+      'syncRentalExpenseFinanceRecords',
+    );
+  });
+
+  it('keeps analytics revenue overview aligned with finance rows', () => {
+    const analyticsRevenueSource = readFileSync(
+      resolve(__dirname, '../../api/analytics/revenue-overview.ts'),
+      'utf8',
+    );
+
+    expect(analyticsRevenueSource).toContain('transactionType');
+    expect(analyticsRevenueSource).toContain('收入');
+    expect(analyticsRevenueSource).toContain('支出');
+    expect(analyticsRevenueSource).toContain('syncRentalExpenseFinanceRecords');
+    expect(analyticsRevenueSource).not.toContain('AUTO_RENTAL_EXPENSE');
+    expect(analyticsRevenueSource).not.toContain('finance-revenue-policy');
+    expect(analyticsRevenueSource).not.toContain('billName:');
+    expect(analyticsRevenueSource).not.toContain('billCategory:');
+    expect(analyticsRevenueSource).not.toContain('NOT:');
+  });
+
+  it('documents that rental expense is a normal finance expense for revenue stats', () => {
+    const rentalExpenseFinanceRecord = {
+      amount: 2_184_251,
       billCategory: '其他费用',
       billName: '租金支出',
       transactionType: '支出',
-    });
-  });
+    };
 
-  it('only excludes automatic rental expense rows from revenue stats', () => {
-    expect(
-      isAutoRentalExpenseFinanceRecord({
-        billCategory: '其他费用',
-        billName: '租金支出',
-        transactionType: '支出',
-      }),
-    ).toBe(true);
-
-    expect(
-      isAutoRentalExpenseFinanceRecord({
-        billCategory: '其他费用',
-        billName: '租金支出',
-        transactionType: '收入',
-      }),
-    ).toBe(false);
-    expect(
-      isAutoRentalExpenseFinanceRecord({
-        billCategory: '其他费用',
-        billName: '报销',
-        transactionType: '支出',
-      }),
-    ).toBe(false);
+    expect(rentalExpenseFinanceRecord.transactionType).toBe('支出');
   });
 });

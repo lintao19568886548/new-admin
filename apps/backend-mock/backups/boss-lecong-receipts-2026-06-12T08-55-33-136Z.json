@@ -1,0 +1,820 @@
+{
+  "audit": [
+    {
+      "tenantKeyword": "海腾世家",
+      "receiptAmount": 6439,
+      "receiptDate": "2026-05-11",
+      "candidates": [
+        {
+          "billId": 488,
+          "financeId": 1746,
+          "projectName": "2026年6月份房租、2026年5月份水 电",
+          "receiptAmount": 6439,
+          "receiptTime": "2026-06-09T16:00:00.000Z",
+          "tenantName": "海腾世家",
+          "totalFee": 6884.25
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 1,
+        "receiptAmount": 6439,
+        "totalFee": 6884.25
+      },
+      "reason": "single tenant bill",
+      "targetUpdates": [
+        {
+          "billId": 488,
+          "currentReceiptAmount": 6439,
+          "currentReceiptTime": "2026-06-09T16:00:00.000Z",
+          "nextReceiptAmount": 6439,
+          "nextReceiptDate": "2026-05-11",
+          "projectName": "2026年6月份房租、2026年5月份水 电",
+          "tenantName": "海腾世家"
+        }
+      ]
+    },
+    {
+      "tenantKeyword": "李帆",
+      "receiptAmount": 9753,
+      "receiptDate": "2026-05-10",
+      "candidates": [
+        {
+          "billId": 486,
+          "financeId": 1744,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 9753,
+          "receiptTime": "2026-06-09T16:00:00.000Z",
+          "tenantName": "李帆",
+          "totalFee": 9813.41
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 1,
+        "receiptAmount": 9753,
+        "totalFee": 9813.41
+      },
+      "reason": "single tenant bill",
+      "targetUpdates": [
+        {
+          "billId": 486,
+          "currentReceiptAmount": 9753,
+          "currentReceiptTime": "2026-06-09T16:00:00.000Z",
+          "nextReceiptAmount": 9753,
+          "nextReceiptDate": "2026-05-10",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "李帆"
+        }
+      ]
+    },
+    {
+      "tenantKeyword": "李先勇",
+      "receiptAmount": 10471.74,
+      "receiptDate": "2026-05-10",
+      "candidates": [
+        {
+          "billId": 485,
+          "financeId": null,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 0,
+          "receiptTime": null,
+          "tenantName": "李先勇（7楼）",
+          "totalFee": 23697.26
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 1,
+        "receiptAmount": 0,
+        "totalFee": 23697.26
+      },
+      "reason": "single tenant bill",
+      "targetUpdates": [
+        {
+          "billId": 485,
+          "currentReceiptAmount": 0,
+          "currentReceiptTime": null,
+          "nextReceiptAmount": 10471.74,
+          "nextReceiptDate": "2026-05-10",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "李先勇（7楼）"
+        }
+      ]
+    },
+    {
+      "tenantKeyword": "李会",
+      "receiptAmount": 71644.6,
+      "receiptDate": "2026-05-09",
+      "candidates": [
+        {
+          "billId": 490,
+          "financeId": null,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 0,
+          "receiptTime": null,
+          "tenantName": "李会(3楼）",
+          "totalFee": 22228.5
+        },
+        {
+          "billId": 494,
+          "financeId": null,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 0,
+          "receiptTime": null,
+          "tenantName": "李会(6楼）",
+          "totalFee": 55284.96
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 2,
+        "receiptAmount": 0,
+        "totalFee": 77513.46
+      },
+      "reason": "manual split by boss merged row",
+      "targetUpdates": [
+        {
+          "billId": 490,
+          "currentReceiptAmount": 0,
+          "currentReceiptTime": null,
+          "nextReceiptAmount": 22228.5,
+          "nextReceiptDate": "2026-05-09",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "李会(3楼）"
+        },
+        {
+          "billId": 494,
+          "currentReceiptAmount": 0,
+          "currentReceiptTime": null,
+          "nextReceiptAmount": 49416.1,
+          "nextReceiptDate": "2026-05-09",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "李会(6楼）"
+        }
+      ]
+    },
+    {
+      "tenantKeyword": "刘笑萍",
+      "receiptAmount": 24434,
+      "receiptDate": "2026-05-15",
+      "candidates": [
+        {
+          "billId": 253,
+          "financeId": null,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 0,
+          "receiptTime": null,
+          "tenantName": "刘笑萍（502）",
+          "totalFee": 7173
+        },
+        {
+          "billId": 484,
+          "financeId": 1743,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 17261,
+          "receiptTime": "2026-06-09T16:00:00.000Z",
+          "tenantName": "刘笑萍（502）",
+          "totalFee": 18990.52
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 2,
+        "receiptAmount": 17261,
+        "totalFee": 26163.52
+      },
+      "reason": "multiple bills with one exact missing zero-receipt bill",
+      "targetUpdates": [
+        {
+          "billId": 484,
+          "currentReceiptAmount": 17261,
+          "currentReceiptTime": "2026-06-09T16:00:00.000Z",
+          "nextReceiptAmount": 17261,
+          "nextReceiptDate": "2026-05-15",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "刘笑萍（502）"
+        },
+        {
+          "billId": 253,
+          "currentReceiptAmount": 0,
+          "currentReceiptTime": null,
+          "nextReceiptAmount": 7173,
+          "nextReceiptDate": "2026-05-15",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "刘笑萍（502）"
+        }
+      ]
+    },
+    {
+      "tenantKeyword": "姚东江",
+      "receiptAmount": 49203,
+      "receiptDate": "2026-05-09",
+      "candidates": [
+        {
+          "billId": 477,
+          "financeId": 1739,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 49203,
+          "receiptTime": "2026-06-09T16:00:00.000Z",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "totalFee": 49912.9
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 1,
+        "receiptAmount": 49203,
+        "totalFee": 49912.9
+      },
+      "reason": "single tenant bill",
+      "targetUpdates": [
+        {
+          "billId": 477,
+          "currentReceiptAmount": 49203,
+          "currentReceiptTime": "2026-06-09T16:00:00.000Z",
+          "nextReceiptAmount": 49203,
+          "nextReceiptDate": "2026-05-09",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "姚东江（一楼加阁楼）"
+        }
+      ]
+    },
+    {
+      "tenantKeyword": "孔琴",
+      "receiptAmount": 14085,
+      "receiptDate": "2026-05-09",
+      "candidates": [
+        {
+          "billId": 492,
+          "financeId": null,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 0,
+          "receiptTime": null,
+          "tenantName": "孔琴（201）",
+          "totalFee": 14092
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 1,
+        "receiptAmount": 0,
+        "totalFee": 14092
+      },
+      "reason": "single tenant bill",
+      "targetUpdates": [
+        {
+          "billId": 492,
+          "currentReceiptAmount": 0,
+          "currentReceiptTime": null,
+          "nextReceiptAmount": 14085,
+          "nextReceiptDate": "2026-05-09",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "孔琴（201）"
+        }
+      ]
+    },
+    {
+      "tenantKeyword": "衡龙",
+      "receiptAmount": 13032,
+      "receiptDate": "2026-05-05",
+      "candidates": [
+        {
+          "billId": 483,
+          "financeId": null,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 0,
+          "receiptTime": null,
+          "tenantName": "衡龙顺发泡材料有限公司(402)",
+          "totalFee": 13108.48
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 1,
+        "receiptAmount": 0,
+        "totalFee": 13108.48
+      },
+      "reason": "single tenant bill",
+      "targetUpdates": [
+        {
+          "billId": 483,
+          "currentReceiptAmount": 0,
+          "currentReceiptTime": null,
+          "nextReceiptAmount": 13032,
+          "nextReceiptDate": "2026-05-05",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "衡龙顺发泡材料有限公司(402)"
+        }
+      ]
+    },
+    {
+      "tenantKeyword": "陈宇春",
+      "receiptAmount": 8793,
+      "receiptDate": "2026-05-09",
+      "candidates": [
+        {
+          "billId": 482,
+          "financeId": null,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 0,
+          "receiptTime": null,
+          "tenantName": "陈宇春（401）",
+          "totalFee": 10368.1
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 1,
+        "receiptAmount": 0,
+        "totalFee": 10368.1
+      },
+      "reason": "single tenant bill",
+      "targetUpdates": [
+        {
+          "billId": 482,
+          "currentReceiptAmount": 0,
+          "currentReceiptTime": null,
+          "nextReceiptAmount": 8793,
+          "nextReceiptDate": "2026-05-09",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "陈宇春（401）"
+        }
+      ]
+    },
+    {
+      "tenantKeyword": "赵红健",
+      "receiptAmount": 9600,
+      "receiptDate": "2026-06-02",
+      "candidates": [
+        {
+          "billId": 479,
+          "financeId": null,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 0,
+          "receiptTime": null,
+          "tenantName": "赵红健（802）",
+          "totalFee": 25869.13
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 1,
+        "receiptAmount": 0,
+        "totalFee": 25869.13
+      },
+      "reason": "single tenant bill",
+      "targetUpdates": [
+        {
+          "billId": 479,
+          "currentReceiptAmount": 0,
+          "currentReceiptTime": null,
+          "nextReceiptAmount": 9600,
+          "nextReceiptDate": "2026-06-02",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "赵红健（802）"
+        }
+      ]
+    },
+    {
+      "tenantKeyword": "慎根林",
+      "receiptAmount": 11429,
+      "receiptDate": "2026-05-10",
+      "candidates": [
+        {
+          "billId": 480,
+          "financeId": 1741,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 11429,
+          "receiptTime": "2026-06-09T16:00:00.000Z",
+          "tenantName": "慎根林（901）",
+          "totalFee": 14975.53
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 1,
+        "receiptAmount": 11429,
+        "totalFee": 14975.53
+      },
+      "reason": "single tenant bill",
+      "targetUpdates": [
+        {
+          "billId": 480,
+          "currentReceiptAmount": 11429,
+          "currentReceiptTime": "2026-06-09T16:00:00.000Z",
+          "nextReceiptAmount": 11429,
+          "nextReceiptDate": "2026-05-10",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "慎根林（901）"
+        }
+      ]
+    },
+    {
+      "tenantKeyword": "朱爱媛",
+      "receiptAmount": 7143,
+      "receiptDate": "2026-05-09",
+      "candidates": [
+        {
+          "billId": 487,
+          "financeId": 1745,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 7143,
+          "receiptTime": "2026-06-09T16:00:00.000Z",
+          "tenantName": "朱爱媛（501）",
+          "totalFee": 9215.04
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 1,
+        "receiptAmount": 7143,
+        "totalFee": 9215.04
+      },
+      "reason": "single tenant bill",
+      "targetUpdates": [
+        {
+          "billId": 487,
+          "currentReceiptAmount": 7143,
+          "currentReceiptTime": "2026-06-09T16:00:00.000Z",
+          "nextReceiptAmount": 7143,
+          "nextReceiptDate": "2026-05-09",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "朱爱媛（501）"
+        }
+      ]
+    },
+    {
+      "tenantKeyword": "梁志昌",
+      "receiptAmount": 4562,
+      "receiptDate": "2026-05-10",
+      "candidates": [
+        {
+          "billId": 478,
+          "financeId": 1740,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 4562,
+          "receiptTime": "2026-06-09T16:00:00.000Z",
+          "tenantName": "梁志昌(202)",
+          "totalFee": 4606.52
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 1,
+        "receiptAmount": 4562,
+        "totalFee": 4606.52
+      },
+      "reason": "single tenant bill",
+      "targetUpdates": [
+        {
+          "billId": 478,
+          "currentReceiptAmount": 4562,
+          "currentReceiptTime": "2026-06-09T16:00:00.000Z",
+          "nextReceiptAmount": 4562,
+          "nextReceiptDate": "2026-05-10",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "梁志昌(202)"
+        }
+      ]
+    },
+    {
+      "tenantKeyword": "董振文",
+      "receiptAmount": 3966,
+      "receiptDate": "2026-05-10",
+      "candidates": [
+        {
+          "billId": 481,
+          "financeId": 1742,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "receiptAmount": 3966,
+          "receiptTime": "2026-06-09T16:00:00.000Z",
+          "tenantName": "董振文（203）",
+          "totalFee": 3869.25
+        }
+      ],
+      "candidatesSummary": {
+        "billCount": 1,
+        "receiptAmount": 3966,
+        "totalFee": 3869.25
+      },
+      "reason": "single tenant bill",
+      "targetUpdates": [
+        {
+          "billId": 481,
+          "currentReceiptAmount": 3966,
+          "currentReceiptTime": "2026-06-09T16:00:00.000Z",
+          "nextReceiptAmount": 3966,
+          "nextReceiptDate": "2026-05-10",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "董振文（203）"
+        }
+      ]
+    }
+  ],
+  "candidates": [
+    {
+      "billId": 253,
+      "financeId": null,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 0,
+      "receiptTime": null,
+      "tenantName": "刘笑萍（502）",
+      "totalFee": 7173,
+      "eleFee": 0,
+      "factoryRent": 6800,
+      "financeAmount": null,
+      "financeDeleted": null,
+      "financeTime": null,
+      "invoiceTax": 373,
+      "managementFee": 0,
+      "penaltyFee": 0,
+      "serviceFee": 0,
+      "waterFee": 0
+    },
+    {
+      "billId": 477,
+      "financeId": 1739,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 49203,
+      "receiptTime": "2026-06-09T16:00:00.000Z",
+      "tenantName": "姚东江（一楼加阁楼）",
+      "totalFee": 49912.9,
+      "eleFee": 14300.8,
+      "factoryRent": 32000,
+      "financeAmount": "49203.00",
+      "financeDeleted": 0,
+      "financeTime": "2026-06-09T16:00:00.000Z",
+      "invoiceTax": 0,
+      "managementFee": 1610,
+      "penaltyFee": 0,
+      "serviceFee": 1859.1,
+      "waterFee": 143
+    },
+    {
+      "billId": 478,
+      "financeId": 1740,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 4562,
+      "receiptTime": "2026-06-09T16:00:00.000Z",
+      "tenantName": "梁志昌(202)",
+      "totalFee": 4606.52,
+      "eleFee": 318.6,
+      "factoryRent": 4000,
+      "financeAmount": "4562.00",
+      "financeDeleted": 0,
+      "financeTime": "2026-06-09T16:00:00.000Z",
+      "invoiceTax": 0,
+      "managementFee": 230,
+      "penaltyFee": 0,
+      "serviceFee": 41.42,
+      "waterFee": 16.5
+    },
+    {
+      "billId": 479,
+      "financeId": null,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 0,
+      "receiptTime": null,
+      "tenantName": "赵红健（802）",
+      "totalFee": 25869.13,
+      "eleFee": 678.88,
+      "factoryRent": 7800,
+      "financeAmount": null,
+      "financeDeleted": null,
+      "financeTime": null,
+      "invoiceTax": 0,
+      "managementFee": 1150,
+      "penaltyFee": 16087,
+      "serviceFee": 88.25,
+      "waterFee": 65
+    },
+    {
+      "billId": 480,
+      "financeId": 1741,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 11429,
+      "receiptTime": "2026-06-09T16:00:00.000Z",
+      "tenantName": "慎根林（901）",
+      "totalFee": 14975.53,
+      "eleFee": 1392.5,
+      "factoryRent": 10000,
+      "financeAmount": "11429.00",
+      "financeDeleted": 0,
+      "financeTime": "2026-06-09T16:00:00.000Z",
+      "invoiceTax": 0,
+      "managementFee": 230,
+      "penaltyFee": 3105,
+      "serviceFee": 181.03,
+      "waterFee": 67
+    },
+    {
+      "billId": 481,
+      "financeId": 1742,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 3966,
+      "receiptTime": "2026-06-09T16:00:00.000Z",
+      "tenantName": "董振文（203）",
+      "totalFee": 3869.25,
+      "eleFee": 141.25,
+      "factoryRent": 3500,
+      "financeAmount": "3966.00",
+      "financeDeleted": 0,
+      "financeTime": "2026-06-09T16:00:00.000Z",
+      "invoiceTax": 0,
+      "managementFee": 0,
+      "penaltyFee": 208,
+      "serviceFee": 0,
+      "waterFee": 20
+    },
+    {
+      "billId": 482,
+      "financeId": null,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 0,
+      "receiptTime": null,
+      "tenantName": "陈宇春（401）",
+      "totalFee": 10368.1,
+      "eleFee": 1320,
+      "factoryRent": 7500,
+      "financeAmount": null,
+      "financeDeleted": null,
+      "financeTime": null,
+      "invoiceTax": 0,
+      "managementFee": 0,
+      "penaltyFee": 1294,
+      "serviceFee": 171.6,
+      "waterFee": 82.5
+    },
+    {
+      "billId": 483,
+      "financeId": null,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 0,
+      "receiptTime": null,
+      "tenantName": "衡龙顺发泡材料有限公司(402)",
+      "totalFee": 13108.48,
+      "eleFee": 601.75,
+      "factoryRent": 12160,
+      "financeAmount": null,
+      "financeDeleted": null,
+      "financeTime": null,
+      "invoiceTax": 0,
+      "managementFee": 230,
+      "penaltyFee": 0,
+      "serviceFee": 78.23,
+      "waterFee": 38.5
+    },
+    {
+      "billId": 484,
+      "financeId": 1743,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 17261,
+      "receiptTime": "2026-06-09T16:00:00.000Z",
+      "tenantName": "刘笑萍（502）",
+      "totalFee": 18990.52,
+      "eleFee": 6789.3,
+      "factoryRent": 11800,
+      "financeAmount": "17261.00",
+      "financeDeleted": 0,
+      "financeTime": "2026-06-09T16:00:00.000Z",
+      "invoiceTax": 318.72,
+      "managementFee": 0,
+      "penaltyFee": 0,
+      "serviceFee": 0,
+      "waterFee": 82.5
+    },
+    {
+      "billId": 485,
+      "financeId": null,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 0,
+      "receiptTime": null,
+      "tenantName": "李先勇（7楼）",
+      "totalFee": 23697.26,
+      "eleFee": 3970,
+      "factoryRent": 18000,
+      "financeAmount": null,
+      "financeDeleted": null,
+      "financeTime": null,
+      "invoiceTax": 581.16,
+      "managementFee": 460,
+      "penaltyFee": 0,
+      "serviceFee": 516.1,
+      "waterFee": 170
+    },
+    {
+      "billId": 486,
+      "financeId": 1744,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 9753,
+      "receiptTime": "2026-06-09T16:00:00.000Z",
+      "tenantName": "李帆",
+      "totalFee": 9813.41,
+      "eleFee": 1392.4,
+      "factoryRent": 8000,
+      "financeAmount": "9753.00",
+      "financeDeleted": 0,
+      "financeTime": "2026-06-09T16:00:00.000Z",
+      "invoiceTax": 0,
+      "managementFee": 230,
+      "penaltyFee": 0,
+      "serviceFee": 181.01,
+      "waterFee": 10
+    },
+    {
+      "billId": 487,
+      "financeId": 1745,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 7143,
+      "receiptTime": "2026-06-09T16:00:00.000Z",
+      "tenantName": "朱爱媛（501）",
+      "totalFee": 9215.04,
+      "eleFee": 487.6,
+      "factoryRent": 7000,
+      "financeAmount": "7143.00",
+      "financeDeleted": 0,
+      "financeTime": "2026-06-09T16:00:00.000Z",
+      "invoiceTax": 0,
+      "managementFee": 0,
+      "penaltyFee": 1587,
+      "serviceFee": 11.44,
+      "waterFee": 129
+    },
+    {
+      "billId": 488,
+      "financeId": 1746,
+      "projectName": "2026年6月份房租、2026年5月份水 电",
+      "receiptAmount": 6439,
+      "receiptTime": "2026-06-09T16:00:00.000Z",
+      "tenantName": "海腾世家",
+      "totalFee": 6884.25,
+      "eleFee": 1225,
+      "factoryRent": 5000,
+      "financeAmount": "6439.00",
+      "financeDeleted": 0,
+      "financeTime": "2026-06-09T16:00:00.000Z",
+      "invoiceTax": 0,
+      "managementFee": 460,
+      "penaltyFee": 0,
+      "serviceFee": 159.25,
+      "waterFee": 40
+    },
+    {
+      "billId": 490,
+      "financeId": null,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 0,
+      "receiptTime": null,
+      "tenantName": "李会(3楼）",
+      "totalFee": 22228.5,
+      "eleFee": 190,
+      "factoryRent": 22000,
+      "financeAmount": null,
+      "financeDeleted": null,
+      "financeTime": null,
+      "invoiceTax": 0,
+      "managementFee": 0,
+      "penaltyFee": 0,
+      "serviceFee": 0,
+      "waterFee": 38.5
+    },
+    {
+      "billId": 492,
+      "financeId": null,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 0,
+      "receiptTime": null,
+      "tenantName": "孔琴（201）",
+      "totalFee": 14092,
+      "eleFee": 100,
+      "factoryRent": 12200,
+      "financeAmount": null,
+      "financeDeleted": null,
+      "financeTime": null,
+      "invoiceTax": 1779,
+      "managementFee": 0,
+      "penaltyFee": 0,
+      "serviceFee": 13,
+      "waterFee": 0
+    },
+    {
+      "billId": 494,
+      "financeId": null,
+      "projectName": "2026年6月份房租、2026年5月份水电",
+      "receiptAmount": 0,
+      "receiptTime": null,
+      "tenantName": "李会(6楼）",
+      "totalFee": 55284.96,
+      "eleFee": 14083.6,
+      "factoryRent": 22000,
+      "financeAmount": null,
+      "financeDeleted": null,
+      "financeTime": null,
+      "invoiceTax": 0,
+      "managementFee": 1150,
+      "penaltyFee": 0,
+      "serviceFee": 1427.36,
+      "waterFee": 99
+    }
+  ],
+  "expectedTotal": 244555.34,
+  "generatedAt": "2026-06-12T08:55:33.135Z",
+  "park": {
+    "parkId": 25,
+    "parkName": "佛山乐从园区"
+  },
+  "user": {
+    "id": 106,
+    "username": "17770113605",
+    "customerId": "default",
+    "dbName": "magic"
+  }
+}

@@ -54,6 +54,39 @@ const INVESTMENT_PUBLIC_CRAWL_ROOT_ROUTE = {
   type: 'menu',
 } as const;
 
+const INVESTMENT_PC_ROUTE_MENUS = [
+  {
+    authCode: 'investment:agent',
+    component: '/investment/agent/list',
+    meta: {
+      activePath: '/investment',
+      hideInMenu: true,
+      icon: 'mdi:account-tie',
+      order: 1,
+      title: '招商管理',
+    },
+    name: 'InvestmentAgent',
+    path: '/investment/agent',
+    type: 'menu',
+  },
+] as const;
+
+const CRM_CUSTOMER_ACQUISITION_ROUTE_MENU = {
+  authCode: 'crm:qrcode-test',
+  component: '/crm/qrcode-test',
+  meta: {
+    activePath: '/investment',
+    hideInMenu: false,
+    icon: 'mdi:account-plus-outline',
+    isApp: true,
+    order: 55,
+    title: '获客推广',
+  },
+  name: 'CrmQrcodeTest',
+  path: '/crm/qrcode-test',
+  type: 'menu',
+} as const;
+
 const INVESTMENT_RADAR_AUXILIARY_ROUTE_MENUS = [
   {
     authCode: 'investment:radar',
@@ -113,6 +146,7 @@ const INVESTMENT_RADAR_AUXILIARY_ROUTE_MENUS = [
       activePath: '/investment/radar',
       hideInMenu: true,
       icon: 'mdi:briefcase-search-outline',
+      order: 50,
       title: '公开需求采集',
     },
     name: 'InvestmentRadarPublicDemands',
@@ -126,6 +160,7 @@ const INVESTMENT_RADAR_AUXILIARY_ROUTE_MENUS = [
       activePath: '/investment/radar',
       hideInMenu: true,
       icon: 'mdi:factory',
+      order: 60,
       title: '公开房源采集',
     },
     name: 'InvestmentRadarFactoryListings',
@@ -200,7 +235,7 @@ const INVESTMENT_MOBILE_APP_ROUTE_MENUS = [
       activePath: '/investment/radar/mobile',
       hideInMenu: true,
       icon: 'mdi:message-processing-outline',
-      isApp: true,
+      isApp: false,
       order: 30,
       title: '触达任务',
     },
@@ -215,7 +250,7 @@ const INVESTMENT_MOBILE_APP_ROUTE_MENUS = [
       activePath: '/investment/radar/mobile',
       hideInMenu: true,
       icon: 'lucide:area-chart',
-      isApp: true,
+      isApp: false,
       order: 40,
       title: '招商看板',
     },
@@ -260,7 +295,7 @@ const INVESTMENT_MOBILE_APP_ROUTE_MENUS = [
       activePath: '/investment/radar/mobile',
       hideInMenu: true,
       icon: 'mdi:account-search-outline',
-      isApp: true,
+      isApp: false,
       order: 70,
       title: '外部公开线索',
     },
@@ -275,7 +310,7 @@ const INVESTMENT_MOBILE_APP_ROUTE_MENUS = [
       activePath: '/investment/radar/mobile',
       hideInMenu: true,
       icon: 'mdi:pulse',
-      isApp: true,
+      isApp: false,
       order: 80,
       title: '企业信号',
     },
@@ -290,7 +325,7 @@ const INVESTMENT_MOBILE_APP_ROUTE_MENUS = [
       activePath: '/investment/radar/mobile',
       hideInMenu: true,
       icon: 'mdi:office-building-cog-outline',
-      isApp: true,
+      isApp: false,
       order: 90,
       title: '企业画像',
     },
@@ -305,7 +340,7 @@ const INVESTMENT_MOBILE_APP_ROUTE_MENUS = [
       activePath: '/investment/radar/mobile',
       hideInMenu: true,
       icon: 'mdi:scoreboard-outline',
-      isApp: true,
+      isApp: false,
       order: 100,
       title: '评分规则',
     },
@@ -320,7 +355,7 @@ const INVESTMENT_MOBILE_APP_ROUTE_MENUS = [
       activePath: '/investment/radar/mobile',
       hideInMenu: true,
       icon: 'mdi:database-cog-outline',
-      isApp: true,
+      isApp: false,
       order: 110,
       title: '数据源',
     },
@@ -358,6 +393,7 @@ const PUBLIC_CRAWL_ROUTE_PATHS = new Set([
 ]);
 
 const PUBLIC_CRAWL_MOBILE_ROUTE_NAMES = new Set([
+  'CrmQrcodeTest',
   'InvestmentRadarMobileFactoryListings',
   'InvestmentRadarMobilePublicDemands',
 ]);
@@ -372,22 +408,24 @@ function isRouteInSet(
   );
 }
 
-const PUBLIC_CRAWL_AUXILIARY_ROUTE_MENUS =
-  INVESTMENT_RADAR_AUXILIARY_ROUTE_MENUS.filter((route) =>
+const PUBLIC_CRAWL_AUXILIARY_ROUTE_MENUS = [
+  ...INVESTMENT_RADAR_AUXILIARY_ROUTE_MENUS.filter((route) =>
     isRouteInSet(route, PUBLIC_CRAWL_ROUTE_NAMES, PUBLIC_CRAWL_ROUTE_PATHS),
-  ).map((route) => ({
-    ...route,
-    meta: {
-      ...route.meta,
-      activePath: INVESTMENT_PUBLIC_CRAWL_ROOT_ROUTE.path,
-      hideInMenu: false,
-    },
-  }));
+  ),
+  CRM_CUSTOMER_ACQUISITION_ROUTE_MENU,
+].map((route) => ({
+  ...route,
+  meta: {
+    ...route.meta,
+    activePath: INVESTMENT_PUBLIC_CRAWL_ROOT_ROUTE.path,
+    hideInMenu: false,
+  },
+}));
 
-const PUBLIC_CRAWL_MOBILE_ROUTE_MENUS =
-  INVESTMENT_MOBILE_APP_ROUTE_MENUS.filter((route) =>
-    PUBLIC_CRAWL_MOBILE_ROUTE_NAMES.has(route.name),
-  );
+const PUBLIC_CRAWL_MOBILE_ROUTE_MENUS = [
+  ...INVESTMENT_MOBILE_APP_ROUTE_MENUS,
+  CRM_CUSTOMER_ACQUISITION_ROUTE_MENU,
+].filter((route) => PUBLIC_CRAWL_MOBILE_ROUTE_NAMES.has(route.name));
 
 function hasRouteMenu(
   menus: any[],
@@ -426,6 +464,57 @@ function appendRouteMenus(menus: any[], routes: readonly any[]) {
   return normalizedMenus;
 }
 
+function getRouteKey(route: any) {
+  return String(route?.name || route?.path || '');
+}
+
+function getRouteOrder(route: any) {
+  const order = Number(route?.meta?.order);
+  return Number.isFinite(order) ? order : 999;
+}
+
+function sortRouteMenusByOrder(menus: any[]) {
+  return [...menus].sort((a, b) => getRouteOrder(a) - getRouteOrder(b));
+}
+
+function placeRouteMenusAfter(
+  menus: any[],
+  anchorRouteNames: readonly string[],
+  routeNames: readonly string[],
+) {
+  const routeNameSet = new Set(routeNames);
+  const routesToPlace = menus.filter((route) =>
+    routeNameSet.has(getRouteKey(route)),
+  );
+  if (routesToPlace.length === 0) {
+    return menus;
+  }
+
+  const remainingRoutes = menus.filter(
+    (route) => !routeNameSet.has(getRouteKey(route)),
+  );
+  const anchorIndex = remainingRoutes.findIndex((route) =>
+    anchorRouteNames.includes(getRouteKey(route)),
+  );
+  if (anchorIndex === -1) {
+    return menus;
+  }
+
+  return [
+    ...remainingRoutes.slice(0, anchorIndex + 1),
+    ...routesToPlace,
+    ...remainingRoutes.slice(anchorIndex + 1),
+  ];
+}
+
+function sortInvestmentChildRouteMenus(menus: any[]) {
+  return placeRouteMenusAfter(
+    sortRouteMenusByOrder(menus),
+    ['InvestmentRadarPublicDemands'],
+    ['CrmQrcodeTest'],
+  );
+}
+
 function appendChildRouteMenus(
   menus: any[],
   parentRoute: {
@@ -446,9 +535,11 @@ function appendChildRouteMenus(
         parentFound = true;
         return {
           ...item,
-          children: appendRouteMenus(
-            Array.isArray(item.children) ? item.children : [],
-            routes,
+          children: sortInvestmentChildRouteMenus(
+            appendRouteMenus(
+              Array.isArray(item.children) ? item.children : [],
+              routes,
+            ),
           ),
         };
       }
@@ -470,7 +561,7 @@ function appendChildRouteMenus(
 function buildPublicCrawlRootRoute(children: readonly any[]) {
   return {
     ...INVESTMENT_PUBLIC_CRAWL_ROOT_ROUTE,
-    children: appendRouteMenus([], children),
+    children: sortInvestmentChildRouteMenus(appendRouteMenus([], children)),
   };
 }
 
@@ -481,6 +572,10 @@ function shouldAppendInvestmentRadarRouteMenus(menus: any[]) {
       path: '/investment',
     }) ||
     hasRouteMenu(menus, {
+      name: 'InvestmentAgent',
+      path: '/investment/agent',
+    }) ||
+    hasRouteMenu(menus, {
       name: 'InvestmentRadar',
       path: '/investment/radar',
     })
@@ -489,7 +584,10 @@ function shouldAppendInvestmentRadarRouteMenus(menus: any[]) {
 
 export function appendProfileAuxiliaryRouteMenus(
   menus: any[],
-  options: { investmentScope?: InvestmentAuxiliaryScope } = {},
+  options: {
+    ensureCustomerAcquisition?: boolean;
+    investmentScope?: InvestmentAuxiliaryScope;
+  } = {},
 ) {
   const normalizedMenus = appendRouteMenus(
     menus,
@@ -506,12 +604,25 @@ export function appendProfileAuxiliaryRouteMenus(
     ]);
   }
 
-  if (!shouldAppendInvestmentRadarRouteMenus(normalizedMenus)) {
-    return normalizedMenus;
+  let routeMenus = normalizedMenus;
+  if (
+    options.ensureCustomerAcquisition &&
+    !shouldAppendInvestmentRadarRouteMenus(routeMenus)
+  ) {
+    routeMenus = appendRouteMenus(routeMenus, [
+      buildPublicCrawlRootRoute([
+        ...PUBLIC_CRAWL_AUXILIARY_ROUTE_MENUS,
+        ...PUBLIC_CRAWL_MOBILE_ROUTE_MENUS,
+      ]),
+    ]);
+  }
+
+  if (!shouldAppendInvestmentRadarRouteMenus(routeMenus)) {
+    return routeMenus;
   }
 
   const withRadarMenus = appendRouteMenus(
-    normalizedMenus,
+    routeMenus,
     INVESTMENT_RADAR_AUXILIARY_ROUTE_MENUS,
   );
   return appendChildRouteMenus(
@@ -520,12 +631,18 @@ export function appendProfileAuxiliaryRouteMenus(
       name: 'Investment',
       path: '/investment',
     },
-    INVESTMENT_MOBILE_APP_ROUTE_MENUS,
+    [
+      ...INVESTMENT_PC_ROUTE_MENUS,
+      CRM_CUSTOMER_ACQUISITION_ROUTE_MENU,
+      ...INVESTMENT_MOBILE_APP_ROUTE_MENUS,
+    ],
   );
 }
 
 export {
+  CRM_CUSTOMER_ACQUISITION_ROUTE_MENU,
   INVESTMENT_MOBILE_APP_ROUTE_MENUS,
+  INVESTMENT_PC_ROUTE_MENUS,
   INVESTMENT_RADAR_AUXILIARY_ROUTE_MENUS,
   PROFILE_AUXILIARY_ROUTE_MENUS,
   PUBLIC_CRAWL_AUXILIARY_ROUTE_MENUS,

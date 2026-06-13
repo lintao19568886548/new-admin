@@ -1,0 +1,5117 @@
+{
+  "databaseUrl": "mysql://root:***@127.0.0.1:3307/magic?timezone=Asia/Shanghai",
+  "generatedAt": "2026-06-10T09:06:58.443Z",
+  "limit": 10000,
+  "mode": "dry-run",
+  "sections": [
+    {
+      "count": 0,
+      "key": "unpaidWithReceiptTime",
+      "rows": [],
+      "title": "未收款但有收款时间"
+    },
+    {
+      "count": 0,
+      "key": "paidWithoutReceiptTime",
+      "rows": [],
+      "title": "有收款金额但无收款时间"
+    },
+    {
+      "count": 47,
+      "key": "receiptOverTotal",
+      "rows": [
+        {
+          "billId": 394,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市柯讯科技有限公司",
+          "receiptAmount": "159534.82",
+          "totalFee": "0.00",
+          "overpaidAmount": "159534.82",
+          "receiptTime": "2026-06-07T16:00:00.000Z"
+        },
+        {
+          "billId": 489,
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "receiptAmount": "49203.00",
+          "totalFee": "0.00",
+          "overpaidAmount": "49203.00",
+          "receiptTime": "2026-06-09T16:00:00.000Z"
+        },
+        {
+          "billId": 243,
+          "projectName": "2026年4月水电费，5月租金",
+          "tenantName": "东莞市泰利锐航机械科技有限公司",
+          "receiptAmount": "24398.00",
+          "totalFee": "0.00",
+          "overpaidAmount": "24398.00",
+          "receiptTime": "2026-05-20T16:00:00.000Z"
+        },
+        {
+          "billId": 369,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市慧锁智能科技有限公司",
+          "receiptAmount": "15079.00",
+          "totalFee": "0.00",
+          "overpaidAmount": "15079.00",
+          "receiptTime": "2026-06-05T16:00:00.000Z"
+        },
+        {
+          "billId": 327,
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "receiptAmount": "49203.00",
+          "totalFee": "40924.32",
+          "overpaidAmount": "8278.68",
+          "receiptTime": "2026-06-04T16:00:00.000Z"
+        },
+        {
+          "billId": 507,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "佛山市利他家具有限公司",
+          "receiptAmount": "54826.00",
+          "totalFee": "46969.22",
+          "overpaidAmount": "7856.78",
+          "receiptTime": "2026-06-09T16:00:00.000Z"
+        },
+        {
+          "billId": 452,
+          "projectName": "2026年5月水电费，2026年6月租金",
+          "tenantName": "东莞市佳意智能科技有限公司",
+          "receiptAmount": "13726.00",
+          "totalFee": "10848.66",
+          "overpaidAmount": "2877.34",
+          "receiptTime": "2026-06-08T16:00:00.000Z"
+        },
+        {
+          "billId": 418,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "黄世雄",
+          "receiptAmount": "39020.00",
+          "totalFee": "36615.18",
+          "overpaidAmount": "2404.82",
+          "receiptTime": "2026-06-08T16:00:00.000Z"
+        },
+        {
+          "billId": 102,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "东莞市宝峰电子科技有限公司",
+          "receiptAmount": "163213.00",
+          "totalFee": "161346.90",
+          "overpaidAmount": "1866.10",
+          "receiptTime": "2025-04-28T16:00:00.000Z"
+        },
+        {
+          "billId": 416,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "赛威能源科技有限公司",
+          "receiptAmount": "56334.00",
+          "totalFee": "55301.86",
+          "overpaidAmount": "1032.14",
+          "receiptTime": "2026-06-08T16:00:00.000Z"
+        },
+        {
+          "billId": 334,
+          "projectName": "2026年3月份房租、2026年2月份水 电",
+          "tenantName": "海腾世家",
+          "receiptAmount": "6439.00",
+          "totalFee": "5706.11",
+          "overpaidAmount": "732.89",
+          "receiptTime": "2026-06-04T16:00:00.000Z"
+        },
+        {
+          "billId": 505,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "静思睡眠科技（广东佛山）有限公司",
+          "receiptAmount": "31381.00",
+          "totalFee": "30694.80",
+          "overpaidAmount": "686.20",
+          "receiptTime": "2026-06-09T16:00:00.000Z"
+        },
+        {
+          "billId": 321,
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "tenantName": "慎根林（901）",
+          "receiptAmount": "11429.00",
+          "totalFee": "10767.79",
+          "overpaidAmount": "661.21",
+          "receiptTime": "2026-06-04T16:00:00.000Z"
+        },
+        {
+          "billId": 274,
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "tenantName": "慎根林（901）",
+          "receiptAmount": "11429.00",
+          "totalFee": "10978.48",
+          "overpaidAmount": "450.52",
+          "receiptTime": "2026-06-03T16:00:00.000Z"
+        },
+        {
+          "billId": 299,
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "tenantName": "慎根林（901）",
+          "receiptAmount": "11429.00",
+          "totalFee": "11172.75",
+          "overpaidAmount": "256.25",
+          "receiptTime": "2026-06-04T16:00:00.000Z"
+        },
+        {
+          "billId": 326,
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "tenantName": "梁志昌(202)",
+          "receiptAmount": "4562.00",
+          "totalFee": "4385.80",
+          "overpaidAmount": "176.20",
+          "receiptTime": "2026-06-04T16:00:00.000Z"
+        },
+        {
+          "billId": 509,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "深圳市柯讯科技有限公司",
+          "receiptAmount": "159534.82",
+          "totalFee": "159397.27",
+          "overpaidAmount": "137.55",
+          "receiptTime": "2026-06-09T16:00:00.000Z"
+        },
+        {
+          "billId": 310,
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "tenantName": "董振文（203）",
+          "receiptAmount": "3966.00",
+          "totalFee": "3838.10",
+          "overpaidAmount": "127.90",
+          "receiptTime": "2026-06-04T16:00:00.000Z"
+        },
+        {
+          "billId": 325,
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "tenantName": "董振文（203）",
+          "receiptAmount": "3966.00",
+          "totalFee": "3858.35",
+          "overpaidAmount": "107.65",
+          "receiptTime": "2026-06-04T16:00:00.000Z"
+        },
+        {
+          "billId": 503,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "东莞赛诺家居用品有限公司顺德分公司",
+          "receiptAmount": "47465.14",
+          "totalFee": "47360.42",
+          "overpaidAmount": "104.72",
+          "receiptTime": "2026-06-09T16:00:00.000Z"
+        },
+        {
+          "billId": 501,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "上海阿法迪智能数字科技有限公司",
+          "receiptAmount": "31151.00",
+          "totalFee": "31051.84",
+          "overpaidAmount": "99.16",
+          "receiptTime": "2026-06-09T16:00:00.000Z"
+        },
+        {
+          "billId": 481,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "董振文（203）",
+          "receiptAmount": "3966.00",
+          "totalFee": "3869.25",
+          "overpaidAmount": "96.75",
+          "receiptTime": "2026-06-09T16:00:00.000Z"
+        },
+        {
+          "billId": 493,
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "tenantName": "梁志昌(202)",
+          "receiptAmount": "4562.00",
+          "totalFee": "4484.40",
+          "overpaidAmount": "77.60",
+          "receiptTime": "2026-06-09T16:00:00.000Z"
+        },
+        {
+          "billId": 276,
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "tenantName": "梁志昌(202)",
+          "receiptAmount": "4562.00",
+          "totalFee": "4484.40",
+          "overpaidAmount": "77.60",
+          "receiptTime": "2026-06-03T16:00:00.000Z"
+        },
+        {
+          "billId": 285,
+          "projectName": "2026年4月份房租、2026年3月份水 电",
+          "tenantName": "海腾世家",
+          "receiptAmount": "6439.00",
+          "totalFee": "6362.00",
+          "overpaidAmount": "77.00",
+          "receiptTime": "2026-06-03T16:00:00.000Z"
+        },
+        {
+          "billId": 295,
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "tenantName": "董振文（203）",
+          "receiptAmount": "3966.00",
+          "totalFee": "3896.15",
+          "overpaidAmount": "69.85",
+          "receiptTime": "2026-06-04T16:00:00.000Z"
+        },
+        {
+          "billId": 121,
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "tenantName": "深圳市慧锁智能科技有限公司",
+          "receiptAmount": "15079.00",
+          "totalFee": "15048.71",
+          "overpaidAmount": "30.29",
+          "receiptTime": "2026-05-18T16:00:00.000Z"
+        },
+        {
+          "billId": 448,
+          "projectName": "2026年5月水电费，2026年6月租金",
+          "tenantName": "东莞市泰利锐航机械科技有限公司",
+          "receiptAmount": "24398.00",
+          "totalFee": "24369.25",
+          "overpaidAmount": "28.75",
+          "receiptTime": "2026-06-08T16:00:00.000Z"
+        },
+        {
+          "billId": 100,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "佛山市利他家具有限公司",
+          "receiptAmount": "53662.00",
+          "totalFee": "53637.87",
+          "overpaidAmount": "24.13",
+          "receiptTime": "2026-04-28T16:00:00.000Z"
+        },
+        {
+          "billId": 107,
+          "projectName": "2026年4月水电5月房租",
+          "tenantName": "广州东瀚国际货运代理有限公司",
+          "receiptAmount": "1868.00",
+          "totalFee": "1861.50",
+          "overpaidAmount": "6.50",
+          "receiptTime": "2026-05-18T16:00:00.000Z"
+        },
+        {
+          "billId": 404,
+          "projectName": "2026年5月水电6月房租",
+          "tenantName": "广州东瀚国际货运代理有限公司",
+          "receiptAmount": "1868.00",
+          "totalFee": "1866.00",
+          "overpaidAmount": "2.00",
+          "receiptTime": "2026-06-08T16:00:00.000Z"
+        },
+        {
+          "billId": 244,
+          "projectName": "2026年4月水电费，5月租金明细表",
+          "tenantName": "东莞市烛之芯科技有限公司",
+          "receiptAmount": "25555.00",
+          "totalFee": "25554.50",
+          "overpaidAmount": "0.50",
+          "receiptTime": "2026-05-20T16:00:00.000Z"
+        },
+        {
+          "billId": 89,
+          "projectName": "2026年2月水电3月房租",
+          "tenantName": "广州东瀚国际货运代理有限公司",
+          "receiptAmount": "1868.00",
+          "totalFee": "1867.50",
+          "overpaidAmount": "0.50",
+          "receiptTime": "2026-03-05T16:00:00.000Z"
+        },
+        {
+          "billId": 90,
+          "projectName": "2026年1月水电2月房租",
+          "tenantName": "赵歌",
+          "receiptAmount": "13672.00",
+          "totalFee": "13671.60",
+          "overpaidAmount": "0.40",
+          "receiptTime": "2026-02-25T16:00:00.000Z"
+        },
+        {
+          "billId": 240,
+          "projectName": "2026年4月水电费，5月租金明细表",
+          "tenantName": "王魏",
+          "receiptAmount": "98912.00",
+          "totalFee": "98911.61",
+          "overpaidAmount": "0.39",
+          "receiptTime": "2026-05-20T16:00:00.000Z"
+        },
+        {
+          "billId": 155,
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "tenantName": "虹运仓储有限公司",
+          "receiptAmount": "34067.00",
+          "totalFee": "34066.68",
+          "overpaidAmount": "0.32",
+          "receiptTime": "2026-05-19T16:00:00.000Z"
+        },
+        {
+          "billId": 208,
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "tenantName": "梁志昌(202)",
+          "receiptAmount": "4562.00",
+          "totalFee": "4561.69",
+          "overpaidAmount": "0.31",
+          "receiptTime": "2026-05-19T16:00:00.000Z"
+        },
+        {
+          "billId": 94,
+          "projectName": "2026年2月份水电、2026年3月份房租",
+          "tenantName": "佛山市利他家具有限公司",
+          "receiptAmount": "52790.00",
+          "totalFee": "52789.70",
+          "overpaidAmount": "0.30",
+          "receiptTime": "2026-03-16T16:00:00.000Z"
+        },
+        {
+          "billId": 152,
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "tenantName": "赛威能源科技有限公司",
+          "receiptAmount": "56334.00",
+          "totalFee": "56333.71",
+          "overpaidAmount": "0.29",
+          "receiptTime": "2026-05-19T16:00:00.000Z"
+        },
+        {
+          "billId": 214,
+          "projectName": "2026年4月水电费，5月租金明细表",
+          "tenantName": "温通洲",
+          "receiptAmount": "6702.00",
+          "totalFee": "6701.75",
+          "overpaidAmount": "0.25",
+          "receiptTime": "2026-05-19T16:00:00.000Z"
+        },
+        {
+          "billId": 210,
+          "projectName": "2026年4月水电费，5月租金明细表",
+          "tenantName": "东莞市榴香贸易有限公司",
+          "receiptAmount": "27793.00",
+          "totalFee": "27792.75",
+          "overpaidAmount": "0.25",
+          "receiptTime": "2026-05-19T16:00:00.000Z"
+        },
+        {
+          "billId": 185,
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "tenantName": "李帆",
+          "receiptAmount": "9753.00",
+          "totalFee": "9752.82",
+          "overpaidAmount": "0.18",
+          "receiptTime": "2026-05-19T16:00:00.000Z"
+        },
+        {
+          "billId": 206,
+          "projectName": "2026年4月水电费，5月租金",
+          "tenantName": "东莞市佳意智能科技有限公司",
+          "receiptAmount": "13726.00",
+          "totalFee": "13725.90",
+          "overpaidAmount": "0.10",
+          "receiptTime": "2026-05-19T16:00:00.000Z"
+        },
+        {
+          "billId": 194,
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "tenantName": "刘笑萍（502）",
+          "receiptAmount": "17261.00",
+          "totalFee": "17260.90",
+          "overpaidAmount": "0.10",
+          "receiptTime": "2026-05-19T16:00:00.000Z"
+        },
+        {
+          "billId": 147,
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "tenantName": "黄世雄",
+          "receiptAmount": "39020.00",
+          "totalFee": "39019.91",
+          "overpaidAmount": "0.09",
+          "receiptTime": "2026-05-19T16:00:00.000Z"
+        },
+        {
+          "billId": 104,
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "tenantName": "佛山市利他家具有限公司",
+          "receiptAmount": "54826.00",
+          "totalFee": "54825.91",
+          "overpaidAmount": "0.09",
+          "receiptTime": "2026-05-18T16:00:00.000Z"
+        },
+        {
+          "billId": 83,
+          "projectName": "2026年1月水电2月房租",
+          "tenantName": "王荣玲",
+          "receiptAmount": "18235.00",
+          "totalFee": "18234.98",
+          "overpaidAmount": "0.02",
+          "receiptTime": "2026-02-01T16:00:00.000Z"
+        }
+      ],
+      "title": "收款金额大于应收金额"
+    },
+    {
+      "count": 0,
+      "key": "financeMismatch",
+      "rows": [],
+      "title": "已收款账单与财务流水不一致"
+    },
+    {
+      "count": 0,
+      "key": "eleTotalRows",
+      "rows": [],
+      "title": "电费明细保存了合计行"
+    },
+    {
+      "count": 0,
+      "key": "waterTotalRows",
+      "rows": [],
+      "title": "水费明细保存了合计行"
+    },
+    {
+      "count": 52,
+      "key": "emptyOrZeroBills",
+      "rows": [
+        {
+          "billId": 489,
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "totalFee": "0.00",
+          "receiptAmount": "49203.00",
+          "createTime": "2026-06-09T18:31:05.097Z"
+        },
+        {
+          "billId": 445,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "刘宝初",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T23:31:06.495Z"
+        },
+        {
+          "billId": 444,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "方海兵",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T23:27:26.532Z"
+        },
+        {
+          "billId": 443,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市精宝鼎五金电子有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T23:20:27.401Z"
+        },
+        {
+          "billId": 442,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市鼎鑫宜实验设备有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T23:14:52.236Z"
+        },
+        {
+          "billId": 440,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市晟龙金属工艺礼品有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T23:11:46.879Z"
+        },
+        {
+          "billId": 439,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "程雄飞",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T23:09:13.241Z"
+        },
+        {
+          "billId": 438,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "程雄飞",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T23:07:06.217Z"
+        },
+        {
+          "billId": 437,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市誉隆新材料有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T23:05:48.098Z"
+        },
+        {
+          "billId": 436,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市勤奋电子有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T22:59:19.351Z"
+        },
+        {
+          "billId": 435,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "文革",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T22:56:42.988Z"
+        },
+        {
+          "billId": 397,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市鼎力世纪塑胶制品有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T00:39:03.747Z"
+        },
+        {
+          "billId": 396,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市科捷盛伟业电子有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T00:36:35.813Z"
+        },
+        {
+          "billId": 395,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市信诺安全技术有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T00:32:26.332Z"
+        },
+        {
+          "billId": 394,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市柯讯科技有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "159534.82",
+          "createTime": "2026-06-08T00:26:56.236Z"
+        },
+        {
+          "billId": 393,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市永铸五金制品有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T00:23:21.015Z"
+        },
+        {
+          "billId": 392,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "张慧强",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T00:18:16.535Z"
+        },
+        {
+          "billId": 391,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "蒋征明",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T00:17:00.488Z"
+        },
+        {
+          "billId": 390,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市坪山新区巾洁仕干洗店",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T00:08:59.882Z"
+        },
+        {
+          "billId": 389,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市卓立燊塑胶制品有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T00:07:32.467Z"
+        },
+        {
+          "billId": 388,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T00:05:40.542Z"
+        },
+        {
+          "billId": 387,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T00:02:50.516Z"
+        },
+        {
+          "billId": 386,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市恒利华科技有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T00:00:54.329Z"
+        },
+        {
+          "billId": 385,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市俊霖有机玻璃制品有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-07T23:55:27.529Z"
+        },
+        {
+          "billId": 384,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市新忠诚模具有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-07T23:51:06.699Z"
+        },
+        {
+          "billId": 383,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳贰叁柒柒电子商务有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-07T23:47:09.918Z"
+        },
+        {
+          "billId": 382,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "陈一斌",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-06T01:35:31.267Z"
+        },
+        {
+          "billId": 381,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "倪光正",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-06T01:34:03.090Z"
+        },
+        {
+          "billId": 380,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市镭铭电子有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-06T01:30:22.831Z"
+        },
+        {
+          "billId": 379,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "吴英军",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-06T01:29:18.862Z"
+        },
+        {
+          "billId": 378,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市麟心礼品有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-06T01:27:52.816Z"
+        },
+        {
+          "billId": 377,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市盛慧科技有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-06T01:25:54.403Z"
+        },
+        {
+          "billId": 376,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市永旭胶粘制品有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-06T01:23:55.201Z"
+        },
+        {
+          "billId": 375,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市冰清泉净水设备有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-06T01:19:56.687Z"
+        },
+        {
+          "billId": 374,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市奥利斯科技有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-06T01:18:06.141Z"
+        },
+        {
+          "billId": 373,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "曹春晓",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-06T01:15:54.293Z"
+        },
+        {
+          "billId": 372,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市影士威科技有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-06T01:13:27.896Z"
+        },
+        {
+          "billId": 369,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市慧锁智能科技有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "15079.00",
+          "createTime": "2026-06-06T01:05:16.109Z"
+        },
+        {
+          "billId": 366,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市同元科技有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-06T00:05:37.521Z"
+        },
+        {
+          "billId": 315,
+          "projectName": "",
+          "tenantName": null,
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-05T00:07:59.788Z"
+        },
+        {
+          "billId": 268,
+          "projectName": "",
+          "tenantName": null,
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-03T19:45:22.221Z"
+        },
+        {
+          "billId": 266,
+          "projectName": "",
+          "tenantName": null,
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-03T19:28:56.025Z"
+        },
+        {
+          "billId": 264,
+          "projectName": "",
+          "tenantName": null,
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-03T19:27:59.952Z"
+        },
+        {
+          "billId": 263,
+          "projectName": "",
+          "tenantName": null,
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-03T19:27:08.302Z"
+        },
+        {
+          "billId": 262,
+          "projectName": "",
+          "tenantName": null,
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-03T19:25:40.484Z"
+        },
+        {
+          "billId": 261,
+          "projectName": "",
+          "tenantName": null,
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-03T19:24:55.843Z"
+        },
+        {
+          "billId": 260,
+          "projectName": "",
+          "tenantName": null,
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-03T19:24:46.451Z"
+        },
+        {
+          "billId": 259,
+          "projectName": "",
+          "tenantName": null,
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-03T19:24:34.439Z"
+        },
+        {
+          "billId": 258,
+          "projectName": "",
+          "tenantName": null,
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-03T19:03:24.265Z"
+        },
+        {
+          "billId": 243,
+          "projectName": "2026年4月水电费，5月租金",
+          "tenantName": "东莞市泰利锐航机械科技有限公司",
+          "totalFee": "0.00",
+          "receiptAmount": "24398.00",
+          "createTime": "2026-05-20T18:12:35.083Z"
+        },
+        {
+          "billId": 127,
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "tenantName": "许远东",
+          "totalFee": "0.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-05-19T02:57:51.580Z"
+        },
+        {
+          "billId": 77,
+          "projectName": "",
+          "tenantName": "上海萃信农业科技发展有限公司",
+          "totalFee": "13923.00",
+          "receiptAmount": "0.00",
+          "createTime": "2026-03-10T23:58:45.801Z"
+        }
+      ],
+      "title": "空项目/空租户/零金额账单"
+    },
+    {
+      "count": 3,
+      "key": "totalFeeComponentMismatch",
+      "rows": [
+        {
+          "billId": 54,
+          "projectName": "2025年5月水电6月房租",
+          "tenantName": "吴弯弯",
+          "totalFee": "17357.50",
+          "componentTotal": "17479.00",
+          "diffAmount": "-121.50"
+        },
+        {
+          "billId": 55,
+          "projectName": "2025年5月水电6月房租",
+          "tenantName": "东莞市佳意智能科技有限公司",
+          "totalFee": "14156.75",
+          "componentTotal": "14180.75",
+          "diffAmount": "-24.00"
+        },
+        {
+          "billId": 58,
+          "projectName": "2025年5月水电6月房租",
+          "tenantName": "段春明",
+          "totalFee": "1173.40",
+          "componentTotal": "1176.40",
+          "diffAmount": "-3.00"
+        }
+      ],
+      "title": "应收总额与费用项合计不一致"
+    },
+    {
+      "count": 4,
+      "key": "eleFeeDetailMismatch",
+      "rows": [
+        {
+          "billId": 126,
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "tenantName": "广州国靖办公家具有限公司",
+          "eleFee": "38348.50",
+          "detailAmount": "31665.60",
+          "diffAmount": "6682.90"
+        },
+        {
+          "billId": 243,
+          "projectName": "2026年4月水电费，5月租金",
+          "tenantName": "东莞市泰利锐航机械科技有限公司",
+          "eleFee": "0.00",
+          "detailAmount": "3295.00",
+          "diffAmount": "-3295.00"
+        },
+        {
+          "billId": 87,
+          "projectName": "2026年2月水电3月房租",
+          "tenantName": "李气圣",
+          "eleFee": "17281.35",
+          "detailAmount": "17281.33",
+          "diffAmount": "0.02"
+        },
+        {
+          "billId": 85,
+          "projectName": "2026年1月水电2月房租",
+          "tenantName": "李气圣",
+          "eleFee": "31968.88",
+          "detailAmount": "31968.86",
+          "diffAmount": "0.02"
+        }
+      ],
+      "title": "电费总账与电费明细合计不一致"
+    },
+    {
+      "count": 8,
+      "key": "waterFeeDetailMismatch",
+      "rows": [
+        {
+          "billId": 127,
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "tenantName": "许远东",
+          "waterFee": "0.00",
+          "detailAmount": "322.50",
+          "diffAmount": "-322.50"
+        },
+        {
+          "billId": 489,
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "waterFee": "0.00",
+          "detailAmount": "135.00",
+          "diffAmount": "-135.00"
+        },
+        {
+          "billId": 54,
+          "projectName": "2025年5月水电6月房租",
+          "tenantName": "吴弯弯",
+          "waterFee": "405.00",
+          "detailAmount": "283.50",
+          "diffAmount": "121.50"
+        },
+        {
+          "billId": 38,
+          "projectName": "2025年5月水电6月房租",
+          "tenantName": "邮政邦昊",
+          "waterFee": "310.00",
+          "detailAmount": "217.00",
+          "diffAmount": "93.00"
+        },
+        {
+          "billId": 55,
+          "projectName": "2025年5月水电6月房租",
+          "tenantName": "东莞市佳意智能科技有限公司",
+          "waterFee": "180.00",
+          "detailAmount": "156.00",
+          "diffAmount": "24.00"
+        },
+        {
+          "billId": 57,
+          "projectName": "2025年5月水电6月房租",
+          "tenantName": "温通洲",
+          "waterFee": "80.00",
+          "detailAmount": "74.00",
+          "diffAmount": "6.00"
+        },
+        {
+          "billId": 40,
+          "projectName": "2025年5月水电6月房租",
+          "tenantName": "罗进",
+          "waterFee": "15.00",
+          "detailAmount": "10.50",
+          "diffAmount": "4.50"
+        },
+        {
+          "billId": 58,
+          "projectName": "2025年5月水电6月房租",
+          "tenantName": "段春明",
+          "waterFee": "31.00",
+          "detailAmount": "28.00",
+          "diffAmount": "3.00"
+        }
+      ],
+      "title": "水费总账与水费明细合计不一致"
+    },
+    {
+      "count": 2,
+      "key": "projectYearOutlier",
+      "rows": [
+        {
+          "billId": 412,
+          "projectName": "2026年6月份房租、2024年5月份水电",
+          "tenantName": "叶茂刚",
+          "totalFee": "2.60",
+          "receiptAmount": "0.00",
+          "createTime": "2026-06-08T18:26:50.697Z"
+        },
+        {
+          "billId": 159,
+          "projectName": "2026年5月份房租、2024年4月份水电",
+          "tenantName": "叶茂刚",
+          "totalFee": "5005.20",
+          "receiptAmount": "0.00",
+          "createTime": "2026-05-19T23:10:31.347Z"
+        }
+      ],
+      "title": "项目名年份疑似异常"
+    },
+    {
+      "count": 12,
+      "key": "duplicateTenantProjectBills",
+      "rows": [
+        {
+          "parkId": 33,
+          "projectName": "",
+          "tenantName": null,
+          "duplicateCount": 8,
+          "billIds": "266,264,263,262,261,260,259,258",
+          "totalFee": "0.00"
+        },
+        {
+          "parkId": 14,
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "tenantName": "广州国靖办公家具有限公司",
+          "duplicateCount": 2,
+          "billIds": "126,125",
+          "totalFee": "482749.42"
+        },
+        {
+          "parkId": 14,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "佛山市利他家具有限公司",
+          "duplicateCount": 2,
+          "billIds": "101,100",
+          "totalFee": "108333.42"
+        },
+        {
+          "parkId": 17,
+          "projectName": "2026年4月水电费，5月租金明细表",
+          "tenantName": "东莞市榴香贸易有限公司",
+          "duplicateCount": 2,
+          "billIds": "213,210",
+          "totalFee": "68085.50"
+        },
+        {
+          "parkId": 25,
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "tenantName": "刘笑萍（502）",
+          "duplicateCount": 2,
+          "billIds": "329,306",
+          "totalFee": "42588.70"
+        },
+        {
+          "parkId": 21,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "duplicateCount": 2,
+          "billIds": "547,546",
+          "totalFee": "32442.62"
+        },
+        {
+          "parkId": 21,
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "duplicateCount": 2,
+          "billIds": "146,145",
+          "totalFee": "31887.57"
+        },
+        {
+          "parkId": 21,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "文革",
+          "duplicateCount": 2,
+          "billIds": "539,535",
+          "totalFee": "28189.35"
+        },
+        {
+          "parkId": 25,
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "tenantName": "刘笑萍（502）",
+          "duplicateCount": 2,
+          "billIds": "484,253",
+          "totalFee": "26163.52"
+        },
+        {
+          "parkId": 25,
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "tenantName": "梁志昌(202)",
+          "duplicateCount": 2,
+          "billIds": "276,208",
+          "totalFee": "9046.09"
+        },
+        {
+          "parkId": 21,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "duplicateCount": 2,
+          "billIds": "388,387",
+          "totalFee": "0.00"
+        },
+        {
+          "parkId": 21,
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "tenantName": "程雄飞",
+          "duplicateCount": 2,
+          "billIds": "439,438",
+          "totalFee": "0.00"
+        }
+      ],
+      "title": "同园区/同项目/同租户疑似重复账单"
+    },
+    {
+      "count": 0,
+      "key": "originalTextPercentPollution",
+      "rows": [],
+      "title": "金额 originalText 保存了百分比展示值"
+    },
+    {
+      "count": 0,
+      "key": "malformedFormulaOriginalText",
+      "rows": [],
+      "title": "金额公式 originalText 疑似粘入多余单元格引用"
+    },
+    {
+      "count": 394,
+      "key": "percentFormulaOriginalText",
+      "rows": [
+        {
+          "billId": 564,
+          "fieldName": "amount",
+          "originalText": "=H11*8%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市同元科技有限公司",
+          "value": 71.71
+        },
+        {
+          "billId": 564,
+          "fieldName": "amount",
+          "originalText": "=B23*9%+B22*9%+B21*13%+B26*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市同元科技有限公司",
+          "value": 3133.92
+        },
+        {
+          "billId": 562,
+          "fieldName": "amount",
+          "originalText": "=H9*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市影士威科技有限公司",
+          "value": 351.85
+        },
+        {
+          "billId": 562,
+          "fieldName": "amount",
+          "originalText": "=B18*9%+B17*9%+B16*13%+B19*13%+B21*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市影士威科技有限公司",
+          "value": 2089.85
+        },
+        {
+          "billId": 561,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "曹春晓",
+          "value": 335.75
+        },
+        {
+          "billId": 560,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市奥利斯科技有限公司",
+          "value": 109.89
+        },
+        {
+          "billId": 559,
+          "fieldName": "amount",
+          "originalText": "=H10*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市冰清泉净水设备有限公司",
+          "value": 319.27
+        },
+        {
+          "billId": 559,
+          "fieldName": "amount",
+          "originalText": "=B21*9%+B20*9%+(B19+B22+B24)*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市冰清泉净水设备有限公司",
+          "value": 2403.04
+        },
+        {
+          "billId": 558,
+          "fieldName": "amount",
+          "originalText": "=(B19+B20)*9%+(B18+B21)*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市永旭胶粘制品有限公司",
+          "value": 1691.58
+        },
+        {
+          "billId": 557,
+          "fieldName": "amount",
+          "originalText": "=H9*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市博亚电磁科技有限公司",
+          "value": 71.86
+        },
+        {
+          "billId": 556,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市麟心礼品有限公司",
+          "value": 20.52
+        },
+        {
+          "billId": 555,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "吴英军",
+          "value": 31.86
+        },
+        {
+          "billId": 554,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市镭铭电子有限公司",
+          "value": 26.6
+        },
+        {
+          "billId": 553,
+          "fieldName": "amount",
+          "originalText": "=H7*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "倪光正",
+          "value": 30.51
+        },
+        {
+          "billId": 552,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "陈一斌",
+          "value": 39.15
+        },
+        {
+          "billId": 551,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳贰叁柒柒电子商务有限公司",
+          "value": 47.45
+        },
+        {
+          "billId": 550,
+          "fieldName": "amount",
+          "originalText": "=H10*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市新忠诚模具有限公司",
+          "value": 81.44
+        },
+        {
+          "billId": 550,
+          "fieldName": "amount",
+          "originalText": "=(B21+B22+B23+B24+B26+B29)*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市新忠诚模具有限公司",
+          "value": 3472.83
+        },
+        {
+          "billId": 549,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7+H8+H9+H10+H11+H13)*10%+D12*G12*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市俊霖有机玻璃制品有限公司",
+          "value": 249.86
+        },
+        {
+          "billId": 549,
+          "fieldName": "amount",
+          "originalText": "=(B24+B25+B26+B29)*8%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市俊霖有机玻璃制品有限公司",
+          "value": 4386.77
+        },
+        {
+          "billId": 548,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7+H8+H9+H10+H11+H12+H14)*10%+D13*G13*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市恒利华科技有限公司",
+          "value": 118.23
+        },
+        {
+          "billId": 548,
+          "fieldName": "amount",
+          "originalText": "=(B25+B26+B27+B28+B30)*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市恒利华科技有限公司",
+          "value": 2705.26
+        },
+        {
+          "billId": 547,
+          "fieldName": "amount",
+          "originalText": "=H8*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "value": 13
+        },
+        {
+          "billId": 546,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "value": 82.63
+        },
+        {
+          "billId": 546,
+          "fieldName": "amount",
+          "originalText": "=(B18+B21+B23+B26)*13%+(B19+B20)*9%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "value": 1371.17
+        },
+        {
+          "billId": 545,
+          "fieldName": "amount",
+          "originalText": "=H9*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市卓立燊塑胶制品有限公司",
+          "value": 39.7
+        },
+        {
+          "billId": 544,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市坪山新区巾洁仕干洗店",
+          "value": 34.72
+        },
+        {
+          "billId": 543,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "蒋征明",
+          "value": 382.83
+        },
+        {
+          "billId": 542,
+          "fieldName": "amount",
+          "originalText": "=H7*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "张慧强",
+          "value": 46.31
+        },
+        {
+          "billId": 541,
+          "fieldName": "amount",
+          "originalText": "=B27*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市永铸五金制品有限公司",
+          "value": 37.29
+        },
+        {
+          "billId": 541,
+          "fieldName": "amount",
+          "originalText": "=(B27+B28+B30+B32+B35)*13%+B29*9%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市永铸五金制品有限公司",
+          "value": 2111.97
+        },
+        {
+          "billId": 540,
+          "fieldName": "amount",
+          "originalText": "=B25*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市信诺安全技术有限公司",
+          "value": 95.7
+        },
+        {
+          "billId": 540,
+          "fieldName": "amount",
+          "originalText": "=(B27+B26)*9%+(B25+B30)*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市信诺安全技术有限公司",
+          "value": 2449.22
+        },
+        {
+          "billId": 538,
+          "fieldName": "amount",
+          "originalText": "=B18*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市耀江精密五金科技有限公司",
+          "value": 13.13
+        },
+        {
+          "billId": 537,
+          "fieldName": "amount",
+          "originalText": "=(B28+B29+B32)*9%+B27*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市科捷盛伟业电子有限公司",
+          "value": 2536.78
+        },
+        {
+          "billId": 536,
+          "fieldName": "amount",
+          "originalText": "=H8*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鼎力世纪塑胶制品有限公司",
+          "value": 0
+        },
+        {
+          "billId": 535,
+          "fieldName": "amount",
+          "originalText": "=H10*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "文革",
+          "value": 56.49
+        },
+        {
+          "billId": 535,
+          "fieldName": "amount",
+          "originalText": "=(B21+B22+B23+B26)*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "文革",
+          "value": 2840.03
+        },
+        {
+          "billId": 534,
+          "fieldName": "amount",
+          "originalText": "=H8*5%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市勤奋电子有限公司",
+          "value": 6.6
+        },
+        {
+          "billId": 533,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市誉隆新材料有限公司",
+          "value": 91.04
+        },
+        {
+          "billId": 533,
+          "fieldName": "amount",
+          "originalText": "=(B22+B23+B25+B27+B30)*5%+B24*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市誉隆新材料有限公司",
+          "value": 2687.82
+        },
+        {
+          "billId": 532,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "程雄飞",
+          "value": 41.86
+        },
+        {
+          "billId": 531,
+          "fieldName": "amount",
+          "originalText": "=H6*10%+H7*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市晟龙金属工艺礼品有限公司",
+          "value": 119.21
+        },
+        {
+          "billId": 529,
+          "fieldName": "amount",
+          "originalText": "=H9*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鼎鑫宜实验设备有限公司",
+          "value": 163.28
+        },
+        {
+          "billId": 528,
+          "fieldName": "amount",
+          "originalText": "=B26*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市精宝鼎五金电子有限公司",
+          "value": 88.53
+        },
+        {
+          "billId": 528,
+          "fieldName": "amount",
+          "originalText": "=B28*10%+(B26+B31+B34)*13%+B27*9%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市精宝鼎五金电子有限公司",
+          "value": 3382.72
+        },
+        {
+          "billId": 527,
+          "fieldName": "amount",
+          "originalText": "=H10*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "方海兵",
+          "value": 73.19
+        },
+        {
+          "billId": 526,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "刘宝初",
+          "value": 151.06
+        },
+        {
+          "billId": 510,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市慧锁智能科技有限公司",
+          "value": 108.54
+        },
+        {
+          "billId": 509,
+          "fieldName": "amount",
+          "originalText": "=B19*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市柯讯科技有限公司",
+          "value": 73.89
+        },
+        {
+          "billId": 509,
+          "fieldName": "amount",
+          "originalText": "=B21*13%+(B19+B24)*2%+(B20+B22)*9%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市柯讯科技有限公司",
+          "value": 14518.08
+        },
+        {
+          "billId": 507,
+          "fieldName": "amount",
+          "originalText": "=B14*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "佛山市利他家具有限公司",
+          "value": 373.2
+        },
+        {
+          "billId": 507,
+          "fieldName": "amount",
+          "originalText": "=(+B15+B16)*13%+(+B14+B17+B18+B19)*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "佛山市利他家具有限公司",
+          "value": 5264.02
+        },
+        {
+          "billId": 506,
+          "fieldName": "amount",
+          "originalText": "=B15*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "佛山市天耀机械有限公司",
+          "value": 399.73
+        },
+        {
+          "billId": 506,
+          "fieldName": "amount",
+          "originalText": "=(B15+B16+B17+B18+B19+B20)*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "佛山市天耀机械有限公司",
+          "value": 5833.36
+        },
+        {
+          "billId": 505,
+          "fieldName": "amount",
+          "originalText": "=B14*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "静思睡眠科技（广东佛山）有限公司",
+          "value": 326.8
+        },
+        {
+          "billId": 503,
+          "fieldName": "amount",
+          "originalText": "=B14*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞赛诺家居用品有限公司顺德分公司",
+          "value": 141.86
+        },
+        {
+          "billId": 502,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "梁恒铭先生",
+          "value": 123.01
+        },
+        {
+          "billId": 501,
+          "fieldName": "amount",
+          "originalText": "=B14*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "上海阿法迪智能数字科技有限公司",
+          "value": 279.5
+        },
+        {
+          "billId": 501,
+          "fieldName": "amount",
+          "originalText": "=(+B14+B15+B17+B18+B19)*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "上海阿法迪智能数字科技有限公司",
+          "value": 478.34
+        },
+        {
+          "billId": 500,
+          "fieldName": "amount",
+          "originalText": "=B14*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "佛山诚霞家具有限公司",
+          "value": 208.65
+        },
+        {
+          "billId": 500,
+          "fieldName": "amount",
+          "originalText": "=(+B14+B15+B16+B17+B18+B19)*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "佛山诚霞家具有限公司",
+          "value": 3757.15
+        },
+        {
+          "billId": 499,
+          "fieldName": "amount",
+          "originalText": "=B14*13%+F6*0.25",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "佛山市春丰家具有限公司",
+          "value": 1024.46
+        },
+        {
+          "billId": 499,
+          "fieldName": "amount",
+          "originalText": "=(B15+B19)*13%+3800*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "佛山市春丰家具有限公司",
+          "value": 637.42
+        },
+        {
+          "billId": 498,
+          "fieldName": "amount",
+          "originalText": "=B14*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "欧湘宁",
+          "value": 147.68
+        },
+        {
+          "billId": 496,
+          "fieldName": "amount",
+          "originalText": "=B20*22%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "广州国靖办公家具有限公司",
+          "value": 71481.16
+        },
+        {
+          "billId": 494,
+          "fieldName": "amount",
+          "originalText": "=B15*10%+190*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李会(6楼）",
+          "value": 1427.36
+        },
+        {
+          "billId": 493,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "梁志昌(202)",
+          "value": 1
+        },
+        {
+          "billId": 493,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "梁志昌(202)",
+          "value": 28
+        },
+        {
+          "billId": 492,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "孔琴（201）",
+          "value": 13
+        },
+        {
+          "billId": 489,
+          "fieldName": "amount",
+          "originalText": "=(+H13+H14)*10%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "value": null
+        },
+        {
+          "billId": 489,
+          "fieldName": "amount",
+          "originalText": "=B19*13%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "value": 0
+        },
+        {
+          "billId": 488,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年6月份房租、2026年5月份水 电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "海腾世家",
+          "value": 159.25
+        },
+        {
+          "billId": 487,
+          "fieldName": "amount",
+          "originalText": "=H7*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "朱爱媛（501）",
+          "value": 11.44
+        },
+        {
+          "billId": 486,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李帆",
+          "value": 181.01
+        },
+        {
+          "billId": 485,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李先勇（7楼）",
+          "value": 516.1
+        },
+        {
+          "billId": 485,
+          "fieldName": "amount",
+          "originalText": "=5000*4%+(+B15+B16+B18+B19+B20+13000)*1%+20000*1%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "李先勇（7楼）",
+          "value": 581.16
+        },
+        {
+          "billId": 484,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "刘笑萍（502）",
+          "value": 7.5
+        },
+        {
+          "billId": 484,
+          "fieldName": "amount",
+          "originalText": "=5000*5%+(B17+B18)*1%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "刘笑萍（502）",
+          "value": 318.72
+        },
+        {
+          "billId": 483,
+          "fieldName": "amount",
+          "originalText": "=H11*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "衡龙顺发泡材料有限公司(402)",
+          "value": 3.5
+        },
+        {
+          "billId": 483,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "衡龙顺发泡材料有限公司(402)",
+          "value": 78.23
+        },
+        {
+          "billId": 482,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "公共用电",
+          "source": "eleItem",
+          "tenantName": "陈宇春（401）",
+          "value": 120
+        },
+        {
+          "billId": 482,
+          "fieldName": "amount",
+          "originalText": "=H11*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "陈宇春（401）",
+          "value": 7.5
+        },
+        {
+          "billId": 482,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "陈宇春（401）",
+          "value": 171.6
+        },
+        {
+          "billId": 480,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "慎根林（901）",
+          "value": 181.03
+        },
+        {
+          "billId": 479,
+          "fieldName": "amount",
+          "originalText": "=B19*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "赵红健（802）",
+          "value": 88.25
+        },
+        {
+          "billId": 478,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "梁志昌(202)",
+          "value": 41.42
+        },
+        {
+          "billId": 477,
+          "fieldName": "amount",
+          "originalText": "=(+H13+H14+H15)*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "value": 13
+        },
+        {
+          "billId": 477,
+          "fieldName": "amount",
+          "originalText": "=B19*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "value": 1859.1
+        },
+        {
+          "billId": 459,
+          "fieldName": "amount",
+          "originalText": "=(B25+B28)*9%",
+          "projectName": "2026年5月水电费，2026年6月租金",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市宝峰电子科技有限公司",
+          "value": 179.9
+        },
+        {
+          "billId": 458,
+          "fieldName": "amount",
+          "originalText": "=B21*3%",
+          "projectName": "2026年5月水电 、2026年6月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市奔成机械科技有限公司",
+          "value": 149.52
+        },
+        {
+          "billId": 458,
+          "fieldName": "amount",
+          "originalText": "=B23*11%",
+          "projectName": "2026年5月水电 、2026年6月房租",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市奔成机械科技有限公司",
+          "value": 5280
+        },
+        {
+          "billId": 457,
+          "fieldName": "amount",
+          "originalText": "=B22*11%+(F6+F7+F8+F9)*0.1",
+          "projectName": "2026年5月水电费，2026年6月租金",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市隆星鞋材有限公司",
+          "value": 9630.42
+        },
+        {
+          "billId": 456,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月水电费，2026年6月租金",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "刘紫鸿",
+          "value": 185.43
+        },
+        {
+          "billId": 452,
+          "fieldName": "amount",
+          "originalText": "=B15*6%+F6*0.1",
+          "projectName": "2026年5月水电费，2026年6月租金",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市佳意智能科技有限公司",
+          "value": 81.66
+        },
+        {
+          "billId": 451,
+          "fieldName": "amount",
+          "originalText": "=B22*3%",
+          "projectName": "2026年5月水电费，2026年6月租金",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市榴香贸易有限公司",
+          "value": 615.34
+        },
+        {
+          "billId": 451,
+          "fieldName": "amount",
+          "originalText": "=(B22+B23+B25+B26+B27)*5%",
+          "projectName": "2026年5月水电费，2026年6月租金",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市榴香贸易有限公司",
+          "value": 1087.58
+        },
+        {
+          "billId": 450,
+          "fieldName": "amount",
+          "originalText": "=B18*3%+10*1.5",
+          "projectName": "2026年5月水电费，2026年6月租金",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "温通洲",
+          "value": 109.28
+        },
+        {
+          "billId": 449,
+          "fieldName": "amount",
+          "originalText": "=B18*13%",
+          "projectName": "2026年5月水电费，2026年6月租金",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "广东三众智能泵业有限公司",
+          "value": 171.65
+        },
+        {
+          "billId": 449,
+          "fieldName": "amount",
+          "originalText": "=5000*13%",
+          "projectName": "2026年5月水电费，2026年6月租金",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "广东三众智能泵业有限公司",
+          "value": 650
+        },
+        {
+          "billId": 447,
+          "fieldName": "amount",
+          "originalText": "=H12*3%",
+          "projectName": "2026年5月水电费，2026年6月租金",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市烛之芯科技有限公司",
+          "value": 192.26
+        },
+        {
+          "billId": 446,
+          "fieldName": "amount",
+          "originalText": "=(F6+F7+F8)*10%+H10*10%",
+          "projectName": "2026年5月水电、2026年6月 租金",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "林尚海",
+          "value": 636.4
+        },
+        {
+          "billId": 445,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "刘宝初",
+          "value": 0
+        },
+        {
+          "billId": 444,
+          "fieldName": "amount",
+          "originalText": "=H13*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "方海兵",
+          "value": 0
+        },
+        {
+          "billId": 443,
+          "fieldName": "amount",
+          "originalText": "=B28*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市精宝鼎五金电子有限公司",
+          "value": 0
+        },
+        {
+          "billId": 443,
+          "fieldName": "amount",
+          "originalText": "=B30*10%+(B28+B33+B31)*13%+(B29)*9%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市精宝鼎五金电子有限公司",
+          "value": 0
+        },
+        {
+          "billId": 442,
+          "fieldName": "amount",
+          "originalText": "=H9*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鼎鑫宜实验设备有限公司",
+          "value": 0
+        },
+        {
+          "billId": 440,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市晟龙金属工艺礼品有限公司",
+          "value": 0
+        },
+        {
+          "billId": 439,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "程雄飞",
+          "value": 0
+        },
+        {
+          "billId": 438,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "程雄飞",
+          "value": 0
+        },
+        {
+          "billId": 437,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市誉隆新材料有限公司",
+          "value": 0
+        },
+        {
+          "billId": 437,
+          "fieldName": "amount",
+          "originalText": "=(B22+B23+B25+B27)*5%+B24*13%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市誉隆新材料有限公司",
+          "value": 0
+        },
+        {
+          "billId": 436,
+          "fieldName": "amount",
+          "originalText": "=H8*5%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市勤奋电子有限公司",
+          "value": 0
+        },
+        {
+          "billId": 435,
+          "fieldName": "amount",
+          "originalText": "=H10*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "文革",
+          "value": 0
+        },
+        {
+          "billId": 435,
+          "fieldName": "amount",
+          "originalText": "=(B21+B22+B23+B26)*13%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "文革",
+          "value": 0
+        },
+        {
+          "billId": 431,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7+H8+H9)*8%",
+          "projectName": "2026年5月份水电、2026年6月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市绿方纸业有限公司",
+          "value": 2590.64
+        },
+        {
+          "billId": 430,
+          "fieldName": "amount",
+          "originalText": "=(B13+B14+B15+B16+B17)*9%",
+          "projectName": "2026年5月份水电、2026年6月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "上海萃信农业科技发展有限公司",
+          "value": 1077
+        },
+        {
+          "billId": 429,
+          "fieldName": "amount",
+          "originalText": "=B22*13%",
+          "projectName": "2026年5月份水电、2026年6月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "陈铁强",
+          "value": 122.24
+        },
+        {
+          "billId": 428,
+          "fieldName": "amount",
+          "originalText": "=F8*0.15+H8*3%",
+          "projectName": "2026年5月份水电、2026年6月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "广东启源环境科技有限公司",
+          "value": 7.44
+        },
+        {
+          "billId": 428,
+          "fieldName": "amount",
+          "originalText": "=(B15+B16+B17+B18+B19+B20)*10%",
+          "projectName": "2026年5月份水电、2026年6月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "广东启源环境科技有限公司",
+          "value": 455.54
+        },
+        {
+          "billId": 427,
+          "fieldName": "amount",
+          "originalText": "=F12*0.15+H12*3%",
+          "projectName": "2026年5月份水电、2026年6月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市顶峰新型建材有限公司",
+          "value": 1093.87
+        },
+        {
+          "billId": 427,
+          "fieldName": "amount",
+          "originalText": "=(B24+B25+B26+B27+B28+B29)*9%",
+          "projectName": "2026年5月份水电、2026年6月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市顶峰新型建材有限公司",
+          "value": 7783.3
+        },
+        {
+          "billId": 425,
+          "fieldName": "amount",
+          "originalText": "=F7*5%",
+          "projectName": "2026年5月份水电、2026年6月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市利卡友停车场服务部",
+          "value": 83.75
+        },
+        {
+          "billId": 422,
+          "fieldName": "amount",
+          "originalText": "=B17*8%",
+          "projectName": "2026年5月份水电、2026年6月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "温智棋",
+          "value": 0
+        },
+        {
+          "billId": 421,
+          "fieldName": "amount",
+          "originalText": "=B26*8%",
+          "projectName": "2026年5月份水电、2026年6月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "马红美",
+          "value": 1049.09
+        },
+        {
+          "billId": 419,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "刘伟",
+          "value": 50.82
+        },
+        {
+          "billId": 418,
+          "fieldName": "amount",
+          "originalText": "=B18*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "黄世雄",
+          "value": 1845.23
+        },
+        {
+          "billId": 418,
+          "fieldName": "amount",
+          "originalText": "=7000*12%+(+B18+B19+B20-7000+B21+B22+B23)*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "黄世雄",
+          "value": 4150.42
+        },
+        {
+          "billId": 416,
+          "fieldName": "amount",
+          "originalText": "=B15*16%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "赛威能源科技有限公司",
+          "value": 576
+        },
+        {
+          "billId": 416,
+          "fieldName": "amount",
+          "originalText": "=(+B15+B16+B18+B19+B20)*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "赛威能源科技有限公司",
+          "value": 748
+        },
+        {
+          "billId": 413,
+          "fieldName": "amount",
+          "originalText": "=B14*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "凌国华",
+          "value": 756.86
+        },
+        {
+          "billId": 411,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "中鹏化工",
+          "value": 128.34
+        },
+        {
+          "billId": 411,
+          "fieldName": "amount",
+          "originalText": "=(+B19+B24)*9%+(+B17+B18+B20+B21+B22)*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "中鹏化工",
+          "value": 4995.57
+        },
+        {
+          "billId": 410,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "文荣健",
+          "value": 306.38
+        },
+        {
+          "billId": 408,
+          "fieldName": "amount",
+          "originalText": "=B13*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "韩洪水",
+          "value": 47.58
+        },
+        {
+          "billId": 408,
+          "fieldName": "amount",
+          "originalText": "=(B13+B18)*13%+B14*9%+3500*10%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "韩洪水",
+          "value": 418.04
+        },
+        {
+          "billId": 407,
+          "fieldName": "amount",
+          "originalText": "=B13*13%",
+          "projectName": "2026年6月份房租、2026年5月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "丁福芳",
+          "value": 88.56
+        },
+        {
+          "billId": 405,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年5月水电6月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "赵歌",
+          "value": 609.36
+        },
+        {
+          "billId": 403,
+          "fieldName": "amount",
+          "originalText": "=B23*14%",
+          "projectName": "2026年5月水电6月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李气圣",
+          "value": 4270.11
+        },
+        {
+          "billId": 402,
+          "fieldName": "amount",
+          "originalText": "=5000*10%+600*5%",
+          "projectName": "2026年5月水电6月房租",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "王荣玲",
+          "value": 530
+        },
+        {
+          "billId": 402,
+          "fieldName": "amount",
+          "originalText": "=B19*10%",
+          "projectName": "2026年5月水电6月房租",
+          "rowName": "变压器维修服务费",
+          "source": "extraProjectItem",
+          "tenantName": "王荣玲",
+          "value": 262.15
+        },
+        {
+          "billId": 401,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年5月水电6月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李建文",
+          "value": 1249.76
+        },
+        {
+          "billId": 400,
+          "fieldName": "amount",
+          "originalText": "=B18*13%",
+          "projectName": "2026年5月水电6月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "张竟潮",
+          "value": 2745.65
+        },
+        {
+          "billId": 399,
+          "fieldName": "amount",
+          "originalText": "=B18*3%",
+          "projectName": "2026年5月水电6月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "梁宝彬",
+          "value": 121.44
+        },
+        {
+          "billId": 398,
+          "fieldName": "amount",
+          "originalText": "=B13*3%",
+          "projectName": "2026年5月水电6月房租",
+          "rowName": "电费附加费",
+          "source": "extraProjectItem",
+          "tenantName": "梁海波",
+          "value": 17.82
+        },
+        {
+          "billId": 397,
+          "fieldName": "amount",
+          "originalText": "=H8*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鼎力世纪塑胶制品有限公司",
+          "value": 0
+        },
+        {
+          "billId": 396,
+          "fieldName": "amount",
+          "originalText": "=(B28+B29+B32)*9%+B27*13%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市科捷盛伟业电子有限公司",
+          "value": 0
+        },
+        {
+          "billId": 395,
+          "fieldName": "amount",
+          "originalText": "=B25*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市信诺安全技术有限公司",
+          "value": 0
+        },
+        {
+          "billId": 395,
+          "fieldName": "amount",
+          "originalText": "=(B27+B26)*9%+(B25+B30)*13%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市信诺安全技术有限公司",
+          "value": 0
+        },
+        {
+          "billId": 394,
+          "fieldName": "amount",
+          "originalText": "=B19*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市柯讯科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 394,
+          "fieldName": "amount",
+          "originalText": "=B21*13%+(B19+B23)*2%+(B20+B26)*9%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市柯讯科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 393,
+          "fieldName": "amount",
+          "originalText": "=B27*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市永铸五金制品有限公司",
+          "value": 0
+        },
+        {
+          "billId": 393,
+          "fieldName": "amount",
+          "originalText": "=(B27+B28+B30+B32)*13%+B29*9%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市永铸五金制品有限公司",
+          "value": 0
+        },
+        {
+          "billId": 392,
+          "fieldName": "amount",
+          "originalText": "=H7*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "张慧强",
+          "value": 0
+        },
+        {
+          "billId": 391,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "蒋征明",
+          "value": 0
+        },
+        {
+          "billId": 390,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市坪山新区巾洁仕干洗店",
+          "value": 0
+        },
+        {
+          "billId": 389,
+          "fieldName": "amount",
+          "originalText": "=H9*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市卓立燊塑胶制品有限公司",
+          "value": 0
+        },
+        {
+          "billId": 388,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 388,
+          "fieldName": "amount",
+          "originalText": "=(B18+B21+B23)*13%+(B19+B20)*9%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 387,
+          "fieldName": "amount",
+          "originalText": "=H8*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 386,
+          "fieldName": "amount",
+          "originalText": "=1682*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市恒利华科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 386,
+          "fieldName": "amount",
+          "originalText": "=(B25+B26+B27+B28+B30)*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市恒利华科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 385,
+          "fieldName": "amount",
+          "originalText": "=H15*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市俊霖有机玻璃制品有限公司",
+          "value": 0
+        },
+        {
+          "billId": 385,
+          "fieldName": "amount",
+          "originalText": "=(B25+B26+B27+B30)*8%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市俊霖有机玻璃制品有限公司",
+          "value": 0
+        },
+        {
+          "billId": 384,
+          "fieldName": "amount",
+          "originalText": "=H10*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市新忠诚模具有限公司",
+          "value": 0
+        },
+        {
+          "billId": 384,
+          "fieldName": "amount",
+          "originalText": "=(B21+B22+B23+B24+B26)*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市新忠诚模具有限公司",
+          "value": 0
+        },
+        {
+          "billId": 383,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳贰叁柒柒电子商务有限公司",
+          "value": 0
+        },
+        {
+          "billId": 382,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "陈一斌",
+          "value": 0
+        },
+        {
+          "billId": 381,
+          "fieldName": "amount",
+          "originalText": "=H7*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "倪光正",
+          "value": 0
+        },
+        {
+          "billId": 380,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市镭铭电子有限公司",
+          "value": 0
+        },
+        {
+          "billId": 379,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "吴英军",
+          "value": 0
+        },
+        {
+          "billId": 378,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市麟心礼品有限公司",
+          "value": 0
+        },
+        {
+          "billId": 377,
+          "fieldName": "amount",
+          "originalText": "=H9*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市盛慧科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 376,
+          "fieldName": "amount",
+          "originalText": "=(B19+B20)*9%+(B18+B21)*13%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市永旭胶粘制品有限公司",
+          "value": 0
+        },
+        {
+          "billId": 375,
+          "fieldName": "amount",
+          "originalText": "=H10*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市冰清泉净水设备有限公司",
+          "value": 0
+        },
+        {
+          "billId": 375,
+          "fieldName": "amount",
+          "originalText": "=B21*9%+B20*9%+(B19+B22)*13%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市冰清泉净水设备有限公司",
+          "value": 0
+        },
+        {
+          "billId": 374,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市奥利斯科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 373,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "曹春晓",
+          "value": 0
+        },
+        {
+          "billId": 372,
+          "fieldName": "amount",
+          "originalText": "=H9*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市影士威科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 372,
+          "fieldName": "amount",
+          "originalText": "=B18*9%+B17*9%+B16*13%+B19*13%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市影士威科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 369,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市慧锁智能科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 366,
+          "fieldName": "amount",
+          "originalText": "=H11*8%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市同元科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 366,
+          "fieldName": "amount",
+          "originalText": "=B23*9%+B22*9%+B21*13%+B26*13%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市同元科技有限公司",
+          "value": 0
+        },
+        {
+          "billId": 334,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年3月份房租、2026年2月份水 电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "海腾世家",
+          "value": 24.86
+        },
+        {
+          "billId": 333,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "朱爱媛（10楼）",
+          "value": 98.96
+        },
+        {
+          "billId": 332,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "朱爱媛（501）",
+          "value": 11.44
+        },
+        {
+          "billId": 331,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "衡龙顺发泡材料有限公司(402)",
+          "value": 1.5
+        },
+        {
+          "billId": 331,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "衡龙顺发泡材料有限公司(402)",
+          "value": 41.5
+        },
+        {
+          "billId": 330,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李先勇（7楼）",
+          "value": 197.86
+        },
+        {
+          "billId": 330,
+          "fieldName": "amount",
+          "originalText": "=5000*4%+(+B17+B18+B20+B21+B22+13000)*1%+20000*1%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "李先勇（7楼）",
+          "value": 553
+        },
+        {
+          "billId": 329,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "刘笑萍（502）",
+          "value": 2.5
+        },
+        {
+          "billId": 328,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "公共用电",
+          "source": "eleItem",
+          "tenantName": "陈宇春（401）",
+          "value": 25
+        },
+        {
+          "billId": 328,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "陈宇春（401）",
+          "value": 1.5
+        },
+        {
+          "billId": 328,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "陈宇春（401）",
+          "value": 35.75
+        },
+        {
+          "billId": 327,
+          "fieldName": "amount",
+          "originalText": "=(+H13+H14)*10%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "value": 5
+        },
+        {
+          "billId": 327,
+          "fieldName": "amount",
+          "originalText": "=B19*13%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "value": 832.84
+        },
+        {
+          "billId": 323,
+          "fieldName": "amount",
+          "originalText": "=B17*10%+190*10%",
+          "projectName": "2026年2月份水电、2026年3月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李会(6楼）",
+          "value": 602.48
+        },
+        {
+          "billId": 322,
+          "fieldName": "amount",
+          "originalText": "=B19*13%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "赵红健（802）",
+          "value": 148.68
+        },
+        {
+          "billId": 321,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "慎根林（901）",
+          "value": 57.04
+        },
+        {
+          "billId": 320,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年3月份房租、2026年2月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李帆",
+          "value": 180.54
+        },
+        {
+          "billId": 319,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年2月份水电、2026年3月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "孔琴（201）",
+          "value": 13
+        },
+        {
+          "billId": 318,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年1月份水电、2026年2月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "孔琴（201）",
+          "value": 13
+        },
+        {
+          "billId": 317,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2025年12月份水电、2026年1月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "孔琴（201）",
+          "value": 13
+        },
+        {
+          "billId": 316,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李帆",
+          "value": 276.016
+        },
+        {
+          "billId": 314,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "慎根林（901）",
+          "value": 159.25
+        },
+        {
+          "billId": 313,
+          "fieldName": "amount",
+          "originalText": "=B19*13%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "赵红健（802）",
+          "value": 140.37
+        },
+        {
+          "billId": 312,
+          "fieldName": "amount",
+          "originalText": "=B17*10%+190*10%",
+          "projectName": "2026年1月份水电、2026年2月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李会(6楼）",
+          "value": 1205.24
+        },
+        {
+          "billId": 308,
+          "fieldName": "amount",
+          "originalText": "=(+H13+H14)*10%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "value": 15
+        },
+        {
+          "billId": 308,
+          "fieldName": "amount",
+          "originalText": "=B19*13%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "value": 2509.33
+        },
+        {
+          "billId": 307,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "公共用电",
+          "source": "eleItem",
+          "tenantName": "陈宇春（401）",
+          "value": 80
+        },
+        {
+          "billId": 307,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "陈宇春（401）",
+          "value": 3
+        },
+        {
+          "billId": 307,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "陈宇春（401）",
+          "value": 114.4
+        },
+        {
+          "billId": 306,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "刘笑萍（502）",
+          "value": 8
+        },
+        {
+          "billId": 305,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李先勇（7楼）",
+          "value": 453.23
+        },
+        {
+          "billId": 305,
+          "fieldName": "amount",
+          "originalText": "=5000*4%+(+B17+B18+B20+B21+B22+13000)*1%+20000*1%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "李先勇（7楼）",
+          "value": 575.7
+        },
+        {
+          "billId": 304,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "衡龙顺发泡材料有限公司(402)",
+          "value": 3.5
+        },
+        {
+          "billId": 304,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "衡龙顺发泡材料有限公司(402)",
+          "value": 87.98
+        },
+        {
+          "billId": 303,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "朱爱媛（501）",
+          "value": 11.44
+        },
+        {
+          "billId": 302,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年2月份房租、2026年1月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "朱爱媛（10楼）",
+          "value": 241.85
+        },
+        {
+          "billId": 301,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年2月份房租、2026年1月份水 电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "海腾世家",
+          "value": 120.74
+        },
+        {
+          "billId": 299,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "慎根林（901）",
+          "value": 100.75
+        },
+        {
+          "billId": 298,
+          "fieldName": "amount",
+          "originalText": "=B19*13%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "赵红健（802）",
+          "value": 28.65
+        },
+        {
+          "billId": 297,
+          "fieldName": "amount",
+          "originalText": "=B17*10%+190*10%",
+          "projectName": "2026年1月份水电、2025年12月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李会(6楼）",
+          "value": 1182.32
+        },
+        {
+          "billId": 293,
+          "fieldName": "amount",
+          "originalText": "=(+H13+H14)*10%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "value": 14
+        },
+        {
+          "billId": 293,
+          "fieldName": "amount",
+          "originalText": "=B19*13%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "value": 2278.23
+        },
+        {
+          "billId": 292,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "公共用电",
+          "source": "eleItem",
+          "tenantName": "陈宇春（401）",
+          "value": 110
+        },
+        {
+          "billId": 292,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "陈宇春（401）",
+          "value": 5
+        },
+        {
+          "billId": 292,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "陈宇春（401）",
+          "value": 157.3
+        },
+        {
+          "billId": 291,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "刘笑萍（502）",
+          "value": 8
+        },
+        {
+          "billId": 290,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李先勇（7楼）",
+          "value": 456.82
+        },
+        {
+          "billId": 290,
+          "fieldName": "amount",
+          "originalText": "=5000*4%+(+B17+B18+B20+B21+B22+13000)*1%+20000*1%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "李先勇（7楼）",
+          "value": 575.96
+        },
+        {
+          "billId": 289,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "衡龙顺发泡材料有限公司(402)",
+          "value": 3.5
+        },
+        {
+          "billId": 289,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "衡龙顺发泡材料有限公司(402)",
+          "value": 96.75
+        },
+        {
+          "billId": 288,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "朱爱媛（501）",
+          "value": 11.44
+        },
+        {
+          "billId": 287,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年1月份房租、2025年12月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "朱爱媛（10楼）",
+          "value": 215.8
+        },
+        {
+          "billId": 286,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年1月份房租、2025年12月份水 电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "海腾世家",
+          "value": 129.35
+        },
+        {
+          "billId": 285,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年4月份房租、2026年3月份水 电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "海腾世家",
+          "value": 99.13
+        },
+        {
+          "billId": 284,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "朱爱媛（10楼）",
+          "value": 189.28
+        },
+        {
+          "billId": 283,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "朱爱媛（501）",
+          "value": 11.44
+        },
+        {
+          "billId": 282,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李帆",
+          "value": 443.4
+        },
+        {
+          "billId": 281,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "衡龙顺发泡材料有限公司(402)",
+          "value": 3.5
+        },
+        {
+          "billId": 281,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "衡龙顺发泡材料有限公司(402)",
+          "value": 82.29
+        },
+        {
+          "billId": 280,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李先勇（7楼）",
+          "value": 371.8
+        },
+        {
+          "billId": 280,
+          "fieldName": "amount",
+          "originalText": "=5000*4%+(+B17+B18+B20+B21+B22+13000)*1%+20000*1%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "李先勇（7楼）",
+          "value": 568.52
+        },
+        {
+          "billId": 279,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "刘笑萍（502）",
+          "value": 8
+        },
+        {
+          "billId": 278,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "公共用电",
+          "source": "eleItem",
+          "tenantName": "陈宇春（401）",
+          "value": 70
+        },
+        {
+          "billId": 278,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "陈宇春（401）",
+          "value": 3
+        },
+        {
+          "billId": 278,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "陈宇春（401）",
+          "value": 100.1
+        },
+        {
+          "billId": 274,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "慎根林（901）",
+          "value": 78.97
+        },
+        {
+          "billId": 273,
+          "fieldName": "amount",
+          "originalText": "=B19*13%",
+          "projectName": "2026年4月份房租、2026年3月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "赵红健（802）",
+          "value": 70.51
+        },
+        {
+          "billId": 269,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "孔琴（201）",
+          "value": 13
+        },
+        {
+          "billId": 241,
+          "fieldName": "amount",
+          "originalText": "=5000*13%",
+          "projectName": "2026年4月水电费，5月租金明细表",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "广东三众智能泵业有限公司",
+          "value": 650
+        },
+        {
+          "billId": 239,
+          "fieldName": "amount",
+          "originalText": "=B26*8%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "马红美",
+          "value": 964.42
+        },
+        {
+          "billId": 238,
+          "fieldName": "amount",
+          "originalText": "=B17*8%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "温智棋",
+          "value": 0
+        },
+        {
+          "billId": 235,
+          "fieldName": "amount",
+          "originalText": "=F7*5%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市利卡友停车场服务部",
+          "value": 67.65
+        },
+        {
+          "billId": 233,
+          "fieldName": "amount",
+          "originalText": "=F12*0.15+H12*3%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市顶峰新型建材有限公司",
+          "value": 1262.01
+        },
+        {
+          "billId": 233,
+          "fieldName": "amount",
+          "originalText": "=(B24+B25+B26+B27+B28+B29)*9%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市顶峰新型建材有限公司",
+          "value": 7883.46
+        },
+        {
+          "billId": 232,
+          "fieldName": "amount",
+          "originalText": "=F8*0.15+H8*3%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "广东启源环境科技有限公司",
+          "value": 8.37
+        },
+        {
+          "billId": 232,
+          "fieldName": "amount",
+          "originalText": "=(B15+B16+B17+B18+B19+B20)*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "广东启源环境科技有限公司",
+          "value": 456.24
+        },
+        {
+          "billId": 231,
+          "fieldName": "amount",
+          "originalText": "=B22*13%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "陈铁强",
+          "value": 100.21
+        },
+        {
+          "billId": 230,
+          "fieldName": "amount",
+          "originalText": "=(B13+B14+B15+B16+B17)*9%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "上海萃信农业科技发展有限公司",
+          "value": 1134.14
+        },
+        {
+          "billId": 229,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7+H8+H9)*8%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市绿方纸业有限公司",
+          "value": 2773.59
+        },
+        {
+          "billId": 212,
+          "fieldName": "amount",
+          "originalText": "=B19*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "赵红健（802）",
+          "value": 67.36
+        },
+        {
+          "billId": 211,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "慎根林（901）",
+          "value": 130.81
+        },
+        {
+          "billId": 208,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "梁志昌(202)",
+          "value": 1
+        },
+        {
+          "billId": 208,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "梁志昌(202)",
+          "value": 36.89
+        },
+        {
+          "billId": 205,
+          "fieldName": "amount",
+          "originalText": "=(+H13+H14)*10%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "value": 10.5
+        },
+        {
+          "billId": 205,
+          "fieldName": "amount",
+          "originalText": "=B19*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "姚东江（一楼加阁楼）",
+          "value": 1778.89
+        },
+        {
+          "billId": 202,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "公共用电",
+          "source": "eleItem",
+          "tenantName": "陈宇春（401）",
+          "value": 100
+        },
+        {
+          "billId": 202,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "陈宇春（401）",
+          "value": 4.5
+        },
+        {
+          "billId": 202,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "陈宇春（401）",
+          "value": 143
+        },
+        {
+          "billId": 199,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "衡龙顺发泡材料有限公司(402)",
+          "value": 3
+        },
+        {
+          "billId": 199,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "衡龙顺发泡材料有限公司(402)",
+          "value": 70.1
+        },
+        {
+          "billId": 196,
+          "fieldName": "amount",
+          "originalText": "=(F6+F7+F8)*10%+H10*10%",
+          "projectName": "2026年4月水电、2026年5月 租金",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "林尚海",
+          "value": 590.64
+        },
+        {
+          "billId": 194,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "公摊水费",
+          "source": "waterItem",
+          "tenantName": "刘笑萍（502）",
+          "value": 7
+        },
+        {
+          "billId": 191,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "刘宝初",
+          "value": 31.98
+        },
+        {
+          "billId": 189,
+          "fieldName": "amount",
+          "originalText": "=H13*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "方海兵",
+          "value": 58.37
+        },
+        {
+          "billId": 188,
+          "fieldName": "amount",
+          "originalText": "=B28*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市精宝鼎五金电子有限公司",
+          "value": 67.6
+        },
+        {
+          "billId": 188,
+          "fieldName": "amount",
+          "originalText": "=B30*10%+(B28+B33+B31)*13%+(B29)*9%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市精宝鼎五金电子有限公司",
+          "value": 3350.77
+        },
+        {
+          "billId": 186,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李先勇（7楼）",
+          "value": 458.54
+        },
+        {
+          "billId": 186,
+          "fieldName": "amount",
+          "originalText": "=5000*4%+(+B17+B18+B20+B21+B22+13000)*1%+20000*1%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "李先勇（7楼）",
+          "value": 576.01
+        },
+        {
+          "billId": 185,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李帆",
+          "value": 174.62
+        },
+        {
+          "billId": 184,
+          "fieldName": "amount",
+          "originalText": "=H9*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鼎鑫宜实验设备有限公司",
+          "value": 130.02
+        },
+        {
+          "billId": 181,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "朱爱媛（501）",
+          "value": 11.44
+        },
+        {
+          "billId": 178,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市晟龙金属工艺礼品有限公司",
+          "value": 31.2
+        },
+        {
+          "billId": 176,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "程雄飞",
+          "value": 34.58
+        },
+        {
+          "billId": 175,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水 电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "海腾世家",
+          "value": 108.06
+        },
+        {
+          "billId": 173,
+          "fieldName": "amount",
+          "originalText": "=H12*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市誉隆新材料有限公司",
+          "value": 48.66
+        },
+        {
+          "billId": 173,
+          "fieldName": "amount",
+          "originalText": "=(B22+B23+B25+B27)*5%+B24*13%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市誉隆新材料有限公司",
+          "value": 2662.64
+        },
+        {
+          "billId": 172,
+          "fieldName": "amount",
+          "originalText": "=H8*5%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市勤奋电子有限公司",
+          "value": 6.6
+        },
+        {
+          "billId": 171,
+          "fieldName": "amount",
+          "originalText": "=H10*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "文革",
+          "value": 56.36
+        },
+        {
+          "billId": 171,
+          "fieldName": "amount",
+          "originalText": "=(B21+B22+B23+B26)*13%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "文革",
+          "value": 2597.72
+        },
+        {
+          "billId": 170,
+          "fieldName": "amount",
+          "originalText": "=(B25+B28)*9%",
+          "projectName": "2026年4月水电费，5月租金",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市宝峰电子科技有限公司",
+          "value": 261.98
+        },
+        {
+          "billId": 168,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "丁福芳",
+          "value": 82.3
+        },
+        {
+          "billId": 167,
+          "fieldName": "amount",
+          "originalText": "=H8*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鼎力世纪塑胶制品有限公司",
+          "value": 3.04
+        },
+        {
+          "billId": 165,
+          "fieldName": "amount",
+          "originalText": "=B15*10%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "韩洪水",
+          "value": 26
+        },
+        {
+          "billId": 165,
+          "fieldName": "amount",
+          "originalText": "=(B15+B20)*13%+B16*9%+3500*10%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "韩洪水",
+          "value": 387.18
+        },
+        {
+          "billId": 163,
+          "fieldName": "amount",
+          "originalText": "=(B28+B29+B32)*9%+B27*13%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市科捷盛伟业电子有限公司",
+          "value": 2510.18
+        },
+        {
+          "billId": 162,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "文荣健",
+          "value": 427.44
+        },
+        {
+          "billId": 161,
+          "fieldName": "amount",
+          "originalText": "=B25*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市信诺安全技术有限公司",
+          "value": 69.56
+        },
+        {
+          "billId": 161,
+          "fieldName": "amount",
+          "originalText": "=(B27+B26)*9%+(B25+B30)*13%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市信诺安全技术有限公司",
+          "value": 2409.82
+        },
+        {
+          "billId": 160,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "中鹏化工",
+          "value": 130.21
+        },
+        {
+          "billId": 160,
+          "fieldName": "amount",
+          "originalText": "=(+B19+B24)*9%+(+B17+B18+B20+B21+B22)*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "中鹏化工",
+          "value": 5001.85
+        },
+        {
+          "billId": 158,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "凌国华",
+          "value": 660.3
+        },
+        {
+          "billId": 157,
+          "fieldName": "amount",
+          "originalText": "=B19*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市柯讯科技有限公司",
+          "value": 72.31
+        },
+        {
+          "billId": 157,
+          "fieldName": "amount",
+          "originalText": "=B21*13%+(B19+B23)*2%+(B20+B26)*9%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市柯讯科技有限公司",
+          "value": 14530.56
+        },
+        {
+          "billId": 154,
+          "fieldName": "amount",
+          "originalText": "=B27*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市永铸五金制品有限公司",
+          "value": 56.43
+        },
+        {
+          "billId": 154,
+          "fieldName": "amount",
+          "originalText": "=(B27+B28+B30+B32)*13%+B29*9%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市永铸五金制品有限公司",
+          "value": 2102.62
+        },
+        {
+          "billId": 153,
+          "fieldName": "amount",
+          "originalText": "=H7*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "张慧强",
+          "value": 33.89
+        },
+        {
+          "billId": 152,
+          "fieldName": "amount",
+          "originalText": "=B15*16%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "赛威能源科技有限公司",
+          "value": 453.12
+        },
+        {
+          "billId": 152,
+          "fieldName": "amount",
+          "originalText": "=(+B15+B16+B18+B19+B20)*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "赛威能源科技有限公司",
+          "value": 866.71
+        },
+        {
+          "billId": 151,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "蒋征明",
+          "value": 382.83
+        },
+        {
+          "billId": 150,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市坪山新区巾洁仕干洗店",
+          "value": 29.83
+        },
+        {
+          "billId": 148,
+          "fieldName": "amount",
+          "originalText": "=H9*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市卓立燊塑胶制品有限公司",
+          "value": 39.7
+        },
+        {
+          "billId": 147,
+          "fieldName": "amount",
+          "originalText": "=B20*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "黄世雄",
+          "value": 1940.12
+        },
+        {
+          "billId": 147,
+          "fieldName": "amount",
+          "originalText": "=7000*12%+(+B20+B21+B22-7000+B23+B24+B25)*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "黄世雄",
+          "value": 4427.07
+        },
+        {
+          "billId": 146,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "value": 36.17
+        },
+        {
+          "billId": 146,
+          "fieldName": "amount",
+          "originalText": "=(B18+B21+B23)*13%+(B19+B20)*9%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "value": 1304.73
+        },
+        {
+          "billId": 145,
+          "fieldName": "amount",
+          "originalText": "=H8*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市鑫盟精密科技有限公司",
+          "value": 13
+        },
+        {
+          "billId": 144,
+          "fieldName": "amount",
+          "originalText": "=1682*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市恒利华科技有限公司",
+          "value": 168.2
+        },
+        {
+          "billId": 144,
+          "fieldName": "amount",
+          "originalText": "=(B25+B26+B27+B28+B30)*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市恒利华科技有限公司",
+          "value": 2742.11
+        },
+        {
+          "billId": 143,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "杨军",
+          "value": 250.43
+        },
+        {
+          "billId": 142,
+          "fieldName": "amount",
+          "originalText": "=H15*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市俊霖有机玻璃制品有限公司",
+          "value": 112.51
+        },
+        {
+          "billId": 142,
+          "fieldName": "amount",
+          "originalText": "=(B25+B26+B27+B30)*8%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市俊霖有机玻璃制品有限公司",
+          "value": 4278.81
+        },
+        {
+          "billId": 141,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "刘伟",
+          "value": 59.52
+        },
+        {
+          "billId": 140,
+          "fieldName": "amount",
+          "originalText": "=H10*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市新忠诚模具有限公司",
+          "value": 61.24
+        },
+        {
+          "billId": 140,
+          "fieldName": "amount",
+          "originalText": "=(B21+B22+B23+B24+B26)*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市新忠诚模具有限公司",
+          "value": 3400.62
+        },
+        {
+          "billId": 139,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳贰叁柒柒电子商务有限公司",
+          "value": 36.01
+        },
+        {
+          "billId": 138,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "陈一斌",
+          "value": 75.47
+        },
+        {
+          "billId": 137,
+          "fieldName": "amount",
+          "originalText": "=H7*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "倪光正",
+          "value": 23.63
+        },
+        {
+          "billId": 136,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市镭铭电子有限公司",
+          "value": 33.48
+        },
+        {
+          "billId": 135,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "吴英军",
+          "value": 34.7
+        },
+        {
+          "billId": 134,
+          "fieldName": "amount",
+          "originalText": "=H6*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市麟心礼品有限公司",
+          "value": 15.39
+        },
+        {
+          "billId": 133,
+          "fieldName": "amount",
+          "originalText": "=H9*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市盛慧科技有限公司",
+          "value": 60.52
+        },
+        {
+          "billId": 132,
+          "fieldName": "amount",
+          "originalText": "=(B19+B20)*9%+(B18+B21)*13%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市永旭胶粘制品有限公司",
+          "value": 1662.63
+        },
+        {
+          "billId": 131,
+          "fieldName": "amount",
+          "originalText": "=H10*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市冰清泉净水设备有限公司",
+          "value": 328.05
+        },
+        {
+          "billId": 131,
+          "fieldName": "amount",
+          "originalText": "=B21*9%+B20*9%+(B19+B22)*13%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市冰清泉净水设备有限公司",
+          "value": 2416.94
+        },
+        {
+          "billId": 130,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市奥利斯科技有限公司",
+          "value": 118.94
+        },
+        {
+          "billId": 129,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "曹春晓",
+          "value": 267.84
+        },
+        {
+          "billId": 128,
+          "fieldName": "amount",
+          "originalText": "=H9*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市影士威科技有限公司",
+          "value": 369.4
+        },
+        {
+          "billId": 128,
+          "fieldName": "amount",
+          "originalText": "=B18*9%+B17*9%+B16*13%+B19*13%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市影士威科技有限公司",
+          "value": 2078.4
+        },
+        {
+          "billId": 126,
+          "fieldName": "amount",
+          "originalText": "=B23*22%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "广州国靖办公家具有限公司",
+          "value": 71481.16
+        },
+        {
+          "billId": 124,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "欧湘宁",
+          "value": 178.1
+        },
+        {
+          "billId": 121,
+          "fieldName": "amount",
+          "originalText": "=(H6+H7)*10%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市慧锁智能科技有限公司",
+          "value": 72.36
+        },
+        {
+          "billId": 120,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "佛山诚霞家具有限公司",
+          "value": 200.2
+        },
+        {
+          "billId": 120,
+          "fieldName": "amount",
+          "originalText": "=(+B17+B18+B19+B20+B21+B22)*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "佛山诚霞家具有限公司",
+          "value": 3747.6
+        },
+        {
+          "billId": 119,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "上海阿法迪智能数字科技有限公司",
+          "value": 289.64
+        },
+        {
+          "billId": 119,
+          "fieldName": "amount",
+          "originalText": "=(+B17+B18+B20+B21+B22)*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "上海阿法迪智能数字科技有限公司",
+          "value": 489.79
+        },
+        {
+          "billId": 118,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "梁恒铭先生",
+          "value": 120.25
+        },
+        {
+          "billId": 117,
+          "fieldName": "amount",
+          "originalText": "=H11*8%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市同元科技有限公司",
+          "value": 83.05
+        },
+        {
+          "billId": 117,
+          "fieldName": "amount",
+          "originalText": "=B23*9%+B22*9%+B21*13%+B26*13%",
+          "projectName": "2026年4月份水电、2026年5月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "深圳市同元科技有限公司",
+          "value": 3124.99
+        },
+        {
+          "billId": 116,
+          "fieldName": "amount",
+          "originalText": "=B17*10%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞赛诺家居用品有限公司顺德分公司",
+          "value": 151.38
+        },
+        {
+          "billId": 115,
+          "fieldName": "amount",
+          "originalText": "=B13*3%",
+          "projectName": "2026年4月水电5月房租",
+          "rowName": "电费附加费",
+          "source": "extraProjectItem",
+          "tenantName": "梁海波",
+          "value": 14.47
+        },
+        {
+          "billId": 114,
+          "fieldName": "amount",
+          "originalText": "=B18*3%",
+          "projectName": "2026年4月水电5月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "梁宝彬",
+          "value": 107.46
+        },
+        {
+          "billId": 112,
+          "fieldName": "amount",
+          "originalText": "=B18*13%",
+          "projectName": "2026年4月水电5月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "张竟潮",
+          "value": 2283.11
+        },
+        {
+          "billId": 111,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年4月水电5月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李建文",
+          "value": 1010.9
+        },
+        {
+          "billId": 110,
+          "fieldName": "amount",
+          "originalText": "=B19*10%",
+          "projectName": "2026年4月水电5月房租",
+          "rowName": "变压器维修服务费",
+          "source": "extraProjectItem",
+          "tenantName": "王荣玲",
+          "value": 219.44
+        },
+        {
+          "billId": 109,
+          "fieldName": "amount",
+          "originalText": "=B23*14%",
+          "projectName": "2026年4月水电5月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李气圣",
+          "value": 4537.25
+        },
+        {
+          "billId": 108,
+          "fieldName": "amount",
+          "originalText": "=B17*10%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "静思睡眠科技（广东佛山）有限公司",
+          "value": 389.2
+        },
+        {
+          "billId": 106,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年4月水电5月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "赵歌",
+          "value": 594.01
+        },
+        {
+          "billId": 105,
+          "fieldName": "amount",
+          "originalText": "=B17*10%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "佛山市天耀机械有限公司",
+          "value": 261.41
+        },
+        {
+          "billId": 105,
+          "fieldName": "amount",
+          "originalText": "=(B17+B18+B19+B20+B21+B22)*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "佛山市天耀机械有限公司",
+          "value": 5636.22
+        },
+        {
+          "billId": 104,
+          "fieldName": "amount",
+          "originalText": "=B17*10%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "佛山市利他家具有限公司",
+          "value": 283.5
+        },
+        {
+          "billId": 104,
+          "fieldName": "amount",
+          "originalText": "=(+B17+B18+B19+B20+B21+B22)*13%",
+          "projectName": "2026年5月份房租、2026年4月份水电",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "佛山市利他家具有限公司",
+          "value": 6307.41
+        },
+        {
+          "billId": 101,
+          "fieldName": "amount",
+          "originalText": "=(B14+B15+B16+B17)*13%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "佛山市利他家具有限公司",
+          "value": 6270.55
+        },
+        {
+          "billId": 100,
+          "fieldName": "amount",
+          "originalText": "=(B14+B15+B16+B17)*13%",
+          "projectName": "2026年3月份水电、2026年4月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "佛山市利他家具有限公司",
+          "value": 6148.87
+        },
+        {
+          "billId": 97,
+          "fieldName": "amount",
+          "originalText": "=B15*16%",
+          "projectName": "2026年2月份水电、2026年3月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "赛威能源科技有限公司",
+          "value": 276.48
+        },
+        {
+          "billId": 97,
+          "fieldName": "amount",
+          "originalText": "=(B15+B16+B18+B19)*13%",
+          "projectName": "2026年2月份水电、2026年3月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "赛威能源科技有限公司",
+          "value": 438.16
+        },
+        {
+          "billId": 96,
+          "fieldName": "amount",
+          "originalText": "=B18*13%",
+          "projectName": "2026年2月份水电、2026年3月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "黄世雄",
+          "value": 814.49
+        },
+        {
+          "billId": 96,
+          "fieldName": "amount",
+          "originalText": "=7000*12%+(B18+B20+B19-7000+B21+B22)*13%",
+          "projectName": "2026年2月份水电、2026年3月份房租明细",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "黄世雄",
+          "value": 2978.17
+        },
+        {
+          "billId": 95,
+          "fieldName": "amount",
+          "originalText": "=B16*13%",
+          "projectName": "2026年2月份水电、2026年3月份房租明细",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "刘伟",
+          "value": 39.99
+        },
+        {
+          "billId": 94,
+          "fieldName": "amount",
+          "originalText": "=B14*10%",
+          "projectName": "2026年2月份水电、2026年3月份房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "佛山市利他家具有限公司",
+          "value": 119.7
+        },
+        {
+          "billId": 91,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年2月水电3月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "赵歌",
+          "value": 150.24
+        },
+        {
+          "billId": 90,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年1月水电2月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "赵歌",
+          "value": 299.3
+        },
+        {
+          "billId": 87,
+          "fieldName": "amount",
+          "originalText": "=B23*14%",
+          "projectName": "2026年2月水电3月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李气圣",
+          "value": 2419.39
+        },
+        {
+          "billId": 85,
+          "fieldName": "amount",
+          "originalText": "=B23*14%",
+          "projectName": "2026年1月水电2月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李气圣",
+          "value": 4475.64
+        },
+        {
+          "billId": 84,
+          "fieldName": "amount",
+          "originalText": "=B19*10%",
+          "projectName": "2026年2月水电3月房租",
+          "rowName": "变压器维修服务费",
+          "source": "extraProjectItem",
+          "tenantName": "王荣玲",
+          "value": 91.13
+        },
+        {
+          "billId": 83,
+          "fieldName": "amount",
+          "originalText": "=B19*10%",
+          "projectName": "2026年1月水电2月房租",
+          "rowName": "变压器维修服务费",
+          "source": "extraProjectItem",
+          "tenantName": "王荣玲",
+          "value": 211.44
+        },
+        {
+          "billId": 82,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年2月水电3月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李建文",
+          "value": 502.48
+        },
+        {
+          "billId": 81,
+          "fieldName": "amount",
+          "originalText": "=B15*13%",
+          "projectName": "2026年1月水电2月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "李建文",
+          "value": 1036.46
+        },
+        {
+          "billId": 74,
+          "fieldName": "amount",
+          "originalText": "=B18*13%",
+          "projectName": "2026年2月水电3月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "张竟潮",
+          "value": 1429.01
+        },
+        {
+          "billId": 73,
+          "fieldName": "amount",
+          "originalText": "=B18*13%",
+          "projectName": "2026年1月水电2月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "张竟潮",
+          "value": 2282.96
+        },
+        {
+          "billId": 72,
+          "fieldName": "amount",
+          "originalText": "=B18*3%",
+          "projectName": "2026年2月水电3月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "梁宝彬",
+          "value": 42.84
+        },
+        {
+          "billId": 71,
+          "fieldName": "amount",
+          "originalText": "=B18*3%",
+          "projectName": "2026年1月水电2月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "梁宝彬",
+          "value": 93.1
+        },
+        {
+          "billId": 70,
+          "fieldName": "amount",
+          "originalText": "=B13*3%",
+          "projectName": "2026年2月水电3月房租",
+          "rowName": "电费附加费",
+          "source": "extraProjectItem",
+          "tenantName": "梁海波",
+          "value": 3.64
+        },
+        {
+          "billId": 69,
+          "fieldName": "amount",
+          "originalText": "=B13*3%",
+          "projectName": "2026年1月水电2月房租",
+          "rowName": "电费附加费",
+          "source": "extraProjectItem",
+          "tenantName": "梁海波",
+          "value": 6.12
+        },
+        {
+          "billId": 67,
+          "fieldName": "amount",
+          "originalText": "=B26*13%",
+          "projectName": "2025年5月份水电6月份房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市泰利锐航机械科技有限公司",
+          "value": 446.1
+        },
+        {
+          "billId": 67,
+          "fieldName": "amount",
+          "originalText": "=14500*13%+(B27+B30)*9%",
+          "projectName": "2025年5月份水电6月份房租",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市泰利锐航机械科技有限公司",
+          "value": 1898.5
+        },
+        {
+          "billId": 65,
+          "fieldName": "amount",
+          "originalText": "=B23*3%",
+          "projectName": "2025年5月份水电6月房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市烛之芯科技有限公司",
+          "value": 116.85
+        },
+        {
+          "billId": 63,
+          "fieldName": "amount",
+          "originalText": "=B19*13%",
+          "projectName": "2025年5月份水电6月份房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "广东三众智能泵业有限公司",
+          "value": 152
+        },
+        {
+          "billId": 63,
+          "fieldName": "amount",
+          "originalText": "=5000*13%",
+          "projectName": "2025年5月份水电6月份房租",
+          "rowName": "开票税金",
+          "source": "extraProjectItem",
+          "tenantName": "广东三众智能泵业有限公司",
+          "value": 650
+        },
+        {
+          "billId": 61,
+          "fieldName": "amount",
+          "originalText": "=B17*13%",
+          "projectName": "2025年5月份水电6月份房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "刘紫鸿先生",
+          "value": 103.43
+        },
+        {
+          "billId": 60,
+          "fieldName": "amount",
+          "originalText": "=B19*10%",
+          "projectName": "2025年5月份水电6月份房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "林尚海先生",
+          "value": 329.86
+        },
+        {
+          "billId": 59,
+          "fieldName": "amount",
+          "originalText": "=B22*11%+(F6+F7+F8+F9)*0.1",
+          "projectName": "2025年5月份水电6月份房租",
+          "rowName": "服务费",
+          "source": "extraProjectItem",
+          "tenantName": "东莞市隆星鞋材有限公司",
+          "value": 7381.75
+        }
+      ],
+      "title": "金额公式 originalText 包含百分号字面量"
+    }
+  ]
+}

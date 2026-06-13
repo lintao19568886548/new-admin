@@ -16,6 +16,7 @@ import {
   ref,
   watch,
 } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
@@ -27,12 +28,19 @@ import {
 } from './chartConfigs';
 
 interface Props {
+  date?: string;
+  endDate?: string;
   parkId?: ParkOptionValue;
+  startDate?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  date: '',
+  endDate: '',
   parkId: 'all',
+  startDate: '',
 });
+const router = useRouter();
 
 const defaultCustomerStats: DashboardCustomerOverviewStats = {
   intentLevels: [],
@@ -197,10 +205,41 @@ const innerIconSize = computed(() => {
 
 const customerStats = ref(defaultCustomerStats);
 
+function buildInvestmentQuery(progress?: string) {
+  const query: Record<string, string> = {};
+  if (props.parkId !== 'all') {
+    query.parkId = String(props.parkId);
+  }
+  if (props.startDate && props.endDate) {
+    query.startDate = props.startDate;
+    query.endDate = props.endDate;
+    query.startTime = `${props.startDate} 00:00:00`;
+    query.endTime = `${props.endDate} 23:59:59`;
+  } else if (props.date) {
+    query.date = props.date;
+    query.startTime = `${props.date} 00:00:00`;
+    query.endTime = `${props.date} 23:59:59`;
+  }
+  if (progress) {
+    query.progress = progress;
+  }
+  return query;
+}
+
+function goInvestment(progress?: string) {
+  router.push({
+    path: '/investment/agent',
+    query: buildInvestmentQuery(progress),
+  });
+}
+
 const fetchCustomerStats = async () => {
   try {
     const res = await getDashboardCustomerOverviewStats({
+      date: props.endDate || props.date,
+      endDate: props.endDate,
       parkId: props.parkId,
+      startDate: props.startDate,
     });
     if (res) {
       customerStats.value = {
@@ -220,7 +259,7 @@ const fetchCustomerStats = async () => {
 };
 
 watch(
-  () => props.parkId,
+  () => [props.parkId, props.date, props.startDate, props.endDate],
   () => {
     fetchCustomerStats();
   },
@@ -231,7 +270,11 @@ watch(
 <template>
   <div class="flex h-full flex-col">
     <div class="mb-3 grid flex-initial grid-cols-2 gap-2">
-      <div class="rounded-lg bg-gray-50 p-2 text-center">
+      <button
+        class="summary-card rounded-lg bg-gray-50 p-2 text-center"
+        type="button"
+        @click="goInvestment()"
+      >
         <div
           class="mx-auto mb-1 flex items-center justify-center rounded-full bg-purple-100"
           :class="[iconSize]"
@@ -245,8 +288,12 @@ watch(
           {{ customerStats.summary.totalCustomers }}
         </div>
         <div class="text-gray-400" :class="[labelFontSize]">接待客户</div>
-      </div>
-      <div class="rounded-lg bg-gray-50 p-2 text-center">
+      </button>
+      <button
+        class="summary-card rounded-lg bg-gray-50 p-2 text-center"
+        type="button"
+        @click="goInvestment('签约完成')"
+      >
         <div
           class="mx-auto mb-1 flex items-center justify-center rounded-full bg-green-100"
           :class="[iconSize]"
@@ -257,7 +304,7 @@ watch(
           {{ customerStats.summary.currentMonthNewCustomers }}
         </div>
         <div class="text-gray-400" :class="[labelFontSize]">签约完成</div>
-      </div>
+      </button>
     </div>
     <div class="grid min-h-0 flex-1 grid-cols-1 gap-2 md:grid-cols-2">
       <div class="flex flex-col rounded-lg bg-gray-50 p-2 md:p-3">
@@ -285,3 +332,20 @@ watch(
     </div>
   </div>
 </template>
+
+<style scoped>
+.summary-card {
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.summary-card:hover {
+  border-color: #d9e8ff;
+  box-shadow: 0 4px 12px rgb(15 23 42 / 8%);
+  transform: translateY(-1px);
+}
+</style>

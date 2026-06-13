@@ -27,6 +27,16 @@ export default eventHandler(async (event) => {
     const currentPage = Number(query.currentPage) || 1;
     const pageSize = Number(query.pageSize) || 20;
     const skip = (currentPage - 1) * pageSize;
+    const referenceDate = query.date
+      ? new Date(String(query.date))
+      : new Date();
+    const referenceDay = new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth(),
+      referenceDate.getDate(),
+    );
+    const expiringLimit = new Date(referenceDay);
+    expiringLimit.setMonth(expiringLimit.getMonth() + 1);
 
     const accessibleParkIds =
       userinfo.parks
@@ -80,22 +90,36 @@ export default eventHandler(async (event) => {
       where.transactionType = transactionType;
     }
     if (query.status) {
-      const now = new Date();
       if (query.status === 'active') {
         // "生效中": contractEnd is in the future OR is null
-        where.OR = [{ contractEnd: { gte: now } }, { contractEnd: null }];
+        where.OR = [
+          { contractEnd: { gte: referenceDay } },
+          { contractEnd: null },
+        ];
       } else if (query.status === 'expired') {
         // "过期": contractEnd is in the past AND not null
         where.contractEnd = {
-          lt: now,
+          lt: referenceDay,
         };
       }
     }
+    if (query.contractView === 'expiring') {
+      where.contractEnd = {
+        gte: referenceDay,
+        lte: expiringLimit,
+      };
+      delete where.OR;
+    }
     if (query.contractDate) {
       const [start, end] = (query.contractDate as string).split(',');
-      where.contractDate = {
+      where.contractStart = {
         gte: new Date(`${start} 00:00:00`), // 添加时间部分
         lte: new Date(`${end} 23:59:59`), // 添加时间部分，确保包含整天
+      };
+    } else if (query.contractStart && query.contractEnd) {
+      where.contractStart = {
+        gte: new Date(`${String(query.contractStart)} 00:00:00`),
+        lte: new Date(`${String(query.contractEnd)} 23:59:59`),
       };
     }
     if (query.increaseDate) {

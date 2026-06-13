@@ -148,6 +148,13 @@ const quickActions: QuickAction[] = [
     tone: 'cyan',
   },
   {
+    description: '生成专属推广码',
+    icon: UserAddOutlined,
+    label: '获客推广',
+    route: '/crm/qrcode-test',
+    tone: 'orange',
+  },
+  {
     description: '厂房/仓库/办公供给',
     icon: HomeOutlined,
     label: '公开房源',
@@ -158,6 +165,7 @@ const quickActions: QuickAction[] = [
 
 const publicCrawlQuickActions: QuickAction[] = quickActions.filter((action) =>
   [
+    '/crm/qrcode-test',
     '/investment/radar/mobile-factory-listings',
     '/investment/radar/mobile-public-demands',
   ].includes(action.route),

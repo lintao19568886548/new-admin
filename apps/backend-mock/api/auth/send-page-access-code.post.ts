@@ -2,6 +2,7 @@ import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   badRequestResponse,
   serverErrorResponse,
+  unAuthorizedResponse,
   useResponseSuccess,
 } from '~/utils/response';
 import { sendLoginVerificationCode } from '~/utils/shlianlu-sms';
@@ -17,7 +18,7 @@ export default defineEventHandler(async (event) => {
   // 验证用户是否已登录
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
-    return badRequestResponse('请先登录', event);
+    return unAuthorizedResponse(event, '请先登录');
   }
 
   const phoneNumber = await resolveCurrentUserPhoneNumber({

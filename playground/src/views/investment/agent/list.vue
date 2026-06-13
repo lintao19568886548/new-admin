@@ -6,7 +6,16 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { createApp, h, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import {
+  createApp,
+  h,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue';
+import { useRoute } from 'vue-router';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -40,6 +49,7 @@ import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 import { useSmartRecommend } from './modules/recommend-fab.vue';
 
+const route = useRoute();
 const parkNameMap = ref<Record<number, string>>({});
 const {
   closeManualLocationModal,
@@ -283,6 +293,50 @@ const [Grid, gridApi] = useVbenVxeGrid({
   } as VxeTableGridOptions,
 });
 
+function getRouteInvestmentFilters() {
+  const query = route.query;
+  const values: Record<string, any> = {
+    intentLevel: undefined,
+    meetingTime: undefined,
+    parkId: undefined,
+    progress: undefined,
+  };
+  const parkId = Number(query.parkId);
+  const progress = String(query.progress || '');
+  const intentLevel = String(query.intentLevel || '');
+  const date = String(query.date || '');
+  const startTime = String(query.startTime || '');
+  const endTime = String(query.endTime || '');
+
+  if (Number.isInteger(parkId) && parkId > 0) {
+    values.parkId = parkId;
+  }
+  if (progress) {
+    values.progress = progress;
+  }
+  if (intentLevel) {
+    values.intentLevel = intentLevel;
+  }
+  if (startTime && endTime) {
+    values.meetingTime = [startTime, endTime];
+  } else if (date) {
+    values.meetingTime = [`${date} 00:00:00`, `${date} 23:59:59`];
+  }
+
+  return values;
+}
+
+async function applyRouteInvestmentFilters() {
+  const values = getRouteInvestmentFilters();
+  const hasRouteFilter = Object.values(values).some(
+    (value) => value !== undefined,
+  );
+  if (!hasRouteFilter && Object.keys(route.query).length === 0) {
+    return;
+  }
+  await gridApi.formApi?.setValues?.(values);
+}
+
 /**
  * 刷新表格
  */
@@ -292,17 +346,26 @@ function refreshGrid() {
 
 onMounted(() => {
   getInvestmentParkList()
-    .then((list: any[]) => {
+    .then(async (list: any[]) => {
       if (!Array.isArray(list)) return;
       parkNameMap.value = Object.fromEntries(
         list.map((p: any) => [Number(p.parkId), String(p.parkName)]),
       );
+      await applyRouteInvestmentFilters();
       refreshGrid();
     })
     .catch(() => {
       parkNameMap.value = {};
     });
 });
+
+watch(
+  () => route.query,
+  async () => {
+    await applyRouteInvestmentFilters();
+    refreshGrid();
+  },
+);
 
 /**
  * 推荐表格列配置

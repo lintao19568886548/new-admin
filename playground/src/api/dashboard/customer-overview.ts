@@ -17,7 +17,10 @@ export interface DashboardCustomerOverviewStats {
 }
 
 export async function getDashboardCustomerOverviewStats(params?: {
+  date?: string;
+  endDate?: string;
   parkId?: 'all' | number;
+  startDate?: string;
 }) {
   return requestClient.get<DashboardCustomerOverviewStats>(
     '/dashboard/customer-overview-stats',

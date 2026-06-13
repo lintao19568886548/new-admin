@@ -1,3 +1,7 @@
+import {
+  resolveDashboardDateRange,
+  resolveDashboardReferenceDate,
+} from '~/utils/dashboard-date';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
@@ -98,9 +102,9 @@ function isRetreatedContract(referenceDate: Date, contractEnd: Date | null) {
   return startOfDay(contractEnd) < referenceDay;
 }
 
-function isNewContractInMonth(
-  monthStart: Date,
-  referenceDate: Date,
+function isNewContractInPeriod(
+  periodStart: Date,
+  periodEndDate: Date,
   contractStart: Date | null,
 ) {
   if (!contractStart) {
@@ -110,7 +114,7 @@ function isNewContractInMonth(
   const startDay = startOfDay(contractStart);
 
   return (
-    startDay >= startOfDay(monthStart) && startDay <= startOfDay(referenceDate)
+    startDay >= startOfDay(periodStart) && startDay <= startOfDay(periodEndDate)
   );
 }
 
@@ -148,7 +152,7 @@ function resolveParkIds(
 
 function calculateContractTotals(
   contracts: { contractEnd: Date | null; contractStart: Date | null }[],
-  monthStart: Date,
+  newContractPeriodStart: Date,
   referenceDate: Date,
 ) {
   const totals = {
@@ -160,7 +164,11 @@ function calculateContractTotals(
 
   for (const contract of contracts) {
     if (
-      isNewContractInMonth(monthStart, referenceDate, contract.contractStart)
+      isNewContractInPeriod(
+        newContractPeriodStart,
+        referenceDate,
+        contract.contractStart,
+      )
     ) {
       totals.newThisMonth++;
     }
@@ -205,6 +213,7 @@ export default eventHandler(async (event) => {
     }
 
     const query = getQuery(event);
+    const hasDateRange = Boolean(query.startDate || query.endDate);
     const parkIds = resolveParkIds(query.parkId, authorizedParkIds);
     if (!parkIds) {
       return useResponseSuccess(emptyStats());
@@ -223,7 +232,12 @@ export default eventHandler(async (event) => {
       },
     });
 
-    const now = new Date();
+    const dateRange = hasDateRange
+      ? resolveDashboardDateRange(query.startDate, query.endDate)
+      : null;
+    const now = dateRange
+      ? dateRange.periodEndDate
+      : resolveDashboardReferenceDate(query.date);
     const trend: ContractTrend = {
       dates: [],
       expiring: [],
@@ -232,11 +246,28 @@ export default eventHandler(async (event) => {
       retreated: [],
     };
 
-    const currentYearMonths = getCurrentYearMonths(now);
+    const rangeStartMonth = dateRange
+      ? new Date(
+          dateRange.periodStartDate.getFullYear(),
+          dateRange.periodStartDate.getMonth(),
+          1,
+        )
+      : null;
+    const currentYearMonths = rangeStartMonth
+      ? getCurrentYearMonths(now).filter(
+          (month) =>
+            month >= rangeStartMonth &&
+            month <= new Date(now.getFullYear(), now.getMonth(), 1),
+        )
+      : getCurrentYearMonths(now);
     const currentMonth =
       currentYearMonths[currentYearMonths.length - 1] ||
       new Date(now.getFullYear(), now.getMonth(), 1);
-    const summary = calculateContractTotals(contracts, currentMonth, now);
+    const summary = calculateContractTotals(
+      contracts,
+      dateRange?.periodStartDate || currentMonth,
+      now,
+    );
 
     for (const [index, monthStart] of currentYearMonths.entries()) {
       const referenceDate =

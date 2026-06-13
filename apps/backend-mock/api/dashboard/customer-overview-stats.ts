@@ -1,3 +1,7 @@
+import {
+  resolveDashboardDateRange,
+  resolveDashboardReferenceDate,
+} from '~/utils/dashboard-date';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
@@ -47,6 +51,16 @@ function resolveParkIds(
   return [parkId];
 }
 
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -62,6 +76,16 @@ export default eventHandler(async (event) => {
     }
 
     const query = getQuery(event);
+    const { periodEnd, periodStart } =
+      query.startDate || query.endDate
+        ? resolveDashboardDateRange(query.startDate, query.endDate)
+        : {
+            periodEnd: addDays(
+              startOfDay(resolveDashboardReferenceDate(query.date)),
+              1,
+            ),
+            periodStart: new Date(0),
+          };
     const parkIds = resolveParkIds(query.parkId, authorizedParkIds);
     if (!parkIds) {
       return useResponseSuccess(emptyStats());
@@ -70,9 +94,14 @@ export default eventHandler(async (event) => {
     const investments = await prismaClient.investment.findMany({
       select: {
         intentLevel: true,
+        meetingTime: true,
         progress: true,
       },
       where: {
+        meetingTime: {
+          gte: periodStart,
+          lt: periodEnd,
+        },
         parkId: {
           in: parkIds,
         },

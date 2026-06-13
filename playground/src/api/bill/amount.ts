@@ -4,6 +4,10 @@ export async function getAmountBillList(params: any) {
   return requestClient.get('/bill/amount/list', { params });
 }
 
+export async function getAmountBillProjectOptions(params?: any) {
+  return requestClient.get('/bill/amount/project-options', { params });
+}
+
 export async function getAmountBillDetail(id: number) {
   return requestClient.get(`/bill/amount/${id}`);
 }

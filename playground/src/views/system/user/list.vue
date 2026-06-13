@@ -5,11 +5,10 @@ import type {
 } from '#/adapter/vxe-table';
 import type { SystemUserApi } from '#/api';
 
-import { computed, ref, watch } from 'vue';
+import { ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
-import { useAccessStore } from '@vben/stores';
 
 import { Button, message, Tabs } from 'ant-design-vue';
 
@@ -21,58 +20,7 @@ import ParkManagePanel from '../park/modules/manage-panel.vue';
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
-type AccessRouteRecord = {
-  children?: AccessRouteRecord[];
-  name?: string | symbol;
-  path?: string;
-};
-
 const activeTab = ref('parks');
-const accessStore = useAccessStore();
-
-function hasAccessibleRoute(
-  routes: AccessRouteRecord[],
-  names: string[],
-  paths: string[],
-) {
-  const queue = [...routes];
-  while (queue.length > 0) {
-    const route = queue.shift();
-    if (!route) continue;
-
-    if (route.name && names.includes(String(route.name))) {
-      return true;
-    }
-    if (route.path && paths.includes(route.path)) {
-      return true;
-    }
-    if (Array.isArray(route.children)) {
-      queue.push(...route.children);
-    }
-  }
-  return false;
-}
-
-const canManagePark = computed(() =>
-  hasAccessibleRoute(
-    accessStore.accessRoutes as AccessRouteRecord[],
-    ['SystemPark'],
-    ['/system/park'],
-  ),
-);
-
-watch(
-  canManagePark,
-  (allowed) => {
-    if (!allowed && activeTab.value === 'parks') {
-      activeTab.value = 'accounts';
-    }
-    if (allowed && activeTab.value === 'accounts') {
-      activeTab.value = 'parks';
-    }
-  },
-  { immediate: true },
-);
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -184,11 +132,7 @@ function refreshGrid() {
 <template>
   <Page auto-content-height content-class="system-account-page-content">
     <Tabs v-model:active-key="activeTab" class="system-account-tabs">
-      <Tabs.TabPane
-        v-if="canManagePark"
-        key="parks"
-        :tab="$t('system.park.title')"
-      >
+      <Tabs.TabPane key="parks" :tab="$t('system.park.title')">
         <div class="system-account-tab-pane">
           <ParkManagePanel v-if="activeTab === 'parks'" />
         </div>

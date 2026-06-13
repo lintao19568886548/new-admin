@@ -92,6 +92,20 @@ let univerInstance: null | Univer = null;
 let univerAPI: FUniver | null = null;
 const tenantLookupOptions = ref<any[]>([]);
 const parkLookupOptions = ref<any[]>([]);
+const MONEY_NUMBER_FORMAT = '#,##0.00';
+const MONEY_FORMAT_RETRY_DELAYS = [0, 120, 360] as const;
+const PERCENT_REFERENCE_LEAK_RE = /(%)(\$?[A-Z]{1,3}\$?\d+)/gi;
+const PERCENT_LITERAL_RE = /(\d+(?:\.\d+)?)%/g;
+let numberFormatCommandAvailable = true;
+
+type StoredSheetCell = {
+  originalText?: null | string;
+  value?: unknown;
+};
+
+type SheetCellValue = boolean | number | string;
+
+type FeeRowData = [string, unknown, unknown?];
 
 function normalizeBankAccountText(value: unknown) {
   if (value === null || value === undefined) {
@@ -101,9 +115,167 @@ function normalizeBankAccountText(value: unknown) {
   return String(value).replace(/^'/, '');
 }
 
+function isFormulaText(value: unknown) {
+  return typeof value === 'string' && value.trim().startsWith('=');
+}
+
+function sanitizeFormulaText(value: string) {
+  return value
+    .trim()
+    .replaceAll(PERCENT_REFERENCE_LEAK_RE, '$1')
+    .replaceAll(PERCENT_LITERAL_RE, '$1/100');
+}
+
+function hasStoredValue(value: unknown) {
+  return (
+    value !== null &&
+    value !== undefined &&
+    (typeof value !== 'string' || value.trim() !== '')
+  );
+}
+
+function normalizeFormulaFallbackValue(value: unknown) {
+  if (!hasStoredValue(value)) {
+    return null;
+  }
+
+  return safeConvertToNumber(value) ?? value;
+}
+
+function toSheetCellValue(value: unknown): SheetCellValue {
+  if (
+    typeof value === 'boolean' ||
+    typeof value === 'number' ||
+    typeof value === 'string'
+  ) {
+    return value;
+  }
+
+  return value === null || value === undefined ? '' : String(value);
+}
+
+function setFormulaOrValue(
+  worksheet: any,
+  rangeText: string,
+  value: unknown,
+  numberFormat?: string,
+  fallbackValue?: unknown,
+) {
+  const range = worksheet.getRange(rangeText);
+  if (numberFormat) {
+    setNumberFormat(worksheet, rangeText, numberFormat);
+  }
+
+  if (isFormulaText(value)) {
+    range.setValue({
+      f: sanitizeFormulaText(String(value)),
+      p: null,
+      v: normalizeFormulaFallbackValue(fallbackValue),
+    });
+    if (numberFormat) {
+      setNumberFormat(worksheet, rangeText, numberFormat);
+    }
+    return;
+  }
+
+  range.setValue(value ?? '');
+  if (numberFormat) {
+    setNumberFormat(worksheet, rangeText, numberFormat);
+  }
+}
+
+function normalizeMoneyFormulaOrValue(value: unknown) {
+  if (isFormulaText(value)) {
+    return sanitizeFormulaText(String(value));
+  }
+
+  if (typeof value === 'string' && value.trim().endsWith('%')) {
+    return safeConvertToNumber(value) ?? value;
+  }
+
+  return value;
+}
+
+function setMoneyFormulaOrValue(
+  worksheet: any,
+  rangeText: string,
+  value: unknown,
+  fallbackValue?: unknown,
+) {
+  setFormulaOrValue(
+    worksheet,
+    rangeText,
+    normalizeMoneyFormulaOrValue(value),
+    MONEY_NUMBER_FORMAT,
+    fallbackValue,
+  );
+}
+
+function setStoredFormulaOrValue(
+  worksheet: any,
+  rangeText: string,
+  storedCell: StoredSheetCell | undefined,
+  defaultValue: unknown,
+  numberFormat?: string,
+) {
+  if (hasStoredValue(storedCell?.originalText)) {
+    setFormulaOrValue(
+      worksheet,
+      rangeText,
+      storedCell?.originalText,
+      numberFormat,
+      storedCell?.value,
+    );
+    return;
+  }
+
+  if (hasStoredValue(storedCell?.value)) {
+    setFormulaOrValue(worksheet, rangeText, storedCell?.value, numberFormat);
+    return;
+  }
+
+  setFormulaOrValue(worksheet, rangeText, defaultValue, numberFormat);
+}
+
+function setStoredMoneyFormulaOrValue(
+  worksheet: any,
+  rangeText: string,
+  storedCell: StoredSheetCell | undefined,
+  defaultValue: unknown,
+) {
+  setStoredFormulaOrValue(
+    worksheet,
+    rangeText,
+    storedCell,
+    defaultValue,
+    MONEY_NUMBER_FORMAT,
+  );
+}
+
+function applyMoneyFormats(worksheet: any, ranges: string[]) {
+  ranges.forEach((range) =>
+    setNumberFormat(worksheet, range, MONEY_NUMBER_FORMAT),
+  );
+}
+
+function applyMoneyFormatsWithRetry(ranges: string[]) {
+  const apply = () => {
+    if (!univerAPI) return;
+    const workbook = univerAPI.getActiveWorkbook();
+    const activeSheet = workbook?.getActiveSheet();
+    if (!activeSheet) return;
+    applyMoneyFormats(activeSheet, ranges);
+  };
+
+  apply();
+  MONEY_FORMAT_RETRY_DELAYS.forEach((delay) => {
+    setTimeout(apply, delay);
+  });
+}
+
 function setTextFormat(worksheet: any, range: string) {
   try {
-    worksheet.getRange(range).setNumberFormat('@');
+    setNumberFormat(worksheet, range, '@');
   } catch (error) {
     console.warn('设置文本格式失败:', error);
   }
@@ -112,7 +284,7 @@ function setTextFormat(worksheet: any, range: string) {
 function setTextCellValue(worksheet: any, rangeText: string, value: unknown) {
   try {
     const range = worksheet.getRange(rangeText);
-    range.setNumberFormat('@');
+    setNumberFormat(worksheet, rangeText, '@');
     range.setHorizontalAlignment('center');
     range.setVerticalAlignment('middle');
     range.setValue(normalizeBankAccountText(value));
@@ -127,6 +299,7 @@ async function init() {
   }
   // Dispose previous instance before creating a new one
   dispose();
+  numberFormatCommandAvailable = true;
 
   try {
     const referenceDataPromise = Promise.all([
@@ -420,7 +593,7 @@ async function init() {
     const feeHeaderRow = rowIndex;
 
     const feeDataStartRow = rowIndex;
-    const standardFeeData: (number | string)[][] = [
+    const standardFeeData: FeeRowData[] = [
       ['电费', props.billData.eleFee || 0],
       ['水费', props.billData.waterFee || 0],
       ['厂房租金', props.billData.factoryRent || 0],
@@ -430,7 +603,7 @@ async function init() {
       ['开票税金', props.billData.invoiceTax || 0],
       ['滞纳金', props.billData.penaltyFee || 0],
     ];
-    let feeData: (number | string)[][] = [...standardFeeData];
+    let feeData: FeeRowData[] = [...standardFeeData];
 
     if (props.billData.extraProjectItem) {
       try {
@@ -450,11 +623,11 @@ async function init() {
             );
 
             if (matchedIndex !== -1) {
-              feeData[matchedIndex] = [item.itemName, valueToUse];
+              feeData[matchedIndex] = [item.itemName, valueToUse, item.value];
               return;
             }
 
-            feeData.push([item.itemName, valueToUse]);
+            feeData.push([item.itemName, valueToUse, item.value]);
           });
         }
       } catch (error) {
@@ -469,7 +642,20 @@ async function init() {
     if (feeData.length > 0) {
       worksheet
         .getRange(`A${rowIndex}:B${rowIndex + feeData.length - 1}`)
-        .setValues(feeData);
+        .setValues(
+          feeData.map(([itemName, value]) => [
+            itemName,
+            toSheetCellValue(value),
+          ]),
+        );
+      feeData.forEach(([, value, fallbackValue], index) => {
+        setMoneyFormulaOrValue(
+          worksheet,
+          `B${feeDataStartRow + index}`,
+          value,
+          fallbackValue,
+        );
+      });
     }
     rowIndex += feeData.length;
 
@@ -579,7 +765,7 @@ async function init() {
       .getRange('J3')
       .setValue('收款金额')
       .setHorizontalAlignment('center');
-    worksheet.getRange('K3').setValue(props.billData.receiptAmount || 0);
+    setMoneyFormulaOrValue(worksheet, 'K3', props.billData.receiptAmount || 0);
     worksheet.getRange('K2:K3').setHorizontalAlignment('center');
 
     rowIndex += 1;
@@ -630,92 +816,50 @@ async function init() {
       if (eleDataEndRow >= eleDataStartRow) {
         for (let i = eleDataStartRow; i <= eleDataEndRow; i++) {
           const parsedItem = parsedEleItems[i - eleDataStartRow];
-          // Sanitize all relevant numeric inputs, defaulting to 0 if invalid
 
-          // Validate and set Monthly Usage (Column D)
-          if (
-            parsedItem &&
-            parsedItem.monthlyUsage &&
-            parsedItem.monthlyUsage.originalText !== null
-          ) {
-            worksheet
-              .getRange(`D${i}`)
-              .setValue(parsedItem.monthlyUsage.originalText);
-          } else {
-            worksheet.getRange(`D${i}`).setFormula(`=C${i}-B${i}`);
-          }
-
-          // Validate and set Total Usage (Column F)
-          if (
-            parsedItem &&
-            parsedItem.totalUsage &&
-            parsedItem.totalUsage.originalText !== null
-          ) {
-            worksheet
-              .getRange(`F${i}`)
-              .setValue(parsedItem.totalUsage.originalText);
-          } else {
-            worksheet.getRange(`F${i}`).setFormula(`=D${i}*E${i}`);
-          }
-
-          // Validate and set Amount (Column H)
-          if (
-            parsedItem &&
-            parsedItem.amount &&
-            parsedItem.amount.originalText !== null
-          ) {
-            worksheet
-              .getRange(`H${i}`)
-              .setValue(parsedItem.amount.originalText);
-          } else {
-            worksheet.getRange(`H${i}`).setFormula(`=F${i}*G${i}`);
-          }
+          setStoredFormulaOrValue(
+            worksheet,
+            `D${i}`,
+            parsedItem?.monthlyUsage,
+            `=C${i}-B${i}`,
+          );
+          setStoredFormulaOrValue(
+            worksheet,
+            `F${i}`,
+            parsedItem?.totalUsage,
+            `=D${i}*E${i}`,
+          );
+          setStoredMoneyFormulaOrValue(
+            worksheet,
+            `H${i}`,
+            parsedItem?.amount,
+            `=F${i}*G${i}`,
+          );
         }
       }
 
       if (waterDataEndRow >= waterDataStartRow) {
         for (let i = waterDataStartRow; i <= waterDataEndRow; i++) {
           const parsedItem = parsedWaterItems[i - waterDataStartRow];
-          // Sanitize all relevant numeric inputs, defaulting to 0 if invalid
 
-          // Validate and set Monthly Usage (Column D)
-          if (
-            parsedItem &&
-            parsedItem.monthlyUsage &&
-            parsedItem.monthlyUsage.originalText !== null
-          ) {
-            worksheet
-              .getRange(`D${i}`)
-              .setValue(parsedItem.monthlyUsage.originalText);
-          } else {
-            worksheet.getRange(`D${i}`).setFormula(`=C${i}-B${i}`);
-          }
-
-          // Validate and set Total Usage (Column F)
-          if (
-            parsedItem &&
-            parsedItem.totalUsage &&
-            parsedItem.totalUsage.originalText !== null
-          ) {
-            worksheet
-              .getRange(`F${i}`)
-              .setValue(parsedItem.totalUsage.originalText);
-          } else {
-            worksheet.getRange(`F${i}`).setFormula(`=D${i}*E${i}`);
-          }
-
-          // Validate and set Amount (Column H)
-          if (
-            parsedItem &&
-            parsedItem.amount &&
-            parsedItem.amount.originalText !== null
-          ) {
-            worksheet
-              .getRange(`H${i}`)
-              .setValue(parsedItem.amount.originalText);
-          } else {
-            worksheet.getRange(`H${i}`).setFormula(`=F${i}*G${i}`);
-          }
+          setStoredFormulaOrValue(
+            worksheet,
+            `D${i}`,
+            parsedItem?.monthlyUsage,
+            `=C${i}-B${i}`,
+          );
+          setStoredFormulaOrValue(
+            worksheet,
+            `F${i}`,
+            parsedItem?.totalUsage,
+            `=D${i}*E${i}`,
+          );
+          setStoredMoneyFormulaOrValue(
+            worksheet,
+            `H${i}`,
+            parsedItem?.amount,
+            `=F${i}*G${i}`,
+          );
         }
       }
 
@@ -723,78 +867,80 @@ async function init() {
         worksheet
           .getRange(`F${eleTotalRow}`)
           .setFormula(`=SUM(F${eleDataStartRow}:F${eleDataEndRow})`);
-        worksheet
-          .getRange(`H${eleTotalRow}`)
-          .setFormula(`=SUM(H${eleDataStartRow}:H${eleDataEndRow})`);
-        worksheet.getRange(`B${eleFeeRow}`).setFormula(`=H${eleTotalRow}`);
+        setMoneyFormulaOrValue(
+          worksheet,
+          `H${eleTotalRow}`,
+          `=SUM(H${eleDataStartRow}:H${eleDataEndRow})`,
+          props.billData.eleFee,
+        );
+        setMoneyFormulaOrValue(
+          worksheet,
+          `B${eleFeeRow}`,
+          `=H${eleTotalRow}`,
+          props.billData.eleFee,
+        );
       } else {
         worksheet.getRange(`F${eleTotalRow}`).setValue(0);
-        worksheet
-          .getRange(`H${eleTotalRow}`)
-          .setValue(props.billData.eleFee || 0);
-        worksheet
-          .getRange(`B${eleFeeRow}`)
-          .setValue(props.billData.eleFee || 0);
+        setMoneyFormulaOrValue(
+          worksheet,
+          `H${eleTotalRow}`,
+          props.billData.eleFee || 0,
+        );
+        setMoneyFormulaOrValue(
+          worksheet,
+          `B${eleFeeRow}`,
+          props.billData.eleFee || 0,
+        );
       }
 
       if (waterDataEndRow >= waterDataStartRow) {
         worksheet
           .getRange(`F${waterTotalRow}`)
           .setFormula(`=SUM(F${waterDataStartRow}:F${waterDataEndRow})`);
-        worksheet
-          .getRange(`H${waterTotalRow}`)
-          .setFormula(`=SUM(H${waterDataStartRow}:H${waterDataEndRow})`);
-        worksheet.getRange(`B${waterFeeRow}`).setFormula(`=H${waterTotalRow}`);
+        setMoneyFormulaOrValue(
+          worksheet,
+          `H${waterTotalRow}`,
+          `=SUM(H${waterDataStartRow}:H${waterDataEndRow})`,
+          props.billData.waterFee,
+        );
+        setMoneyFormulaOrValue(
+          worksheet,
+          `B${waterFeeRow}`,
+          `=H${waterTotalRow}`,
+          props.billData.waterFee,
+        );
       } else {
         worksheet.getRange(`F${waterTotalRow}`).setValue(0);
-        worksheet
-          .getRange(`H${waterTotalRow}`)
-          .setValue(props.billData.waterFee || 0);
-        worksheet
-          .getRange(`B${waterFeeRow}`)
-          .setValue(props.billData.waterFee || 0);
+        setMoneyFormulaOrValue(
+          worksheet,
+          `H${waterTotalRow}`,
+          props.billData.waterFee || 0,
+        );
+        setMoneyFormulaOrValue(
+          worksheet,
+          `B${waterFeeRow}`,
+          props.billData.waterFee || 0,
+        );
       }
 
-      worksheet
-        .getRange(`B${feeTotalRow}`)
-        .setFormula(`=SUM(B${feeDataStartRow}:B${feeTotalRow - 1})`);
+      setMoneyFormulaOrValue(
+        worksheet,
+        `B${feeTotalRow}`,
+        `=SUM(B${feeDataStartRow}:B${feeTotalRow - 1})`,
+        props.billData.totalFee,
+      );
 
-      setNumberFormat(
-        worksheet,
+      const moneyRanges = [
         `B${eleDataStartRow}:D${eleTotalRow}`,
-        '###0.00',
-      );
-      setNumberFormat(
-        worksheet,
         `F${eleDataStartRow}:F${eleTotalRow}`,
-        '###0.00',
-      );
-      setNumberFormat(
-        worksheet,
         `H${eleDataStartRow}:H${eleTotalRow}`,
-        '###0.00',
-      );
-      setNumberFormat(
-        worksheet,
         `B${waterDataStartRow}:D${waterTotalRow}`,
-        '###0.00',
-      );
-      setNumberFormat(
-        worksheet,
         `F${waterDataStartRow}:F${waterTotalRow}`,
-        '###0.00',
-      );
-      setNumberFormat(
-        worksheet,
         `H${waterDataStartRow}:H${waterTotalRow}`,
-        '###0.00',
-      );
-      setNumberFormat(
-        worksheet,
         `B${feeDataStartRow}:B${feeTotalRow}`,
-        '###0.00',
-      );
-      setNumberFormat(worksheet, `K3`, '###0.00');
+        'K3',
+      ];
+      applyMoneyFormatsWithRetry(moneyRanges);
 
       worksheet.getRange(`A1:K1`).merge();
       worksheet.getRange(`B2:E2`).merge();
@@ -861,8 +1007,88 @@ function safeConvertToNumber(value: any): null | number {
   if (value === null || value === undefined || value === '') {
     return null;
   }
+
+  if (typeof value === 'string') {
+    const normalized = value.replaceAll(',', '').trim();
+    if (!normalized) {
+      return null;
+    }
+
+    const isPercent = normalized.endsWith('%');
+    const numberText = isPercent ? normalized.slice(0, -1) : normalized;
+    const num = Number(numberText);
+    if (Number.isNaN(num)) {
+      return null;
+    }
+
+    return isPercent ? num / 100 : num;
+  }
+
   const num = Number(value);
   return Number.isNaN(num) ? null : num;
+}
+
+function normalizeOriginalText(
+  formula: string,
+  value: any,
+  convertedValue: unknown,
+) {
+  if (formula) {
+    return sanitizeFormulaText(formula);
+  }
+
+  const text = value !== null && value !== undefined ? String(value) : '';
+  if (
+    text.trim().endsWith('%') &&
+    typeof convertedValue === 'number' &&
+    Number.isFinite(convertedValue)
+  ) {
+    return String(convertedValue);
+  }
+
+  return text;
+}
+
+function sumBillField(items: any[], field: string) {
+  return items.reduce((sum, item) => sum + (Number(item?.[field]) || 0), 0);
+}
+
+function buildExistingFeeValueMap(billData: AmountBill) {
+  const valueMap = new Map<string, number>();
+  const setValue = (name: string, value: unknown) => {
+    const amount = safeConvertToNumber(value);
+    if (amount !== null) {
+      valueMap.set(name, amount);
+    }
+  };
+
+  setValue('电费', billData.eleFee);
+  setValue('水费', billData.waterFee);
+  setValue('厂房租金', billData.factoryRent);
+  setValue('基本管理费', billData.managementFee);
+  setValue('垃圾处理费', billData.garbageFee);
+  setValue('服务费', billData.serviceFee);
+  setValue('开票税金', billData.invoiceTax);
+  setValue('滞纳金', billData.penaltyFee);
+  setValue('本月收费金额', billData.totalFee);
+
+  if (billData.extraProjectItem) {
+    try {
+      const items = JSON.parse(billData.extraProjectItem) as {
+        itemName?: string;
+        value?: unknown;
+      }[];
+      items.forEach((item) => {
+        if (item?.itemName) {
+          setValue(item.itemName, item.value);
+        }
+      });
+    } catch (error) {
+      console.warn('解析费用合计历史值失败:', error);
+    }
+  }
+
+  return valueMap;
 }
 
 function dispose() {
@@ -890,6 +1116,9 @@ function getData() {
   const waterBills: any[] = [];
   let isEleSection = false;
   let isWaterSection = false;
+  let eleTotalAmount: null | number = null;
+  let waterTotalAmount: null | number = null;
+  let waterTotalUsage: null | number = null;
   const eleHeaders = [
     'meterName',
     'previousReading',
@@ -956,15 +1185,26 @@ function getData() {
         }
 
         const formula = formulaRow[index] || '';
-        const originalText =
-          formula ||
-          (value !== null && value !== undefined ? String(value) : '');
+        const originalText = normalizeOriginalText(
+          formula,
+          value,
+          rowData[header],
+        );
         eleItem[header] = { originalText, value: rowData[header] };
       });
 
+      const meterName = String(rowData.meterName || '').trim();
+      if (meterName === '合计') {
+        eleTotalAmount = rowData.amount;
+        isEleSection = false;
+        continue;
+      }
+      if (!meterName) {
+        continue;
+      }
+
       eleItemData.push(eleItem);
       eleBills.push(rowData);
-      if (row[0] === '合计') isEleSection = false;
     } else if (isWaterSection) {
       if (row[0] === '名称') continue;
 
@@ -990,15 +1230,27 @@ function getData() {
             header === 'meterName' ? String(value || '') : value;
         }
         const formula = formulaRow[index] || '';
-        const originalText =
-          formula ||
-          (value !== null && value !== undefined ? String(value) : '');
+        const originalText = normalizeOriginalText(
+          formula,
+          value,
+          rowData[header],
+        );
         waterItem[header] = { originalText, value: rowData[header] };
       });
 
+      const meterName = String(rowData.meterName || '').trim();
+      if (meterName === '合计') {
+        waterTotalAmount = rowData.amount;
+        waterTotalUsage = rowData.totalUsage;
+        isWaterSection = false;
+        continue;
+      }
+      if (!meterName) {
+        continue;
+      }
+
       waterItemData.push(waterItem);
       waterBills.push(rowData);
-      if (row[0] === '合计') isWaterSection = false;
     }
   }
 
@@ -1032,12 +1284,10 @@ function getData() {
   billData.eleBills = eleBills;
   billData.waterBills = waterBills;
 
-  const eleTotal = eleBills.find((item) => item.meterName === '合计');
-  billData.eleFee = Number(eleTotal?.amount || 0);
+  billData.eleFee = eleTotalAmount ?? sumBillField(eleBills, 'amount');
 
-  const waterTotal = waterBills.find((item) => item.meterName === '合计');
-  const waterAmount = Number(waterTotal?.amount || 0);
-  const waterUsage = Number(waterTotal?.totalUsage || 0);
+  const waterAmount = waterTotalAmount ?? sumBillField(waterBills, 'amount');
+  const waterUsage = waterTotalUsage ?? sumBillField(waterBills, 'totalUsage');
   billData.garbageFee = waterUsage * (props.billData.garbageRate || 0);
   billData.waterFee = waterAmount;
 
@@ -1047,6 +1297,7 @@ function getData() {
 
   let extraProjectItem: string | undefined;
   try {
+    const existingFeeValueMap = buildExistingFeeValueMap(props.billData);
     const feeJson: {
       itemName: string;
       originalText: string;
@@ -1061,33 +1312,36 @@ function getData() {
 
       if (feeSectionStarted) {
         const itemName = row[0];
+        const itemNameText = String(itemName || '');
         const value = row[1];
         const formula = fullFormulas[index]?.[1] || '';
-        const originalText =
-          formula ||
-          (value !== null && value !== undefined ? String(value) : '');
+        const feeValue =
+          safeConvertToNumber(value) ??
+          existingFeeValueMap.get(itemNameText) ??
+          0;
+        const originalText = normalizeOriginalText(formula, value, feeValue);
 
-        if (itemName && itemName !== '费用项') {
+        if (itemNameText && itemNameText !== '费用项') {
           feeJson.push({
-            itemName: String(itemName),
+            itemName: itemNameText,
             originalText,
-            value: Number(value) || 0,
+            value: feeValue,
           });
-          if (itemName.toString().includes('厂房租金')) {
-            billData.factoryRent = Number(value) || 0;
+          if (itemNameText.includes('厂房租金')) {
+            billData.factoryRent = feeValue;
             // eslint-disable-next-line unicorn/prefer-switch
-          } else if (itemName === '垃圾处理费') {
-            billData.garbageFee = Number(value) || 0;
-          } else if (itemName === '基本管理费') {
-            billData.managementFee = Number(value) || 0;
-          } else if (itemName === '服务费') {
-            billData.serviceFee = Number(value) || 0;
-          } else if (itemName === '开票税金') {
-            billData.invoiceTax = Number(value) || 0;
-          } else if (itemName === '滞纳金') {
-            billData.penaltyFee = Number(value) || 0;
-          } else if (itemName === '本月收费金额') {
-            billData.totalFee = Number(value) || 0;
+          } else if (itemNameText === '垃圾处理费') {
+            billData.garbageFee = feeValue;
+          } else if (itemNameText === '基本管理费') {
+            billData.managementFee = feeValue;
+          } else if (itemNameText === '服务费') {
+            billData.serviceFee = feeValue;
+          } else if (itemNameText === '开票税金') {
+            billData.invoiceTax = feeValue;
+          } else if (itemNameText === '滞纳金') {
+            billData.penaltyFee = feeValue;
+          } else if (itemNameText === '本月收费金额') {
+            billData.totalFee = feeValue;
             break;
           }
         }
@@ -1157,9 +1411,22 @@ function setNumberFormat(
   range: string,
   format: string = '#,##0.00',
 ) {
+  if (!numberFormatCommandAvailable) {
+    return;
+  }
+
   try {
     worksheet.getRange(range).setNumberFormat(format);
   } catch (error) {
+    const errorText = String(error);
+    if (
+      errorText.includes('set.numfmt') ||
+      errorText.includes('not registered')
+    ) {
+      numberFormatCommandAvailable = false;
+      return;
+    }
+
     console.warn('设置数字格式失败:', error);
   }
 }
@@ -1281,9 +1548,18 @@ onBeforeUnmount(() => {
   dispose();
 });
 
+function setReceiptTime(dateStr: null | string) {
+  if (!univerAPI) return;
+  const workbook = univerAPI.getActiveWorkbook();
+  const worksheet = workbook?.getActiveSheet();
+  if (!worksheet) return;
+  worksheet.getRange('K2').setValue(dateStr || '');
+}
+
 defineExpose({
   dispose,
   getData,
+  setReceiptTime,
 });
 </script>
 <template>

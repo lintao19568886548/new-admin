@@ -16,6 +16,8 @@ model Finance {
   images          FinanceImage[] @relation("FinanceToFinanceImage")
 
   @@index([parkId])
+  @@index([billName, transactionType, isDeleted], map: "finance_bill_name_transaction_type_is_deleted_idx")
+  @@index([transactionTime, isDeleted], map: "finance_transaction_time_is_deleted_idx")
   @@map("finance")
 }
 

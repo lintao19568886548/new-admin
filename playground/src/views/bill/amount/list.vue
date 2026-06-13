@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { Rule } from 'ant-design-vue/es/form';
 
-import type { AmountBill } from './data';
+import type { AmountBill, AmountBillListSummary } from './data';
 
 import type {
   OnActionClickParams,
@@ -9,7 +9,7 @@ import type {
 } from '#/adapter/vxe-table';
 
 import { onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router'; // 新增: 引入 useRouter
+import { useRoute, useRouter } from 'vue-router'; // 新增: 引入 useRouter
 
 import { Page } from '@vben/common-ui';
 import { Download, Plus } from '@vben/icons';
@@ -42,6 +42,8 @@ import { executeBill } from '#/utils/excel';
 
 import {
   electricityFormConfig,
+  emptyAmountBillListSummary,
+  formatAmountBillMoney,
   summaryFormConfig,
   useColumns,
   useGridFormSchema,
@@ -52,6 +54,10 @@ import MultipageBillForm from './modules/MultipageBillForm.vue';
 
 const billParkOptions = ref<any[]>([]);
 const billTenantOptions = ref<any[]>([]);
+const billListSummary = ref<AmountBillListSummary>({
+  ...emptyAmountBillListSummary,
+});
+const route = useRoute();
 const DELETE_VERIFY_STORAGE_KEY = 'bill-delete-verified-at';
 const deleteVerificationModalRef =
   ref<InstanceType<typeof SmsVerificationModal>>();
@@ -143,7 +149,6 @@ function onCreate() {
     garbageFee: 0,
     invoiceTax: 0,
     managementFee: 0,
-    receiptTime: dayjs().toISOString(),
     serviceFee: 0,
     tenantName: '',
     totalFee: 0,
@@ -360,11 +365,96 @@ function onActionClick({ code, row }: OnActionClickParams<AmountBill>) {
   }
 }
 
+const currentPageTotalFields = new Set([
+  'eleFee',
+  'factoryRent',
+  'garbageFee',
+  'invoiceTax',
+  'managementFee',
+  'overpaidAmount',
+  'penaltyFee',
+  'receiptAmount',
+  'remainingAmount',
+  'serviceFee',
+  'totalFee',
+  'waterFee',
+]);
+
+function normalizeBillListSummary(
+  summary?: Partial<AmountBillListSummary>,
+): AmountBillListSummary {
+  return {
+    billCount: Number(summary?.billCount || 0),
+    invoiceTax: Number(summary?.invoiceTax || 0),
+    overpaidAmount: Number(summary?.overpaidAmount || 0),
+    receiptAmount: Number(summary?.receiptAmount || 0),
+    remainingAmount: Number(summary?.remainingAmount || 0),
+    totalFee: Number(summary?.totalFee || 0),
+  };
+}
+
+function sumCurrentPage(rows: any[], field: string) {
+  return rows.reduce((sum, row) => sum + (Number(row?.[field]) || 0), 0);
+}
+
+function getRouteQueryText(value: unknown) {
+  if (Array.isArray(value)) {
+    return String(value[0] || '').trim();
+  }
+
+  return String(value || '').trim();
+}
+
+function getRouteBillFilters() {
+  const query = route.query;
+  const values: Record<string, any> = {};
+  const collectionStatus = getRouteQueryText(query.collectionStatus);
+  const parkId = Number(query.parkId ?? query.currentPark);
+  const projectEndDate = getRouteQueryText(query.projectEndDate);
+  const projectStartDate = getRouteQueryText(query.projectStartDate);
+  const projectName = getRouteQueryText(query.projectName);
+  const tenantName = getRouteQueryText(query.tenantName);
+
+  if (Number.isInteger(parkId) && parkId > 0) {
+    values.parkId = parkId;
+  }
+
+  if (projectName) {
+    values.projectName = projectName;
+  }
+
+  if (tenantName) {
+    values.tenantName = tenantName;
+  }
+
+  if (projectStartDate && projectEndDate) {
+    values.projectPeriod = [projectStartDate, projectEndDate];
+  }
+
+  if (collectionStatus) {
+    values.collectionStatus = collectionStatus;
+  }
+
+  return values;
+}
+
+async function applyRouteBillFilters() {
+  const values = getRouteBillFilters();
+  if (Object.keys(values).length === 0) {
+    return;
+  }
+
+  await gridApi.formApi?.setValues?.(values);
+}
+
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
     collapsed: true,
     compact: true,
-    fieldMappingTime: [['receiptTime', ['startTime', 'endTime']]],
+    fieldMappingTime: [
+      ['receiptTime', ['startTime', 'endTime']],
+      ['projectPeriod', ['projectStartDate', 'projectEndDate']],
+    ],
     schema: useGridFormSchema(),
     showCollapseButton: true,
     wrapperClass: 'grid-cols-1 lg:grid-cols-3 gap-4',
@@ -374,72 +464,16 @@ const [Grid, gridApi] = useVbenVxeGrid({
     columns: useColumns(onActionClick),
     footerAlign: 'center',
     footerMethod({ columns, data }: { columns: any[]; data: any[] }) {
-      // 返回一个合计行
       return [
         columns.map((column) => {
-          // 根据列的字段名称进行不同的合计计算
           if (column.field === 'parkName') {
-            return '合计';
+            return '当前页合计';
           }
 
-          // 如果有需要计算合计的数值列，可以在这里添加
-          // 例如：计算某个数值列的合计
-          if (column.field === 'eleFee') {
-            const sum = data.reduce((sum, row) => {
-              return sum + (Number(row.eleFee) || 0);
-            }, 0);
-            return `${sum.toFixed(2)}元`;
+          if (currentPageTotalFields.has(column.field)) {
+            return formatAmountBillMoney(sumCurrentPage(data, column.field));
           }
 
-          if (column.field === 'waterFee') {
-            const sum = data.reduce((sum, row) => {
-              return sum + (Number(row.waterFee) || 0);
-            }, 0);
-            return `${sum.toFixed(2)}元`;
-          }
-          if (column.field === 'factoryRent') {
-            const sum = data.reduce((sum, row) => {
-              return sum + (Number(row.factoryRent) || 0);
-            }, 0);
-            return `${sum.toFixed(2)}元`;
-          }
-          if (column.field === 'managementFee') {
-            const sum = data.reduce((sum, row) => {
-              return sum + (Number(row.managementFee) || 0);
-            }, 0);
-            return `${sum.toFixed(2)}元`;
-          }
-          if (column.field === 'garbageFee') {
-            const sum = data.reduce((sum, row) => {
-              return sum + (Number(row.garbageFee) || 0);
-            }, 0);
-            return `${sum.toFixed(2)}元`;
-          }
-          if (column.field === 'serviceFee') {
-            const sum = data.reduce((sum, row) => {
-              return sum + (Number(row.serviceFee) || 0);
-            }, 0);
-            return `${sum.toFixed(2)}元`;
-          }
-          if (column.field === 'penaltyFee') {
-            const sum = data.reduce((sum, row) => {
-              return sum + (Number(row.penaltyFee) || 0);
-            }, 0);
-            return `${sum.toFixed(2)}元`;
-          }
-          if (column.field === 'invoiceTax') {
-            const sum = data.reduce((sum, row) => {
-              return sum + (Number(row.invoiceTax) || 0);
-            }, 0);
-            return `${sum.toFixed(2)}元`;
-          }
-          if (column.field === 'totalFee') {
-            const sum = data.reduce((sum, row) => {
-              return sum + (Number(row.totalFee) || 0);
-            }, 0);
-            return `${sum.toFixed(2)}元`;
-          }
-          // 其他列不显示合计
           return '';
         }),
       ];
@@ -472,6 +506,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
           try {
             // 调用API获取数据
             const result = await getAmountBillList(params);
+            billListSummary.value = normalizeBillListSummary(result?.summary);
             // 返回格式化后的数据
             return {
               ...result,
@@ -479,6 +514,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
           } catch (error) {
             console.error('获取账单列表失败:', error);
             message.error('获取账单列表失败');
+            billListSummary.value = { ...emptyAmountBillListSummary };
             return {
               page: {
                 currentPage: 1,
@@ -509,6 +545,13 @@ const [Grid, gridApi] = useVbenVxeGrid({
       zoom: true,
     },
   } as VxeTableGridOptions,
+});
+
+onMounted(() => {
+  void (async () => {
+    await applyRouteBillFilters();
+    gridApi.query();
+  })();
 });
 
 // 导出Excel模态框相关状态
@@ -658,6 +701,45 @@ function handlePrintCancel() {
         />
       </div>
     </Modal>
+
+    <div class="mb-3 grid grid-cols-2 gap-2 xl:grid-cols-6">
+      <div class="rounded-md border border-gray-200 bg-white px-4 py-3">
+        <div class="text-sm text-gray-500">筛选账单</div>
+        <div class="mt-1 text-xl font-semibold text-gray-900">
+          {{ billListSummary.billCount }}
+        </div>
+      </div>
+      <div class="rounded-md border border-gray-200 bg-white px-4 py-3">
+        <div class="text-sm text-gray-500">应收合计</div>
+        <div class="mt-1 text-xl font-semibold text-gray-900">
+          {{ formatAmountBillMoney(billListSummary.totalFee) }}
+        </div>
+      </div>
+      <div class="rounded-md border border-gray-200 bg-white px-4 py-3">
+        <div class="text-sm text-gray-500">实收合计</div>
+        <div class="mt-1 text-xl font-semibold text-emerald-700">
+          {{ formatAmountBillMoney(billListSummary.receiptAmount) }}
+        </div>
+      </div>
+      <div class="rounded-md border border-gray-200 bg-white px-4 py-3">
+        <div class="text-sm text-gray-500">未收合计</div>
+        <div class="mt-1 text-xl font-semibold text-red-600">
+          {{ formatAmountBillMoney(billListSummary.remainingAmount) }}
+        </div>
+      </div>
+      <div class="rounded-md border border-gray-200 bg-white px-4 py-3">
+        <div class="text-sm text-gray-500">多收合计</div>
+        <div class="mt-1 text-xl font-semibold text-orange-600">
+          {{ formatAmountBillMoney(billListSummary.overpaidAmount) }}
+        </div>
+      </div>
+      <div class="rounded-md border border-gray-200 bg-white px-4 py-3">
+        <div class="text-sm text-gray-500">开票税金</div>
+        <div class="mt-1 text-xl font-semibold text-gray-900">
+          {{ formatAmountBillMoney(billListSummary.invoiceTax) }}
+        </div>
+      </div>
+    </div>
 
     <Grid table-title="总账单" class="amount-bill-grid">
       <template #toolbar-tools>

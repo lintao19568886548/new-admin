@@ -1,0 +1,110 @@
+model CrmSalesChannel {
+  id            Int       @id @default(autoincrement())
+  scene         String    @unique @db.VarChar(64)
+  salesUserId   Int       @map("sales_user_id")
+  salesName     String?   @map("sales_name") @db.VarChar(50)
+  weworkUserId  String?   @map("wework_user_id") @db.VarChar(100)
+  channelName   String    @map("channel_name") @db.VarChar(100)
+  channelType   String    @default("sales") @map("channel_type") @db.VarChar(32)
+  qrCodeUrl     String?   @map("qr_code_url") @db.VarChar(1024)
+  status        Int       @default(1) @db.TinyInt
+  createdById   Int?      @map("created_by_id")
+  createTime    DateTime  @default(now()) @map("create_time")
+  updateTime    DateTime? @updatedAt @map("update_time")
+
+  @@index([salesUserId])
+  @@index([status])
+  @@index([createdById])
+  @@map("crm_sales_channel")
+}
+
+model CrmCustomerOwnerBinding {
+  id                Int       @id @default(autoincrement())
+  customerName      String?   @map("customer_name") @db.VarChar(50)
+  openid            String?   @unique @db.VarChar(128)
+  unionid           String?   @unique @db.VarChar(128)
+  phone             String?   @unique @db.VarChar(20)
+  ownerSalesUserId  Int       @map("owner_sales_user_id")
+  ownerWeworkUserId String?   @map("owner_wework_user_id") @db.VarChar(100)
+  firstScene        String    @map("first_scene") @db.VarChar(64)
+  firstChannelId    Int?      @map("first_channel_id")
+  firstScanAt       DateTime  @default(now()) @map("first_scan_at")
+  lastScanAt        DateTime? @map("last_scan_at")
+  externalUserId    String?   @map("external_user_id") @db.VarChar(128)
+  status            Int       @default(1) @db.TinyInt
+  createTime        DateTime  @default(now()) @map("create_time")
+  updateTime        DateTime? @updatedAt @map("update_time")
+
+  @@index([ownerSalesUserId])
+  @@index([ownerWeworkUserId])
+  @@index([firstChannelId])
+  @@index([status])
+  @@map("crm_customer_owner_binding")
+}
+
+model CrmScanLog {
+  id                   Int      @id @default(autoincrement())
+  scene                String   @db.VarChar(64)
+  channelId            Int?     @map("channel_id")
+  requestedSalesUserId Int?     @map("requested_sales_user_id")
+  resolvedSalesUserId  Int?     @map("resolved_sales_user_id")
+  bindingId            Int?     @map("binding_id")
+  customerName         String?  @map("customer_name") @db.VarChar(50)
+  openid               String?  @db.VarChar(128)
+  unionid              String?  @db.VarChar(128)
+  phone                String?  @db.VarChar(20)
+  isFirstBind          Boolean  @default(false) @map("is_first_bind")
+  source               String?  @db.VarChar(32)
+  ip                   String?  @db.VarChar(64)
+  userAgent            String?  @map("user_agent") @db.VarChar(255)
+  createTime           DateTime @default(now()) @map("create_time")
+
+  @@index([scene])
+  @@index([channelId])
+  @@index([bindingId])
+  @@index([requestedSalesUserId])
+  @@index([resolvedSalesUserId])
+  @@index([phone])
+  @@index([openid])
+  @@index([unionid])
+  @@map("crm_scan_log")
+}
+
+model CrmWeworkContactWay {
+  id           Int       @id @default(autoincrement())
+  salesUserId  Int       @map("sales_user_id")
+  weworkUserId String    @map("wework_user_id") @db.VarChar(100)
+  configId     String?   @unique @map("config_id") @db.VarChar(128)
+  qrCode       String?   @map("qr_code") @db.VarChar(1024)
+  state        String    @unique @db.VarChar(128)
+  status       Int       @default(1) @db.TinyInt
+  expiresAt    DateTime? @map("expires_at")
+  createTime   DateTime  @default(now()) @map("create_time")
+  updateTime   DateTime? @updatedAt @map("update_time")
+
+  @@index([salesUserId])
+  @@index([weworkUserId])
+  @@index([status])
+  @@map("crm_wework_contact_way")
+}
+
+model CrmExternalContactLog {
+  id             Int      @id @default(autoincrement())
+  eventType      String?  @map("event_type") @db.VarChar(64)
+  changeType     String?  @map("change_type") @db.VarChar(64)
+  bindingId      Int?     @map("binding_id")
+  externalUserId String?  @map("external_user_id") @db.VarChar(128)
+  weworkUserId   String?  @map("wework_user_id") @db.VarChar(100)
+  state          String?  @db.VarChar(128)
+  welcomeCode    String?  @map("welcome_code") @db.VarChar(255)
+  rawPayload     Json?    @map("raw_payload")
+  createTime     DateTime @default(now()) @map("create_time")
+
+  @@index([bindingId])
+  @@index([eventType])
+  @@index([changeType])
+  @@index([externalUserId])
+  @@index([weworkUserId])
+  @@index([state])
+  @@map("crm_external_contact_log")
+}

@@ -6,6 +6,9 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
+import { onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
+
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
@@ -24,6 +27,8 @@ import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
+
+const route = useRoute();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -107,6 +112,20 @@ const [Grid, gridApi] = useVbenVxeGrid({
                 params[key] = formValues[key];
               }
             });
+            if (Array.isArray(params.contractDate)) {
+              params.contractDate = params.contractDate.join(',');
+            }
+            if (params.contractStart && params.contractEnd) {
+              params.contractDate = `${params.contractStart},${params.contractEnd}`;
+              delete params.contractStart;
+              delete params.contractEnd;
+            }
+            if (route.query.contractView === 'expiring') {
+              params.contractView = 'expiring';
+            }
+            if (route.query.date) {
+              params.date = String(route.query.date);
+            }
 
             params.currentPark = formValues.parkId ?? -1;
 
@@ -152,6 +171,55 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
   } as VxeTableGridOptions<RentalManagementItem>,
 });
+
+function getRouteTenantFilters() {
+  const query = route.query;
+  const values: Record<string, any> = {
+    contractDate: undefined,
+    parkId: undefined,
+    status: undefined,
+  };
+  const parkId = Number(query.parkId);
+  const status = String(query.status || '');
+  const contractStart = String(query.contractStart || '');
+  const contractEnd = String(query.contractEnd || '');
+
+  if (Number.isInteger(parkId) && parkId > 0) {
+    values.parkId = parkId;
+  }
+  if (status === 'active' || status === 'expired') {
+    values.status = status;
+  }
+  if (contractStart && contractEnd) {
+    values.contractDate = [contractStart, contractEnd];
+  }
+
+  return values;
+}
+
+async function applyRouteTenantFilters() {
+  const values = getRouteTenantFilters();
+  const hasRouteFilter = Object.values(values).some(
+    (value) => value !== undefined,
+  );
+  if (!hasRouteFilter && Object.keys(route.query).length === 0) {
+    return;
+  }
+  await gridApi.formApi?.setValues?.(values);
+}
+
+onMounted(async () => {
+  await applyRouteTenantFilters();
+  gridApi.query();
+});
+
+watch(
+  () => route.query,
+  async () => {
+    await applyRouteTenantFilters();
+    gridApi.query();
+  },
+);
 
 /**
  * 处理表格操作按钮点击

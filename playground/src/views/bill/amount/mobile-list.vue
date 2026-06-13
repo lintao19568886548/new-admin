@@ -2,7 +2,7 @@
 import type { Rule } from 'ant-design-vue/es/form';
 import type { Dayjs } from 'dayjs';
 
-import type { AmountBill } from './data';
+import type { AmountBill, AmountBillListSummary } from './data';
 
 import { onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -11,6 +11,7 @@ import { formatDateTime } from '@vben/utils';
 
 import { PlusOutlined } from '@ant-design/icons-vue';
 import {
+  AutoComplete,
   Button,
   Card,
   Checkbox,
@@ -33,6 +34,7 @@ import {
   deleteAllAmountBill,
   deleteAmountBill,
   getAmountBillList,
+  getAmountBillProjectOptions,
 } from '#/api/bill';
 import { getVisitorParkList as fetchParks } from '#/api/park';
 import MobileDateRange from '#/components/MobileDateRange.vue';
@@ -40,6 +42,7 @@ import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { useSmsActionVerification } from '#/hooks/useSmsActionVerification';
 import { $t } from '#/locales';
 
+import { emptyAmountBillListSummary } from './data';
 import MobileAmountBillForm from './modules/MobileAmountBillForm.vue';
 
 const router = useRouter();
@@ -51,10 +54,15 @@ const pagination = reactive({
   pageSize: 10,
   total: 0,
 });
+const billListSummary = ref<AmountBillListSummary>({
+  ...emptyAmountBillListSummary,
+});
 const loading = ref(false);
 
 const currentParkId = ref<number | undefined>(undefined);
 const parkOptions = ref<{ label: string; value: number }[]>([]);
+const projectOptions = ref<{ label: string; value: string }[]>([]);
+const projectOptionsLoading = ref(false);
 
 const mobileBillFormRef = ref();
 
@@ -144,6 +152,52 @@ function getFeeDisplay(value: unknown) {
   return text === '' ? '-' : text;
 }
 
+function getRemainingAmount(item: AmountBill) {
+  return Math.max(
+    Number(
+      item.remainingAmount ??
+        Number(item.totalFee || 0) - Number(item.receiptAmount || 0),
+    ),
+    0,
+  );
+}
+
+function getOverpaidAmount(item: AmountBill) {
+  return Math.max(
+    Number(
+      item.overpaidAmount ??
+        Number(item.receiptAmount || 0) - Number(item.totalFee || 0),
+    ),
+    0,
+  );
+}
+
+function getCollectionStatusLabel(item: AmountBill) {
+  if (item.collectionStatusLabel) {
+    return item.collectionStatusLabel;
+  }
+
+  const totalFee = Number(item.totalFee || 0);
+  const receiptAmount = Number(item.receiptAmount || 0);
+  if (receiptAmount <= 0) return '未收款';
+  if (receiptAmount > totalFee) return '多收';
+  if (receiptAmount < totalFee) return '部分收款';
+  return '已收款';
+}
+
+function normalizeBillListSummary(
+  summary?: Partial<AmountBillListSummary>,
+): AmountBillListSummary {
+  return {
+    billCount: Number(summary?.billCount || 0),
+    invoiceTax: Number(summary?.invoiceTax || 0),
+    overpaidAmount: Number(summary?.overpaidAmount || 0),
+    receiptAmount: Number(summary?.receiptAmount || 0),
+    remainingAmount: Number(summary?.remainingAmount || 0),
+    totalFee: Number(summary?.totalFee || 0),
+  };
+}
+
 function parseProjectAmountItem(item: AmountBill) {
   const raw =
     (item as any).project_amount_item ??
@@ -202,14 +256,76 @@ const receiptRange = ref<[Dayjs | undefined, Dayjs | undefined]>([
   undefined,
   undefined,
 ]);
+const projectPeriodRange = ref<[Dayjs | undefined, Dayjs | undefined]>([
+  undefined,
+  undefined,
+]);
 
 const searchForm = reactive<{
+  collectionStatus: string | undefined;
   projectName: string;
   tenantName: string;
 }>({
+  collectionStatus: undefined,
   projectName: '',
   tenantName: '',
 });
+
+const collectionStatusOptions = [
+  { label: '未收合计（未收+部分）', value: 'unreceived' },
+  { label: '未收款', value: 'unpaid' },
+  { label: '部分收款', value: 'partial' },
+  { label: '已收款', value: 'paid' },
+  { label: '多收', value: 'overpaid' },
+];
+
+function getRouteQueryText(value: unknown) {
+  if (Array.isArray(value)) {
+    return String(value[0] || '').trim();
+  }
+
+  return String(value || '').trim();
+}
+
+function parseRouteDate(value: unknown) {
+  const text = getRouteQueryText(value);
+  if (!text) {
+    return undefined;
+  }
+
+  const parsedDate = dayjs(text);
+  return parsedDate.isValid() ? parsedDate : undefined;
+}
+
+function applyRouteBillFilters() {
+  const query = route.query;
+  const collectionStatus = getRouteQueryText(query.collectionStatus);
+  const parkId = Number(query.parkId ?? query.currentPark);
+  const projectEndDate = parseRouteDate(query.projectEndDate);
+  const projectStartDate = parseRouteDate(query.projectStartDate);
+  const projectName = getRouteQueryText(query.projectName);
+  const tenantName = getRouteQueryText(query.tenantName);
+
+  if (Number.isInteger(parkId) && parkId > 0) {
+    currentParkId.value = parkId;
+  }
+
+  if (projectName) {
+    searchForm.projectName = projectName;
+  }
+
+  if (tenantName) {
+    searchForm.tenantName = tenantName;
+  }
+
+  if (projectStartDate && projectEndDate) {
+    projectPeriodRange.value = [projectStartDate, projectEndDate];
+  }
+
+  if (collectionStatus) {
+    searchForm.collectionStatus = collectionStatus;
+  }
+}
 
 async function fetchBillList() {
   if (!isVerified.value) return;
@@ -221,6 +337,9 @@ async function fetchBillList() {
     const endDate = receiptRange.value?.[1]?.format('YYYY-MM-DD');
     const startTime = startDate ? `${startDate} 00:00:00` : undefined;
     const endTime = endDate ? `${endDate} 23:59:59` : undefined;
+    const projectStartDate =
+      projectPeriodRange.value?.[0]?.format('YYYY-MM-DD');
+    const projectEndDate = projectPeriodRange.value?.[1]?.format('YYYY-MM-DD');
 
     const params = {
       ...searchForm,
@@ -228,6 +347,8 @@ async function fetchBillList() {
       currentPark: currentParkId.value ?? -1,
       endTime,
       pageSize: pagination.pageSize,
+      projectEndDate,
+      projectStartDate,
       startTime,
     };
 
@@ -236,6 +357,7 @@ async function fetchBillList() {
     if (result && result.items && typeof result.total === 'number') {
       bills.value = result.items;
       pagination.total = result.total;
+      billListSummary.value = normalizeBillListSummary(result.summary);
     } else {
       console.warn(
         'API 返回的数据结构不符合预期或缺少必要字段 (items, total):',
@@ -244,17 +366,37 @@ async function fetchBillList() {
       message.warn('获取账单列表失败，数据结构异常。');
       bills.value = [];
       pagination.total = 0;
+      billListSummary.value = { ...emptyAmountBillListSummary };
     }
   } catch (error: any) {
     console.error('获取账单列表失败 (mobile):', error);
     message.error(error?.message || '获取账单列表失败');
+    billListSummary.value = { ...emptyAmountBillListSummary };
   } finally {
     loading.value = false;
   }
 }
 
+async function fetchProjectOptions(keyword = '') {
+  projectOptionsLoading.value = true;
+  try {
+    const options = await getAmountBillProjectOptions({
+      currentPark: currentParkId.value ?? -1,
+      keyword,
+    });
+    projectOptions.value = Array.isArray(options) ? options : [];
+  } catch (error) {
+    console.error('获取项目选项失败 (mobile):', error);
+    projectOptions.value = [];
+  } finally {
+    projectOptionsLoading.value = false;
+  }
+}
+
 function initPage() {
+  applyRouteBillFilters();
   fetchBillList();
+  fetchProjectOptions();
   fetchParks()
     .then((parks) => {
       parkOptions.value = parks.map((park: any) => ({
@@ -307,7 +449,6 @@ function handleCreate() {
     garbageFee: 0,
     invoiceTax: 0,
     managementFee: 0,
-    receiptTime: dayjs().toISOString(),
     serviceFee: 0,
     tenantName: '',
     totalFee: 0,
@@ -463,11 +604,19 @@ function handleSearch() {
   fetchBillList();
 }
 
+function handleParkChange() {
+  fetchProjectOptions(searchForm.projectName);
+  handleSearch();
+}
+
 function resetSearch() {
   receiptRange.value = [undefined, undefined];
+  projectPeriodRange.value = [undefined, undefined];
+  searchForm.collectionStatus = undefined;
   searchForm.projectName = '';
   searchForm.tenantName = '';
   currentParkId.value = undefined;
+  fetchProjectOptions();
   handleSearch();
 }
 </script>
@@ -498,7 +647,7 @@ function resetSearch() {
                   :options="parkOptions"
                   allow-clear
                   :placeholder="$t('page.common.selectPark')"
-                  @change="handleSearch"
+                  @change="handleParkChange"
                 />
               </Form.Item>
             </Col>
@@ -513,16 +662,39 @@ function resetSearch() {
             </Col>
             <Col :span="12">
               <Form.Item label="项目名称">
-                <Input
+                <AutoComplete
                   v-model:value="searchForm.projectName"
-                  placeholder="请输入项目名称"
+                  :options="projectOptions"
+                  :loading="projectOptionsLoading"
                   allow-clear
+                  option-filter-prop="value"
+                  placeholder="请输入或选择项目名称"
+                  @search="fetchProjectOptions"
                 />
               </Form.Item>
             </Col>
             <Col :span="24">
-              <Form.Item label="收款时间">
+              <Form.Item label="收款日期（实收）">
                 <MobileDateRange v-model:value="receiptRange" />
+              </Form.Item>
+            </Col>
+            <Col :span="24">
+              <Form.Item label="项目账期">
+                <MobileDateRange
+                  v-model:value="projectPeriodRange"
+                  placeholder-start="开始账期"
+                  placeholder-end="结束账期"
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="24">
+              <Form.Item label="收款状态">
+                <Select
+                  v-model:value="searchForm.collectionStatus"
+                  :options="collectionStatusOptions"
+                  allow-clear
+                  placeholder="请选择收款状态"
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -569,6 +741,39 @@ function resetSearch() {
       </div>
 
       <Spin :spinning="loading" :tip="$t('ui.loading')">
+        <div class="mb-2 grid grid-cols-2 gap-2">
+          <div class="rounded bg-white px-3 py-2 shadow-sm dark:bg-neutral-800">
+            <div class="text-[12px] leading-5 text-gray-500">筛选账单</div>
+            <div class="text-[17px] font-semibold leading-6 text-gray-900">
+              {{ billListSummary.billCount }}
+            </div>
+          </div>
+          <div class="rounded bg-white px-3 py-2 shadow-sm dark:bg-neutral-800">
+            <div class="text-[12px] leading-5 text-gray-500">应收合计</div>
+            <div class="text-[17px] font-semibold leading-6 text-gray-900">
+              {{ formatFee(billListSummary.totalFee) }}
+            </div>
+          </div>
+          <div class="rounded bg-white px-3 py-2 shadow-sm dark:bg-neutral-800">
+            <div class="text-[12px] leading-5 text-gray-500">实收合计</div>
+            <div class="text-[17px] font-semibold leading-6 text-emerald-700">
+              {{ formatFee(billListSummary.receiptAmount) }}
+            </div>
+          </div>
+          <div class="rounded bg-white px-3 py-2 shadow-sm dark:bg-neutral-800">
+            <div class="text-[12px] leading-5 text-gray-500">未收合计</div>
+            <div class="text-[17px] font-semibold leading-6 text-red-600">
+              {{ formatFee(billListSummary.remainingAmount) }}
+            </div>
+          </div>
+          <div class="rounded bg-white px-3 py-2 shadow-sm dark:bg-neutral-800">
+            <div class="text-[12px] leading-5 text-gray-500">多收合计</div>
+            <div class="text-[17px] font-semibold leading-6 text-orange-600">
+              {{ formatFee(billListSummary.overpaidAmount) }}
+            </div>
+          </div>
+        </div>
+
         <div v-if="bills.length > 0">
           <Card
             v-for="item in bills"
@@ -590,11 +795,62 @@ function resetSearch() {
                 <span
                   class="text-[13px] leading-5 text-gray-500 dark:text-gray-400"
                 >
-                  总费用
+                  本月收费金额
                 </span>
                 <p class="text-[21px] font-semibold leading-7 text-red-500">
                   {{ formatFee(item.totalFee) }}
                 </p>
+              </div>
+
+              <div class="mb-4 grid grid-cols-2 gap-2 text-center">
+                <div class="rounded bg-gray-50 px-2 py-2 dark:bg-neutral-700">
+                  <div
+                    class="text-[12px] leading-5 text-gray-500 dark:text-gray-300"
+                  >
+                    实收
+                  </div>
+                  <div
+                    class="text-[13px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
+                  >
+                    {{ formatFee(item.receiptAmount) }}
+                  </div>
+                </div>
+                <div class="rounded bg-gray-50 px-2 py-2 dark:bg-neutral-700">
+                  <div
+                    class="text-[12px] leading-5 text-gray-500 dark:text-gray-300"
+                  >
+                    未收
+                  </div>
+                  <div
+                    class="text-[13px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
+                  >
+                    {{ formatFee(getRemainingAmount(item)) }}
+                  </div>
+                </div>
+                <div class="rounded bg-gray-50 px-2 py-2 dark:bg-neutral-700">
+                  <div
+                    class="text-[12px] leading-5 text-gray-500 dark:text-gray-300"
+                  >
+                    多收
+                  </div>
+                  <div
+                    class="text-[13px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
+                  >
+                    {{ formatFee(getOverpaidAmount(item)) }}
+                  </div>
+                </div>
+                <div class="rounded bg-gray-50 px-2 py-2 dark:bg-neutral-700">
+                  <div
+                    class="text-[12px] leading-5 text-gray-500 dark:text-gray-300"
+                  >
+                    状态
+                  </div>
+                  <div
+                    class="text-[13px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
+                  >
+                    {{ getCollectionStatusLabel(item) }}
+                  </div>
+                </div>
               </div>
 
               <div class="mb-3 grid grid-cols-2 gap-4">

@@ -10,6 +10,7 @@ const DEFAULT_CHECK_IN_START = '08:20:00';
 const DEFAULT_CHECK_IN_END = '08:30:00';
 const DEFAULT_CHECK_OUT_START = '18:00:00';
 const DEFAULT_CHECK_OUT_END = '18:10:00';
+const DEFAULT_WORKDAYS = [0, 1, 2, 3, 4, 5, 6];
 const BEIJING_TIME_ZONE = 'Asia/Shanghai';
 const BEIJING_UTC_OFFSET_HOURS = 8;
 
@@ -35,6 +36,7 @@ type BeijingDayContext = {
   dayKey: string;
   dayStart: Date;
   month: number;
+  weekday: number;
   year: number;
 };
 
@@ -49,6 +51,7 @@ type AutomationWorkerConfig = {
   targetCustomerIds: string[];
   targetUserIds: number[];
   targetUsernames: string[];
+  targetWeekdays: number[];
 };
 
 type AutomationUser = {
@@ -119,6 +122,23 @@ function normalizeUserIdsEnv(name: string) {
   ];
 }
 
+function normalizeWeekdaysEnv(name: string, fallback: number[]) {
+  const rawValues = normalizeStringListEnv(name);
+  if (rawValues.length === 0) {
+    return fallback;
+  }
+
+  const weekdays = [
+    ...new Set(
+      rawValues
+        .map(Number)
+        .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6),
+    ),
+  ];
+
+  return weekdays.length > 0 ? weekdays : fallback;
+}
+
 function normalizeCoordinateEnv(name: string, min: number, max: number) {
   const raw = String(process.env[name] || '').trim();
   const value = Number(raw);
@@ -185,7 +205,13 @@ function parseTimeWindow(
 }
 
 function getWorkerConfig(): AutomationWorkerConfig | null {
-  if (process.env.NODE_ENV === 'production') {
+  if (
+    process.env.NODE_ENV === 'production' &&
+    !normalizeBooleanEnv('ATTENDANCE_AUTOMATION_TEST_ALLOW_PRODUCTION')
+  ) {
+    console.info(
+      `[${WORKER_NAME}] disabled: production requires ATTENDANCE_AUTOMATION_TEST_ALLOW_PRODUCTION=true`,
+    );
     return null;
   }
 
@@ -259,6 +285,10 @@ function getWorkerConfig(): AutomationWorkerConfig | null {
     ),
     targetUserIds,
     targetUsernames,
+    targetWeekdays: normalizeWeekdaysEnv(
+      'ATTENDANCE_AUTOMATION_TEST_WORKDAYS',
+      DEFAULT_WORKDAYS,
+    ),
   };
 }
 
@@ -326,6 +356,9 @@ function getBeijingDayContext(now: Date): BeijingDayContext {
     dayKey: `${parts.year}-${padDatePart(parts.month)}-${padDatePart(parts.day)}`,
     dayStart,
     month: parts.month,
+    weekday: new Date(
+      Date.UTC(parts.year, parts.month - 1, parts.day),
+    ).getUTCDay(),
     year: parts.year,
   };
 }
@@ -363,7 +396,22 @@ function pickDueTime(params: {
   ].join(':');
   const offsetSeconds = stableHash(seed) % (spanSeconds + 1);
 
-  return new Date(start.getTime() + offsetSeconds * 1000);
+  const dueTime = new Date(start.getTime() + offsetSeconds * 1000);
+  if (dueTime.getUTCSeconds() !== 0) {
+    return dueTime;
+  }
+
+  const oneSecondLater = new Date(dueTime.getTime() + 1000);
+  if (oneSecondLater.getTime() <= end.getTime()) {
+    return oneSecondLater;
+  }
+
+  const oneSecondEarlier = new Date(dueTime.getTime() - 1000);
+  if (oneSecondEarlier.getTime() >= start.getTime()) {
+    return oneSecondEarlier;
+  }
+
+  return dueTime;
 }
 
 function normalizeSearchText(value: unknown) {
@@ -516,8 +564,8 @@ async function ensurePunchIn(params: {
 
   const created = await prismaClient.attendance.create({
     data: {
-      latitude: params.config.latitude,
-      longitude: params.config.longitude,
+      latitude: Number(params.config.latitude),
+      longitude: Number(params.config.longitude),
       punchIn: params.dueTime,
       status,
       userId: params.user.id,
@@ -558,8 +606,8 @@ async function ensurePunchOut(params: {
 
   await prismaClient.attendance.update({
     data: {
-      latitude: params.config.latitude,
-      longitude: params.config.longitude,
+      latitude: Number(params.config.latitude),
+      longitude: Number(params.config.longitude),
       punchOut: params.dueTime,
       status,
     },
@@ -579,6 +627,14 @@ async function runScopeTick(params: {
   dayContext: BeijingDayContext;
   now: Date;
 }) {
+  if (!params.config.targetWeekdays.includes(params.dayContext.weekday)) {
+    logOnce(
+      `${params.customerScope.customerId}:${params.dayContext.dayKey}:weekday-skipped`,
+      `[${WORKER_NAME}] skipped customerId=${params.customerScope.customerId} day=${params.dayContext.dayKey}: weekday ${params.dayContext.weekday} is not configured`,
+    );
+    return;
+  }
+
   const users = await listConfiguredUsers(params.config);
 
   for (const user of users) {

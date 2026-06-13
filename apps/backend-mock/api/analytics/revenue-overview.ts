@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 import { prismaClient } from '~/utils/db';
-import { AUTO_RENTAL_EXPENSE_REVENUE_EXCLUSION_WHERE } from '~/utils/finance-revenue-policy';
 import { verifyAccessToken } from '~/utils/jwt-utils';
+import { syncRentalExpenseFinanceRecords } from '~/utils/rental-expense-finance';
 import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
 
 const TREND_MONTH_COUNT = 12;
@@ -88,15 +88,22 @@ export default eventHandler(async (event) => {
       });
     }
 
+    await syncRentalExpenseFinanceRecords({
+      minIntervalMs: 60_000,
+      parkIds,
+    });
+
     const where: Record<string, any> = {
       isDeleted: false,
-      NOT: AUTO_RENTAL_EXPENSE_REVENUE_EXCLUSION_WHERE,
       parkId: {
         in: parkIds,
       },
       transactionTime: {
         gte: startOfWindow.toDate(),
         lte: now.endOf('day').toDate(),
+      },
+      transactionType: {
+        in: ['收入', '支出'],
       },
     };
 
@@ -116,11 +123,20 @@ export default eventHandler(async (event) => {
     const monthIndexMap = new Map(
       monthLabels.map((label, index) => [label, index] as const),
     );
-    let incomeTotal = 0;
-    let expenseTotal = 0;
+    const incomeCents = Array.from({ length: monthLabels.length }).fill(
+      0,
+    ) as number[];
+    const expenseCents = Array.from({ length: monthLabels.length }).fill(
+      0,
+    ) as number[];
+    let incomeTotalCents = 0;
+    let expenseTotalCents = 0;
+
+    const toCents = (value: unknown) => Math.round(Number(value || 0) * 100);
+    const toMoney = (cents: number) => Number((cents / 100).toFixed(2));
 
     for (const record of financeRecords) {
-      const amount = Number(record.amount) || 0;
+      const amountCents = toCents(record.amount);
       const monthKey = dayjs(record.transactionTime).format('YYYY-MM');
       const monthIndex = monthIndexMap.get(monthKey);
       const isCurrentYearRecord = dayjs(record.transactionTime).isSame(
@@ -130,33 +146,38 @@ export default eventHandler(async (event) => {
 
       if (record.transactionType === '收入') {
         if (monthIndex !== undefined) {
-          trend.income[monthIndex] += amount;
+          incomeCents[monthIndex] += amountCents;
         }
         if (isCurrentYearRecord) {
-          incomeTotal += amount;
+          incomeTotalCents += amountCents;
         }
         continue;
       }
 
       if (record.transactionType === '支出') {
         if (monthIndex !== undefined) {
-          trend.expense[monthIndex] += amount;
+          expenseCents[monthIndex] += amountCents;
         }
         if (isCurrentYearRecord) {
-          expenseTotal += amount;
+          expenseTotalCents += amountCents;
         }
       }
     }
 
-    trend.net = trend.income.map(
-      (income, index) => income - trend.expense[index],
+    trend.income = incomeCents.map((item) => toMoney(item));
+    trend.expense = expenseCents.map((item) => toMoney(item));
+    trend.net = incomeCents.map((income, index) =>
+      toMoney(income - expenseCents[index]),
     );
+
+    const incomeTotal = toMoney(incomeTotalCents);
+    const expenseTotal = toMoney(expenseTotalCents);
 
     return useResponseSuccess({
       summary: {
         expenseTotal,
         incomeTotal,
-        netTotal: incomeTotal - expenseTotal,
+        netTotal: toMoney(incomeTotalCents - expenseTotalCents),
         yearLabel: `${now.year()}年度`,
       },
       trend,

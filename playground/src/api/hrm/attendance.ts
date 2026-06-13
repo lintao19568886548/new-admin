@@ -120,12 +120,12 @@ export function getAttendanceList(params: any) {
 
 export function punchIn(data: {
   allowDeviceAbnormal?: boolean;
+  allowOutsideRange?: boolean;
   bindCurrentDevice?: boolean;
   device: AttendanceDeviceInfo;
   latitude: number;
   longitude: number;
   punchTime: string;
-  username: string;
 }) {
   return requestClient.post(`${API.ATTENDANCE}/`, data);
 }
@@ -134,12 +134,12 @@ export function punchOut(
   id: number,
   data: {
     allowDeviceAbnormal?: boolean;
+    allowOutsideRange?: boolean;
     bindCurrentDevice?: boolean;
     device: AttendanceDeviceInfo;
     latitude: number;
     longitude: number;
     punchTime: string;
-    username: string;
   },
 ) {
   return requestClient.put(`${API.ATTENDANCE}/${id}`, data);

@@ -1,0 +1,261 @@
+{
+  "before": [
+    {
+      "billId": 253,
+      "financeId": 1766,
+      "receiptAmount": 7173,
+      "receiptDate": "2026-05-15",
+      "tenantName": "刘笑萍（502）",
+      "totalFee": 7173
+    },
+    {
+      "billId": 477,
+      "financeId": 1739,
+      "receiptAmount": 49203,
+      "receiptDate": "2026-05-09",
+      "tenantName": "姚东江（一楼加阁楼）",
+      "totalFee": 49912.9
+    },
+    {
+      "billId": 478,
+      "financeId": 1740,
+      "receiptAmount": 4562,
+      "receiptDate": "2026-05-10",
+      "tenantName": "梁志昌(202)",
+      "totalFee": 4606.52
+    },
+    {
+      "billId": 479,
+      "financeId": 1770,
+      "receiptAmount": 9600,
+      "receiptDate": "2026-06-02",
+      "tenantName": "赵红健（802）",
+      "totalFee": 25869.13
+    },
+    {
+      "billId": 480,
+      "financeId": 1741,
+      "receiptAmount": 11429,
+      "receiptDate": "2026-05-10",
+      "tenantName": "慎根林（901）",
+      "totalFee": 14975.53
+    },
+    {
+      "billId": 481,
+      "financeId": 1742,
+      "receiptAmount": 3966,
+      "receiptDate": "2026-05-10",
+      "tenantName": "董振文（203）",
+      "totalFee": 3869.25
+    },
+    {
+      "billId": 482,
+      "financeId": 1769,
+      "receiptAmount": 8793,
+      "receiptDate": "2026-05-09",
+      "tenantName": "陈宇春（401）",
+      "totalFee": 10368.1
+    },
+    {
+      "billId": 483,
+      "financeId": 1768,
+      "receiptAmount": 13032,
+      "receiptDate": "2026-05-05",
+      "tenantName": "衡龙顺发泡材料有限公司(402)",
+      "totalFee": 13108.48
+    },
+    {
+      "billId": 484,
+      "financeId": 1743,
+      "receiptAmount": 17261,
+      "receiptDate": "2026-05-15",
+      "tenantName": "刘笑萍（502）",
+      "totalFee": 18990.52
+    },
+    {
+      "billId": 485,
+      "financeId": 1763,
+      "receiptAmount": 10471.74,
+      "receiptDate": "2026-05-10",
+      "tenantName": "李先勇（7楼）",
+      "totalFee": 23697.26
+    },
+    {
+      "billId": 486,
+      "financeId": 1744,
+      "receiptAmount": 9753,
+      "receiptDate": "2026-05-10",
+      "tenantName": "李帆",
+      "totalFee": 9813.41
+    },
+    {
+      "billId": 487,
+      "financeId": 1745,
+      "receiptAmount": 7143,
+      "receiptDate": "2026-05-09",
+      "tenantName": "朱爱媛（501）",
+      "totalFee": 9215.04
+    },
+    {
+      "billId": 488,
+      "financeId": 1746,
+      "receiptAmount": 6439,
+      "receiptDate": "2026-05-11",
+      "tenantName": "海腾世家",
+      "totalFee": 6884.25
+    },
+    {
+      "billId": 490,
+      "financeId": 1764,
+      "receiptAmount": 22228.5,
+      "receiptDate": "2026-05-09",
+      "tenantName": "李会(3楼）",
+      "totalFee": 22228.5
+    },
+    {
+      "billId": 492,
+      "financeId": 1767,
+      "receiptAmount": 14085,
+      "receiptDate": "2026-05-09",
+      "tenantName": "孔琴（201）",
+      "totalFee": 14092
+    },
+    {
+      "billId": 494,
+      "financeId": 1765,
+      "receiptAmount": 49416.1,
+      "receiptDate": "2026-05-09",
+      "tenantName": "李会(6楼）",
+      "totalFee": 55284.96
+    }
+  ],
+  "generatedAt": "2026-06-12T09:04:32.342Z",
+  "park": {
+    "parkId": 25,
+    "parkName": "佛山乐从园区"
+  },
+  "plannedUpdates": [
+    {
+      "billId": 488,
+      "currentTotalFee": 6884.25,
+      "nextTotalFee": 6439,
+      "receiptAmount": 6439,
+      "tenantName": "海腾世家"
+    },
+    {
+      "billId": 486,
+      "currentTotalFee": 9813.41,
+      "nextTotalFee": 9753,
+      "receiptAmount": 9753,
+      "tenantName": "李帆"
+    },
+    {
+      "billId": 485,
+      "currentTotalFee": 23697.26,
+      "nextTotalFee": 23177,
+      "receiptAmount": 10471.74,
+      "tenantName": "李先勇（7楼）"
+    },
+    {
+      "billId": 490,
+      "currentTotalFee": 22228.5,
+      "nextTotalFee": 22228.5,
+      "receiptAmount": 22228.5,
+      "tenantName": "李会(3楼）"
+    },
+    {
+      "billId": 494,
+      "currentTotalFee": 55284.96,
+      "nextTotalFee": 53236.5,
+      "receiptAmount": 49416.1,
+      "tenantName": "李会(6楼）"
+    },
+    {
+      "billId": 253,
+      "currentTotalFee": 7173,
+      "nextTotalFee": 7173,
+      "receiptAmount": 7173,
+      "tenantName": "刘笑萍（502）"
+    },
+    {
+      "billId": 484,
+      "currentTotalFee": 18990.52,
+      "nextTotalFee": 17261,
+      "receiptAmount": 17261,
+      "tenantName": "刘笑萍（502）"
+    },
+    {
+      "billId": 477,
+      "currentTotalFee": 49912.9,
+      "nextTotalFee": 49203,
+      "receiptAmount": 49203,
+      "tenantName": "姚东江（一楼加阁楼）"
+    },
+    {
+      "billId": 492,
+      "currentTotalFee": 14092,
+      "nextTotalFee": 14085,
+      "receiptAmount": 14085,
+      "tenantName": "孔琴（201）"
+    },
+    {
+      "billId": 483,
+      "currentTotalFee": 13108.48,
+      "nextTotalFee": 13032,
+      "receiptAmount": 13032,
+      "tenantName": "衡龙顺发泡材料有限公司(402)"
+    },
+    {
+      "billId": 482,
+      "currentTotalFee": 10368.1,
+      "nextTotalFee": 8793,
+      "receiptAmount": 8793,
+      "tenantName": "陈宇春（401）"
+    },
+    {
+      "billId": 479,
+      "currentTotalFee": 25869.13,
+      "nextTotalFee": 9601,
+      "receiptAmount": 9600,
+      "tenantName": "赵红健（802）"
+    },
+    {
+      "billId": 480,
+      "currentTotalFee": 14975.53,
+      "nextTotalFee": 11429,
+      "receiptAmount": 11429,
+      "tenantName": "慎根林（901）"
+    },
+    {
+      "billId": 487,
+      "currentTotalFee": 9215.04,
+      "nextTotalFee": 8730,
+      "receiptAmount": 7143,
+      "tenantName": "朱爱媛（501）"
+    },
+    {
+      "billId": 478,
+      "currentTotalFee": 4606.52,
+      "nextTotalFee": 4562,
+      "receiptAmount": 4562,
+      "tenantName": "梁志昌(202)"
+    },
+    {
+      "billId": 481,
+      "currentTotalFee": 3869.25,
+      "nextTotalFee": 3966,
+      "receiptAmount": 3966,
+      "tenantName": "董振文（203）"
+    }
+  ],
+  "summaryBefore": {
+    "billCount": 16,
+    "receiptAmount": 244555.34,
+    "remaining": 45630.26,
+    "totalFee": 290088.85
+  },
+  "user": {
+    "username": "17770113605",
+    "dbName": "magic"
+  }
+}

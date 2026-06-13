@@ -1,3 +1,4 @@
+import { resolveDashboardReferenceDate } from '~/utils/dashboard-date';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
@@ -209,7 +210,15 @@ export default eventHandler(async (event) => {
   }
 
   const query = getQuery(event);
-  const referenceDate = new Date();
+  const queryYear = Number(query.year);
+  const fallbackDate =
+    Number.isInteger(queryYear) && queryYear > 0
+      ? new Date(queryYear, new Date().getMonth(), 1)
+      : new Date();
+  const referenceDate = resolveDashboardReferenceDate(
+    query.endDate || query.date,
+    fallbackDate,
+  );
 
   try {
     const authorizedParkIds =

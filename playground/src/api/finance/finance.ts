@@ -4,6 +4,10 @@ export async function getFinanceList(params?: any) {
   return requestClient.get('/finance/list', { params });
 }
 
+export async function getFinanceBillNameOptions(params?: any) {
+  return requestClient.get('/finance/bill-name-options', { params });
+}
+
 export async function getFinanceDetail(id: number) {
   return requestClient.get(`/finance/${id}`);
 }

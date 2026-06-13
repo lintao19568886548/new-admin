@@ -14,6 +14,7 @@ import {
   ref,
   watch,
 } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
@@ -22,8 +23,10 @@ import { getDashboardRevenueStats } from '#/api/dashboard';
 import { getRevenueChartConfig, REVENUE_COLORS } from './chartConfigs';
 
 interface Props {
-  month?: string;
+  date?: string;
+  endDate?: string;
   parkId?: ParkOptionValue;
+  startDate?: string;
 }
 
 interface RevenueTrendData {
@@ -31,12 +34,18 @@ interface RevenueTrendData {
   income: number[];
   months: string[];
   profit: number[];
+  receivable: number[];
+  received: number[];
+  remaining: number[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  month: '',
+  date: '',
+  endDate: '',
   parkId: 'all',
+  startDate: '',
 });
+const router = useRouter();
 
 const DashboardChart = defineComponent({
   name: 'DashboardChart',
@@ -184,20 +193,13 @@ const dotSize = computed(() => {
 });
 
 const revenueSummary = ref({
-  expenseTotal: 0,
-  incomeTotal: 0,
   periodLabel: '当前年度',
-  profit: 0,
+  receivableTotal: 0,
+  receivedTotal: 0,
+  remainingTotal: 0,
 });
 const revenueTrendData = ref<null | RevenueTrendData>(null);
-const revenueProfitLabel = computed(() =>
-  revenueSummary.value.profit < 0 ? '净支出' : '净收入',
-);
-const revenueProfitColor = computed(() =>
-  revenueSummary.value.profit < 0
-    ? REVENUE_COLORS.netExpense
-    : REVENUE_COLORS.netIncome,
-);
+let revenueRequestSeq = 0;
 
 const formatAmount = (value: number) =>
   `${Number(value || 0).toLocaleString('zh-CN', {
@@ -205,22 +207,107 @@ const formatAmount = (value: number) =>
     minimumFractionDigits: 2,
   })}元`;
 
+function getSelectedDateRange() {
+  const startDate = props.startDate || props.date;
+  const endDate = props.endDate || props.date || props.startDate;
+  return {
+    endDate,
+    startDate,
+  };
+}
+
+function appendParkQuery(query: Record<string, number | string>) {
+  if (props.parkId === 'all' || props.parkId === undefined) {
+    return;
+  }
+
+  const parkId = Number(props.parkId);
+  if (Number.isInteger(parkId) && parkId > 0) {
+    query.parkId = parkId;
+  }
+}
+
+function getBillRouteQuery(collectionStatus?: 'unreceived') {
+  const { endDate, startDate } = getSelectedDateRange();
+  const query: Record<string, number | string> = {};
+  appendParkQuery(query);
+
+  if (startDate && endDate) {
+    query.projectStartDate = startDate;
+    query.projectEndDate = endDate;
+  }
+
+  if (collectionStatus) {
+    query.collectionStatus = collectionStatus;
+  }
+
+  return query;
+}
+
+function getFinanceRouteQuery() {
+  const { endDate, startDate } = getSelectedDateRange();
+  const query: Record<string, number | string> = {
+    transactionType: '收入',
+  };
+  appendParkQuery(query);
+
+  if (startDate && endDate) {
+    query.startTime = `${startDate} 00:00:00`;
+    query.endTime = `${endDate} 23:59:59`;
+  }
+
+  return query;
+}
+
+function goReceivableDetail() {
+  router.push({
+    name: 'Bill',
+    query: getBillRouteQuery(),
+  });
+}
+
+function goReceivedDetail() {
+  router.push({
+    name: 'FinanceManage',
+    query: getFinanceRouteQuery(),
+  });
+}
+
+function goRemainingDetail() {
+  router.push({
+    name: 'Bill',
+    query: getBillRouteQuery('unreceived'),
+  });
+}
+
 const fetchRevenueOverview = async () => {
+  const requestSeq = ++revenueRequestSeq;
   try {
     const res = await getDashboardRevenueStats({
-      month: props.month,
+      date: props.date,
+      endDate: props.endDate,
       parkId: props.parkId,
+      startDate: props.startDate,
     });
+
+    if (requestSeq !== revenueRequestSeq) {
+      return;
+    }
 
     if (!res) {
       return;
     }
 
     revenueSummary.value = {
-      expenseTotal: Number(res.summary?.expenseTotal) || 0,
-      incomeTotal: Number(res.summary?.incomeTotal) || 0,
       periodLabel: res.periodLabel || '当前年度',
-      profit: Number(res.summary?.profit) || 0,
+      receivableTotal:
+        Number(res.summary?.receivableTotal ?? res.summary?.expenseTotal) || 0,
+      receivedTotal:
+        Number(res.summary?.receivedTotal ?? res.summary?.incomeTotal) || 0,
+      remainingTotal:
+        Number(
+          res.summary?.remainingTotal ?? Math.abs(Number(res.summary?.profit)),
+        ) || 0,
     };
 
     revenueTrendData.value = {
@@ -228,14 +315,22 @@ const fetchRevenueOverview = async () => {
       income: Array.isArray(res.trend?.income) ? res.trend.income : [],
       months: Array.isArray(res.trend?.months) ? res.trend.months : [],
       profit: Array.isArray(res.trend?.profit) ? res.trend.profit : [],
+      receivable: Array.isArray(res.trend?.receivable)
+        ? res.trend.receivable
+        : [],
+      received: Array.isArray(res.trend?.received) ? res.trend.received : [],
+      remaining: Array.isArray(res.trend?.remaining) ? res.trend.remaining : [],
     };
   } catch (error) {
+    if (requestSeq !== revenueRequestSeq) {
+      return;
+    }
     console.error('获取营收统计失败:', error);
   }
 };
 
 watch(
-  () => [props.parkId, props.month],
+  () => [props.parkId, props.date, props.startDate, props.endDate],
   () => {
     fetchRevenueOverview();
   },
@@ -246,65 +341,75 @@ watch(
 <template>
   <div class="flex h-full flex-col">
     <div class="mb-3 grid flex-initial grid-cols-3 gap-2">
-      <div class="rounded-lg bg-gray-50 p-2">
-        <div class="flex items-center gap-1.5">
-          <div
-            class="rounded-full"
-            :class="[dotSize]"
-            :style="{ backgroundColor: REVENUE_COLORS.income }"
-          ></div>
-          <span class="text-gray-500" :class="[labelFontSize]">收入总额</span>
-        </div>
-        <div
-          class="mt-1 whitespace-nowrap font-bold text-gray-800"
-          :class="[valueFontSize]"
-        >
-          {{ formatAmount(revenueSummary.incomeTotal) }}
-        </div>
-        <div class="mt-0.5 text-gray-400" :class="[labelFontSize]">
-          {{ revenueSummary.periodLabel }}
-        </div>
-      </div>
-      <div class="rounded-lg bg-gray-50 p-2">
+      <button
+        class="summary-card rounded-lg bg-gray-50 p-2 text-left"
+        type="button"
+        @click="goReceivableDetail"
+      >
         <div class="flex items-center gap-1.5">
           <div
             class="rounded-full"
             :class="[dotSize]"
             :style="{ backgroundColor: REVENUE_COLORS.expense }"
           ></div>
-          <span class="text-gray-500" :class="[labelFontSize]">支出总额</span>
+          <span class="text-gray-500" :class="[labelFontSize]">应收合计</span>
         </div>
         <div
           class="mt-1 whitespace-nowrap font-bold text-gray-800"
           :class="[valueFontSize]"
         >
-          {{ formatAmount(revenueSummary.expenseTotal) }}
+          {{ formatAmount(revenueSummary.receivableTotal) }}
         </div>
         <div class="mt-0.5 text-gray-400" :class="[labelFontSize]">
           {{ revenueSummary.periodLabel }}
         </div>
-      </div>
-      <div class="rounded-lg bg-gray-50 p-2">
+      </button>
+      <button
+        class="summary-card rounded-lg bg-gray-50 p-2 text-left"
+        type="button"
+        @click="goReceivedDetail"
+      >
         <div class="flex items-center gap-1.5">
           <div
             class="rounded-full"
             :class="[dotSize]"
-            :style="{ backgroundColor: revenueProfitColor }"
+            :style="{ backgroundColor: REVENUE_COLORS.income }"
           ></div>
-          <span class="text-gray-500" :class="[labelFontSize]">
-            {{ revenueProfitLabel }}
-          </span>
+          <span class="text-gray-500" :class="[labelFontSize]">实收合计</span>
         </div>
         <div
           class="mt-1 whitespace-nowrap font-bold text-gray-800"
           :class="[valueFontSize]"
         >
-          {{ formatAmount(Math.abs(revenueSummary.profit)) }}
+          {{ formatAmount(revenueSummary.receivedTotal) }}
         </div>
         <div class="mt-0.5 text-gray-400" :class="[labelFontSize]">
           {{ revenueSummary.periodLabel }}
         </div>
-      </div>
+      </button>
+      <button
+        class="summary-card rounded-lg bg-gray-50 p-2 text-left"
+        type="button"
+        @click="goRemainingDetail"
+      >
+        <div class="flex items-center gap-1.5">
+          <div
+            class="rounded-full"
+            :class="[dotSize]"
+            :style="{ backgroundColor: REVENUE_COLORS.netExpense }"
+          ></div>
+          <span class="text-gray-500" :class="[labelFontSize]">未收合计</span>
+        </div>
+        <div
+          class="mt-1 whitespace-nowrap font-bold text-gray-800"
+          :class="[valueFontSize]"
+        >
+          {{ formatAmount(revenueSummary.remainingTotal) }}
+        </div>
+        <div class="mt-0.5 text-gray-400" :class="[labelFontSize]">
+          {{ revenueSummary.periodLabel }}
+        </div>
+      </button>
     </div>
     <div class="min-h-0 flex-1">
       <DashboardChart
@@ -314,3 +419,26 @@ watch(
     </div>
   </div>
 </template>
+
+<style scoped>
+.summary-card {
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.summary-card:hover,
+.summary-card:focus-visible {
+  border-color: #d9e8ff;
+  box-shadow: 0 4px 12px rgb(15 23 42 / 8%);
+  transform: translateY(-1px);
+}
+
+.summary-card:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 2px;
+}
+</style>

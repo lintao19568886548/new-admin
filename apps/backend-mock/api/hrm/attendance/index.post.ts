@@ -9,6 +9,7 @@ import {
   prepareAttendanceDeviceForPunch,
   recordAttendanceDeviceAbnormal,
 } from '~/utils/attendance-device';
+import { validateAttendanceLocation } from '~/utils/attendance-location';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
@@ -32,10 +33,23 @@ export default eventHandler(async (event) => {
       device,
       bindCurrentDevice,
       allowDeviceAbnormal,
+      allowOutsideRange,
     } = await readBody(event);
 
     if (!punchTime || longitude === undefined || latitude === undefined) {
       return useResponseError('缺少必要的参数');
+    }
+
+    const locationValidation = validateAttendanceLocation({
+      latitude,
+      longitude,
+    });
+    if (!locationValidation.isValid) {
+      return useResponseError('定位失败，请开启定位权限后重新打卡');
+    }
+
+    if (!locationValidation.inRange && !allowOutsideRange) {
+      return useResponseError('当前位置不在打卡范围内，请确认后再打卡');
     }
 
     // 检查当天是否已经有打卡记录
@@ -80,8 +94,8 @@ export default eventHandler(async (event) => {
     const newAttendance = await prismaClient.attendance.create({
       data: {
         punchIn: new Date(punchTime),
-        longitude,
-        latitude,
+        longitude: Number(longitude),
+        latitude: Number(latitude),
         status,
         username: userinfo.realName,
         userId: userinfo.id,

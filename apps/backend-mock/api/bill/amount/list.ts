@@ -1,4 +1,72 @@
+import {
+  buildAmountBillListSummary,
+  enrichAmountBillPaymentInfo,
+  filterAmountBillsByCollectionStatus,
+} from '~/utils/amount-bill-list-summary';
+import {
+  compareAmountBillProjectDesc,
+  getSingleProjectMonthSortKey,
+} from '~/utils/amount-bill-project-period';
 import { prismaClient } from '~/utils/db';
+
+function parseDateOnly(value: unknown) {
+  const rawDate = String(value || '').trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(rawDate);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
+function getMonthSortKey(date: Date) {
+  return date.getFullYear() * 12 + date.getMonth() + 1;
+}
+
+function getProjectMonthRange(startValue: unknown, endValue: unknown) {
+  const startDate = parseDateOnly(startValue);
+  const endDate = parseDateOnly(endValue);
+  if (!startDate || !endDate) {
+    return null;
+  }
+
+  const startKey = getMonthSortKey(startDate);
+  const endKey = getMonthSortKey(endDate);
+  return {
+    endKey: Math.max(startKey, endKey),
+    startKey: Math.min(startKey, endKey),
+  };
+}
+
+function isProjectMonthInRange(
+  projectName: unknown,
+  range: null | {
+    endKey: number;
+    startKey: number;
+  },
+) {
+  if (!range) {
+    return true;
+  }
+
+  const monthKey = getSingleProjectMonthSortKey(projectName);
+  return (
+    monthKey !== null && monthKey >= range.startKey && monthKey <= range.endKey
+  );
+}
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -12,6 +80,9 @@ export default eventHandler(async (event) => {
     tenantName,
     startTime,
     endTime,
+    projectStartDate,
+    projectEndDate,
+    collectionStatus,
     currentPark,
     currentPage,
     pageSize,
@@ -39,6 +110,9 @@ export default eventHandler(async (event) => {
   }
 
   if (startTime && endTime) {
+    where.receiptAmount = {
+      gt: 0,
+    };
     where.receiptTime = {
       gte: new Date(startTime as string),
       lte: new Date(endTime as string),
@@ -47,18 +121,13 @@ export default eventHandler(async (event) => {
 
   const page = Number(currentPage) || 1;
   const size = Number(pageSize) || 20;
-
-  const total = await prismaClient.amountBill.count({
-    where,
-  });
+  const projectMonthRange = getProjectMonthRange(
+    projectStartDate,
+    projectEndDate,
+  );
 
   const result = await prismaClient.amountBill.findMany({
     where,
-    orderBy: {
-      createTime: 'desc',
-    },
-    skip: (page - 1) * size,
-    take: size,
     include: {
       tenant: {
         select: {
@@ -73,14 +142,29 @@ export default eventHandler(async (event) => {
     },
   });
 
-  const items = result.map((item) => ({
-    ...item,
-    tenantName: item.tenant?.tenantName || item.tenantName,
-    parkName: item.park?.parkName,
-  }));
+  const enrichedItems = result
+    .filter((item) =>
+      isProjectMonthInRange(item.projectName, projectMonthRange),
+    )
+    .map((item) =>
+      enrichAmountBillPaymentInfo({
+        ...item,
+        tenantName: item.tenant?.tenantName || item.tenantName,
+        parkName: item.park?.parkName,
+      }),
+    );
+  const filteredItems = filterAmountBillsByCollectionStatus(
+    enrichedItems,
+    collectionStatus as string | undefined,
+  );
+  const sortedItems = filteredItems.sort(compareAmountBillProjectDesc);
+  const summary = buildAmountBillListSummary(sortedItems);
+  const total = sortedItems.length;
+  const items = sortedItems.slice((page - 1) * size, page * size);
 
   return useResponseSuccess({
     items,
+    summary,
     total,
   });
 });
