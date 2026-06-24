@@ -6,6 +6,11 @@ import { isFunction } from '@vben/utils';
 
 import axios from 'axios';
 
+function $tWithFallback(key: string, fallback: string) {
+  const message = $t(key);
+  return message && message !== key ? message : fallback;
+}
+
 export const defaultResponseInterceptor = ({
   codeField = 'code',
   dataField = 'data',
@@ -121,9 +126,15 @@ export const errorMessageResponseInterceptor = (
       const err: string = error?.toString?.() ?? '';
       let errMsg = '';
       if (err?.includes('Network Error')) {
-        errMsg = $t('ui.fallback.http.networkError');
+        errMsg = $tWithFallback(
+          'ui.fallback.http.networkError',
+          '网络异常，请检查您的网络连接后重试。',
+        );
       } else if (error?.message?.includes?.('timeout')) {
-        errMsg = $t('ui.fallback.http.requestTimeout');
+        errMsg = $tWithFallback(
+          'ui.fallback.http.requestTimeout',
+          '请求超时，请稍后再试。',
+        );
       }
       if (errMsg) {
         makeErrorMessage?.(errMsg, error);
@@ -135,27 +146,45 @@ export const errorMessageResponseInterceptor = (
 
       switch (status) {
         case 400: {
-          errorMessage = $t('ui.fallback.http.badRequest');
+          errorMessage = $tWithFallback(
+            'ui.fallback.http.badRequest',
+            '请求错误，请检查输入后重试。',
+          );
           break;
         }
         case 401: {
-          errorMessage = $t('ui.fallback.http.unauthorized');
+          errorMessage = $tWithFallback(
+            'ui.fallback.http.unauthorized',
+            '登录认证过期，请重新登录后继续。',
+          );
           break;
         }
         case 403: {
-          errorMessage = $t('ui.fallback.http.forbidden');
+          errorMessage = $tWithFallback(
+            'ui.fallback.http.forbidden',
+            '禁止访问，您没有权限访问此资源。',
+          );
           break;
         }
         case 404: {
-          errorMessage = $t('ui.fallback.http.notFound');
+          errorMessage = $tWithFallback(
+            'ui.fallback.http.notFound',
+            '未找到请求的资源。',
+          );
           break;
         }
         case 408: {
-          errorMessage = $t('ui.fallback.http.requestTimeout');
+          errorMessage = $tWithFallback(
+            'ui.fallback.http.requestTimeout',
+            '请求超时，请稍后再试。',
+          );
           break;
         }
         default: {
-          errorMessage = $t('ui.fallback.http.internalServerError');
+          errorMessage = $tWithFallback(
+            'ui.fallback.http.internalServerError',
+            '内部服务器错误，请稍后再试。',
+          );
         }
       }
       makeErrorMessage?.(errorMessage, error);

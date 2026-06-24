@@ -37,10 +37,32 @@ model AmountBill {
   waterBills         WaterBill[]   @relation("WaterBillToAmountBill")
   parkId             Int?          @map("park_id")
   park               Park?         @relation("ParkToAmountBill", fields: [parkId], references: [parkId])
+  collectionSmsLogs  AmountBillCollectionSmsLog[] @relation("AmountBillToCollectionSmsLog")
 
   @@index([tenantId])
   @@index([parkId])
   @@map("amount_bill")
+}
+
+model AmountBillCollectionSmsLog {
+  logId           Int        @id @default(autoincrement()) @map("log_id")
+  billId          Int        @map("bill_id")
+  collectionType  String     @map("collection_type") @db.VarChar(32)
+  templateId      String?    @map("template_id") @db.VarChar(64)
+  phoneNumber     String?    @map("phone_number") @db.VarChar(20)
+  tenantName      String?    @map("tenant_name") @db.VarChar(191)
+  projectName     String?    @map("project_name") @db.VarChar(191)
+  remainingAmount Decimal?   @map("remaining_amount") @db.Decimal(10, 2)
+  success         Boolean    @default(true)
+  error           String?    @db.VarChar(500)
+  providerResult  Json?      @map("provider_result")
+  sentAt          DateTime   @default(now()) @map("sent_at")
+  createTime      DateTime?  @default(now()) @map("create_time")
+  amountBill      AmountBill @relation("AmountBillToCollectionSmsLog", fields: [billId], references: [billId])
+
+  @@index([billId])
+  @@index([collectionType, sentAt])
+  @@map("amount_bill_collection_sms_log")
 }
 
 model EleBill {

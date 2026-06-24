@@ -230,6 +230,18 @@ export interface ResolveCrmInviteResponse {
   reason?: string;
 }
 
+export interface SaveCrmOwnerBindingPayload {
+  customerName?: string;
+  externalUserId?: string;
+  firstChannelId?: number;
+  id?: number;
+  openid?: string;
+  ownerSalesUserId?: number;
+  phone?: string;
+  scene?: string;
+  unionid?: string;
+}
+
 export async function getCrmConfigStatusApi() {
   return requestClient.get<CrmConfigStatus>('/crm/config/status');
 }
@@ -321,6 +333,25 @@ export async function transferCrmOwnerBindingApi(payload: {
     reason: string;
     toOwnerSalesUserId: number;
   }>('/crm/binding/transfer', payload);
+}
+
+export async function createCrmOwnerBindingApi(
+  payload: SaveCrmOwnerBindingPayload,
+) {
+  return requestClient.post<CrmOwnerBinding>('/crm/binding/create', payload);
+}
+
+export async function updateCrmOwnerBindingApi(
+  payload: SaveCrmOwnerBindingPayload & { id: number },
+) {
+  return requestClient.post<CrmOwnerBinding>('/crm/binding/update', payload);
+}
+
+export async function deleteCrmOwnerBindingApi(payload: {
+  id: number;
+  reason?: string;
+}) {
+  return requestClient.post<CrmOwnerBinding>('/crm/binding/delete', payload);
 }
 
 export async function updateCrmOwnerBindingStatusApi(payload: {

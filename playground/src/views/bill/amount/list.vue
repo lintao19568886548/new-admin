@@ -50,6 +50,7 @@ import {
   waterFormConfig,
 } from './data';
 import { analyzeAmountBillExcel, mapLlmResultToAmountBill } from './llm';
+import CollectionSmsModal from './modules/CollectionSmsModal.vue';
 import MultipageBillForm from './modules/MultipageBillForm.vue';
 
 const billParkOptions = ref<any[]>([]);
@@ -61,6 +62,7 @@ const route = useRoute();
 const DELETE_VERIFY_STORAGE_KEY = 'bill-delete-verified-at';
 const deleteVerificationModalRef =
   ref<InstanceType<typeof SmsVerificationModal>>();
+const collectionSmsModalRef = ref<InstanceType<typeof CollectionSmsModal>>();
 
 onMounted(async () => {
   const [parkResult, tenantResult] = await Promise.allSettled([
@@ -156,6 +158,23 @@ function onCreate() {
     waterFee: 0,
   };
   billFormRef.value?.open(newBill);
+}
+
+async function onOpenCollectionSms() {
+  const formData = (await gridApi.formApi?.getValues?.()) || {};
+  const projectPeriod = Array.isArray(formData.projectPeriod)
+    ? formData.projectPeriod
+    : [];
+
+  collectionSmsModalRef.value?.open({
+    collectionStatus: formData.collectionStatus || 'unreceived',
+    currentPark: formData.parkId ?? -1,
+    parkId: formData.parkId,
+    projectEndDate: formData.projectEndDate || projectPeriod[1],
+    projectName: formData.projectName,
+    projectStartDate: formData.projectStartDate || projectPeriod[0],
+    tenantName: formData.tenantName,
+  });
 }
 
 const aiImportLoading = ref(false);
@@ -636,6 +655,7 @@ function handlePrintCancel() {
       :tenant-options="billTenantOptions"
       @success="handleFormSuccess"
     />
+    <CollectionSmsModal ref="collectionSmsModalRef" />
 
     <!-- --- 新增代码开始 --- -->
     <!-- 打印设置模态框 -->
@@ -752,6 +772,9 @@ function handlePrintCancel() {
             AI导入Excel
           </Button>
         </AUpload>
+        <Button style="margin-right: 10px" @click="onOpenCollectionSms">
+          催收短信补发
+        </Button>
         <Button type="primary" @click="onCreate" style="margin-right: 10px">
           <Plus class="size-5" />
           {{ $t('ui.actionTitle.create', ['总账单']) }}

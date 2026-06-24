@@ -29,12 +29,24 @@ const props = withDefaults(
     }
   >(),
   {
+    agreeAndContinueText: '',
+    agreementRequiredMessage: '',
+    agreementRequiredTitle: '',
+    agreeText: '',
+    andText: '',
+    cancelText: '',
     codeLoginPath: '/auth/code-login',
+    closeText: '',
     forgetPasswordPath: '/auth/forget-password',
+    forgetPasswordText: '',
     formSchema: () => [],
     loading: false,
+    mobileLoginText: '',
+    privacyPolicyText: '',
     qrCodeLoginPath: '/auth/qrcode-login',
     registerPath: '/auth/register',
+    rememberMeText: '',
+    serviceAgreementText: '',
     showCodeLogin: true,
     showForgetPassword: true,
     showQrcodeLogin: true,
@@ -97,6 +109,15 @@ const authTipModalZIndex = computed(() => {
     : popupZIndex;
   return baseZIndex + AUTH_TIP_MODAL_Z_INDEX_OFFSET;
 });
+
+function localeText(key: string, fallback: string) {
+  const text = $t(key);
+  return text && text !== key ? text : fallback;
+}
+
+function propText(text: string | undefined, key: string, fallback: string) {
+  return text || localeText(key, fallback);
+}
 
 // 计算属性：获取本地存储的用户名
 const localUsername = computed(() => {
@@ -687,12 +708,21 @@ defineExpose({
     <slot name="title">
       <Title>
         <slot name="title">
-          {{ title || `${$t('authentication.welcomeBack')} 👋🏻` }}
+          {{
+            title ||
+            `${localeText('authentication.welcomeBack', '欢迎回来')} 👋🏻`
+          }}
         </slot>
         <template #desc>
           <span class="text-muted-foreground">
             <slot name="subTitle">
-              {{ subTitle || $t('authentication.loginSubtitle') }}
+              {{
+                subTitle ||
+                localeText(
+                  'authentication.loginSubtitle',
+                  '请输入您的帐户信息以开始管理您的项目',
+                )
+              }}
             </slot>
           </span>
         </template>
@@ -710,7 +740,7 @@ defineExpose({
         v-model:checked="rememberMe"
         name="rememberMe"
       >
-        {{ $t('authentication.rememberMe') }}
+        {{ propText(rememberMeText, 'authentication.rememberMe', '记住账号') }}
       </VbenCheckbox>
 
       <span
@@ -718,7 +748,13 @@ defineExpose({
         class="vben-link text-sm font-normal"
         @click="handleGo(forgetPasswordPath)"
       >
-        {{ $t('authentication.forgetPassword') }}
+        {{
+          propText(
+            forgetPasswordText,
+            'authentication.forgetPassword',
+            '忘记密码?',
+          )
+        }}
       </span>
     </div>
 
@@ -726,25 +762,37 @@ defineExpose({
       <div class="flex items-center">
         <VbenCheckbox v-model:checked="agreed" name="agreed">
           <span class="text-muted-foreground text-sm font-normal">
-            {{ $t('authentication.agree') }}
+            {{ propText(agreeText, 'authentication.agree', '我同意') }}
             <span
               class="vben-link cursor-pointer"
               @click.stop.prevent="showServiceAgreement"
             >
-              《{{ $t('服务协议') }}》
+              《{{
+                propText(
+                  serviceAgreementText,
+                  'authentication.serviceAgreement',
+                  '服务协议',
+                )
+              }}》
             </span>
-            {{ $t('common.and', '和') }}
+            {{ propText(andText, 'common.and', '和') }}
             <span
               class="vben-link cursor-pointer"
               @click.stop.prevent="showPrivacyPolicy"
             >
-              《{{ $t('authentication.privacyPolicy', '隐私政策') }}》
+              《{{
+                propText(
+                  privacyPolicyText,
+                  'authentication.privacyPolicy',
+                  '隐私协议',
+                )
+              }}》
             </span>
           </span>
         </VbenCheckbox>
       </div>
       <div v-if="showAgreeError" class="text-destructive mt-1 text-xs">
-        {{ $t('authentication.agreeTip') }}
+        {{ localeText('authentication.agreeTip', '请同意隐私协议和条款') }}
       </div>
     </div>
     <div
@@ -757,7 +805,9 @@ defineExpose({
         variant="outline"
         @click="handleGo(codeLoginPath)"
       >
-        {{ $t('authentication.mobileLogin') }}
+        {{
+          propText(mobileLoginText, 'authentication.mobileLogin', '手机号登录')
+        }}
       </VbenButton>
     </div>
 
@@ -770,7 +820,7 @@ defineExpose({
       class="w-full"
       @click="handleSubmit"
     >
-      {{ submitButtonText || $t('common.login') }}
+      {{ submitButtonText || localeText('common.login', '登录') }}
     </VbenButton>
 
     <!-- 第三方登录 -->
@@ -793,7 +843,9 @@ defineExpose({
     <!-- 隐私政策弹窗 -->
     <VbenModal
       v-model:open="showPrivacyModal"
-      :title="$t('authentication.privacyPolicy', '隐私协议')"
+      :title="
+        propText(privacyPolicyText, 'authentication.privacyPolicy', '隐私协议')
+      "
       :z-index="authTipModalZIndex"
       :mobile-fullscreen="false"
       class="mobile-small-modal"
@@ -814,7 +866,9 @@ defineExpose({
       </div>
       <template #footer>
         <div class="flex w-full justify-end space-x-2">
-          <VbenButton @click="handleClose"> 关闭 </VbenButton>
+          <VbenButton @click="handleClose">
+            {{ propText(closeText, 'common.close', '关闭') }}
+          </VbenButton>
         </div>
       </template>
     </VbenModal>
@@ -822,7 +876,13 @@ defineExpose({
     <!-- 服务协议弹窗 -->
     <VbenModal
       v-model:open="showServiceAgreementModal"
-      :title="$t('服务协议')"
+      :title="
+        propText(
+          serviceAgreementText,
+          'authentication.serviceAgreement',
+          '服务协议',
+        )
+      "
       :z-index="authTipModalZIndex"
       :mobile-fullscreen="false"
       class="mobile-small-modal"
@@ -843,7 +903,9 @@ defineExpose({
       </div>
       <template #footer>
         <div class="flex w-full justify-end space-x-2">
-          <VbenButton @click="handleClose"> 关闭 </VbenButton>
+          <VbenButton @click="handleClose">
+            {{ propText(closeText, 'common.close', '关闭') }}
+          </VbenButton>
         </div>
       </template>
     </VbenModal>
@@ -851,7 +913,13 @@ defineExpose({
     <!-- 同意协议提示弹窗 -->
     <VbenModal
       v-model:open="showAgreementRequiredModal"
-      :title="$t('authentication.agreementRequired', '温馨提示')"
+      :title="
+        propText(
+          agreementRequiredTitle,
+          'authentication.agreementRequired',
+          '温馨提示',
+        )
+      "
       :z-index="authTipModalZIndex"
       :mobile-fullscreen="false"
       class="mobile-small-modal mobile-agreement-required-modal"
@@ -864,7 +932,8 @@ defineExpose({
       <div class="p-3 text-center">
         <p class="mb-3 text-sm leading-6">
           {{
-            $t(
+            propText(
+              agreementRequiredMessage,
               'authentication.agreementRequiredMessage',
               '登录前请先阅读并同意',
             )
@@ -875,24 +944,42 @@ defineExpose({
             class="vben-link cursor-pointer font-medium"
             @click.stop.prevent="showServiceAgreementFromTip"
           >
-            《{{ $t('服务协议') }}》
+            《{{
+              propText(
+                serviceAgreementText,
+                'authentication.serviceAgreement',
+                '服务协议',
+              )
+            }}》
           </span>
-          {{ $t('common.and', '和') }}
+          {{ propText(andText, 'common.and', '和') }}
           <span
             class="vben-link cursor-pointer font-medium"
             @click.stop.prevent="showPrivacyPolicyFromTip"
           >
-            《{{ $t('authentication.privacyPolicy', '隐私协议') }}》
+            《{{
+              propText(
+                privacyPolicyText,
+                'authentication.privacyPolicy',
+                '隐私协议',
+              )
+            }}》
           </span>
         </p>
       </div>
       <template #footer>
         <div class="flex w-full flex-wrap justify-center gap-3">
           <VbenButton variant="outline" @click="closeAgreementRequiredModal">
-            取消
+            {{ propText(cancelText, 'common.cancel', '取消') }}
           </VbenButton>
           <VbenButton type="primary" @click="handleAgreeAndClose">
-            同意并继续
+            {{
+              propText(
+                agreeAndContinueText,
+                'authentication.agreeAndContinue',
+                '同意并继续',
+              )
+            }}
           </VbenButton>
         </div>
       </template>

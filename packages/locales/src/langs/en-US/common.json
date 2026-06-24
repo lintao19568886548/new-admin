@@ -1,4 +1,5 @@
 {
+  "and": "and",
   "back": "Back",
   "backToHome": "Back To Home",
   "login": "Login",
@@ -6,6 +7,7 @@
   "prompt": "Prompt",
   "cancel": "Cancel",
   "confirm": "Confirm",
+  "close": "Close",
   "reset": "Reset",
   "noData": "No Data",
   "refresh": "Refresh",

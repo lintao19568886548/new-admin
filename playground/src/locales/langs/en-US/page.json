@@ -9,6 +9,10 @@
     "register": "Register",
     "sendingCode": "SMS Code is sending..."
   },
+  "access": {
+    "register": "Visitor Registration",
+    "title": "Access Management"
+  },
   "agent": {
     "create": "Create Agent",
     "detail": "Agent Detail",
@@ -49,6 +53,12 @@
     "title": "Bill Management",
     "view": "View Bill",
     "water": "Water"
+  },
+  "finance": {
+    "manage": "Finance Management",
+    "mobileManage": "Finance Management",
+    "moduleTitle": "Finance Management",
+    "title": "Finance Management"
   },
   "dashboard": {
     "analytics": "Analytics",
@@ -102,8 +112,12 @@
     "factoryDetail": "Factory Detail",
     "factoryList": "Available Factory List",
     "list": "Rental List",
+    "management": "Park Management",
+    "managementMobile": "Park Management",
     "salary": "Salary",
     "settled": "Settled Factories",
+    "tenant": "Contract Management",
+    "tenantMobileListTitle": "Contract Management",
     "title": "Rental Management",
     "view": "View Rental"
   }

@@ -17,6 +17,8 @@
     "push:multi": "node ./scripts/prisma-push-multi.mjs",
     "push:multi:execute": "node ./scripts/prisma-push-multi.mjs --execute",
     "push:notices": "pnpm run prisma:push:notices",
+    "sms:collection:test": "node ./scripts/test-collection-sms.mjs",
+    "sms:collection:templates": "node ./scripts/setup-collection-sms-templates.mjs",
     "prisma:generate": "pnpm exec prisma generate && pnpm run prisma:generate:center && pnpm run prisma:generate:notices",
     "prisma:generate:center": "pnpm exec cross-env PRISMA_TARGET=center prisma generate",
     "prisma:generate:notices": "pnpm exec cross-env PRISMA_TARGET=notices prisma generate",

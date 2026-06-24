@@ -34,7 +34,9 @@ import {
 import html2canvas from 'html2canvas';
 
 import {
+  createCrmOwnerBindingApi,
   createCrmSalesQrcodeApi,
+  deleteCrmOwnerBindingApi,
   getCrmConfigStatusApi,
   getCrmInviteH5QrcodeApi,
   getCrmOverviewStatsApi,
@@ -43,6 +45,7 @@ import {
   listCrmSalesChannelsApi,
   listCrmScanLogsApi,
   transferCrmOwnerBindingApi,
+  updateCrmOwnerBindingApi,
   updateCrmOwnerBindingStatusApi,
   updateCrmSalesChannelApi,
 } from '#/api/crm';
@@ -64,6 +67,7 @@ const channelLoading = ref(false);
 const externalLogLoading = ref(false);
 const scanLogLoading = ref(false);
 const rowActionLoading = ref(false);
+const rowActionLoadingKey = ref('');
 const salesUserOptionsLoading = ref(false);
 
 const activeDataTab = ref<DataTabKey>('bindings');
@@ -87,6 +91,29 @@ const posterRef = ref<HTMLElement | null>(null);
 const transferModalOpen = ref(false);
 const transferRecord = ref<CrmOwnerBinding | null>(null);
 const transferTargetSalesUserId = ref<number>();
+const bindingModalOpen = ref(false);
+const bindingModalMode = ref<'create' | 'edit'>('create');
+const bindingSaving = ref(false);
+
+const bindingForm = reactive<{
+  customerName: string;
+  externalUserId: string;
+  id?: number;
+  openid: string;
+  ownerSalesUserId?: number;
+  phone: string;
+  scene: string;
+  unionid: string;
+}>({
+  customerName: '',
+  externalUserId: '',
+  id: undefined,
+  openid: '',
+  ownerSalesUserId: undefined,
+  phone: '',
+  scene: '',
+  unionid: '',
+});
 
 const listQuery = reactive<{
   currentPage: number;
@@ -122,7 +149,7 @@ const bindingColumns = [
   { dataIndex: 'firstScanAt', title: '首次绑定', width: 170 },
   { dataIndex: 'lastScanAt', title: '最近扫码', width: 170 },
   { dataIndex: 'status', title: '状态', width: 90 },
-  { fixed: 'right' as const, key: 'action', title: '操作', width: 240 },
+  { fixed: 'right' as const, key: 'action', title: '操作', width: 340 },
 ];
 
 const scanLogColumns = [
@@ -281,6 +308,10 @@ const activeMobileTotal = computed(() => {
   }
 });
 
+const bindingModalTitle = computed(() =>
+  bindingModalMode.value === 'create' ? '新增客户' : '编辑客户',
+);
+
 onMounted(() => {
   void refreshRuntimeInfo();
   void refreshCrmRecords();
@@ -387,6 +418,14 @@ function displayCustomer(record: {
 
 function resetListPage() {
   listQuery.currentPage = 1;
+}
+
+function getRowActionKey(action: string, id: number) {
+  return `${action}-${id}`;
+}
+
+function isRowActionLoading(action: string, id: number) {
+  return rowActionLoadingKey.value === getRowActionKey(action, id);
 }
 
 function clearListFilters() {
@@ -729,6 +768,119 @@ async function handleSalesFilterChange() {
   await refreshCrmRecords();
 }
 
+function resetBindingForm() {
+  bindingForm.id = undefined;
+  bindingForm.customerName = '';
+  bindingForm.phone = '';
+  bindingForm.openid = '';
+  bindingForm.unionid = '';
+  bindingForm.externalUserId = '';
+  bindingForm.ownerSalesUserId = isSuperUser.value
+    ? listQuery.salesUserId || undefined
+    : currentUserId.value || undefined;
+  bindingForm.scene = listQuery.scene || currentScene.value || '';
+}
+
+function openCreateBindingModal() {
+  resetBindingForm();
+  bindingModalMode.value = 'create';
+  bindingModalOpen.value = true;
+  if (isSuperUser.value) {
+    void refreshSalesUserOptions();
+  }
+}
+
+function openEditBindingModal(record: CrmOwnerBinding) {
+  bindingModalMode.value = 'edit';
+  bindingForm.id = record.id;
+  bindingForm.customerName = record.customerName || '';
+  bindingForm.phone = record.phone || '';
+  bindingForm.openid = record.openid || '';
+  bindingForm.unionid = record.unionid || '';
+  bindingForm.externalUserId = record.externalUserId || '';
+  bindingForm.ownerSalesUserId = record.ownerSalesUserId || undefined;
+  bindingForm.scene = record.firstScene || '';
+  bindingModalOpen.value = true;
+  if (isSuperUser.value) {
+    void refreshSalesUserOptions();
+  }
+}
+
+async function submitBindingForm() {
+  const phone = bindingForm.phone.trim();
+  const openid = bindingForm.openid.trim();
+  const unionid = bindingForm.unionid.trim();
+
+  if (!phone && !openid && !unionid) {
+    message.warning('请至少填写手机号、OpenID 或 UnionID');
+    return;
+  }
+  if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
+    message.warning('请输入正确的 11 位手机号');
+    return;
+  }
+  if (!bindingForm.ownerSalesUserId) {
+    message.warning('请选择归属销售');
+    return;
+  }
+
+  const payload = {
+    customerName: normalizeOptionalText(bindingForm.customerName),
+    externalUserId: normalizeOptionalText(bindingForm.externalUserId),
+    openid: normalizeOptionalText(openid),
+    ownerSalesUserId: bindingForm.ownerSalesUserId,
+    phone: normalizeOptionalText(phone),
+    scene: normalizeOptionalText(bindingForm.scene),
+    unionid: normalizeOptionalText(unionid),
+  };
+
+  bindingSaving.value = true;
+  try {
+    if (bindingModalMode.value === 'create') {
+      await createCrmOwnerBindingApi(payload);
+      message.success('客户已新增');
+    } else if (bindingForm.id) {
+      await updateCrmOwnerBindingApi({
+        ...payload,
+        id: bindingForm.id,
+      });
+      message.success('客户已更新');
+    }
+    bindingModalOpen.value = false;
+    activeDataTab.value = 'bindings';
+    await refreshCrmRecords();
+  } finally {
+    bindingSaving.value = false;
+  }
+}
+
+function confirmDeleteBinding(record: CrmOwnerBinding) {
+  Modal.confirm({
+    centered: true,
+    content: `删除后客户归属记录会移除，扫码日志仍会保留。确认删除 ${displayCustomer(
+      record,
+    )} 吗？`,
+    okText: '删除',
+    okType: 'danger',
+    async onOk() {
+      rowActionLoading.value = true;
+      rowActionLoadingKey.value = getRowActionKey('delete', record.id);
+      try {
+        await deleteCrmOwnerBindingApi({
+          id: record.id,
+          reason: '后台手动删除',
+        });
+        message.success('客户已删除');
+        await refreshCrmRecords();
+      } finally {
+        rowActionLoading.value = false;
+        rowActionLoadingKey.value = '';
+      }
+    },
+    title: '删除客户',
+  });
+}
+
 function confirmBindingStatus(record: CrmOwnerBinding) {
   const nextStatus = record.status === 1 ? 0 : 1;
   Modal.confirm({
@@ -740,6 +892,7 @@ function confirmBindingStatus(record: CrmOwnerBinding) {
     okText: '确定',
     async onOk() {
       rowActionLoading.value = true;
+      rowActionLoadingKey.value = getRowActionKey('status', record.id);
       try {
         await updateCrmOwnerBindingStatusApi({
           id: record.id,
@@ -750,6 +903,7 @@ function confirmBindingStatus(record: CrmOwnerBinding) {
         await refreshCrmRecords();
       } finally {
         rowActionLoading.value = false;
+        rowActionLoadingKey.value = '';
       }
     },
     title: nextStatus === 1 ? '启用客户归属' : '停用客户归属',
@@ -783,6 +937,10 @@ async function confirmTransferBinding() {
   }
 
   rowActionLoading.value = true;
+  rowActionLoadingKey.value = getRowActionKey(
+    'transfer',
+    transferRecord.value.id,
+  );
   try {
     await transferCrmOwnerBindingApi({
       id: transferRecord.value.id,
@@ -795,6 +953,7 @@ async function confirmTransferBinding() {
     await refreshCrmRecords();
   } finally {
     rowActionLoading.value = false;
+    rowActionLoadingKey.value = '';
   }
 }
 
@@ -809,6 +968,7 @@ function confirmChannelStatus(record: CrmSalesChannel) {
     okText: '确定',
     async onOk() {
       rowActionLoading.value = true;
+      rowActionLoadingKey.value = getRowActionKey('channel-status', record.id);
       try {
         await updateCrmSalesChannelApi({
           id: record.id,
@@ -818,6 +978,7 @@ function confirmChannelStatus(record: CrmSalesChannel) {
         await refreshCrmRecords();
       } finally {
         rowActionLoading.value = false;
+        rowActionLoadingKey.value = '';
       }
     },
     title: nextStatus === 1 ? '启用获客渠道' : '停用获客渠道',
@@ -1068,6 +1229,9 @@ function asSalesChannel(record: unknown) {
             @search="refreshSalesUserOptions"
           />
           <Space wrap>
+            <Button type="primary" @click="openCreateBindingModal">
+              新增客户
+            </Button>
             <Button :loading="recordsLoading" @click="refreshCurrentTab">
               查询
             </Button>
@@ -1130,6 +1294,12 @@ function asSalesChannel(record: unknown) {
                       扫码记录
                     </Button>
                     <Button
+                      size="small"
+                      @click="openEditBindingModal(asOwnerBinding(record))"
+                    >
+                      编辑
+                    </Button>
+                    <Button
                       v-if="isSuperUser"
                       size="small"
                       @click="openTransferModal(asOwnerBinding(record))"
@@ -1139,10 +1309,18 @@ function asSalesChannel(record: unknown) {
                     <Button
                       danger
                       size="small"
-                      :loading="rowActionLoading"
+                      :loading="isRowActionLoading('status', record.id)"
                       @click="confirmBindingStatus(asOwnerBinding(record))"
                     >
                       {{ record.status === 1 ? '停用' : '启用' }}
+                    </Button>
+                    <Button
+                      danger
+                      size="small"
+                      :loading="isRowActionLoading('delete', record.id)"
+                      @click="confirmDeleteBinding(asOwnerBinding(record))"
+                    >
+                      删除
                     </Button>
                   </Space>
                 </template>
@@ -1200,7 +1378,7 @@ function asSalesChannel(record: unknown) {
                     <Button
                       danger
                       size="small"
-                      :loading="rowActionLoading"
+                      :loading="isRowActionLoading('channel-status', record.id)"
                       @click="confirmChannelStatus(asSalesChannel(record))"
                     >
                       {{ record.status === 1 ? '停用' : '启用' }}
@@ -1337,10 +1515,21 @@ function asSalesChannel(record: unknown) {
                 <span>最近扫码</span>
                 <strong>{{ formatDate(record.lastScanAt) }}</strong>
               </div>
-              <Button block size="small" @click="focusBindingScanLogs(record)">
-                查看扫码记录
-              </Button>
               <div class="mobile-card-actions">
+                <Button
+                  block
+                  size="small"
+                  @click="focusBindingScanLogs(record)"
+                >
+                  扫码
+                </Button>
+                <Button
+                  block
+                  size="small"
+                  @click="openEditBindingModal(record)"
+                >
+                  编辑
+                </Button>
                 <Button
                   v-if="isSuperUser"
                   block
@@ -1353,10 +1542,19 @@ function asSalesChannel(record: unknown) {
                   block
                   danger
                   size="small"
-                  :loading="rowActionLoading"
+                  :loading="isRowActionLoading('status', record.id)"
                   @click="confirmBindingStatus(record)"
                 >
-                  {{ record.status === 1 ? '停用归属' : '启用归属' }}
+                  {{ record.status === 1 ? '停用' : '启用' }}
+                </Button>
+                <Button
+                  block
+                  danger
+                  size="small"
+                  :loading="isRowActionLoading('delete', record.id)"
+                  @click="confirmDeleteBinding(record)"
+                >
+                  删除
                 </Button>
               </div>
             </article>
@@ -1412,8 +1610,8 @@ function asSalesChannel(record: unknown) {
                   block
                   danger
                   size="small"
-                  :loading="rowActionLoading"
                   @click="confirmChannelStatus(record)"
+                  :loading="isRowActionLoading('channel-status', record.id)"
                 >
                   {{ record.status === 1 ? '停用渠道' : '启用渠道' }}
                 </Button>
@@ -1522,6 +1720,84 @@ function asSalesChannel(record: unknown) {
           </template>
         </div>
       </Card>
+
+      <Modal
+        v-model:open="bindingModalOpen"
+        :title="bindingModalTitle"
+        :confirm-loading="bindingSaving"
+        destroy-on-close
+        @ok="submitBindingForm"
+      >
+        <div class="binding-form">
+          <label class="field">
+            <span>客户姓名</span>
+            <Input
+              v-model:value="bindingForm.customerName"
+              allow-clear
+              placeholder="请输入客户姓名"
+            />
+          </label>
+          <label class="field">
+            <span>手机号</span>
+            <Input
+              v-model:value="bindingForm.phone"
+              allow-clear
+              inputmode="tel"
+              :maxlength="11"
+              placeholder="请输入 11 位手机号"
+            />
+          </label>
+          <label v-if="isSuperUser" class="field">
+            <span>归属销售</span>
+            <Select
+              v-model:value="bindingForm.ownerSalesUserId"
+              :filter-option="false"
+              :loading="salesUserOptionsLoading"
+              :options="salesUserOptions"
+              allow-clear
+              placeholder="请选择归属销售"
+              show-search
+              @search="refreshSalesUserOptions"
+            />
+          </label>
+          <label class="field">
+            <span>来源 scene</span>
+            <Input
+              v-model:value="bindingForm.scene"
+              allow-clear
+              :disabled="bindingModalMode === 'edit'"
+              placeholder="可选，不填则使用该销售最近的渠道"
+            />
+          </label>
+          <label class="field">
+            <span>OpenID</span>
+            <Input
+              v-model:value="bindingForm.openid"
+              allow-clear
+              placeholder="可选，微信授权后会自动写入"
+            />
+          </label>
+          <label class="field">
+            <span>UnionID</span>
+            <Input
+              v-model:value="bindingForm.unionid"
+              allow-clear
+              placeholder="可选，微信开放平台绑定后才会有"
+            />
+          </label>
+          <label class="field">
+            <span>企微客户ID</span>
+            <Input
+              v-model:value="bindingForm.externalUserId"
+              allow-clear
+              placeholder="可选，客户添加企微后可写入"
+            />
+          </label>
+          <p class="binding-form-note">
+            至少填写手机号、OpenID、UnionID 其中一项；该表当前没有详细地址字段。
+          </p>
+        </div>
+      </Modal>
 
       <Modal
         v-model:open="transferModalOpen"
@@ -1734,11 +2010,13 @@ function asSalesChannel(record: unknown) {
   width: min(100%, 260px);
 }
 
+.binding-form,
 .transfer-form {
   display: grid;
   gap: 12px;
 }
 
+.binding-form-note,
 .transfer-form p {
   margin: 0;
   color: hsl(var(--muted-foreground));
@@ -2052,61 +2330,139 @@ function asSalesChannel(record: unknown) {
     padding: 14px;
   }
 
+  .form-grid {
+    gap: 10px;
+  }
+
+  .promotion-side-panel,
+  .promotion-steps {
+    display: none;
+  }
+
   .qrcode-result {
+    gap: 8px;
     min-height: 0;
   }
 
   .poster-preview-frame {
-    min-height: 860px;
-    padding: 10px;
+    align-items: flex-start;
+    min-height: 260px;
+    max-height: min(50vh, 430px);
+    padding: 8px;
+    overflow: auto;
   }
 
   .poster-empty-state {
-    min-height: 820px;
+    min-height: 280px;
+    padding: 16px;
+  }
+
+  .poster-empty-state strong {
+    font-size: 18px;
+  }
+
+  .poster-empty-state span {
+    font-size: 13px;
   }
 
   .promotion-poster {
-    width: min(100%, 430px);
+    width: min(100%, 320px);
     min-height: auto;
-    padding: 18px 14px 14px;
+    padding: 10px 8px 8px;
+    border-radius: 8px;
   }
 
   .promotion-poster h3 {
-    font-size: 26px;
+    margin-bottom: 8px;
+    font-size: 17px;
   }
 
   .poster-pain-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .poster-pain-grid div {
+    min-height: 72px;
+    padding: 6px 5px;
   }
 
   .poster-pain-grid strong {
-    font-size: 16px;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .poster-pain-grid span {
+    width: 30px;
+    height: 30px;
+    font-size: 11px;
+  }
+
+  .poster-arrow {
+    margin: 3px 0;
+    font-size: 20px;
   }
 
   .poster-solution {
-    font-size: 20px;
+    padding: 7px 6px;
+    font-size: 14px;
+  }
+
+  .poster-check-list {
+    gap: 5px;
+    padding: 8px 4px;
   }
 
   .poster-check-list div {
-    font-size: 17px;
+    min-height: 20px;
+    padding-left: 24px;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .poster-check-list div::before {
+    width: 18px;
+    height: 18px;
+    font-size: 12px;
   }
 
   .poster-footer {
-    grid-template-columns: minmax(0, 1fr) 96px;
-    min-height: 128px;
+    grid-template-columns: minmax(0, 1fr) 68px;
+    gap: 6px;
+    min-height: 82px;
+    padding: 8px;
   }
 
   .poster-footer strong {
-    font-size: 20px;
+    margin-bottom: 3px;
+    font-size: 12px;
   }
 
   .poster-footer span {
-    font-size: 15px;
+    font-size: 10px;
+    line-height: 1.35;
   }
 
   .poster-footer img {
-    width: 96px;
-    height: 96px;
+    width: 68px;
+    height: 68px;
+    padding: 4px;
+  }
+
+  .poster-mini-title {
+    margin-top: 5px;
+    font-size: 14px;
+  }
+
+  .promotion-entry-panel {
+    min-height: 0;
+    padding: 10px;
+  }
+
+  .invite-link-preview {
+    min-height: 0;
+    max-height: 48px;
+    font-size: 12px;
   }
 
   .qrcode-result :deep(.ant-space) {
@@ -2119,17 +2475,40 @@ function asSalesChannel(record: unknown) {
     width: 100%;
   }
 
+  .poster-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    min-height: 0;
+  }
+
+  .poster-actions :deep(.ant-space-item) {
+    width: auto;
+  }
+
+  .poster-actions :deep(.ant-btn) {
+    height: 36px;
+  }
+
   .list-filter-grid {
     grid-template-columns: 1fr;
   }
 
   .list-filter-grid :deep(.ant-space) {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
     width: 100%;
   }
 
   .list-filter-grid :deep(.ant-space-item),
   .list-filter-grid :deep(.ant-btn) {
-    flex: 1;
+    width: 100%;
+  }
+
+  .list-filter-grid :deep(.ant-btn) {
+    height: 36px;
+    padding-inline: 4px;
   }
 
   .crm-data-tabs :deep(.ant-tabs-nav) {
@@ -2151,13 +2530,13 @@ function asSalesChannel(record: unknown) {
 
   .mobile-record-list {
     display: grid;
-    gap: 10px;
-    margin-top: 10px;
+    gap: 8px;
+    margin-top: 8px;
   }
 
   .mobile-record-card,
   .mobile-empty {
-    padding: 12px;
+    padding: 10px;
     background: hsl(var(--background));
     border: 1px solid hsl(var(--border));
     border-radius: 8px;
@@ -2170,7 +2549,7 @@ function asSalesChannel(record: unknown) {
 
   .mobile-card-head {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     align-items: flex-start;
     justify-content: space-between;
   }
@@ -2188,7 +2567,7 @@ function asSalesChannel(record: unknown) {
   }
 
   .mobile-card-head strong {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   .mobile-card-head span,
@@ -2201,39 +2580,47 @@ function asSalesChannel(record: unknown) {
 
   .mobile-card-grid {
     display: grid;
-    grid-template-columns: 72px minmax(0, 1fr);
-    gap: 8px 10px;
-    margin: 12px 0;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 5px 8px;
+    margin: 8px 0;
   }
 
   .mobile-card-grid strong {
+    font-size: 12px;
     font-weight: 500;
   }
 
   .mobile-stat-row {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-    margin: 12px 0;
+    gap: 6px;
+    margin: 8px 0;
   }
 
   .mobile-stat-row > div {
     display: grid;
-    gap: 4px;
-    padding: 10px;
+    gap: 2px;
+    padding: 8px;
     background: hsl(var(--muted) / 35%);
     border-radius: 8px;
   }
 
   .mobile-stat-row strong {
-    font-size: 18px;
+    font-size: 16px;
     line-height: 1.1;
   }
 
   .mobile-card-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .mobile-card-actions :deep(.ant-btn) {
+    min-width: 0;
+    height: 32px;
+    padding-inline: 4px;
+    font-size: 12px;
   }
 
   .mobile-pagination {
@@ -2243,6 +2630,16 @@ function asSalesChannel(record: unknown) {
     align-items: center;
     padding: 4px 0;
     text-align: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .list-filter-grid :deep(.ant-space) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mobile-card-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

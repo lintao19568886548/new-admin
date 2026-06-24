@@ -20,22 +20,66 @@ import dayjs from 'dayjs';
 const antdLocale = ref<Locale>(antdDefaultLocale);
 
 const modules = import.meta.glob('./langs/**/*.json');
+const sharedModules = import.meta.glob(
+  '../../../packages/locales/src/langs/**/*.json',
+);
 
 const localesMap = loadLocalesMapFromDir(
   /\.\/langs\/([^/]+)\/(.*)\.json$/,
   modules,
 );
+const sharedLocalesMap = loadLocalesMapFromDir(
+  /\.\.\/\.\.\/\.\.\/packages\/locales\/src\/langs\/([^/]+)\/(.*)\.json$/,
+  sharedModules,
+);
+
+function isLocaleObject(value: unknown): value is Record<string, any> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function mergeLocaleMessages(
+  ...sources: Array<Record<string, any> | undefined>
+) {
+  const target: Record<string, any> = {};
+
+  const mergeInto = (
+    destination: Record<string, any>,
+    source: Record<string, any>,
+  ) => {
+    for (const [key, value] of Object.entries(source)) {
+      if (isLocaleObject(value) && isLocaleObject(destination[key])) {
+        mergeInto(destination[key], value);
+      } else if (isLocaleObject(value)) {
+        destination[key] = mergeLocaleMessages(value);
+      } else {
+        destination[key] = value;
+      }
+    }
+  };
+
+  for (const source of sources) {
+    if (source) {
+      mergeInto(target, source);
+    }
+  }
+
+  return target;
+}
 /**
  * 加载应用特有的语言包
  * 这里也可以改造为从服务端获取翻译数据
  * @param lang
  */
 async function loadMessages(lang: SupportedLanguagesType) {
-  const [appLocaleMessages] = await Promise.all([
+  const [sharedLocaleMessages, appLocaleMessages] = await Promise.all([
+    sharedLocalesMap[lang]?.(),
     localesMap[lang]?.(),
     loadThirdPartyMessage(lang),
   ]);
-  return appLocaleMessages?.default;
+  return mergeLocaleMessages(
+    sharedLocaleMessages?.default,
+    appLocaleMessages?.default,
+  );
 }
 
 /**

@@ -752,8 +752,7 @@ function registerEditEvent() {
 .univer-menu,
 .univer-contextmenu,
 .univer-tooltip,
-.univer-float-wrapper,
-[class*='univer-'] {
+.univer-float-wrapper {
   z-index: 2000 !important;
 }
 

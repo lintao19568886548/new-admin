@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { computed, onMounted, onUnmounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import { useAntdDesignTokens } from '@vben/hooks';
 import { preferences, usePreferences } from '@vben/preferences';
@@ -11,7 +11,6 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { App, ConfigProvider, message, theme } from 'ant-design-vue';
 
 import { antdLocale } from '#/locales';
-import { router } from '#/router';
 import { bootstrapWechatRuntimeDetection } from '#/utils/wechat-jssdk';
 
 import PrivacyPolicyModal from './components/PrivacyPolicyModal.vue';
@@ -20,6 +19,7 @@ defineOptions({ name: 'App' });
 
 const { isDark } = usePreferences();
 const route = useRoute();
+const router = useRouter();
 const { tokens } = useAntdDesignTokens();
 let appUrlOpenListener: null | { remove: () => Promise<void> } = null;
 let stopWechatRuntimeDetection: (() => void) | null = null;

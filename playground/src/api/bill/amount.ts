@@ -31,3 +31,11 @@ export async function deleteAmountBill(id: number) {
 export async function deleteAllAmountBill() {
   return requestClient.delete('/bill/amount');
 }
+
+export async function previewAmountBillCollectionSms(data: any) {
+  return requestClient.post('/bill/amount/collection-sms/preview', data);
+}
+
+export async function sendAmountBillCollectionSms(data: any) {
+  return requestClient.post('/bill/amount/collection-sms/send', data);
+}

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { AmountBill } from '../data';
 
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import {
   BorderStyleTypes,
@@ -97,6 +97,24 @@ const MONEY_FORMAT_RETRY_DELAYS = [0, 120, 360] as const;
 const PERCENT_REFERENCE_LEAK_RE = /(%)(\$?[A-Z]{1,3}\$?\d+)/gi;
 const PERCENT_LITERAL_RE = /(\d+(?:\.\d+)?)%/g;
 let numberFormatCommandAvailable = true;
+
+function waitFrame() {
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
+
+async function waitForContainerReady() {
+  await nextTick();
+  for (let index = 0; index < 10; index++) {
+    const rect = univerContainer.value?.getBoundingClientRect();
+    if (rect && rect.width > 300 && rect.height > 300) {
+      return true;
+    }
+    await waitFrame();
+  }
+  return false;
+}
 
 type StoredSheetCell = {
   originalText?: null | string;
@@ -296,6 +314,10 @@ function setTextCellValue(worksheet: any, rangeText: string, value: unknown) {
 async function init() {
   if (!univerContainer.value) {
     return;
+  }
+  const containerReady = await waitForContainerReady();
+  if (!containerReady) {
+    console.warn('Univer container size is not ready');
   }
   // Dispose previous instance before creating a new one
   dispose();
@@ -1563,7 +1585,7 @@ defineExpose({
 });
 </script>
 <template>
-  <div ref="univerContainer" style="width: 100%; height: 60vh"></div>
+  <div ref="univerContainer" class="univer-fee-container"></div>
 </template>
 
 <style lang="less">
@@ -1574,8 +1596,7 @@ defineExpose({
 .univer-menu,
 .univer-contextmenu,
 .univer-tooltip,
-.univer-float-wrapper,
-[class*='univer-'] {
+.univer-float-wrapper {
   z-index: 2000 !important;
 }
 
@@ -1583,5 +1604,9 @@ defineExpose({
 .univer-fee-container {
   position: relative;
   z-index: 1001;
+  width: 100%;
+  height: 60vh;
+  min-height: 560px;
+  overflow: hidden;
 }
 </style>

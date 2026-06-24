@@ -7,6 +7,13 @@ const createConfig: DefineApplicationOptions = async () => {
     application: {},
     vite: {
       envPrefix: ['VITE_'],
+      optimizeDeps: {
+        exclude: [
+          '@capacitor/core',
+          '@capacitor/filesystem',
+          '@capacitor/geolocation',
+        ],
+      },
       server: {
         proxy: {
           '/api': {

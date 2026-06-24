@@ -15,7 +15,6 @@ import { useTitle } from '@vueuse/core';
 import { createHead } from '@vueuse/head';
 
 import { $t, setupI18n } from '#/locales';
-import { router } from '#/router';
 import { setupNeutralErrorFeedback } from '#/utils/neutral-feedback';
 
 import { initComponentAdapter } from './adapter/component';
@@ -57,6 +56,8 @@ async function bootstrap(namespace: string) {
 
   // 国际化 i18n 配置
   await setupI18n(app);
+
+  const { router } = await import('#/router');
 
   // 配置 pinia-tore
   await initStores(app, { namespace });

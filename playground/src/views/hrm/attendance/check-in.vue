@@ -17,7 +17,6 @@ import { useUserStore } from '@vben/stores';
 
 import { Capacitor } from '@capacitor/core';
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
-import { Geolocation } from '@capacitor/geolocation';
 import { Icon } from '@iconify/vue';
 import {
   Button,
@@ -900,6 +899,7 @@ const getNativeCurrentPosition = async () => {
     return null;
   }
 
+  const { Geolocation } = await import('@capacitor/geolocation');
   const permissionStatus = await Geolocation.checkPermissions();
   if (permissionStatus.location !== 'granted') {
     const requestedStatus = await Geolocation.requestPermissions({

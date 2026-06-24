@@ -5,9 +5,9 @@ import type { BasicOption, Recordable } from '@vben/types';
 import { computed, markRaw, useTemplateRef } from 'vue';
 
 import { AuthenticationLogin, SliderCaptcha, z } from '@vben/common-ui';
-import { $t } from '@vben/locales';
 
 import { usePlatform } from '#/hooks/usePlatform';
+import { $t } from '#/locales';
 import { useAuthStore } from '#/store';
 
 defineOptions({ name: 'Login' });
@@ -16,6 +16,11 @@ defineOptions({ name: 'Login' });
 const { isNativePlatform } = usePlatform();
 
 const authStore = useAuthStore();
+
+function tText(key: string, fallback: string) {
+  const text = $t(key);
+  return text && text !== key ? text : fallback;
+}
 
 const MOCK_USER_OPTIONS: BasicOption[] = [
   {
@@ -68,7 +73,7 @@ const formSchema = computed((): VbenFormSchema[] => {
     {
       component: 'VbenInput',
       componentProps: {
-        placeholder: $t('authentication.usernameTip'),
+        placeholder: tText('authentication.usernameTip', '请输入用户名'),
       },
       dependencies: {
         trigger(values, form) {
@@ -87,23 +92,31 @@ const formSchema = computed((): VbenFormSchema[] => {
         triggerFields: ['selectAccount'],
       },
       fieldName: 'username',
-      label: $t('authentication.username'),
-      rules: z.string().min(1, { message: $t('authentication.usernameTip') }),
+      label: tText('authentication.username', '账号'),
+      rules: z.string().min(1, {
+        message: tText('authentication.usernameTip', '请输入用户名'),
+      }),
     },
     {
       component: 'VbenInputPassword',
       componentProps: {
-        placeholder: $t('authentication.password'),
+        placeholder: tText('authentication.password', '密码'),
       },
       fieldName: 'password',
-      label: $t('authentication.password'),
-      rules: z.string().min(1, { message: $t('authentication.passwordTip') }),
+      label: tText('authentication.password', '密码'),
+      rules: z.string().min(1, {
+        message: tText('authentication.passwordTip', '请输入密码'),
+      }),
     },
     {
       component: markRaw(SliderCaptcha),
+      componentProps: {
+        successText: tText('ui.captcha.sliderSuccessText', '验证通过'),
+        text: tText('ui.captcha.sliderDefaultText', '请按住滑块拖动'),
+      },
       fieldName: 'captcha',
       rules: z.boolean().refine((value) => value, {
-        message: $t('authentication.verifyRequiredTip'),
+        message: tText('authentication.verifyRequiredTip', '请先完成验证'),
       }),
     },
   ];
@@ -131,8 +144,36 @@ async function onSubmit(params: Recordable<any>) {
   <AuthenticationLogin
     ref="loginRef"
     v-if="!isNativePlatform"
+    :agree-and-continue-text="
+      tText('authentication.agreeAndContinue', '同意并继续')
+    "
+    :agree-text="tText('authentication.agree', '我同意')"
+    :agreement-required-message="
+      tText('authentication.agreementRequiredMessage', '登录前请先阅读并同意')
+    "
+    :agreement-required-title="
+      tText('authentication.agreementRequired', '温馨提示')
+    "
+    :and-text="tText('common.and', '和')"
+    :cancel-text="tText('common.cancel', '取消')"
+    :close-text="tText('common.close', '关闭')"
     :form-schema="formSchema"
+    :forget-password-text="tText('authentication.forgetPassword', '忘记密码?')"
     :loading="authStore.loginLoading"
+    :mobile-login-text="tText('authentication.mobileLogin', '手机号登录')"
+    :privacy-policy-text="tText('authentication.privacyPolicy', '隐私协议')"
+    :remember-me-text="tText('authentication.rememberMe', '记住账号')"
+    :service-agreement-text="
+      tText('authentication.serviceAgreement', '服务协议')
+    "
+    :submit-button-text="tText('common.login', '登录')"
+    :sub-title="
+      tText(
+        'authentication.loginSubtitle',
+        '请输入您的帐户信息以开始管理您的项目',
+      )
+    "
+    :title="`${tText('authentication.welcomeBack', '欢迎回来')} 👋🏻`"
     @submit="onSubmit"
   />
 
@@ -141,8 +182,41 @@ async function onSubmit(params: Recordable<any>) {
     <div class="page-safe-area-container">
       <AuthenticationLogin
         ref="loginRef"
+        :agree-and-continue-text="
+          tText('authentication.agreeAndContinue', '同意并继续')
+        "
+        :agree-text="tText('authentication.agree', '我同意')"
+        :agreement-required-message="
+          tText(
+            'authentication.agreementRequiredMessage',
+            '登录前请先阅读并同意',
+          )
+        "
+        :agreement-required-title="
+          tText('authentication.agreementRequired', '温馨提示')
+        "
+        :and-text="tText('common.and', '和')"
+        :cancel-text="tText('common.cancel', '取消')"
+        :close-text="tText('common.close', '关闭')"
         :form-schema="formSchema"
+        :forget-password-text="
+          tText('authentication.forgetPassword', '忘记密码?')
+        "
         :loading="authStore.loginLoading"
+        :mobile-login-text="tText('authentication.mobileLogin', '手机号登录')"
+        :privacy-policy-text="tText('authentication.privacyPolicy', '隐私协议')"
+        :remember-me-text="tText('authentication.rememberMe', '记住账号')"
+        :service-agreement-text="
+          tText('authentication.serviceAgreement', '服务协议')
+        "
+        :submit-button-text="tText('common.login', '登录')"
+        :sub-title="
+          tText(
+            'authentication.loginSubtitle',
+            '请输入您的帐户信息以开始管理您的项目',
+          )
+        "
+        :title="`${tText('authentication.welcomeBack', '欢迎回来')} 👋🏻`"
         @submit="onSubmit"
       />
     </div>

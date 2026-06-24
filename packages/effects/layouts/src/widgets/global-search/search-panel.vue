@@ -37,6 +37,18 @@ const searchResults = ref<MenuRecordRaw[]>([]);
 
 const handleSearch = useThrottleFn(search, 200);
 
+function localeText(key: string, fallback: string) {
+  const text = $t(key);
+  return text && text !== key ? text : fallback;
+}
+
+function translateMenuName(name: string) {
+  if (!/^[a-z][\w-]*(?:\.[\w-]+)+$/i.test(name)) {
+    return name;
+  }
+  return localeText(name, name);
+}
+
 // 搜索函数，用于根据搜索关键词查找匹配的菜单项
 function search(searchKey: string) {
   // 去除搜索关键词的前后空格
@@ -205,7 +217,7 @@ onMounted(() => {
   searchItems.value = mapTree(props.menus, (item) => {
     return {
       ...item,
-      name: $t(item?.name),
+      name: translateMenuName(item?.name),
     };
   });
   if (searchHistory.value.length > 0) {
@@ -231,7 +243,7 @@ onMounted(() => {
       >
         <SearchX class="mx-auto mt-4 size-12" />
         <p class="mb-10 mt-6 text-xs">
-          {{ $t('ui.widgets.search.noResults') }}
+          {{ localeText('ui.widgets.search.noResults', '未找到搜索结果') }}
           <span class="text-foreground text-sm font-medium">
             "{{ keyword }}"
           </span>
@@ -243,7 +255,7 @@ onMounted(() => {
         class="text-muted-foreground text-center"
       >
         <p class="my-10 text-xs">
-          {{ $t('ui.widgets.search.noRecent') }}
+          {{ localeText('ui.widgets.search.noRecent', '没有搜索历史') }}
         </p>
       </div>
 
@@ -252,7 +264,7 @@ onMounted(() => {
           v-if="searchHistory.length > 0 && !keyword"
           class="text-muted-foreground mb-2 text-xs"
         >
-          {{ $t('ui.widgets.search.recent') }}
+          {{ localeText('ui.widgets.search.recent', '搜索历史') }}
         </li>
         <li
           v-for="(item, index) in uniqueByField(searchResults, 'path')"

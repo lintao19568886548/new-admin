@@ -20,6 +20,7 @@ export default defineNitroConfig({
     '~/plugins/vip-membership-refund-worker',
     '~/plugins/investment-radar-public-crawler',
     '~/plugins/attendance-automation-test-worker',
+    '~/plugins/amount-bill-collection-sms-worker',
   ],
   routeRules: {
     '/api/**': {

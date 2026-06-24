@@ -1,9 +1,11 @@
 {
+  "and": "和",
   "back": "返回",
   "backToHome": "返回首页",
   "between": "区间",
   "cancel": "取消",
   "confirm": "确认",
+  "close": "关闭",
   "create": "新增",
   "delete": "删除",
   "disabled": "已禁用",

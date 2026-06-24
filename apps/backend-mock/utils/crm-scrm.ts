@@ -64,6 +64,34 @@ export interface TransferCrmOwnerBindingInput {
   toWeworkUserId?: unknown;
 }
 
+export interface CreateCrmOwnerBindingInput {
+  customerName?: unknown;
+  externalUserId?: unknown;
+  firstChannelId?: unknown;
+  openid?: unknown;
+  operatorUserId?: unknown;
+  ownerSalesUserId?: unknown;
+  phone?: unknown;
+  scene?: unknown;
+  unionid?: unknown;
+}
+
+export interface UpdateCrmOwnerBindingInput {
+  customerName?: unknown;
+  externalUserId?: unknown;
+  id?: unknown;
+  openid?: unknown;
+  operatorUserId?: unknown;
+  phone?: unknown;
+  unionid?: unknown;
+}
+
+export interface DeleteCrmOwnerBindingInput {
+  id?: unknown;
+  operatorUserId?: unknown;
+  reason?: unknown;
+}
+
 export interface UpdateCrmOwnerBindingStatusInput {
   id?: unknown;
   operatorUserId?: unknown;
@@ -317,6 +345,23 @@ export function serializeCrmOwnerBinding(binding: any) {
     status: Number(binding.status ?? 1),
     unionid: binding.unionid || '',
     updateTime: serializeCrmDate(binding.updateTime),
+  };
+}
+
+async function serializeCrmOwnerBindingWithDisplay(binding: any) {
+  const { channelMap, userMap } = await buildCrmDisplayMaps({
+    channelIds: [Number(binding.firstChannelId || 0)].filter(Boolean),
+    salesUserIds: [Number(binding.ownerSalesUserId || 0)].filter(Boolean),
+  });
+  const channel = channelMap.get(Number(binding.firstChannelId || 0));
+  const user = userMap.get(Number(binding.ownerSalesUserId || 0));
+
+  return {
+    ...serializeCrmOwnerBinding(binding),
+    firstChannelName: channel?.channelName || '',
+    ownerSalesName:
+      user?.realName || user?.username || channel?.salesName || '',
+    ownerUserPhone: user?.phone || '',
   };
 }
 
@@ -1103,6 +1148,134 @@ export async function updateCrmSalesChannel(input: UpdateCrmSalesChannelInput) {
   }
 }
 
+async function resolveCrmManualBindingChannel(input: {
+  firstChannelId?: unknown;
+  ownerSalesUserId: number;
+  scene?: unknown;
+}) {
+  const scene = normalizeString(input.scene, 64);
+  const firstChannelId = input.firstChannelId
+    ? normalizePositiveInt(input.firstChannelId, 'firstChannelId')
+    : null;
+
+  if (firstChannelId) {
+    const channel = await systemDbClient.crmSalesChannel.findFirst({
+      where: {
+        id: firstChannelId,
+        salesUserId: input.ownerSalesUserId,
+      },
+    });
+    if (!channel) {
+      throw new CrmScmError('获客渠道不存在或不属于该销售');
+    }
+    return channel;
+  }
+
+  if (scene) {
+    const channel = await systemDbClient.crmSalesChannel.findFirst({
+      where: {
+        scene,
+        salesUserId: input.ownerSalesUserId,
+      },
+    });
+    if (channel) {
+      return channel;
+    }
+  }
+
+  return systemDbClient.crmSalesChannel.findFirst({
+    orderBy: [{ updateTime: 'desc' }, { createTime: 'desc' }],
+    where: {
+      salesUserId: input.ownerSalesUserId,
+      status: 1,
+    },
+  });
+}
+
+export async function createCrmOwnerBinding(input: CreateCrmOwnerBindingInput) {
+  const ownerSalesUserId = normalizePositiveInt(
+    input.ownerSalesUserId,
+    'ownerSalesUserId',
+  );
+  const customerName = normalizeString(input.customerName, 50);
+  const phone = normalizeCrmPhone(input.phone);
+  const openid = normalizeString(input.openid, 128);
+  const unionid = normalizeString(input.unionid, 128);
+  const externalUserId = normalizeString(input.externalUserId, 128);
+  const operatorUserId = input.operatorUserId
+    ? normalizePositiveInt(input.operatorUserId, 'operatorUserId')
+    : null;
+
+  if (!phone && !openid && !unionid) {
+    throw new CrmScmError('请至少填写手机号、OpenID 或 UnionID');
+  }
+
+  await findActiveCrmSalesUser(ownerSalesUserId);
+
+  const existing = await findCrmBindingByIdentity({
+    customerName,
+    openid,
+    phone,
+    unionid,
+  });
+  if (existing) {
+    throw new CrmScmError('该客户已存在，请直接编辑原客户归属');
+  }
+
+  const channel = await resolveCrmManualBindingChannel({
+    firstChannelId: input.firstChannelId,
+    ownerSalesUserId,
+    scene: input.scene,
+  });
+  const firstScene =
+    channel?.scene || `manual_${ownerSalesUserId}`.slice(0, 64);
+  const ownerWeworkUserId = await resolveWeworkUserIdForSales({
+    explicitWeworkUserId: channel?.weworkUserId || '',
+    salesUserId: ownerSalesUserId,
+  });
+
+  try {
+    const created = await systemDbClient.crmCustomerOwnerBinding.create({
+      data: {
+        customerName: customerName || null,
+        externalUserId: externalUserId || null,
+        firstChannelId: channel?.id ?? null,
+        firstScene,
+        lastScanAt: new Date(),
+        openid: openid || null,
+        ownerSalesUserId,
+        ownerWeworkUserId: ownerWeworkUserId || null,
+        phone: phone || null,
+        unionid: unionid || null,
+      },
+    });
+
+    await createCrmScanLog({
+      bindingId: created.id,
+      channelId: created.firstChannelId ?? null,
+      identity: {
+        customerName,
+        openid,
+        phone,
+        unionid,
+      },
+      isFirstBind: true,
+      requestedSalesUserId: ownerSalesUserId,
+      resolvedSalesUserId: ownerSalesUserId,
+      scene: firstScene,
+      source: 'manual_create',
+      userAgent: operatorUserId ? `operator:${operatorUserId}` : '',
+    });
+
+    return serializeCrmOwnerBindingWithDisplay(created);
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      throw new CrmScmError('手机号、OpenID 或 UnionID 已存在');
+    }
+    throw error;
+  }
+}
+
 async function findCrmBindingByIdentity(
   identity: {
     customerName?: string;
@@ -1137,6 +1310,120 @@ async function findCrmBindingByIdentity(
   }
 
   return null;
+}
+
+export async function updateCrmOwnerBinding(input: UpdateCrmOwnerBindingInput) {
+  const id = normalizePositiveInt(input.id, 'id');
+  const customerName = normalizeString(input.customerName, 50);
+  const phone = normalizeCrmPhone(input.phone);
+  const openid = normalizeString(input.openid, 128);
+  const unionid = normalizeString(input.unionid, 128);
+  const externalUserId = normalizeString(input.externalUserId, 128);
+  const operatorUserId = input.operatorUserId
+    ? normalizePositiveInt(input.operatorUserId, 'operatorUserId')
+    : null;
+
+  if (!phone && !openid && !unionid) {
+    throw new CrmScmError('请至少填写手机号、OpenID 或 UnionID');
+  }
+
+  const binding = await systemDbClient.crmCustomerOwnerBinding.findUnique({
+    where: { id },
+  });
+  if (!binding) {
+    throw new CrmScmError('客户归属绑定不存在', 404);
+  }
+
+  const duplicated = await findCrmBindingByIdentity({
+    customerName,
+    openid,
+    phone,
+    unionid,
+  });
+  if (duplicated && Number(duplicated.id) !== id) {
+    throw new CrmScmError('手机号、OpenID 或 UnionID 已被其他客户使用');
+  }
+
+  try {
+    const updated = await systemDbClient.crmCustomerOwnerBinding.update({
+      data: {
+        customerName: customerName || null,
+        externalUserId: externalUserId || null,
+        lastScanAt: new Date(),
+        openid: openid || null,
+        phone: phone || null,
+        unionid: unionid || null,
+      },
+      where: { id },
+    });
+
+    await createCrmScanLog({
+      bindingId: id,
+      channelId: binding.firstChannelId ?? null,
+      identity: {
+        customerName,
+        openid,
+        phone,
+        unionid,
+      },
+      isFirstBind: false,
+      requestedSalesUserId: Number(binding.ownerSalesUserId),
+      resolvedSalesUserId: Number(binding.ownerSalesUserId),
+      scene: binding.firstScene,
+      source: 'manual_update',
+      userAgent: operatorUserId ? `operator:${operatorUserId}` : '',
+    });
+
+    return serializeCrmOwnerBindingWithDisplay(updated);
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      throw new CrmScmError('手机号、OpenID 或 UnionID 已被其他客户使用');
+    }
+    throw error;
+  }
+}
+
+export async function deleteCrmOwnerBinding(input: DeleteCrmOwnerBindingInput) {
+  const id = normalizePositiveInt(input.id, 'id');
+  const reason = normalizeString(input.reason, 200);
+  const operatorUserId = input.operatorUserId
+    ? normalizePositiveInt(input.operatorUserId, 'operatorUserId')
+    : null;
+
+  const binding = await systemDbClient.crmCustomerOwnerBinding.findUnique({
+    where: { id },
+  });
+  if (!binding) {
+    throw new CrmScmError('客户归属绑定不存在', 404);
+  }
+
+  await createCrmScanLog({
+    bindingId: id,
+    channelId: binding.firstChannelId ?? null,
+    identity: {
+      customerName: binding.customerName || '',
+      openid: binding.openid || '',
+      phone: binding.phone || '',
+      unionid: binding.unionid || '',
+    },
+    isFirstBind: false,
+    requestedSalesUserId: Number(binding.ownerSalesUserId),
+    resolvedSalesUserId: Number(binding.ownerSalesUserId),
+    scene: binding.firstScene,
+    source: 'manual_delete',
+    userAgent: [
+      operatorUserId ? `operator:${operatorUserId}` : '',
+      reason ? `reason:${reason}` : '',
+    ]
+      .filter(Boolean)
+      .join(' '),
+  });
+
+  const deleted = await systemDbClient.crmCustomerOwnerBinding.delete({
+    where: { id },
+  });
+
+  return serializeCrmOwnerBindingWithDisplay(deleted);
 }
 
 function buildMissingIdentityUpdate(

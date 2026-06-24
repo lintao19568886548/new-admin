@@ -47,6 +47,14 @@ interface GroupSeed {
 const router = useRouter();
 const searchQuery = ref('');
 const groups = ref<NavGroup[]>([]);
+const HIDDEN_WORKBENCH_APP_ROUTE_NAMES = new Set([
+  'SettledFactory',
+  'SettledFactoryMobile',
+]);
+const HIDDEN_WORKBENCH_APP_ROUTE_PATHS = new Set([
+  '/rental/settled',
+  '/rental/settled/mobile',
+]);
 
 const themes: NavVisualTheme[] = [
   {
@@ -108,11 +116,25 @@ function hasChildren(route: RouteRecordStringComponent) {
   return Array.isArray(route.children) && route.children.length > 0;
 }
 
+function normalizeWorkbenchRoutePath(value: unknown) {
+  return String(value || '').replace(/\/+$/, '') || '/';
+}
+
+function isHiddenWorkbenchApp(route: RouteRecordStringComponent) {
+  const routeName = String(route.name || '');
+  const routePath = normalizeWorkbenchRoutePath(route.path);
+  return (
+    HIDDEN_WORKBENCH_APP_ROUTE_NAMES.has(routeName) ||
+    HIDDEN_WORKBENCH_APP_ROUTE_PATHS.has(routePath)
+  );
+}
+
 function shouldIncludeAsApp(route: RouteRecordStringComponent) {
   if (hasChildren(route)) return false;
   if (!route.meta?.isApp) return false;
   if (!route.name) return false;
   if (route.name === 'Workbench' || route.path === '/workbench') return false;
+  if (isHiddenWorkbenchApp(route)) return false;
   return true;
 }
 
