@@ -244,6 +244,9 @@ watch(
 );
 
 const activeTab = computed(() => router.currentRoute.value.path);
+const isImmersiveRoute = computed(
+  () => router.currentRoute.value.meta.hideInTab,
+);
 
 const tabs = [
   { icon: IconDefault, path: '/home', title: '首页' },
@@ -276,7 +279,7 @@ function goBack() {
   <!-- Mobile Layout -->
   <IonPage v-if="isMobile" class="app-layout">
     <!-- App Top Navigation Bar -->
-    <IonHeader class="app-header ion-no-border">
+    <IonHeader v-if="!isImmersiveRoute" class="app-header ion-no-border">
       <IonToolbar class="app-header-toolbar">
         <div class="bg-white dark:bg-gray-900">
           <div
@@ -369,7 +372,7 @@ function goBack() {
     </main>
 
     <!-- App Bottom Tab Bar -->
-    <IonFooter class="app-footer ion-no-border">
+    <IonFooter v-if="!isImmersiveRoute" class="app-footer ion-no-border">
       <IonToolbar class="app-footer-toolbar">
         <div
           class="bg-white pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] dark:bg-gray-900"

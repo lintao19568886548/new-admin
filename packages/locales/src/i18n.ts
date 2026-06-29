@@ -221,8 +221,12 @@ async function setupI18n(app: App, options: LocaleSetupOptions = {}) {
   loadMessages = options.loadMessages || (async () => ({}));
   app.use(i18n);
   await loadLocaleMessages(defaultLocale);
-  app.config.globalProperties.$t = translateWithFallback;
-  app.config.globalProperties.$te = teWithFallback;
+  const globalProperties = app.config.globalProperties as Record<
+    string,
+    unknown
+  >;
+  globalProperties.$t = translateWithFallback;
+  globalProperties.$te = teWithFallback;
 
   // 在控制台打印警告
   i18n.global.setMissingHandler((locale, key) => {

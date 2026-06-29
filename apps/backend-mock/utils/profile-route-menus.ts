@@ -38,6 +38,20 @@ const PROFILE_AUXILIARY_ROUTE_MENUS = [
     path: '/profile/vip-refunds',
     type: 'menu',
   },
+  {
+    authCode: 'profile:smart-service',
+    component: '/profile/smart-service/index',
+    meta: {
+      activePath: '/profile',
+      hideInMenu: true,
+      hideInTab: true,
+      icon: 'mdi:robot-outline',
+      title: '智能客服',
+    },
+    name: 'ProfileSmartService',
+    path: '/profile/smart-service',
+    type: 'menu',
+  },
 ] as const;
 
 const PROFILE_MEMBERSHIP_WORKBENCH_ROUTE = {

@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { ProfileMenuEntry } from './modules/profile-menu-types';
+
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -14,15 +16,7 @@ import { useUserStore } from '@vben/stores';
 
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import {
-  Avatar,
-  Card,
-  List,
-  ListItem,
-  message,
-  Modal,
-  Tag,
-} from 'ant-design-vue';
+import { Avatar, Card, message, Modal, Tag } from 'ant-design-vue';
 
 import { cancelCurrentUserApi } from '#/api';
 import BusinessCard from '#/components/Businesscard.vue';
@@ -35,6 +29,7 @@ import { checkAppUpdate } from '#/utils/update-service';
 import EditPassword from '#/views/_core/authentication/edit-password.vue';
 
 import FeedbackModal from './modules/feedback-modal.vue';
+import ProfileMenu from './modules/ProfileMenu.vue';
 
 const userStore = useUserStore();
 const authStore = useAuthStore();
@@ -421,6 +416,13 @@ function handleOpenServiceAgreement() {
   openServiceAgreementDialog();
 }
 
+function handleOpenSmartService() {
+  void router.push('/profile/smart-service').catch((error) => {
+    console.error('打开智能客服失败:', error);
+    message.error('智能客服页面打开失败，请稍后重试');
+  });
+}
+
 // function handleEditProfile() {
 //   message.info('该功能正在开发中...');
 // }
@@ -440,11 +442,12 @@ async function handlePasswordChanged() {
 const isNative = Capacitor.isNativePlatform();
 // const isNative = true;
 
-const actions = computed(() => {
-  const baseActions = [
+const menuItems = computed<ProfileMenuEntry[]>(() => {
+  const moreFunctions = [
     // {
     //   handler: handleEditProfile,
     //   icon: UserRoundPen,
+    //   key: 'editProfile',
     //   title: '修改个人信息',
     // },
     ...(canCreateOrganizationSpace.value
@@ -452,6 +455,7 @@ const actions = computed(() => {
           {
             handler: handleOpenOrganizationCreate,
             icon: 'mdi:domain-plus',
+            key: 'organizationCreate',
             title: '创建组织空间',
           },
         ]
@@ -459,6 +463,7 @@ const actions = computed(() => {
     {
       handler: handleOpenVipMembership,
       icon: 'mdi:crown-outline',
+      key: 'vipMembership',
       title: '会员服务',
     },
     ...(canManageOrganizationInvitations.value
@@ -466,57 +471,85 @@ const actions = computed(() => {
           {
             handler: handleOpenOrganizationInvitations,
             icon: 'mdi:ticket-confirmation-outline',
+            key: 'tenantInvitations',
             title: '企业邀请码',
           },
         ]
       : []),
     {
-      handler: handleChangePassword,
-      icon: LockKeyhole,
-      title: '修改密码',
-    },
-    {
       handler: handleCreateBusinessCard,
       icon: SvgCardIcon,
+      key: 'businessCard',
       title: '个人名片',
-    },
-    {
-      handler: handleOpenFeedback,
-      icon: 'mdi:message-text-outline',
-      title: '意见反馈',
     },
     {
       handler: handleOpenPrivacyPolicy,
       icon: 'mdi:shield-account-outline',
-      title: '\u9690\u79C1\u653F\u7B56',
+      key: 'privacyPolicy',
+      title: '隐私政策',
     },
     {
       handler: handleOpenServiceAgreement,
       icon: 'mdi:file-document-outline',
-      title: '\u670D\u52A1\u534F\u8BAE',
+      key: 'serviceAgreement',
+      title: '服务协议',
     },
     {
       danger: true,
       handler: handleCancelAccount,
       icon: 'mdi:account-remove-outline',
+      key: 'cancelAccount',
       title: '账号注销',
     },
+  ];
+
+  const flatActions = [
     {
-      handler: handleLogout,
-      icon: LogOut,
-      title: '退出登录',
+      handler: handleChangePassword,
+      icon: LockKeyhole,
+      key: 'changePassword',
+      title: '修改密码',
+    },
+    {
+      handler: handleOpenFeedback,
+      icon: 'mdi:message-text-outline',
+      key: 'feedback',
+      title: '意见反馈',
+    },
+    {
+      handler: handleOpenSmartService,
+      icon: 'mdi:robot-outline',
+      key: 'smartService',
+      title: '智能客服',
     },
   ];
 
   if (isNative) {
-    baseActions.splice(-1, 0, {
+    flatActions.push({
       handler: handleCheckUpdate,
       icon: RotateCw,
+      key: 'checkUpdate',
       title: '检查更新',
     });
   }
 
-  return baseActions;
+  flatActions.push({
+    handler: handleLogout,
+    icon: LogOut,
+    key: 'logout',
+    title: '退出登录',
+  });
+
+  return [
+    {
+      icon: 'mdi:dots-grid',
+      key: 'moreFunctions',
+      title: '更多功能',
+      type: 'dropdown',
+      children: moreFunctions,
+    },
+    ...flatActions,
+  ];
 });
 </script>
 
@@ -561,24 +594,8 @@ const actions = computed(() => {
       <VbenIcon :icon="ChevronRight" class="membership-status-bar__arrow" />
     </button>
 
-    <Card :bordered="false">
-      <List :data-source="actions">
-        <template #renderItem="{ item }">
-          <ListItem
-            :class="{ 'danger-action': item.danger }"
-            class="cursor-pointer"
-            @click="item.handler"
-          >
-            <div class="flex w-full items-center justify-between">
-              <div class="flex items-center">
-                <VbenIcon :icon="item.icon" class="mr-2 size-4" />
-                <span>{{ item.title }}</span>
-              </div>
-              <VbenIcon :icon="ChevronRight" class="size-4" />
-            </div>
-          </ListItem>
-        </template>
-      </List>
+    <Card :bordered="false" class="profile-menu-card">
+      <ProfileMenu :items="menuItems" />
     </Card>
 
     <FeedbackModal v-model:open="showFeedbackModal" />
@@ -697,10 +714,6 @@ const actions = computed(() => {
   color: #98a2b3;
 }
 
-.danger-action {
-  color: #ff4d4f;
-}
-
 @media (max-width: 420px) {
   .membership-status-bar {
     gap: 10px;
@@ -714,5 +727,9 @@ const actions = computed(() => {
   .membership-status-bar__tag {
     display: none;
   }
+}
+
+:deep(.profile-menu-card .ant-card-body) {
+  padding: 0;
 }
 </style>

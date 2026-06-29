@@ -19,7 +19,7 @@ type BailianMessageContentPart =
       type: 'text';
     };
 
-interface BailianChatMessage {
+export interface BailianChatMessage {
   content: BailianMessageContentPart[] | string;
   role: 'assistant' | 'system' | 'user';
 }
@@ -30,6 +30,13 @@ interface RequestBailianChatOptions {
   model?: string;
   responseFormat?: Record<string, any>;
   temperature?: number;
+}
+
+interface RequestBailianChatStreamOptions extends Omit<
+  RequestBailianChatOptions,
+  'responseFormat'
+> {
+  signal?: AbortSignal;
 }
 
 interface UploadBailianFileOptions {
@@ -80,13 +87,24 @@ async function ensureBailianApiKey() {
     return bailianApiKeyCache.value;
   }
 
-  const record = await systemDbClient.systemKey.findUnique({
-    where: {
-      key: BAILIAN_KEY_NAME,
-    },
-  });
+  const envKey = normalizeBailianKey(process.env[BAILIAN_KEY_NAME]);
+  let dbKey = '';
 
-  const key = normalizeBailianKey(record?.value);
+  try {
+    const record = await systemDbClient.systemKey.findUnique({
+      where: {
+        key: BAILIAN_KEY_NAME,
+      },
+    });
+    dbKey = normalizeBailianKey(record?.value);
+  } catch (error) {
+    if (!envKey) {
+      throw error;
+    }
+    console.warn('[bailian] failed to read system key, using env fallback');
+  }
+
+  const key = envKey || dbKey;
   if (!key) {
     throw new Error('ALIYUN_BAILIAN_KEY is not configured');
   }
@@ -106,6 +124,35 @@ function buildBailianErrorMessage(
   return (
     payload?.error?.message || payload?.message || payload?.msg || fallback
   );
+}
+
+function buildBailianChatPayload({
+  maxTokens,
+  messages,
+  model = DEFAULT_MODEL,
+  responseFormat,
+  stream,
+  temperature = 0,
+}: RequestBailianChatOptions & { stream?: boolean }) {
+  const payload: Record<string, any> = {
+    messages,
+    model,
+    temperature,
+  };
+
+  if (stream) {
+    payload.stream = true;
+  }
+
+  if (typeof maxTokens === 'number') {
+    payload.max_tokens = maxTokens;
+  }
+
+  if (responseFormat) {
+    payload.response_format = responseFormat;
+  }
+
+  return payload;
 }
 
 async function requestBailianFileApi(
@@ -185,19 +232,13 @@ export async function requestBailianChat({
   temperature = 0,
 }: RequestBailianChatOptions) {
   const apiKey = await ensureBailianApiKey();
-  const payload: Record<string, any> = {
+  const payload = buildBailianChatPayload({
+    maxTokens,
     messages,
     model,
+    responseFormat,
     temperature,
-  };
-
-  if (typeof maxTokens === 'number') {
-    payload.max_tokens = maxTokens;
-  }
-
-  if (responseFormat) {
-    payload.response_format = responseFormat;
-  }
+  });
 
   const response = await axios.post(
     `${BAILIAN_BASE_URL}/chat/completions`,
@@ -210,6 +251,47 @@ export async function requestBailianChat({
     },
   );
   return response.data;
+}
+
+export async function requestBailianChatStream({
+  maxTokens,
+  messages,
+  model = DEFAULT_MODEL,
+  signal,
+  temperature = 0.3,
+}: RequestBailianChatStreamOptions) {
+  const apiKey = await ensureBailianApiKey();
+  const response = await fetch(`${BAILIAN_BASE_URL}/chat/completions`, {
+    body: JSON.stringify(
+      buildBailianChatPayload({
+        maxTokens,
+        messages,
+        model,
+        stream: true,
+        temperature,
+      }),
+    ),
+    headers: {
+      Accept: 'text/event-stream',
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    method: 'POST',
+    signal,
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(
+      buildBailianErrorMessage(payload, response.statusText || '请求百炼失败'),
+    );
+  }
+
+  if (!response.body) {
+    throw new Error('百炼接口未返回流式内容');
+  }
+
+  return response;
 }
 
 export function getContentText(content: any): string {
