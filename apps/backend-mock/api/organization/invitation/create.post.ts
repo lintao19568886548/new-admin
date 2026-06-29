@@ -5,7 +5,6 @@ import {
 } from '~/utils/organization-invitation';
 import {
   badRequestResponse,
-  forbiddenResponse,
   serverErrorResponse,
   unAuthorizedResponse,
   useResponseSuccess,
@@ -15,10 +14,6 @@ export default eventHandler(async (event) => {
   const userinfo = verifyAccessToken(event);
   if (!userinfo) {
     return unAuthorizedResponse(event);
-  }
-
-  if (!userinfo.roles?.includes('Super')) {
-    return forbiddenResponse(event, '仅 Super 角色可创建组织邀请码');
   }
 
   try {

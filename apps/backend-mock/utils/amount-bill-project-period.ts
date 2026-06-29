@@ -21,6 +21,66 @@ function compactProjectName(value: unknown) {
   return normalizeProjectName(value).replaceAll(/\s+/g, '');
 }
 
+function normalizeProjectSearchText(value: unknown) {
+  return compactProjectName(value)
+    .toLowerCase()
+    .replaceAll('月份', '月')
+    .replaceAll('租金', '房租')
+    .replaceAll('租赁费', '房租')
+    .replaceAll('水电费', '水电')
+    .replaceAll('水费', '水电')
+    .replaceAll('电费', '水电');
+}
+
+function tokenizeProjectSearchKeyword(value: unknown) {
+  const normalized = normalizeProjectSearchText(value);
+  if (!normalized) {
+    return [] as string[];
+  }
+
+  const tokens = new Set<string>();
+  tokens.add(normalized);
+
+  const splitTokens = normalized
+    .split(/[、,，;；+\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  for (const token of splitTokens) {
+    tokens.add(token);
+  }
+
+  const yearMonthMatches = normalized.match(
+    /(?:19|20)\d{2}年(?:0?[1-9]|1[0-2])月|(?:19|20)\d{2}(?:0[1-9]|1[0-2])/g,
+  );
+  for (const token of yearMonthMatches || []) {
+    tokens.add(
+      token.includes('年')
+        ? token
+        : `${token.slice(0, 4)}年${Number(token.slice(4))}月`,
+    );
+  }
+
+  const chineseMonthMatches = normalized.match(
+    /(?:19|20)\d{2}年(?:0?[1-9]|1[0-2])月|(?:0?[1-9]|1[0-2])月/g,
+  );
+  for (const token of chineseMonthMatches || []) {
+    tokens.add(token);
+  }
+
+  for (const aliasGroup of [
+    ['房租', '租金', '租赁费'],
+    ['水电', '水电费', '水费', '电费'],
+  ]) {
+    if (aliasGroup.some((alias) => normalized.includes(alias))) {
+      for (const alias of aliasGroup) {
+        tokens.add(normalizeProjectSearchText(alias));
+      }
+    }
+  }
+
+  return [...tokens].filter(Boolean);
+}
+
 function toMonthSortKey(year: number, month: number) {
   if (
     !Number.isInteger(year) ||
@@ -175,14 +235,14 @@ export function getSingleProjectMonthSortKey(value: unknown) {
     return null;
   }
 
-  const utilityMonthKeys = parseProjectUtilityMonthSortKeys(value);
-  if (utilityMonthKeys.length === 1) {
-    return utilityMonthKeys[0];
-  }
-
   const rentMonthKeys = parseProjectRentMonthSortKeys(value);
   if (rentMonthKeys.length === 1) {
     return rentMonthKeys[0];
+  }
+
+  const utilityMonthKeys = parseProjectUtilityMonthSortKeys(value);
+  if (utilityMonthKeys.length === 1) {
+    return utilityMonthKeys[0];
   }
 
   if (matchedKeys.length === 1) {
@@ -245,6 +305,7 @@ export function getAmountBillProjectSortKey(
   record: AmountBillProjectSortRecord,
 ) {
   return (
+    getSingleProjectMonthSortKey(record.projectName) ??
     parseProjectMonthSortKey(record.projectName) ??
     getDateMonthSortKey(record.receiptTime) ??
     getDateMonthSortKey(record.createTime)
@@ -320,4 +381,29 @@ export function compareAmountBillProjectDesc(
 
 export function normalizeAmountBillProjectName(value: unknown) {
   return normalizeProjectName(value);
+}
+
+export function isAmountBillProjectNameMatched(
+  projectName: unknown,
+  keyword: unknown,
+) {
+  const normalizedKeyword = normalizeProjectSearchText(keyword);
+  if (!normalizedKeyword) {
+    return true;
+  }
+
+  const normalizedProjectName = normalizeProjectSearchText(projectName);
+  if (!normalizedProjectName) {
+    return false;
+  }
+
+  if (normalizedProjectName.includes(normalizedKeyword)) {
+    return true;
+  }
+
+  const tokens = tokenizeProjectSearchKeyword(keyword);
+  return (
+    tokens.length > 0 &&
+    tokens.every((token) => normalizedProjectName.includes(token))
+  );
 }

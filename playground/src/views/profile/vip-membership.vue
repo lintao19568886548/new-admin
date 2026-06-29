@@ -185,6 +185,10 @@ const latestOrganizationProvisioningStatus =
 const paymentSectionRef = ref<HTMLElement | null>(null);
 const organizationSetupRef = ref<HTMLElement | null>(null);
 const wechatOpenAppId = ref('');
+const wechatPayConfigError = ref('');
+const wechatPayMerchantId = ref('');
+const wechatPayConfigured = ref(false);
+const wechatPayMissingConfig = ref<string[]>([]);
 
 const userInfo = computed(() => userStore.userInfo);
 const membershipAccessState = computed(() =>
@@ -388,9 +392,68 @@ const organizationProvisioningPaymentBlocked = computed(() => {
     status && ORGANIZATION_PROVISIONING_PAYMENT_BLOCKED_STATES.has(status),
   );
 });
-const appPaySupported = computed(
-  () => !!wechatOpenAppId.value && canUseNativeWechatPay(),
+const wechatPayConfigReady = computed(
+  () =>
+    wechatPayConfigured.value &&
+    Boolean(wechatOpenAppId.value) &&
+    Boolean(wechatPayMerchantId.value),
 );
+const appPaySupported = computed(
+  () => wechatPayConfigReady.value && canUseNativeWechatPay(),
+);
+const wechatPayRuntimeState = computed(() => {
+  if (wechatConfigLoading.value) {
+    return {
+      description: '正在读取后端微信支付 AppID 与商户号。',
+      icon: 'mdi:loading',
+      title: '支付配置读取中',
+      tone: 'processing',
+    };
+  }
+
+  if (wechatPayConfigError.value) {
+    return {
+      description: wechatPayConfigError.value,
+      icon: 'mdi:alert-circle-outline',
+      title: '支付配置待完善',
+      tone: 'warning',
+    };
+  }
+
+  if (!wechatPayConfigReady.value) {
+    return {
+      description: '后端尚未返回微信支付 AppID 或商户号。',
+      icon: 'mdi:alert-circle-outline',
+      title: '微信支付未配置',
+      tone: 'warning',
+    };
+  }
+
+  if (!canUseNativeWechatPay()) {
+    return {
+      description: '浏览器预览可查看页面，支付需在 Android App 内完成。',
+      icon: 'mdi:cellphone-link',
+      title: '请在 App 内支付',
+      tone: 'muted',
+    };
+  }
+
+  if (!isWechatInstalled(wechatOpenAppId.value)) {
+    return {
+      description: '当前设备未检测到微信客户端。',
+      icon: 'mdi:wechat',
+      title: '未检测到微信',
+      tone: 'warning',
+    };
+  }
+
+  return {
+    description: '当前设备支持拉起微信 App 支付。',
+    icon: 'mdi:check-circle-outline',
+    title: '微信支付可用',
+    tone: 'success',
+  };
+});
 const payButtonText = computed(() => {
   if (payLoading.value) {
     return '正在处理支付...';
@@ -400,8 +463,8 @@ const payButtonText = computed(() => {
     return '正在读取支付配置...';
   }
 
-  if (!wechatOpenAppId.value) {
-    return '未配置微信支付';
+  if (!wechatPayConfigReady.value) {
+    return wechatPayConfigError.value ? '支付配置待完善' : '未配置微信支付';
   }
 
   if (!appPaySupported.value) {
@@ -426,7 +489,7 @@ const payButtonText = computed(() => {
     return '填写组织信息';
   }
 
-  return `确认支付 ¥${membershipPlan.price}`;
+  return `微信支付 ¥${membershipPlan.price}`;
 });
 const payButtonDisabled = computed(
   () =>
@@ -436,10 +499,23 @@ const payButtonDisabled = computed(
     organizationProvisioningPaymentBlocked.value ||
     sourceOrganizationConflict.value ||
     !sourceOrganizationPaymentAllowed.value ||
-    !wechatOpenAppId.value ||
+    !organizationIdentityReady.value ||
+    !wechatPayConfigReady.value ||
     !appPaySupported.value,
 );
 const paymentAgreementHint = computed(() => {
+  if (wechatPayConfigError.value) {
+    return wechatPayConfigError.value;
+  }
+
+  if (!wechatPayConfigReady.value) {
+    return '微信支付需要后端返回开放平台移动应用 AppID 和微信支付商户号。';
+  }
+
+  if (!appPaySupported.value) {
+    return '当前浏览器仅用于预览页面，实际支付请在 Android App 内打开。';
+  }
+
   if (organizationProvisioningPaymentBlocked.value) {
     return (
       profileOrganizationProvisioningState.value?.label ||
@@ -1078,21 +1154,33 @@ async function handleJoinExistingOrganization() {
 }
 
 async function refreshWechatPayAppConfig(options: { silent?: boolean } = {}) {
-  if (wechatOpenAppId.value) {
-    return wechatOpenAppId.value;
+  if (wechatPayConfigReady.value) {
+    return wechatPayConfigured.value ? wechatOpenAppId.value : '';
   }
 
   wechatConfigLoading.value = true;
   try {
     const config = await loadWechatPayAppConfig();
     wechatOpenAppId.value = config.appId;
-    return wechatOpenAppId.value;
+    wechatPayMerchantId.value = config.mchId;
+    wechatPayConfigured.value = config.configured === true;
+    wechatPayMissingConfig.value = Array.isArray(config.missing)
+      ? config.missing
+      : [];
+    wechatPayConfigError.value = wechatPayConfigured.value
+      ? ''
+      : `缺少微信支付配置：${wechatPayMissingConfig.value.join('、')}`;
+    return wechatPayConfigured.value ? wechatOpenAppId.value : '';
   } catch (error) {
     console.error('获取微信支付配置失败:', error);
+    wechatOpenAppId.value = '';
+    wechatPayMerchantId.value = '';
+    wechatPayConfigured.value = false;
+    wechatPayMissingConfig.value = [];
+    wechatPayConfigError.value =
+      error instanceof Error ? error.message : '获取微信支付配置失败';
     if (!options.silent) {
-      message.error(
-        error instanceof Error ? error.message : '获取微信支付配置失败',
-      );
+      message.error(wechatPayConfigError.value);
     }
     return '';
   } finally {
@@ -1433,98 +1521,122 @@ onMounted(() => {
       </section>
 
       <section
-        v-if="requiresOrganizationIdentity"
+        v-if="requiresOrganizationIdentity || canJoinExistingOrganization"
         ref="organizationSetupRef"
-        class="organization-setup-card organization-identity-card"
+        class="organization-setup-card"
         tabindex="-1"
       >
-        <div>
-          <p class="pay-card__eyebrow">Organization</p>
-          <h3>
-            {{ canCreateSourceOrganization ? '创建组织空间' : '补全组织信息' }}
-          </h3>
-          <p>
+        <div class="organization-setup-card__head">
+          <div>
+            <p class="pay-card__eyebrow">Organization</p>
+            <h2>组织空间</h2>
+            <p>
+              新账号可以先创建自己的组织空间，或通过管理员的邀请码加入已有组织。
+            </p>
+          </div>
+          <Tag v-if="sourceOrganizationState" color="processing">
             {{
-              canCreateSourceOrganization
-                ? '组织空间可以先创建，后续再由所有者按需要开通或续费组织会员。'
-                : '补全后可以由组织所有者开通或续费组织会员。'
+              sourceOrganizationState.memberRole === 'owner' ? '所有者' : '成员'
             }}
-          </p>
+          </Tag>
         </div>
-        <label class="organization-identity-field">
-          <span>所在城市</span>
-          <Input
-            v-model:value="organizationCity"
-            placeholder="如 深圳市"
-            @blur="organizationIdentityTouched = true"
-          />
-        </label>
-        <label class="organization-identity-field">
-          <span>公司简称</span>
-          <Input
-            v-model:value="organizationCompanyShortName"
-            placeholder="如 腾讯"
-            @blur="organizationIdentityTouched = true"
-            @press-enter="handleCreateSourceOrganization"
-          />
-        </label>
-        <p
-          v-if="organizationIdentityTouched && organizationIdentityError"
-          class="organization-identity-card__error"
-        >
-          {{ organizationIdentityError }}
-        </p>
-        <div
-          v-if="canSetupSourceOrganization"
-          class="organization-identity-card__actions"
-        >
-          <Button
-            block
-            type="primary"
-            :loading="organizationCreateLoading"
-            @click="handleCreateSourceOrganization"
+
+        <div class="organization-setup-card__grid">
+          <article
+            v-if="requiresOrganizationIdentity"
+            class="organization-identity-card"
           >
-            {{
-              canCreateSourceOrganization ? '免费创建组织空间' : '保存组织信息'
-            }}
-          </Button>
+            <div>
+              <h3>
+                {{
+                  canCreateSourceOrganization ? '创建组织空间' : '补全组织信息'
+                }}
+              </h3>
+              <p>
+                {{
+                  canCreateSourceOrganization
+                    ? '创建后可继续开通会员，组织成员后续通过邀请码加入。'
+                    : '补全后可由组织所有者开通或续费组织会员。'
+                }}
+              </p>
+            </div>
+            <div class="organization-identity-card__fields">
+              <label class="organization-identity-field">
+                <span>所在城市</span>
+                <Input
+                  v-model:value="organizationCity"
+                  placeholder="如 深圳市"
+                  @blur="organizationIdentityTouched = true"
+                />
+              </label>
+              <label class="organization-identity-field">
+                <span>公司简称</span>
+                <Input
+                  v-model:value="organizationCompanyShortName"
+                  placeholder="如 腾讯"
+                  @blur="organizationIdentityTouched = true"
+                  @press-enter="handleCreateSourceOrganization"
+                />
+              </label>
+            </div>
+            <p
+              v-if="organizationIdentityTouched && organizationIdentityError"
+              class="organization-identity-card__error"
+            >
+              {{ organizationIdentityError }}
+            </p>
+            <Button
+              v-if="canSetupSourceOrganization"
+              block
+              type="primary"
+              :loading="organizationCreateLoading"
+              @click="handleCreateSourceOrganization"
+            >
+              {{
+                canCreateSourceOrganization
+                  ? '免费创建组织空间'
+                  : '保存组织信息'
+              }}
+            </Button>
+          </article>
+
+          <article
+            v-if="canJoinExistingOrganization"
+            class="organization-invitation-card"
+          >
+            <div>
+              <h3>加入已有组织</h3>
+              <p>
+                填写管理员提供的邀请码。加入成功后需要重新登录进入组织空间。
+              </p>
+            </div>
+            <label class="organization-identity-field">
+              <span>组织邀请码</span>
+              <Input
+                v-model:value="organizationInvitationCode"
+                placeholder="输入组织邀请码"
+                @blur="organizationInvitationTouched = true"
+                @press-enter="handleJoinExistingOrganization"
+              />
+            </label>
+            <p
+              v-if="
+                organizationInvitationTouched && organizationInvitationError
+              "
+              class="organization-identity-card__error"
+            >
+              {{ organizationInvitationError }}
+            </p>
+            <Button
+              block
+              :loading="organizationJoinLoading"
+              @click="handleJoinExistingOrganization"
+            >
+              加入已有组织
+            </Button>
+          </article>
         </div>
       </section>
-
-      <div
-        v-if="canJoinExistingOrganization"
-        class="organization-invitation-card"
-      >
-        <div>
-          <h3>已有组织邀请码？</h3>
-          <p>
-            如果组织已经开通，可输入管理员提供的邀请码加入。
-            加入成功后需要重新登录。
-          </p>
-        </div>
-        <label class="organization-identity-field">
-          <span>组织邀请码</span>
-          <Input
-            v-model:value="organizationInvitationCode"
-            placeholder="输入组织邀请码"
-            @blur="organizationInvitationTouched = true"
-            @press-enter="handleJoinExistingOrganization"
-          />
-        </label>
-        <p
-          v-if="organizationInvitationTouched && organizationInvitationError"
-          class="organization-identity-card__error"
-        >
-          {{ organizationInvitationError }}
-        </p>
-        <Button
-          block
-          :loading="organizationJoinLoading"
-          @click="handleJoinExistingOrganization"
-        >
-          加入已有组织
-        </Button>
-      </div>
 
       <section class="pay-head">
         <div class="pay-head__intro">
@@ -1598,6 +1710,17 @@ onMounted(() => {
             <div class="order-card__account">
               <span>开通组织</span>
               <strong>{{ membershipScopeName }}</strong>
+            </div>
+
+            <div
+              class="order-card__runtime"
+              :class="`order-card__runtime--${wechatPayRuntimeState.tone}`"
+            >
+              <VbenIcon :icon="wechatPayRuntimeState.icon" />
+              <div>
+                <strong>{{ wechatPayRuntimeState.title }}</strong>
+                <p>{{ wechatPayRuntimeState.description }}</p>
+              </div>
             </div>
 
             <div class="order-card__rows">
@@ -1713,7 +1836,7 @@ onMounted(() => {
         :loading="payLoading"
         @click="requestWechatPay({ scrollToPayment: true })"
       >
-        {{ payLoading ? '处理中...' : '去支付' }}
+        {{ payLoading ? '处理中...' : '微信支付' }}
       </Button>
     </div>
 
@@ -1721,7 +1844,7 @@ onMounted(() => {
       v-model:open="agreementModalOpen"
       centered
       cancel-text="取消"
-      ok-text="同意并支付"
+      ok-text="同意并微信支付"
       title="确认会员服务协议"
       :confirm-loading="payLoading"
       :mask-closable="!payLoading"
@@ -1771,16 +1894,17 @@ onMounted(() => {
 
 <style scoped>
 .vip-pay-page {
-  --vip-page-bg:
-    radial-gradient(circle at top, rgb(255 243 220 / 48%), transparent 34%),
-    linear-gradient(180deg, #f7f8fb 0%, #eef2f7 48%, #fff 100%);
-  --vip-border: rgb(15 23 42 / 8%);
-  --vip-card: rgb(255 255 255 / 92%);
-  --vip-card-strong: rgb(255 255 255 / 98%);
+  --vip-page-bg: linear-gradient(180deg, #f6f8fb 0%, #eef3f7 100%);
+  --vip-border: rgb(15 23 42 / 10%);
+  --vip-card: #fff;
+  --vip-card-muted: #f8fafc;
   --vip-text: #1f2937;
   --vip-text-soft: #667085;
   --vip-accent: #1764ff;
-  --vip-shadow: 0 16px 40px rgb(15 23 42 / 8%);
+  --vip-accent-soft: rgb(23 100 255 / 8%);
+  --vip-success: #11845b;
+  --vip-warning: #b76e00;
+  --vip-shadow: 0 12px 30px rgb(15 23 42 / 7%);
 
   min-height: 100%;
   padding: 24px 24px 104px;
@@ -1808,14 +1932,12 @@ onMounted(() => {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 20px;
   align-items: center;
-  padding: 22px 24px;
+  padding: 20px 22px;
   margin-top: 18px;
-  background:
-    linear-gradient(135deg, rgb(255 248 235 / 96%), rgb(255 255 255 / 98%)),
-    #fff;
+  background: #fffbeb;
   border: 1px solid rgb(183 121 31 / 20%);
-  border-radius: 24px;
-  box-shadow: 0 12px 28px rgb(15 23 42 / 6%);
+  border-radius: 16px;
+  box-shadow: 0 8px 20px rgb(15 23 42 / 5%);
 }
 
 .pay-alert h2 {
@@ -1835,8 +1957,8 @@ onMounted(() => {
   gap: 8px;
   min-width: 220px;
   padding: 14px 16px;
-  background: rgb(23 100 255 / 5%);
-  border-radius: 18px;
+  background: rgb(255 255 255 / 72%);
+  border-radius: 12px;
 }
 
 .pay-alert__scope span {
@@ -1855,16 +1977,9 @@ onMounted(() => {
   gap: 24px;
   padding: 28px;
   margin-top: 18px;
-  background:
-    linear-gradient(
-      135deg,
-      rgb(255 250 239 / 92%),
-      rgb(255 255 255 / 98%) 46%,
-      rgb(244 248 255 / 96%)
-    ),
-    #fff;
+  background: #fff;
   border: 1px solid var(--vip-border);
-  border-radius: 28px;
+  border-radius: 18px;
   box-shadow: var(--vip-shadow);
 }
 
@@ -1903,9 +2018,9 @@ onMounted(() => {
   gap: 16px;
   justify-content: space-between;
   padding: 22px;
-  background: var(--vip-card-strong);
-  border: 1px solid rgb(183 121 31 / 16%);
-  border-radius: 24px;
+  background: var(--vip-card-muted);
+  border: 1px solid var(--vip-border);
+  border-radius: 14px;
 }
 
 .pay-head__tags {
@@ -1969,7 +2084,7 @@ onMounted(() => {
   padding: 24px;
   background: var(--vip-card);
   border: 1px solid var(--vip-border);
-  border-radius: 28px;
+  border-radius: 18px;
   box-shadow: 0 10px 30px rgb(15 23 42 / 5%);
 }
 
@@ -1996,7 +2111,7 @@ onMounted(() => {
   padding: 7px 12px;
   font-size: 12px;
   color: var(--vip-text-soft);
-  background: rgb(255 255 255 / 86%);
+  background: var(--vip-card-muted);
   border-radius: 999px;
 }
 
@@ -2026,10 +2141,9 @@ onMounted(() => {
 
 .benefit-card {
   padding: 18px;
-  background:
-    linear-gradient(180deg, rgb(23 100 255 / 4%), rgb(255 255 255 / 98%)), #fff;
-  border: 1px solid rgb(23 100 255 / 12%);
-  border-radius: 22px;
+  background: var(--vip-card-muted);
+  border: 1px solid var(--vip-border);
+  border-radius: 14px;
 }
 
 .benefit-card__icon {
@@ -2044,8 +2158,59 @@ onMounted(() => {
   gap: 8px;
   padding: 16px;
   margin-top: 20px;
-  background: rgb(23 100 255 / 5%);
-  border-radius: 20px;
+  background: var(--vip-accent-soft);
+  border-radius: 14px;
+}
+
+.order-card__runtime {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px;
+  margin-top: 14px;
+  background: var(--vip-card-muted);
+  border: 1px solid var(--vip-border);
+  border-radius: 14px;
+}
+
+.order-card__runtime > :first-child {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  font-size: 22px;
+  color: var(--vip-text-soft);
+}
+
+.order-card__runtime strong {
+  color: var(--vip-text);
+}
+
+.order-card__runtime p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--vip-text-soft);
+}
+
+.order-card__runtime--success {
+  background: rgb(17 132 91 / 7%);
+  border-color: rgb(17 132 91 / 18%);
+}
+
+.order-card__runtime--success > :first-child {
+  color: var(--vip-success);
+}
+
+.order-card__runtime--warning {
+  background: rgb(183 110 0 / 8%);
+  border-color: rgb(183 110 0 / 18%);
+}
+
+.order-card__runtime--warning > :first-child {
+  color: var(--vip-warning);
+}
+
+.order-card__runtime--processing > :first-child {
+  color: var(--vip-accent);
 }
 
 .order-card__account span,
@@ -2098,9 +2263,9 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  background: rgb(23 100 255 / 6%);
+  background: var(--vip-accent-soft);
   border: 1px solid rgb(23 100 255 / 12%);
-  border-radius: 16px;
+  border-radius: 14px;
 }
 
 .order-card__management > div {
@@ -2135,19 +2300,16 @@ onMounted(() => {
   line-height: 1;
 }
 
-.organization-identity-card {
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-  margin-top: 20px;
-  background:
-    linear-gradient(135deg, rgb(23 100 255 / 6%), rgb(255 255 255 / 96%)), #fff;
-  border: 1px solid rgb(23 100 255 / 14%);
-  border-radius: 20px;
-}
-
 .organization-setup-card {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  margin-top: 18px;
   scroll-margin-top: 18px;
+  background: #fff;
+  border: 1px solid var(--vip-border);
+  border-radius: 18px;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 5%);
 }
 
 .organization-setup-card:focus {
@@ -2155,23 +2317,50 @@ onMounted(() => {
   outline-offset: 4px;
 }
 
+.organization-setup-card__head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.organization-setup-card__head h2 {
+  margin: 0;
+  color: var(--vip-text);
+}
+
+.organization-setup-card__head p {
+  max-width: 720px;
+  margin: 10px 0 0;
+  line-height: 1.75;
+  color: var(--vip-text-soft);
+}
+
+.organization-setup-card__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.organization-identity-card,
 .organization-invitation-card {
   display: grid;
   gap: 14px;
+  align-content: start;
   padding: 16px;
-  margin-top: 20px;
-  background:
-    linear-gradient(135deg, rgb(20 184 166 / 7%), rgb(255 255 255 / 96%)), #fff;
-  border: 1px solid rgb(20 184 166 / 18%);
-  border-radius: 20px;
+  background: var(--vip-card-muted);
+  border: 1px solid var(--vip-border);
+  border-radius: 14px;
 }
 
+.organization-identity-card h3,
 .organization-invitation-card h3 {
   margin: 0;
   font-size: 16px;
   color: var(--vip-text);
 }
 
+.organization-identity-card p,
 .organization-invitation-card p {
   margin: 6px 0 0;
   font-size: 13px;
@@ -2179,17 +2368,10 @@ onMounted(() => {
   color: var(--vip-text-soft);
 }
 
-.organization-identity-card h3 {
-  margin: 0;
-  font-size: 16px;
-  color: var(--vip-text);
-}
-
-.organization-identity-card p {
-  margin: 6px 0 0;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--vip-text-soft);
+.organization-identity-card__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .organization-identity-field {
@@ -2205,11 +2387,6 @@ onMounted(() => {
 
 .organization-identity-card__error {
   color: #d4380d !important;
-}
-
-.organization-identity-card__actions {
-  display: flex;
-  gap: 12px;
 }
 
 .order-card__agreement {
@@ -2246,7 +2423,7 @@ onMounted(() => {
 .mobile-checkout-bar {
   position: fixed;
   right: 16px;
-  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   left: 16px;
   z-index: 10;
   display: none;
@@ -2257,7 +2434,7 @@ onMounted(() => {
   background: rgb(255 255 255 / 96%);
   backdrop-filter: blur(10px);
   border: 1px solid rgb(15 23 42 / 8%);
-  border-radius: 20px;
+  border-radius: 14px;
   box-shadow: 0 10px 28px rgb(15 23 42 / 12%);
 }
 
@@ -2348,6 +2525,11 @@ onMounted(() => {
     padding: 22px;
   }
 
+  .organization-setup-card__grid,
+  .organization-identity-card__fields {
+    grid-template-columns: 1fr;
+  }
+
   .benefit-grid {
     grid-template-columns: 1fr;
   }
@@ -2377,12 +2559,45 @@ onMounted(() => {
 }
 
 @media (max-width: 640px) {
+  .vip-pay-page {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .pay-alert,
+  .pay-head,
+  .pay-card,
+  .order-card,
+  .organization-setup-card {
+    border-radius: 14px;
+  }
+
+  .organization-setup-card__head,
+  .pay-card__head,
+  .order-card__head {
+    align-items: flex-start;
+  }
+
   .pay-head h1 {
     font-size: 30px;
   }
 
   .pay-head__amount strong {
     font-size: 42px;
+  }
+
+  .order-card__row {
+    align-items: flex-start;
+  }
+
+  .order-card__row span:last-child {
+    text-align: right;
+    word-break: break-word;
+  }
+
+  .mobile-checkout-bar {
+    right: 12px;
+    left: 12px;
   }
 }
 </style>

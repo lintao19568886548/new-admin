@@ -1,4 +1,5 @@
 export * from './access';
+export * from './agent';
 export * from './bill';
 export * from './core';
 export * from './crm';

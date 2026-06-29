@@ -21,6 +21,7 @@ model CrmSalesChannel {
 model CrmCustomerOwnerBinding {
   id                Int       @id @default(autoincrement())
   customerName      String?   @map("customer_name") @db.VarChar(50)
+  customerAddress   String?   @map("customer_address") @db.VarChar(255)
   openid            String?   @unique @db.VarChar(128)
   unionid           String?   @unique @db.VarChar(128)
   phone             String?   @unique @db.VarChar(20)
@@ -50,6 +51,7 @@ model CrmScanLog {
   resolvedSalesUserId  Int?     @map("resolved_sales_user_id")
   bindingId            Int?     @map("binding_id")
   customerName         String?  @map("customer_name") @db.VarChar(50)
+  customerAddress      String?  @map("customer_address") @db.VarChar(255)
   openid               String?  @db.VarChar(128)
   unionid              String?  @db.VarChar(128)
   phone                String?  @db.VarChar(20)

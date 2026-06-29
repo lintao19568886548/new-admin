@@ -108,9 +108,14 @@ function useExtraMenu(useRootMenus?: ComputedRef<MenuRecordRaw[]>) {
   }
 
   watch(
-    () => [route.path, preferences.app.layout],
-    ([path]) => {
-      calcExtraMenus(path || '');
+    () => [
+      route.path,
+      route.meta?.activePath,
+      preferences.app.layout,
+      menus.value,
+    ],
+    ([path, activePath]) => {
+      calcExtraMenus(((activePath as string) || path || '') as string);
     },
     { immediate: true },
   );

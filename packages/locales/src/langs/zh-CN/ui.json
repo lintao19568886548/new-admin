@@ -20,11 +20,15 @@
     "edit": "编辑",
     "delete": "删除"
   },
+  "actionConfirm": {
+    "delete": "确定删除吗？"
+  },
   "actionMessage": {
     "deleteConfirm": "确定删除 {0} 吗？",
     "deleting": "正在删除 {0} ...",
     "deleteSuccess": "{0} 删除成功",
     "deleteFailed": "{0} 删除失败",
+    "loadFailed": "加载失败",
     "operationSuccess": "操作成功",
     "operationFailed": "操作失败",
     "createSuccess": "创建成功",
@@ -36,6 +40,7 @@
     "input": "请输入",
     "select": "请选择"
   },
+  "loading": "加载中",
   "captcha": {
     "title": "请完成安全验证",
     "sliderSuccessText": "验证通过",

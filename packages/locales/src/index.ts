@@ -4,10 +4,12 @@ import {
   loadLocalesMap,
   loadLocalesMapFromDir,
   setupI18n,
+  teWithFallback,
+  translateWithFallback,
 } from './i18n';
 
-const $t = i18n.global.t;
-const $te = i18n.global.te;
+const $t = translateWithFallback;
+const $te = teWithFallback;
 
 export {
   $t,

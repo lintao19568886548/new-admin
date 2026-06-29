@@ -1,8 +1,6 @@
 import { prismaClient } from '~/utils/db';
-import {
-  inferContactRestrictionFromReply,
-  upsertContactRestriction,
-} from '~/utils/investment-radar/contact-restriction-service';
+import { inferContactRestrictionFromReply } from '~/utils/investment-radar/contact-restriction-policy';
+import { upsertContactRestriction } from '~/utils/investment-radar/contact-restriction-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import { ensureFollowRecordTable } from '~/utils/investment-radar/sop-record-service';
 import {

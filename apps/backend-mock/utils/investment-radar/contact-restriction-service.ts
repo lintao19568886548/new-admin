@@ -9,12 +9,6 @@ import {
 import { createRadarOperationAudit } from './crawler-operation-audit-service';
 import { assertInvestmentRadarTablesReady } from './schema-guard';
 
-export {
-  inferContactRestrictionFromReply,
-  mapRestrictionReason,
-  normalizeContactPhone,
-} from './contact-restriction-policy';
-
 interface ContactRestrictionInput {
   actorId?: null | number;
   actorName?: null | string;

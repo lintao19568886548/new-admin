@@ -77,8 +77,13 @@ export const authenticateResponseInterceptor = ({
       }
       // 如果正在刷新 token，则将请求加入队列，等待刷新完成
       if (client.isRefreshing) {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
           client.refreshTokenQueue.push((newToken: string) => {
+            if (!newToken) {
+              reject(error);
+              return;
+            }
+            config.__isRetryRequest = true;
             config.headers.Authorization = formatToken(newToken);
             resolve(client.request(config.url, { ...config }));
           });
@@ -98,6 +103,7 @@ export const authenticateResponseInterceptor = ({
         // 清空队列
         client.refreshTokenQueue = [];
 
+        error.config.headers.Authorization = formatToken(newToken);
         return client.request(error.config.url, { ...error.config });
       } catch (refreshError) {
         // 如果刷新 token 失败，处理错误（如强制登出或跳转登录页面）

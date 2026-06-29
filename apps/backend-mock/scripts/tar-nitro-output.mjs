@@ -47,12 +47,9 @@ async function createTarGz(folderPath, outputPath) {
       },
     );
 
-    const _stdout = '';
     let stderr = '';
 
-    tarProcess.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
+    tarProcess.stdout.resume();
 
     tarProcess.stderr.on('data', (data) => {
       stderr += data.toString();

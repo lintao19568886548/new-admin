@@ -16,7 +16,12 @@ export const useSimpleLocale = createSharedComposable(() => {
   const $t = computed(() => {
     const localeMessages = getMessages(currentLocale.value);
     return (key: string) => {
-      return localeMessages[key] || key;
+      return (
+        localeMessages[key] ||
+        getMessages('zh-CN')[key] ||
+        getMessages('en-US')[key] ||
+        key
+      );
     };
   });
   return {

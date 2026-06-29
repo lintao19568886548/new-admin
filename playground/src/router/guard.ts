@@ -512,6 +512,10 @@ function setupAccessGuard(router: Router) {
     }
 
     // 是否已经生成过动态路由
+    if (accessStore.isAccessChecked && accessStore.accessMenus.length === 0) {
+      await authStore.ensureSessionReady({ forceRebuildAccess: true });
+    }
+
     if (accessStore.isAccessChecked) {
       const mobileRouteRedirect = resolveMobileRouteRedirect(router, to);
       if (mobileRouteRedirect) {

@@ -13,7 +13,7 @@ import type {
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
-import { useUserStore } from '@vben/stores';
+import { useAccessStore, useUserStore } from '@vben/stores';
 import { formatDateTime } from '@vben/utils';
 
 import {
@@ -91,6 +91,7 @@ interface OverviewCard {
 }
 
 const router = useRouter();
+const accessStore = useAccessStore();
 const userStore = useUserStore();
 const loading = ref(false);
 const sectionErrors = ref<string[]>([]);
@@ -115,7 +116,7 @@ const quickActions: QuickAction[] = [
   {
     description: '登记客户和会谈',
     icon: UserAddOutlined,
-    label: '招商记录',
+    label: '客户登记',
     route: '/investment/mobile',
     tone: 'orange',
   },
@@ -163,14 +164,6 @@ const quickActions: QuickAction[] = [
   },
 ];
 
-const publicCrawlQuickActions: QuickAction[] = quickActions.filter((action) =>
-  [
-    '/crm/qrcode-test',
-    '/investment/radar/mobile-factory-listings',
-    '/investment/radar/mobile-public-demands',
-  ].includes(action.route),
-);
-
 const managementActions: ManagementAction[] = [
   {
     description: '复核公开来源线索并转雷达潜客',
@@ -217,11 +210,13 @@ const managementActions: ManagementAction[] = [
 ];
 
 const hasSuperRole = computed(() => userStore.userRoles.includes('Super'));
+const hasRouteAccess = (route: string) =>
+  Boolean(accessStore.getMenuByPath(route));
 const visibleQuickActions = computed(() =>
-  hasSuperRole.value ? quickActions : publicCrawlQuickActions,
+  quickActions.filter((action) => hasRouteAccess(action.route)),
 );
 const visibleManagementActions = computed(() =>
-  hasSuperRole.value ? managementActions : [],
+  managementActions.filter((action) => hasRouteAccess(action.route)),
 );
 
 const overviewCards = computed<OverviewCard[]>(() => {

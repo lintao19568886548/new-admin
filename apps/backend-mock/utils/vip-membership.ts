@@ -14,10 +14,7 @@ import {
   getSingleActiveSourceOrganizationStateForCenterUser,
   resolveActiveOrganizationMembershipForTargetCustomer,
 } from '~/utils/organization';
-import {
-  isVipMembershipTestPayment,
-  resolveVipMembershipTestPaymentAmountTotal,
-} from '~/utils/vip-membership-test-payment';
+import { resolveVipMembershipTestPaymentAmountTotal } from '~/utils/vip-membership-test-payment';
 import {
   createWechatPayRefund,
   queryWechatPayOrder,
@@ -358,8 +355,6 @@ export function resolveVipMembershipAmountTotal(
 
   return VIP_MEMBERSHIP_AMOUNT_TOTAL;
 }
-
-export { isVipMembershipTestPayment };
 
 async function revokeVipMembershipForRefundWithClient(
   inputOutTradeNo: string,

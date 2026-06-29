@@ -3,11 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   compareAmountBillProjectDesc,
   getAmountBillProjectPeriodError,
+  getAmountBillProjectSortKey,
   getSingleProjectMonthSortKey,
 } from '../amount-bill-project-period';
 
 describe('amount bill project period sorting', () => {
-  it('sorts by the utility month before rent-only months', () => {
+  it('sorts by the rent month before secondary utility months', () => {
     const records = [
       {
         billId: 1,
@@ -28,20 +29,28 @@ describe('amount bill project period sorting', () => {
 
     expect(
       records.sort(compareAmountBillProjectDesc).map((item) => item.billId),
-    ).toEqual([1, 2, 3]);
+    ).toEqual([2, 1, 3]);
   });
 
-  it('attributes mixed rent and utility bills to the utility month', () => {
+  it('attributes mixed rent and utility bills to the rent month', () => {
     expect(getSingleProjectMonthSortKey('2026年5月份房租水电')).toBe(
       2026 * 12 + 5,
     );
     expect(
       getSingleProjectMonthSortKey('2026年6月份房租、2026年5月份水电'),
-    ).toBe(2026 * 12 + 5);
+    ).toBe(2026 * 12 + 6);
     expect(
       getSingleProjectMonthSortKey('2026年4月份水电、2026年5月份房租明细'),
-    ).toBe(2026 * 12 + 4);
+    ).toBe(2026 * 12 + 5);
     expect(getSingleProjectMonthSortKey('房租水电')).toBeNull();
+  });
+
+  it('uses the rent month for dashboard and list period attribution', () => {
+    expect(
+      getAmountBillProjectSortKey({
+        projectName: '2026年5月份水电费、2026年6月份房租',
+      }),
+    ).toBe(2026 * 12 + 6);
   });
 
   it('returns validation messages for missing or ambiguous project months', () => {

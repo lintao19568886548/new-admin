@@ -5,7 +5,6 @@ import {
 } from '~/utils/organization-invitation';
 import {
   badRequestResponse,
-  forbiddenResponse,
   serverErrorResponse,
   unAuthorizedResponse,
   useResponseSuccess,
@@ -17,13 +16,11 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
-  if (!userinfo.roles?.includes('Super')) {
-    return forbiddenResponse(event, '仅 Super 角色可撤销组织邀请码');
-  }
-
   try {
     const body = (await readBody(event)) as Record<string, unknown>;
     const result = await revokeOrganizationInvitation({
+      actorCenterUserId: Number(userinfo.centerUserId ?? userinfo.id),
+      canRevokeAny: userinfo.roles?.includes('Super'),
       customerId: String(userinfo.customerId || ''),
       invitationId: body.id,
     });

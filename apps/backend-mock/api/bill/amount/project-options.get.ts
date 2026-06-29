@@ -1,5 +1,6 @@
 import {
   compareAmountBillProjectDesc,
+  isAmountBillProjectNameMatched,
   normalizeAmountBillProjectName,
 } from '~/utils/amount-bill-project-period';
 import { prismaClient } from '~/utils/db';
@@ -19,12 +20,6 @@ export default eventHandler(async (event) => {
     where.parkId = currentPark;
   }
 
-  if (keyword) {
-    where.projectName = {
-      contains: keyword,
-    };
-  }
-
   const records = await prismaClient.amountBill.findMany({
     select: {
       billId: true,
@@ -38,6 +33,10 @@ export default eventHandler(async (event) => {
   const projectMap = new Map<string, (typeof records)[number]>();
 
   for (const record of records) {
+    if (!isAmountBillProjectNameMatched(record.projectName, keyword)) {
+      continue;
+    }
+
     const projectName = normalizeAmountBillProjectName(record.projectName);
     if (!projectName) {
       continue;

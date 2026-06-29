@@ -53,10 +53,6 @@ const ORGANIZATION_PROVISIONING_BLOCKING_STATUSES = new Set([
   'pending',
   'provisioning',
 ]);
-const currentUserRoles = computed(() => {
-  const roles = (userInfo.value as any)?.roles;
-  return Array.isArray(roles) ? roles.map(String) : [];
-});
 const sourceOrganizationState = computed(() => {
   const record = userInfo.value as Record<string, unknown> | undefined;
   const sourceOrganization = record?.sourceOrganization;
@@ -90,7 +86,6 @@ const organizationProvisioningStatus = computed(() => {
 });
 const canManageOrganizationInvitations = computed(
   () =>
-    currentUserRoles.value.includes('Super') &&
     Boolean(currentCustomerId.value) &&
     !['default', 'public'].includes(currentCustomerId.value),
 );

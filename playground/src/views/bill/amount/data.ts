@@ -60,8 +60,10 @@ export interface AmountBill {
 }
 
 export interface AmountBillListSummary {
+  balanceDifference: number;
   billCount: number;
   invoiceTax: number;
+  isBalanced: boolean;
   overpaidAmount: number;
   receiptAmount: number;
   remainingAmount: number;
@@ -69,8 +71,10 @@ export interface AmountBillListSummary {
 }
 
 export const emptyAmountBillListSummary: AmountBillListSummary = {
+  balanceDifference: 0,
   billCount: 0,
   invoiceTax: 0,
+  isBalanced: true,
   overpaidAmount: 0,
   receiptAmount: 0,
   remainingAmount: 0,

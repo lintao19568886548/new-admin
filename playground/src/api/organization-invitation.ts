@@ -2,11 +2,17 @@ import { requestClient } from '#/api/request';
 
 export interface OrganizationInvitation {
   code: string;
+  createdBy?: {
+    id: number;
+    name: string;
+    username: string;
+  };
   createdByCenterUserId: number;
   createTime: null | string;
   customerId: string;
   expiresAt: null | string;
   id: number;
+  joinLogs?: OrganizationInvitationJoinLog[];
   maxUses: null | number;
   remark: null | string;
   roleIds: number[];
@@ -15,11 +21,28 @@ export interface OrganizationInvitation {
   usedCount: number;
 }
 
+export interface OrganizationInvitationJoinLog {
+  centerUserId: number;
+  centerUserName: string;
+  centerUsername: string;
+  code: string;
+  createTime: null | string;
+  customerId: string;
+  customerUserId: null | number;
+  errorMessage: null | string;
+  id: number;
+  invitationId: number;
+  joinedAt: null | string;
+  previousCustomerId: null | string;
+  status: string;
+  updateTime: null | string;
+}
+
 export interface CreateOrganizationInvitationPayload {
   expiresAt?: string;
   maxUses?: null | number;
   remark?: string;
-  roleIds: number[];
+  roleIds?: number[];
 }
 
 export interface JoinOrganizationInvitationResponse {

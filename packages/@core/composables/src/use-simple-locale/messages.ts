@@ -7,6 +7,7 @@ export const messages: Record<Locale, Record<string, string>> = {
     confirm: 'Confirm',
     expand: 'Expand',
     reset: 'Reset',
+    search: 'Search',
     submit: 'Submit',
   },
   'zh-CN': {
@@ -15,6 +16,7 @@ export const messages: Record<Locale, Record<string, string>> = {
     confirm: '确认',
     expand: '展开',
     reset: '重置',
+    search: '搜索',
     submit: '提交',
   },
 };

@@ -402,13 +402,31 @@ const currentPageTotalFields = new Set([
 function normalizeBillListSummary(
   summary?: Partial<AmountBillListSummary>,
 ): AmountBillListSummary {
+  const totalFee = Number(summary?.totalFee || 0);
+  const receiptAmount = Number(summary?.receiptAmount || 0);
+  const remainingAmount = Number(summary?.remainingAmount || 0);
+  const overpaidAmount = Number(summary?.overpaidAmount || 0);
+  const fallbackBalanceDifference =
+    Math.round(
+      (totalFee - (receiptAmount + remainingAmount - overpaidAmount)) * 100,
+    ) / 100;
+  const balanceDifference =
+    summary?.balanceDifference === undefined
+      ? fallbackBalanceDifference
+      : Number(summary.balanceDifference || 0);
+
   return {
+    balanceDifference,
     billCount: Number(summary?.billCount || 0),
     invoiceTax: Number(summary?.invoiceTax || 0),
-    overpaidAmount: Number(summary?.overpaidAmount || 0),
-    receiptAmount: Number(summary?.receiptAmount || 0),
-    remainingAmount: Number(summary?.remainingAmount || 0),
-    totalFee: Number(summary?.totalFee || 0),
+    isBalanced:
+      typeof summary?.isBalanced === 'boolean'
+        ? summary.isBalanced
+        : Math.abs(balanceDifference) < 0.01,
+    overpaidAmount,
+    receiptAmount,
+    remainingAmount,
+    totalFee,
   };
 }
 
@@ -474,8 +492,14 @@ const [Grid, gridApi] = useVbenVxeGrid({
       ['receiptTime', ['startTime', 'endTime']],
       ['projectPeriod', ['projectStartDate', 'projectEndDate']],
     ],
+    resetButtonOptions: {
+      content: '重置',
+    },
     schema: useGridFormSchema(),
     showCollapseButton: true,
+    submitButtonOptions: {
+      content: '查询',
+    },
     wrapperClass: 'grid-cols-1 lg:grid-cols-3 gap-4',
   },
   gridOptions: {
@@ -580,8 +604,18 @@ const exportParks = ref<Array<number | string>>([]);
 const options = ref<Array<{ label: string; value: number | string }>>([]);
 
 async function onExport() {
+  const formData = (await gridApi.formApi?.getValues?.()) || {};
+  const projectPeriod = Array.isArray(formData.projectPeriod)
+    ? formData.projectPeriod
+    : [];
   const exportData = await getExportData({
+    collectionStatus: formData.collectionStatus,
+    currentPark: formData.parkId ?? -1,
     parkIds: exportParks.value,
+    projectEndDate: formData.projectEndDate || projectPeriod[1],
+    projectName: formData.projectName,
+    projectStartDate: formData.projectStartDate || projectPeriod[0],
+    tenantName: formData.tenantName,
   });
   // const data = [[1, 2, 3]];
   executeBill(exportData);
@@ -760,7 +794,6 @@ function handlePrintCancel() {
         </div>
       </div>
     </div>
-
     <Grid table-title="总账单" class="amount-bill-grid">
       <template #toolbar-tools>
         <AUpload

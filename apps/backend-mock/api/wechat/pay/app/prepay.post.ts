@@ -18,10 +18,10 @@ import {
   getOrganizationProvisioningPaymentBlockedMessage,
   getOrganizationProvisioningProfileState,
   isVipMembershipAttach,
-  isVipMembershipTestPayment,
   recordVipMembershipPaymentPending,
   resolveVipMembershipAmountTotal,
 } from '~/utils/vip-membership';
+import { isVipMembershipTestPayment } from '~/utils/vip-membership-test-payment';
 import { createWechatAppPrepay } from '~/utils/wechat-pay';
 
 function normalizeAmount(value: unknown) {

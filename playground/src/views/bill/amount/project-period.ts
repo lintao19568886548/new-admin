@@ -147,6 +147,29 @@ function parseProjectUtilityMonthSortKeys(value: unknown) {
   return parseProjectKeywordMonthSortKeys(value, hasUtilityKeyword);
 }
 
+export function getSingleProjectMonthSortKey(value: unknown) {
+  const matchedKeys = parseProjectMonthSortKeys(value);
+  if (matchedKeys.length === 0) {
+    return null;
+  }
+
+  const rentMonthKeys = parseProjectRentMonthSortKeys(value);
+  if (rentMonthKeys.length === 1) {
+    return rentMonthKeys[0];
+  }
+
+  const utilityMonthKeys = parseProjectUtilityMonthSortKeys(value);
+  if (utilityMonthKeys.length === 1) {
+    return utilityMonthKeys[0];
+  }
+
+  if (matchedKeys.length === 1) {
+    return matchedKeys[0] ?? null;
+  }
+
+  return null;
+}
+
 export function getAmountBillProjectPeriodError(value: unknown) {
   const matchedKeys = parseProjectMonthSortKeys(value);
   if (matchedKeys.length === 0) {

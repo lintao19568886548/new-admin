@@ -4,7 +4,7 @@ import type {
   CrawlerTaskItem,
   PublicOpportunityCrawlerRunOptions,
 } from './crawler-types';
-import type { PublicOpportunityRow } from './public-opportunity-lead-rebuilder';
+import type { PublicOpportunityRow } from './public-opportunity-lead-policy';
 import type {
   PublicListDiscoveryContentIssueSample,
   PublicListPageContentSignals,
@@ -54,7 +54,7 @@ import {
   resolveGuangdongCityFromText,
 } from './guangdong-public-scope';
 import { getPublicCrawlerAdapter } from './public-crawler-adapters';
-import { buildExternalLeadInputFromPublicOpportunityRow } from './public-opportunity-lead-rebuilder';
+import { buildExternalLeadInputFromPublicOpportunityRow } from './public-opportunity-lead-policy';
 import {
   createEmptyPublicListDiscoveryResult,
   resolvePublicOpportunityTaskFinishOutcome,

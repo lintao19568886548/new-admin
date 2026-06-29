@@ -244,21 +244,6 @@ function getBillRouteQuery(collectionStatus?: 'unreceived') {
   return query;
 }
 
-function getFinanceRouteQuery() {
-  const { endDate, startDate } = getSelectedDateRange();
-  const query: Record<string, number | string> = {
-    transactionType: '收入',
-  };
-  appendParkQuery(query);
-
-  if (startDate && endDate) {
-    query.startTime = `${startDate} 00:00:00`;
-    query.endTime = `${endDate} 23:59:59`;
-  }
-
-  return query;
-}
-
 function goReceivableDetail() {
   router.push({
     name: 'Bill',
@@ -268,8 +253,8 @@ function goReceivableDetail() {
 
 function goReceivedDetail() {
   router.push({
-    name: 'FinanceManage',
-    query: getFinanceRouteQuery(),
+    name: 'Bill',
+    query: getBillRouteQuery(),
   });
 }
 

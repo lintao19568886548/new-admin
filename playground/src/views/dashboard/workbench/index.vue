@@ -1,11 +1,12 @@
 <script lang="ts" setup>
 import type { RouteRecordStringComponent } from '@vben/types';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { VbenIcon } from '@vben/common-ui';
 import { $t } from '@vben/locales';
+import { useUserStore } from '@vben/stores';
 
 import { Empty, Input } from 'ant-design-vue';
 
@@ -45,8 +46,14 @@ interface GroupSeed {
 }
 
 const router = useRouter();
+const menuStore = useMenuStore();
+const userStore = useUserStore();
 const searchQuery = ref('');
 const groups = ref<NavGroup[]>([]);
+const TARGET_INVESTMENT_REGISTRATION_USERNAMES = new Set([
+  '18127933306',
+  '18689459979',
+]);
 const HIDDEN_WORKBENCH_APP_ROUTE_NAMES = new Set([
   'SettledFactory',
   'SettledFactoryMobile',
@@ -55,6 +62,24 @@ const HIDDEN_WORKBENCH_APP_ROUTE_PATHS = new Set([
   '/rental/settled',
   '/rental/settled/mobile',
 ]);
+const PUBLIC_INVESTMENT_WORKBENCH_ROUTE_NAMES = new Set([
+  'CrmQrcodeTest',
+  'InvestmentRadarMobileFactoryListings',
+  'InvestmentRadarMobilePublicDemands',
+]);
+const PUBLIC_INVESTMENT_WORKBENCH_ROUTE_PATHS = new Set([
+  '/crm/qrcode-test',
+  '/investment/radar/mobile-factory-listings',
+  '/investment/radar/mobile-public-demands',
+]);
+const TARGET_INVESTMENT_REGISTRATION_ROUTE_NAMES = new Set([
+  'InvestmentAgentMobileList',
+]);
+const TARGET_INVESTMENT_REGISTRATION_ROUTE_PATHS = new Set([
+  '/investment/mobile',
+]);
+const ORGANIZATION_INVITATION_ROUTE_NAME = 'ProfileOrganizationInvitations';
+const ORGANIZATION_INVITATION_ROUTE_PATH = '/profile/organization-invitations';
 
 const themes: NavVisualTheme[] = [
   {
@@ -129,12 +154,55 @@ function isHiddenWorkbenchApp(route: RouteRecordStringComponent) {
   );
 }
 
+function isInvestmentWorkbenchRoute(route: RouteRecordStringComponent) {
+  const routeName = String(route.name || '');
+  const routePath = normalizeWorkbenchRoutePath(route.path);
+  if (
+    routeName === ORGANIZATION_INVITATION_ROUTE_NAME ||
+    routePath === ORGANIZATION_INVITATION_ROUTE_PATH
+  ) {
+    return false;
+  }
+
+  return (
+    routeName === 'CrmQrcodeTest' ||
+    routeName.startsWith('Investment') ||
+    routePath === '/crm/qrcode-test' ||
+    routePath === '/investment' ||
+    routePath.startsWith('/investment/')
+  );
+}
+
+function canShowInvestmentWorkbenchRoute(route: RouteRecordStringComponent) {
+  if (!isInvestmentWorkbenchRoute(route)) return true;
+  if (userStore.userRoles.includes('Super')) return true;
+
+  const routeName = String(route.name || '');
+  const routePath = normalizeWorkbenchRoutePath(route.path);
+  if (
+    PUBLIC_INVESTMENT_WORKBENCH_ROUTE_NAMES.has(routeName) ||
+    PUBLIC_INVESTMENT_WORKBENCH_ROUTE_PATHS.has(routePath)
+  ) {
+    return true;
+  }
+
+  const isTargetUser = TARGET_INVESTMENT_REGISTRATION_USERNAMES.has(
+    String(userStore.userInfo?.username || ''),
+  );
+  return (
+    isTargetUser &&
+    (TARGET_INVESTMENT_REGISTRATION_ROUTE_NAMES.has(routeName) ||
+      TARGET_INVESTMENT_REGISTRATION_ROUTE_PATHS.has(routePath))
+  );
+}
+
 function shouldIncludeAsApp(route: RouteRecordStringComponent) {
   if (hasChildren(route)) return false;
   if (!route.meta?.isApp) return false;
   if (!route.name) return false;
   if (route.name === 'Workbench' || route.path === '/workbench') return false;
   if (isHiddenWorkbenchApp(route)) return false;
+  if (!canShowInvestmentWorkbenchRoute(route)) return false;
   return true;
 }
 
@@ -160,15 +228,23 @@ function toNavItem(
   theme: NavVisualTheme,
 ): NavItem | null {
   if (!route.name) return null;
+  const routeName = String(route.name);
+  let title = resolveTitle(route.meta?.title, route.name);
+  if (routeName === 'InvestmentAgentMobileList') {
+    title = '客户登记';
+  } else if (routeName === ORGANIZATION_INVITATION_ROUTE_NAME) {
+    title = '生成邀请码';
+  }
+
   return {
     bgClass: theme.bgClass,
     color: theme.color,
     glowClass: theme.glowClass,
     icon: normalizeIcon(route.meta?.icon, DEFAULT_APP_ICON),
-    name: String(route.name),
+    name: routeName,
     order: parseOrder(route.meta?.order),
     path: typeof route.path === 'string' ? route.path : '',
-    title: resolveTitle(route.meta?.title, route.name),
+    title,
   };
 }
 
@@ -260,15 +336,24 @@ const filteredGroups = computed(() => {
     .filter((group) => group.items.length > 0);
 });
 
-onMounted(() => {
+function refreshGroups() {
   try {
-    const menuStore = useMenuStore();
     groups.value = buildGroups(menuStore.menus);
   } catch (error) {
     console.error('Failed to build workbench navigation:', error);
     groups.value = [];
   }
-});
+}
+
+watch(
+  [
+    () => menuStore.menus,
+    () => userStore.userInfo?.username,
+    () => userStore.userRoles.join('|'),
+  ],
+  refreshGroups,
+  { deep: true, immediate: true },
+);
 
 function handleItemClick(item: NavItem) {
   if (item.name) {

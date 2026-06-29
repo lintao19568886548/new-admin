@@ -10,7 +10,11 @@ function normalizeWechatPayAppConfig(
 ): WechatPayAppConfig {
   return {
     appId: String(config.appId || '').trim(),
+    configured: config.configured === true,
     mchId: String(config.mchId || '').trim(),
+    missing: Array.isArray(config.missing)
+      ? config.missing.map((item) => String(item || '').trim()).filter(Boolean)
+      : [],
   };
 }
 

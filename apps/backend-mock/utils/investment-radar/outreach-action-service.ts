@@ -1,9 +1,7 @@
 import { prismaClient } from '~/utils/db';
 
-import {
-  ensureContactRestrictionTable,
-  normalizeContactPhone,
-} from './contact-restriction-service';
+import { normalizeContactPhone } from './contact-restriction-policy';
+import { ensureContactRestrictionTable } from './contact-restriction-service';
 import {
   fillOutreachTemplateContent,
   listEnabledOutreachTemplates,

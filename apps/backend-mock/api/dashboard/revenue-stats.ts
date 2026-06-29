@@ -1,4 +1,4 @@
-import { getSingleProjectMonthSortKey } from '~/utils/amount-bill-project-period';
+import { getAmountBillProjectSortKey } from '~/utils/amount-bill-project-period';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
@@ -231,6 +231,19 @@ function getProjectMonthContainsValues(months: Date[]) {
   return [...values];
 }
 
+function getProjectMonthCandidateValues(months: Date[]) {
+  const candidateMonths = new Map<number, Date>();
+
+  for (const month of months) {
+    for (const offset of [-1, 0, 1]) {
+      const candidateMonth = addMonths(month, offset);
+      candidateMonths.set(toMonthSortKey(candidateMonth), candidateMonth);
+    }
+  }
+
+  return getProjectMonthContainsValues([...candidateMonths.values()]);
+}
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -270,27 +283,47 @@ export default eventHandler(async (event) => {
     const monthIndexMap = new Map(
       months.map((month, index) => [toMonthSortKey(month), index]),
     );
-    const projectMonthValues = getProjectMonthContainsValues(months);
+    const projectMonthValues = getProjectMonthCandidateValues(months);
 
     if (projectMonthValues.length === 0) {
       return useResponseSuccess(createEmptyRevenueStats(revenuePeriod));
     }
 
+    const periodStart = revenuePeriod.periodStart;
+    const periodEnd = revenuePeriod.periodEnd;
+
     const amountBillList = await prismaClient.amountBill.findMany({
       select: {
+        createTime: true,
         projectName: true,
         receiptAmount: true,
+        receiptTime: true,
         totalFee: true,
       },
       where: {
         parkId: {
           in: parkIds,
         },
-        OR: projectMonthValues.map((value) => ({
-          projectName: {
-            contains: value,
+        OR: [
+          ...projectMonthValues.map((value) => ({
+            projectName: {
+              contains: value,
+            },
+          })),
+          {
+            receiptTime: {
+              gte: periodStart,
+              lt: periodEnd,
+            },
           },
-        })),
+          {
+            receiptTime: null,
+            createTime: {
+              gte: periodStart,
+              lt: periodEnd,
+            },
+          },
+        ],
       },
     });
 
@@ -309,7 +342,7 @@ export default eventHandler(async (event) => {
     let billCount = 0;
 
     for (const item of amountBillList) {
-      const projectMonthKey = getSingleProjectMonthSortKey(item.projectName);
+      const projectMonthKey = getAmountBillProjectSortKey(item);
       const monthIndex =
         projectMonthKey === null
           ? undefined
@@ -317,8 +350,11 @@ export default eventHandler(async (event) => {
       if (monthIndex === undefined) {
         continue;
       }
-
       const totalFeeCents = toCents(item.totalFee);
+      if (totalFeeCents <= 0) {
+        continue;
+      }
+
       const receivedAmountCents = toCents(item.receiptAmount);
       receivableCents[monthIndex] += totalFeeCents;
       receivedCents[monthIndex] += receivedAmountCents;

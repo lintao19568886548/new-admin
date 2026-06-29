@@ -27,6 +27,8 @@ interface OrganizationInvitationRecord {
   code: string;
   createTime: Date | null | string;
   createdByCenterUserId: number;
+  createdByRealName: null | string;
+  createdByUsername: null | string;
   customerId: string;
   expiresAt: Date | null | string;
   id: number;
@@ -43,6 +45,23 @@ interface OrganizationInvitationInput {
   maxUses?: unknown;
   remark?: unknown;
   roleIds?: unknown;
+}
+
+interface OrganizationInvitationJoinLogRecord {
+  centerUserId: number;
+  centerUserRealName: null | string;
+  centerUsername: null | string;
+  code: string;
+  createTime: Date | null | string;
+  customerId: string;
+  customerUserId: null | number;
+  errorMessage: null | string;
+  id: number;
+  invitationId: number;
+  joinedAt: Date | null | string;
+  previousCustomerId: null | string;
+  status: string;
+  updateTime: Date | null | string;
 }
 
 interface TargetOrganizationRecord {
@@ -97,7 +116,7 @@ function generateInvitationCode() {
   return randomBytes(INVITATION_CODE_BYTES).toString('hex').toUpperCase();
 }
 
-function parseRoleIds(value: unknown) {
+function parseRoleIds(value: unknown, options: { allowEmpty?: boolean } = {}) {
   let rawItems: unknown[] = [];
   if (Array.isArray(value)) {
     rawItems = value;
@@ -114,7 +133,7 @@ function parseRoleIds(value: unknown) {
     ),
   ];
 
-  if (roleIds.length === 0) {
+  if (roleIds.length === 0 && !options.allowEmpty) {
     throw new OrganizationInvitationError('创建邀请码必须指定至少一个组织角色');
   }
 
@@ -213,6 +232,14 @@ function serializeInvitation(record: OrganizationInvitationRecord) {
   return {
     code: record.code,
     createTime: serializeDate(record.createTime),
+    createdBy: {
+      id: Number(record.createdByCenterUserId),
+      name:
+        record.createdByRealName ||
+        record.createdByUsername ||
+        `用户 #${record.createdByCenterUserId}`,
+      username: record.createdByUsername || '',
+    },
     createdByCenterUserId: Number(record.createdByCenterUserId),
     customerId: record.customerId,
     expiresAt: serializeDate(record.expiresAt),
@@ -226,22 +253,48 @@ function serializeInvitation(record: OrganizationInvitationRecord) {
   };
 }
 
+function serializeJoinLog(record: OrganizationInvitationJoinLogRecord) {
+  return {
+    centerUserId: Number(record.centerUserId),
+    centerUserName:
+      record.centerUserRealName ||
+      record.centerUsername ||
+      `用户 #${record.centerUserId}`,
+    centerUsername: record.centerUsername || '',
+    code: record.code,
+    createTime: serializeDate(record.createTime),
+    customerId: record.customerId,
+    customerUserId:
+      record.customerUserId === null ? null : Number(record.customerUserId),
+    errorMessage: record.errorMessage,
+    id: Number(record.id),
+    invitationId: Number(record.invitationId),
+    joinedAt: serializeDate(record.joinedAt),
+    previousCustomerId: record.previousCustomerId,
+    status: record.status,
+    updateTime: serializeDate(record.updateTime),
+  };
+}
+
 function invitationSelectSql() {
   return Prisma.sql`
     SELECT
-      id,
-      code,
-      customer_id AS customerId,
-      created_by_center_user_id AS createdByCenterUserId,
-      role_ids AS roleIds,
-      max_uses AS maxUses,
-      used_count AS usedCount,
-      expires_at AS expiresAt,
-      status,
-      remark,
-      create_time AS createTime,
-      update_time AS updateTime
-    FROM tenant_invitation
+      i.id,
+      i.code,
+      i.customer_id AS customerId,
+      i.created_by_center_user_id AS createdByCenterUserId,
+      creator.real_name AS createdByRealName,
+      creator.username AS createdByUsername,
+      i.role_ids AS roleIds,
+      i.max_uses AS maxUses,
+      i.used_count AS usedCount,
+      i.expires_at AS expiresAt,
+      i.status,
+      i.remark,
+      i.create_time AS createTime,
+      i.update_time AS updateTime
+    FROM tenant_invitation i
+    LEFT JOIN \`user\` creator ON creator.id = i.created_by_center_user_id
   `;
 }
 
@@ -251,7 +304,7 @@ async function queryInvitationByCode(
 ) {
   const rows = await db.$queryRaw<OrganizationInvitationRecord[]>(Prisma.sql`
     ${invitationSelectSql()}
-    WHERE code = ${code}
+    WHERE i.code = ${code}
     LIMIT 1
   `);
   return rows[0] ?? null;
@@ -260,7 +313,7 @@ async function queryInvitationByCode(
 async function queryInvitationByCodeForUpdate(code: string, db: CenterDb) {
   const rows = await db.$queryRaw<OrganizationInvitationRecord[]>(Prisma.sql`
     ${invitationSelectSql()}
-    WHERE code = ${code}
+    WHERE i.code = ${code}
     LIMIT 1
     FOR UPDATE
   `);
@@ -300,6 +353,49 @@ async function validateTargetRoles(params: {
       `组织角色不存在或已停用: ${missingRoleIds.join(', ')}`,
     );
   }
+}
+
+async function resolveDefaultInvitationRoleIds(params: {
+  customerId: string;
+  dbName: null | string;
+}) {
+  const roles = await prismaScopeStorage.run(
+    {
+      customerId: params.customerId,
+      dbName: params.dbName,
+    },
+    async () =>
+      prismaClient.role.findMany({
+        orderBy: { roleId: 'asc' },
+        select: {
+          name: true,
+          roleId: true,
+          scope: true,
+        },
+        where: {
+          status: true,
+        },
+      }),
+  );
+
+  const candidates = roles.filter(
+    (role) => String(role.name || '').toLowerCase() !== 'super',
+  );
+  const priorityKeywords = ['成员', '普通', '员工', 'user', '访客', 'visitor'];
+  const matched = candidates.find((role) => {
+    const name = String(role.name || '').toLowerCase();
+    return priorityKeywords.some((keyword) => name.includes(keyword));
+  });
+  const fallback = matched || candidates[0];
+
+  if (!fallback) {
+    throw new OrganizationInvitationError(
+      '当前组织没有可用的普通或访客角色，请先在 PC 端配置角色后再生成邀请码',
+      409,
+    );
+  }
+
+  return [Number(fallback.roleId)];
 }
 
 async function resolveManageableCustomer(customerId: string) {
@@ -745,6 +841,51 @@ async function recordJoinFailureBestEffort(params: {
     .catch(() => undefined);
 }
 
+async function recordJoinSuccess(params: {
+  centerDb: CenterDb;
+  centerUserId: number;
+  code: string;
+  customerId: string;
+  customerUserId: number;
+  invitationId: number;
+  previousCustomerId: null | string;
+}) {
+  await params.centerDb.$executeRaw(Prisma.sql`
+    INSERT INTO tenant_invitation_join_log (
+      invitation_id,
+      code,
+      customer_id,
+      center_user_id,
+      customer_user_id,
+      previous_customer_id,
+      status,
+      error_message,
+      joined_at,
+      create_time,
+      update_time
+    ) VALUES (
+      ${params.invitationId},
+      ${params.code},
+      ${params.customerId},
+      ${params.centerUserId},
+      ${params.customerUserId},
+      ${params.previousCustomerId},
+      'joined',
+      NULL,
+      NOW(),
+      NOW(),
+      NOW()
+    )
+    ON DUPLICATE KEY UPDATE
+      customer_user_id = VALUES(customer_user_id),
+      previous_customer_id = VALUES(previous_customer_id),
+      status = 'joined',
+      error_message = NULL,
+      joined_at = NOW(),
+      update_time = NOW()
+  `);
+}
+
 function assertInvitationUsable(invitation: OrganizationInvitationRecord) {
   if (invitation.status !== 'active') {
     throw new OrganizationInvitationError('邀请码已失效');
@@ -769,7 +910,14 @@ export async function createOrganizationInvitation(params: {
   input: OrganizationInvitationInput;
 }) {
   const customer = await resolveManageableCustomer(params.customerId);
-  const roleIds = parseRoleIds(params.input.roleIds);
+  const inputRoleIds = parseRoleIds(params.input.roleIds, { allowEmpty: true });
+  const roleIds =
+    inputRoleIds.length > 0
+      ? inputRoleIds
+      : await resolveDefaultInvitationRoleIds({
+          customerId: customer.customerId,
+          dbName: customer.dbName,
+        });
   const maxUses = parseMaxUses(params.input.maxUses);
   const expiresAt = parseExpiresAt(params.input.expiresAt);
   const remark = normalizeRemark(params.input.remark);
@@ -831,24 +979,76 @@ export async function createOrganizationInvitation(params: {
   throw new Error('邀请码创建失败');
 }
 
+async function listInvitationJoinLogs(invitationIds: number[]) {
+  if (invitationIds.length === 0) {
+    return new Map<number, ReturnType<typeof serializeJoinLog>[]>();
+  }
+
+  const rows = await systemDbClient.$queryRaw<
+    OrganizationInvitationJoinLogRecord[]
+  >(
+    Prisma.sql`
+      SELECT
+        l.id,
+        l.invitation_id AS invitationId,
+        l.code,
+        l.customer_id AS customerId,
+        l.center_user_id AS centerUserId,
+        joined_user.real_name AS centerUserRealName,
+        joined_user.username AS centerUsername,
+        l.customer_user_id AS customerUserId,
+        l.previous_customer_id AS previousCustomerId,
+        l.status,
+        l.error_message AS errorMessage,
+        l.joined_at AS joinedAt,
+        l.create_time AS createTime,
+        l.update_time AS updateTime
+      FROM tenant_invitation_join_log l
+      LEFT JOIN \`user\` joined_user ON joined_user.id = l.center_user_id
+      WHERE l.invitation_id IN (${Prisma.join(invitationIds)})
+      ORDER BY l.id DESC
+    `,
+  );
+
+  const logsByInvitationId = new Map<
+    number,
+    ReturnType<typeof serializeJoinLog>[]
+  >();
+  for (const row of rows) {
+    const invitationId = Number(row.invitationId);
+    const items = logsByInvitationId.get(invitationId) ?? [];
+    items.push(serializeJoinLog(row));
+    logsByInvitationId.set(invitationId, items);
+  }
+  return logsByInvitationId;
+}
+
 export async function listOrganizationInvitations(customerId: string) {
   const customer = await resolveManageableCustomer(customerId);
   const rows = await systemDbClient.$queryRaw<OrganizationInvitationRecord[]>(
     Prisma.sql`
       ${invitationSelectSql()}
-      WHERE customer_id = ${customer.customerId}
-      ORDER BY id DESC
+      WHERE i.customer_id = ${customer.customerId}
+      ORDER BY i.id DESC
       LIMIT 100
     `,
   );
+  const logsByInvitationId = await listInvitationJoinLogs(
+    rows.map((row) => Number(row.id)),
+  );
 
   return {
-    items: rows.map((row) => serializeInvitation(row)),
+    items: rows.map((row) => ({
+      ...serializeInvitation(row),
+      joinLogs: logsByInvitationId.get(Number(row.id)) ?? [],
+    })),
     total: rows.length,
   };
 }
 
 export async function revokeOrganizationInvitation(params: {
+  actorCenterUserId?: number;
+  canRevokeAny?: boolean;
   customerId: string;
   invitationId: unknown;
 }) {
@@ -864,6 +1064,13 @@ export async function revokeOrganizationInvitation(params: {
     WHERE id = ${Math.floor(invitationId)}
       AND customer_id = ${customer.customerId}
       AND status = 'active'
+      ${
+        params.canRevokeAny
+          ? Prisma.empty
+          : Prisma.sql`AND created_by_center_user_id = ${Number(
+              params.actorCenterUserId || 0,
+            )}`
+      }
   `);
 
   if (affected === 0) {
@@ -1019,6 +1226,15 @@ export async function joinOrganizationByInvitationCode(params: {
       });
 
       if (alreadyJoined) {
+        await recordJoinSuccess({
+          centerDb: tx,
+          centerUserId,
+          code: invitation.code,
+          customerId: targetCustomerId,
+          customerUserId: tenantUser.customerUserId,
+          invitationId: Number(invitation.id),
+          previousCustomerId,
+        });
         createdTenantUser = null;
 
         return {
@@ -1053,40 +1269,15 @@ export async function joinOrganizationByInvitationCode(params: {
         WHERE id = ${Number(invitation.id)}
       `);
 
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO tenant_invitation_join_log (
-          invitation_id,
-          code,
-          customer_id,
-          center_user_id,
-          customer_user_id,
-          previous_customer_id,
-          status,
-          error_message,
-          joined_at,
-          create_time,
-          update_time
-        ) VALUES (
-          ${Number(invitation.id)},
-          ${invitation.code},
-          ${targetCustomerId},
-          ${centerUserId},
-          ${tenantUser.customerUserId},
-          ${previousCustomerId},
-          'joined',
-          NULL,
-          NOW(),
-          NOW(),
-          NOW()
-        )
-        ON DUPLICATE KEY UPDATE
-          customer_user_id = VALUES(customer_user_id),
-          previous_customer_id = VALUES(previous_customer_id),
-          status = 'joined',
-          error_message = NULL,
-          joined_at = NOW(),
-          update_time = NOW()
-      `);
+      await recordJoinSuccess({
+        centerDb: tx,
+        centerUserId,
+        code: invitation.code,
+        customerId: targetCustomerId,
+        customerUserId: tenantUser.customerUserId,
+        invitationId: Number(invitation.id),
+        previousCustomerId,
+      });
 
       createdTenantUser = null;
 

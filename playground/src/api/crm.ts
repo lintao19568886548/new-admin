@@ -60,6 +60,7 @@ export interface CrmSalesChannel {
 
 export interface CrmOwnerBinding {
   createTime: null | string;
+  customerAddress: string;
   customerName: string;
   externalUserId: string;
   firstChannelId: null | number;
@@ -84,6 +85,7 @@ export interface CrmScanLog {
   channelId: null | number;
   channelName: string;
   createTime: null | string;
+  customerAddress: string;
   customerName: string;
   id: number;
   ip: string;
@@ -118,6 +120,7 @@ export interface CrmExternalContactLog {
   bindingId: null | number;
   changeType: string;
   createTime: null | string;
+  customerAddress: string;
   customerName: string;
   eventType: string;
   externalUserId: string;
@@ -203,6 +206,7 @@ export interface CreateCrmSalesQrcodeResponse {
 }
 
 export interface ResolveCrmInvitePayload {
+  customerAddress?: string;
   customerName?: string;
   openid?: string;
   phone?: string;
@@ -231,6 +235,7 @@ export interface ResolveCrmInviteResponse {
 }
 
 export interface SaveCrmOwnerBindingPayload {
+  customerAddress?: string;
   customerName?: string;
   externalUserId?: string;
   firstChannelId?: number;

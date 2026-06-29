@@ -50,6 +50,9 @@ import {
   updateCrmSalesChannelApi,
 } from '#/api/crm';
 import { getSystemUserList } from '#/api/system/user';
+import { getWechatJsSdkConfig } from '#/api/wechat';
+import { initWechatJssdk } from '#/utils/wechat-jssdk';
+import { applyWechatH5ShareCard } from '#/utils/wechat-share';
 
 type DataTabKey = 'bindings' | 'channels' | 'externalLogs' | 'scanLogs';
 
@@ -96,6 +99,7 @@ const bindingModalMode = ref<'create' | 'edit'>('create');
 const bindingSaving = ref(false);
 
 const bindingForm = reactive<{
+  customerAddress: string;
   customerName: string;
   externalUserId: string;
   id?: number;
@@ -105,6 +109,7 @@ const bindingForm = reactive<{
   scene: string;
   unionid: string;
 }>({
+  customerAddress: '',
   customerName: '',
   externalUserId: '',
   id: undefined,
@@ -142,6 +147,7 @@ const externalLogQuery = reactive<{
 const bindingColumns = [
   { dataIndex: 'customerName', title: '客户姓名', width: 120 },
   { dataIndex: 'phone', title: '手机号', width: 140 },
+  { dataIndex: 'customerAddress', title: '详细地址', width: 220 },
   { dataIndex: 'wechatIdentity', title: '微信标识', width: 180 },
   { dataIndex: 'externalUserId', title: '企微客户ID', width: 180 },
   { dataIndex: 'ownerSalesName', title: '归属销售', width: 140 },
@@ -156,6 +162,7 @@ const scanLogColumns = [
   { dataIndex: 'createTime', title: '扫码时间', width: 170 },
   { dataIndex: 'customerName', title: '客户姓名', width: 120 },
   { dataIndex: 'phone', title: '手机号', width: 140 },
+  { dataIndex: 'customerAddress', title: '详细地址', width: 220 },
   { dataIndex: 'wechatIdentity', title: '微信标识', width: 180 },
   { dataIndex: 'sourceName', title: '扫码来源', width: 110 },
   { dataIndex: 'channelName', title: '二维码渠道', width: 180 },
@@ -178,6 +185,7 @@ const channelColumns = [
 const externalLogColumns = [
   { dataIndex: 'customerName', title: '客户姓名', width: 120 },
   { dataIndex: 'phone', title: '手机号', width: 140 },
+  { dataIndex: 'customerAddress', title: '详细地址', width: 220 },
   { dataIndex: 'wechatIdentity', title: '微信标识', width: 180 },
   { dataIndex: 'externalUserId', title: '企微客户ID', width: 180 },
   { dataIndex: 'ownerSalesName', title: '归属销售', width: 140 },
@@ -256,6 +264,34 @@ const shareText = computed(() => {
     return slogan;
   }
   return `${slogan}\n点击授权领取专属服务：${linkUrl}`;
+});
+
+const shareTitle = computed(() => {
+  const salesName =
+    salesResult.value?.channel.salesName || currentSalesName.value;
+  return salesName ? `${salesName}邀请您了解瞰维智管` : '瞰维智管获客推广';
+});
+
+const shareDescription = computed(
+  () => '请进入授权页留下联系方式，我们的销售团队稍后联系您。',
+);
+
+const shareImageUrl = computed(
+  () => `${currentPublicOrigin.value}/assets/favicon.png`,
+);
+
+const isWechatBrowser = computed(() => {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+  return /MicroMessenger/i.test(navigator.userAgent);
+});
+
+const isMobileBrowser = computed(() => {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 });
 
 const qrcodeImageUrl = computed(() => inviteQrcode.value?.qrcode.dataUrl || '');
@@ -389,6 +425,10 @@ function displayExternalUserId(record: { externalUserId?: string }) {
   return maskIdentity(record.externalUserId) || '-';
 }
 
+function displayCustomerAddress(record: { customerAddress?: string }) {
+  return String(record.customerAddress || '').trim() || '-';
+}
+
 function displayCustomer(record: {
   customerName?: string;
   externalUserId?: string;
@@ -472,13 +512,104 @@ async function refreshSalesUserOptions(keyword = '') {
 async function copyText(value: string, label: string) {
   if (!value) {
     message.warning(`${label}为空`);
-    return;
+    return false;
   }
   try {
     await navigator.clipboard.writeText(value);
     message.success(`${label}已复制`);
+    return true;
   } catch {
     message.warning('浏览器不允许自动复制，请手动选中复制');
+    return false;
+  }
+}
+
+function getWechatShareSignUrl() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+  return window.location.href.split('#')[0] || window.location.href;
+}
+
+async function configureWechatShare() {
+  const link = crossChannelInviteUrl.value;
+  const signUrl = getWechatShareSignUrl();
+  if (!link || !signUrl) {
+    throw new Error('推广链接为空');
+  }
+
+  const config = await getWechatJsSdkConfig(signUrl, { debug: false });
+  const initResult = await initWechatJssdk(config, {
+    jsApiList: ['updateAppMessageShareData', 'updateTimelineShareData'],
+    timeoutMs: 5000,
+  });
+  if (!initResult.ok || !initResult.wx) {
+    throw new Error(initResult.message || '微信分享配置失败');
+  }
+
+  const applyResult = applyWechatH5ShareCard(initResult.wx, {
+    desc: shareDescription.value,
+    imgUrl: shareImageUrl.value,
+    link,
+    title: shareTitle.value,
+  });
+  if (!applyResult.ok) {
+    throw new Error(applyResult.message || '微信分享数据设置失败');
+  }
+}
+
+async function sharePromotionByWechat() {
+  const link = crossChannelInviteUrl.value;
+  if (!link) {
+    message.warning('请先生成推广链接');
+    return;
+  }
+
+  const navigatorWithShare = navigator as Navigator & {
+    share?: (data: {
+      text?: string;
+      title?: string;
+      url?: string;
+    }) => Promise<void>;
+  };
+  if (
+    !isWechatBrowser.value &&
+    isMobileBrowser.value &&
+    typeof navigatorWithShare.share === 'function'
+  ) {
+    try {
+      await navigatorWithShare.share({
+        text: shareDescription.value,
+        title: shareTitle.value,
+        url: link,
+      });
+      return;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
+      console.warn('[crm] web share failed:', error);
+    }
+  }
+
+  if (isWechatBrowser.value) {
+    try {
+      await configureWechatShare();
+      message.success('微信分享已准备好，请点击右上角转发给朋友或朋友圈');
+      return;
+    } catch (error) {
+      console.warn('[crm] wechat share config failed:', error);
+      const copied = await copyText(shareText.value, '微信分享文案');
+      if (copied) {
+        message.warning('微信分享配置失败，已复制推广文案');
+      }
+      return;
+    }
+  }
+
+  const copied = await copyText(shareText.value, '微信分享文案');
+  if (copied) {
+    message.info('PC端已复制微信分享文案，可粘贴到微信发送');
   }
 }
 
@@ -540,28 +671,6 @@ async function renderPromotionPoster() {
   } finally {
     posterRendering.value = false;
   }
-}
-
-async function ensurePromotionPoster() {
-  if (posterDataUrl.value) {
-    return posterDataUrl.value;
-  }
-  return await renderPromotionPoster();
-}
-
-async function downloadPromotionPoster() {
-  const imageUrl = (await ensurePromotionPoster()) || qrcodeImageUrl.value;
-  if (!imageUrl) {
-    message.warning('请先生成推广海报');
-    return;
-  }
-
-  const link = document.createElement('a');
-  link.href = imageUrl;
-  link.download = 'crm-promotion-poster.png';
-  document.body.append(link);
-  link.click();
-  link.remove();
 }
 
 async function refreshRuntimeInfo() {
@@ -770,6 +879,7 @@ async function handleSalesFilterChange() {
 
 function resetBindingForm() {
   bindingForm.id = undefined;
+  bindingForm.customerAddress = '';
   bindingForm.customerName = '';
   bindingForm.phone = '';
   bindingForm.openid = '';
@@ -793,6 +903,7 @@ function openCreateBindingModal() {
 function openEditBindingModal(record: CrmOwnerBinding) {
   bindingModalMode.value = 'edit';
   bindingForm.id = record.id;
+  bindingForm.customerAddress = record.customerAddress || '';
   bindingForm.customerName = record.customerName || '';
   bindingForm.phone = record.phone || '';
   bindingForm.openid = record.openid || '';
@@ -825,6 +936,7 @@ async function submitBindingForm() {
   }
 
   const payload = {
+    customerAddress: normalizeOptionalText(bindingForm.customerAddress),
     customerName: normalizeOptionalText(bindingForm.customerName),
     externalUserId: normalizeOptionalText(bindingForm.externalUserId),
     openid: normalizeOptionalText(openid),
@@ -1185,19 +1297,19 @@ function asSalesChannel(record: unknown) {
 
             <Space class="poster-actions" wrap>
               <Button
+                type="primary"
                 size="small"
-                :disabled="!qrcodeImageUrl || salesLoading"
-                @click="copyText(shareText, '推广文案')"
+                :disabled="!crossChannelInviteUrl || salesLoading"
+                @click="sharePromotionByWechat"
               >
-                复制推广文案
+                微信分享
               </Button>
               <Button
                 size="small"
-                :disabled="!qrcodeImageUrl || salesLoading"
-                :loading="posterRendering"
-                @click="downloadPromotionPoster"
+                :disabled="!crossChannelInviteUrl || salesLoading"
+                @click="copyText(crossChannelInviteUrl, '推广链接')"
               >
-                下载推广海报
+                复制链接
               </Button>
             </Space>
           </div>
@@ -1255,7 +1367,7 @@ function asSalesChannel(record: unknown) {
               :loading="bindingLoading"
               :locale="emptyTableLocale"
               :pagination="tablePagination(bindingTotal)"
-              :scroll="{ x: 1460, y: 460 }"
+              :scroll="{ x: 1680, y: 460 }"
               row-key="id"
               size="small"
             >
@@ -1265,6 +1377,9 @@ function asSalesChannel(record: unknown) {
                 </template>
                 <template v-else-if="column.dataIndex === 'phone'">
                   {{ maskPhone(record.phone) }}
+                </template>
+                <template v-else-if="column.dataIndex === 'customerAddress'">
+                  {{ displayCustomerAddress(record) }}
                 </template>
                 <template v-else-if="column.dataIndex === 'wechatIdentity'">
                   {{ displayWechatIdentity(record) }}
@@ -1397,7 +1512,7 @@ function asSalesChannel(record: unknown) {
               :loading="scanLogLoading"
               :locale="emptyTableLocale"
               :pagination="tablePagination(scanLogTotal)"
-              :scroll="{ x: 1420, y: 460 }"
+              :scroll="{ x: 1640, y: 460 }"
               row-key="id"
               size="small"
             >
@@ -1407,6 +1522,9 @@ function asSalesChannel(record: unknown) {
                 </template>
                 <template v-else-if="column.dataIndex === 'phone'">
                   {{ maskPhone(record.phone) }}
+                </template>
+                <template v-else-if="column.dataIndex === 'customerAddress'">
+                  {{ displayCustomerAddress(record) }}
                 </template>
                 <template v-else-if="column.dataIndex === 'wechatIdentity'">
                   {{ displayWechatIdentity(record) }}
@@ -1447,7 +1565,7 @@ function asSalesChannel(record: unknown) {
               :loading="externalLogLoading"
               :locale="emptyTableLocale"
               :pagination="tablePagination(externalLogTotal)"
-              :scroll="{ x: 1240, y: 460 }"
+              :scroll="{ x: 1460, y: 460 }"
               row-key="id"
               size="small"
             >
@@ -1457,6 +1575,9 @@ function asSalesChannel(record: unknown) {
                 </template>
                 <template v-else-if="column.dataIndex === 'phone'">
                   {{ maskPhone(record.phone) }}
+                </template>
+                <template v-else-if="column.dataIndex === 'customerAddress'">
+                  {{ displayCustomerAddress(record) }}
                 </template>
                 <template v-else-if="column.dataIndex === 'wechatIdentity'">
                   {{ displayWechatIdentity(record) }}
@@ -1504,6 +1625,8 @@ function asSalesChannel(record: unknown) {
                 <strong>{{ displayCustomerName(record) }}</strong>
                 <span>手机号</span>
                 <strong>{{ maskPhone(record.phone) }}</strong>
+                <span>详细地址</span>
+                <strong>{{ displayCustomerAddress(record) }}</strong>
                 <span>微信标识</span>
                 <strong>{{ displayWechatIdentity(record) }}</strong>
                 <span>企微ID</span>
@@ -1639,6 +1762,8 @@ function asSalesChannel(record: unknown) {
                 <strong>{{ displayCustomerName(record) }}</strong>
                 <span>手机号</span>
                 <strong>{{ maskPhone(record.phone) }}</strong>
+                <span>详细地址</span>
+                <strong>{{ displayCustomerAddress(record) }}</strong>
                 <span>微信标识</span>
                 <strong>{{ displayWechatIdentity(record) }}</strong>
                 <span>扫码时间</span>
@@ -1671,6 +1796,8 @@ function asSalesChannel(record: unknown) {
                 <strong>{{ displayCustomerName(record) }}</strong>
                 <span>手机号</span>
                 <strong>{{ maskPhone(record.phone) }}</strong>
+                <span>详细地址</span>
+                <strong>{{ displayCustomerAddress(record) }}</strong>
                 <span>微信标识</span>
                 <strong>{{ displayWechatIdentity(record) }}</strong>
                 <span>企微ID</span>
@@ -1747,6 +1874,17 @@ function asSalesChannel(record: unknown) {
               placeholder="请输入 11 位手机号"
             />
           </label>
+          <label class="field">
+            <span>详细地址</span>
+            <Input.TextArea
+              v-model:value="bindingForm.customerAddress"
+              :auto-size="{ minRows: 2, maxRows: 4 }"
+              :maxlength="255"
+              allow-clear
+              placeholder="请输入客户详细地址"
+              show-count
+            />
+          </label>
           <label v-if="isSuperUser" class="field">
             <span>归属销售</span>
             <Select
@@ -1794,7 +1932,8 @@ function asSalesChannel(record: unknown) {
             />
           </label>
           <p class="binding-form-note">
-            至少填写手机号、OpenID、UnionID 其中一项；该表当前没有详细地址字段。
+            至少填写手机号、OpenID、UnionID
+            其中一项；详细地址可由客户留资或后台维护。
           </p>
         </div>
       </Modal>
@@ -2346,8 +2485,8 @@ function asSalesChannel(record: unknown) {
 
   .poster-preview-frame {
     align-items: flex-start;
-    min-height: 260px;
-    max-height: min(50vh, 430px);
+    min-height: 210px;
+    max-height: min(42vh, 340px);
     padding: 8px;
     overflow: auto;
   }
@@ -2366,15 +2505,15 @@ function asSalesChannel(record: unknown) {
   }
 
   .promotion-poster {
-    width: min(100%, 320px);
+    width: min(100%, 280px);
     min-height: auto;
-    padding: 10px 8px 8px;
+    padding: 8px 7px 7px;
     border-radius: 8px;
   }
 
   .promotion-poster h3 {
-    margin-bottom: 8px;
-    font-size: 17px;
+    margin-bottom: 6px;
+    font-size: 15px;
   }
 
   .poster-pain-grid {
@@ -2383,75 +2522,75 @@ function asSalesChannel(record: unknown) {
   }
 
   .poster-pain-grid div {
-    min-height: 72px;
-    padding: 6px 5px;
+    min-height: 58px;
+    padding: 5px 4px;
   }
 
   .poster-pain-grid strong {
-    font-size: 11px;
-    line-height: 1.35;
+    font-size: 10px;
+    line-height: 1.25;
   }
 
   .poster-pain-grid span {
-    width: 30px;
-    height: 30px;
-    font-size: 11px;
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
   }
 
   .poster-arrow {
-    margin: 3px 0;
-    font-size: 20px;
+    margin: 2px 0;
+    font-size: 16px;
   }
 
   .poster-solution {
-    padding: 7px 6px;
-    font-size: 14px;
+    padding: 5px 6px;
+    font-size: 12px;
   }
 
   .poster-check-list {
-    gap: 5px;
-    padding: 8px 4px;
+    gap: 3px;
+    padding: 6px 4px;
   }
 
   .poster-check-list div {
-    min-height: 20px;
-    padding-left: 24px;
-    font-size: 11px;
-    line-height: 1.35;
+    min-height: 16px;
+    padding-left: 20px;
+    font-size: 9px;
+    line-height: 1.25;
   }
 
   .poster-check-list div::before {
-    width: 18px;
-    height: 18px;
-    font-size: 12px;
+    width: 14px;
+    height: 14px;
+    font-size: 10px;
   }
 
   .poster-footer {
-    grid-template-columns: minmax(0, 1fr) 68px;
-    gap: 6px;
-    min-height: 82px;
-    padding: 8px;
+    grid-template-columns: minmax(0, 1fr) 56px;
+    gap: 5px;
+    min-height: 66px;
+    padding: 6px;
   }
 
   .poster-footer strong {
-    margin-bottom: 3px;
-    font-size: 12px;
+    margin-bottom: 2px;
+    font-size: 10px;
   }
 
   .poster-footer span {
-    font-size: 10px;
-    line-height: 1.35;
+    font-size: 8px;
+    line-height: 1.25;
   }
 
   .poster-footer img {
-    width: 68px;
-    height: 68px;
-    padding: 4px;
+    width: 56px;
+    height: 56px;
+    padding: 3px;
   }
 
   .poster-mini-title {
-    margin-top: 5px;
-    font-size: 14px;
+    margin-top: 3px;
+    font-size: 11px;
   }
 
   .promotion-entry-panel {

@@ -5,8 +5,10 @@ export type AmountBillCollectionStatus =
   | 'unpaid';
 
 export interface AmountBillListSummary {
+  balanceDifference: number;
   billCount: number;
   invoiceTax: number;
+  isBalanced: boolean;
   overpaidAmount: number;
   receiptAmount: number;
   remainingAmount: number;
@@ -27,6 +29,31 @@ function toAmountNumber(value: unknown) {
 
 function roundAmount(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+export function getAmountBillSummaryBalanceDifference(summary: {
+  overpaidAmount?: unknown;
+  receiptAmount?: unknown;
+  remainingAmount?: unknown;
+  totalFee?: unknown;
+}) {
+  const totalFee = toAmountNumber(summary.totalFee);
+  const receiptAmount = toAmountNumber(summary.receiptAmount);
+  const remainingAmount = toAmountNumber(summary.remainingAmount);
+  const overpaidAmount = toAmountNumber(summary.overpaidAmount);
+
+  return roundAmount(
+    totalFee - (receiptAmount + remainingAmount - overpaidAmount),
+  );
+}
+
+export function isAmountBillSummaryBalanced(summary: {
+  overpaidAmount?: unknown;
+  receiptAmount?: unknown;
+  remainingAmount?: unknown;
+  totalFee?: unknown;
+}) {
+  return Math.abs(getAmountBillSummaryBalanceDifference(summary)) < 0.01;
 }
 
 export function getAmountBillCollectionStatus(bill: {
@@ -101,8 +128,10 @@ export function buildAmountBillListSummary(
   }>,
 ): AmountBillListSummary {
   const summary: AmountBillListSummary = {
+    balanceDifference: 0,
     billCount: 0,
     invoiceTax: 0,
+    isBalanced: true,
     overpaidAmount: 0,
     receiptAmount: 0,
     remainingAmount: 0,
@@ -118,12 +147,21 @@ export function buildAmountBillListSummary(
     summary.totalFee += toAmountNumber(item.totalFee);
   }
 
-  return {
+  const roundedSummary = {
     billCount: summary.billCount,
     invoiceTax: roundAmount(summary.invoiceTax),
     overpaidAmount: roundAmount(summary.overpaidAmount),
     receiptAmount: roundAmount(summary.receiptAmount),
     remainingAmount: roundAmount(summary.remainingAmount),
     totalFee: roundAmount(summary.totalFee),
+  };
+
+  const balanceDifference =
+    getAmountBillSummaryBalanceDifference(roundedSummary);
+
+  return {
+    ...roundedSummary,
+    balanceDifference,
+    isBalanced: Math.abs(balanceDifference) < 0.01,
   };
 }

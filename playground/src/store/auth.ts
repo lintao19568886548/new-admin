@@ -58,23 +58,28 @@ export const useAuthStore = defineStore('auth', () => {
     return currentPath;
   }
 
-  function clearSessionSnapshot(options: { keepLoginExpired?: boolean } = {}) {
+  function clearSessionSnapshot(
+    options: { keepAccessSnapshot?: boolean; keepLoginExpired?: boolean } = {},
+  ) {
     clearMembershipAccessWatch();
-    accessStore.setAccessCodes([]);
-    accessStore.setAccessMenus([]);
-    accessStore.setAccessRoutes([]);
-    accessStore.setIsAccessChecked(false);
+    if (!options.keepAccessSnapshot) {
+      accessStore.setAccessCodes([]);
+      accessStore.setAccessMenus([]);
+      accessStore.setAccessRoutes([]);
+      accessStore.setIsAccessChecked(false);
+      resetStaticRoutes(router, routes);
+    }
     if (!options.keepLoginExpired) {
       accessStore.setLoginExpired(false);
     }
     userStore.setUserInfo(null);
     menuStore.$reset();
-    resetStaticRoutes(router, routes);
   }
 
   function resetSessionState(
     options: {
       clearResumeContext?: boolean;
+      keepAccessSnapshot?: boolean;
       keepLoginExpired?: boolean;
       nextStatus?: SessionStatus;
     } = {},
@@ -88,6 +93,7 @@ export const useAuthStore = defineStore('auth', () => {
       sessionStatus.value = options.nextStatus;
     }
     clearSessionSnapshot({
+      keepAccessSnapshot: options.keepAccessSnapshot,
       keepLoginExpired: options.keepLoginExpired,
     });
   }
@@ -104,6 +110,7 @@ export const useAuthStore = defineStore('auth', () => {
     accessStore.setAccessToken(null);
     resetSessionState({
       clearResumeContext: false,
+      keepAccessSnapshot: true,
       keepLoginExpired: true,
       nextStatus: 'reauth_required',
     });
@@ -167,9 +174,14 @@ export const useAuthStore = defineStore('auth', () => {
       return null;
     }
 
+    const shouldRebuildAccess =
+      options.forceRebuildAccess ||
+      !accessStore.isAccessChecked ||
+      accessStore.accessMenus.length === 0;
+
     const [accessCodes, accessSnapshot] = await Promise.all([
       getAccessCodesApi(),
-      options.forceRebuildAccess || !accessStore.isAccessChecked
+      shouldRebuildAccess
         ? rebuildAccessSnapshot({
             accessToken: currentAccessToken,
             sessionVersion: currentSessionVersion,

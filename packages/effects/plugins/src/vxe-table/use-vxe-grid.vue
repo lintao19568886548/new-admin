@@ -31,6 +31,7 @@ import { $t } from '@vben/locales';
 import { usePreferences } from '@vben/preferences';
 import { cloneDeep, cn, mergeWithArrayOverride } from '@vben/utils';
 
+import { useSimpleLocale } from '@vben-core/composables';
 import { VbenHelpTooltip, VbenLoading } from '@vben-core/shadcn-ui';
 
 import { VxeButton } from 'vxe-pc-ui';
@@ -70,6 +71,7 @@ const {
 } = usePriorityValues(props, state);
 
 const { isMobile } = usePreferences();
+const { $t: simpleT } = useSimpleLocale();
 
 const slots: SetupContext['slots'] = useSlots();
 
@@ -93,7 +95,7 @@ const [Form, formApi] = useTableForm({
   },
   showCollapseButton: true,
   submitButtonOptions: {
-    content: computed(() => $t('common.search')),
+    content: computed(() => simpleT.value('search')),
   },
   wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
 });
@@ -118,7 +120,7 @@ const toolbarOptions = computed(() => {
     icon: 'vxe-icon-search',
     circle: true,
     status: showSearchForm.value ? 'primary' : undefined,
-    title: $t('common.search'),
+    title: simpleT.value('search'),
   };
   // 将搜索按钮合并到用户配置的toolbarConfig.tools中
   const toolbarConfig: VxeGridPropTypes.ToolbarConfig = {
@@ -363,7 +365,7 @@ onUnmounted(() => {
           class="ml-2"
           v-if="gridOptions?.toolbarConfig?.search && !!formOptions"
           :status="showSearchForm ? 'primary' : undefined"
-          :title="$t('common.search')"
+          :title="simpleT('search')"
           @click="onSearchBtnClick"
         />
       </template>

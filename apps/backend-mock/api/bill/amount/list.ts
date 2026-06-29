@@ -5,7 +5,8 @@ import {
 } from '~/utils/amount-bill-list-summary';
 import {
   compareAmountBillProjectDesc,
-  getSingleProjectMonthSortKey,
+  getAmountBillProjectSortKey,
+  isAmountBillProjectNameMatched,
 } from '~/utils/amount-bill-project-period';
 import { prismaClient } from '~/utils/db';
 
@@ -51,8 +52,12 @@ function getProjectMonthRange(startValue: unknown, endValue: unknown) {
   };
 }
 
-function isProjectMonthInRange(
-  projectName: unknown,
+function isBillInProjectMonthRange(
+  item: {
+    createTime?: Date | null;
+    projectName?: null | string;
+    receiptTime?: Date | null;
+  },
   range: null | {
     endKey: number;
     startKey: number;
@@ -62,7 +67,7 @@ function isProjectMonthInRange(
     return true;
   }
 
-  const monthKey = getSingleProjectMonthSortKey(projectName);
+  const monthKey = getAmountBillProjectSortKey(item);
   return (
     monthKey !== null && monthKey >= range.startKey && monthKey <= range.endKey
   );
@@ -95,12 +100,6 @@ export default eventHandler(async (event) => {
     if (parkId !== -1 && Number.isInteger(parkId) && parkId > 0) {
       where.parkId = parkId;
     }
-  }
-
-  if (projectName) {
-    where.projectName = {
-      contains: projectName,
-    };
   }
 
   if (tenantName) {
@@ -143,9 +142,11 @@ export default eventHandler(async (event) => {
   });
 
   const enrichedItems = result
+    .filter((item) => Number(item.totalFee || 0) > 0)
     .filter((item) =>
-      isProjectMonthInRange(item.projectName, projectMonthRange),
+      isAmountBillProjectNameMatched(item.projectName, projectName),
     )
+    .filter((item) => isBillInProjectMonthRange(item, projectMonthRange))
     .map((item) =>
       enrichAmountBillPaymentInfo({
         ...item,

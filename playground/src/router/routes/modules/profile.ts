@@ -10,15 +10,6 @@ const routes: RouteRecordRaw[] = [
     path: '/profile',
   },
   {
-    component: () => import('#/views/profile/vip-membership.vue'),
-    meta: {
-      hideMenu: true,
-      title: '会员服务',
-    },
-    name: 'ProfileVipMembership',
-    path: '/profile/vip-membership',
-  },
-  {
     component: () => import('#/views/profile/organization-invitations.vue'),
     meta: {
       hideMenu: true,

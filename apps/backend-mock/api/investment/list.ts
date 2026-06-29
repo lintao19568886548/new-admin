@@ -98,9 +98,7 @@ export default eventHandler(async (event) => {
           },
         },
       },
-      orderBy: {
-        meetingTime: 'desc',
-      },
+      orderBy: [{ meetingTime: 'desc' }, { investmentId: 'desc' }],
       skip: (page - 1) * size,
       take: size,
       where,

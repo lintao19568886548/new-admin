@@ -51,9 +51,11 @@ const currentUserRoles = computed(() => {
 });
 const canManageOrganizationInvitations = computed(
   () =>
-    currentUserRoles.value.includes('Super') &&
     Boolean(currentCustomerId.value) &&
     !['default', 'public'].includes(currentCustomerId.value),
+);
+const currentCenterUserId = computed(() =>
+  Number(userInfo.value?.centerUserId || userInfo.value?.id || 0),
 );
 
 const loading = ref(false);
@@ -140,7 +142,7 @@ function formatMaxUses(invitation: OrganizationInvitation) {
 
 function formatRoles(roleIds: number[]) {
   if (roleIds.length === 0) {
-    return '未配置角色';
+    return '默认成员角色';
   }
   return roleIds
     .map((roleId) => roleNameMap.value.get(Number(roleId)) || `#${roleId}`)
@@ -161,13 +163,15 @@ async function loadPageData() {
 
   loading.value = true;
   try {
-    const [invitationResult, roleResult] = await Promise.all([
-      listOrganizationInvitationsApi(),
-      getRoleList(),
-    ]);
-
+    const invitationResult = await listOrganizationInvitationsApi();
     invitations.value = invitationResult.items;
-    roles.value = flattenRoles(normalizeRoleResponse(roleResult));
+    try {
+      const roleResult = await getRoleList();
+      roles.value = flattenRoles(normalizeRoleResponse(roleResult));
+    } catch (error) {
+      console.warn('读取组织角色失败，创建邀请码将使用默认成员角色:', error);
+      roles.value = [];
+    }
     loaded.value = true;
   } catch (error) {
     console.error('读取企业邀请码数据失败:', error);
@@ -178,14 +182,10 @@ async function loadPageData() {
 }
 
 async function handleCreateInvitation() {
-  if (selectedRoleIds.value.length === 0) {
-    message.warning('请至少选择一个加入后角色');
-    return;
+  const payload: CreateOrganizationInvitationPayload = {};
+  if (selectedRoleIds.value.length > 0) {
+    payload.roleIds = selectedRoleIds.value;
   }
-
-  const payload: CreateOrganizationInvitationPayload = {
-    roleIds: selectedRoleIds.value,
-  };
   if (maxUses.value !== undefined && maxUses.value !== null) {
     payload.maxUses = Number(maxUses.value);
   }
@@ -228,6 +228,13 @@ async function copyText(text: string) {
 }
 
 function handleRevokeInvitation(invitation: OrganizationInvitation) {
+  const isCreator =
+    Number(invitation.createdByCenterUserId) === currentCenterUserId.value;
+  if (!currentUserRoles.value.includes('Super') && !isCreator) {
+    message.warning('只能撤销自己生成的邀请码');
+    return;
+  }
+
   Modal.confirm({
     cancelText: '取消',
     centered: true,
@@ -251,8 +258,43 @@ function handleRevokeInvitation(invitation: OrganizationInvitation) {
   });
 }
 
+function canRevokeInvitation(invitation: OrganizationInvitation) {
+  return (
+    currentUserRoles.value.includes('Super') ||
+    Number(invitation.createdByCenterUserId) === currentCenterUserId.value
+  );
+}
+
+function formatCreator(invitation: OrganizationInvitation) {
+  return (
+    invitation.createdBy?.name ||
+    invitation.createdBy?.username ||
+    `用户 #${invitation.createdByCenterUserId}`
+  );
+}
+
+function getJoinLogState(
+  log: NonNullable<OrganizationInvitation['joinLogs']>[number],
+) {
+  if (log.status === 'joined') {
+    return { color: 'success', label: '已加入' };
+  }
+  return { color: 'error', label: '失败' };
+}
+
+function formatJoinLogTime(
+  log: NonNullable<OrganizationInvitation['joinLogs']>[number],
+) {
+  return formatDate(log.joinedAt || log.updateTime || log.createTime);
+}
+
 function handleBack() {
-  void router.push({ name: 'Profile' });
+  if (window.history.length > 1) {
+    router.back();
+    return;
+  }
+
+  void router.push({ name: 'Workbench' });
 }
 
 watch(
@@ -275,7 +317,7 @@ watch(
         @click="handleBack"
       >
         <VbenIcon icon="mdi:arrow-left" />
-        返回个人中心
+        返回首页
       </button>
 
       <section class="organization-invite-hero">
@@ -295,12 +337,12 @@ watch(
       </section>
 
       <Card v-if="!canManageOrganizationInvitations" :bordered="false">
-        <Empty description="当前账号不能管理组织邀请码">
+        <Empty description="当前账号还不能生成组织邀请码">
           <template #image>
             <VbenIcon icon="mdi:shield-lock-outline" class="empty-icon" />
           </template>
           <p class="organization-invite-page__empty-desc">
-            只有组织空间内的 Super 角色账号可以创建、查看和撤销邀请码。
+            请先创建或加入内部团队，进入组织空间后即可生成和查看邀请码。
           </p>
         </Empty>
       </Card>
@@ -317,7 +359,7 @@ watch(
                   :options="roleOptions"
                   mode="multiple"
                   option-filter-prop="label"
-                  placeholder="请选择受邀用户加入后的角色"
+                  placeholder="可选；留空则使用默认成员角色"
                   show-search
                 />
               </label>
@@ -369,8 +411,7 @@ watch(
             <template #title>使用规则</template>
             <div class="organization-invite-rules">
               <p>
-                邀请码只属于当前组织空间，不会由支付建库自动生成，需要 Super
-                角色主动创建。
+                邀请码只属于当前组织空间，组织内登录用户均可生成；留空角色时使用默认成员角色。
               </p>
               <p>
                 受邀用户必须在公开库；加入成功后会吊销旧登录态，重新登录后进入组织空间。
@@ -410,7 +451,10 @@ watch(
                     复制
                   </Button>
                   <Button
-                    v-if="getInvitationState(invitation).status === 'active'"
+                    v-if="
+                      getInvitationState(invitation).status === 'active' &&
+                      canRevokeInvitation(invitation)
+                    "
                     :loading="revokingInvitationId === invitation.id"
                     danger
                     size="small"
@@ -425,6 +469,10 @@ watch(
                 <div>
                   <dt>角色</dt>
                   <dd>{{ formatRoles(invitation.roleIds) }}</dd>
+                </div>
+                <div>
+                  <dt>创建人</dt>
+                  <dd>{{ formatCreator(invitation) }}</dd>
                 </div>
                 <div>
                   <dt>使用次数</dt>
@@ -446,6 +494,41 @@ watch(
               >
                 {{ invitation.remark }}
               </p>
+
+              <div class="organization-invite-usage">
+                <div class="organization-invite-usage__head">
+                  <strong>使用记录</strong>
+                  <span>{{ invitation.joinLogs?.length || 0 }} 条</span>
+                </div>
+                <Empty
+                  v-if="!invitation.joinLogs?.length"
+                  description="暂无使用记录"
+                  :image="Empty.PRESENTED_IMAGE_SIMPLE"
+                />
+                <div v-else class="organization-invite-usage__list">
+                  <div
+                    v-for="log in invitation.joinLogs"
+                    :key="log.id"
+                    class="organization-invite-usage__item"
+                  >
+                    <div>
+                      <strong>{{ log.centerUserName }}</strong>
+                      <span>
+                        {{ log.centerUsername || `#${log.centerUserId}` }}
+                      </span>
+                    </div>
+                    <div>
+                      <Tag :color="getJoinLogState(log).color">
+                        {{ getJoinLogState(log).label }}
+                      </Tag>
+                      <span>{{ formatJoinLogTime(log) }}</span>
+                    </div>
+                    <p v-if="log.errorMessage">
+                      {{ log.errorMessage }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </article>
           </div>
         </Card>
@@ -674,6 +757,73 @@ watch(
   border-radius: 14px;
 }
 
+.organization-invite-usage {
+  padding: 14px;
+  margin-top: 14px;
+  background: rgb(255 255 255 / 70%);
+  border: 1px solid var(--invite-border);
+  border-radius: 16px;
+}
+
+.organization-invite-usage__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.organization-invite-usage__head strong {
+  color: var(--invite-text);
+}
+
+.organization-invite-usage__head span {
+  font-size: 12px;
+  color: var(--invite-muted);
+}
+
+.organization-invite-usage__list {
+  display: grid;
+  gap: 10px;
+}
+
+.organization-invite-usage__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  background: rgb(248 250 252 / 84%);
+  border-radius: 12px;
+}
+
+.organization-invite-usage__item > div {
+  min-width: 0;
+}
+
+.organization-invite-usage__item strong,
+.organization-invite-usage__item span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.organization-invite-usage__item span {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--invite-muted);
+}
+
+.organization-invite-usage__item > div:last-of-type {
+  text-align: right;
+}
+
+.organization-invite-usage__item p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #b42318;
+}
+
 .empty-icon {
   font-size: 72px;
   color: var(--invite-accent);
@@ -698,6 +848,14 @@ watch(
 
   .organization-invite-item__meta dd {
     white-space: normal;
+  }
+
+  .organization-invite-usage__item {
+    grid-template-columns: 1fr;
+  }
+
+  .organization-invite-usage__item > div:last-of-type {
+    text-align: left;
   }
 }
 </style>

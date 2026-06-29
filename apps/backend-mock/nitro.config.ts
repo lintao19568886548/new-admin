@@ -1,13 +1,36 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { config as loadDotenv } from 'dotenv';
+import { parse as parseDotenv } from 'dotenv';
 
 import errorHandler from './error';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
+const protectedEnvNames = new Set(
+  Object.entries(process.env)
+    .filter(([, value]) => String(value || '').trim())
+    .map(([name]) => name),
+);
 
-loadDotenv({ path: resolve(currentDir, '.env') });
+function loadBackendEnvFile(fileName: string) {
+  const envPath = resolve(currentDir, fileName);
+  if (!existsSync(envPath)) {
+    return;
+  }
+
+  const parsed = parseDotenv(readFileSync(envPath));
+  for (const [name, value] of Object.entries(parsed)) {
+    if (protectedEnvNames.has(name) || !value.trim()) {
+      continue;
+    }
+    process.env[name] = value;
+  }
+}
+
+loadBackendEnvFile('.env');
+loadBackendEnvFile('.env.dev');
+loadBackendEnvFile('.env.local');
 
 process.env.COMPATIBILITY_DATE = new Date().toISOString();
 export default defineNitroConfig({

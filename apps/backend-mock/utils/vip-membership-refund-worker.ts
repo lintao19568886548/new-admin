@@ -36,6 +36,30 @@ function isManualRefundWorkerEnabled() {
   );
 }
 
+function hasWechatPayRefundConfig() {
+  const hasPrivateKey = Boolean(
+    process.env.WECHAT_PAY_PRIVATE_KEY?.trim() ||
+    process.env.WECHAT_PAY_PRIVATE_KEY_PATH?.trim(),
+  );
+  const hasPublicKey =
+    !process.env.WECHAT_PAY_PUBLIC_KEY_ID?.trim() ||
+    Boolean(
+      process.env.WECHAT_PAY_PUBLIC_KEY?.trim() ||
+      process.env.WECHAT_PAY_PUBLIC_KEY_PATH?.trim(),
+    );
+
+  return Boolean(
+    (process.env.WECHAT_OPEN_APP_ID?.trim() ||
+      process.env.WECHAT_APP_ID?.trim()) &&
+    process.env.WECHAT_PAY_MERCHANT_ID?.trim() &&
+    process.env.WECHAT_PAY_API_V3_KEY?.trim() &&
+    process.env.WECHAT_PAY_CERT_SERIAL_NO?.trim() &&
+    process.env.WECHAT_PAY_NOTIFY_URL?.trim() &&
+    hasPrivateKey &&
+    hasPublicKey,
+  );
+}
+
 async function runRefundReconcileTick(state: { running: boolean }) {
   if (state.running) {
     return;
@@ -69,6 +93,12 @@ async function runManualRefundReconcileTick(state: { manualRunning: boolean }) {
 export function startVipMembershipRefundWorker() {
   if (!isRefundWorkerEnabled()) {
     console.info('[vip-membership-refund] worker disabled');
+    return;
+  }
+  if (!hasWechatPayRefundConfig()) {
+    console.info(
+      '[vip-membership-refund] worker disabled: wechat pay config missing',
+    );
     return;
   }
   if (globalForVipMembershipRefund.__vipMembershipRefundWorker) {

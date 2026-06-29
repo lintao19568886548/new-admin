@@ -1,11 +1,9 @@
-import type { PublicOpportunityRow } from '../utils/investment-radar/public-opportunity-lead-rebuilder';
+import type { PublicOpportunityRow } from '../utils/investment-radar/public-opportunity-lead-policy';
 
 import { prismaClient, prismaScopeStorage } from '../utils/db';
 import { buildExternalLeadEvidenceHash } from '../utils/investment-radar/lead-hash';
-import {
-  buildExternalLeadInputFromPublicOpportunityRow,
-  rebuildExternalLeadsFromPublicOpportunity,
-} from '../utils/investment-radar/public-opportunity-lead-rebuilder';
+import { buildExternalLeadInputFromPublicOpportunityRow } from '../utils/investment-radar/public-opportunity-lead-policy';
+import { rebuildExternalLeadsFromPublicOpportunity } from '../utils/investment-radar/public-opportunity-lead-rebuilder';
 import { refreshSignalEventsFromExternalLeads } from '../utils/investment-radar/signal-event-repository';
 
 type VerificationRecord = Record<string, unknown>;

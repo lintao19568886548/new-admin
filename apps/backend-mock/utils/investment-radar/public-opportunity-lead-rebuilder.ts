@@ -11,11 +11,6 @@ import {
 } from './external-lead-repository';
 import { buildExternalLeadInputFromPublicOpportunityRow } from './public-opportunity-lead-policy';
 
-export type {
-  PublicOpportunityLeadSkipReason,
-  PublicOpportunityRow,
-} from './public-opportunity-lead-policy';
-
 export interface PublicOpportunityLeadRebuildResult {
   createdLeadCount: number;
   evidenceCreatedCount: number;
@@ -45,8 +40,6 @@ function addSkipReason(
 ) {
   skipReasons[reason] += 1;
 }
-
-export { buildExternalLeadInputFromPublicOpportunityRow };
 
 export async function rebuildExternalLeadsFromPublicOpportunity(): Promise<PublicOpportunityLeadRebuildResult> {
   const rows = await prismaClient.$queryRawUnsafe<PublicOpportunityRow[]>(`

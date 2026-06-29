@@ -5,6 +5,9 @@ const BAILIAN_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 const DEFAULT_MODEL = 'qwen3.5-plus';
 const BAILIAN_KEY_NAME = 'ALIYUN_BAILIAN_KEY';
 const BAILIAN_KEY_CACHE_TTL_MS = 60_000;
+const BAILIAN_CHAT_TIMEOUT_MS = Number(
+  process.env.BAILIAN_CHAT_TIMEOUT_MS || 90_000,
+);
 
 type BailianMessageContentPart =
   | {
@@ -203,6 +206,7 @@ export async function requestBailianChat({
       headers: {
         Authorization: `Bearer ${apiKey}`,
       },
+      timeout: BAILIAN_CHAT_TIMEOUT_MS,
     },
   );
   return response.data;

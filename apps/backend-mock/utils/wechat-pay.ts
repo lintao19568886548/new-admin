@@ -4,12 +4,16 @@ import {
   createVerify,
   randomUUID,
 } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { dirname, isAbsolute, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const WECHAT_PAY_API_BASE_URL = 'https://api.mch.weixin.qq.com';
 const WECHAT_PAY_ACCEPT_LANGUAGE = 'zh-CN';
 const WECHAT_PAY_USER_AGENT = 'vben-admin-backend-mock/1.0';
 const WECHAT_PAY_CERT_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const BACKEND_MOCK_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 type HttpMethod = 'GET' | 'POST';
 
@@ -168,18 +172,104 @@ const platformCertificateCache: WechatPayPlatformCertificateCache = {
 
 let wechatPayConfigPromise: null | Promise<WechatPayConfig> = null;
 
-function getRequiredEnv(name: string) {
-  const value = process.env[name]?.trim();
+function readEnv(name: string) {
+  return process.env[name]?.trim() || '';
+}
+
+function hasAnyEnv(names: string[]) {
+  return names.some((name) => Boolean(readEnv(name)));
+}
+
+function resolveWechatPayFilePath(filePath: string) {
+  return isAbsolute(filePath) ? filePath : resolve(BACKEND_MOCK_DIR, filePath);
+}
+
+function resolveOptionalFileEnv(name: string) {
+  const value = readEnv(name);
   if (!value) {
-    throw new Error(`缺少微信支付环境变量 ${name}`);
+    return {
+      exists: false,
+      path: '',
+    };
+  }
+  const path = resolveWechatPayFilePath(value);
+  return {
+    exists: existsSync(path),
+    path,
+  };
+}
+
+function getRequiredEnv(name: string, aliases: string[] = []) {
+  const value = [name, ...aliases]
+    .map((envName) => readEnv(envName))
+    .find(Boolean);
+  if (!value) {
+    const names = [name, ...aliases].join(' / ');
+    throw new Error(`缺少微信支付环境变量 ${names}`);
   }
   return value;
 }
 
 export function getWechatPayAppPublicConfig() {
   return {
-    appId: getRequiredEnv('WECHAT_OPEN_APP_ID'),
+    appId: getRequiredEnv('WECHAT_OPEN_APP_ID', ['WECHAT_APP_ID']),
     mchId: getRequiredEnv('WECHAT_PAY_MERCHANT_ID'),
+  };
+}
+
+export function getWechatPayAppConfigStatus() {
+  const appId = readEnv('WECHAT_OPEN_APP_ID') || readEnv('WECHAT_APP_ID');
+  const mchId = readEnv('WECHAT_PAY_MERCHANT_ID');
+  const missing: string[] = [];
+
+  if (!appId) {
+    missing.push('WECHAT_OPEN_APP_ID / WECHAT_APP_ID');
+  }
+  if (!mchId) {
+    missing.push('WECHAT_PAY_MERCHANT_ID');
+  }
+  if (!readEnv('WECHAT_PAY_API_V3_KEY')) {
+    missing.push('WECHAT_PAY_API_V3_KEY');
+  }
+  if (!readEnv('WECHAT_PAY_CERT_SERIAL_NO')) {
+    missing.push('WECHAT_PAY_CERT_SERIAL_NO');
+  }
+  if (!readEnv('WECHAT_PAY_NOTIFY_URL')) {
+    missing.push('WECHAT_PAY_NOTIFY_URL');
+  }
+  if (
+    hasAnyEnv([
+      'WECHAT_PAY_PUBLIC_KEY',
+      'WECHAT_PAY_PUBLIC_KEY_ID',
+      'WECHAT_PAY_PUBLIC_KEY_PATH',
+    ]) &&
+    !readEnv('WECHAT_PAY_PUBLIC_KEY_ID')
+  ) {
+    missing.push('WECHAT_PAY_PUBLIC_KEY_ID');
+  }
+  if (
+    !readEnv('WECHAT_PAY_PUBLIC_KEY') &&
+    readEnv('WECHAT_PAY_PUBLIC_KEY_PATH') &&
+    !resolveOptionalFileEnv('WECHAT_PAY_PUBLIC_KEY_PATH').exists
+  ) {
+    missing.push('WECHAT_PAY_PUBLIC_KEY_PATH');
+  }
+  if (!hasAnyEnv(['WECHAT_PAY_PRIVATE_KEY', 'WECHAT_PAY_PRIVATE_KEY_PATH'])) {
+    missing.push('WECHAT_PAY_PRIVATE_KEY / WECHAT_PAY_PRIVATE_KEY_PATH');
+  }
+  if (
+    !readEnv('WECHAT_PAY_PRIVATE_KEY') &&
+    readEnv('WECHAT_PAY_PRIVATE_KEY_PATH') &&
+    !resolveOptionalFileEnv('WECHAT_PAY_PRIVATE_KEY_PATH').exists
+  ) {
+    missing.push('WECHAT_PAY_PRIVATE_KEY_PATH');
+  }
+
+  return {
+    appId,
+    configured: missing.length === 0,
+    mchId,
+    missing,
   };
 }
 
@@ -201,7 +291,10 @@ async function readWechatPayPrivateKey() {
     );
   }
 
-  const privateKey = await readFile(privateKeyPath, 'utf8');
+  const privateKey = await readFile(
+    resolveWechatPayFilePath(privateKeyPath),
+    'utf8',
+  );
   return normalizePem(privateKey);
 }
 
@@ -232,7 +325,9 @@ async function readWechatPayPublicKey() {
   }
 
   return {
-    publicKey: normalizePem(await readFile(publicKeyPath, 'utf8')),
+    publicKey: normalizePem(
+      await readFile(resolveWechatPayFilePath(publicKeyPath), 'utf8'),
+    ),
     publicKeyId,
   };
 }

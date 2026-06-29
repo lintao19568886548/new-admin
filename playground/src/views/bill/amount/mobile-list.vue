@@ -188,13 +188,31 @@ function getCollectionStatusLabel(item: AmountBill) {
 function normalizeBillListSummary(
   summary?: Partial<AmountBillListSummary>,
 ): AmountBillListSummary {
+  const totalFee = Number(summary?.totalFee || 0);
+  const receiptAmount = Number(summary?.receiptAmount || 0);
+  const remainingAmount = Number(summary?.remainingAmount || 0);
+  const overpaidAmount = Number(summary?.overpaidAmount || 0);
+  const fallbackBalanceDifference =
+    Math.round(
+      (totalFee - (receiptAmount + remainingAmount - overpaidAmount)) * 100,
+    ) / 100;
+  const balanceDifference =
+    summary?.balanceDifference === undefined
+      ? fallbackBalanceDifference
+      : Number(summary.balanceDifference || 0);
+
   return {
+    balanceDifference,
     billCount: Number(summary?.billCount || 0),
     invoiceTax: Number(summary?.invoiceTax || 0),
-    overpaidAmount: Number(summary?.overpaidAmount || 0),
-    receiptAmount: Number(summary?.receiptAmount || 0),
-    remainingAmount: Number(summary?.remainingAmount || 0),
-    totalFee: Number(summary?.totalFee || 0),
+    isBalanced:
+      typeof summary?.isBalanced === 'boolean'
+        ? summary.isBalanced
+        : Math.abs(balanceDifference) < 0.01,
+    overpaidAmount,
+    receiptAmount,
+    remainingAmount,
+    totalFee,
   };
 }
 

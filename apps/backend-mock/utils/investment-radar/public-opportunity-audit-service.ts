@@ -3,7 +3,6 @@ import type {
   AuditPreviewRow,
   AuditTypeCountRow,
   PublicOpportunityAuditCounts,
-  PublicOpportunityAuditPreviewItem,
   PublicOpportunityAuditTypeCounts,
 } from './public-opportunity-audit-rules';
 
@@ -30,12 +29,6 @@ import {
   buildStrictMaterializedEffectiveOpportunityWhereParams,
   buildStrictMaterializedEffectiveOpportunityWhereSql,
 } from './public-opportunity-effective-list-policy';
-
-export type {
-  PublicOpportunityAuditCounts,
-  PublicOpportunityAuditPreviewItem,
-  PublicOpportunityAuditTypeCounts,
-};
 
 const TARGET_LISTING_COUNT = 3000;
 const TARGET_DEMAND_COUNT = 3000;

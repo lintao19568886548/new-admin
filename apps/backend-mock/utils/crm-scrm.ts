@@ -13,6 +13,7 @@ export class CrmScmError extends Error {
 }
 
 export interface CrmIdentityInput {
+  customerAddress?: unknown;
   customerName?: unknown;
   openid?: unknown;
   phone?: unknown;
@@ -65,6 +66,7 @@ export interface TransferCrmOwnerBindingInput {
 }
 
 export interface CreateCrmOwnerBindingInput {
+  customerAddress?: unknown;
   customerName?: unknown;
   externalUserId?: unknown;
   firstChannelId?: unknown;
@@ -77,6 +79,7 @@ export interface CreateCrmOwnerBindingInput {
 }
 
 export interface UpdateCrmOwnerBindingInput {
+  customerAddress?: unknown;
   customerName?: unknown;
   externalUserId?: unknown;
   id?: unknown;
@@ -157,6 +160,7 @@ export function normalizeCrmPhone(value: unknown) {
 }
 
 export function normalizeCrmIdentity(input: CrmIdentityInput) {
+  const customerAddress = normalizeString(input.customerAddress, 255);
   const customerName = normalizeString(input.customerName, 50);
   const phone = normalizeCrmPhone(input.phone);
   const unionid = normalizeString(input.unionid, 128);
@@ -167,6 +171,7 @@ export function normalizeCrmIdentity(input: CrmIdentityInput) {
   }
 
   return {
+    customerAddress,
     customerName,
     openid,
     phone,
@@ -176,6 +181,7 @@ export function normalizeCrmIdentity(input: CrmIdentityInput) {
 
 export function normalizeOptionalCrmIdentity(input: CrmIdentityInput) {
   return {
+    customerAddress: normalizeString(input.customerAddress, 255),
     customerName: normalizeString(input.customerName, 50),
     openid: normalizeString(input.openid, 128),
     phone: normalizeCrmPhone(input.phone),
@@ -331,6 +337,7 @@ export function serializeCrmSalesChannel(channel: any) {
 export function serializeCrmOwnerBinding(binding: any) {
   return {
     createTime: serializeCrmDate(binding.createTime),
+    customerAddress: binding.customerAddress || '',
     customerName: binding.customerName || '',
     externalUserId: binding.externalUserId || '',
     firstChannelId: binding.firstChannelId ?? null,
@@ -370,6 +377,7 @@ export function serializeCrmScanLog(log: any) {
     bindingId: log.bindingId ?? null,
     channelId: log.channelId ?? null,
     createTime: serializeCrmDate(log.createTime),
+    customerAddress: log.customerAddress || '',
     customerName: log.customerName || '',
     id: Number(log.id),
     ip: log.ip || '',
@@ -469,6 +477,7 @@ function createCrmCustomerKeywordWhere(keyword: string) {
 
   return {
     OR: [
+      { customerAddress: { contains: keyword } },
       { customerName: { contains: keyword } },
       { externalUserId: { contains: keyword } },
       { openid: { contains: keyword } },
@@ -485,6 +494,7 @@ function createCrmScanLogKeywordWhere(keyword: string) {
 
   return {
     OR: [
+      { customerAddress: { contains: keyword } },
       { customerName: { contains: keyword } },
       { openid: { contains: keyword } },
       { phone: { contains: keyword } },
@@ -751,6 +761,7 @@ export async function listCrmExternalContactLogs(input: {
     bindingIds.length > 0
       ? await systemDbClient.crmCustomerOwnerBinding.findMany({
           select: {
+            customerAddress: true,
             customerName: true,
             externalUserId: true,
             firstChannelId: true,
@@ -784,6 +795,7 @@ export async function listCrmExternalContactLogs(input: {
       const user = userMap.get(Number(binding?.ownerSalesUserId || 0));
       return {
         ...serializeCrmExternalContactLog(log),
+        customerAddress: binding?.customerAddress || '',
         customerName: binding?.customerName || '',
         externalUserId: log.externalUserId || binding?.externalUserId || '',
         firstChannelName: channel?.channelName || '',
@@ -1197,6 +1209,7 @@ export async function createCrmOwnerBinding(input: CreateCrmOwnerBindingInput) {
     input.ownerSalesUserId,
     'ownerSalesUserId',
   );
+  const customerAddress = normalizeString(input.customerAddress, 255);
   const customerName = normalizeString(input.customerName, 50);
   const phone = normalizeCrmPhone(input.phone);
   const openid = normalizeString(input.openid, 128);
@@ -1237,6 +1250,7 @@ export async function createCrmOwnerBinding(input: CreateCrmOwnerBindingInput) {
   try {
     const created = await systemDbClient.crmCustomerOwnerBinding.create({
       data: {
+        customerAddress: customerAddress || null,
         customerName: customerName || null,
         externalUserId: externalUserId || null,
         firstChannelId: channel?.id ?? null,
@@ -1254,6 +1268,7 @@ export async function createCrmOwnerBinding(input: CreateCrmOwnerBindingInput) {
       bindingId: created.id,
       channelId: created.firstChannelId ?? null,
       identity: {
+        customerAddress,
         customerName,
         openid,
         phone,
@@ -1278,6 +1293,7 @@ export async function createCrmOwnerBinding(input: CreateCrmOwnerBindingInput) {
 
 async function findCrmBindingByIdentity(
   identity: {
+    customerAddress?: string;
     customerName?: string;
     openid: string;
     phone: string;
@@ -1314,6 +1330,7 @@ async function findCrmBindingByIdentity(
 
 export async function updateCrmOwnerBinding(input: UpdateCrmOwnerBindingInput) {
   const id = normalizePositiveInt(input.id, 'id');
+  const customerAddress = normalizeString(input.customerAddress, 255);
   const customerName = normalizeString(input.customerName, 50);
   const phone = normalizeCrmPhone(input.phone);
   const openid = normalizeString(input.openid, 128);
@@ -1347,6 +1364,7 @@ export async function updateCrmOwnerBinding(input: UpdateCrmOwnerBindingInput) {
   try {
     const updated = await systemDbClient.crmCustomerOwnerBinding.update({
       data: {
+        customerAddress: customerAddress || null,
         customerName: customerName || null,
         externalUserId: externalUserId || null,
         lastScanAt: new Date(),
@@ -1361,6 +1379,7 @@ export async function updateCrmOwnerBinding(input: UpdateCrmOwnerBindingInput) {
       bindingId: id,
       channelId: binding.firstChannelId ?? null,
       identity: {
+        customerAddress,
         customerName,
         openid,
         phone,
@@ -1401,6 +1420,7 @@ export async function deleteCrmOwnerBinding(input: DeleteCrmOwnerBindingInput) {
     bindingId: id,
     channelId: binding.firstChannelId ?? null,
     identity: {
+      customerAddress: binding.customerAddress || '',
       customerName: binding.customerName || '',
       openid: binding.openid || '',
       phone: binding.phone || '',
@@ -1429,6 +1449,7 @@ export async function deleteCrmOwnerBinding(input: DeleteCrmOwnerBindingInput) {
 function buildMissingIdentityUpdate(
   binding: any,
   identity: {
+    customerAddress?: string;
     customerName?: string;
     openid: string;
     phone: string;
@@ -1440,6 +1461,9 @@ function buildMissingIdentityUpdate(
   };
   if (identity.customerName && !binding.customerName) {
     data.customerName = identity.customerName;
+  }
+  if (identity.customerAddress && !binding.customerAddress) {
+    data.customerAddress = identity.customerAddress;
   }
   if (identity.phone && !binding.phone) {
     data.phone = identity.phone;
@@ -1456,6 +1480,7 @@ function buildMissingIdentityUpdate(
 async function updateCrmBindingLastScan(
   binding: any,
   identity: {
+    customerAddress?: string;
     customerName?: string;
     openid: string;
     phone: string;
@@ -1569,6 +1594,7 @@ export async function transferCrmOwnerBinding(
     bindingId: id,
     channelId: binding.firstChannelId ?? null,
     identity: {
+      customerAddress: binding.customerAddress || '',
       customerName: binding.customerName || '',
       openid: binding.openid || '',
       phone: binding.phone || '',
@@ -1624,6 +1650,7 @@ export async function updateCrmOwnerBindingStatus(
     bindingId: id,
     channelId: binding.firstChannelId ?? null,
     identity: {
+      customerAddress: binding.customerAddress || '',
       customerName: binding.customerName || '',
       openid: binding.openid || '',
       phone: binding.phone || '',
@@ -1649,6 +1676,7 @@ async function createCrmScanLog(input: {
   bindingId?: null | number;
   channelId?: null | number;
   identity: {
+    customerAddress?: string;
     customerName?: string;
     openid: string;
     phone: string;
@@ -1667,6 +1695,7 @@ async function createCrmScanLog(input: {
       data: {
         bindingId: input.bindingId ?? null,
         channelId: input.channelId ?? null,
+        customerAddress: input.identity.customerAddress || null,
         customerName: input.identity.customerName || null,
         ip: input.ip ? input.ip.slice(0, 64) : null,
         isFirstBind: input.isFirstBind,
@@ -1776,6 +1805,7 @@ export async function resolveCrmInvite(input: CrmInviteResolveInput) {
       try {
         binding = await systemDbClient.crmCustomerOwnerBinding.create({
           data: {
+            customerAddress: identity.customerAddress || null,
             customerName: identity.customerName || null,
             externalUserId: null,
             firstChannelId: channel.id,
@@ -1809,6 +1839,8 @@ export async function resolveCrmInvite(input: CrmInviteResolveInput) {
     channelId: channel.id,
     identity: {
       ...identity,
+      customerAddress:
+        identity.customerAddress || binding.customerAddress || '',
       customerName: identity.customerName || binding.customerName || '',
     },
     ip,

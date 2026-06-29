@@ -17,6 +17,12 @@ import { useMenuStore } from '#/store/menu';
 
 const forbiddenComponent = () => import('#/views/_core/fallback/forbidden.vue');
 const I18N_KEY_PATTERN = /^[a-z][\w-]*(?:\.[\w-]+)+$/i;
+const MENU_LOAD_MAX_ATTEMPTS = 3;
+const MENU_LOAD_RETRY_DELAY = 300;
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
 
 function translateText(value: unknown) {
   if (typeof value !== 'string' || !I18N_KEY_PATTERN.test(value)) {
@@ -60,31 +66,56 @@ async function generateAccess(options: GenerateMenuAndRoutesOptions) {
     IFrameView,
   };
 
-  return await generateAccessible(preferences.app.accessMode, {
-    ...options,
-    fetchMenuListAsync: async () => {
-      // 检查当前路由是否是打印页面
-      const currentPath = window.location.pathname;
-      const isPrintPage = currentPath.includes('/bill/print/');
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MENU_LOAD_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const accessSnapshot = await generateAccessible(
+        preferences.app.accessMode,
+        {
+          ...options,
+          fetchMenuListAsync: async () => {
+            const currentPath = window.location.pathname;
+            const isPrintPage = currentPath.includes('/bill/print/');
 
-      // 如果不是打印页面，才显示加载提示
-      if (!isPrintPage) {
-        message.loading({
-          content: `${$t('common.loadingMenu')}...`,
-          duration: 0.5,
-        });
+            if (!isPrintPage && attempt === 1) {
+              message.loading({
+                content: `${$t('common.loadingMenu')}...`,
+                duration: 0.5,
+              });
+            }
+
+            const menuStore = useMenuStore();
+            const menus = translateRouteTitles(await getAllMenusApi());
+            menuStore.setMenus(menus);
+            return menus;
+          },
+          forbiddenComponent,
+          layoutMap,
+          pageMap,
+        },
+      );
+
+      if (
+        preferences.app.accessMode !== 'backend' ||
+        accessSnapshot.accessibleMenus.length > 0 ||
+        accessSnapshot.accessibleRoutes.length > 0
+      ) {
+        return accessSnapshot;
       }
-      const menuStore = useMenuStore();
-      const menus = translateRouteTitles(await getAllMenusApi());
-      menuStore.setMenus(menus);
-      return menus;
-    },
-    // 可以指定没有权限跳转403页面
-    forbiddenComponent,
-    // 如果 route.meta.menuVisibleWithForbidden = true
-    layoutMap,
-    pageMap,
-  });
+
+      lastError = new Error('Backend menu access snapshot is empty.');
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (attempt < MENU_LOAD_MAX_ATTEMPTS) {
+      await delay(MENU_LOAD_RETRY_DELAY * attempt);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('Failed to generate backend menu access snapshot.');
 }
 
 export { generateAccess };

@@ -127,6 +127,20 @@ const enableShortcutKey = computed(() => {
   return props.enableShortcutKey && preferences.shortcutKeys.enable;
 });
 
+const fallbackMessages: Record<string, string> = {
+  'common.cancel': '取消',
+  'common.confirm': '确认',
+  'common.logout': '退出登录',
+  'common.prompt': '提示',
+  'ui.widgets.lockScreen.title': '锁定屏幕',
+  'ui.widgets.logoutTip': '是否退出登录？',
+};
+
+function tText(key: string) {
+  const translated = $t(key);
+  return translated === key ? fallbackMessages[key] || key : translated;
+}
+
 function handleOpenLock() {
   lockModalApi.open();
 }
@@ -172,16 +186,16 @@ if (enableShortcutKey.value) {
   />
 
   <LogoutModal
-    :cancel-text="$t('common.cancel')"
-    :confirm-text="$t('common.confirm')"
+    :cancel-text="tText('common.cancel')"
+    :confirm-text="tText('common.confirm')"
     :fullscreen-button="false"
-    :title="$t('common.prompt')"
+    :title="tText('common.prompt')"
     centered
     content-class="px-8 min-h-10"
     footer-class="border-none mb-3 mr-3"
     header-class="border-none"
   >
-    {{ $t('ui.widgets.logoutTip') }}
+    {{ tText('ui.widgets.logoutTip') }}
   </LogoutModal>
 
   <DropdownMenu v-model:open="openPopover">
@@ -236,7 +250,7 @@ if (enableShortcutKey.value) {
           @click="handleOpenLock"
         >
           <LockKeyhole class="mr-2 size-4" />
-          {{ $t('ui.widgets.lockScreen.title') }}
+          {{ tText('ui.widgets.lockScreen.title') }}
           <DropdownMenuShortcut v-if="enableLockScreenShortcutKey">
             {{ altView }} L
           </DropdownMenuShortcut>
@@ -247,7 +261,7 @@ if (enableShortcutKey.value) {
           @click="handleLogout"
         >
           <LogOut class="mr-2 size-4" />
-          {{ $t('common.logout') }}
+          {{ tText('common.logout') }}
           <DropdownMenuShortcut v-if="enableLogoutShortcutKey">
             {{ altView }} Q
           </DropdownMenuShortcut>

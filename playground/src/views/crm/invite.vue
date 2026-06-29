@@ -4,7 +4,7 @@ import type { ResolveCrmInviteResponse } from '#/api/crm';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
-import { message, Spin } from 'ant-design-vue';
+import { Input, message, Spin } from 'ant-design-vue';
 
 import { resolveCrmInviteApi } from '#/api/crm';
 import { isWechatBrowser } from '#/utils/wechat-jssdk';
@@ -44,6 +44,8 @@ const loading = ref(false);
 const result = ref<null | ResolveCrmInviteResponse>(null);
 const errorMessage = ref('');
 const oauthError = ref('');
+const customerAddress = ref('');
+const customerName = ref('');
 const phone = ref('');
 const openid = ref('');
 const unionid = ref('');
@@ -77,6 +79,10 @@ const hasBoundCustomer = computed(() => Boolean(result.value?.binding));
 
 const fallbackChannelName = computed(
   () => result.value?.channel.channelName || '',
+);
+
+const canFillLeadForm = computed(() =>
+  Boolean(phone.value || openid.value || unionid.value),
 );
 
 function getQueryValue(name: string) {
@@ -122,26 +128,28 @@ async function resolveInvite(options: { silent?: boolean } = {}) {
   }
 
   const payload = {
-    customerName: getQueryValue('customerName'),
+    customerAddress:
+      customerAddress.value.trim() || getQueryValue('customerAddress'),
+    customerName: customerName.value.trim() || getQueryValue('customerName'),
     openid: openid.value || getQueryValue('openid'),
     phone: normalizePhone(phone.value || getQueryValue('phone')),
     scene: scene.value,
     source: getQueryValue('source') || 'h5',
     unionid: unionid.value || getQueryValue('unionid'),
   };
+  customerAddress.value = payload.customerAddress;
+  customerName.value = payload.customerName;
   phone.value = payload.phone;
 
   if (
     !options.silent &&
-    !payload.phone &&
-    !payload.openid &&
-    !payload.unionid
+    (!payload.customerName || !payload.phone || !payload.customerAddress)
   ) {
-    errorMessage.value = '请返回扫码入口，在微信内打开链接并完成授权';
+    errorMessage.value = '请填写姓名、手机号和详细地址';
     return;
   }
   if (!options.silent && payload.phone && !/^\d{11}$/.test(payload.phone)) {
-    errorMessage.value = '授权信息异常，请重新扫码授权';
+    errorMessage.value = '请输入正确的 11 位手机号';
     return;
   }
 
@@ -174,6 +182,8 @@ const OAUTH_ERROR_MESSAGES: Record<string, string> = {
 
 async function initializeInvitePage() {
   isWechat.value = isWechatBrowser();
+  customerAddress.value = getQueryValue('customerAddress');
+  customerName.value = getQueryValue('customerName');
   phone.value = getQueryValue('phone');
   openid.value = getQueryValue('openid');
   unionid.value = getQueryValue('unionid');
@@ -188,9 +198,7 @@ async function initializeInvitePage() {
     return;
   }
 
-  const hasIdentity = !!(phone.value || openid.value || unionid.value);
-  if (hasIdentity) {
-    await resolveInvite({ silent: false });
+  if (canFillLeadForm.value) {
     return;
   }
 
@@ -267,6 +275,10 @@ onMounted(() => {
                 <span>手机号</span>
                 <strong>{{ maskPhone(result.binding?.phone) || '-' }}</strong>
               </div>
+              <div class="owner-card-wide">
+                <span>详细地址</span>
+                <strong>{{ result.binding?.customerAddress || '-' }}</strong>
+              </div>
               <div>
                 <span>微信标识</span>
                 <strong>
@@ -302,7 +314,7 @@ onMounted(() => {
 
             <h2>授权领取专属服务</h2>
             <p class="subtext">
-              授权后系统自动锁定专属顾问，无需手动填写信息。
+              请留下您的联系方式，以便我们的销售团队联系到您，感谢您的支持，我们稍后联系您
             </p>
             <div v-if="ownerName || fallbackChannelName" class="lead-preview">
               <div v-if="ownerName">
@@ -316,7 +328,7 @@ onMounted(() => {
             </div>
 
             <!-- 微信内：优先用 H5 OAuth（公众号授权），无需跳转小程序 -->
-            <template v-if="isWechat">
+            <template v-if="isWechat && !openid && !unionid">
               <button
                 class="primary-link button-link"
                 :disabled="!scene"
@@ -333,8 +345,51 @@ onMounted(() => {
               </p>
             </template>
 
+            <form
+              v-if="canFillLeadForm"
+              class="lead-form"
+              @submit.prevent="resolveInvite()"
+            >
+              <label>
+                <span>姓名</span>
+                <Input
+                  v-model:value="customerName"
+                  allow-clear
+                  placeholder="请输入您的姓名"
+                />
+              </label>
+              <label>
+                <span>手机号</span>
+                <Input
+                  v-model:value="phone"
+                  allow-clear
+                  inputmode="tel"
+                  :maxlength="11"
+                  placeholder="请输入 11 位手机号"
+                />
+              </label>
+              <label>
+                <span>详细地址</span>
+                <Input.TextArea
+                  v-model:value="customerAddress"
+                  :auto-size="{ minRows: 2, maxRows: 4 }"
+                  :maxlength="255"
+                  allow-clear
+                  placeholder="请输入详细地址"
+                  show-count
+                />
+              </label>
+              <button
+                class="primary-link button-link"
+                :disabled="!scene || loading"
+                type="submit"
+              >
+                提交信息
+              </button>
+            </form>
+
             <!-- 非微信环境：保留 H5 链接，提示用户用微信打开后走 OAuth -->
-            <template v-else>
+            <template v-if="!isWechat && !canFillLeadForm">
               <p class="helper-text">
                 当前不在微信内，请将链接复制到微信后打开，或使用微信扫描推广海报二维码。
               </p>
@@ -562,6 +617,10 @@ h2 {
   min-width: 0;
 }
 
+.owner-card-wide {
+  grid-column: 1 / -1;
+}
+
 .owner-card span {
   font-size: 12px;
   color: #6b7788;
@@ -614,6 +673,23 @@ h2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 16px;
+}
+
+.lead-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.lead-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.lead-form label > span {
+  font-size: 13px;
+  font-weight: 600;
+  color: #314159;
 }
 
 .primary-link,

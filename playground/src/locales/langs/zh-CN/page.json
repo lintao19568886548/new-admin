@@ -20,6 +20,7 @@
     "edit": "修改中介人",
     "intentArea": "意向面积",
     "intentLevel": "意向程度",
+    "item": "中介人",
     "noImages": "暂无图片",
     "level": {
       "high": "高",
@@ -50,6 +51,7 @@
     "changePassword": "修改密码",
     "codeLogin": "验证码登录",
     "codeSentTo": "验证码已发送至{0}",
+    "debugCodeLabel": "调试验证码",
     "confirmPassword": "确认密码",
     "forgetPassword": "忘记密码",
     "login": "登录",
@@ -66,12 +68,16 @@
     "passwordStrength": "密码强度",
     "qrcodeLogin": "二维码登录",
     "register": "注册",
+    "sendCodeFailed": "验证码发送失败",
     "sendingCode": "正在发送验证码"
   },
   "bill": {
     "amount": {
+      "createBill": "创建总账单",
       "detail": "账单详情",
+      "editBill": "编辑总账单",
       "mobileTitle": "总账单管理",
+      "nextBill": "新增下月总账单",
       "printSettingsTitle": "打印设置"
     },
     "create": "新增账单",

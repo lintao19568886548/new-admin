@@ -1,8 +1,6 @@
 import { prismaClient } from '~/utils/db';
-import {
-  checkContactRestriction,
-  normalizeContactPhone,
-} from '~/utils/investment-radar/contact-restriction-service';
+import { normalizeContactPhone } from '~/utils/investment-radar/contact-restriction-policy';
+import { checkContactRestriction } from '~/utils/investment-radar/contact-restriction-service';
 import { ensureOutreachTaskTable } from '~/utils/investment-radar/outreach-action-service';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 import {

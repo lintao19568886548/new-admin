@@ -32,7 +32,9 @@ export interface CreateWechatAppPrepayResponse {
 
 export interface WechatPayAppConfig {
   appId: string;
+  configured?: boolean;
   mchId: string;
+  missing?: string[];
 }
 
 export type OrganizationProvisioningStatusValue =
