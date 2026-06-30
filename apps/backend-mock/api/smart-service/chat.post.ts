@@ -2,6 +2,7 @@ import type { H3Event } from 'h3';
 import type { BailianChatMessage } from '~/utils/bailian';
 
 import { requestBailianChatStream } from '~/utils/bailian';
+import { findSmartServicePresetReply } from '~/utils/smart-service-knowledge';
 
 type ClientChatRole = 'assistant' | 'system' | 'user';
 
@@ -72,6 +73,38 @@ function writeSseDone(event: H3Event) {
   event.node.res.write('data: [DONE]\n\n');
 }
 
+function getLatestUserQuestion(messages: BailianChatMessage[]) {
+  const latestUserMessage = messages.findLast(
+    (message) => message.role === 'user',
+  );
+  return typeof latestUserMessage?.content === 'string'
+    ? latestUserMessage.content
+    : '';
+}
+
+async function writePresetReplyStream(
+  event: H3Event,
+  answer: string,
+  signal: AbortSignal,
+) {
+  const chunks = answer.match(/[\s\S]{1,18}/g) || [];
+  for (const chunk of chunks) {
+    if (signal.aborted || event.node.res.writableEnded) {
+      return;
+    }
+    writeSseData(event, {
+      choices: [
+        {
+          delta: {
+            content: chunk,
+          },
+        },
+      ],
+    });
+    await new Promise((resolve) => setTimeout(resolve, 18));
+  }
+}
+
 export default eventHandler(async (event) => {
   const body = ((await readBody(event).catch(() => ({}))) ||
     {}) as SmartServiceChatBody;
@@ -100,6 +133,16 @@ export default eventHandler(async (event) => {
         type: 'bad_request',
       },
     });
+    writeSseDone(event);
+    event.node.res.end();
+    return;
+  }
+
+  const presetReply = findSmartServicePresetReply(
+    getLatestUserQuestion(messages),
+  );
+  if (presetReply) {
+    await writePresetReplyStream(event, presetReply.answer, controller.signal);
     writeSseDone(event);
     event.node.res.end();
     return;
