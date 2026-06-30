@@ -107,8 +107,8 @@ const MOBILE_ROUTE_TARGETS_BY_NAME = {
     targetNames: ['InvestmentRadarMobileSignalEvents'],
   },
   MeterList: {
-    path: '/rental/reading/mobile',
-    targetNames: ['ReadingMobile'],
+    path: '/smart-meter/reading/mobile',
+    targetNames: ['SmartMeterReadingMobile'],
   },
   Notices: { path: '/notices/mobile', targetNames: ['NoticesMobile'] },
   ReimbursementApplication: {
@@ -127,6 +127,14 @@ const MOBILE_ROUTE_TARGETS_BY_NAME = {
     path: '/rental/settled/mobile',
     targetNames: ['SettledFactoryMobile'],
   },
+  SmartMeterElectricReading: {
+    path: '/smart-meter/reading/mobile',
+    targetNames: ['SmartMeterReadingMobile'],
+  },
+  SmartMeterWaterReading: {
+    path: '/smart-meter/reading/mobile',
+    targetNames: ['SmartMeterReadingMobile'],
+  },
   SystemPark: {
     path: '/system/park/mobile',
     targetNames: ['SystemParkMobile', 'RentalManageMobile'],
@@ -144,8 +152,8 @@ const MOBILE_ROUTE_TARGETS_BY_NAME = {
     targetNames: ['VisitorMobileList'],
   },
   WaterList: {
-    path: '/rental/reading/mobile',
-    targetNames: ['ReadingMobile'],
+    path: '/smart-meter/reading/mobile',
+    targetNames: ['SmartMeterReadingMobile'],
   },
   Workspace: { path: '/workbench', targetNames: ['Workbench'] },
 } satisfies Record<string, MobileRouteTarget>;
@@ -190,6 +198,8 @@ const MOBILE_ROUTE_TARGETS_BY_PATH: Record<string, MobileRouteTarget> = {
   '/rental/settled': MOBILE_ROUTE_TARGETS_BY_NAME.SettledFactory,
   '/rental/tenant': MOBILE_ROUTE_TARGETS_BY_NAME.TenantManage,
   '/rental/water': MOBILE_ROUTE_TARGETS_BY_NAME.WaterList,
+  '/smart-meter/meter': MOBILE_ROUTE_TARGETS_BY_NAME.SmartMeterElectricReading,
+  '/smart-meter/water': MOBILE_ROUTE_TARGETS_BY_NAME.SmartMeterWaterReading,
   '/system/park': MOBILE_ROUTE_TARGETS_BY_NAME.SystemPark,
   '/workspace': MOBILE_ROUTE_TARGETS_BY_NAME.Workspace,
   '/investment/radar-factory-listings':

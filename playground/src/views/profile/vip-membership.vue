@@ -30,7 +30,6 @@ import { loadWechatPayAppConfig } from '#/utils/wechat-pay-app-config';
 
 defineOptions({ name: 'VipMembershipPage' });
 
-const MEMBERSHIP_AMOUNT_FEN = 98_000;
 const PAY_MESSAGE_KEY = 'vip-membership-pay';
 const ORDER_PENDING_STATES = new Set(['NOTPAY', 'USERPAYING']);
 const ORGANIZATION_PROVISIONING_PENDING_STATES = new Set([
@@ -47,35 +46,75 @@ const ORGANIZATION_PROVISIONING_PAYMENT_BLOCKED_STATES = new Set([
   ...ORGANIZATION_PROVISIONING_FAILED_STATES,
 ]);
 
-const membershipPlan = {
+type MembershipPlanId = 'monthly' | 'quarterly' | 'yearly';
+
+interface MembershipPlan {
+  badge: string;
+  durationMonths: number;
+  id: MembershipPlanId;
+  name: string;
+  originalPrice: number;
+  period: string;
+  price: number;
+  savings: number;
+}
+
+const defaultMembershipPlan: MembershipPlan = {
+  badge: '月付',
+  durationMonths: 1,
+  id: 'monthly',
   name: '组织会员月度服务',
   originalPrice: 1280,
   period: '月',
-  price: MEMBERSHIP_AMOUNT_FEN / 100,
+  price: 980,
   savings: 300,
 };
+const membershipPlans: MembershipPlan[] = [
+  defaultMembershipPlan,
+  {
+    badge: '季付',
+    durationMonths: 3,
+    id: 'quarterly',
+    name: '组织会员季度服务',
+    originalPrice: 3840,
+    period: '季',
+    price: 2580,
+    savings: 1260,
+  },
+  {
+    badge: '年付',
+    durationMonths: 12,
+    id: 'yearly',
+    name: '组织会员年度服务',
+    originalPrice: 15_360,
+    period: '年',
+    price: 9800,
+    savings: 5560,
+  },
+];
 const RESTRICTED_PAGE_LABEL = '租赁管理、人员信息';
 
-const benefitItems = [
+const invitationFlowItems = [
   {
-    description: '组织会员有效期内，组织成员可使用对应定位能力。',
-    icon: 'mdi:map-marker-radius-outline',
-    title: '定位服务',
+    description: '只有进入已开通的独立组织空间后，才能生成组织邀请码。',
+    icon: 'mdi:ticket-confirmation-outline',
+    title: '开通后生成',
   },
   {
-    description: '开放组织招商相关能力入口。',
-    icon: 'mdi:radar',
-    title: '招商雷达',
+    description: '成员填写邀请码后，会被切到同一个 customerId/dbName。',
+    icon: 'mdi:account-switch-outline',
+    title: '成员切入组织',
   },
   {
-    description: '支付完成后自动返回当前页面。',
-    icon: 'mdi:flash-outline',
-    title: '结果回页',
+    description:
+      '进入同一组织空间后共享团队数据，具体可见范围继续受角色权限控制。',
+    icon: 'mdi:shield-account-outline',
+    title: '按角色授权',
   },
   {
-    description: '保留最近订单号，便于付款排查。',
-    icon: 'mdi:receipt-text-outline',
-    title: '订单可追踪',
+    description: '邀请码列表、使用次数和加入记录在邀请中心统一管理。',
+    icon: 'mdi:clipboard-list-outline',
+    title: '邀请可追踪',
   },
 ] as const;
 
@@ -110,6 +149,7 @@ interface SourceOrganizationState {
 }
 
 type MembershipCheckoutResult = 'failed' | 'ready' | 'syncing' | 'unknown';
+type OrganizationWorkflowStepStatus = 'current' | 'done' | 'pending';
 
 interface CheckoutResultModalView {
   description: string;
@@ -178,6 +218,7 @@ const organizationInvitationCode = ref('');
 const organizationInvitationTouched = ref(false);
 const organizationJoinLoading = ref(false);
 const payLoading = ref(false);
+const selectedMembershipPlanId = ref<MembershipPlanId>('yearly');
 const wechatConfigLoading = ref(false);
 const latestPaymentState = ref<MembershipPaymentState | null>(null);
 const latestOrganizationProvisioningStatus =
@@ -191,6 +232,13 @@ const wechatPayConfigured = ref(false);
 const wechatPayMissingConfig = ref<string[]>([]);
 
 const userInfo = computed(() => userStore.userInfo);
+const membershipPlan = computed(() => {
+  return (
+    membershipPlans.find(
+      (plan) => plan.id === selectedMembershipPlanId.value,
+    ) || defaultMembershipPlan
+  );
+});
 const membershipAccessState = computed(() =>
   resolveMembershipAccessState(
     userInfo.value as null | Record<string, unknown> | undefined,
@@ -204,6 +252,14 @@ const currentCustomerId = computed(() =>
     ? userInfo.value.customerId.trim()
     : '',
 );
+const isPublicTrialCustomer = computed(
+  () => currentCustomerId.value === 'public',
+);
+const isDedicatedOrganizationSpace = computed(
+  () =>
+    Boolean(currentCustomerId.value) &&
+    !['default', 'public'].includes(currentCustomerId.value),
+);
 const customerCompanyShortName = computed(() => {
   const record = userInfo.value as Record<string, unknown> | undefined;
   return record
@@ -215,11 +271,6 @@ const customerName = computed(() => {
   const record = userInfo.value as Record<string, unknown> | undefined;
   return record ? readStringField(record, ['customerName'])?.value || '' : '';
 });
-const backButtonLabel = computed(() =>
-  membershipAccessState.value.accessRestricted
-    ? '前往租赁管理'
-    : '返回个人中心',
-);
 const latestPaymentStatusLabel = computed(() => {
   if (!latestPaymentState.value) {
     return '暂无支付记录';
@@ -252,7 +303,9 @@ const postPaymentMembershipExpireLabel = computed(() => {
       ? currentExpireAt
       : now;
 
-  return `预计至 ${formatMembershipExpireAt(addMonths(baseTime, 1).toISOString())}`;
+  return `预计至 ${formatMembershipExpireAt(
+    addMonths(baseTime, membershipPlan.value.durationMonths).toISOString(),
+  )}`;
 });
 const profileOrganizationProvisioningState =
   computed<null | ProfileOrganizationProvisioningState>(() =>
@@ -318,6 +371,74 @@ const canSetupSourceOrganization = computed(
     canCreateSourceOrganization.value ||
     canSaveSourceOrganizationIdentity.value,
 );
+const organizationPaymentPrerequisiteReady = computed(
+  () =>
+    !isPublicTrialCustomer.value ||
+    (Boolean(sourceOrganizationState.value) &&
+      sourceOrganizationIdentityComplete.value),
+);
+const showOrganizationSetupSection = computed(
+  () =>
+    isPublicTrialCustomer.value ||
+    Boolean(sourceOrganizationState.value) ||
+    isDedicatedOrganizationSpace.value,
+);
+const canOpenOrganizationInvitationCenter = computed(
+  () => isDedicatedOrganizationSpace.value,
+);
+const organizationWorkflowSteps = computed<
+  Array<{
+    description: string;
+    status: OrganizationWorkflowStepStatus;
+    title: string;
+  }>
+>(() => {
+  const hasCreatedTeam =
+    Boolean(sourceOrganizationState.value) ||
+    isDedicatedOrganizationSpace.value;
+  const provisioningStatus = profileOrganizationProvisioningState.value?.status;
+  const organizationOpening =
+    Boolean(provisioningStatus) &&
+    ORGANIZATION_PROVISIONING_PENDING_STATES.has(String(provisioningStatus));
+  const organizationOpened = isDedicatedOrganizationSpace.value;
+  const teamStepDescription = hasCreatedTeam
+    ? '团队 owner 和组织信息已登记。'
+    : '填写城市和公司简称，先免费建立团队锚点。';
+  let organizationStepDescription = '团队创建后再开通组织会员。';
+  let organizationStepStatus: OrganizationWorkflowStepStatus = 'pending';
+
+  if (organizationOpened) {
+    organizationStepDescription = '已进入独立组织空间，业务数据按团队隔离。';
+    organizationStepStatus = 'done';
+  } else if (organizationOpening) {
+    organizationStepDescription = '后台正在创建独立 customerId/dbName。';
+    organizationStepStatus = 'current';
+  } else if (hasCreatedTeam) {
+    organizationStepDescription =
+      '支付后创建独立 customerId/dbName 并切换账号归属。';
+    organizationStepStatus = 'current';
+  }
+
+  return [
+    {
+      description: teamStepDescription,
+      status: hasCreatedTeam ? 'done' : 'current',
+      title: '免费创建团队',
+    },
+    {
+      description: organizationStepDescription,
+      status: organizationStepStatus,
+      title: '开通独立组织空间',
+    },
+    {
+      description: organizationOpened
+        ? '可生成邀请码，邀请成员进入同一组织空间。'
+        : '组织空间开通完成后才能生成邀请码。',
+      status: organizationOpened ? 'current' : 'pending',
+      title: '生成邀请码',
+    },
+  ];
+});
 const membershipScopeName = computed(() => {
   const companyShortName = (
     requiresOrganizationIdentity.value
@@ -459,6 +580,12 @@ const payButtonText = computed(() => {
     return '正在处理支付...';
   }
 
+  if (!organizationPaymentPrerequisiteReady.value) {
+    return canSaveSourceOrganizationIdentity.value
+      ? '先保存组织信息'
+      : '先免费创建团队';
+  }
+
   if (wechatConfigLoading.value) {
     return '正在读取支付配置...';
   }
@@ -489,7 +616,7 @@ const payButtonText = computed(() => {
     return '填写组织信息';
   }
 
-  return `微信支付 ¥${membershipPlan.price}`;
+  return `微信支付 ¥${membershipPlan.value.price}`;
 });
 const payButtonDisabled = computed(
   () =>
@@ -497,6 +624,7 @@ const payButtonDisabled = computed(
     wechatConfigLoading.value ||
     organizationCreateLoading.value ||
     organizationProvisioningPaymentBlocked.value ||
+    !organizationPaymentPrerequisiteReady.value ||
     sourceOrganizationConflict.value ||
     !sourceOrganizationPaymentAllowed.value ||
     !organizationIdentityReady.value ||
@@ -504,6 +632,12 @@ const payButtonDisabled = computed(
     !appPaySupported.value,
 );
 const paymentAgreementHint = computed(() => {
+  if (!organizationPaymentPrerequisiteReady.value) {
+    return canSaveSourceOrganizationIdentity.value
+      ? '请先保存团队城市和公司简称，再开通独立组织空间。'
+      : '请先免费创建团队，创建完成后再开通组织会员。';
+  }
+
   if (wechatPayConfigError.value) {
     return wechatPayConfigError.value;
   }
@@ -882,20 +1016,6 @@ function resolveSourceOrganizationState(
   };
 }
 
-function handleGoBack() {
-  if (
-    !membershipAccessState.value.accessRestricted &&
-    window.history.length > 1
-  ) {
-    router.back();
-    return;
-  }
-
-  void router.push(
-    membershipAccessState.value.accessRestricted ? '/system/park' : '/profile',
-  );
-}
-
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -1264,6 +1384,10 @@ function handleOpenRefundOrders() {
   void router.push('/profile/vip-refunds');
 }
 
+function handleOpenOrganizationInvitations() {
+  void router.push('/profile/organization-invitations');
+}
+
 async function refreshOrganizationProvisioningStatus(
   checkoutFlowToken?: string,
 ) {
@@ -1372,12 +1496,14 @@ async function handleWechatPay() {
   });
 
   try {
+    const selectedPlan = membershipPlan.value;
     const execution = await payWithWechatApp({
-      amount: MEMBERSHIP_AMOUNT_FEN,
+      amount: selectedPlan.price * 100,
       attach: 'vip-membership',
-      description: `${membershipScopeName.value} 组织会员月度服务`,
+      description: `${membershipScopeName.value} ${selectedPlan.name}`,
       deviceId: 'vip-membership-page',
       organizationIdentity: resolveOrganizationIdentityPayload(),
+      planId: selectedPlan.id,
     });
 
     currentOutTradeNo = execution.launchParams.outTradeNo;
@@ -1501,11 +1627,6 @@ onMounted(() => {
 <template>
   <div class="vip-pay-page">
     <div class="vip-pay-page__shell">
-      <button class="vip-pay-page__back" type="button" @click="handleGoBack">
-        <VbenIcon icon="mdi:arrow-left" class="size-4" />
-        <span>{{ backButtonLabel }}</span>
-      </button>
-
       <section v-if="membershipGateNotice" class="pay-alert">
         <div>
           <p class="pay-head__eyebrow">{{ membershipGateNotice.eyebrow }}</p>
@@ -1521,17 +1642,18 @@ onMounted(() => {
       </section>
 
       <section
-        v-if="requiresOrganizationIdentity || canJoinExistingOrganization"
+        v-if="showOrganizationSetupSection"
         ref="organizationSetupRef"
         class="organization-setup-card"
         tabindex="-1"
       >
         <div class="organization-setup-card__head">
           <div>
-            <p class="pay-card__eyebrow">Organization</p>
-            <h2>组织空间</h2>
+            <p class="pay-card__eyebrow">Step 1</p>
+            <h2>免费创建内部团队</h2>
             <p>
-              新账号可以先创建自己的组织空间，或通过管理员的邀请码加入已有组织。
+              先登记团队
+              owner、城市和公司简称；付款只用于后续开通独立组织空间和数据隔离。
             </p>
           </div>
           <Tag v-if="sourceOrganizationState" color="processing">
@@ -1541,6 +1663,21 @@ onMounted(() => {
           </Tag>
         </div>
 
+        <div class="organization-flow-steps">
+          <div
+            v-for="(step, index) in organizationWorkflowSteps"
+            :key="step.title"
+            class="organization-flow-step"
+            :class="`organization-flow-step--${step.status}`"
+          >
+            <span>{{ index + 1 }}</span>
+            <div>
+              <strong>{{ step.title }}</strong>
+              <p>{{ step.description }}</p>
+            </div>
+          </div>
+        </div>
+
         <div class="organization-setup-card__grid">
           <article
             v-if="requiresOrganizationIdentity"
@@ -1548,14 +1685,12 @@ onMounted(() => {
           >
             <div>
               <h3>
-                {{
-                  canCreateSourceOrganization ? '创建组织空间' : '补全组织信息'
-                }}
+                {{ canCreateSourceOrganization ? '创建团队' : '补全团队信息' }}
               </h3>
               <p>
                 {{
                   canCreateSourceOrganization
-                    ? '创建后可继续开通会员，组织成员后续通过邀请码加入。'
+                    ? '这一步免费，只创建组织锚点，还不会产生独立租户库。'
                     : '补全后可由组织所有者开通或续费组织会员。'
                 }}
               </p>
@@ -1593,10 +1728,54 @@ onMounted(() => {
               @click="handleCreateSourceOrganization"
             >
               {{
-                canCreateSourceOrganization
-                  ? '免费创建组织空间'
-                  : '保存组织信息'
+                canCreateSourceOrganization ? '免费创建团队' : '保存组织信息'
               }}
+            </Button>
+          </article>
+
+          <article
+            v-else-if="sourceOrganizationState"
+            class="organization-identity-card organization-status-card"
+          >
+            <div>
+              <h3>团队已创建</h3>
+              <p>
+                当前团队已完成 owner
+                和组织信息登记。下一步开通组织会员后，系统会创建独立
+                customerId/dbName。
+              </p>
+            </div>
+            <dl class="organization-status-card__meta">
+              <div>
+                <dt>团队名称</dt>
+                <dd>{{ sourceOrganizationState.name }}</dd>
+              </div>
+              <div>
+                <dt>公司简称</dt>
+                <dd>{{ sourceOrganizationState.companyShortName || '-' }}</dd>
+              </div>
+              <div>
+                <dt>所在城市</dt>
+                <dd>{{ sourceOrganizationState.city || '-' }}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article
+            v-else-if="isDedicatedOrganizationSpace"
+            class="organization-identity-card organization-status-card"
+          >
+            <div>
+              <h3>独立组织空间已开通</h3>
+              <p>当前账号已进入专属组织空间，业务数据会按当前团队隔离。</p>
+            </div>
+            <Button
+              v-if="canOpenOrganizationInvitationCenter"
+              block
+              type="primary"
+              @click="handleOpenOrganizationInvitations"
+            >
+              生成邀请码
             </Button>
           </article>
 
@@ -1640,19 +1819,35 @@ onMounted(() => {
 
       <section class="pay-head">
         <div class="pay-head__intro">
-          <p class="pay-head__eyebrow">Membership Checkout</p>
-          <h1>开通组织会员服务</h1>
+          <p class="pay-head__eyebrow">Step 2</p>
+          <h1>开通独立组织空间</h1>
           <p class="pay-head__description">
-            为
-            {{ membershipScopeName }}
-            开通组织月度会员后，组织成员可使用定位服务、招商雷达等会员专属能力。
+            团队创建完成后再开通组织会员。支付成功后后台会创建独立
+            customerId/dbName，并把团队 owner 切入同一组织空间。
           </p>
         </div>
 
         <div class="pay-head__price-card">
           <div class="pay-head__tags">
             <Tag color="processing">Android App</Tag>
-            <Tag color="gold">月度方案</Tag>
+            <Tag color="gold">{{ membershipPlan.badge }}方案</Tag>
+          </div>
+          <div class="membership-plan-options">
+            <button
+              v-for="plan in membershipPlans"
+              :key="plan.id"
+              class="membership-plan-option"
+              :class="{
+                'membership-plan-option--active':
+                  selectedMembershipPlanId === plan.id,
+              }"
+              type="button"
+              @click="selectedMembershipPlanId = plan.id"
+            >
+              <span>{{ plan.badge }}</span>
+              <strong>¥{{ plan.price }}</strong>
+              <small>立省 ¥{{ plan.savings }}</small>
+            </button>
           </div>
           <div class="pay-head__amount">
             <span class="pay-head__currency">¥</span>
@@ -1672,15 +1867,15 @@ onMounted(() => {
           <section class="pay-card">
             <div class="pay-card__head">
               <div>
-                <p class="pay-card__eyebrow">Benefits</p>
-                <h2>组织会员权益</h2>
+                <p class="pay-card__eyebrow">Step 3</p>
+                <h2>生成邀请码邀请成员</h2>
               </div>
-              <span class="pay-card__hint">支付前可查看</span>
+              <span class="pay-card__hint">开通后可用</span>
             </div>
 
             <div class="benefit-grid">
               <article
-                v-for="item in benefitItems"
+                v-for="item in invitationFlowItems"
                 :key="item.title"
                 class="benefit-card"
               >
@@ -1701,14 +1896,14 @@ onMounted(() => {
           >
             <div class="order-card__head">
               <div>
-                <p class="pay-card__eyebrow">Order</p>
-                <h2>订单摘要</h2>
+                <p class="pay-card__eyebrow">Checkout</p>
+                <h2>开通组织会员</h2>
               </div>
               <Tag :color="orderStatusTag.color">{{ orderStatusTag.text }}</Tag>
             </div>
 
             <div class="order-card__account">
-              <span>开通组织</span>
+              <span>目标组织空间</span>
               <strong>{{ membershipScopeName }}</strong>
             </div>
 
@@ -1730,7 +1925,7 @@ onMounted(() => {
               </div>
               <div class="order-card__row">
                 <span>计费周期</span>
-                <span>1 {{ membershipPlan.period }}</span>
+                <span>{{ membershipPlan.durationMonths }} 个月</span>
               </div>
               <div class="order-card__row">
                 <span>支付方式</span>
@@ -1836,7 +2031,7 @@ onMounted(() => {
         :loading="payLoading"
         @click="requestWechatPay({ scrollToPayment: true })"
       >
-        {{ payLoading ? '处理中...' : '微信支付' }}
+        {{ payButtonText }}
       </Button>
     </div>
 
@@ -1914,17 +2109,6 @@ onMounted(() => {
 .vip-pay-page__shell {
   width: min(1240px, 100%);
   margin: 0 auto;
-}
-
-.vip-pay-page__back {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 14px;
-  color: var(--vip-text);
-  cursor: pointer;
-  background: transparent;
-  border: 0;
 }
 
 .pay-alert {
@@ -2027,6 +2211,46 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.membership-plan-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.membership-plan-option {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid var(--vip-border);
+  border-radius: 12px;
+}
+
+.membership-plan-option span {
+  font-size: 12px;
+  color: var(--vip-text-soft);
+}
+
+.membership-plan-option strong {
+  font-size: 18px;
+  line-height: 1.1;
+  color: var(--vip-text);
+}
+
+.membership-plan-option small {
+  font-size: 11px;
+  color: var(--vip-warning);
+  overflow-wrap: anywhere;
+}
+
+.membership-plan-option--active {
+  background: var(--vip-accent-soft);
+  border-color: rgb(23 100 255 / 34%);
 }
 
 .pay-head__amount {
@@ -2336,6 +2560,76 @@ onMounted(() => {
   color: var(--vip-text-soft);
 }
 
+.organization-flow-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.organization-flow-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 14px;
+  background: var(--vip-card-muted);
+  border: 1px solid var(--vip-border);
+  border-radius: 14px;
+}
+
+.organization-flow-step > span {
+  display: grid;
+  flex: 0 0 28px;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 999px;
+}
+
+.organization-flow-step > div {
+  min-width: 0;
+}
+
+.organization-flow-step strong {
+  display: block;
+  font-size: 14px;
+  color: var(--vip-text);
+}
+
+.organization-flow-step p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--vip-text-soft);
+}
+
+.organization-flow-step--done {
+  background: rgb(17 132 91 / 8%);
+  border-color: rgb(17 132 91 / 20%);
+}
+
+.organization-flow-step--done > span {
+  color: #fff;
+  background: var(--vip-success);
+}
+
+.organization-flow-step--current {
+  background: var(--vip-accent-soft);
+  border-color: rgb(23 100 255 / 24%);
+}
+
+.organization-flow-step--current > span {
+  color: #fff;
+  background: var(--vip-accent);
+}
+
+.organization-flow-step--pending > span {
+  color: var(--vip-text-soft);
+  background: rgb(15 23 42 / 8%);
+}
+
 .organization-setup-card__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2366,6 +2660,35 @@ onMounted(() => {
   font-size: 13px;
   line-height: 1.6;
   color: var(--vip-text-soft);
+}
+
+.organization-status-card__meta {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.organization-status-card__meta > div {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.organization-status-card__meta dt {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--vip-text-soft);
+}
+
+.organization-status-card__meta dd {
+  min-width: 0;
+  margin: 0;
+  font-weight: 700;
+  color: var(--vip-text);
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .organization-identity-card__fields {
@@ -2526,6 +2849,8 @@ onMounted(() => {
   }
 
   .organization-setup-card__grid,
+  .organization-flow-steps,
+  .membership-plan-options,
   .organization-identity-card__fields {
     grid-template-columns: 1fr;
   }
@@ -2555,6 +2880,14 @@ onMounted(() => {
 
   .mobile-checkout-bar {
     display: flex;
+  }
+
+  .mobile-checkout-bar :deep(.ant-btn) {
+    flex: 0 0 auto;
+    max-width: 54%;
+    height: auto;
+    min-height: 40px;
+    white-space: normal;
   }
 }
 

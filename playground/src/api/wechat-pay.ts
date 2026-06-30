@@ -22,6 +22,7 @@ export interface CreateWechatAppPrepayParams {
     companyShortName: string;
   };
   outTradeNo?: string;
+  planId?: 'monthly' | 'quarterly' | 'yearly';
 }
 
 export interface CreateWechatAppPrepayResponse {

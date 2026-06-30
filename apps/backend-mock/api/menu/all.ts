@@ -183,6 +183,89 @@ const BILL_ROUTE_MENUS = [
   },
 ] as const;
 
+const SMART_METER_ROUTE_MENU = {
+  authCode: null,
+  children: [
+    {
+      authCode: 'smart-meter:electric-reading',
+      component: '/smart-meter/meter/list',
+      meta: {
+        icon: 'mdi:flash',
+        title: '电表抄表数据',
+      },
+      name: 'SmartMeterElectricReading',
+      path: '/smart-meter/meter',
+      type: 'menu',
+    },
+    {
+      authCode: 'smart-meter:water-reading',
+      component: '/smart-meter/water/list',
+      meta: {
+        icon: 'mdi:water',
+        title: '水表抄表数据',
+      },
+      name: 'SmartMeterWaterReading',
+      path: '/smart-meter/water',
+      type: 'menu',
+    },
+    {
+      authCode: 'smart-meter:electric-brand',
+      component: '/smart-meter/brand/electric',
+      meta: {
+        icon: 'mdi:flash-triangle',
+        title: '电表品牌管理',
+      },
+      name: 'ElectricMeterBrand',
+      path: '/smart-meter/electric-brand',
+      type: 'menu',
+    },
+    {
+      authCode: 'smart-meter:water-brand',
+      component: '/smart-meter/brand/water',
+      meta: {
+        icon: 'mdi:water-check',
+        title: '水表品牌管理',
+      },
+      name: 'WaterMeterBrand',
+      path: '/smart-meter/water-brand',
+      type: 'menu',
+    },
+  ],
+  component: '',
+  meta: {
+    icon: 'mdi:gauge',
+    order: -1,
+    title: '智能抄表',
+  },
+  name: 'SmartMeter',
+  path: '/smart-meter',
+  type: 'catalog',
+} as const;
+
+const MAINTENANCE_REPAIR_ORDER_ROUTE_MENU = {
+  authCode: 'maintenance:repair-order',
+  component: '/maintenance/repair-order/list',
+  meta: {
+    icon: 'mdi:clipboard-text-clock',
+    title: '报修工单',
+  },
+  name: 'RepairOrder',
+  path: '/maintenance/repair-order',
+  type: 'menu',
+} as const;
+
+const ACCESS_BRAND_ROUTE_MENU = {
+  authCode: 'access:brand',
+  component: '/access/brand/list',
+  meta: {
+    icon: 'carbon:badge',
+    title: '门禁品牌管理',
+  },
+  name: 'AccessBrand',
+  path: '/access/brand',
+  type: 'menu',
+} as const;
+
 const LOCAL_AGENT_ROUTE_MENUS = [
   {
     authCode: null,
@@ -375,21 +458,21 @@ const MOBILE_COMPATIBILITY_ROUTE_MENUS = [
   },
   {
     route: {
-      authCode: 'rental:reading-mobile',
-      component: '/rental/reading/mobile',
+      authCode: 'smart-meter:reading-mobile',
+      component: '/smart-meter/reading/mobile',
       meta: {
-        activePath: '/rental/reading/mobile',
+        activePath: '/smart-meter/reading/mobile',
         hideInMenu: true,
         icon: 'mdi:cellphone-text',
         title: '水电表抄表数据',
       },
-      name: 'ReadingMobile',
-      path: '/rental/reading/mobile',
+      name: 'SmartMeterReadingMobile',
+      path: '/smart-meter/reading/mobile',
       type: 'menu',
     },
     sources: [
-      { name: 'MeterList', path: '/rental/meter' },
-      { name: 'WaterList', path: '/rental/water' },
+      { name: 'SmartMeterElectricReading', path: '/smart-meter/meter' },
+      { name: 'SmartMeterWaterReading', path: '/smart-meter/water' },
     ],
   },
   {
@@ -814,6 +897,119 @@ function normalizeSystemChildMenuPlacement(menus: any[]): any[] {
   });
 }
 
+function isLegacyRentalMeterMenu(menu: any) {
+  const component = normalizeMenuPath(menu?.component);
+  const path = normalizeMenuPath(menu?.path);
+  const activePath = normalizeMenuPath(menu?.meta?.activePath);
+  const authCode = String(menu?.authCode || '');
+  const name = String(menu?.name || '');
+
+  return (
+    isRouteMenu(menu, { name: 'MeterList', path: '/rental/meter' }) ||
+    isRouteMenu(menu, { name: 'WaterList', path: '/rental/water' }) ||
+    isRouteMenu(menu, {
+      name: 'ReadingMobile',
+      path: '/rental/reading/mobile',
+    }) ||
+    path.startsWith('/rental/meter') ||
+    path.startsWith('/rental/water') ||
+    path.startsWith('/rental/reading') ||
+    activePath.startsWith('/rental/meter') ||
+    activePath.startsWith('/rental/water') ||
+    activePath.startsWith('/rental/reading') ||
+    component.startsWith('/rental/meter') ||
+    component.startsWith('/rental/water') ||
+    component.startsWith('/rental/reading') ||
+    name === 'MeterList' ||
+    name === 'WaterList' ||
+    name === 'ReadingMobile' ||
+    authCode === 'rental:meter' ||
+    authCode === 'rental:water' ||
+    authCode === 'rental:reading-mobile'
+  );
+}
+
+function removeLegacyRentalMeterMenus(menus: any[]): any[] {
+  const result: any[] = [];
+
+  for (const menu of menus) {
+    if (isLegacyRentalMeterMenu(menu)) {
+      continue;
+    }
+
+    const children = Array.isArray(menu?.children)
+      ? removeLegacyRentalMeterMenus(menu.children)
+      : undefined;
+
+    result.push({
+      ...menu,
+      ...(children ? { children } : {}),
+    });
+  }
+
+  return result;
+}
+
+function ensureSmartMeterMenu(menus: any[]) {
+  const normalizedMenus = removeLegacyRentalMeterMenus(menus);
+
+  const smartMeterIndex = normalizedMenus.findIndex((menu) =>
+    isRouteMenu(menu, { name: 'SmartMeter', path: '/smart-meter' }),
+  );
+
+  if (smartMeterIndex === -1) {
+    return appendRouteMenus(normalizedMenus, [SMART_METER_ROUTE_MENU]);
+  }
+
+  const smartMeterMenu = normalizedMenus[smartMeterIndex];
+  const existingChildren = Array.isArray(smartMeterMenu.children)
+    ? removeLegacyRentalMeterMenus(smartMeterMenu.children)
+    : [];
+  const nextMenus = [...normalizedMenus];
+  nextMenus[smartMeterIndex] = {
+    ...smartMeterMenu,
+    children: appendRouteMenus(
+      existingChildren,
+      SMART_METER_ROUTE_MENU.children,
+    ),
+  };
+  return nextMenus;
+}
+
+function ensureRepairOrderMenu(menus: any[]) {
+  return menus.map((menu) => {
+    if (
+      isRouteMenu(menu, { name: 'Maintenance', path: '/maintenance' }) &&
+      Array.isArray(menu.children)
+    ) {
+      return {
+        ...menu,
+        children: appendRouteMenus(menu.children, [
+          MAINTENANCE_REPAIR_ORDER_ROUTE_MENU,
+        ]),
+      };
+    }
+
+    return menu;
+  });
+}
+
+function ensureAccessBrandMenu(menus: any[]) {
+  return menus.map((menu) => {
+    if (
+      isRouteMenu(menu, { name: 'Access', path: '/access' }) &&
+      Array.isArray(menu.children)
+    ) {
+      return {
+        ...menu,
+        children: appendRouteMenus(menu.children, [ACCESS_BRAND_ROUTE_MENU]),
+      };
+    }
+
+    return menu;
+  });
+}
+
 function isAgentWorkbenchMenu(menu: any) {
   return (
     isRouteMenu(menu, {
@@ -1088,15 +1284,21 @@ function normalizeRouteMenus(
   menus: any[],
   _options: { hasSuperRole: boolean },
 ) {
-  return normalizeSystemChildMenuPlacement(
-    normalizeAiToolsMenuPlacement(
-      normalizeParkManagementMenuPlacement(menus, {
-        ensureParkWhenMissing: false,
-        includeCompatibilityRoutes: true,
-        includeMobileRoute: true,
-        preferLegacyMenu: false,
-      }),
-      { exposeLocalAgentMenus: shouldExposeLocalAgentMenus() },
+  return ensureRepairOrderMenu(
+    ensureAccessBrandMenu(
+      ensureSmartMeterMenu(
+        normalizeSystemChildMenuPlacement(
+          normalizeAiToolsMenuPlacement(
+            normalizeParkManagementMenuPlacement(menus, {
+              ensureParkWhenMissing: false,
+              includeCompatibilityRoutes: true,
+              includeMobileRoute: true,
+              preferLegacyMenu: false,
+            }),
+            { exposeLocalAgentMenus: shouldExposeLocalAgentMenus() },
+          ),
+        ),
+      ),
     ),
   );
 }

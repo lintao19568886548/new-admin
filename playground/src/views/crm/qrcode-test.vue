@@ -15,6 +15,9 @@ import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 import { Page } from '@vben/common-ui';
 import { useUserStore } from '@vben/stores';
 
+import { Capacitor } from '@capacitor/core';
+import { Directory, Filesystem } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import {
   Alert,
   Button,
@@ -51,7 +54,15 @@ import {
 } from '#/api/crm';
 import { getSystemUserList } from '#/api/system/user';
 import { getWechatJsSdkConfig } from '#/api/wechat';
+import {
+  canUseNativeWechatImageShare,
+  canUseNativeWechatShare,
+  isWechatInstalled,
+  shareWechatImage,
+  shareWechatWebpage,
+} from '#/utils/native-wechat-share';
 import { initWechatJssdk } from '#/utils/wechat-jssdk';
+import { loadWechatPayAppConfig } from '#/utils/wechat-pay-app-config';
 import { applyWechatH5ShareCard } from '#/utils/wechat-share';
 
 type DataTabKey = 'bindings' | 'channels' | 'externalLogs' | 'scanLogs';
@@ -97,6 +108,8 @@ const transferTargetSalesUserId = ref<number>();
 const bindingModalOpen = ref(false);
 const bindingModalMode = ref<'create' | 'edit'>('create');
 const bindingSaving = ref(false);
+const wechatOpenAppId = ref('');
+const posterShareModalVisible = ref(false);
 
 const bindingForm = reactive<{
   customerAddress: string;
@@ -558,6 +571,186 @@ async function configureWechatShare() {
   }
 }
 
+async function getWechatOpenAppIdForShare() {
+  if (wechatOpenAppId.value) {
+    return wechatOpenAppId.value;
+  }
+
+  try {
+    const config = await loadWechatPayAppConfig();
+    wechatOpenAppId.value = config.appId;
+    return wechatOpenAppId.value;
+  } catch (error) {
+    console.warn('获取微信开放平台移动应用 AppID 失败:', error);
+    return '';
+  }
+}
+
+async function sharePromotionPosterFromNativeApp(
+  posterUrl: string,
+): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) {
+    return false;
+  }
+
+  const base64Data = posterUrl.includes(',') ? posterUrl.split(',')[1] : '';
+  if (!base64Data) {
+    return false;
+  }
+
+  // Android: try direct WeChat image share first
+  if (Capacitor.getPlatform() === 'android' && canUseNativeWechatImageShare()) {
+    const appId = await getWechatOpenAppIdForShare();
+    if (appId) {
+      if (isWechatInstalled(appId)) {
+        const result = await shareWechatImage({
+          appId,
+          base64Data,
+          scene: 'session',
+        });
+        if (result.ok) {
+          message.success(result.message || '已拉起微信，请继续完成发送');
+          return true;
+        }
+        if (
+          !['app-id-missing', 'unavailable', 'wechat-not-installed'].includes(
+            result.reason || '',
+          )
+        ) {
+          message.warning(
+            result.message || '微信图片分享不可用，已切换为系统分享',
+          );
+        }
+      } else {
+        message.warning('未检测到微信，已切换为系统分享');
+      }
+    }
+  }
+
+  // iOS + Android fallback: Capacitor system share sheet with image file
+  try {
+    const { value: canShare } = await Share.canShare();
+    if (!canShare) {
+      return false;
+    }
+
+    const filePath = 'crm-promo-poster.png';
+    await Filesystem.writeFile({
+      data: base64Data,
+      directory: Directory.Cache,
+      path: filePath,
+      recursive: true,
+    });
+
+    const { uri } = await Filesystem.getUri({
+      directory: Directory.Cache,
+      path: filePath,
+    });
+
+    await Share.share({
+      dialogTitle: '分享获客推广海报',
+      files: [uri],
+      text: shareDescription.value,
+      title: shareTitle.value,
+    });
+    message.success('已拉起系统分享，请选择微信发送');
+    return true;
+  } catch (error) {
+    console.warn('[crm] native poster share failed:', error);
+    return false;
+  }
+}
+
+async function sharePromotionLinkFromNativeApp(link: string): Promise<boolean> {
+  if (
+    !Capacitor.isNativePlatform() ||
+    Capacitor.getPlatform() !== 'android' ||
+    !canUseNativeWechatShare()
+  ) {
+    return false;
+  }
+
+  const appId = await getWechatOpenAppIdForShare();
+  if (!appId) {
+    message.warning('未配置微信开放平台移动应用 AppID，已切换为普通分享');
+    return false;
+  }
+
+  if (!isWechatInstalled(appId)) {
+    message.warning('未检测到微信，已切换为普通分享');
+    return false;
+  }
+
+  const result = await shareWechatWebpage({
+    appId,
+    description: shareDescription.value,
+    title: shareTitle.value,
+    url: link,
+  });
+
+  if (result.ok) {
+    message.success(result.message || '已拉起微信，请继续完成发送');
+    return true;
+  }
+
+  if (
+    !['app-id-missing', 'unavailable', 'wechat-not-installed'].includes(
+      result.reason || '',
+    )
+  ) {
+    message.warning(result.message || '微信分享不可用，已切换为普通分享');
+  }
+
+  return false;
+}
+
+async function shareWithNavigatorFile(posterUrl: string): Promise<boolean> {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+
+  const nav = navigator as Navigator & {
+    canShare?: (data: { files: File[] }) => boolean;
+    share?: (data: {
+      files?: File[];
+      text?: string;
+      title?: string;
+    }) => Promise<void>;
+  };
+
+  if (typeof nav.share !== 'function' || typeof nav.canShare !== 'function') {
+    return false;
+  }
+
+  try {
+    const res = await fetch(posterUrl);
+    const blob = await res.blob();
+    const file = new File([blob], '获客推广海报.png', { type: 'image/png' });
+    if (!nav.canShare({ files: [file] })) {
+      return false;
+    }
+    await nav.share({
+      files: [file],
+      text: shareDescription.value,
+      title: shareTitle.value,
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return true;
+    }
+    console.warn('[crm] navigator file share failed:', error);
+    return false;
+  }
+}
+
+function downloadPosterImage(posterUrl: string) {
+  const a = document.createElement('a');
+  a.href = posterUrl;
+  a.download = '获客推广海报.png';
+  a.click();
+}
+
 async function sharePromotionByWechat() {
   const link = crossChannelInviteUrl.value;
   if (!link) {
@@ -565,46 +758,81 @@ async function sharePromotionByWechat() {
     return;
   }
 
-  const navigatorWithShare = navigator as Navigator & {
-    share?: (data: {
-      text?: string;
-      title?: string;
-      url?: string;
-    }) => Promise<void>;
-  };
-  if (
-    !isWechatBrowser.value &&
-    isMobileBrowser.value &&
-    typeof navigatorWithShare.share === 'function'
-  ) {
-    try {
-      await navigatorWithShare.share({
-        text: shareDescription.value,
-        title: shareTitle.value,
-        url: link,
-      });
-      return;
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        return;
+  // Ensure poster is rendered before sharing
+  const posterUrl = posterDataUrl.value || (await renderPromotionPoster());
+
+  // Native platform (iOS / Android)
+  if (Capacitor.isNativePlatform()) {
+    if (posterUrl) {
+      await sharePromotionPosterFromNativeApp(posterUrl);
+    } else {
+      const linked = await sharePromotionLinkFromNativeApp(link);
+      if (!linked) {
+        const copied = await copyText(shareText.value, '微信分享文案');
+        if (copied) {
+          message.info('已复制推广文案，可粘贴到微信发送');
+        }
       }
-      console.warn('[crm] web share failed:', error);
     }
+    return;
   }
 
+  // H5 WeChat browser: show poster for long-press save + configure URL share card
   if (isWechatBrowser.value) {
+    if (posterUrl) {
+      posterShareModalVisible.value = true;
+    }
     try {
       await configureWechatShare();
-      message.success('微信分享已准备好，请点击右上角转发给朋友或朋友圈');
-      return;
+      if (!posterUrl) {
+        message.success('微信分享已准备好，请点击右上角转发给朋友或朋友圈');
+      }
     } catch (error) {
       console.warn('[crm] wechat share config failed:', error);
       const copied = await copyText(shareText.value, '微信分享文案');
       if (copied) {
         message.warning('微信分享配置失败，已复制推广文案');
       }
-      return;
     }
+    return;
+  }
+
+  // Non-WeChat mobile browser: try navigator.share with image file
+  if (isMobileBrowser.value) {
+    if (posterUrl) {
+      const fileShared = await shareWithNavigatorFile(posterUrl);
+      if (fileShared) return;
+    }
+
+    const nav = navigator as Navigator & {
+      share?: (data: {
+        text?: string;
+        title?: string;
+        url?: string;
+      }) => Promise<void>;
+    };
+    if (typeof nav.share === 'function') {
+      try {
+        await nav.share({
+          text: shareDescription.value,
+          title: shareTitle.value,
+          url: link,
+        });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        console.warn('[crm] web share failed:', error);
+      }
+    }
+  }
+
+  // PC / browser fallback: download poster image
+  if (posterUrl) {
+    downloadPosterImage(posterUrl);
+    message.success('海报已下载，可在微信中发送图片');
+    return;
   }
 
   const copied = await copyText(shareText.value, '微信分享文案');
@@ -1939,6 +2167,27 @@ function asSalesChannel(record: unknown) {
       </Modal>
 
       <Modal
+        v-model:open="posterShareModalVisible"
+        title="分享推广海报"
+        :footer="null"
+        centered
+        destroy-on-close
+      >
+        <div class="poster-share-guide">
+          <p class="poster-share-tip">
+            长按下方图片，选择「保存图片」后可发送给微信好友
+          </p>
+          <img
+            v-if="posterDataUrl"
+            :src="posterDataUrl"
+            alt="推广海报"
+            class="poster-share-image"
+          />
+          <p class="poster-share-hint">点击右上角菜单也可转发链接给朋友</p>
+        </div>
+      </Modal>
+
+      <Modal
         v-model:open="transferModalOpen"
         title="转移客户归属"
         :confirm-loading="rowActionLoading"
@@ -1969,6 +2218,35 @@ function asSalesChannel(record: unknown) {
 </template>
 
 <style scoped>
+.poster-share-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  text-align: center;
+}
+
+.poster-share-tip {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.poster-share-image {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 15%);
+}
+
+.poster-share-hint {
+  margin: 0;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
 .crm-qrcode-page {
   padding: 16px;
   padding-bottom: calc(var(--app-safe-area-bottom, 0px) + 16px);

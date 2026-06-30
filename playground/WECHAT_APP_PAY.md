@@ -8,6 +8,8 @@
 
 - `GET /api/wechat/pay/app/config`
 
+开发时执行 `pnpm dev:play` 会自动启动内置 Nitro mock 到 `5320`。如果需要进入 `apps/backend-mock` 单独执行 `pnpm start`，先停止 `pnpm dev:play`，或确认当前内置 mock 未占用 `5320`。项目已将 Vite 内置 mock 的 Nitro 构建目录与独立 backend-mock 构建目录隔离，避免两个 dev server 同时写同一个 `.nitro/dev/index.mjs`。
+
 后端必须提供的服务端环境变量：
 
 - `WECHAT_OPEN_APP_ID`
@@ -18,6 +20,8 @@
 - `WECHAT_PAY_PUBLIC_KEY` 或 `WECHAT_PAY_PUBLIC_KEY_PATH`
 - `WECHAT_PAY_NOTIFY_URL`
 - `WECHAT_PAY_PRIVATE_KEY` 或 `WECHAT_PAY_PRIVATE_KEY_PATH`
+
+如果上述任一必填项为空，`GET /api/wechat/pay/app/config` 会返回 `configured=false` 和 `missing` 列表，会员页会显示“支付配置待完善”并禁用微信支付按钮。此状态表示真实微信支付资料未配置完整，不是前端按钮未实现。
 
 `WECHAT_PAY_PUBLIC_KEY_ID` 是商户平台 API 安全里下载微信支付公钥时展示的公钥 ID，格式通常为 `PUB_KEY_ID_...`。`WECHAT_PAY_PUBLIC_KEY_PATH` 指向下载得到的微信支付公钥 PEM 文件。
 

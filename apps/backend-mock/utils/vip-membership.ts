@@ -23,7 +23,7 @@ import {
 
 const VIP_MEMBERSHIP_ACTIVE_STATUS = 'active';
 const VIP_MEMBERSHIP_ATTACH_TAG = 'vip-membership';
-const VIP_MEMBERSHIP_DURATION_MONTHS = 1;
+export const VIP_MEMBERSHIP_DEFAULT_PLAN_ID = 'monthly';
 const VIP_TRIAL_DURATION_MONTHS = 3;
 const PROVISIONING_BLOCKING_STATUSES = new Set([
   'failed_manual',
@@ -42,7 +42,23 @@ const ORGANIZATION_PROVISIONING_PAYMENT_BLOCKED_STATUS_MESSAGES: Record<
   pending: '组织空间等待开通中，请勿重复支付',
   provisioning: '组织空间正在开通中，请勿重复支付',
 };
-export const VIP_MEMBERSHIP_AMOUNT_TOTAL = 98_000;
+export const VIP_MEMBERSHIP_PLANS = {
+  monthly: {
+    amountTotal: 98_000,
+    durationMonths: 1,
+  },
+  quarterly: {
+    amountTotal: 258_000,
+    durationMonths: 3,
+  },
+  yearly: {
+    amountTotal: 980_000,
+    durationMonths: 12,
+  },
+} as const;
+export type VipMembershipPlanId = keyof typeof VIP_MEMBERSHIP_PLANS;
+export const VIP_MEMBERSHIP_AMOUNT_TOTAL =
+  VIP_MEMBERSHIP_PLANS[VIP_MEMBERSHIP_DEFAULT_PLAN_ID].amountTotal;
 
 const VIP_MEMBERSHIP_REFUND_RECONCILE_LIMIT = 20;
 const VIP_MEMBERSHIP_REFUND_RECHECK_DELAY_MS = 60_000;
@@ -67,6 +83,7 @@ type VipMembershipDbClient = Prisma.TransactionClient | PrismaClient;
 
 interface VipMembershipAttachPayload {
   centerUserId?: number;
+  planId?: VipMembershipPlanId;
   sourceCustomerId?: string;
   tag: 'vip';
   tenantUserId?: number;
@@ -255,6 +272,19 @@ function normalizeString(value: unknown) {
   return value.trim();
 }
 
+export function normalizeVipMembershipPlanId(
+  value: unknown,
+): VipMembershipPlanId {
+  const planId = normalizeString(value);
+  return planId in VIP_MEMBERSHIP_PLANS
+    ? (planId as VipMembershipPlanId)
+    : VIP_MEMBERSHIP_DEFAULT_PLAN_ID;
+}
+
+export function getVipMembershipPlan(planId: unknown = undefined) {
+  return VIP_MEMBERSHIP_PLANS[normalizeVipMembershipPlanId(planId)];
+}
+
 function parseDateValue(value: unknown) {
   if (!value) {
     return null;
@@ -324,9 +354,13 @@ function parseVipMembershipAttach(
       normalizeString(
         payload.c || payload.customerId || payload.sourceCustomerId,
       ) || undefined;
+    const planId = normalizeVipMembershipPlanId(
+      payload.p || payload.planId || payload.plan,
+    );
 
     return {
       centerUserId,
+      planId,
       sourceCustomerId,
       tag: 'vip',
       tenantUserId,
@@ -347,13 +381,18 @@ function resolveOrderAmountTotal(amount: unknown) {
 
 export function resolveVipMembershipAmountTotal(
   context?: VipMembershipTestPaymentContext,
+  planId?: unknown,
 ) {
   const testAmountTotal = resolveVipMembershipTestPaymentAmountTotal(context);
   if (testAmountTotal) {
     return testAmountTotal;
   }
 
-  return VIP_MEMBERSHIP_AMOUNT_TOTAL;
+  return getVipMembershipPlan(planId).amountTotal;
+}
+
+export function resolveVipMembershipDurationMonths(planId?: unknown) {
+  return getVipMembershipPlan(planId).durationMonths;
 }
 
 async function revokeVipMembershipForRefundWithClient(
@@ -1779,9 +1818,11 @@ async function ensureOrganizationProvisioningJob(
 export function buildVipMembershipAttach(input: {
   centerUserId?: unknown;
   customerId?: unknown;
+  planId?: unknown;
   userId?: unknown;
 }) {
   const centerUserId = normalizePositiveInteger(input.centerUserId);
+  const planId = normalizeVipMembershipPlanId(input.planId);
   const tenantUserId = normalizePositiveInteger(input.userId);
   const sourceCustomerId = normalizeString(input.customerId);
 
@@ -1792,6 +1833,7 @@ export function buildVipMembershipAttach(input: {
   const attach = JSON.stringify({
     c: sourceCustomerId,
     cu: centerUserId,
+    p: planId,
     t: 'vip',
     u: tenantUserId,
   });
@@ -2096,11 +2138,14 @@ export async function handleVipMembershipWechatOrder(
           {
             amountTotal:
               amountTotal ||
-              resolveVipMembershipAmountTotal({
-                centerUserId: attachPayload.centerUserId,
-                sourceCustomerId: attachPayload.sourceCustomerId,
-                tenantUserId: attachPayload.tenantUserId,
-              }),
+              resolveVipMembershipAmountTotal(
+                {
+                  centerUserId: attachPayload.centerUserId,
+                  sourceCustomerId: attachPayload.sourceCustomerId,
+                  tenantUserId: attachPayload.tenantUserId,
+                },
+                attachPayload.planId,
+              ),
             centerUserId: attachPayload.centerUserId,
             outTradeNo,
             paidAt,
@@ -2164,8 +2209,13 @@ export async function handleVipMembershipWechatOrder(
         };
       }
 
-      const expectedAmountTotal =
-        resolveVipMembershipAmountTotal(amountContext);
+      const paymentAttachPayload = parseVipMembershipAttach(payment.rawAttach);
+      const paymentPlanId =
+        paymentAttachPayload?.planId || attachPayload?.planId;
+      const expectedAmountTotal = resolveVipMembershipAmountTotal(
+        amountContext,
+        paymentPlanId,
+      );
       if (resolvedAmountTotal !== expectedAmountTotal) {
         return {
           alreadyApplied: false,
@@ -2313,14 +2363,15 @@ export async function handleVipMembershipWechatOrder(
         membershipExpireAt && membershipExpireAt.getTime() > now.getTime()
           ? membershipExpireAt
           : resolvedPaidAt || now;
-      const nextExpireAt = addMonths(baseTime, VIP_MEMBERSHIP_DURATION_MONTHS);
+      const durationMonths = resolveVipMembershipDurationMonths(paymentPlanId);
+      const nextExpireAt = addMonths(baseTime, durationMonths);
 
       const entitlement = await tx.vipMembershipEntitlement.create({
         data: {
           amountTotal: Number(payment.amountTotal || resolvedAmountTotal || 0),
           centerUserId: payment.centerUserId,
           customerId: membershipCustomerId,
-          durationMonths: VIP_MEMBERSHIP_DURATION_MONTHS,
+          durationMonths,
           endAt: nextExpireAt,
           outTradeNo,
           startAt: baseTime,

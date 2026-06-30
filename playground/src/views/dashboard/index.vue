@@ -1,9 +1,9 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { VbenIcon } from '@vben/common-ui';
-import { useUserStore } from '@vben/stores';
+import { useAccessStore, useUserStore } from '@vben/stores';
 
 import { Card, Col, Row, Skeleton } from 'ant-design-vue';
 import dayjs from 'dayjs';
@@ -26,7 +26,9 @@ interface CheckInPreview {
 }
 
 const loading = ref(true);
+const route = useRoute();
 const router = useRouter();
+const accessStore = useAccessStore();
 const userStore = useUserStore();
 const reimburse = ref({ approved: 0, pending: 0, rejected: 0, total: 0 });
 const visitors = ref<VisitorPreview[]>([]);
@@ -35,15 +37,27 @@ const checkIn = ref<CheckInPreview>({
   punchIn: '',
   punchOut: '',
 });
+const canFetchPreviewData = computed(
+  () => route.path === '/home' && Boolean(accessStore.accessToken),
+);
 const checkInStatusText = computed(() =>
   checkIn.value.hasSignedIn ? '已签到' : '未签到',
 );
 
 onMounted(() => {
-  fetchPreviewData();
+  if (canFetchPreviewData.value) {
+    void fetchPreviewData();
+    return;
+  }
+  loading.value = false;
 });
 
 async function fetchPreviewData() {
+  if (!canFetchPreviewData.value) {
+    loading.value = false;
+    return;
+  }
+
   loading.value = true;
   try {
     try {
@@ -108,6 +122,12 @@ async function fetchPreviewData() {
     loading.value = false;
   }
 }
+
+watch(canFetchPreviewData, (canFetch, previousCanFetch) => {
+  if (canFetch && !previousCanFetch) {
+    void fetchPreviewData();
+  }
+});
 
 function goVisitorManagement() {
   router.push({ name: 'VisitorMobileList' });

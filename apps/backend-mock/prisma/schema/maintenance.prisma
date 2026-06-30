@@ -12,7 +12,7 @@ model Firefighting {
   images           FirefightingImage[] @relation("FirefightingToFirefightingImage") // 添加此行
   createTime       DateTime            @default(now()) @map("create_time")
   updateTime       DateTime?           @updatedAt @map("update_time")
-  // 修改关联字段   
+  // 修改关联字段
   factoryId        Int?                @default(20) @map("factory_id")
   factory          Factory?            @relation("FactoryToFirefighting", fields: [factoryId], references: [factoryId])
   parkId           Int                 @map("park_id")
@@ -37,7 +37,7 @@ model Transformer {
   images          TransformerImage[] @relation("TransformerToTransformerImage") // 添加此行
   createTime      DateTime           @default(now()) @map("create_time")
   updateTime      DateTime?          @updatedAt @map("update_time")
-  // 修改关联字段  
+  // 修改关联字段
   factoryId       Int?               @default(20) @map("factory_id")
   factory         Factory?           @relation("FactoryToTransformer", fields: [factoryId], references: [factoryId])
   parkId          Int                @map("park_id")
@@ -72,10 +72,10 @@ model factoryMaintenance {
 // 卫生检查模型 (maintenance/hygiene_check)
 model HygieneCheck {
   hygieneCheckId Int       @id @default(autoincrement()) @map("hygiene_check_id")
-  checkItems     String    @map("check_items") @db.VarChar(100) // 检查项目 
-  checker        String    @db.VarChar(10) // 检查人 
-  checkDate      DateTime  @map("check_date") // 检查日期 
-  checkResult    String    @map("check_result") @db.VarChar(100) // 检查结果 
+  checkItems     String    @map("check_items") @db.VarChar(100) // 检查项目
+  checker        String    @db.VarChar(10) // 检查人
+  checkDate      DateTime  @map("check_date") // 检查日期
+  checkResult    String    @map("check_result") @db.VarChar(100) // 检查结果
   remark         String?   @db.VarChar(100)
   createTime     DateTime  @default(now()) @map("create_time")
   updateTime     DateTime? @updatedAt @map("update_time")
@@ -110,4 +110,59 @@ model Elevator {
   @@index([factoryId])
   @@index([parkId])
   @@map("elevator")
+}
+
+// 报修工单模型 (maintenance/repair-order)
+model RepairOrder {
+  repairOrderId Int       @id @default(autoincrement()) @map("repair_order_id")
+  orderNo       String    @unique @map("order_no") @db.VarChar(40)
+  source        String    @default("物业代报修") @db.VarChar(20)
+  tenantId      Int?      @map("tenant_id")
+  tenantName    String?   @map("tenant_name") @db.VarChar(100)
+  tenantPhone   String?   @map("tenant_phone") @db.VarChar(30)
+  repairType    String    @map("repair_type") @db.VarChar(30)
+  description   String    @db.VarChar(500)
+  images        String?   @db.Text
+  status        String    @default("待接单") @db.VarChar(20)
+  priority      String    @default("普通") @db.VarChar(20)
+  assignee      String?   @db.VarChar(50)
+  assigneePhone String?   @map("assignee_phone") @db.VarChar(30)
+  processImages String?   @map("process_images") @db.Text
+  processRemark String?   @map("process_remark") @db.VarChar(500)
+  acceptTime    DateTime? @map("accept_time")
+  finishTime    DateTime? @map("finish_time")
+  confirmTime   DateTime? @map("confirm_time")
+  createTime    DateTime  @default(now()) @map("create_time")
+  updateTime    DateTime? @updatedAt @map("update_time")
+  factoryId     Int?      @map("factory_id")
+  factory       Factory?  @relation("FactoryToRepairOrder", fields: [factoryId], references: [factoryId])
+  parkId        Int       @map("park_id")
+  park          Park      @relation("ParkToRepairOrder", fields: [parkId], references: [parkId])
+
+  @@index([factoryId])
+  @@index([parkId])
+  @@index([status])
+  @@index([repairType])
+  @@map("repair_order")
+}
+
+model MeterBrand {
+  meterBrandId Int       @id @default(autoincrement()) @map("meter_brand_id")
+  meterType    String    @map("meter_type") @db.VarChar(20)
+  brandName    String    @map("brand_name") @db.VarChar(100)
+  brandCode    String    @map("brand_code") @db.VarChar(50)
+  protocolType String?   @map("protocol_type") @db.VarChar(50)
+  apiEndpoint  String?   @map("api_endpoint") @db.VarChar(255)
+  appKey       String?   @map("app_key") @db.VarChar(100)
+  appSecretRef String?   @map("app_secret_ref") @db.VarChar(100)
+  enabled      Boolean   @default(true)
+  isDefault    Boolean   @default(false) @map("is_default")
+  remark       String?   @db.VarChar(300)
+  createTime   DateTime  @default(now()) @map("create_time")
+  updateTime   DateTime? @updatedAt @map("update_time")
+
+  @@unique([meterType, brandCode])
+  @@index([meterType])
+  @@index([isDefault])
+  @@map("meter_brand")
 }

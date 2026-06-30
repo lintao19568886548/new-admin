@@ -90,34 +90,6 @@ const routes: RouteRecordRaw[] = [
         name: 'SettledFactoryMobile',
         path: 'settled/mobile',
       },
-      {
-        component: () => import('#/views/rental/meter/list.vue'),
-        meta: {
-          icon: 'mdi:flash',
-          title: $t('电表抄表数据'),
-        },
-        name: 'MeterList',
-        path: 'meter',
-      },
-      {
-        component: () => import('#/views/rental/water/list.vue'),
-        meta: {
-          icon: 'mdi:water',
-          title: $t('水表抄表数据'),
-        },
-        name: 'WaterList',
-        path: 'water',
-      },
-      {
-        component: () => import('#/views/rental/reading/mobile.vue'),
-        meta: {
-          hideMenu: true,
-          icon: 'mdi:cellphone-text',
-          title: $t('水电表抄表数据'),
-        },
-        name: 'ReadingMobile',
-        path: 'reading/mobile',
-      },
     ],
   },
 ];

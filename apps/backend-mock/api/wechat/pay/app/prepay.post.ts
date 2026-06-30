@@ -18,6 +18,7 @@ import {
   getOrganizationProvisioningPaymentBlockedMessage,
   getOrganizationProvisioningProfileState,
   isVipMembershipAttach,
+  normalizeVipMembershipPlanId,
   recordVipMembershipPaymentPending,
   resolveVipMembershipAmountTotal,
 } from '~/utils/vip-membership';
@@ -74,6 +75,7 @@ export default eventHandler(async (event) => {
   let amount = normalizeAmount(body.amount);
   const currency = normalizeOptionalString(body.currency) || 'CNY';
   const rawAttach = normalizeOptionalString(body.attach);
+  const planId = normalizeVipMembershipPlanId(body.planId);
 
   if (!description) {
     return badRequestResponse('支付描述不能为空', event);
@@ -105,7 +107,10 @@ export default eventHandler(async (event) => {
         sourceCustomerId: customerId,
         tenantUserId: userinfo.id,
       };
-      const expectedAmount = resolveVipMembershipAmountTotal(amountContext);
+      const expectedAmount = resolveVipMembershipAmountTotal(
+        amountContext,
+        planId,
+      );
       if (amount !== expectedAmount) {
         if (!isVipMembershipTestPayment(amountContext)) {
           return badRequestResponse('会员支付金额不正确', event);
@@ -197,6 +202,7 @@ export default eventHandler(async (event) => {
       attach = buildVipMembershipAttach({
         centerUserId,
         customerId,
+        planId,
         userId: userinfo.id,
       });
 

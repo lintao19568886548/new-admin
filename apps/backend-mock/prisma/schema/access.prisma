@@ -46,3 +46,21 @@ model AccessDoor {
   @@index([parkId])
   @@map("access_door")
 }
+
+model AccessBrand {
+  accessBrandId Int       @id @default(autoincrement()) @map("access_brand_id")
+  brandName     String    @map("brand_name") @db.VarChar(100)
+  brandCode     String    @unique @map("brand_code") @db.VarChar(50)
+  protocolType  String?   @map("protocol_type") @db.VarChar(50)
+  apiEndpoint   String?   @map("api_endpoint") @db.VarChar(255)
+  appKey        String?   @map("app_key") @db.VarChar(100)
+  appSecretRef  String?   @map("app_secret_ref") @db.VarChar(100)
+  enabled       Boolean   @default(true)
+  isDefault     Boolean   @default(false) @map("is_default")
+  remark        String?   @db.VarChar(300)
+  createTime    DateTime  @default(now()) @map("create_time")
+  updateTime    DateTime? @updatedAt @map("update_time")
+
+  @@index([isDefault])
+  @@map("access_brand")
+}

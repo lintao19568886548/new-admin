@@ -38,12 +38,12 @@ export default defineNitroConfig({
   errorHandler: '~/error',
   node: true,
   plugins: [
-    '~/plugins/organization-provisioning-worker',
-    '~/plugins/rental-expense-finance-worker',
-    '~/plugins/vip-membership-refund-worker',
-    '~/plugins/investment-radar-public-crawler',
-    '~/plugins/attendance-automation-test-worker',
-    '~/plugins/amount-bill-collection-sms-worker',
+    '~/plugins/organization-provisioning-worker.ts',
+    '~/plugins/rental-expense-finance-worker.ts',
+    '~/plugins/vip-membership-refund-worker.ts',
+    '~/plugins/investment-radar-public-crawler.ts',
+    '~/plugins/attendance-automation-test-worker.ts',
+    '~/plugins/amount-bill-collection-sms-worker.ts',
   ],
   routeRules: {
     '/api/**': {

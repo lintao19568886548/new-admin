@@ -4,9 +4,14 @@ import { PrismaClient as CenterPrismaClient } from '@prisma/.prisma/center-clien
 import { PrismaClient as CustomerPrismaClient } from '@prisma/.prisma/client/index.js';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
-const DEFAULT_CUSTOMER_PRISMA_POOL_MAX = 30;
+const isProduction = process.env.NODE_ENV === 'production';
+
+const DEFAULT_DATABASE_CONNECTION_LIMIT = isProduction ? 10 : 3;
+const DEFAULT_DATABASE_POOL_TIMEOUT_SECONDS = isProduction ? 5 : 10;
+const DEFAULT_DATABASE_IDLE_TIMEOUT_SECONDS = isProduction ? 1800 : 120;
+const DEFAULT_CUSTOMER_PRISMA_POOL_MAX = isProduction ? 30 : 6;
 const DEFAULT_CUSTOMER_PRISMA_POOL_SWEEP_INTERVAL_SECONDS = 60;
-const DEFAULT_CUSTOMER_PRISMA_POOL_TTL_SECONDS = 1800;
+const DEFAULT_CUSTOMER_PRISMA_POOL_TTL_SECONDS = isProduction ? 1800 : 120;
 
 type CustomerPrismaCacheEntry = {
   client: CustomerPrismaClient;
@@ -53,10 +58,18 @@ function createMariaDbAdapter(
   };
 
   const database = parsed.pathname.replace(/^\//, '');
-  const connectionLimit = getPositiveInt('connection_limit', 10);
-  const acquireTimeout = getPositiveInt('pool_timeout', 5) * 1000;
+  const connectionLimit = getPositiveInt(
+    'connection_limit',
+    DEFAULT_DATABASE_CONNECTION_LIMIT,
+  );
+  const acquireTimeout =
+    getPositiveInt('pool_timeout', DEFAULT_DATABASE_POOL_TIMEOUT_SECONDS) *
+    1000;
   const connectTimeout = getPositiveInt('connect_timeout', 5) * 1000;
-  const idleTimeout = getPositiveInt('max_idle_connection_lifetime', 1800);
+  const idleTimeout = getPositiveInt(
+    'max_idle_connection_lifetime',
+    DEFAULT_DATABASE_IDLE_TIMEOUT_SECONDS,
+  );
 
   const allowPublicKeyRetrieval = !cachingRsaPublicKey;
   const adapterConfig = {

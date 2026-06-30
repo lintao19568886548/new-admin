@@ -57,6 +57,7 @@ async function runNitroServer(rootDir: string, port: number, verbose: boolean) {
     }
     nitro = await createNitro(
       {
+        buildDir: '.nitro/vite-mock',
         dev: true,
         preset: 'nitro-dev',
         rootDir,

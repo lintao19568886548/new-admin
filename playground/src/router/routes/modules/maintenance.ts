@@ -69,6 +69,25 @@ const routes: RouteRecordRaw[] = [
         path: '/maintenance/factoryMaint/mobile',
       },
       {
+        component: () => import('#/views/maintenance/repair-order/list.vue'),
+        meta: {
+          icon: 'mdi:clipboard-text-clock',
+          title: '报修工单',
+        },
+        name: 'RepairOrder',
+        path: '/maintenance/repair-order',
+      },
+      {
+        component: () =>
+          import('#/views/maintenance/repair-order/mobile-list.vue'),
+        meta: {
+          hidden: true,
+          title: '报修工单mobile',
+        },
+        name: 'RepairOrderMobile',
+        path: '/maintenance/repair-order/mobile',
+      },
+      {
         component: () => import('#/views/maintenance/transformer/list.vue'),
         meta: {
           icon: 'mdi:lightning-bolt', // 更改为电力/变压器图标

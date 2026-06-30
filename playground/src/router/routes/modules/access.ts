@@ -22,6 +22,15 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'AccessBrand',
+        path: '/access/brand',
+        component: () => import('#/views/access/brand/list.vue'),
+        meta: {
+          icon: 'carbon:badge',
+          title: '门禁品牌管理',
+        },
+      },
+      {
         name: 'CarAccess',
         path: '/access/car',
         component: () => import('#/views/access/car/list.vue'),
