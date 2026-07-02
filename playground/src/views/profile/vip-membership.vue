@@ -20,7 +20,7 @@ import { resolveMembershipAccessState } from '#/utils/membership-access';
 import {
   canUseNativeWechatPay,
   isWechatInstalled,
-  payWithWechatApp,
+  payWithWechatEverywhere,
 } from '#/utils/native-wechat-pay';
 import {
   openPrivacyPolicyDialog,
@@ -252,8 +252,8 @@ const currentCustomerId = computed(() =>
     ? userInfo.value.customerId.trim()
     : '',
 );
-const isPublicTrialCustomer = computed(
-  () => currentCustomerId.value === 'public',
+const isSourceOrganizationEntry = computed(() =>
+  ['default', 'public'].includes(currentCustomerId.value),
 );
 const isDedicatedOrganizationSpace = computed(
   () =>
@@ -330,7 +330,7 @@ const hasAnySourceOrganization = computed(
 );
 const sourceOrganizationConflict = computed(
   () =>
-    currentCustomerId.value === 'public' &&
+    isSourceOrganizationEntry.value &&
     !sourceOrganizationState.value &&
     sourceOrganizationCount.value > 1,
 );
@@ -346,7 +346,7 @@ const sourceOrganizationPaymentAllowed = computed(
 );
 const requiresOrganizationIdentity = computed(
   () =>
-    currentCustomerId.value === 'public' &&
+    isSourceOrganizationEntry.value &&
     !sourceOrganizationIdentityComplete.value &&
     (!hasAnySourceOrganization.value ||
       Boolean(sourceOrganizationState.value)) &&
@@ -354,13 +354,13 @@ const requiresOrganizationIdentity = computed(
 );
 const canCreateSourceOrganization = computed(
   () =>
-    currentCustomerId.value === 'public' &&
+    isSourceOrganizationEntry.value &&
     !hasAnySourceOrganization.value &&
     !profileOrganizationProvisioningState.value,
 );
 const canSaveSourceOrganizationIdentity = computed(
   () =>
-    currentCustomerId.value === 'public' &&
+    isSourceOrganizationEntry.value &&
     Boolean(sourceOrganizationState.value) &&
     sourceOrganizationState.value?.memberRole === 'owner' &&
     !sourceOrganizationIdentityComplete.value &&
@@ -373,13 +373,13 @@ const canSetupSourceOrganization = computed(
 );
 const organizationPaymentPrerequisiteReady = computed(
   () =>
-    !isPublicTrialCustomer.value ||
+    !isSourceOrganizationEntry.value ||
     (Boolean(sourceOrganizationState.value) &&
       sourceOrganizationIdentityComplete.value),
 );
 const showOrganizationSetupSection = computed(
   () =>
-    isPublicTrialCustomer.value ||
+    isSourceOrganizationEntry.value ||
     Boolean(sourceOrganizationState.value) ||
     isDedicatedOrganizationSpace.value,
 );
@@ -522,6 +522,9 @@ const wechatPayConfigReady = computed(
 const appPaySupported = computed(
   () => wechatPayConfigReady.value && canUseNativeWechatPay(),
 );
+const activeWechatPayMode = computed<'app' | 'h5'>(() =>
+  appPaySupported.value ? 'app' : 'h5',
+);
 const wechatPayRuntimeState = computed(() => {
   if (wechatConfigLoading.value) {
     return {
@@ -552,10 +555,10 @@ const wechatPayRuntimeState = computed(() => {
 
   if (!canUseNativeWechatPay()) {
     return {
-      description: '浏览器预览可查看页面，支付需在 Android App 内完成。',
-      icon: 'mdi:cellphone-link',
-      title: '请在 App 内支付',
-      tone: 'muted',
+      description: '浏览器会跳转微信 H5 收银台，App 内会优先拉起微信客户端。',
+      icon: 'mdi:web',
+      title: '支持浏览器 H5 支付',
+      tone: 'success',
     };
   }
 
@@ -594,10 +597,6 @@ const payButtonText = computed(() => {
     return wechatPayConfigError.value ? '支付配置待完善' : '未配置微信支付';
   }
 
-  if (!appPaySupported.value) {
-    return '仅支持 Android App';
-  }
-
   if (organizationProvisioningPaymentBlocked.value) {
     return (
       profileOrganizationProvisioningState.value?.label || '组织空间开通中'
@@ -628,8 +627,7 @@ const payButtonDisabled = computed(
     sourceOrganizationConflict.value ||
     !sourceOrganizationPaymentAllowed.value ||
     !organizationIdentityReady.value ||
-    !wechatPayConfigReady.value ||
-    !appPaySupported.value,
+    !wechatPayConfigReady.value,
 );
 const paymentAgreementHint = computed(() => {
   if (!organizationPaymentPrerequisiteReady.value) {
@@ -646,8 +644,8 @@ const paymentAgreementHint = computed(() => {
     return '微信支付需要后端返回开放平台移动应用 AppID 和微信支付商户号。';
   }
 
-  if (!appPaySupported.value) {
-    return '当前浏览器仅用于预览页面，实际支付请在 Android App 内打开。';
+  if (activeWechatPayMode.value === 'h5') {
+    return '当前环境将使用微信 H5 支付，支付完成后请返回页面查看开通状态。';
   }
 
   if (organizationProvisioningPaymentBlocked.value) {
@@ -1215,7 +1213,7 @@ async function handleCreateSourceOrganization() {
       currentCustomerId: currentCustomerId.value,
       isOrganizationProvisioning: false,
       organizationProvisioningStatus: 'none',
-      sourceCustomerId: currentCustomerId.value,
+      sourceCustomerId: result.sourceOrganization.sourceCustomerId,
       sourceOrganization: result.sourceOrganization,
       sourceOrganizationCount: result.sourceOrganizationCount,
     };
@@ -1475,12 +1473,10 @@ async function handleWechatPay() {
     return;
   }
 
-  if (!appPaySupported.value) {
-    message.warning('当前仅支持 Android App 内微信支付');
-    return;
-  }
-
-  if (!isWechatInstalled(currentWechatOpenAppId)) {
+  if (
+    activeWechatPayMode.value === 'app' &&
+    !isWechatInstalled(currentWechatOpenAppId)
+  ) {
     message.warning('未检测到微信客户端，请先安装微信');
     return;
   }
@@ -1497,8 +1493,9 @@ async function handleWechatPay() {
 
   try {
     const selectedPlan = membershipPlan.value;
-    const execution = await payWithWechatApp({
+    const execution = await payWithWechatEverywhere({
       amount: selectedPlan.price * 100,
+      appName: '职维智管',
       attach: 'vip-membership',
       description: `${membershipScopeName.value} ${selectedPlan.name}`,
       deviceId: 'vip-membership-page',
@@ -1506,7 +1503,26 @@ async function handleWechatPay() {
       planId: selectedPlan.id,
     });
 
-    currentOutTradeNo = execution.launchParams.outTradeNo;
+    currentOutTradeNo =
+      execution.mode === 'app'
+        ? execution.launchParams.outTradeNo
+        : execution.outTradeNo;
+
+    if (execution.mode === 'h5') {
+      latestPaymentState.value = {
+        outTradeNo: currentOutTradeNo,
+        success: false,
+        tradeState: 'H5_REDIRECT',
+        tradeStateDesc: '已创建 H5 支付订单，等待微信支付完成',
+      };
+      message.loading({
+        content: '正在打开微信 H5 支付页面...',
+        duration: 1,
+        key: PAY_MESSAGE_KEY,
+      });
+      window.location.href = execution.h5Url;
+      return;
+    }
 
     if (execution.payResult.reason === 'cancel') {
       latestPaymentState.value = {
@@ -1929,7 +1945,13 @@ onMounted(() => {
               </div>
               <div class="order-card__row">
                 <span>支付方式</span>
-                <span>微信 App 支付</span>
+                <span>
+                  {{
+                    activeWechatPayMode === 'app'
+                      ? '微信 App 支付'
+                      : '微信 H5 支付'
+                  }}
+                </span>
               </div>
               <div class="order-card__row order-card__row--wrap">
                 <span>支付后有效期</span>

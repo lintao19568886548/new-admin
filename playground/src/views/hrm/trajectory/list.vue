@@ -19,11 +19,11 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
-import ExcelJS from 'exceljs';
 
 import { exportTrajectoryData, getTrajectoryList } from '#/api/hrm/trajectory';
 import { getParkList } from '#/api/park';
 import { getBaiduMapAk, loadBaiduMapScript } from '#/utils/map';
+import { retryImport } from '#/utils/retry-import';
 
 // ================================= 考勤状态 =================================
 const AttendanceStatus = {
@@ -461,6 +461,7 @@ const handleExport = async () => {
       return;
     }
 
+    const { default: ExcelJS } = await retryImport(() => import('exceljs'));
     const workbook = new ExcelJS.Workbook();
 
     for (const [parkName, parkRecords] of Object.entries(

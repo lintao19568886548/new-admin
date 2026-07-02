@@ -27,6 +27,18 @@ async function viteInjectAppLoadingPlugin(
   <script data-app-loading="inject-js">
   var theme = localStorage.getItem(${cacheName});
   document.documentElement.classList.toggle('dark', /dark/.test(theme));
+  window.__vbenAppLoadingTimer__ = window.setTimeout(function() {
+    var loading = document.getElementById('__app-loading__');
+    if (loading) {
+      loading.classList.add('slow');
+    }
+  }, 8000);
+  window.__vbenClearAppLoadingTimeout__ = function() {
+    if (window.__vbenAppLoadingTimer__) {
+      window.clearTimeout(window.__vbenAppLoadingTimer__);
+      window.__vbenAppLoadingTimer__ = null;
+    }
+  };
 </script>
 `;
 

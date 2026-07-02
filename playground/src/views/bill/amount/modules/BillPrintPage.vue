@@ -11,6 +11,7 @@ import { Button, message, Modal } from 'ant-design-vue';
 
 import { getAmountBillDetail } from '#/api/bill';
 import { shareWechatImage } from '#/utils/native-wechat-share';
+import { retryImport } from '#/utils/retry-import';
 import { loadWechatPayAppConfig } from '#/utils/wechat-pay-app-config';
 
 // 组件属性定义
@@ -312,7 +313,7 @@ async function captureBillImage() {
   await nextTick();
   await waitForPaint();
 
-  const html2canvasModule = await import('html2canvas');
+  const html2canvasModule = await retryImport(() => import('html2canvas'));
   const html2canvas = html2canvasModule.default;
   return await html2canvas(element, {
     backgroundColor: '#ffffff',

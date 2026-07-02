@@ -7,6 +7,7 @@ import {
   ORGANIZATION_MEMBER_ROLE_OWNER,
   OrganizationLifecycleError,
 } from '~/utils/organization-role-policy';
+import { applyUserRolesToUser } from '~/utils/permission-modules';
 import { resolveTenantUserForCenterUser } from '~/utils/user-customer-mapping';
 
 type CenterDb = CenterPrisma.TransactionClient | typeof systemDbClient;
@@ -116,6 +117,83 @@ async function getCustomerDbName(sourceCustomerId: string) {
   return customer.dbName ? String(customer.dbName) : null;
 }
 
+async function ensurePublicSourceTenantUserForCenterUser(params: {
+  centerUser: {
+    id: number;
+    password?: null | string;
+    phone?: null | string;
+    realName?: null | string;
+    username: string;
+  };
+  sourceCustomerId: string;
+}) {
+  if (params.sourceCustomerId !== 'public') {
+    return;
+  }
+
+  const username = String(params.centerUser.username || '').trim();
+  if (!username) {
+    throw new OrganizationLifecycleError('组织 owner 缺少用户名');
+  }
+
+  await prismaScopeStorage.run(
+    { customerId: params.sourceCustomerId, dbName: null },
+    async () => {
+      let tenantUser = await prismaClient.user.findUnique({
+        select: { id: true, status: true },
+        where: { username },
+      });
+
+      if (!tenantUser) {
+        tenantUser = await prismaClient.user.create({
+          data: {
+            customerType: params.sourceCustomerId,
+            password: params.centerUser.password || '',
+            phone: params.centerUser.phone || null,
+            realName: params.centerUser.realName || username,
+            status: 1,
+            tokenVersion: 1,
+            username,
+          },
+          select: { id: true, status: true },
+        });
+      }
+
+      if (Number(tenantUser.status ?? 1) !== 1) {
+        throw new OrganizationLifecycleError(
+          '组织 owner 来源库账号已停用',
+          409,
+        );
+      }
+
+      await applyUserRolesToUser({
+        prisma: prismaClient,
+        roleIds: [1],
+        userId: Number(tenantUser.id),
+      });
+
+      await systemDbClient.userCustomerMapping.upsert({
+        create: {
+          centerUserId: params.centerUser.id,
+          customerId: params.sourceCustomerId,
+          customerUserId: Number(tenantUser.id),
+          dbName: null,
+        },
+        update: {
+          customerUserId: Number(tenantUser.id),
+          dbName: null,
+        },
+        where: {
+          centerUserId_customerId: {
+            centerUserId: params.centerUser.id,
+            customerId: params.sourceCustomerId,
+          },
+        },
+      });
+    },
+  );
+}
+
 async function resolveSourceUserForOrganizationOwner(params: {
   centerUserId: number;
   sourceCustomerId: string;
@@ -123,6 +201,8 @@ async function resolveSourceUserForOrganizationOwner(params: {
   const centerUser = await systemDbClient.user.findUnique({
     select: {
       id: true,
+      password: true,
+      phone: true,
       realName: true,
       status: true,
       username: true,
@@ -134,6 +214,16 @@ async function resolveSourceUserForOrganizationOwner(params: {
   }
 
   const dbName = await getCustomerDbName(params.sourceCustomerId);
+  await ensurePublicSourceTenantUserForCenterUser({
+    centerUser: {
+      id: Number(centerUser.id),
+      password: centerUser.password,
+      phone: centerUser.phone,
+      realName: centerUser.realName,
+      username: String(centerUser.username),
+    },
+    sourceCustomerId: params.sourceCustomerId,
+  });
   const sourceUser = await prismaScopeStorage.run(
     { customerId: params.sourceCustomerId, dbName },
     () =>

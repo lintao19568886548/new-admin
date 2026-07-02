@@ -538,6 +538,13 @@ function isProfileOrganizationInvitationRoute(route: any) {
   );
 }
 
+function isCustomerAcquisitionRoute(route: any) {
+  return (
+    route?.name === CRM_CUSTOMER_ACQUISITION_ROUTE_MENU.name ||
+    route?.path === CRM_CUSTOMER_ACQUISITION_ROUTE_MENU.path
+  );
+}
+
 function buildProfileMembershipWorkbenchRoute(source?: any) {
   return {
     ...PROFILE_MEMBERSHIP_WORKBENCH_ROUTE,
@@ -556,6 +563,18 @@ function buildProfileOrganizationInvitationWorkbenchRoute(source?: any) {
     meta: {
       ...source?.meta,
       ...PROFILE_ORGANIZATION_INVITATION_WORKBENCH_ROUTE.meta,
+    },
+  };
+}
+
+function buildCustomerAcquisitionWorkbenchRoute(source?: any) {
+  return {
+    ...CRM_CUSTOMER_ACQUISITION_ROUTE_MENU,
+    ...source,
+    meta: {
+      ...source?.meta,
+      ...CRM_CUSTOMER_ACQUISITION_ROUTE_MENU.meta,
+      activePath: '/dashboard',
     },
   };
 }
@@ -641,6 +660,66 @@ function moveProfileOrganizationInvitationRouteToDashboard(menus: any[]) {
 
   const strippedMenus = stripProfileOrganizationInvitationRoute(menus);
   const route = buildProfileOrganizationInvitationWorkbenchRoute(sourceRoute);
+  let dashboardFound = false;
+
+  const appendToDashboard = (items: any[]): any[] =>
+    items.map((item) => {
+      if (isDashboardRoute(item)) {
+        dashboardFound = true;
+        return {
+          ...item,
+          children: sortRouteMenusByOrder(
+            appendRouteMenus(
+              Array.isArray(item.children) ? item.children : [],
+              [route],
+            ),
+          ),
+        };
+      }
+
+      if (Array.isArray(item?.children) && item.children.length > 0) {
+        return {
+          ...item,
+          children: appendToDashboard(item.children),
+        };
+      }
+
+      return item;
+    });
+
+  const nextMenus = appendToDashboard(strippedMenus);
+  return dashboardFound ? nextMenus : appendRouteMenus(nextMenus, [route]);
+}
+
+function moveCustomerAcquisitionRouteToDashboard(menus: any[]) {
+  let sourceRoute: any;
+
+  const stripCustomerAcquisitionRoute = (items: any[]): any[] =>
+    items.flatMap((item) => {
+      if (isCustomerAcquisitionRoute(item)) {
+        sourceRoute ||= item;
+        return [];
+      }
+
+      if (!Array.isArray(item?.children) || item.children.length === 0) {
+        return [item];
+      }
+
+      const children = stripCustomerAcquisitionRoute(item.children);
+      return [
+        {
+          ...item,
+          ...(children.length > 0 ? { children } : { children: undefined }),
+        },
+      ];
+    });
+
+  const strippedMenus = stripCustomerAcquisitionRoute(menus);
+  if (!sourceRoute) {
+    return menus;
+  }
+
+  const route = buildCustomerAcquisitionWorkbenchRoute(sourceRoute);
   let dashboardFound = false;
 
   const appendToDashboard = (items: any[]): any[] =>
@@ -811,9 +890,11 @@ export function appendProfileAuxiliaryRouteMenus(
       ...PUBLIC_CRAWL_AUXILIARY_ROUTE_MENUS,
       ...PUBLIC_CRAWL_MOBILE_ROUTE_MENUS,
     ];
-    return appendRouteMenus(normalizedMenus, [
-      buildPublicCrawlRootRoute(publicCrawlRouteMenus),
-    ]);
+    return moveCustomerAcquisitionRouteToDashboard(
+      appendRouteMenus(normalizedMenus, [
+        buildPublicCrawlRootRoute(publicCrawlRouteMenus),
+      ]),
+    );
   }
 
   if (options.investmentScope === 'registrationOnly') {
@@ -821,9 +902,11 @@ export function appendProfileAuxiliaryRouteMenus(
       ...PUBLIC_CRAWL_AUXILIARY_ROUTE_MENUS,
       ...REGISTRATION_MOBILE_ROUTE_MENUS,
     ];
-    return appendRouteMenus(normalizedMenus, [
-      buildPublicCrawlRootRoute(registrationRouteMenus),
-    ]);
+    return moveCustomerAcquisitionRouteToDashboard(
+      appendRouteMenus(normalizedMenus, [
+        buildPublicCrawlRootRoute(registrationRouteMenus),
+      ]),
+    );
   }
 
   let routeMenus = normalizedMenus;
@@ -840,24 +923,26 @@ export function appendProfileAuxiliaryRouteMenus(
   }
 
   if (!shouldAppendInvestmentRadarRouteMenus(routeMenus)) {
-    return routeMenus;
+    return moveCustomerAcquisitionRouteToDashboard(routeMenus);
   }
 
   const withRadarMenus = appendRouteMenus(
     routeMenus,
     INVESTMENT_RADAR_AUXILIARY_ROUTE_MENUS,
   );
-  return appendChildRouteMenus(
-    withRadarMenus,
-    {
-      name: 'Investment',
-      path: '/investment',
-    },
-    [
-      ...INVESTMENT_PC_ROUTE_MENUS,
-      CRM_CUSTOMER_ACQUISITION_ROUTE_MENU,
-      ...INVESTMENT_MOBILE_APP_ROUTE_MENUS,
-    ],
+  return moveCustomerAcquisitionRouteToDashboard(
+    appendChildRouteMenus(
+      withRadarMenus,
+      {
+        name: 'Investment',
+        path: '/investment',
+      },
+      [
+        ...INVESTMENT_PC_ROUTE_MENUS,
+        CRM_CUSTOMER_ACQUISITION_ROUTE_MENU,
+        ...INVESTMENT_MOBILE_APP_ROUTE_MENUS,
+      ],
+    ),
   );
 }
 

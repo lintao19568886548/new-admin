@@ -1,5 +1,5 @@
+import type { BillFormConfig } from './modules/bill-form-config';
 import type { BillDetailConfig } from './modules/BillBaseConfig';
-import type { BillFormConfig } from './modules/BillForm.vue';
 
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';

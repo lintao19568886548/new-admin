@@ -39,7 +39,10 @@ export async function sendLoginSmsCodeApi(data: { phoneNumber: string }) {
   return requestClient.post<{
     debugCode?: string;
     expiresIn: number;
-  }>('/auth/send-login-code', data);
+  }>('/auth/send-login-code', data, {
+    silentError: true,
+    timeout: 20_000,
+  });
 }
 
 /**

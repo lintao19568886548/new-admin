@@ -1,12 +1,17 @@
 import type {
   CreateWechatAppPrepayParams,
+  CreateWechatH5PrepayParams,
   WechatAppLaunchParams,
   WechatPayOrderStatus,
 } from '#/api/wechat-pay';
 
 import { Capacitor } from '@capacitor/core';
 
-import { createWechatAppPrepay, queryWechatPayOrder } from '#/api/wechat-pay';
+import {
+  createWechatAppPrepay,
+  createWechatH5Prepay,
+  queryWechatPayOrder,
+} from '#/api/wechat-pay';
 
 const WECHAT_PAY_RESULT_EVENT = 'native-wechat-pay-result';
 const DEFAULT_WECHAT_PAY_WAIT_MS = 120_000;
@@ -33,6 +38,18 @@ export interface WechatAppPayExecutionResult {
   prepayId: string;
   queryOrderStatus: () => Promise<WechatPayOrderStatus>;
 }
+
+export interface WechatH5PayExecutionResult {
+  checkoutFlowToken?: string;
+  h5Url: string;
+  outTradeNo: string;
+  payResult: NativeWechatPayLaunchResult;
+  queryOrderStatus: () => Promise<WechatPayOrderStatus>;
+}
+
+export type WechatUnifiedPayExecutionResult =
+  | (WechatAppPayExecutionResult & { mode: 'app' })
+  | (WechatH5PayExecutionResult & { mode: 'h5' });
 
 function buildFailedResult(
   reason: string,
@@ -94,6 +111,21 @@ export function canUseNativeWechatPay() {
     Capacitor.getPlatform() === 'android' &&
     typeof getAndroidInterface()?.launchWechatPay === 'function'
   );
+}
+
+export function resolveWechatH5Type(): 'Android' | 'iOS' | 'Wap' {
+  if (typeof navigator === 'undefined') {
+    return 'Wap';
+  }
+
+  const userAgent = navigator.userAgent || '';
+  if (/android/i.test(userAgent)) {
+    return 'Android';
+  }
+  if (/iphone|ipad|ipod/i.test(userAgent)) {
+    return 'iOS';
+  }
+  return 'Wap';
 }
 
 export function isWechatInstalled(appId: string) {
@@ -202,5 +234,50 @@ export async function payWithWechatApp(
       queryWechatPayOrder(prepay.launchParams.outTradeNo, {
         checkoutFlowToken: prepay.checkoutFlowToken,
       }),
+  };
+}
+
+export async function payWithWechatH5(
+  payload: CreateWechatH5PrepayParams,
+): Promise<WechatH5PayExecutionResult> {
+  const prepay = await createWechatH5Prepay({
+    ...payload,
+    appUrl:
+      payload.appUrl ||
+      (typeof window === 'undefined' ? undefined : window.location.origin),
+    h5Type: payload.h5Type || resolveWechatH5Type(),
+  });
+
+  return {
+    checkoutFlowToken: prepay.checkoutFlowToken,
+    h5Url: prepay.h5Url,
+    outTradeNo: prepay.outTradeNo,
+    payResult: {
+      launched: true,
+      message: '已打开微信 H5 支付页面',
+      ok: true,
+    },
+    queryOrderStatus: () =>
+      queryWechatPayOrder(prepay.outTradeNo, {
+        checkoutFlowToken: prepay.checkoutFlowToken,
+      }),
+  };
+}
+
+export async function payWithWechatEverywhere(
+  payload: CreateWechatH5PrepayParams,
+): Promise<WechatUnifiedPayExecutionResult> {
+  if (canUseNativeWechatPay()) {
+    const execution = await payWithWechatApp(payload);
+    return {
+      ...execution,
+      mode: 'app',
+    };
+  }
+
+  const execution = await payWithWechatH5(payload);
+  return {
+    ...execution,
+    mode: 'h5',
   };
 }

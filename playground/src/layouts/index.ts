@@ -1,6 +1,10 @@
-const BasicLayout = () => import('./basic.vue');
-const AuthPageLayout = () => import('./auth.vue');
+import { withRetryImport } from '#/utils/retry-import';
 
-const IFrameView = () => import('@vben/layouts').then((m) => m.IFrameView);
+const BasicLayout = withRetryImport(() => import('./basic.vue'));
+const AuthPageLayout = withRetryImport(() => import('./auth.vue'));
+
+const IFrameView = withRetryImport(() =>
+  import('@vben/layouts').then((m) => m.IFrameView),
+);
 
 export { AuthPageLayout, BasicLayout, IFrameView };

@@ -179,16 +179,26 @@ export const useAuthStore = defineStore('auth', () => {
       !accessStore.isAccessChecked ||
       accessStore.accessMenus.length === 0;
 
-    const [accessCodes, accessSnapshot] = await Promise.all([
-      getAccessCodesApi(),
-      shouldRebuildAccess
-        ? rebuildAccessSnapshot({
-            accessToken: currentAccessToken,
-            sessionVersion: currentSessionVersion,
-            userInfo,
-          })
-        : Promise.resolve(null),
-    ]);
+    let accessCodes: string[];
+    let accessSnapshot: Awaited<ReturnType<typeof rebuildAccessSnapshot>>;
+    try {
+      [accessCodes, accessSnapshot] = await Promise.all([
+        getAccessCodesApi(),
+        shouldRebuildAccess
+          ? rebuildAccessSnapshot({
+              accessToken: currentAccessToken,
+              sessionVersion: currentSessionVersion,
+              userInfo,
+            })
+          : Promise.resolve(null),
+      ]);
+    } catch (error) {
+      console.warn('Rebuild access snapshot failed:', error);
+      if (isCurrentSession(currentSessionVersion, currentAccessToken)) {
+        requireReauthentication('token_expired');
+      }
+      return null;
+    }
 
     if (!isCurrentSession(currentSessionVersion, currentAccessToken)) {
       return null;
@@ -377,7 +387,16 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     const currentSessionVersion = authSessionVersion.value;
-    const userInfo = await getUserInfoApi();
+    let userInfo: UserInfo;
+    try {
+      userInfo = await getUserInfoApi();
+    } catch (error) {
+      console.warn('Fetch user info failed, reset current session:', error);
+      if (currentSessionVersion === authSessionVersion.value) {
+        requireReauthentication('token_expired');
+      }
+      return null;
+    }
     if (
       currentSessionVersion !== authSessionVersion.value ||
       !accessStore.accessToken

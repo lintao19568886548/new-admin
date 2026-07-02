@@ -1,8 +1,19 @@
-import * as ExcelJS from 'exceljs';
+import type * as ExcelJSTypes from 'exceljs';
+
+import { retryImport } from '#/utils/retry-import';
+
+type ExcelJSModule = typeof ExcelJSTypes;
+
+let excelJSImportPromise: null | Promise<ExcelJSModule> = null;
+
+function loadExcelJS() {
+  excelJSImportPromise ??= retryImport(() => import('exceljs'));
+  return excelJSImportPromise;
+}
 
 // 辅助函数：保存工作簿到文件
 async function saveWorkbook(
-  workbook: ExcelJS.Workbook,
+  workbook: ExcelJSTypes.Workbook,
   fileName: string,
 ): Promise<void> {
   const buffer = await workbook.xlsx.writeBuffer();
@@ -20,7 +31,7 @@ async function saveWorkbook(
 
 // 应用表头格式：单元格合并和样式设置
 function applyHeaderFormatting(
-  worksheet: ExcelJS.Worksheet,
+  worksheet: ExcelJSTypes.Worksheet,
   aoaData: any[][],
   dataMeta?: any[],
 ) {
@@ -64,7 +75,7 @@ function applyHeaderFormatting(
   // 2. 应用样式
 
   // 定义边框样式
-  const borderStyle: Partial<ExcelJS.Border> = {
+  const borderStyle: Partial<ExcelJSTypes.Border> = {
     color: { argb: 'FF000000' }, // 黑色
     style: 'thin',
   };
@@ -177,6 +188,7 @@ export async function exportArrayToExcel(
   fileName: string = 'excel-export',
   sheetName: string = 'Sheet1',
 ): Promise<void> {
+  const ExcelJS = await loadExcelJS();
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet(sheetName);
   worksheet.addRows(data);
@@ -198,12 +210,14 @@ export async function exportJsonToExcel<T = any>(
 ): Promise<void> {
   if (!data?.length) {
     // 如果数据为空，创建一个空的工作簿并保存
+    const ExcelJS = await loadExcelJS();
     const workbook = new ExcelJS.Workbook();
     workbook.addWorksheet(sheetName);
     await saveWorkbook(workbook, fileName);
     return;
   }
 
+  const ExcelJS = await loadExcelJS();
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet(sheetName);
   let dataForHeaderMerges: any[][] | undefined;

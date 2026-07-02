@@ -34,7 +34,6 @@ import {
   Tabs,
   Tag,
 } from 'ant-design-vue';
-import html2canvas from 'html2canvas';
 
 import {
   createCrmOwnerBindingApi,
@@ -61,6 +60,7 @@ import {
   shareWechatImage,
   shareWechatWebpage,
 } from '#/utils/native-wechat-share';
+import { retryImport } from '#/utils/retry-import';
 import { initWechatJssdk } from '#/utils/wechat-jssdk';
 import { loadWechatPayAppConfig } from '#/utils/wechat-pay-app-config';
 import { applyWechatH5ShareCard } from '#/utils/wechat-share';
@@ -884,6 +884,9 @@ async function renderPromotionPoster() {
       return '';
     }
     await waitForPosterImages();
+    const { default: html2canvas } = await retryImport(
+      () => import('html2canvas'),
+    );
     const canvas = await html2canvas(posterElement, {
       backgroundColor: '#ffffff',
       scale: 2,

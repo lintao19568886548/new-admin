@@ -1,0 +1,90 @@
+model AgentTask {
+  id             String    @id @db.VarChar(64)
+  agentCode      String    @map("agent_code") @db.VarChar(64)
+  sourceModule   String?   @map("source_module") @db.VarChar(64)
+  sourcePage     String?   @map("source_page") @db.VarChar(128)
+  sourceRecordId String?   @map("source_record_id") @db.VarChar(64)
+  userId         Int       @map("user_id")
+  organizationId Int?      @map("organization_id")
+  parkId         Int?      @map("park_id")
+  input          Json
+  plan           Json?
+  status         String    @db.VarChar(32)
+  result         Json?
+  errorMessage   String?   @map("error_message") @db.Text
+  currentStepNo  Int?      @map("current_step_no")
+  startedAt      DateTime? @map("started_at")
+  finishedAt     DateTime? @map("finished_at")
+  createTime     DateTime  @default(now()) @map("create_time")
+  updateTime     DateTime  @updatedAt @map("update_time")
+
+  @@index([userId])
+  @@index([parkId])
+  @@index([sourceModule, sourceRecordId])
+  @@index([status, createTime])
+  @@map("agent_task")
+}
+
+model AgentTaskStep {
+  id               String    @id @db.VarChar(64)
+  taskId           String    @map("task_id") @db.VarChar(64)
+  stepNo           Int       @map("step_no")
+  stepName         String    @map("step_name") @db.VarChar(100)
+  skillName        String?   @map("skill_name") @db.VarChar(100)
+  input            Json?
+  output           Json?
+  status           String    @db.VarChar(32)
+  riskLevel        String    @default("low") @map("risk_level") @db.VarChar(20)
+  requiresApproval Boolean   @default(false) @map("requires_approval")
+  approvalId       String?   @map("approval_id") @db.VarChar(64)
+  errorMessage     String?   @map("error_message") @db.Text
+  startedAt        DateTime? @map("started_at")
+  finishedAt       DateTime? @map("finished_at")
+  durationMs       Int?      @map("duration_ms")
+  createTime       DateTime  @default(now()) @map("create_time")
+  updateTime       DateTime  @updatedAt @map("update_time")
+
+  @@index([taskId, stepNo])
+  @@index([skillName])
+  @@map("agent_task_step")
+}
+
+model AgentSkill {
+  id               String   @id @db.VarChar(64)
+  name             String   @unique @db.VarChar(100)
+  title            String   @db.VarChar(100)
+  description      String?  @db.Text
+  inputSchema      Json?    @map("input_schema")
+  outputSchema     Json?    @map("output_schema")
+  permissionCode   String?  @map("permission_code") @db.VarChar(100)
+  riskLevel        String   @default("low") @map("risk_level") @db.VarChar(20)
+  requiresApproval Boolean  @default(false) @map("requires_approval")
+  enabled          Boolean  @default(true)
+  createTime       DateTime @default(now()) @map("create_time")
+  updateTime       DateTime @updatedAt @map("update_time")
+
+  @@index([enabled])
+  @@map("agent_skill")
+}
+
+model AgentAuditLog {
+  id          String   @id @db.VarChar(64)
+  taskId      String?  @map("task_id") @db.VarChar(64)
+  stepId      String?  @map("step_id") @db.VarChar(64)
+  userId      Int?     @map("user_id")
+  actionType  String   @map("action_type") @db.VarChar(80)
+  targetType  String?  @map("target_type") @db.VarChar(80)
+  targetId    String?  @map("target_id") @db.VarChar(100)
+  riskLevel   String   @default("low") @map("risk_level") @db.VarChar(20)
+  input       Json?
+  output      Json?
+  ip          String?  @db.VarChar(80)
+  userAgent   String?  @map("user_agent") @db.VarChar(255)
+  systemLogId Int?     @map("system_log_id")
+  createTime  DateTime @default(now()) @map("create_time")
+
+  @@index([taskId])
+  @@index([userId, createTime])
+  @@index([actionType, createTime])
+  @@map("agent_audit_log")
+}

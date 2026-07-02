@@ -7,6 +7,7 @@ import {
   unAuthorizedResponse,
   useResponseSuccess,
 } from '~/utils/response';
+import { resolveVipMembershipSourceCustomerId } from '~/utils/vip-membership';
 
 function normalizeOrganizationIdentityInput(body: Record<string, unknown>) {
   let nested: Record<string, unknown> = {};
@@ -72,9 +73,11 @@ export default eventHandler(async (event) => {
   }
 
   const currentCustomerId = String(userinfo.customerId || '').trim();
-  if (currentCustomerId !== 'public') {
+  const sourceCustomerId =
+    resolveVipMembershipSourceCustomerId(currentCustomerId);
+  if (sourceCustomerId !== 'public') {
     return badRequestResponse(
-      '只有公开试用空间账号可以创建组织空间',
+      '只有公共/默认入口账号可以创建组织空间',
       event,
       409,
     );
@@ -90,7 +93,7 @@ export default eventHandler(async (event) => {
     const membership = await ensureSingleOwnerSourceOrganizationForCenterUser({
       centerUserId,
       organizationIdentity: normalizeOrganizationIdentityInput(body || {}),
-      sourceCustomerId: currentCustomerId,
+      sourceCustomerId,
     });
 
     return useResponseSuccess({

@@ -16,6 +16,7 @@ import { createHead } from '@vueuse/head';
 
 import { $t, setupI18n } from '#/locales';
 import { setupNeutralErrorFeedback } from '#/utils/neutral-feedback';
+import { setupVueRuntimeErrorHandler } from '#/utils/runtime-error';
 
 import { initComponentAdapter } from './adapter/component';
 import App from './app.vue';
@@ -47,6 +48,7 @@ async function bootstrap(namespace: string) {
   // });
 
   const app = createApp(App);
+  setupVueRuntimeErrorHandler(app);
 
   // 注册v-loading指令
   registerLoadingDirective(app, {

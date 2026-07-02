@@ -43,6 +43,38 @@
     color: #fff;
   }
 
+  .loading-message {
+    display: none;
+    max-width: 320px;
+    margin-top: 14px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: rgb(71 85 105 / 100%);
+    text-align: center;
+  }
+
+  .dark .loading-message {
+    color: rgb(203 213 225 / 100%);
+  }
+
+  .loading-action {
+    display: none;
+    height: 36px;
+    padding-inline: 16px;
+    margin-top: 16px;
+    font-size: 14px;
+    color: #fff;
+    cursor: pointer;
+    background: hsl(var(--primary, 210 100% 50%));
+    border: 0;
+    border-radius: 6px;
+  }
+
+  .loading.slow .loading-message,
+  .loading.slow .loading-action {
+    display: block;
+  }
+
   .loader {
     position: relative;
     width: 48px;
@@ -110,4 +142,14 @@
 <div class="loading" id="__app-loading__">
   <div class="loader"></div>
   <div class="title"><%= VITE_APP_TITLE %></div>
+  <div class="loading-message">
+    当前网络较慢或设备正在解析资源，请稍候。如果长时间没有响应，可以重新加载页面。
+  </div>
+  <button
+    class="loading-action"
+    type="button"
+    onclick="window.location.reload()"
+  >
+    重新加载
+  </button>
 </div>

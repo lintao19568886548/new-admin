@@ -2,7 +2,11 @@ import { systemDbClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
 import { verifyVipCheckoutFlowTokenFromEvent } from '~/utils/vip-checkout-flow-token';
-import { getOrganizationProvisioningProfileState } from '~/utils/vip-membership';
+import {
+  getOrganizationProvisioningProfileState,
+  getVipMembershipDefaultCustomerId,
+  resolveVipMembershipSourceCustomerId,
+} from '~/utils/vip-membership';
 
 export async function handleOrganizationProvisioningStatus(event: any) {
   const flowTokenPayload =
@@ -19,8 +23,10 @@ export async function handleOrganizationProvisioningStatus(event: any) {
     return unAuthorizedResponse(event);
   }
 
-  const sourceCustomerId =
+  const rawSourceCustomerId =
     flowTokenPayload?.sourceCustomerId ?? userinfo?.customerId;
+  const sourceCustomerId =
+    resolveVipMembershipSourceCustomerId(rawSourceCustomerId);
   const [provisioningState, centerUser] = await Promise.all([
     getOrganizationProvisioningProfileState(
       centerUserId,
@@ -39,13 +45,18 @@ export async function handleOrganizationProvisioningStatus(event: any) {
   const currentCustomerId = centerUser.customerType
     ? String(centerUser.customerType)
     : undefined;
+  const defaultCustomerId = getVipMembershipDefaultCustomerId();
+  const requiresReloginTarget =
+    sourceCustomerId === 'public' && currentCustomerId === defaultCustomerId
+      ? currentCustomerId
+      : sourceCustomerId;
   return useResponseSuccess({
     ...provisioningState,
     currentCustomerId,
     requiresRelogin: Boolean(
       currentCustomerId &&
-      sourceCustomerId &&
-      currentCustomerId !== sourceCustomerId,
+      requiresReloginTarget &&
+      currentCustomerId !== requiresReloginTarget,
     ),
   });
 }

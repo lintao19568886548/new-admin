@@ -4,10 +4,12 @@ import {
   createVerify,
   randomUUID,
 } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { parse as parseDotenv } from 'dotenv';
 
 const WECHAT_PAY_API_BASE_URL = 'https://api.mch.weixin.qq.com';
 const WECHAT_PAY_ACCEPT_LANGUAGE = 'zh-CN';
@@ -84,6 +86,27 @@ interface WechatPayPlatformCertificateCache {
   loadingPromise: null | Promise<Map<string, string>>;
 }
 
+export class WechatPayRequestError extends Error {
+  code?: string;
+  detail?: WechatPayResponseError['detail'];
+  status: number;
+
+  constructor(
+    message: string,
+    options: {
+      code?: string;
+      detail?: WechatPayResponseError['detail'];
+      status: number;
+    },
+  ) {
+    super(message);
+    this.name = 'WechatPayRequestError';
+    this.code = options.code;
+    this.detail = options.detail;
+    this.status = options.status;
+  }
+}
+
 export interface WechatAppPrepayInput {
   amount: {
     currency?: string;
@@ -95,6 +118,16 @@ export interface WechatAppPrepayInput {
   notifyUrl?: string;
   outTradeNo: string;
   payerClientIp?: string;
+}
+
+export interface WechatH5PrepayInput extends WechatAppPrepayInput {
+  h5Info?: {
+    appName?: string;
+    appUrl?: string;
+    bundleId?: string;
+    packageName?: string;
+    type?: 'Android' | 'iOS' | 'Wap';
+  };
 }
 
 export interface WechatAppLaunchParams {
@@ -125,6 +158,11 @@ export interface WechatPayOrderStatus {
   tradeState: string;
   tradeStateDesc: string;
   transactionId: string;
+}
+
+export interface WechatH5PrepayResult {
+  h5Url: string;
+  outTradeNo: string;
 }
 
 export interface WechatPayNotificationResult {
@@ -171,8 +209,58 @@ const platformCertificateCache: WechatPayPlatformCertificateCache = {
 };
 
 let wechatPayConfigPromise: null | Promise<WechatPayConfig> = null;
+let wechatPayRuntimeEnvLoaded = false;
+
+function isWechatPayRuntimeEnvName(name: string) {
+  return (
+    name === 'WECHAT_APP_ID' ||
+    name === 'WECHAT_OPEN_APP_ID' ||
+    name.startsWith('WECHAT_PAY_')
+  );
+}
+
+function getBackendMockDirCandidates() {
+  const cwd = process.cwd();
+  return [
+    BACKEND_MOCK_DIR,
+    resolve(BACKEND_MOCK_DIR, '..'),
+    resolve(BACKEND_MOCK_DIR, '../..', 'apps/backend-mock'),
+    cwd,
+    resolve(cwd, 'apps/backend-mock'),
+    resolve(cwd, '../apps/backend-mock'),
+    resolve(cwd, '../../apps/backend-mock'),
+  ].filter((dir, index, dirs) => dirs.indexOf(dir) === index);
+}
+
+function loadWechatPayRuntimeEnvFile(fileName: string) {
+  for (const dir of getBackendMockDirCandidates()) {
+    const envPath = resolve(dir, fileName);
+    if (!existsSync(envPath)) {
+      continue;
+    }
+
+    const parsed = parseDotenv(readFileSync(envPath));
+    for (const [name, value] of Object.entries(parsed)) {
+      if (isWechatPayRuntimeEnvName(name)) {
+        process.env[name] = value;
+      }
+    }
+  }
+}
+
+function ensureWechatPayRuntimeEnvLoaded() {
+  if (wechatPayRuntimeEnvLoaded) {
+    return;
+  }
+
+  loadWechatPayRuntimeEnvFile('.env');
+  loadWechatPayRuntimeEnvFile('.env.dev');
+  loadWechatPayRuntimeEnvFile('.env.local');
+  wechatPayRuntimeEnvLoaded = true;
+}
 
 function readEnv(name: string) {
+  ensureWechatPayRuntimeEnvLoaded();
   return process.env[name]?.trim() || '';
 }
 
@@ -181,7 +269,17 @@ function hasAnyEnv(names: string[]) {
 }
 
 function resolveWechatPayFilePath(filePath: string) {
-  return isAbsolute(filePath) ? filePath : resolve(BACKEND_MOCK_DIR, filePath);
+  if (isAbsolute(filePath)) {
+    return filePath;
+  }
+
+  const candidates = getBackendMockDirCandidates().map((dir) =>
+    resolve(dir, filePath),
+  );
+  return (
+    candidates.find((path) => existsSync(path)) ||
+    resolve(BACKEND_MOCK_DIR, filePath)
+  );
 }
 
 function resolveOptionalFileEnv(name: string) {
@@ -237,21 +335,20 @@ export function getWechatPayAppConfigStatus() {
   if (!readEnv('WECHAT_PAY_NOTIFY_URL')) {
     missing.push('WECHAT_PAY_NOTIFY_URL');
   }
+  const hasInlinePublicKey = Boolean(readEnv('WECHAT_PAY_PUBLIC_KEY'));
+  const publicKeyPath = readEnv('WECHAT_PAY_PUBLIC_KEY_PATH');
+  const publicKeyPathStatus = resolveOptionalFileEnv(
+    'WECHAT_PAY_PUBLIC_KEY_PATH',
+  );
+  const hasPublicKeyFile = Boolean(publicKeyPath && publicKeyPathStatus.exists);
+
   if (
-    hasAnyEnv([
-      'WECHAT_PAY_PUBLIC_KEY',
-      'WECHAT_PAY_PUBLIC_KEY_ID',
-      'WECHAT_PAY_PUBLIC_KEY_PATH',
-    ]) &&
+    (hasInlinePublicKey || hasPublicKeyFile) &&
     !readEnv('WECHAT_PAY_PUBLIC_KEY_ID')
   ) {
     missing.push('WECHAT_PAY_PUBLIC_KEY_ID');
   }
-  if (
-    !readEnv('WECHAT_PAY_PUBLIC_KEY') &&
-    readEnv('WECHAT_PAY_PUBLIC_KEY_PATH') &&
-    !resolveOptionalFileEnv('WECHAT_PAY_PUBLIC_KEY_PATH').exists
-  ) {
+  if (!hasInlinePublicKey && publicKeyPath && !publicKeyPathStatus.exists) {
     missing.push('WECHAT_PAY_PUBLIC_KEY_PATH');
   }
   if (!hasAnyEnv(['WECHAT_PAY_PRIVATE_KEY', 'WECHAT_PAY_PRIVATE_KEY_PATH'])) {
@@ -303,7 +400,7 @@ async function readWechatPayPublicKey() {
   const inlinePublicKey = process.env.WECHAT_PAY_PUBLIC_KEY?.trim();
   const publicKeyPath = process.env.WECHAT_PAY_PUBLIC_KEY_PATH?.trim();
 
-  if (!publicKeyId && !inlinePublicKey && !publicKeyPath) {
+  if (!inlinePublicKey && !publicKeyPath) {
     return {};
   }
 
@@ -517,6 +614,18 @@ function extractWechatPayErrorMessage(
   return `微信支付请求失败，HTTP ${status}`;
 }
 
+function parseWechatPayErrorPayload(rawBody: string) {
+  if (!rawBody) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawBody) as WechatPayResponseError;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchWechatPlatformCertificates(forceRefresh = false) {
   const now = Date.now();
   if (
@@ -655,26 +764,23 @@ async function signedWechatPayRequest<T>(
   });
   const rawBody = await response.text();
 
+  if (!response.ok) {
+    const errorPayload = parseWechatPayErrorPayload(rawBody);
+    throw new WechatPayRequestError(
+      extractWechatPayErrorMessage(response.status, errorPayload),
+      {
+        code: errorPayload?.code,
+        detail: errorPayload?.detail,
+        status: response.status,
+      },
+    );
+  }
+
   if (!options.skipResponseVerification) {
     await verifyWechatPayResponseSignature({
       headers: response.headers,
       rawBody,
     });
-  }
-
-  if (!response.ok) {
-    let errorPayload: null | WechatPayResponseError = null;
-    try {
-      errorPayload = rawBody
-        ? (JSON.parse(rawBody) as WechatPayResponseError)
-        : null;
-    } catch {
-      errorPayload = null;
-    }
-
-    throw new Error(
-      extractWechatPayErrorMessage(response.status, errorPayload),
-    );
   }
 
   return {
@@ -742,6 +848,61 @@ export async function createWechatAppPrepay(
       timeStamp,
     },
     prepayId,
+  };
+}
+
+export async function createWechatH5Prepay(
+  payload: WechatH5PrepayInput,
+): Promise<WechatH5PrepayResult> {
+  const config = await getWechatPayConfig();
+  const h5Info = payload.h5Info || {};
+  const requestBody: Record<string, any> = {
+    amount: {
+      currency: payload.amount.currency || 'CNY',
+      total: payload.amount.total,
+    },
+    appid: config.appId,
+    attach: payload.attach || undefined,
+    description: payload.description,
+    mchid: config.mchId,
+    notify_url: payload.notifyUrl || config.notifyUrl,
+    out_trade_no: payload.outTradeNo,
+    scene_info: {
+      h5_info: {
+        app_name: h5Info.appName || undefined,
+        app_url: h5Info.appUrl || undefined,
+        bundle_id: h5Info.bundleId || undefined,
+        package_name: h5Info.packageName || undefined,
+        type: h5Info.type || 'Wap',
+      },
+      payer_client_ip: payload.payerClientIp || '127.0.0.1',
+    },
+  };
+
+  if (!requestBody.scene_info.h5_info.app_name) {
+    delete requestBody.scene_info.h5_info.app_name;
+  }
+  if (!requestBody.scene_info.h5_info.app_url) {
+    delete requestBody.scene_info.h5_info.app_url;
+  }
+  if (!requestBody.scene_info.h5_info.bundle_id) {
+    delete requestBody.scene_info.h5_info.bundle_id;
+  }
+  if (!requestBody.scene_info.h5_info.package_name) {
+    delete requestBody.scene_info.h5_info.package_name;
+  }
+
+  const response = await signedWechatPayRequest<{ h5_url: string }>(
+    '/v3/pay/transactions/h5',
+    {
+      body: requestBody,
+      method: 'POST',
+    },
+  );
+
+  return {
+    h5Url: response.data.h5_url,
+    outTradeNo: payload.outTradeNo,
   };
 }
 

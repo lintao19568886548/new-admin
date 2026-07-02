@@ -1,4 +1,8 @@
-import { getContentText, requestBailianChat } from '~/utils/bailian';
+import type { AgentChatMessage } from '~/utils/agent/types';
+
+import { runAgentTask } from '~/utils/agent/agent-runner';
+import { AgentLlmError } from '~/utils/agent/llm-adapter';
+import { AgentSchemaNotReadyError } from '~/utils/agent/task-repository';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
   badRequestResponse,
@@ -7,9 +11,7 @@ import {
   useResponseSuccess,
 } from '~/utils/response';
 
-type AgentChatRole = 'assistant' | 'system' | 'user';
-
-interface AgentChatMessage {
+interface AgentChatRequestMessage {
   content?: unknown;
   role?: unknown;
 }
@@ -17,7 +19,7 @@ interface AgentChatMessage {
 interface AgentChatRequestBody {
   agentId?: unknown;
   context?: Record<string, unknown>;
-  messages?: AgentChatMessage[];
+  messages?: AgentChatRequestMessage[];
   model?: unknown;
 }
 
@@ -32,19 +34,21 @@ const ALLOWED_MODELS = new Set([
   'qwen-plus',
   'qwen-turbo',
 ]);
-
-const AGENT_PROMPTS: Record<string, string> = {
-  bill: '你偏向账单、催收、财务收支、园区费用核算，输出要能直接给运营或财务人员使用。',
-  crm: '你偏向获客推广、销售绑定、客户跟进、招商线索转化，输出要具体到话术、下一步动作和风险点。',
-  maintenance:
-    '你偏向维修巡检、消防、电梯、厂房维护、卫生检查，输出要包含处理优先级和闭环检查项。',
-  operations:
-    '你偏向园区综合运营，覆盖招商、租赁、账单、人员、门禁、公告和经营看板。',
+const AGENT_CODE_ALIASES: Record<string, string> = {
+  bill: 'bill_finance',
+  bill_finance: 'bill_finance',
+  crm: 'crm_sales',
+  crm_sales: 'crm_sales',
+  investment_radar: 'investment_radar',
+  maintenance: 'maintenance',
+  operations: 'operations',
+  rental_asset: 'rental_asset',
+  system_ops: 'system_ops',
 };
 
-function normalizeAgentId(value: unknown) {
+function normalizeAgentCode(value: unknown) {
   const agentId = String(value || '').trim();
-  return Object.hasOwn(AGENT_PROMPTS, agentId) ? agentId : 'operations';
+  return AGENT_CODE_ALIASES[agentId] || 'operations';
 }
 
 function normalizeModel(value: unknown) {
@@ -52,7 +56,7 @@ function normalizeModel(value: unknown) {
   return ALLOWED_MODELS.has(model) ? model : DEFAULT_AGENT_MODEL;
 }
 
-function normalizeRole(value: unknown): AgentChatRole {
+function normalizeRole(value: unknown): AgentChatMessage['role'] {
   return value === 'assistant' || value === 'system' || value === 'user'
     ? value
     : 'user';
@@ -66,21 +70,23 @@ function normalizeMessageContent(value: unknown) {
     .slice(0, MAX_MESSAGE_CHARS);
 }
 
-function normalizeMessages(messages: unknown) {
+function normalizeMessages(messages: unknown): AgentChatMessage[] {
   if (!Array.isArray(messages)) {
     return [];
   }
 
   const normalized = messages
     .map((item) => ({
-      content: normalizeMessageContent((item as AgentChatMessage)?.content),
-      role: normalizeRole((item as AgentChatMessage)?.role),
+      content: normalizeMessageContent(
+        (item as AgentChatRequestMessage)?.content,
+      ),
+      role: normalizeRole((item as AgentChatRequestMessage)?.role),
     }))
     .filter((item) => item.content.length > 0)
     .slice(-MAX_MESSAGE_COUNT);
 
   let totalChars = 0;
-  const result = [];
+  const result: AgentChatMessage[] = [];
   for (const item of [...normalized].reverse()) {
     totalChars += item.content.length;
     if (totalChars > MAX_TOTAL_CHARS) {
@@ -92,33 +98,28 @@ function normalizeMessages(messages: unknown) {
   return result;
 }
 
-function buildSystemPrompt(params: {
-  agentId: string;
-  realName?: string;
-  roles?: unknown;
-}) {
-  const roleText = Array.isArray(params.roles)
-    ? params.roles.join(',')
-    : String(params.roles || '');
+function toPositiveInteger(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isInteger(numberValue) && numberValue > 0
+    ? Math.floor(numberValue)
+    : undefined;
+}
 
-  return [
-    '你是“瞰维智管-智慧园区管理系统”的 Agent 工作台助手。',
-    '你面向园区管理人员，回答要围绕真实业务动作，不写空泛宣传。',
-    '当前系统模块包括：总台、租赁管理、账单管理、财务管理、招商管理、获客推广、人员考勤、维修巡检、门禁访客、公告反馈、系统权限。',
-    AGENT_PROMPTS[params.agentId] || AGENT_PROMPTS.operations,
-    params.realName ? `当前登录用户：${params.realName}` : '',
-    roleText ? `当前用户角色：${roleText}` : '',
-    '回答要求：用中文；先给结论，再给可执行步骤；涉及数据时说明需要用户提供或进入哪个系统模块核对；不要编造系统里不存在的数据。',
-  ]
-    .filter(Boolean)
-    .join('\n');
+function resolveReplyFromResult(result: Record<string, unknown>) {
+  const directReply = String(result.reply || '').trim();
+  if (directReply) {
+    return directReply;
+  }
+  const outputs = Array.isArray(result.outputs) ? result.outputs : [];
+  return (
+    outputs
+      .map((item) => String((item as Record<string, unknown>)?.reply || ''))
+      .find((text) => text.trim().length > 0) ||
+    '我暂时没有生成有效回复，请换一种问法再试。'
+  );
 }
 
 function getErrorMessage(error: any) {
-  if (error?.code === 'ECONNABORTED') {
-    return 'AI模型响应超时，请稍后重试，或切换 qwen-turbo 后再试';
-  }
-
   return String(
     error?.response?.data?.error?.message ||
       error?.response?.data?.message ||
@@ -135,7 +136,7 @@ export default eventHandler(async (event) => {
 
   const body = ((await readBody(event).catch(() => ({}))) ||
     {}) as AgentChatRequestBody;
-  const agentId = normalizeAgentId(body.agentId);
+  const agentCode = normalizeAgentCode(body.agentId);
   const model = normalizeModel(body.model);
   const messages = normalizeMessages(body.messages);
 
@@ -144,44 +145,49 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const startedAt = Date.now();
-    console.info('[agent][chat] request start', {
-      agentId,
-      messageCount: messages.length,
-      model,
-      userId: userinfo.id,
-    });
-
-    const completion = await requestBailianChat({
-      messages: [
-        {
-          content: buildSystemPrompt({
-            agentId,
-            realName: String(userinfo.realName || userinfo.username || ''),
-            roles: userinfo.roles,
-          }),
-          role: 'system',
+    const runResult = await runAgentTask({
+      context: {
+        event,
+        organizationId: toPositiveInteger(
+          (body.context || {}).organizationId ?? event.context.organizationId,
+        ),
+        parkId: toPositiveInteger(
+          (body.context || {}).parkId ?? event.context.currentParkId,
+        ),
+        userinfo,
+      },
+      request: {
+        agentCode,
+        input: {
+          agentCode,
+          context: body.context || {},
+          messages,
+          model,
         },
-        ...messages,
-      ],
-      model,
-      temperature: 0.2,
+        sourceModule: 'agent',
+        sourcePage: 'dashboard-agent-workbench',
+      },
     });
-
-    const reply = getContentText(completion?.choices?.[0]?.message?.content);
-    console.info('[agent][chat] request done', {
-      agentId,
-      durationMs: Date.now() - startedAt,
-      hasReply: Boolean(reply),
-      model,
-    });
+    const reply = resolveReplyFromResult(runResult.result);
 
     return useResponseSuccess({
-      agentId,
-      createdAt: new Date().toISOString(),
+      agentId: body.agentId || agentCode,
+      agentCode,
+      createdAt: runResult.task.createTime,
       model,
-      reply: reply || '我暂时没有生成有效回复，请换一种问法再试。',
-      usage: completion?.usage || null,
+      reply,
+      result: runResult.result,
+      status: runResult.task.status,
+      steps: runResult.steps,
+      task: runResult.task,
+      taskId: runResult.task.id,
+      usage:
+        runResult.result.outputs &&
+        Array.isArray(runResult.result.outputs) &&
+        runResult.result.outputs[0]
+          ? (runResult.result.outputs[0] as Record<string, unknown>).usage ||
+            null
+          : null,
     });
   } catch (error: any) {
     console.error(
@@ -189,6 +195,18 @@ export default eventHandler(async (event) => {
       error?.response?.data || error,
     );
     const messageText = getErrorMessage(error);
+    if (error instanceof AgentSchemaNotReadyError) {
+      return serverErrorResponse(error.message, event);
+    }
+    if (
+      error instanceof AgentLlmError &&
+      messageText.includes('ALIYUN_BAILIAN_KEY')
+    ) {
+      return serverErrorResponse(
+        'AI服务未配置，请在系统密钥中配置 ALIYUN_BAILIAN_KEY',
+        event,
+      );
+    }
     if (messageText.includes('ALIYUN_BAILIAN_KEY')) {
       return serverErrorResponse(
         'AI服务未配置，请在系统密钥中配置 ALIYUN_BAILIAN_KEY',

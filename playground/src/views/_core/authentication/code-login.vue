@@ -73,13 +73,13 @@ async function sendCodeApi(phoneNumber: string) {
     }
   } catch (error) {
     message.destroy(messageKey);
-    if (!isHttpError(error)) {
-      message.error({
-        content: resolveErrorMessage(error),
-        duration: 3,
-        key: messageKey,
-      });
-    }
+    message.error({
+      content: isHttpError(error)
+        ? '验证码发送失败，请检查网络后稍后重试'
+        : resolveErrorMessage(error),
+      duration: 3,
+      key: messageKey,
+    });
     throw error;
   }
 }

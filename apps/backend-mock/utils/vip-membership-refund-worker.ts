@@ -41,12 +41,13 @@ function hasWechatPayRefundConfig() {
     process.env.WECHAT_PAY_PRIVATE_KEY?.trim() ||
     process.env.WECHAT_PAY_PRIVATE_KEY_PATH?.trim(),
   );
+  const hasPublicKeySource = Boolean(
+    process.env.WECHAT_PAY_PUBLIC_KEY?.trim() ||
+    process.env.WECHAT_PAY_PUBLIC_KEY_PATH?.trim(),
+  );
   const hasPublicKey =
-    !process.env.WECHAT_PAY_PUBLIC_KEY_ID?.trim() ||
-    Boolean(
-      process.env.WECHAT_PAY_PUBLIC_KEY?.trim() ||
-      process.env.WECHAT_PAY_PUBLIC_KEY_PATH?.trim(),
-    );
+    !hasPublicKeySource ||
+    Boolean(process.env.WECHAT_PAY_PUBLIC_KEY_ID?.trim());
 
   return Boolean(
     (process.env.WECHAT_OPEN_APP_ID?.trim() ||

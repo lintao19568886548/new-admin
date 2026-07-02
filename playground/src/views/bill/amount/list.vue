@@ -8,7 +8,7 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { onMounted, ref } from 'vue';
+import { nextTick, onMounted, ref, shallowRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router'; // 新增: 引入 useRouter
 
 import { Page } from '@vben/common-ui';
@@ -38,7 +38,7 @@ import { getTenantSelectList } from '#/api/rental/tenant';
 import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { useSmsActionVerification } from '#/hooks/useSmsActionVerification';
 import { $t } from '#/locales';
-import { executeBill } from '#/utils/excel';
+import { retryImport } from '#/utils/retry-import';
 
 import {
   electricityFormConfig,
@@ -49,9 +49,7 @@ import {
   useGridFormSchema,
   waterFormConfig,
 } from './data';
-import { analyzeAmountBillExcel, mapLlmResultToAmountBill } from './llm';
 import CollectionSmsModal from './modules/CollectionSmsModal.vue';
-import MultipageBillForm from './modules/MultipageBillForm.vue';
 
 const billParkOptions = ref<any[]>([]);
 const billTenantOptions = ref<any[]>([]);
@@ -91,8 +89,11 @@ onMounted(async () => {
   }
 });
 
-// 账单表单组件引用
-const billFormRef = ref();
+// 账单表单包含 Univer 表格，体积很大，只在用户打开表单时加载。
+const billFormComponent = shallowRef();
+const billFormRef = ref<{
+  open: (data: AmountBill, options?: { isNextMonth?: boolean }) => void;
+}>();
 
 // 账单详情组件引用
 const billDetailRef = ref();
@@ -128,16 +129,45 @@ function runDeleteWithVerification(action: () => Promise<void>) {
   }, 0);
 }
 
-/**
- * 编辑账单
- * @param row
- */
+async function ensureBillFormReady() {
+  if (!billFormComponent.value) {
+    const module = await retryImport(
+      () => import('./modules/MultipageBillForm.vue'),
+    );
+    billFormComponent.value = module.default;
+  }
+
+  await nextTick();
+  if (!billFormRef.value?.open) {
+    await nextTick();
+  }
+
+  if (!billFormRef.value?.open) {
+    throw new Error('账单表单组件未初始化，请稍后重试');
+  }
+
+  return billFormRef.value;
+}
+
+async function openBillForm(
+  data: AmountBill,
+  options?: { isNextMonth?: boolean },
+) {
+  try {
+    const billForm = await ensureBillFormReady();
+    billForm.open(data, options);
+  } catch (error) {
+    console.error('打开账单表单失败:', error);
+    message.error(error instanceof Error ? error.message : '打开账单表单失败');
+  }
+}
+
 function onEdit(row: AmountBill) {
-  billFormRef.value?.open(row);
+  void openBillForm(row);
 }
 
 function onNext(row: AmountBill) {
-  billFormRef.value?.open(row, { isNextMonth: true });
+  void openBillForm(row, { isNextMonth: true });
 }
 
 /**
@@ -157,7 +187,7 @@ function onCreate() {
     waterBills: [],
     waterFee: 0,
   };
-  billFormRef.value?.open(newBill);
+  void openBillForm(newBill);
 }
 
 async function onOpenCollectionSms() {
@@ -197,6 +227,8 @@ async function handleAiImportBeforeUpload(file: File) {
   });
 
   try {
+    const { analyzeAmountBillExcel, mapLlmResultToAmountBill } =
+      await retryImport(() => import('./llm'));
     const llmResult = await analyzeAmountBillExcel(file);
     if (!llmResult) {
       message.warning({
@@ -207,7 +239,7 @@ async function handleAiImportBeforeUpload(file: File) {
     }
 
     const mapped = mapLlmResultToAmountBill(llmResult, options.value as any);
-    billFormRef.value?.open(mapped);
+    await openBillForm(mapped);
 
     message.success({
       content: '已完成字段提取，并填充到账单表单',
@@ -618,7 +650,8 @@ async function onExport() {
     tenantName: formData.tenantName,
   });
   // const data = [[1, 2, 3]];
-  executeBill(exportData);
+  const { executeBill } = await retryImport(() => import('#/utils/excel'));
+  await executeBill(exportData);
 }
 
 /**
@@ -682,7 +715,9 @@ function handlePrintCancel() {
       @success="onDeleteVerificationSuccess"
       @cancel="onDeleteVerificationCancel"
     />
-    <MultipageBillForm
+    <component
+      :is="billFormComponent"
+      v-if="billFormComponent"
       ref="billFormRef"
       :config="formConfig"
       :park-options="billParkOptions"

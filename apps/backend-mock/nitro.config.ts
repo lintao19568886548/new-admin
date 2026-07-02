@@ -7,13 +7,22 @@ import { parse as parseDotenv } from 'dotenv';
 import errorHandler from './error';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
+
+function isUsableEnvValue(value: unknown) {
+  const normalized = String(value || '').trim();
+  return Boolean(normalized) && !normalized.includes('{password}');
+}
+
 const protectedEnvNames = new Set(
   Object.entries(process.env)
-    .filter(([, value]) => String(value || '').trim())
+    .filter(([, value]) => isUsableEnvValue(value))
     .map(([name]) => name),
 );
 
-function loadBackendEnvFile(fileName: string) {
+function loadBackendEnvFile(
+  fileName: string,
+  options: { override?: boolean } = {},
+) {
   const envPath = resolve(currentDir, fileName);
   if (!existsSync(envPath)) {
     return;
@@ -21,7 +30,10 @@ function loadBackendEnvFile(fileName: string) {
 
   const parsed = parseDotenv(readFileSync(envPath));
   for (const [name, value] of Object.entries(parsed)) {
-    if (protectedEnvNames.has(name) || !value.trim()) {
+    if (!isUsableEnvValue(value)) {
+      continue;
+    }
+    if (!options.override && protectedEnvNames.has(name)) {
       continue;
     }
     process.env[name] = value;
@@ -30,7 +42,7 @@ function loadBackendEnvFile(fileName: string) {
 
 loadBackendEnvFile('.env');
 loadBackendEnvFile('.env.dev');
-loadBackendEnvFile('.env.local');
+loadBackendEnvFile('.env.local', { override: true });
 
 process.env.COMPATIBILITY_DATE = new Date().toISOString();
 export default defineNitroConfig({

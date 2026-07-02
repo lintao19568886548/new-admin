@@ -272,6 +272,18 @@ function normalizeString(value: unknown) {
   return value.trim();
 }
 
+export function getVipMembershipDefaultCustomerId() {
+  return normalizeString(process.env.DEFAULT_CUSTOMER_ID) || 'default';
+}
+
+export function resolveVipMembershipSourceCustomerId(customerId: unknown) {
+  const normalizedCustomerId =
+    normalizeString(customerId) || getVipMembershipDefaultCustomerId();
+  return normalizedCustomerId === getVipMembershipDefaultCustomerId()
+    ? 'public'
+    : normalizedCustomerId;
+}
+
 export function normalizeVipMembershipPlanId(
   value: unknown,
 ): VipMembershipPlanId {
@@ -1916,7 +1928,8 @@ export async function getOrganizationProvisioningProfileState(
   prisma: VipMembershipDbClient = systemDbClient,
   sourceCustomerId?: string,
 ) {
-  const normalizedSourceCustomerId = normalizeString(sourceCustomerId);
+  const normalizedSourceCustomerId =
+    resolveVipMembershipSourceCustomerId(sourceCustomerId);
   const [job, sourceOrganizationState] = await withVipMembershipDb(() =>
     Promise.all([
       getOrganizationProvisioningJobForProfile(
@@ -1981,10 +1994,13 @@ export async function getVipMembershipProfileState(input: {
   customerId: string;
 }) {
   const membershipState = await getVipMembershipAccessState(input);
+  const sourceCustomerId = resolveVipMembershipSourceCustomerId(
+    input.customerId,
+  );
   const provisioningState = await getOrganizationProvisioningProfileState(
     input.centerUserId,
     systemDbClient,
-    input.customerId,
+    sourceCustomerId,
   );
 
   return {
@@ -2052,9 +2068,7 @@ export async function appendVipMembershipInfo<T extends Record<string, any>>(
   }
 
   try {
-    const defaultCustomerId = String(
-      process.env.DEFAULT_CUSTOMER_ID || 'default',
-    );
+    const defaultCustomerId = getVipMembershipDefaultCustomerId();
     const currentCustomerId = resolveCustomerId(userInfo);
     const [membershipState, customerProfile] = await Promise.all([
       getVipMembershipProfileState({
@@ -2089,7 +2103,7 @@ export async function shouldBlockTenantWriteForProvisioning(input: {
   centerUserId?: unknown;
   customerId?: unknown;
 }) {
-  const customerId = normalizeString(input.customerId);
+  const customerId = resolveVipMembershipSourceCustomerId(input.customerId);
   if (customerId !== 'public') {
     return false;
   }

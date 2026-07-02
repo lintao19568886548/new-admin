@@ -1,8 +1,9 @@
+import type * as ExcelJSTypes from 'exceljs';
+
 import type { AmountBill } from './data';
 
-import * as ExcelJS from 'exceljs';
-
 import { requestClient } from '#/api/request';
+import { retryImport } from '#/utils/retry-import';
 
 const AI_REQUEST_TIMEOUT_MS = 300_000;
 const MAX_FORMULA_CONTEXT_CHARS = 20_000;
@@ -21,6 +22,15 @@ const TITLE_LIKE_KEYWORDS = [
   '房租',
   '租金',
 ];
+
+type ExcelJSModule = typeof ExcelJSTypes;
+
+let excelJSImportPromise: null | Promise<ExcelJSModule> = null;
+
+function loadExcelJS() {
+  excelJSImportPromise ??= retryImport(() => import('exceljs'));
+  return excelJSImportPromise;
+}
 
 export interface AmountBillLlmMeterItem {
   amount?: null | number | string;
@@ -286,7 +296,7 @@ function normalizeExtraProjectItems(
   return normalized.length > 0 ? JSON.stringify(normalized) : undefined;
 }
 
-function getCellFormula(cell: ExcelJS.Cell) {
+function getCellFormula(cell: ExcelJSTypes.Cell) {
   const value = cell.value as any;
   if (!value || typeof value !== 'object') return '';
   return normalizeFormulaText(
@@ -294,7 +304,7 @@ function getCellFormula(cell: ExcelJS.Cell) {
   );
 }
 
-function getCellDisplayText(cell: ExcelJS.Cell) {
+function getCellDisplayText(cell: ExcelJSTypes.Cell) {
   const value = cell.value as any;
   if (value === null || value === undefined) return '';
   if (typeof value === 'object') {
@@ -343,6 +353,7 @@ async function extractFormulaContext(
   file: File,
 ): Promise<FormulaContext | null> {
   try {
+    const ExcelJS = await loadExcelJS();
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load((await file.arrayBuffer()) as any);
 

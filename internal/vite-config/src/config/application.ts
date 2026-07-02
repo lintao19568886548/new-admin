@@ -1,4 +1,9 @@
-import type { CSSOptions, UserConfig } from 'vite';
+import type {
+  CSSOptions,
+  PluginOption,
+  ResolveModulePreloadDependenciesFn,
+  UserConfig,
+} from 'vite';
 
 import type { DefineApplicationOptions } from '../typing';
 
@@ -58,11 +63,15 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
     const applicationConfig: UserConfig = {
       base,
       build: {
+        modulePreload: {
+          resolveDependencies: filterLazyInitialPreloadDependencies,
+        },
         rollupOptions: {
           output: {
             assetFileNames: '[ext]/[name]-[hash].[ext]',
             chunkFileNames: 'js/[name]-[hash].js',
             entryFileNames: 'jse/index-[name]-[hash].js',
+            manualChunks: createManualChunks,
           },
         },
         target: 'es2015',
@@ -77,7 +86,7 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
           : [],
         legalComments: 'none',
       },
-      plugins,
+      plugins: [...plugins, viteStripLazyInitialPreloadPlugin()],
       server: {
         host: true,
         port,
@@ -98,6 +107,87 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
     );
     return mergeConfig(mergedCommonConfig, vite);
   });
+}
+
+function createManualChunks(id: string) {
+  const normalizedId = id.replaceAll('\\', '/');
+
+  if (normalizedId.includes('/node_modules/@univerjs/')) {
+    if (normalizedId.includes('/locales/')) {
+      return 'vendor-univer-locales';
+    }
+    return 'vendor-univer';
+  }
+
+  if (normalizedId.includes('/node_modules/exceljs/')) {
+    return 'vendor-exceljs';
+  }
+
+  if (normalizedId.includes('/node_modules/html2canvas/')) {
+    return 'vendor-html2canvas';
+  }
+
+  if (normalizedId.includes('/node_modules/jspdf/')) {
+    return 'vendor-jspdf';
+  }
+
+  if (normalizedId.includes('/node_modules/echarts/')) {
+    return 'vendor-echarts';
+  }
+
+  if (normalizedId.includes('/node_modules/vxe-table/')) {
+    return 'vendor-vxe-table';
+  }
+}
+
+const LAZY_INITIAL_PRELOAD_PATTERNS = [
+  'vendor-echarts-',
+  'vendor-exceljs-',
+  'vendor-html2canvas-',
+  'vendor-jspdf-',
+  'vendor-univer-',
+  'vendor-univer-locales-',
+  'vendor-vxe-table-',
+] as const;
+
+const filterLazyInitialPreloadDependencies: ResolveModulePreloadDependenciesFn =
+  (_filename, deps) => deps.filter((dep) => !isLazyInitialPreloadAsset(dep));
+
+function isLazyInitialPreloadAsset(asset: string) {
+  return LAZY_INITIAL_PRELOAD_PATTERNS.some((pattern) =>
+    asset.includes(pattern),
+  );
+}
+
+function stripLazyInitialAssetLinks(html: string) {
+  return html.replaceAll(/<link\b[^>]*>/gi, (tag) => {
+    const isPreloadOrStyle =
+      /\brel=(?:"modulepreload"|'modulepreload'|modulepreload|"stylesheet"|'stylesheet'|stylesheet)/i.test(
+        tag,
+      );
+
+    if (!isPreloadOrStyle) {
+      return tag;
+    }
+
+    return isLazyInitialPreloadAsset(tag) ? '' : tag;
+  });
+}
+
+function viteStripLazyInitialPreloadPlugin(): PluginOption {
+  return {
+    apply: 'build',
+    enforce: 'post',
+    generateBundle(_options, bundle) {
+      const htmlAsset = bundle['index.html'];
+      if (htmlAsset?.type !== 'asset' || typeof htmlAsset.source !== 'string') {
+        return;
+      }
+
+      htmlAsset.source = stripLazyInitialAssetLinks(htmlAsset.source);
+    },
+    name: 'vben:strip-lazy-initial-preloads',
+  };
 }
 
 function createCssOptions(injectGlobalScss = true): CSSOptions {

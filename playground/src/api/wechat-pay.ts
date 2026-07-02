@@ -31,6 +31,20 @@ export interface CreateWechatAppPrepayResponse {
   prepayId: string;
 }
 
+export interface CreateWechatH5PrepayParams extends CreateWechatAppPrepayParams {
+  appName?: string;
+  appUrl?: string;
+  bundleId?: string;
+  h5Type?: 'Android' | 'iOS' | 'Wap';
+  packageName?: string;
+}
+
+export interface CreateWechatH5PrepayResponse {
+  checkoutFlowToken?: string;
+  h5Url: string;
+  outTradeNo: string;
+}
+
 export interface WechatPayAppConfig {
   appId: string;
   configured?: boolean;
@@ -170,6 +184,13 @@ function buildVipCheckoutFlowHeaders(
 export async function createWechatAppPrepay(data: CreateWechatAppPrepayParams) {
   return requestClient.post<CreateWechatAppPrepayResponse>(
     '/wechat/pay/app/prepay',
+    data,
+  );
+}
+
+export async function createWechatH5Prepay(data: CreateWechatH5PrepayParams) {
+  return requestClient.post<CreateWechatH5PrepayResponse>(
+    '/wechat/pay/h5/prepay',
     data,
   );
 }

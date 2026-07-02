@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { BillFormConfig } from './bill-form-config';
 import type { BaseBillItem } from './BillBaseConfig';
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
@@ -25,20 +26,6 @@ interface BillItem extends BaseBillItem {
   _isMonthlyUsageEdited?: boolean;
   _isTotalUsageEdited?: boolean;
   _X_ROW_KEY?: string;
-}
-
-/**
- * 表单配置接口
- */
-export interface BillFormConfig {
-  [key: string]: any;
-  amountLabel?: string;
-  itemsField?: string;
-  modalClass?: string;
-  modalTitle?: string;
-  readingLabel?: string;
-  unitLabel?: string;
-  usageLabel?: string;
 }
 
 // 组件属性定义

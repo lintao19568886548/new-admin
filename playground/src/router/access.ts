@@ -14,14 +14,26 @@ import { getAllMenusApi } from '#/api';
 import { BasicLayout, IFrameView } from '#/layouts';
 import { $t } from '#/locales';
 import { useMenuStore } from '#/store/menu';
+import { withRetryImport } from '#/utils/retry-import';
 
-const forbiddenComponent = () => import('#/views/_core/fallback/forbidden.vue');
+const forbiddenComponent = withRetryImport(
+  () => import('#/views/_core/fallback/forbidden.vue'),
+);
 const I18N_KEY_PATTERN = /^[a-z][\w-]*(?:\.[\w-]+)+$/i;
 const MENU_LOAD_MAX_ATTEMPTS = 3;
 const MENU_LOAD_RETRY_DELAY = 300;
 
 function delay(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function withRetryPageMap(pageMap: ComponentRecordType) {
+  return Object.fromEntries(
+    Object.entries(pageMap).map(([key, loader]) => [
+      key,
+      withRetryImport(loader),
+    ]),
+  ) as ComponentRecordType;
 }
 
 function translateText(value: unknown) {
@@ -59,7 +71,9 @@ function translateRouteTitles<
 }
 
 async function generateAccess(options: GenerateMenuAndRoutesOptions) {
-  const pageMap: ComponentRecordType = import.meta.glob('../views/**/*.vue');
+  const pageMap: ComponentRecordType = withRetryPageMap(
+    import.meta.glob(['../views/**/*.vue', '!../views/**/modules/**/*.vue']),
+  );
 
   const layoutMap: ComponentRecordType = {
     BasicLayout,

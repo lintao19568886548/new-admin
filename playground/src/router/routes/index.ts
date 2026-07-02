@@ -2,7 +2,34 @@ import type { RouteRecordRaw } from 'vue-router';
 
 import { mergeRouteModules, traverseTreeValues } from '@vben/utils';
 
+import { withRetryImport } from '#/utils/retry-import';
+
 import { coreRoutes, fallbackNotFoundRoute } from './core';
+
+type LazyRouteComponent = () => Promise<unknown>;
+
+function isLazyRouteComponent(value: unknown): value is LazyRouteComponent {
+  return typeof value === 'function' && !String(value).includes('__vccOpts');
+}
+
+function withRetryRouteComponents(routes: RouteRecordRaw[]): RouteRecordRaw[] {
+  routes.forEach((route) => {
+    const mutableRoute = route as {
+      children?: RouteRecordRaw[];
+      component?: unknown;
+    };
+
+    if (isLazyRouteComponent(mutableRoute.component)) {
+      mutableRoute.component = withRetryImport(mutableRoute.component);
+    }
+
+    if (mutableRoute.children) {
+      withRetryRouteComponents(mutableRoute.children);
+    }
+  });
+
+  return routes;
+}
 
 const dynamicRouteFiles = import.meta.glob('./modules/**/*.ts', {
   eager: true,
@@ -15,10 +42,14 @@ const externalRouteFiles = import.meta.glob('./external/**/*.ts', {
 // const staticRouteFiles = import.meta.glob('./static/**/*.ts', { eager: true });
 
 /** 动态路由 */
-const dynamicRoutes: RouteRecordRaw[] = mergeRouteModules(dynamicRouteFiles);
+const dynamicRoutes: RouteRecordRaw[] = withRetryRouteComponents(
+  mergeRouteModules(dynamicRouteFiles),
+);
 
 /** 外部路由列表，访问这些页面可以不需要Layout，可能用于内嵌在别的系统(不会显示在菜单中) */
-const externalRoutes: RouteRecordRaw[] = mergeRouteModules(externalRouteFiles);
+const externalRoutes: RouteRecordRaw[] = withRetryRouteComponents(
+  mergeRouteModules(externalRouteFiles),
+);
 // const staticRoutes: RouteRecordRaw[] = mergeRouteModules(staticRouteFiles);
 const staticRoutes: RouteRecordRaw[] = [];
 // const externalRoutes: RouteRecordRaw[] = [];
@@ -40,13 +71,14 @@ const coreRouteNames = traverseTreeValues(
 /** 有权限校验的路由列表，包含动态路由和静态路由 */
 const accessRoutes = [...dynamicRoutes, ...staticRoutes];
 
-const componentKeys: string[] = Object.keys(
-  import.meta.glob('../../views/**/*.vue'),
-)
-  .filter((item) => !item.includes('/modules/'))
-  .map((v) => {
-    const path = v.replace('../../views/', '/');
-    return path.endsWith('.vue') ? path.slice(0, -4) : path;
-  });
+const componentFiles = import.meta.glob([
+  '../../views/**/*.vue',
+  '!../../views/**/modules/**/*.vue',
+]);
+
+const componentKeys: string[] = Object.keys(componentFiles).map((v) => {
+  const path = v.replace('../../views/', '/');
+  return path.endsWith('.vue') ? path.slice(0, -4) : path;
+});
 
 export { accessRoutes, componentKeys, coreRouteNames, routes };

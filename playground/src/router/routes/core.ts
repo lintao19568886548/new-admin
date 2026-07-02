@@ -4,13 +4,15 @@ import { LOGIN_PATH } from '@vben/constants';
 
 import { AuthPageLayout, BasicLayout } from '#/layouts';
 import { $t } from '#/locales';
-import Login from '#/views/_core/authentication/login.vue';
+import { withRetryImport } from '#/utils/retry-import';
 
 import { resolveDefaultHomePath } from '../home-path';
 
 /** 全局404页面 */
 const fallbackNotFoundRoute: RouteRecordRaw = {
-  component: () => import('#/views/_core/fallback/not-found.vue'),
+  component: withRetryImport(
+    () => import('#/views/_core/fallback/not-found.vue'),
+  ),
   meta: {
     hideInBreadcrumb: true,
     hideInMenu: true,
@@ -52,7 +54,9 @@ const coreRoutes: RouteRecordRaw[] = [
       {
         name: 'Login',
         path: 'login',
-        component: Login,
+        component: withRetryImport(
+          () => import('#/views/_core/authentication/login.vue'),
+        ),
         meta: {
           title: $t('page.auth.login'),
         },
@@ -60,7 +64,9 @@ const coreRoutes: RouteRecordRaw[] = [
       {
         name: 'CodeLogin',
         path: 'code-login',
-        component: () => import('#/views/_core/authentication/code-login.vue'),
+        component: withRetryImport(
+          () => import('#/views/_core/authentication/code-login.vue'),
+        ),
         meta: {
           title: $t('page.auth.codeLogin'),
         },
@@ -68,8 +74,9 @@ const coreRoutes: RouteRecordRaw[] = [
       {
         name: 'QrCodeLogin',
         path: 'qrcode-login',
-        component: () =>
-          import('#/views/_core/authentication/qrcode-login.vue'),
+        component: withRetryImport(
+          () => import('#/views/_core/authentication/qrcode-login.vue'),
+        ),
         meta: {
           title: $t('page.auth.qrcodeLogin'),
         },
@@ -77,8 +84,9 @@ const coreRoutes: RouteRecordRaw[] = [
       {
         name: 'ForgetPassword',
         path: 'forget-password',
-        component: () =>
-          import('#/views/_core/authentication/forget-password.vue'),
+        component: withRetryImport(
+          () => import('#/views/_core/authentication/forget-password.vue'),
+        ),
         meta: {
           title: $t('page.auth.forgetPassword'),
         },
@@ -86,7 +94,9 @@ const coreRoutes: RouteRecordRaw[] = [
       {
         name: 'Register',
         path: 'register',
-        component: () => import('#/views/_core/authentication/register.vue'),
+        component: withRetryImport(
+          () => import('#/views/_core/authentication/register.vue'),
+        ),
         meta: {
           title: $t('page.auth.register'),
         },

@@ -1,3 +1,5 @@
+import { retryImport } from '#/utils/retry-import';
+
 /**
  * 导出数据为CSV文件（作为Excel的替代方案）
  * @param data - 要导出的数据
@@ -43,8 +45,8 @@ export async function exportToPDF(elementId?: string, fileName?: string) {
   try {
     // 动态导入依赖库
     const [html2canvasModule, jsPDFModule] = await Promise.all([
-      import('html2canvas'),
-      import('jspdf'),
+      retryImport(() => import('html2canvas')),
+      retryImport(() => import('jspdf')),
     ]);
 
     const html2canvas = html2canvasModule.default;

@@ -3,7 +3,7 @@ import type { Dayjs } from 'dayjs';
 
 import type { AmountBill } from '../data';
 
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, shallowRef, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
@@ -17,9 +17,6 @@ import {
 } from '#/api/bill';
 
 import { getAmountBillProjectPeriodError } from '../project-period';
-import UniverSheet from './UniverSheet.vue';
-
-import '@univerjs/presets/lib/styles/preset-sheets-core.css';
 
 /**
  * 多页账单表单配置接口
@@ -44,6 +41,7 @@ const emit = defineEmits<{
 }>();
 
 const isSheetReady = ref(false);
+const univerSheetComponent = shallowRef();
 
 const receiptTimeStr = ref<string>('');
 const receiptTimeDayjs = ref<Dayjs | null>(null);
@@ -51,7 +49,21 @@ const receiptTimeDayjs = ref<Dayjs | null>(null);
 // 提取配置值
 const config = computed<MultipageBillFormConfig>(() => props.config || {});
 
-const univerSheet = ref<InstanceType<typeof UniverSheet> | null>(null);
+const univerSheet = ref<null | {
+  dispose: () => void;
+  getData: () => Partial<AmountBill>;
+  setReceiptTime: (value: null | string) => void;
+}>(null);
+
+async function ensureUniverSheetReady() {
+  if (!univerSheetComponent.value) {
+    const [module] = await Promise.all([
+      import('./UniverSheet.vue'),
+      import('@univerjs/presets/lib/styles/preset-sheets-core.css'),
+    ]);
+    univerSheetComponent.value = module.default;
+  }
+}
 
 // 模态窗口参数
 const modalProps = ref({
@@ -305,6 +317,7 @@ async function handleSave() {
 async function open(data: AmountBill, options?: { isNextMonth?: boolean }) {
   modalApi.open();
   isSheetReady.value = false;
+  await ensureUniverSheetReady();
   // 重置数据
   Object.keys(billData).forEach((key) => {
     delete (billData as any)[key];
@@ -364,7 +377,8 @@ defineExpose({ open });
       <div v-if="!isSheetReady" class="sheet-loading-placeholder">
         <Skeleton active :paragraph="{ rows: 10 }" />
       </div>
-      <UniverSheet
+      <component
+        :is="univerSheetComponent"
         v-if="isSheetReady"
         ref="univerSheet"
         :bill-data="billData"

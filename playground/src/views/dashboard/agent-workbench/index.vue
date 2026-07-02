@@ -1,5 +1,10 @@
 <script lang="ts" setup>
-import type { AgentChatMessage, AgentChatRole } from '#/api/agent';
+import type {
+  AgentChatMessage,
+  AgentChatRole,
+  AgentTask,
+  AgentTaskStep,
+} from '#/api/agent';
 
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
@@ -8,6 +13,7 @@ import { VbenIcon } from '@vben/common-ui';
 import { Button, Input, message, Select, Tag, Tooltip } from 'ant-design-vue';
 
 import { sendAgentChatApi } from '#/api/agent';
+import AgentTaskSteps from '#/components/agent/AgentTaskSteps.vue';
 
 interface AgentPreset {
   accentClass: string;
@@ -24,6 +30,8 @@ interface ChatMessage extends AgentChatMessage {
   id: string;
   status?: 'failed' | 'sent';
   synthetic?: boolean;
+  task?: AgentTask;
+  taskSteps?: AgentTaskStep[];
 }
 
 interface PersistedAgentState {
@@ -219,6 +227,10 @@ function normalizePersistedMessages(value: unknown): ChatMessage[] {
         role,
         status: (item as ChatMessage)?.status === 'failed' ? 'failed' : 'sent',
         synthetic: Boolean((item as ChatMessage)?.synthetic),
+        task: (item as ChatMessage)?.task,
+        taskSteps: Array.isArray((item as ChatMessage)?.taskSteps)
+          ? (item as ChatMessage).taskSteps
+          : undefined,
       } satisfies ChatMessage;
     })
     .filter((item): item is ChatMessage => item !== null)
@@ -335,6 +347,8 @@ async function sendMessage(content = inputValue.value) {
     messages.value.push(
       createMessage('assistant', result.reply || '没有生成有效回复。', {
         agentId: result.agentId,
+        task: result.task,
+        taskSteps: result.steps,
       }),
     );
   } catch (error) {
@@ -519,6 +533,13 @@ onMounted(() => {
               <div class="message-content text-sm leading-6">
                 {{ item.content }}
               </div>
+              <AgentTaskSteps
+                v-if="item.task"
+                class="mt-3"
+                compact
+                :steps="item.taskSteps"
+                :task="item.task"
+              />
             </div>
           </div>
 
