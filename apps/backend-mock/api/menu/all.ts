@@ -322,6 +322,357 @@ const WORKBENCH_APP_ROUTE_TARGETS = [
   { name: 'AccessBrand', path: '/access/brand' },
 ] as const;
 
+const WORKBENCH_ROUTE_MENUS = [
+  {
+    authCode: 'dashboard:analytics',
+    component: '/dashboard/analytics/index',
+    meta: {
+      hideInMenu: true,
+      icon: 'lucide:area-chart',
+      title: '总览页',
+    },
+    name: 'Analytics',
+    path: '/analytics',
+    type: 'menu',
+  },
+  {
+    authCode: 'rental:factory',
+    component: '/rental/factory/index',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:factory',
+      title: '待租厂房',
+    },
+    name: 'FactoryList',
+    path: '/rental/factory',
+    type: 'menu',
+  },
+  {
+    authCode: 'system:park',
+    component: '/system/park/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:office-building-cog-outline',
+      title: '园区列表',
+    },
+    name: 'SystemPark',
+    path: '/system/park',
+    type: 'menu',
+  },
+  {
+    authCode: 'rental:tenant',
+    component: '/rental/tenant/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:account-group',
+      title: '合同管理',
+    },
+    name: 'TenantManage',
+    path: '/rental/tenant',
+    type: 'menu',
+  },
+  {
+    authCode: 'finance:manage',
+    component: '/finance/manage/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:currency-usd',
+      title: '财务管理',
+    },
+    name: 'FinanceManage',
+    path: '/finance/manage',
+    type: 'menu',
+  },
+  {
+    authCode: 'hrm:attendance-punch',
+    component: '/hrm/attendance/check-in',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:card-account-details-outline',
+      title: '出勤打卡',
+    },
+    name: 'HrmAttendancePunch',
+    path: '/hrm/attendance/punch',
+    type: 'menu',
+  },
+  {
+    authCode: 'hrm:attendance-stats',
+    component: '/hrm/attendance/record',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:history',
+      title: '考勤记录',
+    },
+    name: 'HrmAttendanceStats',
+    path: '/hrm/attendance/stats',
+    type: 'menu',
+  },
+  {
+    authCode: 'hrm:trajectory',
+    component: '/hrm/trajectory/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:map-marker-path',
+      title: '考勤轨迹',
+    },
+    name: 'HrmTrajectory',
+    path: '/hrm/trajectory',
+    type: 'menu',
+  },
+  {
+    authCode: 'hrm:leaveapplication',
+    component: '/hrm/leaveapplication/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:file-document-edit-outline',
+      title: '请假申请',
+    },
+    name: 'HrmLeaveApplication',
+    path: '/hrm/leaveapplication',
+    type: 'menu',
+  },
+  {
+    authCode: 'hrm:information',
+    component: '/hrm/information/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:account-details-outline',
+      title: '人员信息',
+    },
+    name: 'HrmInformation',
+    path: '/hrm/information',
+    type: 'menu',
+  },
+  {
+    authCode: 'reimbursement:application',
+    component: '/reimbursement/application/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:file-document-edit-outline',
+      title: '报销申请',
+    },
+    name: 'ReimbursementApplication',
+    path: '/reimbursement/application',
+    type: 'menu',
+  },
+  {
+    authCode: 'reimbursement:audit',
+    component: '/reimbursement/audit/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:file-document-check-outline',
+      title: '报销审核',
+    },
+    name: 'ReimbursementAudit',
+    path: '/reimbursement/audit',
+    type: 'menu',
+  },
+  {
+    authCode: 'notices:list',
+    component: '/notices/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:bullhorn-outline',
+      title: '招投标信息',
+    },
+    name: 'Notices',
+    path: '/notices',
+    type: 'menu',
+  },
+  {
+    authCode: 'smart-meter:electric-brand',
+    component: '/smart-meter/brand/responsive',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:flash-triangle',
+      title: '电表品牌管理',
+    },
+    name: 'ElectricMeterBrand',
+    path: '/smart-meter/electric-brand',
+    type: 'menu',
+  },
+  {
+    authCode: 'smart-meter:water-brand',
+    component: '/smart-meter/brand/responsive',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:water-check',
+      title: '水表品牌管理',
+    },
+    name: 'WaterMeterBrand',
+    path: '/smart-meter/water-brand',
+    type: 'menu',
+  },
+  {
+    authCode: 'smart-meter:electric-reading',
+    component: '/smart-meter/meter/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:flash',
+      title: '水电表抄表数据',
+    },
+    name: 'SmartMeterElectricReading',
+    path: '/smart-meter/meter',
+    type: 'menu',
+  },
+  {
+    authCode: 'investment:mobile-app',
+    component: '/investment/app/index',
+    meta: {
+      hideInMenu: true,
+      icon: 'lucide:briefcase-business',
+      title: '招商工作台',
+    },
+    name: 'InvestmentApp',
+    path: '/investment/app',
+    type: 'menu',
+  },
+  {
+    authCode: 'investment:agent-mobile',
+    component: '/investment/agent/mobile-list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:account-tie',
+      title: '客户登记',
+    },
+    name: 'InvestmentAgentMobileList',
+    path: '/investment/mobile',
+    type: 'menu',
+  },
+  {
+    authCode: 'investment:radar-mobile',
+    component: '/investment/radar/mobile-list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:radar',
+      title: '智能招商雷达',
+    },
+    name: 'InvestmentRadarMobileList',
+    path: '/investment/radar/mobile',
+    type: 'menu',
+  },
+  {
+    authCode: 'investment:radar-mobile-public-demands',
+    component: '/investment/radar/mobile-public-demands',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:briefcase-search-outline',
+      title: '公开需求',
+    },
+    name: 'InvestmentRadarMobilePublicDemands',
+    path: '/investment/radar/mobile-public-demands',
+    type: 'menu',
+  },
+  {
+    authCode: 'investment:radar-mobile-factory-listings',
+    component: '/investment/radar/mobile-factory-listings',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:factory',
+      title: '公开房源',
+    },
+    name: 'InvestmentRadarMobileFactoryListings',
+    path: '/investment/radar/mobile-factory-listings',
+    type: 'menu',
+  },
+  {
+    authCode: 'access:brand',
+    component: '/access/brand/responsive',
+    meta: {
+      hideInMenu: true,
+      icon: 'carbon:badge',
+      title: '门禁品牌管理',
+    },
+    name: 'AccessBrand',
+    path: '/access/brand',
+    type: 'menu',
+  },
+  {
+    authCode: 'access:car',
+    component: '/access/car/responsive',
+    meta: {
+      hideInMenu: true,
+      icon: 'carbon:car',
+      title: '车辆出入管理',
+    },
+    name: 'CarAccess',
+    path: '/access/car',
+    type: 'menu',
+  },
+  {
+    authCode: 'access:visitor',
+    component: '/access/visitor/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'carbon:user-profile',
+      title: '访客管理',
+    },
+    name: 'VisitorAccess',
+    path: '/access/visitor',
+    type: 'menu',
+  },
+  {
+    authCode: 'maintenance:transformer',
+    component: '/maintenance/transformer/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:lightning-bolt',
+      title: '变压器维保',
+    },
+    name: 'Transformer',
+    path: '/maintenance/transformer',
+    type: 'menu',
+  },
+  {
+    authCode: 'maintenance:factory-maint',
+    component: '/maintenance/factoryMaint/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:office-building-cog',
+      title: '厂房维护',
+    },
+    name: 'FactoryMaint',
+    path: '/maintenance/factoryMaint',
+    type: 'menu',
+  },
+  {
+    authCode: 'maintenance:elevator',
+    component: '/maintenance/elevator/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:elevator',
+      title: '电梯管理',
+    },
+    name: 'Elevator',
+    path: '/maintenance/elevator',
+    type: 'menu',
+  },
+  {
+    authCode: 'maintenance:hygiene-check',
+    component: '/maintenance/hygieneCheck/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:broom',
+      title: '卫生检查',
+    },
+    name: 'HygieneCheck',
+    path: '/maintenance/hygieneCheck',
+    type: 'menu',
+  },
+  {
+    authCode: 'maintenance:firefighting',
+    component: '/maintenance/firefighting/list',
+    meta: {
+      hideInMenu: true,
+      icon: 'mdi:fire-extinguisher',
+      title: '消防管理',
+    },
+    name: 'Firefighting',
+    path: '/maintenance/firefighting',
+    type: 'menu',
+  },
+] as const;
+
 const MENU_COMPONENT_REWRITE_MAP: Record<string, string> = {
   '/access/brand/list': '/access/brand/responsive',
   '/access/car/list': '/access/car/responsive',
@@ -762,6 +1113,22 @@ const MOBILE_COMPATIBILITY_ROUTE_MENUS = [
   },
   {
     route: {
+      authCode: 'maintenance:repair-order-mobile',
+      component: '/maintenance/repair-order/mobile-list',
+      meta: {
+        activePath: '/maintenance/repair-order',
+        hideInMenu: true,
+        icon: 'mdi:clipboard-text-clock',
+        title: '报修工单',
+      },
+      name: 'RepairOrderMobile',
+      path: '/maintenance/repair-order/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'RepairOrder', path: '/maintenance/repair-order' }],
+  },
+  {
+    route: {
       authCode: 'maintenance:transformer-mobile',
       component: '/maintenance/transformer/mobile-list',
       meta: {
@@ -930,25 +1297,35 @@ const INVESTMENT_REGISTRATION_USERNAMES = new Set([
   '18127933306',
   '18689459979',
 ]);
+const INVESTMENT_ROLE_ALIASES = ['Investment', 'investment', '招商', '招商部'];
+
+function hasInvestmentRole(roleNames: unknown[]) {
+  return roleNames.some((role) => {
+    const roleName = String(role || '').trim();
+    return INVESTMENT_ROLE_ALIASES.some((alias) => roleName.includes(alias));
+  });
+}
 
 async function appendMembershipRouteMenus(
   menus: any[],
   userinfo: any,
   options: {
     hasInvestmentRegistrationAccess?: boolean;
+    hasInvestmentRole?: boolean;
     hasSuperRole: boolean;
   },
 ) {
   let investmentScope: 'full' | 'publicCrawlOnly' | 'registrationOnly' =
     'publicCrawlOnly';
-  if (options.hasSuperRole) {
+  if (options.hasSuperRole || options.hasInvestmentRole) {
     investmentScope = 'full';
   } else if (options.hasInvestmentRegistrationAccess) {
     investmentScope = 'registrationOnly';
   }
-  const scopedMenus = options.hasSuperRole
-    ? menus
-    : filterInvestmentPublicCrawlMenus(menus);
+  const scopedMenus =
+    options.hasSuperRole || options.hasInvestmentRole
+      ? menus
+      : filterInvestmentPublicCrawlMenus(menus);
   const baseMenus = appendProfileAuxiliaryRouteMenus(scopedMenus, {
     ensureCustomerAcquisition: true,
     investmentScope,
@@ -1474,24 +1851,27 @@ function normalizeRouteMenus(
   _options: { hasSuperRole: boolean },
 ) {
   return normalizeMenuComponents(
-    applyWorkbenchAppFlags(
-      ensureRepairOrderMenu(
-        ensureAccessMenus(
-          ensureSmartMeterMenu(
-            normalizeSystemChildMenuPlacement(
-              normalizeAiToolsMenuPlacement(
-                normalizeParkManagementMenuPlacement(menus, {
-                  ensureParkWhenMissing: false,
-                  includeCompatibilityRoutes: true,
-                  includeMobileRoute: true,
-                  preferLegacyMenu: false,
-                }),
-                { exposeLocalAgentMenus: shouldExposeLocalAgentMenus() },
+    appendRouteMenus(
+      applyWorkbenchAppFlags(
+        ensureRepairOrderMenu(
+          ensureAccessMenus(
+            ensureSmartMeterMenu(
+              normalizeSystemChildMenuPlacement(
+                normalizeAiToolsMenuPlacement(
+                  normalizeParkManagementMenuPlacement(menus, {
+                    ensureParkWhenMissing: false,
+                    includeCompatibilityRoutes: true,
+                    includeMobileRoute: true,
+                    preferLegacyMenu: false,
+                  }),
+                  { exposeLocalAgentMenus: shouldExposeLocalAgentMenus() },
+                ),
               ),
             ),
           ),
         ),
       ),
+      WORKBENCH_ROUTE_MENUS,
     ),
   );
 }
@@ -1506,6 +1886,7 @@ export default eventHandler(async (event) => {
 
   // 检查是否有Super角色权限
   const hasSuperRole = roleNames.includes('Super');
+  const hasInvestmentRoleAccess = hasInvestmentRole(roleNames);
 
   // 如果有Super权限，直接查询所有菜单
   if (hasSuperRole) {
@@ -1562,10 +1943,13 @@ export default eventHandler(async (event) => {
     });
 
     return useResponseSuccess(
-      await appendMembershipRouteMenus(
-        appendBillRouteMenus(normalizedMenus),
-        userinfo,
-        { hasSuperRole },
+      appendRouteMenus(
+        await appendMembershipRouteMenus(
+          appendBillRouteMenus(normalizedMenus),
+          userinfo,
+          { hasSuperRole },
+        ),
+        WORKBENCH_ROUTE_MENUS,
       ),
     );
   }
@@ -1690,13 +2074,17 @@ export default eventHandler(async (event) => {
   });
 
   return useResponseSuccess(
-    await appendMembershipRouteMenus(
-      appendBillRouteMenus(normalizedMenus),
-      userinfo,
-      {
-        hasInvestmentRegistrationAccess,
-        hasSuperRole,
-      },
+    appendRouteMenus(
+      await appendMembershipRouteMenus(
+        appendBillRouteMenus(normalizedMenus),
+        userinfo,
+        {
+          hasInvestmentRegistrationAccess,
+          hasInvestmentRole: hasInvestmentRoleAccess,
+          hasSuperRole,
+        },
+      ),
+      WORKBENCH_ROUTE_MENUS,
     ),
   );
 });

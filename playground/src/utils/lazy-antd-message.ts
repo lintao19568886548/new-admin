@@ -12,7 +12,7 @@ export async function showAntdMessage(
   options: Parameters<MessageApi[typeof type]>[0],
 ) {
   const message = await loadMessage();
-  return message[type](options as any);
+  message[type](options as any);
 }
 
 export async function destroyAntdMessage(key?: string) {

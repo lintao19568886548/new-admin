@@ -39,7 +39,42 @@ const coreRoutes: RouteRecordRaw[] = [
     name: 'Root',
     path: '/',
     redirect: () => resolveDefaultHomePath(),
-    children: [],
+    children: [
+      {
+        name: 'Home',
+        path: '/home',
+        component: withRetryImport(() => import('#/views/dashboard/index.vue')),
+        meta: {
+          icon: 'lucide:home',
+          ignoreAccess: true,
+          isApp: true,
+          order: 1,
+          title: '首页',
+        },
+      },
+      {
+        name: 'Workbench',
+        path: '/workbench',
+        component: withRetryImport(
+          () => import('#/views/dashboard/workbench/index.vue'),
+        ),
+        meta: {
+          hideMenu: true,
+          icon: 'carbon:workspace',
+          ignoreAccess: true,
+          title: '智能管理',
+        },
+      },
+      {
+        name: 'Profile',
+        path: '/profile',
+        component: withRetryImport(() => import('#/views/profile/index.vue')),
+        meta: {
+          ignoreAccess: true,
+          title: '我的',
+        },
+      },
+    ],
   },
   {
     component: AuthPageLayout,

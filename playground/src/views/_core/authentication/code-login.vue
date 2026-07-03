@@ -24,28 +24,33 @@ preloadWhenIdle(() => import('#/api/core/auth'));
 preloadWhenIdle(() => import('#/store/auth'), { delay: 2200 });
 
 function resolveErrorMessage(error: unknown) {
+  const record =
+    error && typeof error === 'object'
+      ? (error as Record<string, any>)
+      : undefined;
+  const responseData =
+    record?.response?.data && typeof record.response.data === 'object'
+      ? (record.response.data as Record<string, any>)
+      : record;
+  let apiMessage = '';
+  if (typeof responseData?.message === 'string') {
+    apiMessage = responseData.message;
+  } else if (typeof responseData?.error === 'string') {
+    apiMessage = responseData.error;
+  }
+  if (apiMessage) {
+    return apiMessage;
+  }
+
   if (
-    error &&
-    typeof error === 'object' &&
-    'message' in error &&
-    typeof (error as any).message === 'string'
+    record &&
+    'message' in record &&
+    typeof record.message === 'string' &&
+    record.message
   ) {
-    return (error as any).message;
+    return record.message;
   }
   return $t('page.auth.sendCodeFailed', '操作失败，请稍后重试');
-}
-
-function isHttpError(error: unknown) {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-  const maybe = error as Record<string, any>;
-  return (
-    'response' in maybe ||
-    'status' in maybe ||
-    'config' in maybe ||
-    ('isAxiosError' in maybe && maybe.isAxiosError === true)
-  );
 }
 
 async function sendCodeApi(phoneNumber: string) {
@@ -77,9 +82,7 @@ async function sendCodeApi(phoneNumber: string) {
   } catch (error) {
     await destroyAntdMessage(messageKey);
     await showAntdMessage('error', {
-      content: isHttpError(error)
-        ? '验证码发送失败，请检查网络后稍后重试'
-        : resolveErrorMessage(error),
+      content: resolveErrorMessage(error),
       duration: 3,
       key: messageKey,
     });
@@ -120,19 +123,17 @@ const formSchema = computed((): VbenFormSchema[] => {
         },
         handleSendCode: async () => {
           sendCodeLoading.value = true;
-          const formApi = loginRef.value?.getFormApi();
-          if (!formApi) {
-            sendCodeLoading.value = false;
-            throw new Error('formApi is not ready');
-          }
-          await formApi.validateField('phoneNumber');
-          const isPhoneReady = await formApi.isFieldValid('phoneNumber');
-          if (!isPhoneReady) {
-            sendCodeLoading.value = false;
-            throw new Error('Phone number is not ready');
-          }
-          const { phoneNumber } = await formApi.getValues();
           try {
+            const formApi = loginRef.value?.getFormApi();
+            if (!formApi) {
+              throw new Error('formApi is not ready');
+            }
+            await formApi.validateField('phoneNumber');
+            const isPhoneReady = await formApi.isFieldValid('phoneNumber');
+            if (!isPhoneReady) {
+              throw new Error('Phone number is not ready');
+            }
+            const { phoneNumber } = await formApi.getValues();
             await sendCodeApi(phoneNumber);
           } finally {
             sendCodeLoading.value = false;

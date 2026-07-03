@@ -14,6 +14,7 @@ import { useUserStore } from '@vben/stores';
 
 import { message, Modal } from 'ant-design-vue';
 
+import { getUserInfoApi } from '#/api/core/user';
 import { getParkList as fetchParks } from '#/api/park';
 import {
   deleteReimbursement as apiDeleteReimbursement,
@@ -71,6 +72,28 @@ function validateAmount(amount: any): { valid: boolean; value: number } {
     valid: !Number.isNaN(numAmount),
     value: numAmount,
   };
+}
+
+function resolveAuditErrorMessage(error: unknown) {
+  const record =
+    error && typeof error === 'object'
+      ? (error as Record<string, any>)
+      : undefined;
+  const responseData =
+    record?.response?.data && typeof record.response.data === 'object'
+      ? (record.response.data as Record<string, any>)
+      : record;
+
+  if (typeof responseData?.message === 'string' && responseData.message) {
+    return responseData.message;
+  }
+  if (typeof responseData?.error === 'string' && responseData.error) {
+    return responseData.error;
+  }
+  if (typeof record?.message === 'string' && record.message) {
+    return record.message;
+  }
+  return '审核失败，请重试';
 }
 
 /**
@@ -163,6 +186,17 @@ export function useReimbursementAudit() {
 
   // 获取报销列表数据 - 为了在list.vue中使用，提供一个别名
   const fetchReimbursements = fetchReimbursementList;
+
+  async function refreshCurrentUserInfo() {
+    try {
+      const latestUserInfo = await getUserInfoApi();
+      userStore.setUserInfo(latestUserInfo as any);
+      return latestUserInfo;
+    } catch (error) {
+      console.warn('Refresh user info failed:', error);
+      return null;
+    }
+  }
 
   // 获取报销列表数据
   async function fetchReimbursementList() {
@@ -313,11 +347,11 @@ export function useReimbursementAudit() {
         auditForm.status = undefined;
         auditForm.reason = '';
         // 刷新列表
-        fetchReimbursementList();
+        void fetchReimbursementList();
       }
     } catch (error) {
       console.error('审核失败:', error);
-      message.error('审核失败，请重试');
+      message.error(resolveAuditErrorMessage(error));
     } finally {
       submitting.value = false;
     }
@@ -326,6 +360,7 @@ export function useReimbursementAudit() {
   // 显示审核弹窗
   function showAuditModal(record: ReimbursementItem) {
     currentRecord.value = record;
+    void refreshCurrentUserInfo();
 
     // 重置审核表单
     auditForm.status = undefined;

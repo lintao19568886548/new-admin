@@ -107,17 +107,6 @@ const routes: RouteRecordRaw[] = [
         ],
       },
       {
-        name: 'Home',
-        path: '/home',
-        component: () => import('#/views/dashboard/index.vue'),
-        meta: {
-          icon: 'lucide:home',
-          isApp: true,
-          order: 1,
-          title: '首页',
-        },
-      },
-      {
         name: 'ProfileVipMembership',
         path: '/profile/vip-membership',
         component: () => import('#/views/profile/vip-membership.vue'),
@@ -128,16 +117,6 @@ const routes: RouteRecordRaw[] = [
           isApp: true,
           order: 2,
           title: '创建内部团队',
-        },
-      },
-      {
-        name: 'Workbench',
-        path: '/workbench',
-        component: () => import('#/views/dashboard/workbench/index.vue'),
-        meta: {
-          hideMenu: true,
-          icon: 'carbon:workspace',
-          title: $t('page.dashboard.workspace'),
         },
       },
     ],

@@ -376,6 +376,28 @@ const handlePreview = async (file: any) => {
     file.name || file.url.slice(Math.max(0, file.url.lastIndexOf('/') + 1));
 };
 
+function resolveSubmitErrorMessage(error: unknown) {
+  const record =
+    error && typeof error === 'object'
+      ? (error as Record<string, any>)
+      : undefined;
+  const responseData =
+    record?.response?.data && typeof record.response.data === 'object'
+      ? (record.response.data as Record<string, any>)
+      : record;
+
+  if (typeof responseData?.message === 'string' && responseData.message) {
+    return responseData.message;
+  }
+  if (typeof responseData?.error === 'string' && responseData.error) {
+    return responseData.error;
+  }
+  if (typeof record?.message === 'string' && record.message) {
+    return record.message;
+  }
+  return '提交报销申请失败，请重试';
+}
+
 // 重置表单
 function resetForm() {
   formRef.value?.resetFields();
@@ -420,7 +442,7 @@ async function handleSubmit() {
     showRecordModal();
   } catch (error) {
     console.error('提交报销申请失败:', error);
-    message.error('提交报销申请失败，请重试');
+    message.error(resolveSubmitErrorMessage(error));
   } finally {
     submitting.value = false;
   }

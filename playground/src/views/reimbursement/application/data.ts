@@ -8,6 +8,8 @@ import { formatDateTime } from '@vben/utils';
 import { Button, Tag } from 'ant-design-vue';
 
 // 定义类型
+export const MAX_REIMBURSEMENT_AMOUNT = 9_999_999_999_999.99;
+
 export interface ReimbursementItem {
   amount: number;
   auditOpinion?: string;
@@ -54,6 +56,12 @@ export function useFormRules(): Record<string, Rule[]> {
     amount: [
       { message: '请输入报销金额', required: true, trigger: 'blur' },
       { message: '金额必须是数字', trigger: 'blur', type: 'number' },
+      {
+        max: MAX_REIMBURSEMENT_AMOUNT,
+        message: `金额不能超过${MAX_REIMBURSEMENT_AMOUNT.toLocaleString()}元`,
+        trigger: 'blur',
+        type: 'number',
+      },
     ],
     applicant: [
       { message: '请输入申请人姓名', required: true, trigger: 'blur' },

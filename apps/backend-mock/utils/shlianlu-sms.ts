@@ -19,6 +19,37 @@ interface SendLoginCodeParams {
   taskTime?: string;
 }
 
+function getSmsRequestTimeoutMs() {
+  const value = Number(process.env.SMS_REQUEST_TIMEOUT_MS ?? 15_000);
+  return Number.isFinite(value) && value > 0 ? value : 15_000;
+}
+
+async function postSmsJson(url: string, payload: Record<string, unknown>) {
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    getSmsRequestTimeoutMs(),
+  );
+  try {
+    return await fetch(url, {
+      body: JSON.stringify(payload),
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json;charset=utf-8',
+      },
+      method: 'POST',
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('联麓短信请求超时，请稍后重试');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function loadConfig(): SmsConfig {
   const apiHost =
     process.env.SMS_API_HOST ||
@@ -126,14 +157,7 @@ export async function sendLoginVerificationCode({
     Signature: generateSignature(payload, config),
   };
 
-  const response = await fetch(config.apiHost, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json;charset=utf-8',
-    },
-    body: JSON.stringify(signedPayload),
-  });
+  const response = await postSmsJson(config.apiHost, signedPayload);
 
   if (!response.ok) {
     const text = await response.text();

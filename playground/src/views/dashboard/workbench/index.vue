@@ -1,16 +1,15 @@
 <script lang="ts" setup>
-import type { RouteRecordStringComponent } from '@vben/types';
-
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { VbenIcon } from '@vben/common-ui';
 import { $t } from '@vben/locales';
-import { useUserStore } from '@vben/stores';
 
 import { Empty, Input } from 'ant-design-vue';
 
+import { useAuthStore } from '#/store';
 import { useMenuStore } from '#/store/menu';
+import { requireLogin } from '#/utils/require-login';
 
 interface NavItem {
   bgClass: string;
@@ -20,6 +19,8 @@ interface NavItem {
   name: string;
   order: number;
   path: string;
+  targetName?: string;
+  targetPath: string;
   title: string;
 }
 
@@ -27,11 +28,6 @@ interface NavVisualTheme {
   bgClass: string;
   color: string;
   glowClass: string;
-}
-
-interface MobileWorkbenchTarget {
-  name?: string;
-  path: string;
 }
 
 interface NavGroup {
@@ -43,100 +39,338 @@ interface NavGroup {
 }
 
 interface GroupSeed {
+  entries: WorkbenchEntrySeed[];
   icon: string;
   key: string;
   order: number;
-  routes: RouteRecordStringComponent[];
   title: string;
 }
 
+interface WorkbenchEntrySeed {
+  icon: string;
+  name: string;
+  path: string;
+  targetName?: string;
+  targetPath?: string;
+  title: string;
+}
+
+interface WorkbenchRoute {
+  children?: WorkbenchRoute[];
+  meta?: {
+    icon?: unknown;
+    order?: unknown;
+    title?: unknown;
+  };
+  name?: unknown;
+  path: string;
+}
+
 const router = useRouter();
+const authStore = useAuthStore();
 const menuStore = useMenuStore();
-const userStore = useUserStore();
 const searchQuery = ref('');
-const groups = ref<NavGroup[]>([]);
-const TARGET_INVESTMENT_REGISTRATION_USERNAMES = new Set([
-  '18127933306',
-  '18689459979',
-]);
-const HIDDEN_WORKBENCH_APP_ROUTE_NAMES = new Set([
-  'SettledFactory',
-  'SettledFactoryMobile',
-  'VisitorRegister',
-]);
-const HIDDEN_WORKBENCH_APP_ROUTE_PATHS = new Set([
-  '/access/visitor/register',
-  '/rental/settled',
-  '/rental/settled/mobile',
-]);
-const WORKBENCH_APP_ROUTE_NAMES = new Set([
-  'AccessBrand',
-  'CarAccess',
-  'ElectricMeterBrand',
-  'SmartMeterElectricReading',
-  'SmartMeterWaterReading',
-  'VisitorAccess',
-  'VisitorRegister',
-  'WaterMeterBrand',
-]);
-const WORKBENCH_APP_ROUTE_PATHS = new Set([
-  '/access/brand',
-  '/access/car',
-  '/access/visitor',
-  '/access/visitor/register',
-  '/smart-meter/electric-brand',
-  '/smart-meter/meter',
-  '/smart-meter/water',
-  '/smart-meter/water-brand',
-]);
-const MOBILE_WORKBENCH_ROUTE_TARGETS: Record<string, MobileWorkbenchTarget> = {
-  SmartMeterElectricReading: {
-    name: 'SmartMeterReadingMobile',
-    path: '/smart-meter/reading/mobile',
+
+const WORKBENCH_GROUPS: GroupSeed[] = [
+  {
+    entries: [
+      {
+        icon: 'lucide:area-chart',
+        name: 'Analytics',
+        path: '/analytics',
+        title: '总览页',
+      },
+      {
+        icon: 'mdi:account-group-outline',
+        name: 'ProfileVipMembership',
+        path: '/profile/vip-membership',
+        title: '创建内部团队',
+      },
+      {
+        icon: 'mdi:account-plus-outline',
+        name: 'CrmQrcodeTest',
+        path: '/crm/qrcode-test',
+        title: '获客推广',
+      },
+    ],
+    icon: 'lucide:layout-dashboard',
+    key: 'dashboard',
+    order: 1,
+    title: '总台',
   },
-  SmartMeterWaterReading: {
-    name: 'SmartMeterReadingMobile',
-    path: '/smart-meter/reading/mobile',
+  {
+    entries: [
+      {
+        icon: 'mdi:view-list',
+        name: 'SystemPark',
+        path: '/system/park',
+        targetName: 'SystemParkMobile',
+        targetPath: '/system/park/mobile',
+        title: '园区列表',
+      },
+      {
+        icon: 'mdi:factory',
+        name: 'FactoryList',
+        path: '/rental/factory',
+        title: '待租厂房',
+      },
+      {
+        icon: 'mdi:account-group',
+        name: 'TenantManage',
+        path: '/rental/tenant',
+        targetName: 'TenantMobileList',
+        targetPath: '/rental/tenant/mobile',
+        title: '合同管理',
+      },
+      {
+        icon: 'mdi:bullhorn-outline',
+        name: 'Notices',
+        path: '/notices',
+        targetName: 'NoticesMobile',
+        targetPath: '/notices/mobile',
+        title: '招投标信息',
+      },
+    ],
+    icon: 'mdi:home-city-outline',
+    key: 'rental',
+    order: 2,
+    title: '租赁管理',
   },
-  VisitorAccess: {
-    name: 'VisitorMobileList',
-    path: '/access/visitor/mobile',
+  {
+    entries: [
+      {
+        icon: 'mdi:file-document-check-outline',
+        name: 'ReimbursementAudit',
+        path: '/reimbursement/audit',
+        targetName: 'ReimbursementMobileAudit',
+        targetPath: '/reimbursement/mobile-audit',
+        title: '报销审核',
+      },
+      {
+        icon: 'mdi:file-document-edit-outline',
+        name: 'ReimbursementApplication',
+        path: '/reimbursement/application',
+        targetName: 'ReimbursementMobileApply',
+        targetPath: '/reimbursement/mobile-apply',
+        title: '报销申请',
+      },
+      {
+        icon: 'mdi:currency-usd',
+        name: 'FinanceManage',
+        path: '/finance/manage',
+        targetName: 'FinanceMobileManage',
+        targetPath: '/finance/mobile-manage',
+        title: '财务管理',
+      },
+      {
+        icon: 'mdi:file-document-multiple',
+        name: 'Bill',
+        path: '/bill',
+        targetName: 'BillMobileList',
+        targetPath: '/bill/mobile-list',
+        title: '智能制单',
+      },
+    ],
+    icon: 'mdi:currency-usd',
+    key: 'finance',
+    order: 3,
+    title: '财务管理',
   },
-};
-const HIDDEN_WORKBENCH_COMPAT_ROUTE_NAMES = new Set([
-  'AccessBrandMobile',
-  'CarAccessMobile',
-  'ElectricMeterBrandMobile',
-  'SmartMeterReadingMobile',
-  'VisitorMobileList',
-  'WaterMeterBrandMobile',
-]);
-const HIDDEN_WORKBENCH_COMPAT_ROUTE_PATHS = new Set([
-  '/access/brand/mobile',
-  '/access/car/mobile',
-  '/access/visitor/mobile',
-  '/smart-meter/electric-brand/mobile',
-  '/smart-meter/reading/mobile',
-  '/smart-meter/water-brand/mobile',
-]);
-const PUBLIC_INVESTMENT_WORKBENCH_ROUTE_NAMES = new Set([
-  'CrmQrcodeTest',
-  'InvestmentRadarMobileFactoryListings',
-  'InvestmentRadarMobilePublicDemands',
-]);
-const PUBLIC_INVESTMENT_WORKBENCH_ROUTE_PATHS = new Set([
-  '/crm/qrcode-test',
-  '/investment/radar/mobile-factory-listings',
-  '/investment/radar/mobile-public-demands',
-]);
-const TARGET_INVESTMENT_REGISTRATION_ROUTE_NAMES = new Set([
-  'InvestmentAgentMobileList',
-]);
-const TARGET_INVESTMENT_REGISTRATION_ROUTE_PATHS = new Set([
-  '/investment/mobile',
-]);
-const ORGANIZATION_INVITATION_ROUTE_NAME = 'ProfileOrganizationInvitations';
-const ORGANIZATION_INVITATION_ROUTE_PATH = '/profile/organization-invitations';
+  {
+    entries: [
+      {
+        icon: 'mdi:flash-triangle',
+        name: 'ElectricMeterBrand',
+        path: '/smart-meter/electric-brand',
+        targetName: 'ElectricMeterBrandMobile',
+        targetPath: '/smart-meter/electric-brand/mobile',
+        title: '电表品牌管理',
+      },
+      {
+        icon: 'mdi:water-check',
+        name: 'WaterMeterBrand',
+        path: '/smart-meter/water-brand',
+        targetName: 'WaterMeterBrandMobile',
+        targetPath: '/smart-meter/water-brand/mobile',
+        title: '水表品牌管理',
+      },
+      {
+        icon: 'mdi:flash',
+        name: 'SmartMeterElectricReading',
+        path: '/smart-meter/meter',
+        targetName: 'SmartMeterReadingMobile',
+        targetPath: '/smart-meter/reading/mobile',
+        title: '水电表抄表数据',
+      },
+    ],
+    icon: 'mdi:gauge',
+    key: 'smart-meter',
+    order: 4,
+    title: '智能抄表',
+  },
+  {
+    entries: [
+      {
+        icon: 'mdi:card-account-details-outline',
+        name: 'HrmAttendancePunch',
+        path: '/hrm/attendance/punch',
+        title: '出勤打卡',
+      },
+      {
+        icon: 'mdi:map-marker-path',
+        name: 'HrmTrajectory',
+        path: '/hrm/trajectory',
+        title: '考勤轨迹',
+      },
+      {
+        icon: 'mdi:file-document-edit-outline',
+        name: 'HrmLeaveApplication',
+        path: '/hrm/leaveapplication',
+        targetName: 'HrmLeaveApplicationMobile',
+        targetPath: '/hrm/leavemobile',
+        title: '请假申请',
+      },
+      {
+        icon: 'mdi:account-details-outline',
+        name: 'HrmInformation',
+        path: '/hrm/information',
+        targetName: 'HrmMobileInformation',
+        targetPath: '/hrm/mobile-information',
+        title: '人员信息',
+      },
+    ],
+    icon: 'mdi:account-group-outline',
+    key: 'hrm',
+    order: 5,
+    title: '人事管理',
+  },
+  {
+    entries: [
+      {
+        icon: 'lucide:briefcase-business',
+        name: 'InvestmentApp',
+        path: '/investment/app',
+        title: '招商工作台',
+      },
+      {
+        icon: 'mdi:account-tie',
+        name: 'InvestmentAgentMobileList',
+        path: '/investment/mobile',
+        title: '客户登记',
+      },
+      {
+        icon: 'mdi:radar',
+        name: 'InvestmentRadarMobileList',
+        path: '/investment/radar/mobile',
+        title: '智能招商雷达',
+      },
+      {
+        icon: 'mdi:briefcase-search-outline',
+        name: 'InvestmentRadarMobilePublicDemands',
+        path: '/investment/radar/mobile-public-demands',
+        title: '公开需求',
+      },
+      {
+        icon: 'mdi:factory',
+        name: 'InvestmentRadarMobileFactoryListings',
+        path: '/investment/radar/mobile-factory-listings',
+        title: '公开房源',
+      },
+    ],
+    icon: 'lucide:briefcase-business',
+    key: 'investment',
+    order: 6,
+    title: '招商管理',
+  },
+  {
+    entries: [
+      {
+        icon: 'carbon:badge',
+        name: 'AccessBrand',
+        path: '/access/brand',
+        targetName: 'AccessBrandMobile',
+        targetPath: '/access/brand/mobile',
+        title: '门禁品牌管理',
+      },
+      {
+        icon: 'carbon:car',
+        name: 'CarAccess',
+        path: '/access/car',
+        targetName: 'CarAccessMobile',
+        targetPath: '/access/car/mobile',
+        title: '车辆出入管理',
+      },
+      {
+        icon: 'carbon:user-profile',
+        name: 'VisitorAccess',
+        path: '/access/visitor',
+        targetName: 'VisitorMobileList',
+        targetPath: '/access/visitor/mobile',
+        title: '访客管理',
+      },
+    ],
+    icon: 'lucide:key-square',
+    key: 'access',
+    order: 7,
+    title: '门禁管理',
+  },
+  {
+    entries: [
+      {
+        icon: 'mdi:lightning-bolt',
+        name: 'Transformer',
+        path: '/maintenance/transformer',
+        targetName: 'TransformerMobile',
+        targetPath: '/maintenance/transformer/mobile',
+        title: '变压器维保',
+      },
+      {
+        icon: 'mdi:office-building-cog',
+        name: 'FactoryMaint',
+        path: '/maintenance/factoryMaint',
+        targetName: 'FactoryMaintMobile',
+        targetPath: '/maintenance/factoryMaint/mobile',
+        title: '厂房维护',
+      },
+      {
+        icon: 'mdi:elevator',
+        name: 'Elevator',
+        path: '/maintenance/elevator',
+        targetName: 'ElevatorMobile',
+        targetPath: '/maintenance/elevator/mobile',
+        title: '电梯管理',
+      },
+      {
+        icon: 'mdi:broom',
+        name: 'HygieneCheck',
+        path: '/maintenance/hygieneCheck',
+        targetName: 'HygieneCheckMobile',
+        targetPath: '/maintenance/hygieneCheck/mobile',
+        title: '卫生检查',
+      },
+      {
+        icon: 'mdi:fire-extinguisher',
+        name: 'Firefighting',
+        path: '/maintenance/firefighting',
+        targetName: 'FirefightingMobile',
+        targetPath: '/maintenance/firefighting/mobile',
+        title: '消防管理',
+      },
+      {
+        icon: 'mdi:clipboard-text-clock-outline',
+        name: 'RepairOrder',
+        path: '/maintenance/repair-order',
+        targetName: 'RepairOrderMobile',
+        targetPath: '/maintenance/repair-order/mobile',
+        title: '报修工单',
+      },
+    ],
+    icon: 'mdi:tools',
+    key: 'maintenance',
+    order: 8,
+    title: '维护管理',
+  },
+];
 
 const themes: NavVisualTheme[] = [
   {
@@ -171,15 +405,6 @@ const themes: NavVisualTheme[] = [
 const DEFAULT_APP_ICON = 'carbon:application-web';
 const DEFAULT_GROUP_ICON = 'carbon:category';
 
-function parseOrder(order: unknown) {
-  if (typeof order === 'number' && Number.isFinite(order)) return order;
-  if (typeof order === 'string' && order.length > 0) {
-    const parsed = Number(order);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return 0;
-}
-
 function resolveTitle(metaTitle: unknown, fallback: unknown) {
   let raw = '未命名';
   if (typeof metaTitle === 'string' && metaTitle.length > 0) {
@@ -194,10 +419,6 @@ function normalizeIcon(icon: unknown, fallback: string) {
   return typeof icon === 'string' && icon.length > 0 ? icon : fallback;
 }
 
-function hasChildren(route: RouteRecordStringComponent) {
-  return Array.isArray(route.children) && route.children.length > 0;
-}
-
 function normalizeWorkbenchRoutePath(value: unknown) {
   return String(value || '').replace(/\/+$/, '') || '/';
 }
@@ -206,208 +427,111 @@ function isMobileViewport() {
   return typeof window !== 'undefined' && window.innerWidth < 768;
 }
 
-function isWorkbenchAppTarget(route: RouteRecordStringComponent) {
-  const routeName = String(route.name || '');
-  const routePath = normalizeWorkbenchRoutePath(route.path);
-  return (
-    WORKBENCH_APP_ROUTE_NAMES.has(routeName) ||
-    WORKBENCH_APP_ROUTE_PATHS.has(routePath)
-  );
+function resolveRoutePath(routePath: string, parentPath?: string) {
+  if (!routePath) return parentPath || '';
+  if (routePath.startsWith('/')) return normalizeWorkbenchRoutePath(routePath);
+  if (!parentPath) return normalizeWorkbenchRoutePath(`/${routePath}`);
+  return normalizeWorkbenchRoutePath(`${parentPath}/${routePath}`);
 }
 
-function isHiddenWorkbenchApp(route: RouteRecordStringComponent) {
-  const routeName = String(route.name || '');
-  const routePath = normalizeWorkbenchRoutePath(route.path);
-  return (
-    HIDDEN_WORKBENCH_APP_ROUTE_NAMES.has(routeName) ||
-    HIDDEN_WORKBENCH_APP_ROUTE_PATHS.has(routePath) ||
-    HIDDEN_WORKBENCH_COMPAT_ROUTE_NAMES.has(routeName) ||
-    HIDDEN_WORKBENCH_COMPAT_ROUTE_PATHS.has(routePath)
-  );
+function normalizeRoutePath(
+  route: WorkbenchRoute,
+  parentRoute?: WorkbenchRoute,
+) {
+  return {
+    ...route,
+    path: resolveRoutePath(route.path, parentRoute?.path),
+  };
 }
 
-function isInvestmentWorkbenchRoute(route: RouteRecordStringComponent) {
-  const routeName = String(route.name || '');
-  const routePath = normalizeWorkbenchRoutePath(route.path);
-  if (
-    routeName === ORGANIZATION_INVITATION_ROUTE_NAME ||
-    routePath === ORGANIZATION_INVITATION_ROUTE_PATH
-  ) {
-    return false;
-  }
-
-  return (
-    routeName === 'CrmQrcodeTest' ||
-    routeName.startsWith('Investment') ||
-    routePath === '/crm/qrcode-test' ||
-    routePath === '/investment' ||
-    routePath.startsWith('/investment/')
-  );
-}
-
-function canShowInvestmentWorkbenchRoute(route: RouteRecordStringComponent) {
-  if (!isInvestmentWorkbenchRoute(route)) return true;
-  if (userStore.userRoles.includes('Super')) return true;
-
-  const routeName = String(route.name || '');
-  const routePath = normalizeWorkbenchRoutePath(route.path);
-  if (
-    PUBLIC_INVESTMENT_WORKBENCH_ROUTE_NAMES.has(routeName) ||
-    PUBLIC_INVESTMENT_WORKBENCH_ROUTE_PATHS.has(routePath)
-  ) {
-    return true;
-  }
-
-  const isTargetUser = TARGET_INVESTMENT_REGISTRATION_USERNAMES.has(
-    String(userStore.userInfo?.username || ''),
-  );
-  return (
-    isTargetUser &&
-    (TARGET_INVESTMENT_REGISTRATION_ROUTE_NAMES.has(routeName) ||
-      TARGET_INVESTMENT_REGISTRATION_ROUTE_PATHS.has(routePath))
-  );
-}
-
-function shouldIncludeAsApp(route: RouteRecordStringComponent) {
-  if (hasChildren(route)) return false;
-  if (!route.meta?.isApp && !isWorkbenchAppTarget(route)) return false;
-  if (!route.name) return false;
-  if (route.name === 'Workbench' || route.path === '/workbench') return false;
-  if (isHiddenWorkbenchApp(route)) return false;
-  if (!canShowInvestmentWorkbenchRoute(route)) return false;
-  return true;
-}
-
-function collectAppRoutes(
-  routes: RouteRecordStringComponent[],
-  parentRoute?: RouteRecordStringComponent,
-  result: RouteRecordStringComponent[] = [],
+function collectRoutes(
+  routes: WorkbenchRoute[],
+  index: Map<string, WorkbenchRoute>,
+  parentRoute?: WorkbenchRoute,
 ) {
   for (const route of routes) {
-    if (hasChildren(route)) {
-      collectAppRoutes(route.children ?? [], parentRoute ?? route, result);
-      continue;
+    const normalizedRoute = normalizeRoutePath(route, parentRoute);
+    const routeName = String(normalizedRoute.name || '');
+    const routePath = normalizeWorkbenchRoutePath(normalizedRoute.path);
+    if (routeName) {
+      index.set(`name:${routeName}`, normalizedRoute);
     }
-    if (shouldIncludeAsApp(route)) {
-      result.push(route);
+    if (routePath) {
+      index.set(`path:${routePath}`, normalizedRoute);
+    }
+    if (Array.isArray(route.children) && route.children.length > 0) {
+      collectRoutes(route.children, index, normalizedRoute);
     }
   }
-  return result;
+}
+
+function buildRouteIndex(routes: WorkbenchRoute[]) {
+  const index = new Map<string, WorkbenchRoute>();
+  collectRoutes(routes, index);
+  return index;
+}
+
+function findRoute(
+  routeIndex: Map<string, WorkbenchRoute>,
+  entry: WorkbenchEntrySeed,
+) {
+  return (
+    routeIndex.get(`name:${entry.name}`) ||
+    routeIndex.get(`path:${normalizeWorkbenchRoutePath(entry.path)}`)
+  );
 }
 
 function toNavItem(
-  route: RouteRecordStringComponent,
+  entry: WorkbenchEntrySeed,
+  routeIndex: Map<string, WorkbenchRoute>,
   theme: NavVisualTheme,
+  order: number,
 ): NavItem | null {
-  if (!route.name) return null;
-  const routeName = String(route.name);
-  let title = resolveTitle(route.meta?.title, route.name);
-  switch (routeName) {
-    case 'InvestmentAgentMobileList': {
-      title = '客户登记';
-      break;
-    }
-    case ORGANIZATION_INVITATION_ROUTE_NAME: {
-      title = '生成邀请码';
-      break;
-    }
-    case 'SmartMeterElectricReading':
-    case 'SmartMeterWaterReading': {
-      title = '水电表抄表数据';
-      break;
-    }
-  }
+  const route = findRoute(routeIndex, entry);
+  const routePath = normalizeWorkbenchRoutePath(route?.path || entry.path);
+  const targetPath = normalizeWorkbenchRoutePath(
+    entry.targetPath || route?.path || entry.path,
+  );
 
   return {
     bgClass: theme.bgClass,
     color: theme.color,
     glowClass: theme.glowClass,
-    icon: normalizeIcon(route.meta?.icon, DEFAULT_APP_ICON),
-    name: routeName,
-    order: parseOrder(route.meta?.order),
-    path: typeof route.path === 'string' ? route.path : '',
-    title,
+    icon: normalizeIcon(entry.icon || route?.meta?.icon, DEFAULT_APP_ICON),
+    name: entry.name,
+    order,
+    path: routePath,
+    targetName: entry.targetName,
+    targetPath,
+    title: entry.title || resolveTitle(route?.meta?.title, entry.name),
   };
 }
 
-function sortByOrderAndTitle<T extends { order: number; title: string }>(
-  arr: T[],
-) {
-  return [...arr].sort((a, b) => {
-    if (a.order !== b.order) return a.order - b.order;
-    return a.title.localeCompare(b.title, 'zh-Hans-CN');
-  });
-}
-
-function getNavItemDedupKey(item: NavItem) {
-  const mobileTarget = MOBILE_WORKBENCH_ROUTE_TARGETS[item.name];
-  return mobileTarget?.name || mobileTarget?.path || item.name || item.path;
-}
-
-function dedupeNavItems(items: NavItem[]) {
-  const usedKeys = new Set<string>();
-  return items.filter((item) => {
-    const key = getNavItemDedupKey(item);
-    if (usedKeys.has(key)) return false;
-    usedKeys.add(key);
-    return true;
-  });
-}
-
-function buildGroups(menuRoutes: RouteRecordStringComponent[]) {
-  const seeds: GroupSeed[] = [];
-  const uncategorized: RouteRecordStringComponent[] = [];
-
-  for (const route of menuRoutes) {
-    if (hasChildren(route)) {
-      const appRoutes = collectAppRoutes(route.children ?? [], route);
-      if (appRoutes.length === 0) continue;
-      seeds.push({
-        icon: normalizeIcon(route.meta?.icon, DEFAULT_GROUP_ICON),
-        key: String(route.name || route.path || route.meta?.title || 'group'),
-        order: parseOrder(route.meta?.order),
-        routes: appRoutes,
-        title: resolveTitle(route.meta?.title, route.name || route.path),
-      });
-      continue;
-    }
-
-    if (shouldIncludeAsApp(route)) uncategorized.push(route);
-  }
-
-  if (uncategorized.length > 0) {
-    seeds.push({
-      icon: DEFAULT_GROUP_ICON,
-      key: 'uncategorized',
-      order: 99_999,
-      routes: uncategorized,
-      title: '其他功能',
-    });
-  }
-
-  const sortedSeeds = sortByOrderAndTitle(
-    seeds.map((seed) => ({ ...seed, title: seed.title })),
-  );
+function buildGroups(routeIndex: Map<string, WorkbenchRoute>) {
   let colorIndex = 0;
 
-  return sortedSeeds
+  return [...WORKBENCH_GROUPS]
+    .sort((a, b) => a.order - b.order)
     .map<NavGroup>((seed) => {
-      const items = dedupeNavItems(
-        sortByOrderAndTitle(
-          seed.routes
-            .map((route) =>
-              toNavItem(
-                route,
-                themes[colorIndex++ % themes.length] ||
-                  themes[themes.length - 1]!,
-              ),
-            )
-            .filter((item): item is NavItem => item !== null),
-        ),
+      const items = seed.entries
+        .map((entry, index) =>
+          toNavItem(
+            entry,
+            routeIndex,
+            themes[colorIndex++ % themes.length] || themes[themes.length - 1]!,
+            index + 1,
+          ),
+        )
+        .filter((item): item is NavItem => item !== null);
+
+      const groupRoute = routeIndex.get(`name:${seed.key}`);
+      const icon = normalizeIcon(
+        seed.icon || groupRoute?.meta?.icon,
+        DEFAULT_GROUP_ICON,
       );
 
       return {
-        icon: seed.icon,
+        icon,
         key: seed.key,
         order: seed.order,
         title: seed.title,
@@ -417,57 +541,61 @@ function buildGroups(menuRoutes: RouteRecordStringComponent[]) {
     .filter((group) => group.items.length > 0);
 }
 
+const routeIndex = computed(() =>
+  buildRouteIndex(menuStore.menus as WorkbenchRoute[]),
+);
+
+const groups = computed(() => buildGroups(routeIndex.value));
+
+const sourceGroups = computed(() => groups.value);
+
+const sortedGroups = computed(() =>
+  [...sourceGroups.value].sort((a, b) => a.order - b.order),
+);
+
 const filteredGroups = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
-  if (!keyword) return groups.value;
+  if (!keyword) return sortedGroups.value;
 
-  return groups.value
+  return sortedGroups.value
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
         return (
           item.title.toLowerCase().includes(keyword) ||
           item.name.toLowerCase().includes(keyword) ||
-          item.path.toLowerCase().includes(keyword)
+          item.path.toLowerCase().includes(keyword) ||
+          item.targetPath.toLowerCase().includes(keyword)
         );
       }),
     }))
     .filter((group) => group.items.length > 0);
 });
 
-function refreshGroups() {
-  try {
-    groups.value = buildGroups(menuStore.menus);
-  } catch (error) {
-    console.error('Failed to build workbench navigation:', error);
-    groups.value = [];
-  }
-}
-
-watch(
-  [
-    () => menuStore.menus,
-    () => userStore.userInfo?.username,
-    () => userStore.userRoles.join('|'),
-  ],
-  refreshGroups,
-  { deep: true, immediate: true },
-);
-
 function resolveItemTarget(item: NavItem) {
-  const mobileTarget = MOBILE_WORKBENCH_ROUTE_TARGETS[item.name];
-  if (isMobileViewport() && mobileTarget) {
-    if (mobileTarget.name && router.hasRoute(mobileTarget.name)) {
-      return { name: mobileTarget.name };
+  if (isMobileViewport()) {
+    if (item.targetName && router.hasRoute(item.targetName)) {
+      return { name: item.targetName };
     }
-    return mobileTarget.path;
+    return item.targetPath;
   }
 
-  if (item.name) return { name: item.name };
-  return item.path;
+  if (item.name && router.hasRoute(item.name)) {
+    return { name: item.name };
+  }
+  return item.path || item.targetPath;
 }
 
-function handleItemClick(item: NavItem) {
+function getLoginRedirectPath(item: NavItem) {
+  return isMobileViewport() ? item.targetPath : item.path || item.targetPath;
+}
+
+async function handleItemClick(item: NavItem) {
+  if (!(await requireLogin(router, getLoginRedirectPath(item)))) {
+    return;
+  }
+
+  await authStore.ensureSessionReady({ forceRebuildAccess: true });
   const target = resolveItemTarget(item);
   if (!target) return;
 

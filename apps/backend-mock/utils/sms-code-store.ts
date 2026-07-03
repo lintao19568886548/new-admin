@@ -5,6 +5,7 @@ const RESEND_INTERVAL_SECONDS = Number(
 const MAX_VERIFY_ATTEMPTS = Number(
   process.env.LOGIN_SMS_MAX_VERIFY_ATTEMPTS ?? 5,
 );
+const SEND_LOCK_SECONDS = Number(process.env.LOGIN_SMS_SEND_LOCK_SECONDS ?? 30);
 
 interface SmsCodeEntry {
   attempts: number;
@@ -24,6 +25,7 @@ export class SmsCodeError extends Error {
 }
 
 const smsStore = new Map<string, SmsCodeEntry>();
+const sendingStore = new Map<string, number>();
 
 function cleanupExpiredEntries() {
   const now = Date.now();
@@ -32,10 +34,23 @@ function cleanupExpiredEntries() {
       smsStore.delete(key);
     }
   }
+  for (const [key, expiresAt] of sendingStore) {
+    if (expiresAt <= now) {
+      sendingStore.delete(key);
+    }
+  }
 }
 
 export function ensureCanSendCode(phoneNumber: string) {
   cleanupExpiredEntries();
+
+  const sendingExpiresAt = sendingStore.get(phoneNumber);
+  if (sendingExpiresAt && sendingExpiresAt > Date.now()) {
+    throw new SmsCodeError(
+      '验证码正在发送中，请稍后再试',
+      Math.ceil((sendingExpiresAt - Date.now()) / 1000),
+    );
+  }
 
   const entry = smsStore.get(phoneNumber);
   if (!entry) {
@@ -52,8 +67,22 @@ export function ensureCanSendCode(phoneNumber: string) {
   }
 }
 
+export function reserveSmsCodeSend(phoneNumber: string) {
+  ensureCanSendCode(phoneNumber);
+  const lockSeconds =
+    Number.isFinite(SEND_LOCK_SECONDS) && SEND_LOCK_SECONDS > 0
+      ? SEND_LOCK_SECONDS
+      : 30;
+  sendingStore.set(phoneNumber, Date.now() + lockSeconds * 1000);
+}
+
+export function releaseSmsCodeSend(phoneNumber: string) {
+  sendingStore.delete(phoneNumber);
+}
+
 export function saveSmsCode(phoneNumber: string, code: string) {
   const now = Date.now();
+  releaseSmsCodeSend(phoneNumber);
   smsStore.set(phoneNumber, {
     attempts: 0,
     code,

@@ -279,6 +279,28 @@ const handlePreview = async (file: any) => {
   }
 };
 
+function resolveSubmitErrorMessage(error: unknown) {
+  const record =
+    error && typeof error === 'object'
+      ? (error as Record<string, any>)
+      : undefined;
+  const responseData =
+    record?.response?.data && typeof record.response.data === 'object'
+      ? (record.response.data as Record<string, any>)
+      : record;
+
+  if (typeof responseData?.message === 'string' && responseData.message) {
+    return responseData.message;
+  }
+  if (typeof responseData?.error === 'string' && responseData.error) {
+    return responseData.error;
+  }
+  if (typeof record?.message === 'string' && record.message) {
+    return record.message;
+  }
+  return '提交报销申请失败，请重试';
+}
+
 // 重置表单
 function resetForm() {
   formRef.value?.resetFields();
@@ -317,7 +339,7 @@ async function handleSubmit() {
     if (error && error.errorFields && error.errorFields.length > 0) {
       message.error('请检查表单输入项。');
     } else {
-      message.error('提交报销申请失败，请重试');
+      message.error(resolveSubmitErrorMessage(error));
     }
   } finally {
     submitting.value = false;

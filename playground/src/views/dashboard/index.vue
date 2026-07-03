@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { RouteLocationRaw } from 'vue-router';
+
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -9,8 +11,11 @@ import { Card, Col, Row, Skeleton } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { getVisitorList } from '#/api/access/visitor';
+import { getDashboardContractStats } from '#/api/dashboard';
 import { getTodayRecord } from '#/api/hrm/attendance';
 import { getReimbursementSummary } from '#/api/reimbursement/reimbursement';
+import { useAuthStore } from '#/store';
+import { requireLogin } from '#/utils/require-login';
 
 interface VisitorPreview {
   name: string;
@@ -25,24 +30,375 @@ interface CheckInPreview {
   punchOut: string;
 }
 
+interface WorkItemRoute {
+  names?: string[];
+  path: string;
+}
+
+interface WorkItemDefinition {
+  badge?: () => string;
+  icon: string;
+  key: string;
+  route: WorkItemRoute;
+  summary?: () => string;
+  title: string;
+}
+
+const ROLE_WORK_ITEMS = {
+  access: ['attendance', 'visitor-management', 'car-access', 'access-brand'],
+  finance: [
+    'attendance',
+    'reimbursement-audit',
+    'finance-manage',
+    'smart-billing',
+  ],
+  hrm: [
+    'attendance',
+    'leave-application',
+    'attendance-trajectory',
+    'hrm-information',
+  ],
+  investment: [
+    'attendance',
+    'customer-registration',
+    'investment-radar',
+    'public-demands',
+    'public-factory-listings',
+  ],
+  maintenance: [
+    'attendance',
+    'transformer-maintenance',
+    'factory-maintenance',
+    'elevator-management',
+    'firefighting-management',
+  ],
+  super: [
+    'attendance',
+    'pending-reimbursement',
+    'contract-expiry',
+    'visitor-activity',
+    'investment-leads',
+    'maintenance-orders',
+  ],
+} as const;
+
+const ROLE_ALIASES = {
+  access: ['门禁', '门禁/前台', '前台', '总台', '安保'],
+  finance: ['财务', '财务部'],
+  hrm: ['人事', '人事部', 'HR', 'hr'],
+  investment: ['招商', '招商部'],
+  maintenance: ['维护', '维修', '维保', '维护部'],
+  super: ['Super', '超管', '超级管理员', '董事长', '总经理'],
+} as const;
+
 const loading = ref(true);
 const route = useRoute();
 const router = useRouter();
 const accessStore = useAccessStore();
+const authStore = useAuthStore();
 const userStore = useUserStore();
 const reimburse = ref({ approved: 0, pending: 0, rejected: 0, total: 0 });
+const contractExpiringCount = ref(0);
 const visitors = ref<VisitorPreview[]>([]);
 const checkIn = ref<CheckInPreview>({
   hasSignedIn: false,
   punchIn: '',
   punchOut: '',
 });
+const isAuthenticated = computed(() => Boolean(accessStore.accessToken));
 const canFetchPreviewData = computed(
-  () => route.path === '/home' && Boolean(accessStore.accessToken),
+  () => route.path === '/home' && isAuthenticated.value,
 );
 const checkInStatusText = computed(() =>
   checkIn.value.hasSignedIn ? '已签到' : '未签到',
 );
+const roleNames = computed(() => {
+  const roles =
+    userStore.userRoles.length > 0
+      ? userStore.userRoles
+      : userStore.userInfo?.roles || [];
+  return roles.map((role) => String(role).trim()).filter(Boolean);
+});
+const isSuperRole = computed(() => hasAnyRole(ROLE_ALIASES.super));
+const roleWorkItemKeys = computed(() => {
+  if (!isAuthenticated.value) {
+    return ROLE_WORK_ITEMS.super;
+  }
+
+  if (isSuperRole.value) {
+    return ROLE_WORK_ITEMS.super;
+  }
+
+  const keys = ['attendance'];
+  if (hasAnyRole(ROLE_ALIASES.finance)) {
+    keys.push(...ROLE_WORK_ITEMS.finance);
+  }
+  if (hasAnyRole(ROLE_ALIASES.hrm)) {
+    keys.push(...ROLE_WORK_ITEMS.hrm);
+  }
+  if (hasAnyRole(ROLE_ALIASES.access)) {
+    keys.push(...ROLE_WORK_ITEMS.access);
+  }
+  if (hasAnyRole(ROLE_ALIASES.investment)) {
+    keys.push(...ROLE_WORK_ITEMS.investment);
+  }
+  if (hasAnyRole(ROLE_ALIASES.maintenance)) {
+    keys.push(...ROLE_WORK_ITEMS.maintenance);
+  }
+
+  return [...new Set(keys)];
+});
+const workItems = computed(() => {
+  const items: WorkItemDefinition[] = [];
+  for (const key of roleWorkItemKeys.value) {
+    const item = WORK_ITEM_DEFINITIONS[key];
+    if (item) {
+      items.push(item);
+    }
+  }
+  return items;
+});
+
+const WORK_ITEM_DEFINITIONS: Record<string, WorkItemDefinition> = {
+  'access-brand': {
+    icon: 'carbon:badge',
+    key: 'access-brand',
+    route: {
+      names: ['AccessBrandMobile', 'AccessBrand'],
+      path: '/access/brand/mobile',
+    },
+    title: '门禁品牌管理',
+  },
+  attendance: {
+    badge: () => checkInStatusText.value,
+    icon: 'mdi:calendar-check-outline',
+    key: 'attendance',
+    route: {
+      names: ['HrmAttendancePunch', 'attendance'],
+      path: '/hrm/attendance/punch',
+    },
+    summary: () =>
+      `上班 ${checkIn.value.punchIn || '--:--:--'} / 下班 ${
+        checkIn.value.punchOut || '--:--:--'
+      }`,
+    title: '考勤打卡',
+  },
+  'attendance-trajectory': {
+    icon: 'mdi:map-marker-path',
+    key: 'attendance-trajectory',
+    route: { names: ['HrmTrajectory'], path: '/hrm/trajectory' },
+    title: '考勤轨迹',
+  },
+  'car-access': {
+    icon: 'carbon:car',
+    key: 'car-access',
+    route: {
+      names: ['CarAccessMobile', 'CarAccess'],
+      path: '/access/car/mobile',
+    },
+    title: '车辆出入管理',
+  },
+  'contract-expiry': {
+    badge: () =>
+      contractExpiringCount.value > 0
+        ? `${contractExpiringCount.value} 条`
+        : '',
+    icon: 'mdi:file-clock-outline',
+    key: 'contract-expiry',
+    route: {
+      names: ['TenantMobileList', 'TenantManage'],
+      path: '/rental/tenant/mobile',
+    },
+    summary: () =>
+      contractExpiringCount.value > 0
+        ? `${contractExpiringCount.value} 条合同即将到期`
+        : '查看即将到期合同',
+    title: '合同到期提醒',
+  },
+  'customer-registration': {
+    icon: 'mdi:account-plus-outline',
+    key: 'customer-registration',
+    route: {
+      names: ['InvestmentAgentMobileList', 'InvestmentAgent'],
+      path: '/investment/mobile',
+    },
+    title: '客户登记',
+  },
+  'elevator-management': {
+    icon: 'mdi:elevator',
+    key: 'elevator-management',
+    route: {
+      names: ['ElevatorMobile', 'Elevator'],
+      path: '/maintenance/elevator/mobile',
+    },
+    title: '电梯管理',
+  },
+  'factory-maintenance': {
+    icon: 'mdi:office-building-cog',
+    key: 'factory-maintenance',
+    route: {
+      names: ['FactoryMaintMobile', 'FactoryMaint'],
+      path: '/maintenance/factoryMaint/mobile',
+    },
+    title: '厂房维护',
+  },
+  'finance-manage': {
+    icon: 'mdi:currency-usd',
+    key: 'finance-manage',
+    route: {
+      names: ['FinanceMobileManage', 'FinanceManage'],
+      path: '/finance/mobile-manage',
+    },
+    title: '财务管理',
+  },
+  'firefighting-management': {
+    icon: 'mdi:fire-extinguisher',
+    key: 'firefighting-management',
+    route: {
+      names: ['FirefightingMobile', 'Firefighting'],
+      path: '/maintenance/firefighting/mobile',
+    },
+    title: '消防管理',
+  },
+  'hrm-information': {
+    icon: 'mdi:account-group-outline',
+    key: 'hrm-information',
+    route: {
+      names: ['HrmMobileInformation', 'HrmInformationMobile', 'HrmInformation'],
+      path: '/hrm/mobile-information',
+    },
+    title: '人员信息',
+  },
+  'investment-leads': {
+    icon: 'mdi:radar',
+    key: 'investment-leads',
+    route: {
+      names: ['InvestmentRadarMobileList'],
+      path: '/investment/radar/mobile',
+    },
+    title: '招商线索',
+  },
+  'investment-radar': {
+    icon: 'mdi:radar',
+    key: 'investment-radar',
+    route: {
+      names: ['InvestmentRadarMobileList'],
+      path: '/investment/radar/mobile',
+    },
+    title: '智能招商雷达',
+  },
+  'leave-application': {
+    icon: 'mdi:calendar-account-outline',
+    key: 'leave-application',
+    route: {
+      names: ['HrmLeaveApplicationMobile', 'HrmLeaveApplication'],
+      path: '/hrm/leavemobile',
+    },
+    title: '请假申请/审批',
+  },
+  'maintenance-orders': {
+    icon: 'mdi:clipboard-text-clock',
+    key: 'maintenance-orders',
+    route: {
+      names: ['RepairOrderMobile', 'RepairOrder'],
+      path: '/maintenance/repair-order/mobile',
+    },
+    title: '维护工单',
+  },
+  'pending-reimbursement': {
+    badge: () =>
+      reimburse.value.pending > 0 ? `${reimburse.value.pending} 条` : '',
+    icon: 'mdi:file-document-alert-outline',
+    key: 'pending-reimbursement',
+    route: {
+      names: ['ReimbursementMobileAudit', 'ReimbursementAudit'],
+      path: '/reimbursement/mobile-audit',
+    },
+    summary: () =>
+      reimburse.value.pending > 0
+        ? `${reimburse.value.pending} 条报销待处理`
+        : '暂无待处理报销',
+    title: '待处理报销',
+  },
+  'public-demands': {
+    icon: 'mdi:briefcase-search-outline',
+    key: 'public-demands',
+    route: {
+      names: ['InvestmentRadarMobilePublicDemands'],
+      path: '/investment/radar/mobile-public-demands',
+    },
+    title: '公开需求',
+  },
+  'reimbursement-audit': {
+    badge: () =>
+      reimburse.value.pending > 0 ? `${reimburse.value.pending} 条` : '',
+    icon: 'mdi:file-check-outline',
+    key: 'reimbursement-audit',
+    route: {
+      names: ['ReimbursementMobileAudit', 'ReimbursementAudit'],
+      path: '/reimbursement/mobile-audit',
+    },
+    summary: () =>
+      reimburse.value.pending > 0
+        ? `${reimburse.value.pending} 条待审核`
+        : '查看报销审核',
+    title: '报销审核',
+  },
+  'smart-billing': {
+    icon: 'mdi:file-document-edit-outline',
+    key: 'smart-billing',
+    route: { names: ['BillMobileList', 'Bill'], path: '/bill/mobile-list' },
+    title: '智能制单',
+  },
+  'transformer-maintenance': {
+    icon: 'mdi:lightning-bolt',
+    key: 'transformer-maintenance',
+    route: {
+      names: ['TransformerMobile', 'Transformer'],
+      path: '/maintenance/transformer/mobile',
+    },
+    title: '变压器维保',
+  },
+  'visitor-activity': {
+    badge: () =>
+      visitors.value.length > 0 ? `${visitors.value.length} 条` : '',
+    icon: 'carbon:user-profile',
+    key: 'visitor-activity',
+    route: {
+      names: ['VisitorMobileList', 'VisitorAccess'],
+      path: '/access/visitor/mobile',
+    },
+    summary: () =>
+      visitors.value[0]
+        ? `${visitors.value[0].name} ${visitors.value[0].status}`
+        : '查看访客动态',
+    title: '访客动态',
+  },
+  'visitor-management': {
+    badge: () =>
+      visitors.value.length > 0 ? `${visitors.value.length} 条` : '',
+    icon: 'carbon:user-profile',
+    key: 'visitor-management',
+    route: {
+      names: ['VisitorMobileList', 'VisitorAccess'],
+      path: '/access/visitor/mobile',
+    },
+    summary: () =>
+      visitors.value[0]
+        ? `${visitors.value[0].name} ${visitors.value[0].status}`
+        : '查看访客管理',
+    title: '访客管理',
+  },
+  'public-factory-listings': {
+    icon: 'mdi:office-building-marker-outline',
+    key: 'public-factory-listings',
+    route: {
+      names: ['InvestmentRadarMobileFactoryListings'],
+      path: '/investment/radar/mobile-factory-listings',
+    },
+    title: '公开房源',
+  },
+};
 
 onMounted(() => {
   if (canFetchPreviewData.value) {
@@ -70,6 +426,14 @@ async function fetchPreviewData() {
       };
     } catch (error) {
       console.error('reimbursement stats failed', error);
+    }
+
+    try {
+      const stats = await getDashboardContractStats();
+      contractExpiringCount.value = stats?.summary?.expiring || 0;
+    } catch (error) {
+      console.error('contract stats failed', error);
+      contractExpiringCount.value = 0;
     }
 
     try {
@@ -129,61 +493,95 @@ watch(canFetchPreviewData, (canFetch, previousCanFetch) => {
   }
 });
 
-function goVisitorManagement() {
-  router.push({ name: 'VisitorMobileList' });
+async function goWorkItem(item: WorkItemDefinition) {
+  if (!(await requireLogin(router, item.route.path))) {
+    return;
+  }
+
+  await pushAvailableRoute(item.route);
 }
 
-async function goReimbursementApplication() {
-  const hasAuditPermission = (userStore.userInfo?.reimbursementAuth || 0) > 0;
-  const routeNames = hasAuditPermission
-    ? ['ReimbursementMobileAudit', 'ReimbursementAudit']
-    : ['ReimbursementMobileApply', 'ReimbursementApplication'];
-  const routePaths = hasAuditPermission
-    ? ['/reimbursement/mobile-audit', '/reimbursement/audit']
-    : ['/reimbursement/mobile-apply', '/reimbursement/application'];
-
+async function pushAvailableRoute(routeConfig: WorkItemRoute) {
   try {
-    for (const name of routeNames) {
-      if (!router.hasRoute(name)) continue;
-      await router.push({ name });
+    const routeLocation = resolveAvailableRouteLocation(routeConfig);
+    if (routeLocation) {
+      await router.push(routeLocation);
       return;
     }
 
-    const allRoutes = router.getRoutes();
-    for (const path of routePaths) {
-      if (!allRoutes.some((route) => route.path === path)) continue;
-      await router.push(path);
+    await authStore.ensureSessionReady({ forceRebuildAccess: true });
+    const refreshedRouteLocation = resolveAvailableRouteLocation(routeConfig);
+    if (refreshedRouteLocation) {
+      await router.push(refreshedRouteLocation);
       return;
     }
 
-    await router.push(routePaths[0]!);
+    await router.push(buildPathRouteLocation(routeConfig.path));
   } catch (error) {
-    console.error('go reimbursement application failed:', error);
+    console.error('go work item failed:', error);
   }
 }
 
-async function goAttendanceCheckIn() {
-  const routeNames = ['HrmAttendancePunch', 'attendance'];
-  const routePaths = ['/hrm/attendance/check-in', '/hrm/attendance/punch'];
+function resolveAvailableRouteLocation(
+  routeConfig: WorkItemRoute,
+): null | RouteLocationRaw {
+  const routeNames = routeConfig.names || [];
 
-  try {
-    for (const name of routeNames) {
-      if (!router.hasRoute(name)) continue;
-      await router.push({ name });
-      return;
-    }
-
-    const allRoutes = router.getRoutes();
-    for (const path of routePaths) {
-      if (!allRoutes.some((route) => route.path === path)) continue;
-      await router.push(path);
-      return;
-    }
-
-    await router.push(routePaths[0]!);
-  } catch (error) {
-    console.error('go attendance check-in failed:', error);
+  for (const name of routeNames) {
+    if (!router.hasRoute(name)) continue;
+    return buildNamedRouteLocation(name, routeConfig.path);
   }
+
+  const targetPath = normalizeRoutePath(routeConfig.path);
+  const hasPathRoute = router
+    .getRoutes()
+    .some((route) => normalizeRoutePath(route.path) === targetPath);
+  return hasPathRoute ? buildPathRouteLocation(routeConfig.path) : null;
+}
+
+function buildNamedRouteLocation(name: string, path: string): RouteLocationRaw {
+  if (name === 'TenantMobileList' || name === 'TenantManage') {
+    return {
+      name,
+      query: {
+        contractView: 'expiring',
+      },
+    };
+  }
+
+  if (path.includes('tenant')) {
+    return {
+      path,
+      query: {
+        contractView: 'expiring',
+      },
+    };
+  }
+
+  return { name };
+}
+
+function buildPathRouteLocation(path: string): RouteLocationRaw {
+  if (path.includes('tenant')) {
+    return {
+      path,
+      query: {
+        contractView: 'expiring',
+      },
+    };
+  }
+
+  return path;
+}
+
+function normalizeRoutePath(path: string) {
+  return path.replace(/\/+$/, '') || '/';
+}
+
+function hasAnyRole(aliases: readonly string[]) {
+  return roleNames.value.some((role) =>
+    aliases.some((alias) => role.toLowerCase().includes(alias.toLowerCase())),
+  );
 }
 
 function statusClass(status: string) {
@@ -195,7 +593,7 @@ function statusClass(status: string) {
 </script>
 
 <template>
-  <div class="dark:bg-background min-h-full bg-gray-50 p-4">
+  <div class="dark:bg-background min-h-full bg-[#f5f7fb] p-4">
     <template v-if="loading">
       <Row :gutter="[16, 16]">
         <Col v-for="n in 4" :key="n" :lg="6" :md="6" :sm="12" :xs="12">
@@ -209,23 +607,31 @@ function statusClass(status: string) {
     <template v-else>
       <div class="mt-2">
         <Row :gutter="[16, 16]">
-          <Col :lg="8" :md="8" :sm="24" :xs="24">
+          <Col
+            v-for="item in workItems"
+            :key="item.key"
+            :lg="8"
+            :md="8"
+            :sm="24"
+            :xs="24"
+          >
             <div
+              v-if="item.key === 'attendance'"
               class="group relative cursor-pointer"
-              @click="goAttendanceCheckIn"
+              @click="goWorkItem(item)"
             >
               <div
-                class="dark:to-slate-900/92 relative overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br from-slate-50/95 to-slate-100/95 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.1)] transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[0_14px_28px_rgba(14,165,233,0.18)] dark:border-slate-600/80 dark:from-slate-800/95 dark:shadow-[0_10px_24px_rgba(2,6,23,0.42)] dark:group-hover:shadow-[0_14px_28px_rgba(14,165,233,0.24)]"
+                class="relative overflow-hidden rounded-2xl border border-cyan-100/80 bg-gradient-to-br from-cyan-50 via-white to-emerald-50 p-3 shadow-[0_10px_24px_rgba(45,212,191,0.14)] ring-1 ring-cyan-50 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[0_14px_28px_rgba(45,212,191,0.18)] dark:border-slate-600/80 dark:from-slate-800/95 dark:via-slate-800/95 dark:to-emerald-950/40 dark:ring-slate-700/60"
               >
                 <div
-                  class="pointer-events-none absolute inset-0 bg-gradient-to-r from-cyan-400/10 via-transparent to-emerald-400/10"
+                  class="pointer-events-none absolute inset-0 bg-gradient-to-r from-cyan-200/20 via-transparent to-emerald-200/30"
                 ></div>
                 <div
                   class="relative z-10 flex items-center justify-between gap-2"
                 >
                   <div class="flex items-center gap-2">
                     <span
-                      class="inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-sky-200/90 bg-gradient-to-br from-cyan-50 to-blue-100 text-[15px] text-sky-600 dark:border-cyan-700/60 dark:from-cyan-900/40 dark:to-slate-700/80 dark:text-sky-300"
+                      class="inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-sky-100 bg-sky-50 text-[15px] text-sky-500 dark:border-cyan-700/60 dark:bg-slate-700/80 dark:text-sky-300"
                     >
                       <VbenIcon icon="mdi:calendar-check-outline" />
                     </span>
@@ -233,7 +639,7 @@ function statusClass(status: string) {
                       <div
                         class="text-[15px] font-bold text-slate-900 dark:text-slate-100"
                       >
-                        今日打卡
+                        考勤打卡
                       </div>
                     </div>
                   </div>
@@ -291,17 +697,20 @@ function statusClass(status: string) {
                 </div>
               </div>
             </div>
-          </Col>
-          <Col :lg="8" :md="8" :sm="24" :xs="24">
+
             <Card
-              class="cursor-pointer rounded-xl bg-white/80 dark:bg-gray-800/80"
-              @click="goReimbursementApplication"
+              v-else-if="
+                item.key === 'pending-reimbursement' ||
+                item.key === 'reimbursement-audit'
+              "
+              class="cursor-pointer rounded-xl bg-white shadow-[0_8px_22px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(59,130,246,0.12)] dark:bg-gray-800 dark:ring-slate-700/70"
+              @click="goWorkItem(item)"
             >
               <div class="mb-2 flex items-center justify-between">
                 <div
                   class="text-base font-semibold text-gray-800 dark:text-gray-200"
                 >
-                  报销申请
+                  {{ item.title }}
                 </div>
               </div>
               <div class="grid grid-cols-4 gap-3">
@@ -349,22 +758,27 @@ function statusClass(status: string) {
                 </div>
               </div>
             </Card>
-          </Col>
-          <Col :lg="8" :md="8" :sm="24" :xs="24">
-            <Card class="rounded-xl bg-white/80 dark:bg-gray-800/80">
+
+            <Card
+              v-else-if="
+                item.key === 'visitor-activity' ||
+                item.key === 'visitor-management'
+              "
+              class="cursor-pointer rounded-xl bg-white shadow-[0_8px_22px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(245,158,11,0.12)] dark:bg-gray-800 dark:ring-slate-700/70"
+              @click="goWorkItem(item)"
+            >
               <div class="mb-2 flex items-center justify-between">
                 <div
                   class="text-base font-semibold text-gray-800 dark:text-gray-200"
                 >
-                  访客管理
+                  {{ item.title }}
                 </div>
               </div>
-              <div class="flex flex-col gap-2.5">
+              <div v-if="visitors.length > 0" class="flex flex-col gap-2.5">
                 <div
                   v-for="v in visitors"
                   :key="v.name + v.time"
                   class="grid grid-cols-[36px_1fr_auto] items-center gap-2.5 rounded-xl border border-slate-200 bg-gradient-to-b from-[#f6f9fc] to-[#e9eef5] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_6px_16px_rgba(0,0,0,0.16)] dark:border-gray-700 dark:bg-gradient-to-b dark:from-[#111827] dark:to-[#0f172a]"
-                  @click="goVisitorManagement"
                 >
                   <div
                     class="flex items-center justify-center text-slate-500 dark:text-slate-300"
@@ -385,6 +799,48 @@ function statusClass(status: string) {
                   >
                     {{ v.status }}
                   </div>
+                </div>
+              </div>
+              <div
+                v-else
+                class="rounded-xl border border-slate-200 bg-gradient-to-b from-[#f6f9fc] to-[#e9eef5] px-3 py-2.5 text-sm font-semibold text-gray-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_6px_16px_rgba(0,0,0,0.16)] dark:border-gray-700 dark:bg-gradient-to-b dark:from-[#111827] dark:to-[#0f172a] dark:text-gray-200"
+              >
+                暂无访客动态
+              </div>
+            </Card>
+
+            <Card
+              v-else
+              class="cursor-pointer rounded-xl bg-white shadow-[0_8px_22px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(14,165,233,0.12)] dark:bg-gray-800 dark:ring-slate-700/70"
+              @click="goWorkItem(item)"
+            >
+              <div class="mb-2 flex items-center justify-between gap-2">
+                <div class="flex min-w-0 items-center gap-2">
+                  <span
+                    class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-sky-100 bg-sky-50 text-[15px] text-sky-500 dark:border-cyan-700/60 dark:bg-slate-700/80 dark:text-sky-300"
+                  >
+                    <VbenIcon :icon="item.icon" />
+                  </span>
+                  <div
+                    class="truncate text-base font-semibold text-gray-800 dark:text-gray-200"
+                  >
+                    {{ item.title }}
+                  </div>
+                </div>
+                <span
+                  v-if="item.badge?.()"
+                  class="shrink-0 rounded-full bg-slate-50 px-2.5 py-1 text-xs font-semibold text-amber-500 dark:bg-gray-900"
+                >
+                  {{ item.badge() }}
+                </span>
+              </div>
+              <div
+                class="rounded-[10px] bg-gradient-to-r from-sky-50 to-slate-50 px-3 py-2.5 ring-1 ring-sky-50 dark:from-gray-900 dark:to-gray-900 dark:ring-slate-700/60"
+              >
+                <div
+                  class="truncate text-sm font-semibold text-gray-700 dark:text-gray-200"
+                >
+                  {{ item.summary?.() || item.title }}
                 </div>
               </div>
             </Card>

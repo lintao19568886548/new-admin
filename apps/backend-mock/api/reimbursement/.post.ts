@@ -1,10 +1,13 @@
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
+  badRequestResponse,
   unAuthorizedResponse,
   useResponseError,
   useResponseSuccess,
 } from '~/utils/response';
+
+const MAX_REIMBURSEMENT_AMOUNT = 9_999_999_999_999.99;
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -16,12 +19,23 @@ export default eventHandler(async (event) => {
   console.log('请求体参数:', body);
   // 兼容旧版逻辑，过滤claimant字段
   const { images, ...reimbursementData } = body;
+  const amount = Number(reimbursementData.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return badRequestResponse('报销金额必须大于0', event);
+  }
+  if (amount > MAX_REIMBURSEMENT_AMOUNT) {
+    return badRequestResponse(
+      `报销金额不能超过${MAX_REIMBURSEMENT_AMOUNT.toLocaleString()}元`,
+      event,
+    );
+  }
   const userId = userinfo.id;
   try {
     // 创建报销记录并关联图片
     const reimbursement = await prismaClient.reimbursement.create({
       data: {
         ...reimbursementData,
+        amount,
         userId,
         // 关联图片
         images: {

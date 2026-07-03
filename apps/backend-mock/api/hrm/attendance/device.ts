@@ -17,8 +17,9 @@ import {
 } from '~/utils/response';
 import { sendLoginVerificationCode } from '~/utils/shlianlu-sms';
 import {
-  ensureCanSendCode,
   generateNumericCode,
+  releaseSmsCodeSend,
+  reserveSmsCodeSend,
   saveSmsCode,
   SmsCodeError,
   verifySmsCode,
@@ -109,15 +110,19 @@ export default eventHandler(async (event) => {
           return badRequestResponse('当前账号未绑定有效手机号', event);
         }
         try {
-          ensureCanSendCode(phoneNumber);
+          reserveSmsCodeSend(phoneNumber);
         } catch (error) {
           if (error instanceof SmsCodeError) {
             const retryAfter = error.retryAfter ?? 0;
+            if (retryAfter > 0) {
+              event.node.res.setHeader('Retry-After', String(retryAfter));
+            }
             return badRequestResponse(
               retryAfter > 0
                 ? `${error.message}，请${retryAfter}秒后再试`
                 : error.message,
               event,
+              retryAfter > 0 ? 429 : 400,
             );
           }
           return serverErrorResponse('验证码发送频率验证失败', event);
@@ -137,6 +142,7 @@ export default eventHandler(async (event) => {
           saveSmsCode(phoneNumber, code);
           return useResponseSuccess(responsePayload, '验证码发送成功');
         } catch (error) {
+          releaseSmsCodeSend(phoneNumber);
           console.error('发送设备更换短信验证码失败:', error);
           if (process.env.NODE_ENV !== 'production' && error instanceof Error) {
             return serverErrorResponse(error.message, event);

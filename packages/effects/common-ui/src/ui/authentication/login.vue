@@ -6,6 +6,7 @@ import type { AuthenticationProps } from './types';
 import {
   computed,
   defineAsyncComponent,
+  h,
   onMounted,
   ref,
   useTemplateRef,
@@ -75,12 +76,17 @@ const emit = defineEmits<{
   submit: [Recordable<any>];
 }>();
 
-const AgreementModal = defineAsyncComponent(
-  () => import('./agreement-modal.vue'),
-);
-const SliderCaptcha = defineAsyncComponent(
-  () => import('../../components/captcha/slider-captcha/index.vue'),
-);
+const _EmptyComponent = { render: () => h('div') };
+const AgreementModal = defineAsyncComponent({
+  loader: () => import('./agreement-modal.vue'),
+  loadingComponent: _EmptyComponent,
+  errorComponent: _EmptyComponent,
+});
+const SliderCaptcha = defineAsyncComponent({
+  loader: () => import('../../components/captcha/slider-captcha/index.vue'),
+  loadingComponent: _EmptyComponent,
+  errorComponent: _EmptyComponent,
+});
 
 const REMEMBER_ME_KEY_PREFIX = 'REMEMBER_ME_USERNAME_';
 const REMEMBER_ME_KEY = `${REMEMBER_ME_KEY_PREFIX}${location.hostname}`;
@@ -99,6 +105,7 @@ const passwordTouched = ref(false);
 const captchaTouched = ref(false);
 const showAgreementModal = ref(false);
 const agreementModalType = ref<AgreementModalType>('required');
+const pendingNavPath = ref<null | string>(null);
 const copyright = ref<CopyrightInfo | null>(null);
 
 const usernameError = computed(() => {
@@ -183,6 +190,7 @@ async function handleSubmit() {
 
 function handleGo(path: string) {
   if (path === props.codeLoginPath && !agreed.value) {
+    pendingNavPath.value = path;
     openAgreementModal('required');
     return;
   }
@@ -200,6 +208,11 @@ function showServiceAgreement() {
 function handleAgreeAndClose() {
   agreed.value = true;
   showAgreementModal.value = false;
+  if (pendingNavPath.value) {
+    const path = pendingNavPath.value;
+    pendingNavPath.value = null;
+    router.push(path);
+  }
 }
 
 function showServiceAgreementFromTip() {

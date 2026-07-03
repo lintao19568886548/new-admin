@@ -28,6 +28,7 @@ import EditPassword from '#/views/_core/authentication/edit-password.vue';
 import LoginForm from '#/views/_core/authentication/login.vue';
 
 const FALLBACK_NOT_FOUND_NAME = 'FallbackNotFound';
+const MOBILE_MAIN_TAB_PATHS = new Set(['/home', '/profile', '/workbench']);
 const AutoUpdateChecker = defineAsyncComponent(
   () => import('#/components/auto-update-checker.vue'),
 );
@@ -49,7 +50,7 @@ onMounted(async () => {
       'backButton',
       ({ canGoBack }) => {
         if (router.currentRoute.value.name === FALLBACK_NOT_FOUND_NAME) {
-          void router.replace('/home');
+          void router.replace('/workbench');
           return;
         }
 
@@ -74,7 +75,7 @@ const router = useRouter();
 const layoutStore = useLayoutStore();
 
 const showBackButton = computed(
-  () => router.currentRoute.value.path !== '/home',
+  () => !MOBILE_MAIN_TAB_PATHS.has(router.currentRoute.value.path),
 );
 
 // By setting these preferences, we can disable the original layout components
@@ -266,12 +267,12 @@ const tabs = [
 ];
 
 function goTo(path: string) {
-  router.push(path);
+  void router.push(path);
 }
 
 function goBack() {
   if (router.currentRoute.value.name === FALLBACK_NOT_FOUND_NAME) {
-    void router.replace('/home');
+    void router.replace('/workbench');
     return;
   }
 
@@ -279,8 +280,7 @@ function goBack() {
   if (window.history.length > 1) {
     router.back();
   } else {
-    // 没有历史记录时，导航到首页而不是退出应用
-    router.replace('/home');
+    router.replace('/workbench');
   }
 }
 </script>

@@ -19,6 +19,18 @@ import { updateCSSVariables } from './update-css-variables';
 const STORAGE_KEY = 'preferences';
 const STORAGE_KEY_LOCALE = `${STORAGE_KEY}-locale`;
 const STORAGE_KEY_THEME = `${STORAGE_KEY}-theme`;
+const VALID_AUTH_PAGE_LAYOUTS = new Set([
+  'panel-center',
+  'panel-left',
+  'panel-right',
+]);
+
+function normalizePreferences(preferences: Preferences) {
+  if (!VALID_AUTH_PAGE_LAYOUTS.has(preferences.app.authPageLayout)) {
+    preferences.app.authPageLayout = defaultPreferences.app.authPageLayout;
+  }
+  return preferences;
+}
 
 class PreferenceManager {
   private cache: null | StorageManager = null;
@@ -77,7 +89,7 @@ class PreferenceManager {
     );
 
     // 更新偏好设置
-    this.updatePreferences(mergedPreference);
+    this.updatePreferences(normalizePreferences(mergedPreference));
 
     this.setupWatcher();
 
@@ -117,6 +129,7 @@ class PreferenceManager {
     const mergedState = merge({}, updates, markRaw(this.state));
 
     Object.assign(this.state, mergedState);
+    normalizePreferences(this.state);
 
     // 根据更新的键值执行相应的操作
     this.handleUpdates(updates);

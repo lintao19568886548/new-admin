@@ -128,9 +128,20 @@ export async function transformPrismaUserToUserInfo(
   let rates = 0;
   for (const userRole of validUserRoles) {
     const role = userRole.role;
-    if (role.reimbursementAuth && role.reimbursementAuth > reimbursementAuth) {
-      reimbursementAuth = role.reimbursementAuth;
-      rates = role.rates || 0;
+    const roleReimbursementAuth = Number(role.reimbursementAuth || 0);
+    if (roleReimbursementAuth <= 0) {
+      continue;
+    }
+
+    const roleRates = Number(role.rates || 0);
+    const shouldUseRole =
+      roleReimbursementAuth > reimbursementAuth ||
+      (roleReimbursementAuth === reimbursementAuth &&
+        (roleRates < 0 || (rates >= 0 && roleRates > rates)));
+
+    if (shouldUseRole) {
+      reimbursementAuth = roleReimbursementAuth;
+      rates = roleRates;
     }
   }
 

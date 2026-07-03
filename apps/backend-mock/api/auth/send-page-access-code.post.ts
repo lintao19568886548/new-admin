@@ -7,8 +7,9 @@ import {
 } from '~/utils/response';
 import { sendLoginVerificationCode } from '~/utils/shlianlu-sms';
 import {
-  ensureCanSendCode,
   generateNumericCode,
+  releaseSmsCodeSend,
+  reserveSmsCodeSend,
   saveSmsCode,
   SmsCodeError,
 } from '~/utils/sms-code-store';
@@ -33,15 +34,19 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    ensureCanSendCode(phoneNumber);
+    reserveSmsCodeSend(phoneNumber);
   } catch (error) {
     if (error instanceof SmsCodeError) {
       const retryAfter = error.retryAfter ?? 0;
+      if (retryAfter > 0) {
+        event.node.res.setHeader('Retry-After', String(retryAfter));
+      }
       return badRequestResponse(
         retryAfter > 0
           ? `${error.message}，请${retryAfter}秒后再试`
           : error.message,
         event,
+        retryAfter > 0 ? 429 : 400,
       );
     }
     return serverErrorResponse('验证码发送频率验证失败', event);
@@ -67,6 +72,7 @@ export default defineEventHandler(async (event) => {
 
     return useResponseSuccess(responsePayload, '验证码发送成功');
   } catch (error) {
+    releaseSmsCodeSend(phoneNumber);
     console.error('发送联麓短信失败:', error);
     return serverErrorResponse('验证码发送失败，请稍后重试', event);
   }

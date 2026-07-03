@@ -58,6 +58,32 @@ export const useAuthStore = defineStore('auth', () => {
     return currentPath;
   }
 
+  function resolveLoginRedirectPath() {
+    const redirect = router.currentRoute.value.query.redirect;
+    const rawRedirect = Array.isArray(redirect) ? redirect[0] : redirect;
+    if (typeof rawRedirect !== 'string' || rawRedirect.length === 0) {
+      return null;
+    }
+
+    let decodedRedirect = rawRedirect;
+    try {
+      decodedRedirect = decodeURIComponent(rawRedirect);
+    } catch {
+      decodedRedirect = rawRedirect;
+    }
+
+    if (
+      !decodedRedirect ||
+      !decodedRedirect.startsWith('/') ||
+      decodedRedirect.startsWith('//') ||
+      decodedRedirect === LOGIN_PATH ||
+      decodedRedirect.startsWith('/auth/')
+    ) {
+      return null;
+    }
+    return decodedRedirect;
+  }
+
   function clearSessionSnapshot(
     options: { keepAccessSnapshot?: boolean; keepLoginExpired?: boolean } = {},
   ) {
@@ -224,6 +250,7 @@ export const useAuthStore = defineStore('auth', () => {
   ): Promise<UserInfo> {
     const resumeAfterHydration = options.resumeAfterHydration === true;
     const resumePath = resumeAfterHydration ? sessionResumePath.value : null;
+    const queryRedirectPath = resumePath ? null : resolveLoginRedirectPath();
 
     resetSessionState({
       clearResumeContext: !resumeAfterHydration,
@@ -258,6 +285,11 @@ export const useAuthStore = defineStore('auth', () => {
       resumePath !== router.currentRoute.value.fullPath
     ) {
       await router.replace(resumePath);
+    } else if (
+      queryRedirectPath &&
+      queryRedirectPath !== router.currentRoute.value.fullPath
+    ) {
+      await router.replace(queryRedirectPath);
     } else if (!resumePath) {
       const afterLoginPath = resolveUserHomePath(userInfo.homePath);
       await router.push(afterLoginPath);

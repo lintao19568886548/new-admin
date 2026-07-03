@@ -1,5 +1,8 @@
 <script lang="ts" setup>
-import type { ProfileMenuEntry } from './modules/profile-menu-types';
+import type {
+  ProfileMenuAction,
+  ProfileMenuEntry,
+} from './modules/profile-menu-types';
 
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -25,6 +28,7 @@ import {
   openPrivacyPolicyDialog,
   openServiceAgreementDialog,
 } from '#/utils/policy-actions';
+import { requireLogin } from '#/utils/require-login';
 import { checkAppUpdate } from '#/utils/update-service';
 import EditPassword from '#/views/_core/authentication/edit-password.vue';
 
@@ -36,6 +40,7 @@ const authStore = useAuthStore();
 const router = useRouter();
 
 const userInfo = computed(() => userStore.userInfo);
+const isLoggedIn = computed(() => Boolean(userInfo.value));
 const showPasswordModal = ref(false);
 const showFeedbackModal = ref(false);
 const specialCustomerIds = new Set(['center', 'default', 'public']);
@@ -321,7 +326,11 @@ async function handleCheckUpdate() {
   await checkAppUpdate(true, true, false);
 }
 
-function handleCancelAccount() {
+async function handleCancelAccount() {
+  if (!(await requireLogin(router, '/profile'))) {
+    return;
+  }
+
   const currentUser = userInfo.value as null | {
     id?: number;
     realName?: string;
@@ -373,6 +382,11 @@ function handleCancelAccount() {
 }
 
 function handleLogout() {
+  if (!isLoggedIn.value) {
+    void router.push('/auth/login?redirect=%2Fprofile');
+    return;
+  }
+
   Modal.confirm({
     cancelText: '取消',
     centered: true,
@@ -388,7 +402,11 @@ function handleLogout() {
 
 const showBusinessCard = ref(false);
 
-function handleCreateBusinessCard() {
+async function handleCreateBusinessCard() {
+  if (!(await requireLogin(router, '/profile'))) {
+    return;
+  }
+
   showBusinessCard.value = true;
 }
 
@@ -396,15 +414,27 @@ function handleOpenFeedback() {
   showFeedbackModal.value = true;
 }
 
-function handleOpenVipMembership() {
+async function handleOpenVipMembership() {
+  if (!(await requireLogin(router, '/profile/vip-membership'))) {
+    return;
+  }
+
   void router.push({ name: 'ProfileVipMembership' });
 }
 
-function handleOpenOrganizationCreate() {
+async function handleOpenOrganizationCreate() {
+  if (!(await requireLogin(router, '/profile/vip-membership?section=org'))) {
+    return;
+  }
+
   void router.push({ name: 'ProfileVipMembership', query: { section: 'org' } });
 }
 
-function handleOpenOrganizationInvitations() {
+async function handleOpenOrganizationInvitations() {
+  if (!(await requireLogin(router, '/profile/organization-invitations'))) {
+    return;
+  }
+
   void router.push({ name: 'ProfileOrganizationInvitations' });
 }
 
@@ -416,7 +446,11 @@ function handleOpenServiceAgreement() {
   openServiceAgreementDialog();
 }
 
-function handleOpenSmartService() {
+async function handleOpenSmartService() {
+  if (!(await requireLogin(router, '/profile/smart-service'))) {
+    return;
+  }
+
   void router.push('/profile/smart-service').catch((error) => {
     console.error('打开智能客服失败:', error);
     message.error('智能客服页面打开失败，请稍后重试');
@@ -427,7 +461,11 @@ function handleOpenSmartService() {
 //   message.info('该功能正在开发中...');
 // }
 
-function handleChangePassword() {
+async function handleChangePassword() {
+  if (!(await requireLogin(router, '/profile'))) {
+    return;
+  }
+
   showPasswordModal.value = true;
 }
 
@@ -443,6 +481,29 @@ const isNative = Capacitor.isNativePlatform();
 // const isNative = true;
 
 const menuItems = computed<ProfileMenuEntry[]>(() => {
+  if (!isLoggedIn.value) {
+    return [
+      {
+        handler: handleLogout,
+        icon: LogOut,
+        key: 'login',
+        title: '登录',
+      },
+      {
+        handler: handleOpenPrivacyPolicy,
+        icon: 'mdi:shield-account-outline',
+        key: 'privacyPolicy',
+        title: '隐私政策',
+      },
+      {
+        handler: handleOpenServiceAgreement,
+        icon: 'mdi:file-document-outline',
+        key: 'serviceAgreement',
+        title: '服务协议',
+      },
+    ];
+  }
+
   const moreFunctions = [
     // {
     //   handler: handleEditProfile,
@@ -503,7 +564,7 @@ const menuItems = computed<ProfileMenuEntry[]>(() => {
     },
   ];
 
-  const flatActions = [
+  const flatActions: ProfileMenuAction[] = [
     {
       handler: handleChangePassword,
       icon: LockKeyhole,
@@ -559,8 +620,16 @@ const menuItems = computed<ProfileMenuEntry[]>(() => {
       <div class="flex flex-col items-center justify-center py-4">
         <Avatar :size="64" :src="userInfo?.avatar" />
         <div class="mt-3 text-lg font-semibold">
-          {{ userInfo?.realName }}
+          {{ userInfo?.realName || '未登录' }}
         </div>
+        <button
+          v-if="!isLoggedIn"
+          class="mt-3 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm"
+          type="button"
+          @click="handleLogout"
+        >
+          登录
+        </button>
       </div>
     </Card>
 

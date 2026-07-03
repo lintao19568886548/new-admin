@@ -23,7 +23,15 @@ const BasicLayout = withRetryImport(async () => {
   await ensureFullComponentAdapter();
   return layout;
 });
-const AuthPageLayout = withRetryImport(() => import('./auth.vue'));
+const AuthPageLayout = withRetryImport(async () => {
+  const [{ ensureFullComponentAdapter }, layout] = await Promise.all([
+    import('#/adapter/ensure-component-adapter'),
+    import('./auth.vue'),
+  ]);
+
+  await ensureFullComponentAdapter();
+  return layout;
+});
 
 const IFrameView = withRetryImport(() =>
   import('@vben/layouts').then((m) => m.IFrameView),

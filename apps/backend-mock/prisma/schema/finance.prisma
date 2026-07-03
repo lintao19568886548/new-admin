@@ -2,7 +2,7 @@ model Finance {
   financeId       Int            @id @default(autoincrement()) @map("finance_id")
   billName        String         @map("bill_name") @db.VarChar(100)
   billCategory    String         @map("bill_category") @db.VarChar(50)
-  amount          Decimal        @db.Decimal(10, 2)
+  amount          Decimal        @db.Decimal(15, 2)
   transactionType String         @map("transaction_type") @db.VarChar(20)
   transactionTime DateTime       @map("transaction_time")
   remark          String?        @db.VarChar(200)
@@ -17,6 +17,7 @@ model Finance {
 
   @@index([parkId])
   @@index([billName, transactionType, isDeleted], map: "finance_bill_name_transaction_type_is_deleted_idx")
+  @@index([remark, transactionType, isDeleted], map: "finance_remark_transaction_type_is_deleted_idx")
   @@index([transactionTime, isDeleted], map: "finance_transaction_time_is_deleted_idx")
   @@map("finance")
 }

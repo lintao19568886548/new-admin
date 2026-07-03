@@ -22,6 +22,7 @@ import { resolveUserHomePath } from './home-path';
 
 const CRM_INVITE_PATH = '/invite/crm';
 const CRM_INVITE_LEGACY_PATH = '/crm/invite';
+const MOBILE_PUBLIC_SHELL_PATHS = new Set(['/home', '/profile', '/workbench']);
 
 interface MobileRouteTarget {
   paramName?: string;
@@ -86,6 +87,10 @@ const MOBILE_ROUTE_TARGETS_BY_NAME = {
     path: '/investment/radar/mobile-public-demands',
     targetNames: ['InvestmentRadarMobilePublicDemands'],
   },
+  InvestmentRadar: {
+    path: '/investment/radar/mobile',
+    targetNames: ['InvestmentRadarMobileList'],
+  },
   InvestmentRadarCrawlerSources: {
     path: '/investment/radar/mobile-crawler-sources',
     targetNames: ['InvestmentRadarMobileCrawlerSources'],
@@ -134,6 +139,10 @@ const MOBILE_ROUTE_TARGETS_BY_NAME = {
   RentalManage: {
     path: '/rental/manage/mobile',
     targetNames: ['RentalManageMobile', 'SystemParkMobile'],
+  },
+  RepairOrder: {
+    path: '/maintenance/repair-order/mobile',
+    targetNames: ['RepairOrderMobile'],
   },
   SettledFactory: {
     path: '/rental/settled/mobile',
@@ -188,6 +197,7 @@ const MOBILE_ROUTE_TARGETS_BY_PATH: Record<string, MobileRouteTarget> = {
   '/investment-public-crawl':
     MOBILE_ROUTE_TARGETS_BY_NAME.InvestmentPublicCrawl,
   '/investment/agent': MOBILE_ROUTE_TARGETS_BY_NAME.InvestmentAgent,
+  '/investment/radar': MOBILE_ROUTE_TARGETS_BY_NAME.InvestmentRadar,
   '/investment/radar-crawler-sources':
     MOBILE_ROUTE_TARGETS_BY_NAME.InvestmentRadarCrawlerSources,
   '/investment/radar-crawler-tasks':
@@ -206,6 +216,7 @@ const MOBILE_ROUTE_TARGETS_BY_PATH: Record<string, MobileRouteTarget> = {
   '/maintenance/factoryMaint': MOBILE_ROUTE_TARGETS_BY_NAME.FactoryMaint,
   '/maintenance/firefighting': MOBILE_ROUTE_TARGETS_BY_NAME.Firefighting,
   '/maintenance/hygieneCheck': MOBILE_ROUTE_TARGETS_BY_NAME.HygieneCheck,
+  '/maintenance/repair-order': MOBILE_ROUTE_TARGETS_BY_NAME.RepairOrder,
   '/maintenance/transformer': MOBILE_ROUTE_TARGETS_BY_NAME.Transformer,
   '/notices': MOBILE_ROUTE_TARGETS_BY_NAME.Notices,
   '/reimbursement/application':
@@ -324,6 +335,22 @@ function getMatchedRouteName(to: RouteLocationNormalized) {
 
 function normalizePath(path: string) {
   return path.replace(/\/+$/, '') || '/';
+}
+
+function isPublicShellPath(path: string) {
+  return MOBILE_PUBLIC_SHELL_PATHS.has(normalizePath(path));
+}
+
+function isAuthenticatedHomePath(path: string) {
+  return normalizePath(path) === '/home';
+}
+
+function isMobilePublicShellPath(path: string) {
+  return (
+    isMobileViewport() &&
+    isPublicShellPath(path) &&
+    !isAuthenticatedHomePath(path)
+  );
 }
 
 function getMobileRouteTarget(to: RouteLocationNormalized) {
@@ -504,17 +531,44 @@ function setupAccessGuard(router: Router) {
     }
     // 基本路由，这些路由不需要进入权限拦截
     if (coreRouteNames.includes(to.name as string)) {
+      if (isAuthenticatedHomePath(to.path) && !accessStore.accessToken) {
+        return true;
+      }
+
+      if (
+        isPublicShellPath(to.path) &&
+        !isMobileViewport() &&
+        !accessStore.accessToken
+      ) {
+        return {
+          path: LOGIN_PATH,
+          query: { redirect: encodeURIComponent(to.fullPath) },
+          replace: true,
+        };
+      }
+
       if (to.path === LOGIN_PATH && accessStore.accessToken) {
         return decodeURIComponent(
           (to.query?.redirect as string) ||
             resolveUserHomePath(userStore.userInfo?.homePath),
         );
       }
+      if (
+        isPublicShellPath(to.path) &&
+        accessStore.accessToken &&
+        (!accessStore.isAccessChecked || accessStore.accessMenus.length === 0)
+      ) {
+        await authStore.ensureSessionReady({ forceRebuildAccess: true });
+      }
       return true;
     }
 
     // accessToken 检查
     if (!accessStore.accessToken) {
+      if (isMobilePublicShellPath(to.path)) {
+        return true;
+      }
+
       // 明确声明忽略权限访问权限，则可以访问
       if (to.meta.ignoreAccess) {
         return true;

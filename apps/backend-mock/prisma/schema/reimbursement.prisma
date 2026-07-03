@@ -1,7 +1,7 @@
 model Reimbursement {
   id           Int                  @id @default(autoincrement())
   purpose      String               @db.VarChar(100) // 报销事由
-  amount       Decimal              @db.Decimal(10, 2) // 报销金额
+  amount       Decimal              @db.Decimal(15, 2) // 报销金额
   payee        String               @db.VarChar(50) // 收款人
   date         DateTime             @default(now()) // 报销日期
   department   String?              @db.VarChar(50)
@@ -21,6 +21,8 @@ model Reimbursement {
 
 
   @@index([parkId])
+  @@index([parkId, status, isDeleted, createTime], map: "reimbursement_park_status_deleted_create_time_idx")
+  @@index([userId, isDeleted, createTime], map: "reimbursement_user_deleted_create_time_idx")
   @@index([userId])
   @@index([username])
   @@map("reimbursement")

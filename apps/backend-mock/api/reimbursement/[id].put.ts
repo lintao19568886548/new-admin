@@ -3,10 +3,15 @@ import { verifyAccessToken } from '~/utils/jwt-utils';
 import { syncApprovedReimbursementFinanceRecord } from '~/utils/reimbursement-finance';
 import {
   forbiddenResponse,
+  serverErrorResponse,
   unAuthorizedResponse,
   useResponseError,
   useResponseSuccess,
 } from '~/utils/response';
+import {
+  fetchUserWithDetails,
+  transformPrismaUserToUserInfo,
+} from '~/utils/user-service';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -21,7 +26,20 @@ export default eventHandler(async (event) => {
       return useResponseError('无效的报销ID', 400);
     }
 
-    const hasAuditPermission = (userinfo.reimbursementAuth || 0) > 0;
+    const currentUser = await fetchUserWithDetails(
+      userinfo.username,
+      prismaClient,
+    );
+    if (!currentUser || Number(currentUser.status ?? 1) !== 1) {
+      return unAuthorizedResponse(event);
+    }
+
+    const currentUserinfo = await transformPrismaUserToUserInfo(
+      currentUser,
+      prismaClient,
+    );
+
+    const hasAuditPermission = (currentUserinfo.reimbursementAuth || 0) > 0;
     if (!hasAuditPermission) {
       return forbiddenResponse(event, '无报销审核权限');
     }
@@ -54,14 +72,14 @@ export default eventHandler(async (event) => {
       return useResponseError('该报销记录已审核，无法重复操作', 400);
     }
 
-    const allowedParkIds = (userinfo.parks || [])
+    const allowedParkIds = (currentUserinfo.parks || [])
       .map((park) => Number(park.parkId))
       .filter((parkId) => !Number.isNaN(parkId));
     if (!allowedParkIds.includes(Number(reimbursement.parkId))) {
       return forbiddenResponse(event, '无该园区审核权限');
     }
 
-    const rates = userinfo.rates;
+    const rates = currentUserinfo.rates;
     const hasUnlimitedRates =
       rates === null || rates === undefined || Number(rates) < 0;
     if (!hasUnlimitedRates && Number(reimbursement.amount) > Number(rates)) {
@@ -69,7 +87,7 @@ export default eventHandler(async (event) => {
     }
 
     // 构造审核意见前缀
-    const opinionPrefix = `审核人：${userinfo.realName}\n`;
+    const opinionPrefix = `审核人：${currentUserinfo.realName}\n`;
     const finalOpinion = body.auditOpinion
       ? opinionPrefix + body.auditOpinion
       : opinionPrefix;
@@ -106,6 +124,6 @@ export default eventHandler(async (event) => {
     return useResponseSuccess(updatedReimbursement);
   } catch (error) {
     console.error('更新报销状态失败:', error);
-    return useResponseError('更新报销状态失败', 500);
+    return serverErrorResponse('更新报销状态失败', event);
   }
 });
