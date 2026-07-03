@@ -88,10 +88,13 @@ export interface AttendanceDeviceDuplicateUser {
 export interface AttendanceDeviceDecision {
   abnormalTypes: string[];
   binding: AttendanceDeviceBinding | null;
+  confirmationKeys?: string[];
+  confirmedToday?: boolean;
   device: AttendanceDeviceInfo;
   duplicateUsers: AttendanceDeviceDuplicateUser[];
   message: string;
   status: AttendanceDeviceStatus;
+  unconfirmedAbnormalTypes?: string[];
 }
 
 export interface AttendanceDeviceAbnormalLog {
@@ -112,6 +115,15 @@ export interface AttendanceDeviceAbnormalListResult {
   total: number;
 }
 
+export interface AttendanceLocationConfirmationStatus {
+  confirmationKeys: string[];
+  confirmedToday: boolean;
+  distanceMeters: null | number;
+  inRange: boolean;
+  nearestLocationName: null | string;
+  unconfirmedAbnormalTypes: string[];
+}
+
 export function getAttendanceList(params: any) {
   return requestClient.get<AttendanceListResult>(`${API.ATTENDANCE}/list`, {
     params,
@@ -119,9 +131,9 @@ export function getAttendanceList(params: any) {
 }
 
 export function punchIn(data: {
-  allowDeviceAbnormal?: boolean;
-  allowOutsideRange?: boolean;
   bindCurrentDevice?: boolean;
+  confirmDeviceAbnormal?: boolean;
+  confirmOutsideRange?: boolean;
   device: AttendanceDeviceInfo;
   latitude: number;
   longitude: number;
@@ -133,9 +145,9 @@ export function punchIn(data: {
 export function punchOut(
   id: number,
   data: {
-    allowDeviceAbnormal?: boolean;
-    allowOutsideRange?: boolean;
     bindCurrentDevice?: boolean;
+    confirmDeviceAbnormal?: boolean;
+    confirmOutsideRange?: boolean;
     device: AttendanceDeviceInfo;
     latitude: number;
     longitude: number;
@@ -168,8 +180,20 @@ export function getOfficeLocations() {
   >(`${API.ATTENDANCE}/locations`);
 }
 
+export function getAttendanceLocationConfirmationStatus(data: {
+  latitude: number;
+  longitude: number;
+  punchTime: string;
+}) {
+  return requestClient.post<AttendanceLocationConfirmationStatus>(
+    `${API.ATTENDANCE}/location-confirmation`,
+    data,
+  );
+}
+
 export function getAttendanceDeviceStatus(data: {
   device: AttendanceDeviceInfo;
+  punchTime?: string;
 }) {
   return requestClient.post<AttendanceDeviceDecision>(ATTENDANCE_DEVICE_API, {
     ...data,

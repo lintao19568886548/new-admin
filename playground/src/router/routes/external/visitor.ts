@@ -4,7 +4,7 @@ import { $t } from '#/locales';
 
 const routes: RouteRecordRaw[] = [
   {
-    component: () => import('#/views/access/visitor/modules/register.vue'),
+    component: () => import('#/views/access/visitor/register.vue'),
     meta: {
       title: $t('page.access.register'),
     },

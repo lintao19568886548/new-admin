@@ -1,28 +1,51 @@
 <script lang="ts" setup>
-import { computed, onMounted, onUnmounted, watch } from 'vue';
+import {
+  computed,
+  defineAsyncComponent,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-import { useAntdDesignTokens } from '@vben/hooks';
-import { preferences, usePreferences } from '@vben/preferences';
+import { usePreferences } from '@vben/preferences';
 
-import { App as CapacitorApp } from '@capacitor/app';
-import { Capacitor } from '@capacitor/core';
-import { StatusBar, Style } from '@capacitor/status-bar';
-import { App, ConfigProvider, message, theme } from 'ant-design-vue';
-
-import { antdLocale } from '#/locales';
-import { bootstrapWechatRuntimeDetection } from '#/utils/wechat-jssdk';
-
-import PrivacyPolicyModal from './components/PrivacyPolicyModal.vue';
+import { setupMobileRuntimeAdapter } from '#/utils/mobile-runtime-adapter';
+import { isNativeRuntime } from '#/utils/native-runtime';
+import {
+  OPEN_PRIVACY_POLICY_EVENT,
+  OPEN_SERVICE_AGREEMENT_EVENT,
+  PRIVACY_POLICY_AGREED_KEY,
+} from '#/utils/policy-actions';
 
 defineOptions({ name: 'App' });
+
+type CapacitorAppModule = typeof import('@capacitor/app');
+type CapacitorStatusBarModule = typeof import('@capacitor/status-bar');
+
+interface NativeRuntime {
+  CapacitorApp: CapacitorAppModule['App'];
+  StatusBar: CapacitorStatusBarModule['StatusBar'];
+  Style: CapacitorStatusBarModule['Style'];
+}
 
 const { isDark } = usePreferences();
 const route = useRoute();
 const router = useRouter();
-const { tokens } = useAntdDesignTokens();
 let appUrlOpenListener: null | { remove: () => Promise<void> } = null;
+let nativeRuntimePromise: null | Promise<NativeRuntime | null> = null;
+let stopMobileRuntimeAdapter: (() => void) | null = null;
 let stopWechatRuntimeDetection: (() => void) | null = null;
+const shouldRenderPrivacyPolicy = ref(false);
+const initialPolicyDialog = ref<'privacy' | 'service'>();
+const policyDialogRenderKey = ref(0);
+const PrivacyPolicyModal = defineAsyncComponent(
+  () => import('./components/PrivacyPolicyModal.vue'),
+);
+const AntdAppProvider = defineAsyncComponent(
+  () => import('./components/AntdAppProvider.vue'),
+);
 const ALLOWED_DEEP_LINK_PATTERNS = [
   /^\/home$/,
   /^\/rental\/factory$/,
@@ -30,34 +53,58 @@ const ALLOWED_DEEP_LINK_PATTERNS = [
 ];
 const DEFAULT_DEEP_LINK_PATH = '/home';
 
+async function getNativeRuntime() {
+  if (!isNativeRuntime()) {
+    return null;
+  }
+
+  nativeRuntimePromise ??= import('@capacitor/core')
+    .then(async ({ Capacitor }) => {
+      if (!Capacitor.isNativePlatform()) {
+        return null;
+      }
+
+      const [capacitorApp, statusBar] = await Promise.all([
+        import('@capacitor/app'),
+        import('@capacitor/status-bar'),
+      ]);
+
+      return {
+        CapacitorApp: capacitorApp.App,
+        StatusBar: statusBar.StatusBar,
+        Style: statusBar.Style,
+      };
+    })
+    .catch((error) => {
+      console.warn('加载原生运行时失败:', error);
+      return null;
+    });
+
+  return await nativeRuntimePromise;
+}
+
+const shouldUseAntdProvider = computed(() => {
+  if (!route.name) {
+    return false;
+  }
+  return !route.matched.some((matchedRoute) => {
+    return matchedRoute.name === 'Authentication';
+  });
+});
+
 async function syncStatusBarStyle() {
-  if (!Capacitor.isNativePlatform()) {
+  const nativeRuntime = await getNativeRuntime();
+  if (!nativeRuntime) {
     return;
   }
 
-  await StatusBar.setStyle({
-    style: isDark.value ? Style.Dark : Style.Light,
+  await nativeRuntime.StatusBar.setStyle({
+    style: isDark.value ? nativeRuntime.Style.Dark : nativeRuntime.Style.Light,
   });
-  await StatusBar.setBackgroundColor({
+  await nativeRuntime.StatusBar.setBackgroundColor({
     color: isDark.value ? '#000000ff' : '#ffffffff',
   });
 }
-
-const tokenTheme = computed(() => {
-  const algorithm = isDark.value
-    ? [theme.darkAlgorithm]
-    : [theme.defaultAlgorithm];
-
-  // antd 紧凑模式算法
-  if (preferences.app.compact) {
-    algorithm.push(theme.compactAlgorithm);
-  }
-
-  return {
-    algorithm,
-    token: tokens,
-  };
-});
 
 function resolveDeepLinkTarget(rawUrl: string) {
   try {
@@ -121,6 +168,65 @@ async function handleDeepLink(rawUrl: string) {
   });
 }
 
+async function setupWechatRuntimeDetection() {
+  if (!/MicroMessenger/i.test(navigator.userAgent || '')) {
+    return;
+  }
+
+  const { bootstrapWechatRuntimeDetection } =
+    await import('#/utils/wechat-jssdk');
+  stopWechatRuntimeDetection = bootstrapWechatRuntimeDetection();
+}
+
+function isPrivacyPolicyAgreed() {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  return localStorage.getItem(PRIVACY_POLICY_AGREED_KEY) === 'true';
+}
+
+function loadPrivacyPolicyDialog(initialOpen?: 'privacy' | 'service') {
+  initialPolicyDialog.value = initialOpen;
+  shouldRenderPrivacyPolicy.value = true;
+  policyDialogRenderKey.value += 1;
+}
+
+function openPrivacyPolicyDialog() {
+  loadPrivacyPolicyDialog('privacy');
+}
+
+function openServiceAgreementDialog() {
+  loadPrivacyPolicyDialog('service');
+}
+
+function bindPolicyDialogEvents() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.addEventListener(OPEN_PRIVACY_POLICY_EVENT, openPrivacyPolicyDialog);
+  window.addEventListener(
+    OPEN_SERVICE_AGREEMENT_EVENT,
+    openServiceAgreementDialog,
+  );
+}
+
+function unbindPolicyDialogEvents() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.removeEventListener(
+    OPEN_PRIVACY_POLICY_EVENT,
+    openPrivacyPolicyDialog,
+  );
+  window.removeEventListener(
+    OPEN_SERVICE_AGREEMENT_EVENT,
+    openServiceAgreementDialog,
+  );
+}
+
 /**
  * @function configureStatusBar
  * @description 配置原生状态栏。 (此函数将被移除)
@@ -145,21 +251,31 @@ async function handleDeepLink(rawUrl: string) {
 
 // 组件挂载后执行
 onMounted(async () => {
-  stopWechatRuntimeDetection = bootstrapWechatRuntimeDetection();
+  stopMobileRuntimeAdapter = setupMobileRuntimeAdapter();
+  bindPolicyDialogEvents();
 
-  if (Capacitor.isNativePlatform()) {
+  if (!isPrivacyPolicyAgreed()) {
+    loadPrivacyPolicyDialog();
+  }
+
+  void setupWechatRuntimeDetection().catch((error) => {
+    console.warn('微信运行环境检测初始化失败:', error);
+  });
+
+  const nativeRuntime = await getNativeRuntime();
+  if (nativeRuntime) {
     try {
-      await StatusBar.setOverlaysWebView({ overlay: false });
+      await nativeRuntime.StatusBar.setOverlaysWebView({ overlay: false });
       await syncStatusBarStyle();
 
-      appUrlOpenListener = await CapacitorApp.addListener(
+      appUrlOpenListener = await nativeRuntime.CapacitorApp.addListener(
         'appUrlOpen',
         ({ url }) => {
           void handleDeepLink(url);
         },
       );
 
-      const launchUrl = await CapacitorApp.getLaunchUrl();
+      const launchUrl = await nativeRuntime.CapacitorApp.getLaunchUrl();
       if (launchUrl?.url) {
         void handleDeepLink(launchUrl.url);
       }
@@ -167,13 +283,16 @@ onMounted(async () => {
       console.warn('设置状态栏覆盖模式失败:', error);
     }
   }
-
-  message.config({
-    top: 'calc(var(--app-safe-area-top) + 8px)',
-  });
 });
 
 onUnmounted(() => {
+  unbindPolicyDialogEvents();
+
+  if (stopMobileRuntimeAdapter) {
+    stopMobileRuntimeAdapter();
+    stopMobileRuntimeAdapter = null;
+  }
+
   if (stopWechatRuntimeDetection) {
     stopWechatRuntimeDetection();
     stopWechatRuntimeDetection = null;
@@ -204,16 +323,21 @@ watch(
 </script>
 
 <template>
-  <ConfigProvider :locale="antdLocale" :theme="tokenTheme">
-    <App>
-      <RouterView />
-      <PrivacyPolicyModal />
-    </App>
-  </ConfigProvider>
+  <AntdAppProvider v-if="shouldUseAntdProvider">
+    <RouterView />
+  </AntdAppProvider>
+  <RouterView v-else />
+  <PrivacyPolicyModal
+    v-if="shouldRenderPrivacyPolicy"
+    :key="policyDialogRenderKey"
+    :initial-open="initialPolicyDialog"
+  />
 </template>
 
 <style>
 :root {
+  --app-viewport-height: 100dvh;
+  --app-keyboard-height: 0px;
   --app-safe-area-top: var(--ion-safe-area-top, env(safe-area-inset-top, 0px));
   --app-safe-area-right: var(
     --ion-safe-area-right,
@@ -227,125 +351,5 @@ watch(
     --ion-safe-area-left,
     env(safe-area-inset-left, 0px)
   );
-}
-
-.ant-app {
-  box-sizing: border-box;
-}
-
-body.is-investment-route .ant-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-body.is-investment-route .ant-btn > span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  text-align: center;
-}
-
-body.is-investment-route .ant-btn-block > span {
-  width: 100%;
-}
-
-body.is-investment-route .ant-table-wrapper .ant-table-thead > tr > th,
-body.is-investment-route .ant-table-wrapper .ant-table-tbody > tr > td {
-  text-align: center;
-  vertical-align: middle;
-}
-
-body.is-investment-route
-  .ant-table-wrapper
-  .ant-table.ant-table-bordered
-  > .ant-table-container
-  > .ant-table-content
-  > table
-  > thead
-  > tr
-  > th,
-body.is-investment-route
-  .ant-table-wrapper
-  .ant-table.ant-table-bordered
-  > .ant-table-container
-  > .ant-table-content
-  > table
-  > tbody
-  > tr
-  > td,
-body.is-investment-route
-  .ant-table-wrapper
-  .ant-table.ant-table-bordered
-  > .ant-table-container
-  > .ant-table-body
-  > table
-  > thead
-  > tr
-  > th,
-body.is-investment-route
-  .ant-table-wrapper
-  .ant-table.ant-table-bordered
-  > .ant-table-container
-  > .ant-table-body
-  > table
-  > tbody
-  > tr
-  > td {
-  border-inline-end: 1px solid
-    var(--ant-color-border-secondary, rgb(217 217 217 / 100%)) !important;
-  border-right: 1px solid
-    var(--ant-color-border-secondary, rgb(217 217 217 / 100%)) !important;
-}
-
-body.is-investment-route .radar-search-form {
-  justify-content: flex-start;
-  width: 100%;
-}
-
-body.is-investment-route .radar-search-form .ant-form-item {
-  align-items: center;
-}
-
-body.is-investment-route .radar-search-form .ant-input,
-body.is-investment-route .radar-search-form .ant-input::placeholder,
-body.is-investment-route
-  .radar-search-form
-  .ant-input-affix-wrapper
-  input.ant-input,
-body.is-investment-route
-  .radar-search-form
-  .ant-input-affix-wrapper
-  input.ant-input::placeholder,
-body.is-investment-route .radar-search-form .ant-select-selection-item,
-body.is-investment-route .radar-search-form .ant-select-selection-placeholder,
-body.is-investment-route .radar-search-form .ant-select-selection-search-input {
-  text-align: left;
-}
-
-body.is-investment-route .ant-form:not(.radar-search-form) .ant-input,
-body.is-investment-route
-  .ant-form:not(.radar-search-form)
-  .ant-input::placeholder,
-body.is-investment-route
-  .ant-form:not(.radar-search-form)
-  .ant-input-affix-wrapper
-  input.ant-input,
-body.is-investment-route
-  .ant-form:not(.radar-search-form)
-  .ant-input-affix-wrapper
-  input.ant-input::placeholder,
-body.is-investment-route
-  .ant-form:not(.radar-search-form)
-  .ant-select-selection-item,
-body.is-investment-route
-  .ant-form:not(.radar-search-form)
-  .ant-select-selection-placeholder,
-body.is-investment-route
-  .ant-form:not(.radar-search-form)
-  .ant-select-selection-search-input {
-  text-align: left;
 }
 </style>

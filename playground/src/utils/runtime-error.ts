@@ -8,12 +8,14 @@ import {
 declare global {
   interface Window {
     __vbenClearAppLoadingTimeout__?: () => void;
+    __vbenReloadApp?: () => void;
     __vbenRuntimeErrorHandlersInstalled__?: boolean;
   }
 }
 
 const RESOURCE_RELOAD_KEY = '__vben_resource_error_reload_at__';
 const RESOURCE_RELOAD_COOLDOWN = 15_000;
+const RESOURCE_RELOAD_PARAM = '__vben_refresh';
 
 function escapeHtml(value: string) {
   return value
@@ -61,7 +63,7 @@ function renderRecoverableError(options: {
       <div style="box-sizing:border-box;width:100%;max-width:520px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;padding:28px;box-shadow:0 18px 48px rgba(15,23,42,.12);">
         <h1 style="margin:0 0 12px;font-size:20px;font-weight:600;">${escapeHtml(options.title)}</h1>
         <p style="margin:0 0 16px;line-height:1.7;color:#475569;">${escapeHtml(options.description)}</p>
-        <button type="button" onclick="window.location.reload()" style="height:38px;border:0;border-radius:6px;background:#1677ff;padding:0 16px;color:#fff;cursor:pointer;">重新加载</button>
+        <button type="button" onclick="window.__vbenReloadApp ? window.__vbenReloadApp() : window.location.reload()" style="height:38px;border:0;border-radius:6px;background:#1677ff;padding:0 16px;color:#fff;cursor:pointer;">重新加载</button>
         ${
           message
             ? `<pre style="box-sizing:border-box;max-height:160px;overflow:auto;margin:16px 0 0;border-radius:6px;background:#f1f5f9;padding:12px;font-size:12px;line-height:1.6;white-space:pre-wrap;color:#334155;">${escapeHtml(message)}</pre>`
@@ -70,6 +72,24 @@ function renderRecoverableError(options: {
       </div>
     </div>
   `;
+}
+
+function reloadBypassingCache() {
+  if (
+    window.__vbenReloadApp &&
+    window.__vbenReloadApp !== reloadBypassingCache
+  ) {
+    window.__vbenReloadApp();
+    return;
+  }
+
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set(RESOURCE_RELOAD_PARAM, String(Date.now()));
+    window.location.replace(url.toString());
+  } catch {
+    window.location.reload();
+  }
 }
 
 function reloadOnceOrRender(error: unknown, description: string) {
@@ -89,7 +109,7 @@ function reloadOnceOrRender(error: unknown, description: string) {
   }
 
   sessionStorage.setItem(RESOURCE_RELOAD_KEY, String(now));
-  window.setTimeout(() => window.location.reload(), 800);
+  window.setTimeout(() => reloadBypassingCache(), 800);
   return true;
 }
 
@@ -158,6 +178,10 @@ function setupGlobalRuntimeErrorHandlers() {
     return;
   }
 
+  if (!window.__vbenReloadApp) {
+    window.__vbenReloadApp = reloadBypassingCache;
+  }
+
   window.addEventListener(
     'error',
     (event) => {
@@ -180,6 +204,19 @@ function setupGlobalRuntimeErrorHandlers() {
     if (handleDynamicImportLoadError(event.reason)) {
       event.preventDefault();
     }
+  });
+
+  window.addEventListener('vite:preloadError', (event) => {
+    const error =
+      event instanceof ErrorEvent
+        ? event.error || event.message
+        : (event as Event & { payload?: unknown }).payload || event;
+    reportRuntimeError('vite-preload', error);
+    reloadOnceOrRender(
+      error,
+      '系统资源预加载失败，可能是 iPhone/微信内置浏览器缓存了旧资源，或当前网络不稳定。页面将尝试自动刷新一次；如果仍未恢复，请手动重新加载。',
+    );
+    event.preventDefault();
   });
 
   window.__vbenRuntimeErrorHandlersInstalled__ = true;

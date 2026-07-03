@@ -1,5 +1,4 @@
 import { initPreferences } from '@vben/preferences';
-import { unmountGlobalLoading } from '@vben/utils';
 
 import { overridesPreferences } from './preferences';
 import {
@@ -7,6 +6,29 @@ import {
   setupGlobalRuntimeErrorHandlers,
   showBootstrapError,
 } from './utils/runtime-error';
+
+function unmountGlobalLoading() {
+  const loadingElement = document.querySelector('#__app-loading__');
+
+  if (!loadingElement) {
+    return;
+  }
+
+  loadingElement.classList.add('hidden');
+
+  const injectLoadingElements = document.querySelectorAll(
+    '[data-app-loading^="inject"]',
+  );
+
+  loadingElement.addEventListener(
+    'transitionend',
+    () => {
+      loadingElement.remove();
+      injectLoadingElements.forEach((el) => el.remove());
+    },
+    { once: true },
+  );
+}
 
 /**
  * 应用初始化完成之后再进行页面加载渲染

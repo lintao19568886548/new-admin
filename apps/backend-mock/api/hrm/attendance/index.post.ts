@@ -5,11 +5,20 @@ import {
   resolveAttendanceState,
 } from '~/utils/attendance';
 import {
+  createDeviceAbnormalConfirmations,
+  createLocationAbnormalConfirmation,
+  getDeviceAbnormalConfirmationStatus,
+  getLocationAbnormalConfirmationStatus,
+  hasUnconfirmedDeviceAbnormalConfirmation,
+} from '~/utils/attendance-abnormal-confirmation';
+import {
   AttendanceDeviceError,
+  getAttendanceDeviceStatus,
   prepareAttendanceDeviceForPunch,
   recordAttendanceDeviceAbnormal,
 } from '~/utils/attendance-device';
 import { validateAttendanceLocation } from '~/utils/attendance-location';
+import { normalizeBoolean } from '~/utils/boolean';
 import { prismaClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import {
@@ -31,10 +40,13 @@ export default eventHandler(async (event) => {
       longitude,
       latitude,
       device,
-      bindCurrentDevice,
-      allowDeviceAbnormal,
-      allowOutsideRange,
+      bindCurrentDevice: rawBindCurrentDevice,
+      confirmDeviceAbnormal: rawConfirmDeviceAbnormal,
+      confirmOutsideRange: rawConfirmOutsideRange,
     } = await readBody(event);
+    const bindCurrentDevice = normalizeBoolean(rawBindCurrentDevice);
+    const confirmDeviceAbnormal = normalizeBoolean(rawConfirmDeviceAbnormal);
+    const confirmOutsideRange = normalizeBoolean(rawConfirmOutsideRange);
 
     if (!punchTime || longitude === undefined || latitude === undefined) {
       return useResponseError('缺少必要的参数');
@@ -48,7 +60,17 @@ export default eventHandler(async (event) => {
       return useResponseError('定位失败，请开启定位权限后重新打卡');
     }
 
-    if (!locationValidation.inRange && !allowOutsideRange) {
+    const locationConfirmationStatus =
+      await getLocationAbnormalConfirmationStatus({
+        latitude,
+        locationValidation,
+        longitude,
+        punchTime,
+        userId: userinfo.id,
+      });
+    const canAllowOutsideRange =
+      confirmOutsideRange || locationConfirmationStatus.confirmedToday;
+    if (!locationValidation.inRange && !canAllowOutsideRange) {
       return useResponseError('当前位置不在打卡范围内，请确认后再打卡');
     }
 
@@ -69,10 +91,24 @@ export default eventHandler(async (event) => {
       return useResponseError('今天已经打过上班卡了');
     }
 
+    const initialDeviceDecision = await getAttendanceDeviceStatus({
+      deviceInput: device,
+      user: userinfo,
+    });
+    const deviceConfirmationStatus =
+      initialDeviceDecision.status === 'abnormal'
+        ? await getDeviceAbnormalConfirmationStatus({
+            decision: initialDeviceDecision,
+            punchTime,
+            userId: userinfo.id,
+          })
+        : null;
     const deviceDecision = await prepareAttendanceDeviceForPunch({
-      allowDeviceAbnormal,
+      allowDeviceAbnormal:
+        confirmDeviceAbnormal || deviceConfirmationStatus?.confirmedToday,
       bindCurrentDevice,
       deviceInput: device,
+      preparedDecision: initialDeviceDecision,
       user: userinfo,
     });
 
@@ -108,6 +144,28 @@ export default eventHandler(async (event) => {
       punchTime: new Date(punchTime),
       user: userinfo,
     });
+    if (
+      confirmDeviceAbnormal &&
+      hasUnconfirmedDeviceAbnormalConfirmation(deviceConfirmationStatus)
+    ) {
+      await createDeviceAbnormalConfirmations({
+        abnormalTypes: deviceConfirmationStatus?.unconfirmedAbnormalTypes,
+        attendanceId: newAttendance.attendanceId,
+        decision: deviceDecision,
+        punchTime,
+        userId: userinfo.id,
+      });
+    }
+    if (confirmOutsideRange && !locationConfirmationStatus.confirmedToday) {
+      await createLocationAbnormalConfirmation({
+        attendanceId: newAttendance.attendanceId,
+        latitude,
+        locationValidation,
+        longitude,
+        punchTime,
+        userId: userinfo.id,
+      });
+    }
 
     return useResponseSuccess(newAttendance, '打卡成功');
   } catch (error: any) {

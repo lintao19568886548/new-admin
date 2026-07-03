@@ -1,140 +1,47 @@
 <script lang="ts" setup>
-import type { VbenFormSchema } from '@vben/common-ui';
-import type { BasicOption, Recordable } from '@vben/types';
+import type { Recordable } from '@vben/types';
 
-import { computed, markRaw, useTemplateRef } from 'vue';
+import { ref, useTemplateRef } from 'vue';
 
-import { AuthenticationLogin, SliderCaptcha, z } from '@vben/common-ui';
+import { AuthenticationLogin } from '@vben/common-ui/authentication';
 
 import { usePlatform } from '#/hooks/usePlatform';
 import { $t } from '#/locales';
-import { useAuthStore } from '#/store';
+import { preloadWhenIdle } from '#/utils/deferred-preload';
 
 defineOptions({ name: 'Login' });
+
+interface LoginExpose {
+  resumeCaptcha: () => void;
+}
 
 // 使用 usePlatform Hook 获取平台信息
 const { isNativePlatform } = usePlatform();
 
-const authStore = useAuthStore();
+const loginLoading = ref(false);
+
+preloadWhenIdle(() => import('#/store/auth'));
 
 function tText(key: string, fallback: string) {
   const text = $t(key);
   return text && text !== key ? text : fallback;
 }
 
-const MOCK_USER_OPTIONS: BasicOption[] = [
-  {
-    label: 'Super',
-    value: 'vben',
-  },
-  {
-    label: 'Admin',
-    value: 'admin',
-  },
-  {
-    label: 'User',
-    value: 'jack',
-  },
-];
-
-const formSchema = computed((): VbenFormSchema[] => {
-  return [
-    // {
-    //   component: 'VbenSelect',
-    //   // componentProps(_values, form) {
-    //   //   return {
-    //   //     'onUpdate:modelValue': (value: string) => {
-    //   //       const findItem = MOCK_USER_OPTIONS.find(
-    //   //         (item) => item.value === value,
-    //   //       );
-    //   //       if (findItem) {
-    //   //         form.setValues({
-    //   //           password: '123456',
-    //   //           username: findItem.label,
-    //   //         });
-    //   //       }
-    //   //     },
-    //   //     options: MOCK_USER_OPTIONS,
-    //   //     placeholder: $t('authentication.selectAccount'),
-    //   //   };
-    //   // },
-    //   componentProps: {
-    //     options: MOCK_USER_OPTIONS,
-    //     placeholder: $t('authentication.selectAccount'),
-    //   },
-    //   fieldName: 'selectAccount',
-    //   label: $t('authentication.selectAccount'),
-    //   rules: z
-    //     .string()
-    //     .min(1, { message: $t('authentication.selectAccount') })
-    //     .optional()
-    //     .default('vben'),
-    // },
-    {
-      component: 'VbenInput',
-      componentProps: {
-        placeholder: tText('authentication.usernameTip', '请输入用户名'),
-      },
-      dependencies: {
-        trigger(values, form) {
-          if (values.selectAccount) {
-            const findUser = MOCK_USER_OPTIONS.find(
-              (item) => item.value === values.selectAccount,
-            );
-            if (findUser) {
-              form.setValues({
-                password: '123456',
-                username: findUser.value,
-              });
-            }
-          }
-        },
-        triggerFields: ['selectAccount'],
-      },
-      fieldName: 'username',
-      label: tText('authentication.username', '账号'),
-      rules: z.string().min(1, {
-        message: tText('authentication.usernameTip', '请输入用户名'),
-      }),
-    },
-    {
-      component: 'VbenInputPassword',
-      componentProps: {
-        placeholder: tText('authentication.password', '密码'),
-      },
-      fieldName: 'password',
-      label: tText('authentication.password', '密码'),
-      rules: z.string().min(1, {
-        message: tText('authentication.passwordTip', '请输入密码'),
-      }),
-    },
-    {
-      component: markRaw(SliderCaptcha),
-      componentProps: {
-        successText: tText('ui.captcha.sliderSuccessText', '验证通过'),
-        text: tText('ui.captcha.sliderDefaultText', '请按住滑块拖动'),
-      },
-      fieldName: 'captcha',
-      rules: z.boolean().refine((value) => value, {
-        message: tText('authentication.verifyRequiredTip', '请先完成验证'),
-      }),
-    },
-  ];
-});
-
-const loginRef =
-  useTemplateRef<InstanceType<typeof AuthenticationLogin>>('loginRef');
+const loginRef = useTemplateRef<LoginExpose>('loginRef');
 
 async function onSubmit(params: Recordable<any>) {
-  authStore.authLogin(params).catch(() => {
+  loginLoading.value = true;
+  try {
+    const { useAuthStore } = await import('#/store/auth');
+    await useAuthStore().authLogin(params);
+  } catch {
     // 登陆失败，刷新验证码的演示
 
-    // 使用表单API获取验证码组件实例，并调用其resume方法来重置验证码
-    loginRef.value
-      ?.getFormApi()
-      ?.getFieldComponentRef<InstanceType<typeof SliderCaptcha>>('captcha')
-      ?.resume();
-  });
+    // 调用认证组件暴露的方法重置验证码
+    loginRef.value?.resumeCaptcha();
+  } finally {
+    loginLoading.value = false;
+  }
 }
 </script>
 
@@ -157,9 +64,8 @@ async function onSubmit(params: Recordable<any>) {
     :and-text="tText('common.and', '和')"
     :cancel-text="tText('common.cancel', '取消')"
     :close-text="tText('common.close', '关闭')"
-    :form-schema="formSchema"
     :forget-password-text="tText('authentication.forgetPassword', '忘记密码?')"
-    :loading="authStore.loginLoading"
+    :loading="loginLoading"
     :mobile-login-text="tText('authentication.mobileLogin', '手机号登录')"
     :privacy-policy-text="tText('authentication.privacyPolicy', '隐私协议')"
     :remember-me-text="tText('authentication.rememberMe', '记住账号')"
@@ -198,11 +104,10 @@ async function onSubmit(params: Recordable<any>) {
         :and-text="tText('common.and', '和')"
         :cancel-text="tText('common.cancel', '取消')"
         :close-text="tText('common.close', '关闭')"
-        :form-schema="formSchema"
         :forget-password-text="
           tText('authentication.forgetPassword', '忘记密码?')
         "
-        :loading="authStore.loginLoading"
+        :loading="loginLoading"
         :mobile-login-text="tText('authentication.mobileLogin', '手机号登录')"
         :privacy-policy-text="tText('authentication.privacyPolicy', '隐私协议')"
         :remember-me-text="tText('authentication.rememberMe', '记住账号')"

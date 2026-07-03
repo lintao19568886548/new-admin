@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 
-import { Capacitor } from '@capacitor/core';
+import { getNativeRuntimePlatform } from '#/utils/native-runtime';
 
 /**
  * @composable usePlatform
@@ -11,14 +11,9 @@ import { Capacitor } from '@capacitor/core';
  * @property {import('vue').Ref<string | null>} platformName - 一个 ref 对象，包含原生平台的名称 (例如 'ios', 'android')；如果不是原生平台，则为 null。
  */
 export function usePlatform() {
-  // 初始化 isNativePlatform，直接通过 Capacitor.isNativePlatform() 获取当前值
-  const isNativePlatform = ref(Capacitor.isNativePlatform());
-  const platformName = ref<null | string>(null);
-
-  // 如果是原生平台，则获取并设置平台名称
-  if (isNativePlatform.value) {
-    platformName.value = Capacitor.getPlatform();
-  }
+  const platform = getNativeRuntimePlatform();
+  const isNativePlatform = ref(platform !== null);
+  const platformName = ref<null | string>(platform);
 
   return {
     isNativePlatform,

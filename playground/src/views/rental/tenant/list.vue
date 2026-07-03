@@ -6,17 +6,19 @@ import type {
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 
-import { onMounted, watch } from 'vue';
+import { computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
+import { useUserStore } from '@vben/stores';
 
 import { MessageOutlined } from '@ant-design/icons-vue';
 import { Button, message, Modal } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
+  clearTenants,
   deleteTenant,
   getTenantList,
   getTenantSmsInfo,
@@ -29,6 +31,8 @@ import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 const route = useRoute();
+const userStore = useUserStore();
+const isSuperUser = computed(() => userStore.userRoles.includes('Super'));
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -98,40 +102,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
       ajax: {
         query: async ({ page }) => {
           try {
-            // 直接从formApi获取表单数据
-            const formValues = (await gridApi.formApi?.getValues?.()) || {};
-
-            // 清理表单数据，移除空值
-            const params: Record<string, any> = {}; // 添加类型声明
-            Object.keys(formValues).forEach((key) => {
-              if (
-                formValues[key] !== undefined &&
-                formValues[key] !== null &&
-                formValues[key] !== ''
-              ) {
-                params[key] = formValues[key];
-              }
+            const params = await buildTenantQueryParams({
+              currentPage: page?.currentPage || 1,
+              pageSize: page?.pageSize || 20,
             });
-            if (Array.isArray(params.contractDate)) {
-              params.contractDate = params.contractDate.join(',');
-            }
-            if (params.contractStart && params.contractEnd) {
-              params.contractDate = `${params.contractStart},${params.contractEnd}`;
-              delete params.contractStart;
-              delete params.contractEnd;
-            }
-            if (route.query.contractView === 'expiring') {
-              params.contractView = 'expiring';
-            }
-            if (route.query.date) {
-              params.date = String(route.query.date);
-            }
-
-            params.currentPark = formValues.parkId ?? -1;
-
-            // 添加分页参数
-            params.currentPage = page?.currentPage || 1;
-            params.pageSize = page?.pageSize || 20;
 
             console.warn('处理后的查询参数:', params);
 
@@ -195,6 +169,49 @@ function getRouteTenantFilters() {
   }
 
   return values;
+}
+
+async function buildTenantQueryParams(
+  pagination: { currentPage?: number; pageSize?: number } = {},
+) {
+  const formValues = (await gridApi.formApi?.getValues?.()) || {};
+  const params: Record<string, any> = {};
+
+  Object.keys(formValues).forEach((key) => {
+    if (
+      formValues[key] !== undefined &&
+      formValues[key] !== null &&
+      formValues[key] !== ''
+    ) {
+      params[key] = formValues[key];
+    }
+  });
+
+  if (Array.isArray(params.contractDate)) {
+    params.contractDate = params.contractDate.join(',');
+  }
+  if (params.contractStart && params.contractEnd) {
+    params.contractDate = `${params.contractStart},${params.contractEnd}`;
+    delete params.contractStart;
+    delete params.contractEnd;
+  }
+  if (route.query.contractView === 'expiring') {
+    params.contractView = 'expiring';
+  }
+  if (route.query.date) {
+    params.date = String(route.query.date);
+  }
+
+  params.currentPark = formValues.parkId ?? -1;
+
+  if (pagination.currentPage) {
+    params.currentPage = pagination.currentPage;
+  }
+  if (pagination.pageSize) {
+    params.pageSize = pagination.pageSize;
+  }
+
+  return params;
 }
 
 async function applyRouteTenantFilters() {
@@ -284,6 +301,50 @@ function onDelete(row: RentalManagementItem) {
         key: 'action_process_msg',
       });
     });
+}
+
+async function onClearTenants() {
+  if (!isSuperUser.value) {
+    message.warning('只有超级管理员可以清空合同');
+    return;
+  }
+
+  const params = await buildTenantQueryParams();
+  Modal.confirm({
+    cancelText: '取消',
+    content:
+      '删除后合同数据将被清空，不能恢复。确认删除当前筛选条件下的合同吗？',
+    okButtonProps: {
+      danger: true,
+    },
+    okText: '确认删除',
+    onOk: async () => {
+      message.loading({
+        content: '正在清空合同列表...',
+        duration: 0,
+        key: 'clear_tenant_msg',
+      });
+
+      try {
+        const result = await clearTenants(params);
+        const clearedCount = Number(result?.clearedCount ?? 0);
+        message.success({
+          content: `已清空 ${clearedCount} 条合同`,
+          key: 'clear_tenant_msg',
+        });
+        refreshGrid();
+      } catch (error) {
+        console.error('清空合同失败:', error);
+        message.error({
+          content: '清空合同失败',
+          key: 'clear_tenant_msg',
+        });
+        throw error;
+      }
+    },
+    title: '确认删除合同数据',
+    width: 520,
+  });
 }
 
 /**
@@ -438,6 +499,9 @@ async function onBulkSendSms() {
     <FormModal @success="refreshGrid" />
     <Grid :table-title="$t('system.rental.tenant.list')">
       <template #toolbar-tools>
+        <Button v-if="isSuperUser" danger class="mr-2" @click="onClearTenants">
+          一键清空
+        </Button>
         <Button class="mr-2" type="primary" @click="onBulkSendSms">
           <MessageOutlined class="mr-1" />
           一键发送短信

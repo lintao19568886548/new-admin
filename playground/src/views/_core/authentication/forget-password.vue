@@ -1,9 +1,10 @@
 <script lang="ts" setup>
-import type { VbenFormSchema } from '@vben/common-ui';
+import type { VbenFormSchema } from '@vben/common-ui/form';
 
 import { computed, ref } from 'vue';
 
-import { AuthenticationForgetPassword, z } from '@vben/common-ui';
+import { AuthenticationForgetPassword } from '@vben/common-ui/authentication';
+import { z } from '@vben/common-ui/form';
 import { $t } from '@vben/locales';
 
 defineOptions({ name: 'ForgetPassword' });

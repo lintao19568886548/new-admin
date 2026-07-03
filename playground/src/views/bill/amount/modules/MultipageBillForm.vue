@@ -55,6 +55,10 @@ const univerSheet = ref<null | {
   setReceiptTime: (value: null | string) => void;
 }>(null);
 
+function isMobileViewport() {
+  return window.innerWidth < 768;
+}
+
 async function ensureUniverSheetReady() {
   if (!univerSheetComponent.value) {
     const [module] = await Promise.all([
@@ -315,6 +319,10 @@ async function handleSave() {
 }
 
 async function open(data: AmountBill, options?: { isNextMonth?: boolean }) {
+  if (isMobileViewport()) {
+    message.warning('手机端请使用移动端账单编辑入口');
+    return;
+  }
   modalApi.open();
   isSheetReady.value = false;
   await ensureUniverSheetReady();

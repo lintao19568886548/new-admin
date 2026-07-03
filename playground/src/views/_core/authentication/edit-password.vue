@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import type { VbenFormSchema } from '@vben/common-ui';
+import type { VbenFormSchema } from '@vben/common-ui/form';
 
 import { ref } from 'vue';
 
-import { useVbenForm, VbenButton, z } from '@vben/common-ui';
+import { useVbenForm, z } from '@vben/common-ui/form';
+import { VbenButton } from '@vben/common-ui/shadcn';
 import { $t } from '@vben/locales';
 
 import { Modal } from 'ant-design-vue';

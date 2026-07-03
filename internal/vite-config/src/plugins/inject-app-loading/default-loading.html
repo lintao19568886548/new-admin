@@ -75,6 +75,24 @@
     display: block;
   }
 
+  .loading .loading-message::before {
+    content: '当前网络较慢或设备正在解析资源，请稍候。如果长时间没有响应，可以重新加载页面。';
+  }
+
+  .is-ios .loading.slow .loading-message::before,
+  .is-wechat-webview .loading.slow .loading-message::before {
+    content: 'iPhone 或微信内置浏览器正在加载资源，请稍候。如果一直没有进入页面，可以重新加载。';
+  }
+
+  .loading.stalled .loading-message::before {
+    content: '页面启动时间过长，可能是网络不稳定、缓存版本不一致或设备解析资源较慢。请重新加载页面。';
+  }
+
+  .loading.offline .loading-message::before,
+  .is-offline .loading .loading-message::before {
+    content: '当前设备处于离线状态，请检查网络后重新加载。';
+  }
+
   .loader {
     position: relative;
     width: 48px;
@@ -142,13 +160,15 @@
 <div class="loading" id="__app-loading__">
   <div class="loader"></div>
   <div class="title"><%= VITE_APP_TITLE %></div>
-  <div class="loading-message">
-    当前网络较慢或设备正在解析资源，请稍候。如果长时间没有响应，可以重新加载页面。
-  </div>
+  <div class="loading-message"></div>
   <button
     class="loading-action"
     type="button"
-    onclick="window.location.reload()"
+    onclick="
+      window.__vbenReloadApp
+        ? window.__vbenReloadApp()
+        : window.location.reload()
+    "
   >
     重新加载
   </button>

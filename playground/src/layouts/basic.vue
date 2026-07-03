@@ -1,7 +1,12 @@
 <script lang="ts" setup>
-import type { PluginListenerHandle } from '@capacitor/core';
-
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import {
+  computed,
+  defineAsyncComponent,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue';
 import { useRouter } from 'vue-router';
 
 import { AuthenticationLoginExpiredModal, VbenIcon } from '@vben/common-ui';
@@ -12,22 +17,22 @@ import { $t } from '@vben/locales';
 import { preferences, updatePreferences } from '@vben/preferences';
 import { useAccessStore, useUserStore } from '@vben/stores';
 
-import { App } from '@capacitor/app';
-import { Capacitor } from '@capacitor/core';
-import { IonFooter, IonHeader, IonPage, IonToolbar } from '@ionic/vue';
 import { Button, message } from 'ant-design-vue';
 
-import AutoUpdateChecker from '#/components/auto-update-checker.vue';
 import IonicPullToRefresh from '#/components/IonicPullToRefresh.vue';
 import { usePullToRefresh } from '#/hooks/usePullToRefresh';
 import { useAuthStore } from '#/store';
 import { useLayoutStore } from '#/store/layout';
+import { isNativeRuntime } from '#/utils/native-runtime';
 import EditPassword from '#/views/_core/authentication/edit-password.vue';
 import LoginForm from '#/views/_core/authentication/login.vue';
 
 const FALLBACK_NOT_FOUND_NAME = 'FallbackNotFound';
+const AutoUpdateChecker = defineAsyncComponent(
+  () => import('#/components/auto-update-checker.vue'),
+);
 const isMobile = ref(false);
-let backButtonListener: null | PluginListenerHandle = null;
+let backButtonListener: null | { remove: () => Promise<void> } = null;
 
 const handleResize = () => {
   isMobile.value = window.innerWidth < 768;
@@ -38,7 +43,8 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize);
 
   // 处理硬件返回按钮
-  if (Capacitor.isNativePlatform()) {
+  if (isNativeRuntime()) {
+    const { App } = await import('@capacitor/app');
     backButtonListener = await App.addListener(
       'backButton',
       ({ canGoBack }) => {
@@ -208,6 +214,10 @@ const avatar = computed(() => {
   return userStore.userInfo?.avatar ?? preferences.app.defaultAvatar;
 });
 
+const shouldRenderAutoUpdateChecker = computed(
+  () => isNativeRuntime() && !!accessStore.accessToken,
+);
+
 async function handleLogout() {
   await authStore.logout();
 }
@@ -277,10 +287,10 @@ function goBack() {
 
 <template>
   <!-- Mobile Layout -->
-  <IonPage v-if="isMobile" class="app-layout">
+  <div v-if="isMobile" class="app-layout">
     <!-- App Top Navigation Bar -->
-    <IonHeader v-if="!isImmersiveRoute" class="app-header ion-no-border">
-      <IonToolbar class="app-header-toolbar">
+    <header v-if="!isImmersiveRoute" class="app-header">
+      <div class="app-header-toolbar">
         <div class="bg-white dark:bg-gray-900">
           <div
             class="pl-[calc(12px+env(safe-area-inset-left))] pr-[calc(12px+env(safe-area-inset-right))] pt-[env(safe-area-inset-top)]"
@@ -326,8 +336,8 @@ function goBack() {
             </div>
           </div>
         </div>
-      </IonToolbar>
-    </IonHeader>
+      </div>
+    </header>
 
     <!-- Main Content Area -->
     <main class="app-main">
@@ -372,8 +382,8 @@ function goBack() {
     </main>
 
     <!-- App Bottom Tab Bar -->
-    <IonFooter v-if="!isImmersiveRoute" class="app-footer ion-no-border">
-      <IonToolbar class="app-footer-toolbar">
+    <footer v-if="!isImmersiveRoute" class="app-footer">
+      <div class="app-footer-toolbar">
         <div
           class="bg-white pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] dark:bg-gray-900"
         >
@@ -390,9 +400,9 @@ function goBack() {
             </div>
           </div>
         </div>
-      </IonToolbar>
-    </IonFooter>
-  </IonPage>
+      </div>
+    </footer>
+  </div>
   <!-- Desktop Layout -->
   <BasicLayout v-else @clear-preferences-and-logout="handleLogout">
     <template #user-dropdown>
@@ -432,7 +442,7 @@ function goBack() {
   </BasicLayout>
 
   <!-- 自动更新检查组件（无UI，仅功能） -->
-  <AutoUpdateChecker />
+  <AutoUpdateChecker v-if="shouldRenderAutoUpdateChecker" />
 </template>
 
 <style lang="css" scoped>

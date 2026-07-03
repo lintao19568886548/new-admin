@@ -490,16 +490,19 @@ export async function prepareAttendanceDeviceForPunch(params: {
   allowDeviceAbnormal?: boolean;
   bindCurrentDevice?: boolean;
   deviceInput: AttendanceDeviceInput;
+  preparedDecision?: AttendanceDeviceDecision;
   user: AttendanceUserSnapshot;
 }) {
   if (!hasDeviceIdentity(params.deviceInput)) {
     return buildLegacyAppDeviceDecision();
   }
 
-  const decision = await getAttendanceDeviceStatus({
-    deviceInput: params.deviceInput,
-    user: params.user,
-  });
+  const decision =
+    params.preparedDecision ??
+    (await getAttendanceDeviceStatus({
+      deviceInput: params.deviceInput,
+      user: params.user,
+    }));
 
   if (decision.status === 'bind_required') {
     if (!params.bindCurrentDevice) {

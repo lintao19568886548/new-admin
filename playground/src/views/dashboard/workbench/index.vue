@@ -29,6 +29,11 @@ interface NavVisualTheme {
   glowClass: string;
 }
 
+interface MobileWorkbenchTarget {
+  name?: string;
+  path: string;
+}
+
 interface NavGroup {
   icon: string;
   items: NavItem[];
@@ -57,10 +62,62 @@ const TARGET_INVESTMENT_REGISTRATION_USERNAMES = new Set([
 const HIDDEN_WORKBENCH_APP_ROUTE_NAMES = new Set([
   'SettledFactory',
   'SettledFactoryMobile',
+  'VisitorRegister',
 ]);
 const HIDDEN_WORKBENCH_APP_ROUTE_PATHS = new Set([
+  '/access/visitor/register',
   '/rental/settled',
   '/rental/settled/mobile',
+]);
+const WORKBENCH_APP_ROUTE_NAMES = new Set([
+  'AccessBrand',
+  'CarAccess',
+  'ElectricMeterBrand',
+  'SmartMeterElectricReading',
+  'SmartMeterWaterReading',
+  'VisitorAccess',
+  'VisitorRegister',
+  'WaterMeterBrand',
+]);
+const WORKBENCH_APP_ROUTE_PATHS = new Set([
+  '/access/brand',
+  '/access/car',
+  '/access/visitor',
+  '/access/visitor/register',
+  '/smart-meter/electric-brand',
+  '/smart-meter/meter',
+  '/smart-meter/water',
+  '/smart-meter/water-brand',
+]);
+const MOBILE_WORKBENCH_ROUTE_TARGETS: Record<string, MobileWorkbenchTarget> = {
+  SmartMeterElectricReading: {
+    name: 'SmartMeterReadingMobile',
+    path: '/smart-meter/reading/mobile',
+  },
+  SmartMeterWaterReading: {
+    name: 'SmartMeterReadingMobile',
+    path: '/smart-meter/reading/mobile',
+  },
+  VisitorAccess: {
+    name: 'VisitorMobileList',
+    path: '/access/visitor/mobile',
+  },
+};
+const HIDDEN_WORKBENCH_COMPAT_ROUTE_NAMES = new Set([
+  'AccessBrandMobile',
+  'CarAccessMobile',
+  'ElectricMeterBrandMobile',
+  'SmartMeterReadingMobile',
+  'VisitorMobileList',
+  'WaterMeterBrandMobile',
+]);
+const HIDDEN_WORKBENCH_COMPAT_ROUTE_PATHS = new Set([
+  '/access/brand/mobile',
+  '/access/car/mobile',
+  '/access/visitor/mobile',
+  '/smart-meter/electric-brand/mobile',
+  '/smart-meter/reading/mobile',
+  '/smart-meter/water-brand/mobile',
 ]);
 const PUBLIC_INVESTMENT_WORKBENCH_ROUTE_NAMES = new Set([
   'CrmQrcodeTest',
@@ -145,12 +202,27 @@ function normalizeWorkbenchRoutePath(value: unknown) {
   return String(value || '').replace(/\/+$/, '') || '/';
 }
 
+function isMobileViewport() {
+  return typeof window !== 'undefined' && window.innerWidth < 768;
+}
+
+function isWorkbenchAppTarget(route: RouteRecordStringComponent) {
+  const routeName = String(route.name || '');
+  const routePath = normalizeWorkbenchRoutePath(route.path);
+  return (
+    WORKBENCH_APP_ROUTE_NAMES.has(routeName) ||
+    WORKBENCH_APP_ROUTE_PATHS.has(routePath)
+  );
+}
+
 function isHiddenWorkbenchApp(route: RouteRecordStringComponent) {
   const routeName = String(route.name || '');
   const routePath = normalizeWorkbenchRoutePath(route.path);
   return (
     HIDDEN_WORKBENCH_APP_ROUTE_NAMES.has(routeName) ||
-    HIDDEN_WORKBENCH_APP_ROUTE_PATHS.has(routePath)
+    HIDDEN_WORKBENCH_APP_ROUTE_PATHS.has(routePath) ||
+    HIDDEN_WORKBENCH_COMPAT_ROUTE_NAMES.has(routeName) ||
+    HIDDEN_WORKBENCH_COMPAT_ROUTE_PATHS.has(routePath)
   );
 }
 
@@ -198,7 +270,7 @@ function canShowInvestmentWorkbenchRoute(route: RouteRecordStringComponent) {
 
 function shouldIncludeAsApp(route: RouteRecordStringComponent) {
   if (hasChildren(route)) return false;
-  if (!route.meta?.isApp) return false;
+  if (!route.meta?.isApp && !isWorkbenchAppTarget(route)) return false;
   if (!route.name) return false;
   if (route.name === 'Workbench' || route.path === '/workbench') return false;
   if (isHiddenWorkbenchApp(route)) return false;
@@ -230,10 +302,20 @@ function toNavItem(
   if (!route.name) return null;
   const routeName = String(route.name);
   let title = resolveTitle(route.meta?.title, route.name);
-  if (routeName === 'InvestmentAgentMobileList') {
-    title = '客户登记';
-  } else if (routeName === ORGANIZATION_INVITATION_ROUTE_NAME) {
-    title = '生成邀请码';
+  switch (routeName) {
+    case 'InvestmentAgentMobileList': {
+      title = '客户登记';
+      break;
+    }
+    case ORGANIZATION_INVITATION_ROUTE_NAME: {
+      title = '生成邀请码';
+      break;
+    }
+    case 'SmartMeterElectricReading':
+    case 'SmartMeterWaterReading': {
+      title = '水电表抄表数据';
+      break;
+    }
   }
 
   return {
@@ -254,6 +336,21 @@ function sortByOrderAndTitle<T extends { order: number; title: string }>(
   return [...arr].sort((a, b) => {
     if (a.order !== b.order) return a.order - b.order;
     return a.title.localeCompare(b.title, 'zh-Hans-CN');
+  });
+}
+
+function getNavItemDedupKey(item: NavItem) {
+  const mobileTarget = MOBILE_WORKBENCH_ROUTE_TARGETS[item.name];
+  return mobileTarget?.name || mobileTarget?.path || item.name || item.path;
+}
+
+function dedupeNavItems(items: NavItem[]) {
+  const usedKeys = new Set<string>();
+  return items.filter((item) => {
+    const key = getNavItemDedupKey(item);
+    if (usedKeys.has(key)) return false;
+    usedKeys.add(key);
+    return true;
   });
 }
 
@@ -295,16 +392,18 @@ function buildGroups(menuRoutes: RouteRecordStringComponent[]) {
 
   return sortedSeeds
     .map<NavGroup>((seed) => {
-      const items = sortByOrderAndTitle(
-        seed.routes
-          .map((route) =>
-            toNavItem(
-              route,
-              themes[colorIndex++ % themes.length] ||
-                themes[themes.length - 1]!,
-            ),
-          )
-          .filter((item): item is NavItem => item !== null),
+      const items = dedupeNavItems(
+        sortByOrderAndTitle(
+          seed.routes
+            .map((route) =>
+              toNavItem(
+                route,
+                themes[colorIndex++ % themes.length] ||
+                  themes[themes.length - 1]!,
+              ),
+            )
+            .filter((item): item is NavItem => item !== null),
+        ),
       );
 
       return {
@@ -355,15 +454,26 @@ watch(
   { deep: true, immediate: true },
 );
 
-function handleItemClick(item: NavItem) {
-  if (item.name) {
-    void router.push({ name: item.name }).catch(() => {
-      if (item.path) void router.push(item.path);
-    });
-    return;
+function resolveItemTarget(item: NavItem) {
+  const mobileTarget = MOBILE_WORKBENCH_ROUTE_TARGETS[item.name];
+  if (isMobileViewport() && mobileTarget) {
+    if (mobileTarget.name && router.hasRoute(mobileTarget.name)) {
+      return { name: mobileTarget.name };
+    }
+    return mobileTarget.path;
   }
 
-  if (item.path) void router.push(item.path);
+  if (item.name) return { name: item.name };
+  return item.path;
+}
+
+function handleItemClick(item: NavItem) {
+  const target = resolveItemTarget(item);
+  if (!target) return;
+
+  void router.push(target).catch(() => {
+    if (item.path) void router.push(item.path);
+  });
 }
 </script>
 

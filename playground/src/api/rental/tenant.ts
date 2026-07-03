@@ -73,6 +73,10 @@ export async function deleteTenant(id: number) {
   return requestClient.delete(`/rental/tenant/${id}`);
 }
 
+export async function clearTenants(params?: any) {
+  return requestClient.post('/rental/tenant/clear', params);
+}
+
 // 获取租户短信信息
 export async function getTenantSmsInfo(id: number) {
   return requestClient.get(`/rental/tenant/${id}/sms-info`);

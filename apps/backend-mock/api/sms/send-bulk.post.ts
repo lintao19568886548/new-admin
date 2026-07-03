@@ -16,6 +16,7 @@ export default eventHandler(async (event) => {
     // 2. 合同截止日期少于90天 或 下次递增时间少于30天
     const tenants = await prismaClient.rentalTenant.findMany({
       where: {
+        isDeleted: false,
         // 仅收入合同允许发送
         transactionType: true,
         // 合同还未到期（生效中）

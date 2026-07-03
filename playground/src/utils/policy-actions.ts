@@ -1,5 +1,6 @@
 const OPEN_PRIVACY_POLICY_EVENT = 'open-privacy-policy';
 const OPEN_SERVICE_AGREEMENT_EVENT = 'open-service-agreement';
+const PRIVACY_POLICY_AGREED_KEY = 'PRIVACY_POLICY_AGREED_V1';
 
 function dispatchPolicyEvent(eventName: string) {
   if (typeof window === 'undefined') {
@@ -17,4 +18,8 @@ export function openServiceAgreementDialog() {
   dispatchPolicyEvent(OPEN_SERVICE_AGREEMENT_EVENT);
 }
 
-export { OPEN_PRIVACY_POLICY_EVENT, OPEN_SERVICE_AGREEMENT_EVENT };
+export {
+  OPEN_PRIVACY_POLICY_EVENT,
+  OPEN_SERVICE_AGREEMENT_EVENT,
+  PRIVACY_POLICY_AGREED_KEY,
+};

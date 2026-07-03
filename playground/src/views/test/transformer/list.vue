@@ -1,8 +1,7 @@
 <script lang="ts" setup>
 import type { TransformerItem } from './types';
 
-import { h, ref } from 'vue';
-import VuePdfEmbed from 'vue-pdf-embed';
+import { defineAsyncComponent, h, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -23,6 +22,8 @@ import { useCrud } from '#/hooks/useCrud';
 import { $t } from '#/locales';
 
 import { useColumns, useFormSchema, useGridFormSchema } from './data';
+
+const VuePdfEmbed = defineAsyncComponent(() => import('vue-pdf-embed'));
 
 // 当前选中的区域
 const currentPark = ref();

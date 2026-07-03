@@ -34,6 +34,7 @@ import {
   getAttendanceConfig,
   getAttendanceDeviceAbnormalList,
   getAttendanceDeviceStatus,
+  getAttendanceLocationConfirmationStatus,
   getOfficeLocations,
   getTodayRecord,
   punchIn,
@@ -53,6 +54,12 @@ interface OfficeLocation {
   lng: number;
   name: string;
   radius: number;
+}
+
+interface PunchContext {
+  confirmDeviceAbnormal: boolean;
+  confirmOutsideRange: boolean;
+  punchTime: string;
 }
 
 // ================================= 考勤状态 =================================
@@ -671,14 +678,25 @@ const confirmDeviceDecision = async (decision: AttendanceDeviceDecision) => {
   return confirmDeviceAbnormalDecision(decision);
 };
 
-const resolveDevicePunchOptions = async () => {
+const resolveDevicePunchOptions = async (context: PunchContext) => {
   const device = await getCurrentDeviceInfo();
-  const decision = await getAttendanceDeviceStatus({ device });
+  const decision = await getAttendanceDeviceStatus({
+    device,
+    punchTime: context.punchTime,
+  });
 
   if (decision.status === 'normal') {
     return {
-      allowDeviceAbnormal: false,
       bindCurrentDevice: false,
+      confirmDeviceAbnormal: false,
+      device,
+    };
+  }
+
+  if (decision.status === 'abnormal' && decision.confirmedToday) {
+    return {
+      bindCurrentDevice: false,
+      confirmDeviceAbnormal: false,
       device,
     };
   }
@@ -689,8 +707,8 @@ const resolveDevicePunchOptions = async () => {
   }
 
   return {
-    allowDeviceAbnormal: decision.status === 'abnormal',
     bindCurrentDevice: decision.status === 'bind_required',
+    confirmDeviceAbnormal: decision.status === 'abnormal',
     device,
   };
 };
@@ -1175,14 +1193,21 @@ const updateMapMarkers = (point: any) => {
   map.centerAndZoom(baiduPoint, 17);
 };
 
-const getPunchPayload = () => ({
-  allowOutsideRange: !isInRange.value,
-  latitude: latitude.value,
-  longitude: longitude.value,
+const createPunchContext = (): PunchContext => ({
+  confirmDeviceAbnormal: false,
+  confirmOutsideRange: false,
   punchTime: dayjs().toISOString(),
 });
 
-const ensurePunchLocation = async () => {
+const getPunchPayload = (context: PunchContext) => ({
+  confirmDeviceAbnormal: context.confirmDeviceAbnormal,
+  confirmOutsideRange: context.confirmOutsideRange,
+  latitude: latitude.value,
+  longitude: longitude.value,
+  punchTime: context.punchTime,
+});
+
+const ensurePunchLocation = async (context: PunchContext) => {
   try {
     await locateOnce();
   } catch (error: any) {
@@ -1196,8 +1221,23 @@ const ensurePunchLocation = async () => {
   }
 
   if (!isInRange.value) {
+    try {
+      const confirmationStatus = await getAttendanceLocationConfirmationStatus({
+        latitude: latitude.value,
+        longitude: longitude.value,
+        punchTime: context.punchTime,
+      });
+      if (confirmationStatus.confirmedToday) {
+        context.confirmOutsideRange = false;
+        return true;
+      }
+    } catch (error) {
+      console.error('查询地点异常确认状态失败:', error);
+    }
+
     const ok = await confirmOutsideRange();
     if (!ok) return false;
+    context.confirmOutsideRange = true;
   }
 
   return true;
@@ -1206,16 +1246,18 @@ const ensurePunchLocation = async () => {
 // 上班打卡
 const handlePunchIn = async () => {
   if (punchLoading.value) return;
-  const locationReady = await ensurePunchLocation();
+  const punchContext = createPunchContext();
+  const locationReady = await ensurePunchLocation(punchContext);
   if (!locationReady) return;
 
-  const deviceOptions = await resolveDevicePunchOptions();
+  const deviceOptions = await resolveDevicePunchOptions(punchContext);
   if (!deviceOptions) return;
+  punchContext.confirmDeviceAbnormal = deviceOptions.confirmDeviceAbnormal;
 
   punchLoading.value = true;
   try {
     await punchIn({
-      ...getPunchPayload(),
+      ...getPunchPayload(punchContext),
       ...deviceOptions,
     });
     await loadTodayRecord();
@@ -1237,19 +1279,21 @@ const handlePunchOut = async () => {
   }
 
   if (punchLoading.value) return;
-  const locationReady = await ensurePunchLocation();
+  const punchContext = createPunchContext();
+  const locationReady = await ensurePunchLocation(punchContext);
   if (!locationReady) return;
 
   const okEarlyLeave = await confirmEarlyLeave();
   if (!okEarlyLeave) return;
 
-  const deviceOptions = await resolveDevicePunchOptions();
+  const deviceOptions = await resolveDevicePunchOptions(punchContext);
   if (!deviceOptions) return;
+  punchContext.confirmDeviceAbnormal = deviceOptions.confirmDeviceAbnormal;
 
   punchLoading.value = true;
   try {
     await punchOut(todayRecord.value.attendanceId, {
-      ...getPunchPayload(),
+      ...getPunchPayload(punchContext),
       ...deviceOptions,
     });
     await loadTodayRecord();

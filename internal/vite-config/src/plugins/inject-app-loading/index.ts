@@ -26,17 +26,63 @@ async function viteInjectAppLoadingPlugin(
   const injectScript = `
   <script data-app-loading="inject-js">
   var theme = localStorage.getItem(${cacheName});
-  document.documentElement.classList.toggle('dark', /dark/.test(theme));
+  var userAgent = navigator.userAgent || '';
+  var platform = navigator.platform || '';
+  var maxTouchPoints = navigator.maxTouchPoints || 0;
+  var isIOS = /iPad|iPhone|iPod/.test(userAgent) || (platform === 'MacIntel' && maxTouchPoints > 1);
+  var isWechat = /MicroMessenger/i.test(userAgent);
+  var isNativeWebView = /wv|Version\\/\\d+\\.\\d+.*Mobile.*Safari/i.test(userAgent);
+  var connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  var effectiveType = connection && connection.effectiveType;
+  var isSlowNetwork = /(^2g$|slow-2g|3g)/i.test(effectiveType || '');
+  var rootClassList = document.documentElement.classList;
+  rootClassList.toggle('dark', /dark/.test(theme));
+  rootClassList.toggle('is-ios', isIOS);
+  rootClassList.toggle('is-wechat-webview', isWechat);
+  rootClassList.toggle('is-native-webview', isNativeWebView);
+  rootClassList.toggle('is-slow-network', isSlowNetwork);
+  rootClassList.toggle('is-offline', navigator.onLine === false);
+  window.__vbenReloadApp = function() {
+    try {
+      var url = new URL(window.location.href);
+      url.searchParams.set('__vben_refresh', String(Date.now()));
+      window.location.replace(url.toString());
+    } catch (error) {
+      window.location.reload();
+    }
+  };
+  function updateOnlineState() {
+    rootClassList.toggle('is-offline', navigator.onLine === false);
+    var loading = document.getElementById('__app-loading__');
+    if (loading) {
+      loading.classList.toggle('offline', navigator.onLine === false);
+    }
+  }
+  window.addEventListener('online', updateOnlineState);
+  window.addEventListener('offline', updateOnlineState);
+  var slowDelay = isIOS || isWechat || isSlowNetwork ? 4500 : 8000;
+  var stalledDelay = isIOS || isWechat || isSlowNetwork ? 12000 : 18000;
   window.__vbenAppLoadingTimer__ = window.setTimeout(function() {
     var loading = document.getElementById('__app-loading__');
     if (loading) {
       loading.classList.add('slow');
     }
-  }, 8000);
+  }, slowDelay);
+  window.__vbenAppLoadingStalledTimer__ = window.setTimeout(function() {
+    var loading = document.getElementById('__app-loading__');
+    if (loading) {
+      loading.classList.add('slow');
+      loading.classList.add('stalled');
+    }
+  }, stalledDelay);
   window.__vbenClearAppLoadingTimeout__ = function() {
     if (window.__vbenAppLoadingTimer__) {
       window.clearTimeout(window.__vbenAppLoadingTimer__);
       window.__vbenAppLoadingTimer__ = null;
+    }
+    if (window.__vbenAppLoadingStalledTimer__) {
+      window.clearTimeout(window.__vbenAppLoadingStalledTimer__);
+      window.__vbenAppLoadingStalledTimer__ = null;
     }
   };
 </script>

@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import { getMethod, getQuery, readBody } from 'h3';
+import { getDeviceAbnormalConfirmationStatus } from '~/utils/attendance-abnormal-confirmation';
 import {
   getAttendanceDeviceStatus,
   listAttendanceDeviceAbnormalLogs,
@@ -68,10 +69,12 @@ export default eventHandler(async (event) => {
       const {
         action = 'status',
         device,
+        punchTime,
         smsCode,
       } = (await readBody(event)) as {
         action?: AttendanceDeviceAction;
         device?: unknown;
+        punchTime?: string;
         smsCode?: string;
       };
       const phoneNumber = await resolveCurrentUserBoundPhone(userinfo.id);
@@ -146,11 +149,24 @@ export default eventHandler(async (event) => {
         Exclude<AttendanceDeviceAction, 'change' | 'send_change_code'>,
         () => Promise<unknown>
       > = {
-        status: () =>
-          getAttendanceDeviceStatus({
+        status: async () => {
+          const decision = await getAttendanceDeviceStatus({
             deviceInput: device,
             user: userinfo,
-          }),
+          });
+          if (decision.status !== 'abnormal') {
+            return decision;
+          }
+
+          return {
+            ...decision,
+            ...(await getDeviceAbnormalConfirmationStatus({
+              decision,
+              punchTime,
+              userId: userinfo.id,
+            })),
+          };
+        },
       };
       const handler = actionMap[action];
       if (!handler) {

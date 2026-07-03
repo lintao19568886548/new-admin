@@ -101,7 +101,13 @@ export type ComponentType =
   | 'Upload'
   | BaseFormComponentType;
 
+let componentAdapterInited = false;
+
 async function initComponentAdapter() {
+  if (componentAdapterInited) {
+    return;
+  }
+
   const components: Partial<Record<ComponentType, Component>> = {
     // 如果你的组件体积比较大，可以使用异步加载
     // Button: () =>
@@ -227,6 +233,8 @@ async function initComponentAdapter() {
       });
     },
   });
+
+  componentAdapterInited = true;
 }
 
 export { initComponentAdapter };

@@ -33,7 +33,19 @@ interface MobileRouteTarget {
 // Only list routes whose mobile experience lives on a separate route.
 // Routes with responsive App adaptation in the same component must stay out.
 const MOBILE_ROUTE_TARGETS_BY_NAME = {
+  AccessBrand: {
+    path: '/access/brand/mobile',
+    targetNames: ['AccessBrandMobile'],
+  },
   Bill: { path: '/bill/mobile-list', targetNames: ['BillMobileList'] },
+  CarAccess: {
+    path: '/access/car/mobile',
+    targetNames: ['CarAccessMobile'],
+  },
+  ElectricMeterBrand: {
+    path: '/smart-meter/electric-brand/mobile',
+    targetNames: ['ElectricMeterBrandMobile'],
+  },
   Elevator: {
     path: '/maintenance/elevator/mobile',
     targetNames: ['ElevatorMobile'],
@@ -155,12 +167,18 @@ const MOBILE_ROUTE_TARGETS_BY_NAME = {
     path: '/smart-meter/reading/mobile',
     targetNames: ['SmartMeterReadingMobile'],
   },
+  WaterMeterBrand: {
+    path: '/smart-meter/water-brand/mobile',
+    targetNames: ['WaterMeterBrandMobile'],
+  },
   Workspace: { path: '/workbench', targetNames: ['Workbench'] },
 } satisfies Record<string, MobileRouteTarget>;
 
 type MobileRouteTargetName = keyof typeof MOBILE_ROUTE_TARGETS_BY_NAME;
 
 const MOBILE_ROUTE_TARGETS_BY_PATH: Record<string, MobileRouteTarget> = {
+  '/access/brand': MOBILE_ROUTE_TARGETS_BY_NAME.AccessBrand,
+  '/access/car': MOBILE_ROUTE_TARGETS_BY_NAME.CarAccess,
   '/access/visitor': MOBILE_ROUTE_TARGETS_BY_NAME.VisitorAccess,
   '/bill': MOBILE_ROUTE_TARGETS_BY_NAME.Bill,
   '/finance/manage': MOBILE_ROUTE_TARGETS_BY_NAME.FinanceManage,
@@ -198,8 +216,11 @@ const MOBILE_ROUTE_TARGETS_BY_PATH: Record<string, MobileRouteTarget> = {
   '/rental/settled': MOBILE_ROUTE_TARGETS_BY_NAME.SettledFactory,
   '/rental/tenant': MOBILE_ROUTE_TARGETS_BY_NAME.TenantManage,
   '/rental/water': MOBILE_ROUTE_TARGETS_BY_NAME.WaterList,
+  '/smart-meter/electric-brand':
+    MOBILE_ROUTE_TARGETS_BY_NAME.ElectricMeterBrand,
   '/smart-meter/meter': MOBILE_ROUTE_TARGETS_BY_NAME.SmartMeterElectricReading,
   '/smart-meter/water': MOBILE_ROUTE_TARGETS_BY_NAME.SmartMeterWaterReading,
+  '/smart-meter/water-brand': MOBILE_ROUTE_TARGETS_BY_NAME.WaterMeterBrand,
   '/system/park': MOBILE_ROUTE_TARGETS_BY_NAME.SystemPark,
   '/workspace': MOBILE_ROUTE_TARGETS_BY_NAME.Workspace,
   '/investment/radar-factory-listings':

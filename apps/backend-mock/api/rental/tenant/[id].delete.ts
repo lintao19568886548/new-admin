@@ -13,22 +13,21 @@ export default eventHandler(async (event) => {
 
   try {
     const result = await prismaClient.$transaction(async (tx) => {
-      await tx.tenantImage.deleteMany({
-        where: {
-          rentalTenantId,
-        },
-      });
       await tx.salary.updateMany({
         where: {
           rentalTenantId,
+          isDeleted: false,
         },
         data: {
           isDeleted: true,
         },
       });
-      await tx.rentalTenant.delete({
+      return tx.rentalTenant.update({
         where: {
           rentalTenantId,
+        },
+        data: {
+          isDeleted: true,
         },
       });
     });

@@ -112,15 +112,12 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
 function createManualChunks(id: string) {
   const normalizedId = id.replaceAll('\\', '/');
 
-  if (normalizedId.includes('/node_modules/@univerjs/')) {
-    if (normalizedId.includes('/locales/')) {
-      return 'vendor-univer-locales';
-    }
-    return 'vendor-univer';
+  if (normalizedId.includes('/node_modules/@vueuse/head/')) {
+    return 'vendor-vueuse-head';
   }
 
-  if (normalizedId.includes('/node_modules/exceljs/')) {
-    return 'vendor-exceljs';
+  if (normalizedId.includes('/node_modules/@vben/plugins/')) {
+    return 'vendor-vben-plugins';
   }
 
   if (normalizedId.includes('/node_modules/html2canvas/')) {
@@ -134,19 +131,20 @@ function createManualChunks(id: string) {
   if (normalizedId.includes('/node_modules/echarts/')) {
     return 'vendor-echarts';
   }
-
-  if (normalizedId.includes('/node_modules/vxe-table/')) {
-    return 'vendor-vxe-table';
-  }
 }
 
 const LAZY_INITIAL_PRELOAD_PATTERNS = [
+  'vendor-capacitor-',
   'vendor-echarts-',
   'vendor-exceljs-',
   'vendor-html2canvas-',
+  'vendor-ionic-',
   'vendor-jspdf-',
   'vendor-univer-',
   'vendor-univer-locales-',
+  'vendor-vben-plugins-',
+  'vendor-vue-query-',
+  'vendor-vueuse-head-',
   'vendor-vxe-table-',
 ] as const;
 

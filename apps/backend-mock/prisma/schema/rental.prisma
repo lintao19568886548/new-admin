@@ -44,3 +44,21 @@ model Salary {
   @@index([rentalTenantId])
   @@map("salary")
 }
+
+/// 临时恢复快照表，保留数据库数据但不纳入 Prisma Client 和业务模型
+model RestoreRentalTenantSnapshot202607020942 {
+  rentalTenantId Int      @id @map("rental_tenant_id")
+  capturedAt     DateTime @default(now()) @map("captured_at")
+
+  @@ignore
+  @@map("restore_rental_tenant_snapshot_20260702_0942")
+}
+
+/// 临时恢复快照表，保留数据库数据但不纳入 Prisma Client 和业务模型
+model RestoreSalarySnapshot202607020942 {
+  salaryId   Int      @id @map("salary_id")
+  capturedAt DateTime @default(now()) @map("captured_at")
+
+  @@ignore
+  @@map("restore_salary_snapshot_20260702_0942")
+}

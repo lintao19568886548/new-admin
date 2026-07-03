@@ -126,7 +126,11 @@ export default eventHandler(async (event) => {
         createTime: 'desc',
       },
       include: {
-        rentalTenants: true,
+        rentalTenants: {
+          where: {
+            isDeleted: false,
+          },
+        },
       },
     });
 

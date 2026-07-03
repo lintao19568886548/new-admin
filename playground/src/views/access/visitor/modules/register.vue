@@ -1,405 +1,266 @@
 <script lang="ts" setup>
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
+import { Button, Form, Input, message, Select, Textarea } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { createVisitor } from '#/api/access/visitor';
+import { getParkList } from '#/api/park';
 
 const route = useRoute();
-const query = route.query;
-// 表单数据
+
+const statusOptions = [
+  { label: '进入', value: 0 },
+  { label: '离开', value: 1 },
+];
+
 const formData = reactive({
   carNum: '',
-  parkId: 1,
+  parkId: undefined as number | undefined,
   phoneNumber: '',
-  registerTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
   remark: '',
-  status: '进入',
+  status: 0,
   visitorName: '',
 });
 
-// 园区列表
-
-// 在组件挂载时获取园区列表
-onMounted(() => {
-  document.title = '访客登记';
-});
-
-// 删除或注释掉未使用的 rules 变量
-// const rules = {
-//   phoneNumber: [
-//     { message: '请输入手机号', required: true, trigger: 'blur' },
-//     {
-//       message: '请输入正确的手机号码',
-//       pattern: /^1[3-9]\d{9}$/,
-//       trigger: 'blur',
-//     },
-//   ],
-//   status: [{ message: '请选择访问状态', required: true, trigger: 'change' }],
-//   visitorName: [
-//     { message: '请输入姓名', required: true, trigger: 'blur' },
-//     { max: 20, message: '姓名长度应为2-20个字符', min: 2, trigger: 'blur' },
-//   ],
-// };
-
-// 提交状态
+const parkOptions = ref<{ label: string; value: number }[]>([]);
 const submitting = ref(false);
-// 提交结果消息
-const resultMessage = ref('');
-// 提交结果类型（success/error）
-const resultType = ref('');
-// 是否显示结果消息
-const showResult = ref(false);
 
-// 提交表单
-async function handleSubmit() {
-  // 表单验证
-  if (!formData.visitorName) {
-    showMessage('请输入姓名', 'error');
-    return;
-  }
+const submitText = computed(() =>
+  submitting.value ? '提交中...' : '提交登记',
+);
 
-  if (!formData.phoneNumber || !/^1[3-9]\d{9}$/.test(formData.phoneNumber)) {
-    showMessage('请输入正确的手机号码', 'error');
-    return;
-  }
+function getQueryParkId() {
+  const raw = Array.isArray(route.query.id)
+    ? route.query.id[0]
+    : route.query.id;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
 
-  if (!formData.status) {
-    showMessage('请选择访问状态', 'error');
-    return;
-  }
-
-  submitting.value = true;
-
-  // 准备提交数据
-  const submitData = { ...formData } as {
-    [key: string]: any;
-  };
-
-  submitData.parkId = Number(query.id);
-
-  // 处理状态值，将字符串转换为数字
-  const statusMap = {
-    离开: 1,
-    进入: 0,
-  };
-  submitData.status =
-    statusMap[submitData.status as keyof typeof statusMap] ?? submitData.status;
-
+async function fetchParkOptions() {
   try {
-    await createVisitor(submitData);
-    showMessage('访客登记成功', 'success');
-    resetForm();
+    const response = await getParkList();
+    const parks = Array.isArray(response)
+      ? response
+      : (response as any)?.items || (response as any)?.data?.items || [];
+    parkOptions.value = parks.map((park: any) => ({
+      label: park.parkName,
+      value: park.parkId,
+    }));
+
+    const queryParkId = getQueryParkId();
+    if (queryParkId) {
+      formData.parkId = queryParkId;
+    } else if (parkOptions.value.length === 1) {
+      formData.parkId = parkOptions.value[0]?.value;
+    }
   } catch (error) {
-    console.error('提交错误:', error);
-    showMessage('提交失败，请检查网络连接', 'error');
-  } finally {
-    submitting.value = false;
+    console.error('获取园区列表失败:', error);
+    message.error('获取园区列表失败');
   }
 }
 
-// 重置表单
+function validateForm() {
+  if (!formData.parkId) {
+    message.warning('请选择园区');
+    return false;
+  }
+  if (!formData.visitorName.trim()) {
+    message.warning('请输入姓名');
+    return false;
+  }
+  if (!/^1[3-9]\d{9}$/.test(formData.phoneNumber.trim())) {
+    message.warning('请输入正确的手机号码');
+    return false;
+  }
+  if (!formData.remark.trim()) {
+    message.warning('请输入来访原因');
+    return false;
+  }
+  return true;
+}
+
 function resetForm() {
   formData.visitorName = '';
   formData.phoneNumber = '';
   formData.carNum = '';
   formData.remark = '';
-  formData.status = '进入';
-  formData.registerTime = dayjs().format('YYYY-MM-DD HH:mm:ss');
+  formData.status = 0;
 }
 
-// 显示消息
-function showMessage(text: string, type: string) {
-  resultMessage.value = text;
-  resultType.value = type;
-  showResult.value = true;
+async function handleSubmit() {
+  if (!validateForm()) return;
 
-  // 3秒后自动关闭消息
-  setTimeout(() => {
-    showResult.value = false;
-  }, 3000);
+  submitting.value = true;
+  try {
+    await createVisitor({
+      carNum: formData.carNum.trim(),
+      parkId: formData.parkId,
+      phoneNumber: formData.phoneNumber.trim(),
+      registerTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+      remark: formData.remark.trim(),
+      status: formData.status,
+      visitorName: formData.visitorName.trim(),
+    });
+    message.success('访客登记成功');
+    resetForm();
+  } catch (error) {
+    console.error('访客登记失败:', error);
+    message.error('提交失败，请检查网络连接');
+  } finally {
+    submitting.value = false;
+  }
 }
 
-// 关闭消息
-function closeMessage() {
-  showResult.value = false;
-}
+onMounted(() => {
+  document.title = '访客登记';
+  void fetchParkOptions();
+});
 </script>
 
 <template>
-  <div class="container">
-    <h2>访客登记表</h2>
-    <form @submit.prevent="handleSubmit" id="visitorForm">
-      <div class="form-group">
-        <label for="name">姓名：</label>
-        <input
-          type="text"
-          id="name"
-          v-model="formData.visitorName"
-          required
-          autocomplete="name"
-        />
-      </div>
+  <div class="visitor-register-page">
+    <section class="register-panel">
+      <div class="page-title">访客登记</div>
+      <div class="page-subtitle">请填写来访信息，提交后自动记录到访客管理</div>
 
-      <div class="form-group">
-        <label for="reason">来访原因：</label>
-        <input type="text" id="reason" v-model="formData.remark" required />
-      </div>
+      <Form layout="vertical" :model="formData" class="register-form">
+        <Form.Item label="园区" required>
+          <Select
+            v-model:value="formData.parkId"
+            :options="parkOptions"
+            placeholder="请选择园区"
+            allow-clear
+          />
+        </Form.Item>
+        <Form.Item label="姓名" required>
+          <Input
+            v-model:value="formData.visitorName"
+            autocomplete="name"
+            placeholder="请输入姓名"
+            allow-clear
+          />
+        </Form.Item>
+        <Form.Item label="手机号" required>
+          <Input
+            v-model:value="formData.phoneNumber"
+            autocomplete="tel"
+            inputmode="numeric"
+            :maxlength="11"
+            placeholder="请输入手机号"
+            allow-clear
+          />
+        </Form.Item>
+        <Form.Item label="车牌号">
+          <Input
+            v-model:value="formData.carNum"
+            placeholder="例：粤A12345"
+            allow-clear
+          />
+        </Form.Item>
+        <Form.Item label="访问状态">
+          <Select
+            v-model:value="formData.status"
+            :options="statusOptions"
+            placeholder="请选择访问状态"
+          />
+        </Form.Item>
+        <Form.Item label="来访原因" required>
+          <Textarea
+            v-model:value="formData.remark"
+            placeholder="请输入来访原因"
+            :rows="4"
+            :maxlength="100"
+            show-count
+          />
+        </Form.Item>
+      </Form>
+    </section>
 
-      <!-- <div class="form-group">
-        <label for="status">访问状态：</label>
-        <select id="status" v-model="formData.status" required>
-          <option value="">请选择</option>
-          <option value="离开">离开</option>
-          <option value="进入">进入</option>
-        </select>
-      </div> -->
-
-      <!-- <div class="form-group">
-        <label for="parkId">园区：</label>
-        <select id="parkId" v-model="formData.parkId" required>
-          <option
-            v-for="park in parkList"
-            :key="park.parkId"
-            :value="park.parkId"
-          >
-            {{ park.parkName }}
-          </option>
-        </select>
-      </div> -->
-
-      <div class="form-group">
-        <label for="plate">车牌号：</label>
-        <input
-          type="text"
-          id="plate"
-          v-model="formData.carNum"
-          placeholder="例：京A12345"
-        />
-      </div>
-
-      <div class="form-group">
-        <label for="phone">手机号：</label>
-        <input
-          type="tel"
-          id="phone"
-          v-model="formData.phoneNumber"
-          pattern="[0-9]{11}"
-          required
-          inputmode="numeric"
-          autocomplete="tel"
-        />
-      </div>
-
-      <button type="submit" :disabled="submitting">
-        {{ submitting ? '提交中...' : '提交登记' }}
-      </button>
-    </form>
-
-    <!-- 结果消息模态框 -->
-    <div class="modal-overlay" v-if="showResult">
-      <div class="modal-content">
-        <div class="message" :class="resultType">
-          {{ resultMessage }}
-        </div>
-        <button @click="closeMessage" :class="resultType">关闭</button>
-      </div>
+    <div class="submit-bar">
+      <Button class="flex-1" @click="resetForm">重置</Button>
+      <Button
+        type="primary"
+        class="flex-1"
+        :loading="submitting"
+        @click="handleSubmit"
+      >
+        {{ submitText }}
+      </Button>
     </div>
   </div>
 </template>
 
 <style scoped>
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (max-width: 480px) {
-  .container {
-    padding: 20px;
-    border-radius: 12px;
-  }
-
-  h2 {
-    margin-bottom: 25px;
-    font-size: 1.6rem;
-  }
-
-  input,
-  select,
-  button {
-    padding: 12px;
-    font-size: 16px;
-  }
-
-  .form-group {
-    margin-bottom: 20px;
-  }
-}
-
-* {
+.visitor-register-page {
   box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+  min-height: 100%;
+  padding: 12px;
+  padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  background-color: #f0f2f5;
 }
 
-.container {
-  max-width: 600px;
-  padding: 30px;
-  margin: 0 auto;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgb(0 0 0 / 10%);
-  animation: fade-in 0.5s ease-out;
+.dark .visitor-register-page {
+  background-color: #1a1a1a;
 }
 
-h2 {
-  position: relative;
-  padding-bottom: 10px;
-  margin-bottom: 30px;
-  font-size: 2rem;
-  color: #2c3e50;
-  text-align: center;
-}
-
-h2::after {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  width: 60px;
-  height: 3px;
-  content: '';
-  background: linear-gradient(90deg, #4caf50, #45a049);
-  border-radius: 2px;
-  transform: translateX(-50%);
-}
-
-.form-group {
-  margin-bottom: 25px;
-}
-
-label {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: #2c3e50;
-}
-
-input,
-select {
-  width: 100%;
-  padding: 12px 15px;
-  font-size: 16px;
-  background-color: #f8f9fa;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
-
-input:focus,
-select:focus {
+.register-panel {
+  padding: 16px 12px;
   background-color: #fff;
-  border-color: #4caf50;
-  outline: none;
-  box-shadow: 0 0 0 3px rgb(76 175 80 / 20%);
-}
-
-input::placeholder {
-  color: #adb5bd;
-}
-
-button {
-  position: relative;
-  width: 100%;
-  padding: 14px;
-  overflow: hidden;
-  font-size: 16px;
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  background: linear-gradient(45deg, #4caf50, #45a049);
-  border: none;
   border-radius: 8px;
-  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
 }
 
-button:hover {
-  box-shadow: 0 5px 15px rgb(76 175 80 / 30%);
-  transform: translateY(-2px);
+.dark .register-panel {
+  background-color: #2d2d2d;
 }
 
-button:active {
-  transform: translateY(0);
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
 }
 
-button:disabled {
-  cursor: not-allowed;
-  background: #ccc;
+.dark .page-title {
+  color: #f9fafb;
 }
 
-/* 模态框样式 */
-.modal-overlay {
+.page-subtitle {
+  margin-top: 4px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.dark .page-subtitle {
+  color: #9ca3af;
+}
+
+.register-form :deep(.ant-form-item) {
+  margin-bottom: 14px;
+}
+
+.submit-bar {
   position: fixed;
-  top: 0;
+  right: 0;
+  bottom: 0;
   left: 0;
-  z-index: 1000;
+  z-index: 30;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  background-color: rgb(0 0 0 / 50%);
-}
-
-.modal-content {
-  position: relative;
-  width: 90%;
-  max-width: 400px;
-  padding: 20px;
+  gap: 10px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
   background-color: #fff;
-  border-radius: 5px;
-  box-shadow: 0 2px 10px rgb(0 0 0 / 20%);
+  border-top: 1px solid #eef0f3;
 }
 
-.message {
-  margin-bottom: 15px;
-  font-size: 16px;
-  text-align: center;
+.dark .submit-bar {
+  background-color: #1f2937;
+  border-top-color: #374151;
 }
 
-.message.success {
-  color: #4caf50;
-}
-
-.message.error {
-  color: #f44;
-}
-
-.modal-content button {
-  display: block;
-  width: auto;
-  padding: 8px 16px;
-  margin: 0 auto;
-  color: white;
-  cursor: pointer;
-  border: none;
-  border-radius: 4px;
-}
-
-.modal-content button.success {
-  background-color: #4caf50;
-}
-
-.modal-content button.error {
-  background-color: #f44;
+.flex-1 {
+  flex: 1;
 }
 </style>

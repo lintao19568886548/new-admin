@@ -13,9 +13,10 @@ export default eventHandler(async (event) => {
   }
 
   try {
-    const tenant = await prismaClient.rentalTenant.findUnique({
+    const tenant = await prismaClient.rentalTenant.findFirst({
       where: {
         rentalTenantId,
+        isDeleted: false,
       },
       select: {
         tenantName: true,

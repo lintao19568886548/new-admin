@@ -12,14 +12,14 @@ import { defineStore } from 'pinia';
 
 import {
   getAccessCodesApi,
-  getUserInfoApi,
   loginApi,
   loginBySmsCodeApi,
   logoutApi,
-} from '#/api';
+} from '#/api/core/auth';
+import { getUserInfoApi } from '#/api/core/user';
 import { $t } from '#/locales';
 import { resolveUserHomePath } from '#/router/home-path';
-import { accessRoutes, routes } from '#/router/routes';
+import { loadAccessRoutes, routes } from '#/router/routes';
 import { useMenuStore } from '#/store/menu';
 import {
   clearMembershipAccessWatch,
@@ -130,6 +130,7 @@ export const useAuthStore = defineStore('auth', () => {
     userInfo: UserInfo;
   }) {
     const { generateAccess } = await import('#/router/access');
+    const accessRoutes = await loadAccessRoutes();
     const userRoles = params.userInfo.roles ?? [];
     const { accessibleMenus, accessibleRoutes } = await generateAccess({
       roles: userRoles,

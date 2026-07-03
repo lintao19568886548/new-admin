@@ -17,6 +17,22 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./authentication": {
+      "types": "./src/ui/authentication/index.ts",
+      "default": "./src/ui/authentication/index.ts"
+    },
+    "./captcha": {
+      "types": "./src/components/captcha/index.ts",
+      "default": "./src/components/captcha/index.ts"
+    },
+    "./form": {
+      "types": "./src/form.ts",
+      "default": "./src/form.ts"
+    },
+    "./shadcn": {
+      "types": "./src/shadcn.ts",
+      "default": "./src/shadcn.ts"
     }
   },
   "dependencies": {

@@ -1,25 +1,27 @@
 <script lang="ts" setup>
-import type { VbenFormSchema } from '@vben/common-ui';
+import type { VbenFormSchema } from '@vben/common-ui/form';
 import type { Recordable } from '@vben/types';
 
 import { computed, markRaw, ref, useTemplateRef } from 'vue';
 
-import { AuthenticationCodeLogin, z } from '@vben/common-ui';
+import { AuthenticationCodeLogin } from '@vben/common-ui/authentication';
+import { z } from '@vben/common-ui/form';
 import { $t } from '@vben/locales';
 
-import { message } from 'ant-design-vue';
-
-import { sendLoginSmsCodeApi } from '#/api';
 import SmsCodePinInput from '#/components/SmsCodePinInput.vue';
-import { useAuthStore } from '#/store';
+import { preloadWhenIdle } from '#/utils/deferred-preload';
+import { destroyAntdMessage, showAntdMessage } from '#/utils/lazy-antd-message';
 
 defineOptions({ name: 'CodeLogin' });
 
 const sendCodeLoading = ref(false);
+const loginLoading = ref(false);
 const CODE_LENGTH = 6;
-const authStore = useAuthStore();
 const loginRef =
   useTemplateRef<InstanceType<typeof AuthenticationCodeLogin>>('loginRef');
+
+preloadWhenIdle(() => import('#/api/core/auth'));
+preloadWhenIdle(() => import('#/store/auth'), { delay: 2200 });
 
 function resolveErrorMessage(error: unknown) {
   if (
@@ -48,14 +50,15 @@ function isHttpError(error: unknown) {
 
 async function sendCodeApi(phoneNumber: string) {
   const messageKey = 'sending-code';
-  message.loading({
+  await showAntdMessage('loading', {
     content: $t('page.auth.sendingCode'),
     duration: 0,
     key: messageKey,
   });
   try {
+    const { sendLoginSmsCodeApi } = await import('#/api/core/auth');
     const response = await sendLoginSmsCodeApi({ phoneNumber });
-    message.success({
+    await showAntdMessage('success', {
       content: $t('page.auth.codeSentTo', [phoneNumber]),
       duration: 3,
       key: messageKey,
@@ -66,14 +69,14 @@ async function sendCodeApi(phoneNumber: string) {
       response?.debugCode &&
       typeof response.debugCode === 'string'
     ) {
-      message.info({
+      await showAntdMessage('info', {
         content: `${$t('page.auth.debugCodeLabel', '调试验证码')}: ${response.debugCode}`,
         duration: 5,
       });
     }
   } catch (error) {
-    message.destroy(messageKey);
-    message.error({
+    await destroyAntdMessage(messageKey);
+    await showAntdMessage('error', {
       content: isHttpError(error)
         ? '验证码发送失败，请检查网络后稍后重试'
         : resolveErrorMessage(error),
@@ -149,7 +152,7 @@ const formSchema = computed((): VbenFormSchema[] => {
 });
 
 const submitLoading = computed(
-  () => sendCodeLoading.value || authStore.loginLoading,
+  () => sendCodeLoading.value || loginLoading.value,
 );
 
 /**
@@ -158,7 +161,13 @@ const submitLoading = computed(
  * @param values 登录表单数据
  */
 async function handleLogin(values: Recordable<any>) {
-  await authStore.authLoginBySmsCode(values);
+  loginLoading.value = true;
+  try {
+    const { useAuthStore } = await import('#/store/auth');
+    await useAuthStore().authLoginBySmsCode(values);
+  } finally {
+    loginLoading.value = false;
+  }
 }
 </script>
 

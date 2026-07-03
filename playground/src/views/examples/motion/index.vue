@@ -1,8 +1,13 @@
 <script lang="ts" setup>
-import { reactive } from 'vue';
+import { getCurrentInstance, reactive } from 'vue';
 
 import { Page } from '@vben/common-ui';
-import { Motion, MotionGroup, MotionPresets } from '@vben/plugins/motion';
+import {
+  Motion,
+  MotionGroup,
+  MotionPlugin,
+  MotionPresets,
+} from '@vben/plugins/motion';
 
 import { refAutoReset, watchDebounced } from '@vueuse/core';
 import {
@@ -16,6 +21,17 @@ import {
   Select,
 } from 'ant-design-vue';
 // 本例子用不到visible类型的动画。带有VisibleOnce和Visible的类型会在组件进入视口被显示时执行动画，
+function ensureMotionDirectives() {
+  const app = getCurrentInstance()?.appContext.app;
+  if (!app || app.directive('motion')) {
+    return;
+  }
+
+  app.use(MotionPlugin);
+}
+
+ensureMotionDirectives();
+
 const presets = MotionPresets.filter((v) => !v.includes('Visible'));
 const showCard1 = refAutoReset(true, 100);
 const showCard2 = refAutoReset(true, 100);

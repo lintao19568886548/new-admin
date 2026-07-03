@@ -50,3 +50,49 @@ model AttendanceDeviceAbnormalLog {
   @@index([createTime])
   @@map("attendance_device_abnormal_log")
 }
+
+/// 考勤异常确认记录表，用于同一天同一异常场景只提醒一次
+model AttendanceAbnormalConfirmation {
+  /// 主键ID
+  id                  BigInt   @id @default(autoincrement())
+  /// 确认用户ID，对应user.id
+  userId              Int      @map("user_id")
+  /// 确认日期，按打卡日期归属
+  confirmationDate    DateTime @map("confirmation_date") @db.Date
+  /// 异常分类：device设备，location地点
+  abnormalCategory    String   @map("abnormal_category") @db.VarChar(30)
+  /// 异常类型：device_changed、same_device_multi_account、outside_range
+  abnormalType        String   @map("abnormal_type") @db.VarChar(80)
+  /// 异常指纹，同一天同用户同异常指纹不重复提醒
+  fingerprint         String   @db.VarChar(128)
+  /// 生效范围，默认day
+  actionScope         String   @default("day") @map("action_scope") @db.VarChar(30)
+  /// 确认时间
+  confirmedAt         DateTime @default(now()) @map("confirmed_at")
+  /// 过期时间
+  expireAt            DateTime @map("expire_at")
+  /// 关联考勤记录ID，对应attendances.attendance_id
+  attendanceId        Int?     @map("attendance_id")
+  /// 当前设备ID
+  currentDeviceId     String?  @map("current_device_id") @db.VarChar(128)
+  /// 已绑定设备ID
+  boundDeviceId       String?  @map("bound_device_id") @db.VarChar(128)
+  /// 确认时纬度
+  latitude            Decimal? @db.Decimal(18, 15)
+  /// 确认时经度
+  longitude           Decimal? @db.Decimal(18, 15)
+  /// 最近考勤点名称
+  nearestLocationName String?  @map("nearest_location_name") @db.VarChar(191)
+  /// 距离最近考勤点距离
+  distanceMeters      Decimal? @map("distance_meters") @db.Decimal(12, 3)
+  /// 创建时间
+  createTime          DateTime @default(now()) @map("create_time")
+  /// 更新时间
+  updateTime          DateTime @updatedAt @map("update_time")
+
+  @@unique([userId, confirmationDate, abnormalCategory, abnormalType, fingerprint], map: "uniq_attendance_abnormal_confirmation")
+  @@index([userId, confirmationDate])
+  @@index([expireAt])
+  @@index([attendanceId])
+  @@map("attendance_abnormal_confirmation")
+}

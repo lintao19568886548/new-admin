@@ -16,6 +16,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/smart-meter/meter/list.vue'),
         meta: {
           icon: 'mdi:flash',
+          isApp: true,
           title: $t('电表抄表数据'),
         },
         name: 'SmartMeterElectricReading',
@@ -25,6 +26,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/smart-meter/water/list.vue'),
         meta: {
           icon: 'mdi:water',
+          isApp: true,
           title: $t('水表抄表数据'),
         },
         name: 'SmartMeterWaterReading',
@@ -41,22 +43,56 @@ const routes: RouteRecordRaw[] = [
         path: 'reading/mobile',
       },
       {
-        component: () => import('#/views/smart-meter/brand/electric.vue'),
+        component: () => import('#/views/smart-meter/brand/responsive.vue'),
         meta: {
           icon: 'mdi:flash-triangle',
+          isApp: true,
           title: $t('电表品牌管理'),
         },
         name: 'ElectricMeterBrand',
         path: 'electric-brand',
+        props: {
+          meterType: 'electric',
+        },
       },
       {
-        component: () => import('#/views/smart-meter/brand/water.vue'),
+        component: () => import('#/views/smart-meter/brand/mobile.vue'),
+        meta: {
+          hideMenu: true,
+          icon: 'mdi:cellphone-cog',
+          title: $t('电表品牌管理'),
+        },
+        name: 'ElectricMeterBrandMobile',
+        path: 'electric-brand/mobile',
+        props: {
+          meterType: 'electric',
+        },
+      },
+      {
+        component: () => import('#/views/smart-meter/brand/responsive.vue'),
         meta: {
           icon: 'mdi:water-check',
+          isApp: true,
           title: $t('水表品牌管理'),
         },
         name: 'WaterMeterBrand',
         path: 'water-brand',
+        props: {
+          meterType: 'water',
+        },
+      },
+      {
+        component: () => import('#/views/smart-meter/brand/mobile.vue'),
+        meta: {
+          hideMenu: true,
+          icon: 'mdi:cellphone-cog',
+          title: $t('水表品牌管理'),
+        },
+        name: 'WaterMeterBrandMobile',
+        path: 'water-brand/mobile',
+        props: {
+          meterType: 'water',
+        },
       },
     ],
   },

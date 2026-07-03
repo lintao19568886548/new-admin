@@ -24,18 +24,40 @@ const routes: RouteRecordRaw[] = [
       {
         name: 'AccessBrand',
         path: '/access/brand',
-        component: () => import('#/views/access/brand/list.vue'),
+        component: () => import('#/views/access/brand/responsive.vue'),
         meta: {
           icon: 'carbon:badge',
+          isApp: true,
+          title: '门禁品牌管理',
+        },
+      },
+      {
+        name: 'AccessBrandMobile',
+        path: '/access/brand/mobile',
+        component: () => import('#/views/access/brand/mobile-list.vue'),
+        meta: {
+          hideMenu: true,
+          icon: 'carbon:mobile',
           title: '门禁品牌管理',
         },
       },
       {
         name: 'CarAccess',
         path: '/access/car',
-        component: () => import('#/views/access/car/list.vue'),
+        component: () => import('#/views/access/car/responsive.vue'),
         meta: {
           icon: 'carbon:car',
+          isApp: true,
+          title: '车辆出入管理',
+        },
+      },
+      {
+        name: 'CarAccessMobile',
+        path: '/access/car/mobile',
+        component: () => import('#/views/access/car/mobile-list.vue'),
+        meta: {
+          hideMenu: true,
+          icon: 'carbon:mobile',
           title: '车辆出入管理',
         },
       },
@@ -45,15 +67,17 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/access/visitor/list.vue'),
         meta: {
           icon: 'carbon:user-profile',
+          isApp: true,
           title: '访客管理',
         },
       },
       {
         name: 'VisitorRegister',
         path: '/access/visitor/register',
-        component: () => import('#/views/access/visitor/modules/register.vue'),
+        component: () => import('#/views/access/visitor/register.vue'),
         meta: {
           icon: 'carbon:user-profile',
+          isApp: true,
           title: '访客登记',
         },
       },

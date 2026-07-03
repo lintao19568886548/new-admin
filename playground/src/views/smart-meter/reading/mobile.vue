@@ -6,6 +6,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
 
+import { FilterOutlined } from '@ant-design/icons-vue';
 import {
   Button,
   Card,
@@ -14,7 +15,6 @@ import {
   Form,
   Input,
   message,
-  Pagination,
   Row,
   Segmented,
   Select,
@@ -30,6 +30,9 @@ import {
   getWaterData,
   getWaterTree,
 } from '#/api/hezhong';
+import MobilePage from '#/components/mobile/MobilePage.vue';
+import MobilePagination from '#/components/mobile/MobilePagination.vue';
+import MobilePanel from '#/components/mobile/MobilePanel.vue';
 import MobileDateRange from '#/components/MobileDateRange.vue';
 import { $t } from '#/locales';
 
@@ -144,6 +147,7 @@ const states: Record<ReadingTab, ReadingState> = {
 };
 
 const activeTab = ref<ReadingTab>('meter');
+const filterExpanded = ref(false);
 
 const currentConfig = computed(() => readingConfigs[activeTab.value]);
 const currentState = computed(() => states[activeTab.value]);
@@ -152,6 +156,14 @@ const segmentedClass = computed(() =>
     ' ',
   ),
 );
+const hasAdvancedFilters = computed(() => {
+  const state = currentState.value;
+  return (
+    Boolean(state.selectedBuildingValue) ||
+    Boolean(state.searchForm.comAddress) ||
+    state.searchForm.type !== 2
+  );
+});
 
 function convertToTreeSelect(nodes: any[]): any[] {
   return (nodes || []).map((node: any) => ({
@@ -308,6 +320,7 @@ async function ensureTabReady(tab: ReadingTab) {
 function handleSearch() {
   const state = currentState.value;
   state.pagination.current = 1;
+  filterExpanded.value = false;
   void fetchList(activeTab.value);
 }
 
@@ -318,6 +331,7 @@ function resetSearch() {
   state.searchForm.type = 2;
   state.selectedBuildingValue = undefined;
   state.pagination.current = 1;
+  filterExpanded.value = false;
   void fetchList(activeTab.value);
 }
 
@@ -336,6 +350,7 @@ function formatItemTime(item: any) {
 watch(
   activeTab,
   (tab) => {
+    filterExpanded.value = false;
     void ensureTabReady(tab);
   },
   { immediate: true },
@@ -343,19 +358,17 @@ watch(
 </script>
 
 <template>
-  <div class="box-border bg-gray-100 p-2">
-    <div class="mb-2 rounded-lg bg-white p-2 shadow-sm">
+  <MobilePage :bottom-inset="false">
+    <MobilePanel tight>
       <Segmented
         v-model:value="activeTab"
         :options="tabOptions"
         block
         :class="segmentedClass"
       />
-    </div>
+    </MobilePanel>
 
-    <div
-      class="mb-2 rounded-lg bg-white px-2 py-3 shadow-sm [&_.ant-form-item]:mb-2"
-    >
+    <MobilePanel>
       <Form layout="vertical">
         <Row :gutter="16">
           <Col :span="24">
@@ -363,40 +376,51 @@ watch(
               <MobileDateRange v-model:value="currentState.freezeRange" />
             </Form.Item>
           </Col>
-          <Col :span="24">
-            <Form.Item label="建筑">
-              <TreeSelect
-                v-model:value="currentState.selectedBuildingValue"
-                :tree-data="currentState.buildingTreeData"
-                :tree-default-expand-all="true"
-                :loading="currentState.treeLoading"
-                class="w-full"
-                placeholder="请选择建筑或设备"
-                allow-clear
-              />
-            </Form.Item>
-          </Col>
-          <Col :span="12">
-            <Form.Item :label="currentConfig.inputLabel">
-              <Input
-                v-model:value="currentState.searchForm.comAddress"
-                :placeholder="currentConfig.inputPlaceholder"
-                allow-clear
-              />
-            </Form.Item>
-          </Col>
-          <Col :span="12">
-            <Form.Item label="数据类型">
-              <Select
-                v-model:value="currentState.searchForm.type"
-                :options="typeOptions"
-                placeholder="选择数据类型"
-                allow-clear
-              />
-            </Form.Item>
-          </Col>
+          <template v-if="filterExpanded">
+            <Col :span="24">
+              <Form.Item label="建筑">
+                <TreeSelect
+                  v-model:value="currentState.selectedBuildingValue"
+                  :tree-data="currentState.buildingTreeData"
+                  :tree-default-expand-all="true"
+                  :loading="currentState.treeLoading"
+                  class="w-full"
+                  placeholder="请选择建筑或设备"
+                  allow-clear
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="12">
+              <Form.Item :label="currentConfig.inputLabel">
+                <Input
+                  v-model:value="currentState.searchForm.comAddress"
+                  :placeholder="currentConfig.inputPlaceholder"
+                  allow-clear
+                />
+              </Form.Item>
+            </Col>
+            <Col :span="12">
+              <Form.Item label="数据类型">
+                <Select
+                  v-model:value="currentState.searchForm.type"
+                  :options="typeOptions"
+                  placeholder="选择数据类型"
+                  allow-clear
+                />
+              </Form.Item>
+            </Col>
+          </template>
         </Row>
         <div class="mt-2 flex gap-2">
+          <Button
+            class="min-w-[88px]"
+            @click="filterExpanded = !filterExpanded"
+          >
+            <FilterOutlined class="mr-1" />
+            {{
+              filterExpanded ? '收起' : hasAdvancedFilters ? '筛选中' : '筛选'
+            }}
+          </Button>
           <Button type="primary" class="flex-1" @click="handleSearch">
             <Search class="mr-1 h-4 w-4" />
             {{ $t('搜索') }}
@@ -406,7 +430,7 @@ watch(
           </Button>
         </div>
       </Form>
-    </div>
+    </MobilePanel>
 
     <Spin :spinning="currentState.loading" :tip="$t('加载中...')">
       <div v-if="currentState.list.length > 0" class="pb-2">
@@ -495,13 +519,10 @@ watch(
           </div>
         </Card>
 
-        <Pagination
-          v-if="currentState.pagination.total > 0"
+        <MobilePagination
           :current="currentState.pagination.current"
           :page-size="currentState.pagination.pageSize"
           :total="currentState.pagination.total"
-          size="small"
-          class="mt-2 pb-2 text-center [&_.ant-pagination]:justify-center"
           @change="handlePageChange"
         />
       </div>
@@ -511,5 +532,5 @@ watch(
         :description="currentState.loading ? $t('加载中...') : $t('暂无数据')"
       />
     </Spin>
-  </div>
+  </MobilePage>
 </template>

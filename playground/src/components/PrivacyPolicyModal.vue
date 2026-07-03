@@ -1,18 +1,17 @@
 <!-- eslint-disable prettier/prettier -->
 <script lang="ts" setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 
-import { App as CapacitorApp } from '@capacitor/app';
-import { Button, Modal } from 'ant-design-vue';
+import { PRIVACY_POLICY_AGREED_KEY } from '#/utils/policy-actions';
 
-import {
-  OPEN_PRIVACY_POLICY_EVENT,
-  OPEN_SERVICE_AGREEMENT_EVENT,
-} from '#/utils/policy-actions';
+interface Props {
+  initialOpen?: 'privacy' | 'service';
+}
 
 defineOptions({ name: 'PrivacyPolicyModal' });
 
-const PRIVACY_POLICY_AGREED_KEY = 'PRIVACY_POLICY_AGREED_V1';
+const props = defineProps<Props>();
+
 const isVisible = ref(false);
 const showPrivacyContentModal = ref(false);
 const showServiceContentModal = ref(false);
@@ -136,6 +135,7 @@ function handleAgree() {
 
 async function handleDisagree() {
   try {
+    const { App: CapacitorApp } = await import('@capacitor/app');
     await CapacitorApp.exitApp();
   } catch {
     // Fallback for web or if exitApp fails
@@ -151,140 +151,313 @@ function openServiceAgreement() {
   showServiceContentModal.value = true;
 }
 
-function bindPolicyEvents() {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.addEventListener(OPEN_PRIVACY_POLICY_EVENT, openPrivacyPolicy);
-  window.addEventListener(OPEN_SERVICE_AGREEMENT_EVENT, openServiceAgreement);
-}
-
-function unbindPolicyEvents() {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.removeEventListener(OPEN_PRIVACY_POLICY_EVENT, openPrivacyPolicy);
-  window.removeEventListener(
-    OPEN_SERVICE_AGREEMENT_EVENT,
-    openServiceAgreement,
-  );
-}
-
 onMounted(() => {
   checkPrivacyAgreement();
-  bindPolicyEvents();
-});
 
-onUnmounted(() => {
-  unbindPolicyEvents();
+  if (props.initialOpen === 'privacy') {
+    openPrivacyPolicy();
+  }
+  if (props.initialOpen === 'service') {
+    openServiceAgreement();
+  }
 });
 </script>
 
 <template>
-  <div>
-    <!-- Main Privacy Policy Modal -->
-    <Modal
-      v-model:open="isVisible"
-      title="隐私政策"
-      :closable="false"
-      :mask-closable="false"
-      :keyboard="false"
-      :footer="null"
-      centered
-      width="320px"
-      class="privacy-policy-modal"
-    >
-      <div class="privacy-content">
-        <p class="mb-4 text-sm leading-relaxed text-gray-600">
+  <Teleport to="body">
+    <div v-if="isVisible" class="policy-overlay">
+      <section
+        aria-labelledby="privacy-policy-title"
+        aria-modal="true"
+        class="policy-dialog policy-dialog--compact"
+        role="dialog"
+      >
+        <h2 id="privacy-policy-title" class="policy-title">隐私政策</h2>
+        <p class="policy-summary">
           本应用尊重并保护所有用户的个人隐私权。为了给您提供更准确、更有个性化的服务，本应用会按照隐私政策的规定使用和披露您的个人信息。可阅读
-          <span
-            class="text-primary cursor-pointer"
+          <button
+            class="policy-link"
+            type="button"
             @click="openServiceAgreement"
           >
             《服务协议》
-          </span>
-
+          </button>
           和
-          <span class="text-primary cursor-pointer" @click="openPrivacyPolicy">
-          </span>
-          《隐私政策》
-          <span class="text-primary cursor-pointer" @click="openPrivacyPolicy">
+          <button class="policy-link" type="button" @click="openPrivacyPolicy">
             《隐私政策》
-          </span>
+          </button>
         </p>
-        <div class="flex flex-col gap-3">
-          <Button
-            type="primary"
-            block
+        <div class="policy-actions">
+          <button
+            class="policy-button policy-button--primary"
+            type="button"
             @click="handleAgree"
-            class="h-10 text-base"
           >
             同意
-          </Button>
-          <Button
-            block
+          </button>
+          <button
+            class="policy-button policy-button--secondary"
+            type="button"
             @click="handleDisagree"
-            class="h-10 text-base text-gray-500"
           >
             不同意并退出APP
-          </Button>
+          </button>
         </div>
-      </div>
-    </Modal>
+      </section>
+    </div>
 
-    <!-- Detailed Privacy Policy Content Modal -->
-    <Modal
-      v-model:open="showPrivacyContentModal"
-      title="隐私政策"
-      :footer="null"
-      centered
-      width="600px"
-      class="policy-content-modal"
+    <div
+      v-if="showPrivacyContentModal"
+      class="policy-overlay policy-overlay--top"
     >
-      <div class="max-h-[60vh] overflow-y-auto p-4">
-        <pre class="whitespace-pre-wrap text-sm leading-relaxed">{{
-          privacyPolicyContent
-        }}</pre>
-      </div>
-      <div class="mt-4 text-center">
-        <Button type="primary" @click="showPrivacyContentModal = false">
-          确定
-        </Button>
-      </div>
-    </Modal>
+      <section
+        aria-labelledby="privacy-content-title"
+        aria-modal="true"
+        class="policy-dialog policy-dialog--content"
+        role="dialog"
+      >
+        <header class="policy-header">
+          <h2 id="privacy-content-title" class="policy-title">隐私政策</h2>
+          <button
+            aria-label="关闭隐私政策"
+            class="policy-close"
+            type="button"
+            @click="showPrivacyContentModal = false"
+          >
+            关闭
+          </button>
+        </header>
+        <div class="policy-scroll">
+          <pre>{{ privacyPolicyContent }}</pre>
+        </div>
+        <div class="policy-footer">
+          <button
+            class="policy-button policy-button--primary"
+            type="button"
+            @click="showPrivacyContentModal = false"
+          >
+            确定
+          </button>
+        </div>
+      </section>
+    </div>
 
-    <!-- Detailed Service Agreement Content Modal -->
-    <Modal
-      v-model:open="showServiceContentModal"
-      title="服务协议"
-      :footer="null"
-      centered
-      width="600px"
-      class="policy-content-modal"
+    <div
+      v-if="showServiceContentModal"
+      class="policy-overlay policy-overlay--top"
     >
-      <div class="max-h-[60vh] overflow-y-auto p-4">
-        <pre class="whitespace-pre-wrap text-sm leading-relaxed">{{
-          serviceAgreementContent
-        }}</pre>
-      </div>
-      <div class="mt-4 text-center">
-        <Button type="primary" @click="showServiceContentModal = false">
-          确定
-        </Button>
-      </div>
-    </Modal>
-  </div>
+      <section
+        aria-labelledby="service-content-title"
+        aria-modal="true"
+        class="policy-dialog policy-dialog--content"
+        role="dialog"
+      >
+        <header class="policy-header">
+          <h2 id="service-content-title" class="policy-title">服务协议</h2>
+          <button
+            aria-label="关闭服务协议"
+            class="policy-close"
+            type="button"
+            @click="showServiceContentModal = false"
+          >
+            关闭
+          </button>
+        </header>
+        <div class="policy-scroll">
+          <pre>{{ serviceAgreementContent }}</pre>
+        </div>
+        <div class="policy-footer">
+          <button
+            class="policy-button policy-button--primary"
+            type="button"
+            @click="showServiceContentModal = false"
+          >
+            确定
+          </button>
+        </div>
+      </section>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
-.privacy-policy-modal :deep(.ant-modal-content) {
-  overflow: hidden;
-  border-radius: 12px;
+.policy-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(18px, var(--app-safe-area-top))
+    max(16px, var(--app-safe-area-right)) max(18px, var(--app-safe-area-bottom))
+    max(16px, var(--app-safe-area-left));
+  background: rgb(15 23 42 / 52%);
 }
 
-.privacy-content {
-  text-align: left;
+.policy-overlay--top {
+  z-index: 3010;
+}
+
+.policy-dialog {
+  width: min(100%, 560px);
+  max-height: calc(
+    var(--app-viewport-height, 100vh) - var(--app-safe-area-top, 0px) -
+      var(--app-safe-area-bottom, 0px) - 36px
+  );
+  overflow: hidden;
+  color: #111827;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow:
+    0 22px 60px rgb(15 23 42 / 22%),
+    0 2px 12px rgb(15 23 42 / 12%);
+}
+
+.policy-dialog--compact {
+  max-width: 336px;
+  padding: 22px 18px 18px;
+}
+
+.policy-dialog--content {
+  display: flex;
+  flex-direction: column;
+}
+
+.policy-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 12px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.policy-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #111827;
+}
+
+.policy-summary {
+  margin: 14px 0 18px;
+  font-size: 14px;
+  line-height: 1.75;
+  color: #4b5563;
+}
+
+.policy-link {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  line-height: inherit;
+  color: hsl(var(--primary));
+  vertical-align: baseline;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.policy-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.policy-button,
+.policy-close {
+  min-height: 42px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  border: 0;
+  border-radius: 8px;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.policy-button {
+  width: 100%;
+  font-weight: 500;
+}
+
+.policy-button--primary {
+  color: hsl(var(--primary-foreground));
+  background: hsl(var(--primary));
+}
+
+.policy-button--primary:active {
+  background: hsl(var(--primary) / 88%);
+}
+
+.policy-button--secondary {
+  color: #4b5563;
+  background: #f3f4f6;
+}
+
+.policy-button--secondary:active {
+  background: #e5e7eb;
+}
+
+.policy-close {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 10px;
+  color: #4b5563;
+  background: #f3f4f6;
+}
+
+.policy-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 14px 18px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.policy-scroll pre {
+  margin: 0;
+  overflow: visible;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.75;
+  color: #374151;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.policy-footer {
+  flex: 0 0 auto;
+  padding: 12px 18px 18px;
+  border-top: 1px solid #eef2f7;
+}
+
+@media (max-width: 480px) {
+  .policy-overlay {
+    align-items: flex-end;
+    padding-right: 0;
+    padding-bottom: var(--app-safe-area-bottom, 0);
+    padding-left: 0;
+  }
+
+  .policy-dialog {
+    width: 100%;
+    max-height: calc(
+      var(--app-viewport-height, 100vh) - var(--app-safe-area-top, 0px) - 16px
+    );
+    border-radius: 16px 16px 0 0;
+  }
+
+  .policy-dialog--compact {
+    max-width: none;
+    padding: 22px 18px calc(18px + var(--app-safe-area-bottom, 0px));
+  }
+
+  .policy-footer {
+    padding-bottom: calc(18px + var(--app-safe-area-bottom, 0px));
+  }
 }
 </style>

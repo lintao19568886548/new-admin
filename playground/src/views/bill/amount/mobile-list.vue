@@ -4,7 +4,15 @@ import type { Dayjs } from 'dayjs';
 
 import type { AmountBill, AmountBillListSummary } from './data';
 
-import { onActivated, onMounted, reactive, ref, watch } from 'vue';
+import {
+  nextTick,
+  onActivated,
+  onMounted,
+  reactive,
+  ref,
+  shallowRef,
+  watch,
+} from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { formatDateTime } from '@vben/utils';
@@ -43,7 +51,6 @@ import { useSmsActionVerification } from '#/hooks/useSmsActionVerification';
 import { $t } from '#/locales';
 
 import { emptyAmountBillListSummary } from './data';
-import MobileAmountBillForm from './modules/MobileAmountBillForm.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -65,6 +72,7 @@ const projectOptions = ref<{ label: string; value: string }[]>([]);
 const projectOptionsLoading = ref(false);
 
 const mobileBillFormRef = ref();
+const mobileBillFormComponent = shallowRef();
 
 const enableMask = ref(localStorage.getItem('bill-enableMask') !== 'false');
 
@@ -459,7 +467,15 @@ onActivated(() => {
   ensureVerification();
 });
 
-function handleCreate() {
+async function ensureMobileBillFormReady() {
+  if (!mobileBillFormComponent.value) {
+    const module = await import('./modules/MobileAmountBillForm.vue');
+    mobileBillFormComponent.value = module.default;
+    await nextTick();
+  }
+}
+
+async function handleCreate() {
   const newBill: AmountBill = {
     eleBills: [],
     eleFee: 0,
@@ -473,6 +489,7 @@ function handleCreate() {
     waterBills: [],
     waterFee: 0,
   };
+  await ensureMobileBillFormReady();
   mobileBillFormRef.value?.open(newBill);
 }
 
@@ -1004,7 +1021,9 @@ function resetSearch() {
       </Modal>
 
       <!-- 手机端表单和详情组件的引用 -->
-      <MobileAmountBillForm
+      <component
+        :is="mobileBillFormComponent"
+        v-if="mobileBillFormComponent"
         ref="mobileBillFormRef"
         @success="handleFormSuccess"
       />

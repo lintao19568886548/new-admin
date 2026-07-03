@@ -191,6 +191,7 @@ const SMART_METER_ROUTE_MENU = {
       component: '/smart-meter/meter/list',
       meta: {
         icon: 'mdi:flash',
+        isApp: true,
         title: '电表抄表数据',
       },
       name: 'SmartMeterElectricReading',
@@ -202,6 +203,7 @@ const SMART_METER_ROUTE_MENU = {
       component: '/smart-meter/water/list',
       meta: {
         icon: 'mdi:water',
+        isApp: true,
         title: '水表抄表数据',
       },
       name: 'SmartMeterWaterReading',
@@ -210,9 +212,10 @@ const SMART_METER_ROUTE_MENU = {
     },
     {
       authCode: 'smart-meter:electric-brand',
-      component: '/smart-meter/brand/electric',
+      component: '/smart-meter/brand/responsive',
       meta: {
         icon: 'mdi:flash-triangle',
+        isApp: true,
         title: '电表品牌管理',
       },
       name: 'ElectricMeterBrand',
@@ -221,9 +224,10 @@ const SMART_METER_ROUTE_MENU = {
     },
     {
       authCode: 'smart-meter:water-brand',
-      component: '/smart-meter/brand/water',
+      component: '/smart-meter/brand/responsive',
       meta: {
         icon: 'mdi:water-check',
+        isApp: true,
         title: '水表品牌管理',
       },
       name: 'WaterMeterBrand',
@@ -256,15 +260,78 @@ const MAINTENANCE_REPAIR_ORDER_ROUTE_MENU = {
 
 const ACCESS_BRAND_ROUTE_MENU = {
   authCode: 'access:brand',
-  component: '/access/brand/list',
+  component: '/access/brand/responsive',
   meta: {
     icon: 'carbon:badge',
+    isApp: true,
     title: '门禁品牌管理',
   },
   name: 'AccessBrand',
   path: '/access/brand',
   type: 'menu',
 } as const;
+
+const ACCESS_ROUTE_MENUS = [
+  {
+    authCode: 'access:car',
+    component: '/access/car/responsive',
+    meta: {
+      icon: 'carbon:car',
+      isApp: true,
+      title: '车辆出入管理',
+    },
+    name: 'CarAccess',
+    path: '/access/car',
+    type: 'menu',
+  },
+  {
+    authCode: 'access:visitor',
+    component: '/access/visitor/list',
+    meta: {
+      icon: 'carbon:user-profile',
+      isApp: true,
+      title: '访客管理',
+    },
+    name: 'VisitorAccess',
+    path: '/access/visitor',
+    type: 'menu',
+  },
+  {
+    authCode: 'access:visitor-register',
+    component: '/access/visitor/register',
+    meta: {
+      icon: 'carbon:user-profile',
+      isApp: true,
+      title: '访客登记',
+    },
+    name: 'VisitorRegister',
+    path: '/access/visitor/register',
+    type: 'menu',
+  },
+  ACCESS_BRAND_ROUTE_MENU,
+] as const;
+
+const WORKBENCH_APP_ROUTE_TARGETS = [
+  { name: 'SmartMeterElectricReading', path: '/smart-meter/meter' },
+  { name: 'SmartMeterWaterReading', path: '/smart-meter/water' },
+  { name: 'ElectricMeterBrand', path: '/smart-meter/electric-brand' },
+  { name: 'WaterMeterBrand', path: '/smart-meter/water-brand' },
+  { name: 'CarAccess', path: '/access/car' },
+  { name: 'VisitorAccess', path: '/access/visitor' },
+  { name: 'VisitorRegister', path: '/access/visitor/register' },
+  { name: 'AccessBrand', path: '/access/brand' },
+] as const;
+
+const MENU_COMPONENT_REWRITE_MAP: Record<string, string> = {
+  '/access/brand/list': '/access/brand/responsive',
+  '/access/car/list': '/access/car/responsive',
+  '/access/visitor/modules/register': '/access/visitor/register',
+  '/access/visitor/modules/register.vue': '/access/visitor/register',
+  '/bill/amount/modules/BillPrintPage': '/bill/amount/print-page',
+  '/bill/amount/modules/BillPrintPage.vue': '/bill/amount/print-page',
+  '/smart-meter/brand/electric': '/smart-meter/brand/responsive',
+  '/smart-meter/brand/water': '/smart-meter/brand/responsive',
+};
 
 const LOCAL_AGENT_ROUTE_MENUS = [
   {
@@ -559,6 +626,38 @@ const MOBILE_COMPATIBILITY_ROUTE_MENUS = [
   },
   {
     route: {
+      authCode: 'access:brand-mobile',
+      component: '/access/brand/mobile-list',
+      meta: {
+        activePath: '/access/brand',
+        hideInMenu: true,
+        icon: 'carbon:mobile',
+        title: '门禁品牌管理',
+      },
+      name: 'AccessBrandMobile',
+      path: '/access/brand/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'AccessBrand', path: '/access/brand' }],
+  },
+  {
+    route: {
+      authCode: 'access:car-mobile',
+      component: '/access/car/mobile-list',
+      meta: {
+        activePath: '/access/car',
+        hideInMenu: true,
+        icon: 'carbon:mobile',
+        title: '车辆出入管理',
+      },
+      name: 'CarAccessMobile',
+      path: '/access/car/mobile',
+      type: 'menu',
+    },
+    sources: [{ name: 'CarAccess', path: '/access/car' }],
+  },
+  {
+    route: {
       authCode: 'access:visitor-mobile',
       component: '/access/visitor/mobile-list',
       meta: {
@@ -572,6 +671,46 @@ const MOBILE_COMPATIBILITY_ROUTE_MENUS = [
       type: 'menu',
     },
     sources: [{ name: 'VisitorAccess', path: '/access/visitor' }],
+  },
+  {
+    route: {
+      authCode: 'smart-meter:electric-brand-mobile',
+      component: '/smart-meter/brand/mobile',
+      meta: {
+        activePath: '/smart-meter/electric-brand',
+        hideInMenu: true,
+        icon: 'mdi:cellphone-cog',
+        title: '电表品牌管理',
+      },
+      name: 'ElectricMeterBrandMobile',
+      path: '/smart-meter/electric-brand/mobile',
+      props: {
+        meterType: 'electric',
+      },
+      type: 'menu',
+    },
+    sources: [
+      { name: 'ElectricMeterBrand', path: '/smart-meter/electric-brand' },
+    ],
+  },
+  {
+    route: {
+      authCode: 'smart-meter:water-brand-mobile',
+      component: '/smart-meter/brand/mobile',
+      meta: {
+        activePath: '/smart-meter/water-brand',
+        hideInMenu: true,
+        icon: 'mdi:cellphone-cog',
+        title: '水表品牌管理',
+      },
+      name: 'WaterMeterBrandMobile',
+      path: '/smart-meter/water-brand/mobile',
+      props: {
+        meterType: 'water',
+      },
+      type: 'menu',
+    },
+    sources: [{ name: 'WaterMeterBrand', path: '/smart-meter/water-brand' }],
   },
   {
     route: {
@@ -837,6 +976,28 @@ function normalizeMenuPath(value: unknown) {
   return path.replace(/\/+$/, '') || '/';
 }
 
+function normalizeMenuComponentPath(value: unknown) {
+  const component = String(value || '').trim();
+  if (!component) return component;
+  const normalized = normalizeMenuPath(component);
+  return MENU_COMPONENT_REWRITE_MAP[normalized] || normalized;
+}
+
+function normalizeMenuComponents(menus: any[]): any[] {
+  return menus.map((menu) => {
+    const children = Array.isArray(menu?.children)
+      ? normalizeMenuComponents(menu.children)
+      : undefined;
+    const component = normalizeMenuComponentPath(menu?.component);
+
+    return {
+      ...menu,
+      ...(component === undefined ? {} : { component }),
+      ...(children ? { children } : {}),
+    };
+  });
+}
+
 function isRouteMenu(
   menu: any,
   route: {
@@ -994,7 +1155,7 @@ function ensureRepairOrderMenu(menus: any[]) {
   });
 }
 
-function ensureAccessBrandMenu(menus: any[]) {
+function ensureAccessMenus(menus: any[]) {
   return menus.map((menu) => {
     if (
       isRouteMenu(menu, { name: 'Access', path: '/access' }) &&
@@ -1002,11 +1163,39 @@ function ensureAccessBrandMenu(menus: any[]) {
     ) {
       return {
         ...menu,
-        children: appendRouteMenus(menu.children, [ACCESS_BRAND_ROUTE_MENU]),
+        children: appendRouteMenus(menu.children, ACCESS_ROUTE_MENUS),
       };
     }
 
     return menu;
+  });
+}
+
+function shouldShowInWorkbench(menu: any) {
+  return WORKBENCH_APP_ROUTE_TARGETS.some((route) => isRouteMenu(menu, route));
+}
+
+function applyWorkbenchAppFlags(menus: any[]): any[] {
+  return menus.map((menu) => {
+    const children = Array.isArray(menu?.children)
+      ? applyWorkbenchAppFlags(menu.children)
+      : undefined;
+    const nextMenu = {
+      ...menu,
+      ...(children ? { children } : {}),
+    };
+
+    if (!shouldShowInWorkbench(nextMenu)) {
+      return nextMenu;
+    }
+
+    return {
+      ...nextMenu,
+      meta: {
+        ...nextMenu.meta,
+        isApp: true,
+      },
+    };
   });
 }
 
@@ -1284,18 +1473,22 @@ function normalizeRouteMenus(
   menus: any[],
   _options: { hasSuperRole: boolean },
 ) {
-  return ensureRepairOrderMenu(
-    ensureAccessBrandMenu(
-      ensureSmartMeterMenu(
-        normalizeSystemChildMenuPlacement(
-          normalizeAiToolsMenuPlacement(
-            normalizeParkManagementMenuPlacement(menus, {
-              ensureParkWhenMissing: false,
-              includeCompatibilityRoutes: true,
-              includeMobileRoute: true,
-              preferLegacyMenu: false,
-            }),
-            { exposeLocalAgentMenus: shouldExposeLocalAgentMenus() },
+  return normalizeMenuComponents(
+    applyWorkbenchAppFlags(
+      ensureRepairOrderMenu(
+        ensureAccessMenus(
+          ensureSmartMeterMenu(
+            normalizeSystemChildMenuPlacement(
+              normalizeAiToolsMenuPlacement(
+                normalizeParkManagementMenuPlacement(menus, {
+                  ensureParkWhenMissing: false,
+                  includeCompatibilityRoutes: true,
+                  includeMobileRoute: true,
+                  preferLegacyMenu: false,
+                }),
+                { exposeLocalAgentMenus: shouldExposeLocalAgentMenus() },
+              ),
+            ),
           ),
         ),
       ),

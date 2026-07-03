@@ -1,11 +1,20 @@
 <script setup lang="ts">
+import { onUnmounted, provide } from 'vue';
+
 import { Page } from '@vben/common-ui';
 
+import { QueryClient, VUE_QUERY_CLIENT } from '@tanstack/vue-query';
 import { Card } from 'ant-design-vue';
 
 import InfiniteQueries from './infinite-queries.vue';
 import PaginatedQueries from './paginated-queries.vue';
 import QueryRetries from './query-retries.vue';
+
+const queryClient = new QueryClient();
+
+queryClient.mount();
+provide(VUE_QUERY_CLIENT, queryClient);
+onUnmounted(() => queryClient.unmount());
 </script>
 
 <template>

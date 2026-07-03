@@ -5,6 +5,7 @@ import { computed, h, onMounted, onUnmounted, ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Search } from '@vben/icons';
+import { useUserStore } from '@vben/stores';
 
 import {
   DeleteOutlined,
@@ -30,6 +31,7 @@ import {
 import dayjs from 'dayjs';
 
 import {
+  clearTenants,
   deleteTenant,
   getTenantList,
   getTenantSmsInfo,
@@ -68,10 +70,12 @@ const pagination = ref({
 
 const layoutStore = useLayoutStore();
 const parkStore = useParkStore();
+const userStore = useUserStore();
 
 const isLastPage = computed(
   () => tenantList.value.length >= pagination.value.total,
 );
+const isSuperUser = computed(() => userStore.userRoles.includes('Super'));
 
 const tagTypeOptions = getTagTypeOptions();
 const transactionTypeOptions = getTransactionTypeOptions();
@@ -215,6 +219,13 @@ async function fetchList(isLoadMore = false) {
   }
 }
 
+function buildClearTenantParams() {
+  return {
+    ...searchForm.value,
+    currentPark: currentPark.value ?? -1,
+  };
+}
+
 function handleSearch() {
   fetchList();
 }
@@ -318,16 +329,71 @@ async function onBulkSendSms() {
   }
 }
 
-onMounted(() => {
-  parkStore.fetchParkList();
-  fetchList();
+function onClearTenants() {
+  if (!isSuperUser.value) {
+    message.warning('只有超级管理员可以清空合同');
+    return;
+  }
+
+  Modal.confirm({
+    cancelText: '取消',
+    content:
+      '删除后合同数据将被清空，不能恢复。确认删除当前筛选条件下的合同吗？',
+    okButtonProps: {
+      danger: true,
+    },
+    okText: '确认删除',
+    onOk: async () => {
+      message.loading({
+        content: '正在清空合同列表...',
+        duration: 0,
+        key: 'clear_tenant_msg',
+      });
+
+      try {
+        const result = await clearTenants(buildClearTenantParams());
+        const clearedCount = Number(result?.clearedCount ?? 0);
+        message.success({
+          content: `已清空 ${clearedCount} 条合同`,
+          key: 'clear_tenant_msg',
+        });
+        refreshList();
+      } catch (error) {
+        console.error('清空合同失败:', error);
+        message.error({
+          content: '清空合同失败',
+          key: 'clear_tenant_msg',
+        });
+        throw error;
+      }
+    },
+    title: '确认删除合同数据',
+  });
+}
+
+function updateHeaderActions() {
   layoutStore.setHeaderActions([
+    ...(isSuperUser.value
+      ? [
+          {
+            key: 'clear-tenants',
+            onClick: onClearTenants,
+            text: '清空',
+          },
+        ]
+      : []),
     {
       key: 'bulk-sms',
       onClick: onBulkSendSms,
       text: '批量短信',
     },
   ]);
+}
+
+onMounted(() => {
+  parkStore.fetchParkList();
+  fetchList();
+  updateHeaderActions();
 });
 
 onUnmounted(() => {
