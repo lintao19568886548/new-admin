@@ -7,6 +7,13 @@ import { formatDateTime } from '@vben/utils';
 import { z } from '#/adapter/form';
 import { getMeterBrandSearchOptions } from '#/api/smart-meter';
 
+// ===================== 品牌名称下拉选项 =====================
+// 修改点：添加亿玛信诺到下拉框
+export const BRAND_NAME_OPTIONS = [
+  { label: '和众', value: '和众' },
+  { label: '亿玛信诺', value: '亿玛信诺' },
+];
+
 export const BRAND_ENABLED_OPTIONS = [
   { label: '启用', value: true },
   { label: '停用', value: false },
@@ -121,9 +128,21 @@ export function useFormSchema(): VbenFormSchema[] {
   ];
 }
 
+// ===================== 搜索表单配置 =====================
+// 修改点：brandName 从 ApiAutoComplete 改为 Select，使用 BRAND_NAME_OPTIONS
 export function useGridFormSchema(meterType: MeterType): VbenFormSchema[] {
   return [
-    createBrandSearchSchema('brandName', '品牌名称', meterType),
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        options: BRAND_NAME_OPTIONS,
+        placeholder: '请选择品牌名称',
+        showSearch: true,
+      },
+      fieldName: 'brandName',
+      label: '品牌名称',
+    },
     createBrandSearchSchema('brandCode', '品牌编码', meterType),
     createBrandSearchSchema('protocolType', '协议类型', meterType),
     {
