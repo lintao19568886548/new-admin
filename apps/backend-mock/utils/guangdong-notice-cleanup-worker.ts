@@ -13,6 +13,8 @@ type WorkerState = {
   lastSummary?: null | {
     checked: number;
     invalid: number;
+    persistedInvalid: number;
+    transient: number;
     updated: number;
     valid: number;
   };
@@ -147,11 +149,14 @@ async function runCleanupTick(state: WorkerState) {
     state.lastSummary = {
       checked: summary.checked + recheckSummary.checked,
       invalid: summary.invalid + recheckSummary.invalid,
+      persistedInvalid:
+        summary.persistedInvalid + recheckSummary.persistedInvalid,
+      transient: summary.transient + recheckSummary.transient,
       updated: summary.updated + recheckSummary.updated,
       valid: summary.valid + recheckSummary.valid,
     };
     console.info(
-      `[${WORKER_NAME}] tick finished checked=${state.lastSummary.checked} valid=${state.lastSummary.valid} invalid=${state.lastSummary.invalid} updated=${state.lastSummary.updated} recheckedInvalid=${recheckSummary.checked} restored=${recheckSummary.valid}`,
+      `[${WORKER_NAME}] tick finished checked=${state.lastSummary.checked} valid=${state.lastSummary.valid} invalid=${state.lastSummary.invalid} persistedInvalid=${state.lastSummary.persistedInvalid} transient=${state.lastSummary.transient} updated=${state.lastSummary.updated} recheckedInvalid=${recheckSummary.checked} restored=${recheckSummary.valid}`,
     );
   } catch (error) {
     state.lastError = error instanceof Error ? error.message : String(error);

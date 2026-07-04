@@ -1,4 +1,7 @@
-import { validateGuangdongNoticeDetail } from './guangdong-notice-detail-validator';
+import {
+  GD_NOTICE_INVALID_REASONS,
+  validateGuangdongNoticeDetail,
+} from './guangdong-notice-detail-validator';
 import { noticesPrismaClient } from './notices-db';
 
 interface NoticeCleanupRow {
@@ -10,6 +13,8 @@ interface NoticeCleanupRow {
 export interface GuangdongNoticeCleanupItem {
   invalidReason: null | string;
   noticeId: string;
+  persistedInvalid: boolean;
+  transient: boolean;
   title: null | string;
   valid: boolean;
   writeMode: 'dry-run' | 'execute';
@@ -27,11 +32,17 @@ export interface CleanupInvalidGuangdongNoticesSummary {
   checked: number;
   invalid: number;
   items: GuangdongNoticeCleanupItem[];
+  persistedInvalid: number;
+  transient: number;
   updated: number;
   valid: number;
 }
 
 const DEFAULT_CLEANUP_LIMIT = 100;
+const TRANSIENT_INVALID_REASONS = new Set<string>([
+  GD_NOTICE_INVALID_REASONS.DETAIL_EMPTY_OR_LOADING,
+  GD_NOTICE_INVALID_REASONS.DETAIL_FETCH_FAILED,
+]);
 
 function normalizeLimit(limit: number | undefined) {
   return Number.isFinite(limit) && Number(limit) > 0
@@ -72,6 +83,10 @@ async function fetchRows(options: CleanupInvalidGuangdongNoticesOptions) {
   })) as NoticeCleanupRow[];
 }
 
+function isTransientInvalidReason(reason?: null | string) {
+  return Boolean(reason && TRANSIENT_INVALID_REASONS.has(reason));
+}
+
 async function markNoticeChecked(
   row: NoticeCleanupRow,
   result: Awaited<ReturnType<typeof validateGuangdongNoticeDetail>>,
@@ -94,13 +109,25 @@ export async function cleanupInvalidGuangdongNotices(
   const items: GuangdongNoticeCleanupItem[] = [];
   let validCount = 0;
   let invalidCount = 0;
+  let persistedInvalidCount = 0;
+  let transientCount = 0;
   let updatedCount = 0;
 
   for (const row of rows) {
     const result = await validateGuangdongNoticeDetail(row.link);
-    if (execute) {
+    const transient = isTransientInvalidReason(result.reason);
+    const persistedInvalid = !result.valid && !transient;
+    if (execute && !transient) {
       await markNoticeChecked(row, result);
       updatedCount += 1;
+    }
+
+    if (persistedInvalid) {
+      persistedInvalidCount += 1;
+    }
+
+    if (transient) {
+      transientCount += 1;
     }
 
     if (result.valid) {
@@ -112,7 +139,9 @@ export async function cleanupInvalidGuangdongNotices(
     const item: GuangdongNoticeCleanupItem = {
       invalidReason: result.reason || null,
       noticeId: row.noticeId,
+      persistedInvalid,
       title: row.title,
+      transient,
       valid: result.valid,
       writeMode: execute ? 'execute' : 'dry-run',
     };
@@ -124,6 +153,8 @@ export async function cleanupInvalidGuangdongNotices(
     checked: rows.length,
     invalid: invalidCount,
     items,
+    persistedInvalid: persistedInvalidCount,
+    transient: transientCount,
     updated: updatedCount,
     valid: validCount,
   };

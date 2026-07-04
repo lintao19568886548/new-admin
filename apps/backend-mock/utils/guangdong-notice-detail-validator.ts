@@ -264,40 +264,6 @@ async function validateByDetailApi(
   }
 }
 
-async function validateByPageText(link: string, timeoutMs: number) {
-  try {
-    const response = await fetchWithTimeout(link, timeoutMs);
-    if ([404, 410].includes(response.status)) {
-      return {
-        reason: GD_NOTICE_INVALID_REASONS.LINK_INVALID,
-        valid: false,
-      };
-    }
-    if (!response.ok) {
-      return {
-        reason: GD_NOTICE_INVALID_REASONS.DETAIL_FETCH_FAILED,
-        valid: false,
-      };
-    }
-    const text = await response.text();
-    if (hasNoDataMessage(text)) {
-      return {
-        reason: GD_NOTICE_INVALID_REASONS.DETAIL_NO_DATA,
-        valid: false,
-      };
-    }
-    return { valid: true };
-  } catch (error) {
-    return {
-      reason:
-        (error as Error)?.name === 'AbortError'
-          ? GD_NOTICE_INVALID_REASONS.DETAIL_EMPTY_OR_LOADING
-          : GD_NOTICE_INVALID_REASONS.DETAIL_FETCH_FAILED,
-      valid: false,
-    };
-  }
-}
-
 async function validateGuangdongNoticeDetail(
   link?: null | string,
   options: ValidateGuangdongNoticeDetailOptions = {},
@@ -318,16 +284,7 @@ async function validateGuangdongNoticeDetail(
   }
 
   const timeoutMs = getCheckTimeout(options);
-  const detailResult = await validateByDetailApi(query, timeoutMs);
-  if (
-    detailResult.valid ||
-    detailResult.reason !== GD_NOTICE_INVALID_REASONS.DETAIL_FETCH_FAILED
-  ) {
-    return { checkedAt, ...detailResult };
-  }
-
-  const pageResult = await validateByPageText(href, timeoutMs);
-  return { checkedAt, ...pageResult };
+  return { checkedAt, ...(await validateByDetailApi(query, timeoutMs)) };
 }
 
 async function filterValidGuangdongNoticeCandidatesBeforeInsert<

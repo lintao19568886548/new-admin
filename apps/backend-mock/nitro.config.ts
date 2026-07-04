@@ -56,6 +56,7 @@ export default defineNitroConfig({
     '~/plugins/investment-radar-public-crawler.ts',
     '~/plugins/attendance-automation-test-worker.ts',
     '~/plugins/amount-bill-collection-sms-worker.ts',
+    '~/plugins/guangdong-notice-cleanup-worker.ts',
   ],
   routeRules: {
     '/api/**': {

@@ -48,3 +48,5 @@ pnpm exec tsx apps/backend-mock/scripts/cleanup-invalid-guangdong-notices.ts --l
 ```
 
 The backend worker also runs a daily cleanup and rechecks a small batch of previously invalid rows, so rows can be restored if the platform detail later becomes valid again.
+
+`DETAIL_FETCH_FAILED` and `DETAIL_EMPTY_OR_LOADING` are transient platform/network failures during historical cleanup. They are reported in script output as `transient`, but are not written to `notices` and do not hide a row from `/notices/list`.
