@@ -1,5 +1,9 @@
 import dayjs from 'dayjs';
-import { useResponseSuccess } from '~/utils/response';
+import {
+  badRequestResponse,
+  unAuthorizedResponse,
+  useResponseSuccess,
+} from '~/utils/response';
 import { getTranDay, ymsinoDefaultPtId } from '~/utils/thirdparty/ymsino';
 import {
   ensureYmsinoSuccess,
@@ -20,8 +24,16 @@ export default eventHandler(async (event) => {
   const currentPage = Number(query.page ?? query.currentPage ?? 1) || 1;
   const pageSize = Number(query.pageSize ?? 20) || 20;
   const ptId = String(query.ptId || ymsinoDefaultPtId);
+  const freezeType = String(query.freezeType || query.type || 'day');
   const tyDate = String(query.tyDate || '') || dayjs().format('YYYY-MM-DD');
   const comAddresses = parseYmsinoComAddresses(query.comAddress);
+
+  if (!['2', 'day'].includes(freezeType)) {
+    return badRequestResponse(
+      'Ymsino RM-http currently supports daily freeze only; hour/month freeze needs vendor API/topic',
+      event,
+    );
+  }
 
   const result = await getTranDay({
     PtId: ptId,
@@ -41,8 +53,14 @@ export default eventHandler(async (event) => {
     ...page,
     diagnostics: {
       freezeType: 'day',
+      protocol: 'unconfirmed',
       requestedDevices: comAddresses,
-      unsupportedFields: ['hourFreeze', 'monthFreeze', 'offlineBackfill'],
+      unsupportedFields: [
+        'hourFreeze',
+        'monthFreeze',
+        'offlineBackfill',
+        'realOnlineStatus',
+      ],
     },
     source: {
       ...getYmsinoRuntimeConfig(),
