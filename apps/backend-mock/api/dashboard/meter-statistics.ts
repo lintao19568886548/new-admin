@@ -11,6 +11,8 @@ import { getDevice, getHDMData } from '~/utils/thirdparty/hezhong';
 const DEFAULT_PROJ_CODE = '241';
 const ELECTRICITY_COM_TYPE = 'D.ZDG.FIWBM-GD04';
 const WATER_COM_TYPE = 'HS.BLHQW.DWWF8-NG811';
+const THIRD_PARTY_UNAVAILABLE_MESSAGE =
+  '表计平台响应超时，已返回本地可用统计数据';
 
 type MeterStatisticsDateType = 'day' | 'month';
 type MeterStatisticsType = 'electricity' | 'water';
@@ -51,6 +53,11 @@ interface AmountBillEleItemRow {
 interface AmountBillWaterItemRecord {
   createTime: Date | null;
   waterItem: null | string;
+}
+
+interface MeterFetchResult<T> {
+  items: T[];
+  unavailable: boolean;
 }
 
 function createEmptyStats(params: {
@@ -501,17 +508,85 @@ function buildWaterTrendDataFromAmountBills(
   };
 }
 
-async function fetchAllDevices(params: { comType: string; projCode: string }) {
+function isRecoverableThirdPartyError(error: unknown) {
+  const err = error as {
+    code?: string;
+    isAxiosError?: boolean;
+    message?: string;
+    response?: { status?: number };
+  };
+  const code = String(err?.code || '');
+  const status = Number(err?.response?.status);
+
+  return (
+    err?.isAxiosError === true &&
+    ([
+      'EAI_AGAIN',
+      'ECONNABORTED',
+      'ECONNREFUSED',
+      'ECONNRESET',
+      'ENOTFOUND',
+      'ETIMEDOUT',
+    ].includes(code) ||
+      (Number.isFinite(status) && status >= 500) ||
+      String(err.message || '')
+        .toLowerCase()
+        .includes('timeout'))
+  );
+}
+
+function getThirdPartyErrorSummary(error: unknown) {
+  const err = error as {
+    code?: string;
+    config?: {
+      baseURL?: string;
+      method?: string;
+      params?: unknown;
+      url?: string;
+    };
+    message?: string;
+    response?: { status?: number };
+  };
+
+  return {
+    baseURL: err?.config?.baseURL,
+    code: err?.code,
+    message: err?.message,
+    method: err?.config?.method,
+    params: err?.config?.params,
+    status: err?.response?.status,
+    url: err?.config?.url,
+  };
+}
+
+async function fetchAllDevices(params: {
+  comType: string;
+  projCode: string;
+}): Promise<MeterFetchResult<MeterDevice>> {
   const pageSize = 1000;
   const devices: MeterDevice[] = [];
+  let unavailable = false;
 
   for (let page = 1; page <= 50; page++) {
-    const res = await getDevice({
-      comtype: params.comType,
-      page: String(page),
-      pageSize: String(pageSize),
-      projCode: params.projCode,
-    });
+    let res: any;
+    try {
+      res = await getDevice({
+        comtype: params.comType,
+        page: String(page),
+        pageSize: String(pageSize),
+        projCode: params.projCode,
+      });
+    } catch (error) {
+      if (!isRecoverableThirdPartyError(error)) {
+        throw error;
+      }
+      unavailable = true;
+      console.warn(
+        '[dashboard/meter-statistics] getDevice unavailable:',
+        getThirdPartyErrorSummary(error),
+      );
+      break;
+    }
     const pageDevices = normalizeDevices(res);
     devices.push(...pageDevices);
 
@@ -521,7 +596,7 @@ async function fetchAllDevices(params: { comType: string; projCode: string }) {
     }
   }
 
-  return devices;
+  return { items: devices, unavailable };
 }
 
 async function fetchReadings(params: {
@@ -530,20 +605,34 @@ async function fetchReadings(params: {
   timeFrom: string;
   timeTo: string;
   type: string;
-}) {
+}): Promise<MeterFetchResult<MeterReading>> {
   const pageSize = 1000;
   const readings: MeterReading[] = [];
+  let unavailable = false;
 
   for (let page = 1; page <= 100; page++) {
-    const res = await getHDMData({
-      comType: params.comType,
-      page: String(page),
-      pageSize: String(pageSize),
-      projCode: params.projCode,
-      timeFrom: params.timeFrom,
-      timeTo: params.timeTo,
-      type: params.type,
-    });
+    let res: any;
+    try {
+      res = await getHDMData({
+        comType: params.comType,
+        page: String(page),
+        pageSize: String(pageSize),
+        projCode: params.projCode,
+        timeFrom: params.timeFrom,
+        timeTo: params.timeTo,
+        type: params.type,
+      });
+    } catch (error) {
+      if (!isRecoverableThirdPartyError(error)) {
+        throw error;
+      }
+      unavailable = true;
+      console.warn(
+        '[dashboard/meter-statistics] getHDMData unavailable:',
+        getThirdPartyErrorSummary(error),
+      );
+      break;
+    }
     const pageReadings = normalizeReadings(res);
     readings.push(...pageReadings);
 
@@ -553,7 +642,7 @@ async function fetchReadings(params: {
     }
   }
 
-  return readings;
+  return { items: readings, unavailable };
 }
 
 function filterPermittedReadings(
@@ -873,7 +962,10 @@ export default eventHandler(async (event) => {
       waterAmountBillRecordCount = waterStats.recordCount;
     }
 
-    const devices = await fetchAllDevices({ comType, projCode });
+    let thirdPartyUnavailable = false;
+    const deviceResult = await fetchAllDevices({ comType, projCode });
+    thirdPartyUnavailable ||= deviceResult.unavailable;
+    const devices = deviceResult.items;
     const permittedDevices = devices.filter((device) =>
       isDeviceInParks(device, parks),
     );
@@ -911,31 +1003,37 @@ export default eventHandler(async (event) => {
         peakValleyReadings = [];
         hourlyReadings = [];
       } else if (dateType === 'day') {
-        hourlyReadings = await fetchReadings({
+        const readingResult = await fetchReadings({
           comType,
           projCode,
           timeFrom: dateRange.timeFrom,
           timeTo: dateRange.timeTo,
           type: '1',
         });
+        thirdPartyUnavailable ||= readingResult.unavailable;
+        hourlyReadings = readingResult.items;
         peakValleyReadings = hourlyReadings;
       } else {
-        hourlyReadings = await fetchReadings({
+        const readingResult = await fetchReadings({
           comType,
           projCode,
           timeFrom: dateRange.timeFrom,
           timeTo: dateRange.timeTo,
           type: '1',
         });
+        thirdPartyUnavailable ||= readingResult.unavailable;
+        hourlyReadings = readingResult.items;
       }
     } else if (dateType === 'day' && permittedDevices.length > 0) {
-      waterTrendReadings = await fetchReadings({
+      const readingResult = await fetchReadings({
         comType,
         projCode,
         timeFrom: dateRange.timeFrom,
         timeTo: dateRange.timeTo,
         type: waterTrendType,
       });
+      thirdPartyUnavailable ||= readingResult.unavailable;
+      waterTrendReadings = readingResult.items;
     }
 
     const permittedPeakValleyReadings = filterPermittedReadings(
@@ -1008,12 +1106,18 @@ export default eventHandler(async (event) => {
         ? sumChartData(dayNight)
         : sumValues(waterTrend.values);
     const hasData = recordCount > 0;
+    let message: string | undefined;
+    if (thirdPartyUnavailable) {
+      message = THIRD_PARTY_UNAVAILABLE_MESSAGE;
+    } else if (!hasData) {
+      message = '当前时间范围未查询到统计数据';
+    }
 
     return useResponseSuccess({
       dateType,
       dayNight,
       hasData,
-      message: hasData ? undefined : '当前时间范围未查询到统计数据',
+      message,
       peakValley,
       selectedDate: dateRange.selectedDate,
       statisticsType,
