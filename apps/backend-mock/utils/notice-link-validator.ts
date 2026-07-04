@@ -1,3 +1,9 @@
+import {
+  GD_NOTICE_INVALID_REASONS,
+  parseGuangdongNoticeQuery,
+  validateGuangdongNoticeDetail,
+} from './guangdong-notice-detail-validator';
+
 const DEFAULT_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const DEFAULT_CHECK_TIMEOUT_MS = 5000;
 const MAX_TEXT_CONTENT_LENGTH = 2 * 1024 * 1024;
@@ -5,6 +11,12 @@ const CACHE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
 interface LinkCacheEntry {
   checkedAt: number;
+  normalizedLink?: string;
+  valid: boolean;
+}
+
+interface LinkValidationResult {
+  normalizedLink?: string;
   valid: boolean;
 }
 
@@ -238,32 +250,70 @@ async function probeNoticeLink(href: string, _title?: null | string) {
   }
 }
 
-export async function isNoticeLinkValid(
+function isTransientGuangdongNoticeReason(reason?: string) {
+  return (
+    reason === GD_NOTICE_INVALID_REASONS.DETAIL_EMPTY_OR_LOADING ||
+    reason === GD_NOTICE_INVALID_REASONS.DETAIL_FETCH_FAILED
+  );
+}
+
+async function probeGuangdongNoticeLink(
+  href: string,
+): Promise<LinkValidationResult> {
+  const result = await validateGuangdongNoticeDetail(href, {
+    timeoutMs: getCheckTimeout(),
+  });
+
+  if (!result.valid && isTransientGuangdongNoticeReason(result.reason)) {
+    return { valid: true };
+  }
+
+  return {
+    normalizedLink: result.valid ? result.normalizedLink : undefined,
+    valid: result.valid,
+  };
+}
+
+async function validateNoticeLink(
   link?: null | string,
   title?: null | string,
-) {
+): Promise<LinkValidationResult> {
   const href = normalizeNoticeLink(link);
-  if (!href) return false;
-  if (!isSafeNoticeUrl(href)) return false;
+  if (!href) return { valid: false };
+  if (!isSafeNoticeUrl(href)) return { valid: false };
 
   const now = Date.now();
   const cacheEntry = linkValidityCache.get(href);
   if (cacheEntry && now - cacheEntry.checkedAt < getCacheTtl()) {
-    return cacheEntry.valid;
+    return {
+      normalizedLink: cacheEntry.normalizedLink,
+      valid: cacheEntry.valid,
+    };
   }
 
-  let valid = true;
+  let result: LinkValidationResult = { valid: true };
   try {
-    valid = await probeNoticeLink(href, title);
+    result = parseGuangdongNoticeQuery(href)
+      ? await probeGuangdongNoticeLink(href)
+      : { valid: await probeNoticeLink(href, title) };
   } catch {
-    valid = true;
+    result = { valid: true };
   }
 
   linkValidityCache.set(href, {
     checkedAt: now,
-    valid,
+    normalizedLink: result.normalizedLink,
+    valid: result.valid,
   });
-  return valid;
+  return result;
+}
+
+export async function isNoticeLinkValid(
+  link?: null | string,
+  title?: null | string,
+) {
+  const result = await validateNoticeLink(link, title);
+  return result.valid;
 }
 
 export async function filterValidNoticeLinks<
@@ -278,10 +328,14 @@ export async function filterValidNoticeLinks<
     while (nextIndex < rows.length) {
       const index = nextIndex;
       nextIndex += 1;
-      validFlags[index] = await isNoticeLinkValid(
+      const result = await validateNoticeLink(
         rows[index]?.link,
         rows[index]?.title,
       );
+      validFlags[index] = result.valid;
+      if (result.valid && result.normalizedLink && rows[index]) {
+        rows[index].link = result.normalizedLink;
+      }
     }
   }
 

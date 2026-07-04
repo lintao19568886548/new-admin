@@ -52,6 +52,7 @@ console.log(
   JSON.stringify({
     checked: summary.checked,
     invalid: summary.invalid,
+    linkUpdated: summary.linkUpdated,
     persistedInvalid: summary.persistedInvalid,
     transient: summary.transient,
     updated: summary.updated,

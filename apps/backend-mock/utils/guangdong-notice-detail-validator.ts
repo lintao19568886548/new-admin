@@ -10,6 +10,7 @@ export const GD_NOTICE_INVALID_REASONS = {
 
 interface GuangdongNoticeQuery {
   bizCode: string;
+  nodeId: string;
   noticeId: string;
   projectCode: string;
   publishDate: string;
@@ -23,7 +24,10 @@ interface ValidateGuangdongNoticeDetailOptions {
 
 interface ValidateGuangdongNoticeDetailResult {
   checkedAt: Date;
+  normalizedLink?: string;
+  originalNodeId?: string;
   reason?: string;
+  resolvedNodeId?: string;
   valid: boolean;
 }
 
@@ -118,6 +122,7 @@ function parseGuangdongNoticeQuery(link?: null | string) {
 
   const query: GuangdongNoticeQuery = {
     bizCode: getQueryValue(url, 'bizCode'),
+    nodeId: getQueryValue(url, 'nodeId'),
     noticeId: getQueryValue(url, 'noticeId'),
     projectCode: getQueryValue(url, 'projectCode'),
     publishDate: getQueryValue(url, 'publishDate'),
@@ -129,6 +134,49 @@ function parseGuangdongNoticeQuery(link?: null | string) {
     getQueryValue(url, 'tradingType') || pathMatch?.[1]?.trim() || '';
 
   return query.noticeId ? query : null;
+}
+
+function normalizeGuangdongNoticeLinkNodeId(
+  link: string,
+  resolvedNodeId: string,
+) {
+  const href = String(link || '').trim();
+  if (!href || !resolvedNodeId) {
+    return href;
+  }
+
+  try {
+    const url = new URL(href);
+    const hashText = url.hash.replace(/^#/, '');
+    const hashQueryStart = hashText.indexOf('?');
+
+    if (hashQueryStart !== -1) {
+      const hashPath = hashText.slice(0, hashQueryStart);
+      const hashParams = new URLSearchParams(
+        hashText.slice(hashQueryStart + 1),
+      );
+      hashParams.set('nodeId', resolvedNodeId);
+      url.hash = `${hashPath}?${hashParams.toString()}`;
+      return url.href;
+    }
+
+    if (url.searchParams.has('nodeId')) {
+      url.searchParams.set('nodeId', resolvedNodeId);
+      return url.href;
+    }
+
+    if (hashText) {
+      const hashParams = new URLSearchParams();
+      hashParams.set('nodeId', resolvedNodeId);
+      url.hash = `${hashText}?${hashParams.toString()}`;
+      return url.href;
+    }
+
+    url.searchParams.set('nodeId', resolvedNodeId);
+    return url.href;
+  } catch {
+    return href;
+  }
 }
 
 function hasValidDetailData(payload: any) {
@@ -195,6 +243,7 @@ function buildDetailApiUrl(query: GuangdongNoticeQuery, nodeId: string) {
 
 async function validateByDetailApi(
   query: GuangdongNoticeQuery,
+  href: string,
   timeoutMs: number,
 ) {
   try {
@@ -226,6 +275,11 @@ async function validateByDetailApi(
       };
     }
 
+    const normalizedLink =
+      query.nodeId === nodeId
+        ? undefined
+        : normalizeGuangdongNoticeLinkNodeId(href, nodeId);
+
     const detailResponse = await fetchWithTimeout(
       buildDetailApiUrl(query, nodeId),
       timeoutMs,
@@ -247,7 +301,12 @@ async function validateByDetailApi(
 
     const detailPayload = JSON.parse(detailText);
     if (hasValidDetailData(detailPayload)) {
-      return { valid: true };
+      return {
+        normalizedLink,
+        originalNodeId: query.nodeId || undefined,
+        resolvedNodeId: nodeId,
+        valid: true,
+      };
     }
     return {
       reason: GD_NOTICE_INVALID_REASONS.DETAIL_STRUCTURE_INVALID,
@@ -284,7 +343,7 @@ async function validateGuangdongNoticeDetail(
   }
 
   const timeoutMs = getCheckTimeout(options);
-  return { checkedAt, ...(await validateByDetailApi(query, timeoutMs)) };
+  return { checkedAt, ...(await validateByDetailApi(query, href, timeoutMs)) };
 }
 
 async function filterValidGuangdongNoticeCandidatesBeforeInsert<
@@ -299,7 +358,11 @@ async function filterValidGuangdongNoticeCandidatesBeforeInsert<
   for (const row of rows) {
     const result = await validateGuangdongNoticeDetail(row.link, options);
     if (result.valid) {
-      validRows.push(row);
+      validRows.push(
+        result.normalizedLink
+          ? ({ ...row, link: result.normalizedLink } as T)
+          : row,
+      );
     } else {
       invalidRows.push({ item: row, result });
     }
@@ -313,6 +376,7 @@ async function filterValidGuangdongNoticeCandidatesBeforeInsert<
 
 export {
   filterValidGuangdongNoticeCandidatesBeforeInsert,
+  normalizeGuangdongNoticeLinkNodeId,
   parseGuangdongNoticeQuery,
   validateGuangdongNoticeDetail,
 };
