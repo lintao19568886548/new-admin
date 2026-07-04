@@ -9,6 +9,10 @@ function isTruthyQueryValue(value: unknown) {
   return ['1', 'true', 'yes'].includes(String(value ?? '').toLowerCase());
 }
 
+function isFalsyQueryValue(value: unknown) {
+  return ['0', 'false', 'no'].includes(String(value ?? '').toLowerCase());
+}
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -23,7 +27,11 @@ export default eventHandler(async (event) => {
     Math.max(1, Number(query.pageSize ?? 20) || 20),
   );
   const regionCode = String(query.regionCode ?? '').trim();
-  const validOnly = isTruthyQueryValue(query.validOnly);
+  const validOnly =
+    query.validOnly === undefined
+      ? true
+      : isTruthyQueryValue(query.validOnly) ||
+        !isFalsyQueryValue(query.validOnly);
 
   try {
     const where: any = keyword
@@ -39,7 +47,11 @@ export default eventHandler(async (event) => {
       : {};
     const andConditions: any[] = [];
     if (validOnly) {
-      andConditions.push({ link: { not: null } }, { link: { not: '' } });
+      andConditions.push(
+        { isValid: true },
+        { link: { not: null } },
+        { link: { not: '' } },
+      );
     }
     if (regionCode) {
       const prefix = regionCode.slice(0, 4);
