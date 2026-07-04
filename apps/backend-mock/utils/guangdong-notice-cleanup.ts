@@ -12,6 +12,7 @@ interface NoticeCleanupRow {
 
 export interface GuangdongNoticeCleanupItem {
   invalidReason: null | string;
+  linkChanged: boolean;
   noticeId: string;
   persistedInvalid: boolean;
   transient: boolean;
@@ -32,6 +33,7 @@ export interface CleanupInvalidGuangdongNoticesSummary {
   checked: number;
   invalid: number;
   items: GuangdongNoticeCleanupItem[];
+  linkUpdated: number;
   persistedInvalid: number;
   transient: number;
   updated: number;
@@ -91,11 +93,17 @@ async function markNoticeChecked(
   row: NoticeCleanupRow,
   result: Awaited<ReturnType<typeof validateGuangdongNoticeDetail>>,
 ) {
+  const normalizedLink =
+    result.valid && result.normalizedLink && result.normalizedLink !== row.link
+      ? result.normalizedLink
+      : undefined;
+
   await noticesPrismaClient.notice.update({
     data: {
       invalidReason: result.valid ? null : result.reason,
       isValid: result.valid,
       lastCheckedAt: result.checkedAt,
+      ...(normalizedLink ? { link: normalizedLink } : {}),
     },
     where: { noticeId: row.noticeId },
   });
@@ -109,6 +117,7 @@ export async function cleanupInvalidGuangdongNotices(
   const items: GuangdongNoticeCleanupItem[] = [];
   let validCount = 0;
   let invalidCount = 0;
+  let linkUpdatedCount = 0;
   let persistedInvalidCount = 0;
   let transientCount = 0;
   let updatedCount = 0;
@@ -117,9 +126,17 @@ export async function cleanupInvalidGuangdongNotices(
     const result = await validateGuangdongNoticeDetail(row.link);
     const transient = isTransientInvalidReason(result.reason);
     const persistedInvalid = !result.valid && !transient;
+    const linkChanged = Boolean(
+      result.valid &&
+      result.normalizedLink &&
+      result.normalizedLink !== row.link,
+    );
     if (execute && !transient) {
       await markNoticeChecked(row, result);
       updatedCount += 1;
+      if (linkChanged) {
+        linkUpdatedCount += 1;
+      }
     }
 
     if (persistedInvalid) {
@@ -138,6 +155,7 @@ export async function cleanupInvalidGuangdongNotices(
 
     const item: GuangdongNoticeCleanupItem = {
       invalidReason: result.reason || null,
+      linkChanged,
       noticeId: row.noticeId,
       persistedInvalid,
       title: row.title,
@@ -153,6 +171,7 @@ export async function cleanupInvalidGuangdongNotices(
     checked: rows.length,
     invalid: invalidCount,
     items,
+    linkUpdated: linkUpdatedCount,
     persistedInvalid: persistedInvalidCount,
     transient: transientCount,
     updated: updatedCount,
