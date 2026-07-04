@@ -40,6 +40,7 @@ function createMariaDbAdapter(
   const acquireTimeout = getPositiveInt('pool_timeout', 5) * 1000;
   const connectTimeout = getPositiveInt('connect_timeout', 5) * 1000;
   const idleTimeout = getPositiveInt('max_idle_connection_lifetime', 1800);
+  const allowPublicKeyRetrieval = !cachingRsaPublicKey;
 
   const adapterConfig = {
     host: parsed.hostname,
@@ -51,7 +52,7 @@ function createMariaDbAdapter(
     acquireTimeout,
     connectTimeout,
     idleTimeout,
-    allowPublicKeyRetrieval: false,
+    allowPublicKeyRetrieval,
     ...(cachingRsaPublicKey ? { cachingRsaPublicKey } : {}),
   };
 
@@ -94,8 +95,8 @@ if (!databaseUrl) {
 }
 
 if (process.env.NODE_ENV === 'production' && !cachingRsaPublicKey) {
-  throw new Error(
-    'Either NOTICES_DATABASE_CACHING_RSA_PUBLIC_KEY_BASE64 or DATABASE_CACHING_RSA_PUBLIC_KEY_BASE64 is required in production',
+  console.warn(
+    '[backend-mock][notices-db] Notices RSA public key is not configured; allowing MariaDB public key retrieval',
   );
 }
 

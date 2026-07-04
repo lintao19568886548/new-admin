@@ -1,10 +1,13 @@
-/**
- * api/ymsino/waterinfo/tree.ts
- * 亿玛水表建筑树（仿 hezhong/waterinfo/tree.ts）
- * 接口：GET /api/ymsino/waterinfo/tree
- */
-import { useResponseSuccess } from '~/utils/response';
-import { getInfo } from '~/utils/thirdparty/ymsino';
+import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
+import { getInfo, ymsinoDefaultPtId } from '~/utils/thirdparty/ymsino';
+import {
+  buildYmsinoDeviceTree,
+  ensureYmsinoSuccess,
+  filterYmsinoDevices,
+  getYmsinoRuntimeConfig,
+  getYmsinoTjType,
+  validateYmsinoDeviceList,
+} from '~/utils/thirdparty/ymsino-adapter.ts';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -12,71 +15,39 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
-  const result = await getInfo({
-    PtId: 'YZWL',
-    TjType: '1',
-  });
-
   const query = getQuery(event) as any;
-  const keyword = String(query?.keyword || '')
-    .trim()
-    .toLowerCase();
+  const keyword = String(query?.keyword || '').trim();
+  const ptId = String(query?.ptId || ymsinoDefaultPtId);
 
-  const base = (result?.Date || []).filter(
-    (r: any) => r && (r.FactoryNo || r.RmName),
-  );
-
-  const records = base.filter((r: any) => {
-    if (!keyword) return true;
-    const a = String(r.FactoryNo || '').toLowerCase();
-    const n = String(r.RmName || '').toLowerCase();
-    return a.includes(keyword) || n.includes(keyword);
+  const result = await getInfo({
+    PtId: ptId,
+    TjType: getYmsinoTjType('water'),
   });
+  ensureYmsinoSuccess(result, 'Failed to get ymsino water devices');
 
-  function buildTree(list: any[]) {
-    const root: Record<string, any> = {};
+  const rawItems = result?.Date || [];
+  const validation = validateYmsinoDeviceList(rawItems);
+  const records = filterYmsinoDevices(rawItems, 'water', keyword);
+  const tree = buildYmsinoDeviceTree(records);
+  const includeDiagnostics =
+    query?.includeDiagnostics === '1' || query?.includeDiagnostics === 'true';
 
-    for (const r of list) {
-      const roomKey = r.RmId || 'unknown';
-      const roomName = r.RmName || roomKey;
-      const deviceKey = r.FactoryNo;
-
-      if (!root[roomKey]) {
-        root[roomKey] = {
-          title: roomName,
-          key: roomKey,
-          children: {},
-        };
-      }
-
-      root[roomKey].children[deviceKey] = {
-        title: `${deviceKey}`,
-        key: `${roomKey}/${deviceKey}`,
-        isLeaf: true,
-        dataRef: r,
-      };
-    }
-
-    function toArray(map: Record<string, any>): any[] {
-      const arr: any[] = [];
-      for (const k of Object.keys(map)) {
-        const node = map[k];
-        if (node.children && Object.keys(node.children).length > 0) {
-          arr.push({
-            title: node.title,
-            key: node.key,
-            children: toArray(node.children),
-          });
-        } else {
-          arr.push(node);
+  return useResponseSuccess(
+    includeDiagnostics
+      ? {
+          diagnostics: {
+            bindingValidated: validation.ok,
+            errors: validation.errors,
+            requiredFields: ['FactoryNo', 'DeviceId', 'RmId'],
+          },
+          items: tree,
+          source: {
+            ...getYmsinoRuntimeConfig(),
+            kind: 'water',
+            mode: 'vendor-platform',
+            protocol: records[0]?.protocol,
+          },
         }
-      }
-      return arr;
-    }
-
-    return toArray(root);
-  }
-
-  const tree = buildTree(records);
-  return useResponseSuccess(tree);
+      : tree,
+  );
 });

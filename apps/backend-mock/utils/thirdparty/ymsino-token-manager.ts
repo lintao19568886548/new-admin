@@ -1,13 +1,3 @@
-/**
- * ============================================================================
- * utils/thirdparty/ymsino-token-manager.ts
- * 亿玛系统 Token 管理器（注意：函数名加了 ymsino 前缀，避免和 hezhong 的自动导入冲突）
- * ============================================================================
- *
- * 存放位置：apps/backend-mock/utils/thirdparty/ymsino-token-manager.ts
- * ============================================================================
- */
-
 import type { AxiosRequestConfig } from 'axios';
 
 import { ymsinoHttp, ymsinoLogin } from './ymsino';
@@ -28,14 +18,18 @@ function isValid(record: null | TokenRecord) {
 
 async function refresh(): Promise<TokenRecord> {
   const data = await ymsinoLogin();
+  if (!data?.Token) {
+    throw new Error(data?.Msg || 'Ymsino token response missing Token');
+  }
+
   const expiresAt = Date.now() + 86_400_000;
-  const record = { token: data.Token || '', expiresAt };
+  const record = { expiresAt, token: data.Token };
   current = record;
   return record;
 }
 
 export async function getYmsinoToken(): Promise<string> {
-  if (isValid(current)) return current?.token;
+  if (isValid(current)) return current.token;
   if (!refreshing) {
     refreshing = refresh().finally(() => {
       refreshing = null;
@@ -55,6 +49,7 @@ export async function ymsinoRequest<T = any>(config: AxiosRequestConfig) {
     ...config.headers,
     Token: token,
   };
+
   async function refreshAndRetry() {
     invalidateYmsinoToken();
     const newToken = await getYmsinoToken();
@@ -64,19 +59,19 @@ export async function ymsinoRequest<T = any>(config: AxiosRequestConfig) {
     });
     return retry.data;
   }
+
   try {
     const res = await ymsinoHttp.request<T>({ ...config, headers });
     const data = res.data as any;
-    if (data?.Code === '0' || data?.Code === 0) {
-      const msg = data?.Msg || '';
-      if (
-        msg.includes('鉴权') ||
-        msg.includes('token') ||
-        msg.includes('Token')
-      ) {
-        return await refreshAndRetry();
-      }
+    const msg = String(data?.Msg || '');
+
+    if (
+      (data?.Code === '0' || data?.Code === 0) &&
+      isYmsinoAuthFailureMessage(msg)
+    ) {
+      return await refreshAndRetry();
     }
+
     return data;
   } catch (error: any) {
     if (error?.response?.status === 401 || error?.response?.status === 403) {
@@ -84,4 +79,10 @@ export async function ymsinoRequest<T = any>(config: AxiosRequestConfig) {
     }
     throw error;
   }
+}
+
+function isYmsinoAuthFailureMessage(message: string) {
+  return ['鉴权', '授权', '认证', 'token', 'Token'].some((keyword) =>
+    message.includes(keyword),
+  );
 }

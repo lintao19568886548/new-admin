@@ -12,14 +12,15 @@ import axios, { AxiosInstance } from 'axios';
 
 import { ymsinoRequest } from './ymsino-token-manager';
 
-const baseURL =
+export const ymsinoBaseURL =
   process.env.TP_YMSINO_BASE_URL || 'http://pt.ymsino1.com/ymcb/inter';
 const username = process.env.TP_YMSINO_USERNAME || 'yzwl';
 const password = process.env.TP_YMSINO_PASSWORD || 'yzwl';
-const orgId = process.env.TP_YMSINO_ORG_ID || '1024';
+export const ymsinoOrgId = process.env.TP_YMSINO_ORG_ID || '1024';
+export const ymsinoDefaultPtId = process.env.TP_YMSINO_PT_ID || 'YZWL';
 
 export const ymsinoHttp: AxiosInstance = axios.create({
-  baseURL,
+  baseURL: ymsinoBaseURL,
   timeout: Number(process.env.TP_YMSINO_TIMEOUT_MS || 15_000),
   headers: { 'Content-Type': 'application/json' },
 });
@@ -36,7 +37,7 @@ export async function ymsinoLogin(): Promise<YmsinoTokenResponse> {
   const res = await ymsinoHttp.post<YmsinoTokenResponse>('/GetToken', {
     UserName: username,
     PassWord: password,
-    OrgId: orgId,
+    OrgId: ymsinoOrgId,
   });
   return res.data;
 }
@@ -58,7 +59,7 @@ export async function getPlt() {
   return await ymsinoRequest<YmsinoPltResponse>({
     method: 'post',
     url: '/GetPlt',
-    data: { OrgId: orgId },
+    data: { OrgId: ymsinoOrgId },
   });
 }
 
@@ -91,7 +92,7 @@ export async function getInfo(params: GetInfoParams) {
   return await ymsinoRequest<YmsinoInfoResponse>({
     method: 'post',
     url: '/GetInfo',
-    data: { OrgId: orgId, ...params },
+    data: { OrgId: ymsinoOrgId, ...params },
   });
 }
 
@@ -132,7 +133,7 @@ export async function getTranDay(params: GetTranDayParams) {
   return await ymsinoRequest<YmsinoTranDayResponse>({
     method: 'post',
     url: '/GetTranDay',
-    data: { OrgId: orgId, ...params },
+    data: { OrgId: ymsinoOrgId, ...params },
   });
 }
 
@@ -168,7 +169,7 @@ export async function getDevBalance(params: GetDevBalanceParams) {
   return await ymsinoRequest<YmsinoDevBalanceResponse>({
     method: 'post',
     url: '/CzDevSy',
-    data: { OrgId: orgId, ...params },
+    data: { OrgId: ymsinoOrgId, ...params },
   });
 }
 
@@ -197,7 +198,7 @@ export async function getCusBalance(params: GetCusBalanceParams) {
   return await ymsinoRequest<YmsinoCusBalanceResponse>({
     method: 'post',
     url: '/CzCusSy',
-    data: { OrgId: orgId, ...params },
+    data: { OrgId: ymsinoOrgId, ...params },
   });
 }
 
@@ -224,7 +225,7 @@ export interface RechargeDevParams {
 
 export async function rechargeDev(params: RechargeDevParams) {
   const data = {
-    OrgId: orgId,
+    OrgId: ymsinoOrgId,
     PayFrom: '4',
     Ctime: new Date().toISOString().replace('T', ' ').slice(0, 19),
     ...params,
@@ -248,7 +249,7 @@ export interface RechargeCusParams {
 
 export async function rechargeCus(params: RechargeCusParams) {
   const data = {
-    OrgId: orgId,
+    OrgId: ymsinoOrgId,
     PayFrom: '4',
     Ctime: new Date().toISOString().replace('T', ' ').slice(0, 19),
     ...params,
@@ -281,7 +282,7 @@ export async function doOnOff(params: OnOffParams) {
   return await ymsinoRequest<YmsinoOnOffResponse>({
     method: 'post',
     url: '/OnOff',
-    data: { OrgId: orgId, ...params },
+    data: { OrgId: ymsinoOrgId, ...params },
   });
 }
 

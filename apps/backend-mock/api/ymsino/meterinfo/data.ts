@@ -1,28 +1,18 @@
-/**
- * api/ymsino/meterinfo/data.ts
- * 亿玛电表冻结数据（仿 hezhong/meterinfo/data.ts）
- * 接口：GET /api/ymsino/meterinfo/data
- */
 import dayjs from 'dayjs';
-import { useResponseSuccess } from '~/utils/response';
-import { getTranDay } from '~/utils/thirdparty/ymsino';
-
-function normalizeHDM(list: any[]) {
-  return list.map((item: any) => ({
-    comAddress: item.FactoryNo,
-    dataItemName: '正向有功总电能',
-    dataValue4: item.ZVale,
-    writeTime: item.TranDate,
-    dataValue3: item.ZComm,
-    comtype: 'D.ZDG.FIWBM-GD04',
-    proCode: item.RmId,
-    dataValue2: item.ZPeak,
-    dataValue1: item.ZTip,
-    dataValue: item.ZTotal,
-    freezeTime: item.TranDate,
-    currentRatio: `Pt:${item.Pt} Ct:${item.Ct}`,
-  }));
-}
+import {
+  badRequestResponse,
+  unAuthorizedResponse,
+  useResponseSuccess,
+} from '~/utils/response';
+import { getTranDay, ymsinoDefaultPtId } from '~/utils/thirdparty/ymsino';
+import {
+  ensureYmsinoSuccess,
+  filterYmsinoFrozenReadings,
+  getYmsinoRuntimeConfig,
+  getYmsinoTjType,
+  paginateYmsinoItems,
+  parseYmsinoComAddresses,
+} from '~/utils/thirdparty/ymsino-adapter.ts';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
@@ -30,47 +20,52 @@ export default eventHandler(async (event) => {
     return unAuthorizedResponse(event);
   }
 
-  const q = getQuery(event) as any;
-  const _cur = Number(q.page ?? 1) || 1;
-  const _size = Number(q.pageSize ?? 20) || 20;
-  const tyDate = String(q.tyDate || '') || dayjs().format('YYYY-MM-DD');
+  const query = getQuery(event) as any;
+  const currentPage = Number(query.page ?? query.currentPage ?? 1) || 1;
+  const pageSize = Number(query.pageSize ?? 20) || 20;
+  const ptId = String(query.ptId || ymsinoDefaultPtId);
+  const freezeType = String(query.freezeType || query.type || 'day');
+  const tyDate = String(query.tyDate || '') || dayjs().format('YYYY-MM-DD');
+  const comAddresses = parseYmsinoComAddresses(query.comAddress);
 
-  const raw = (q as any).comAddress;
-  const comAddresses = raw
-    ? [
-        ...new Set(
-          (Array.isArray(raw) ? raw : String(raw).split(','))
-            .map((v: string) => String(v).trim())
-            .filter(Boolean),
-        ),
-      ]
-    : [];
-
-  // 查询电表冻结数据（TjType='0'）
-  if (comAddresses.length === 0) {
-    const res: any = await getTranDay({
-      PtId: 'YZWL',
-      TyDate: tyDate,
-      TjType: '0',
-    });
-    const items = normalizeHDM(res?.Date || []);
-    const total = items.length;
-    return useResponseSuccess({ items, total });
+  if (!['2', 'day'].includes(freezeType)) {
+    return badRequestResponse(
+      'Ymsino RM-http currently supports daily freeze only; hour/month freeze needs vendor API/topic',
+      event,
+    );
   }
 
-  // 按指定设备查询
-  const items: any[] = [];
-  for (const addr of comAddresses) {
-    const res: any = await getTranDay({
-      PtId: 'YZWL',
-      TyDate: tyDate,
-      RmId: '',
-      TjType: '0',
-    });
-    const list = normalizeHDM(res?.Date || []);
-    const filtered = list.filter((d: any) => d.comAddress === addr);
-    items.push(...filtered);
-  }
+  const result = await getTranDay({
+    PtId: ptId,
+    TyDate: tyDate,
+    TjType: getYmsinoTjType('electric'),
+  });
+  ensureYmsinoSuccess(result, 'Failed to get ymsino electric freeze data');
 
-  return useResponseSuccess({ items, total: items.length });
+  const readings = filterYmsinoFrozenReadings(
+    result?.Date || [],
+    'electric',
+    comAddresses,
+  );
+  const page = paginateYmsinoItems(readings, currentPage, pageSize);
+
+  return useResponseSuccess({
+    ...page,
+    diagnostics: {
+      freezeType: 'day',
+      protocol: 'M-Bus',
+      requestedDevices: comAddresses,
+      unsupportedFields: [
+        'hourFreeze',
+        'monthFreeze',
+        'offlineBackfill',
+        'realOnlineStatus',
+      ],
+    },
+    source: {
+      ...getYmsinoRuntimeConfig(),
+      kind: 'electric',
+      mode: 'vendor-platform',
+    },
+  });
 });
