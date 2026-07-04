@@ -7,7 +7,7 @@ import {
   getYmsinoRuntimeConfig,
   getYmsinoTjType,
   validateYmsinoDeviceList,
-} from '~/utils/thirdparty/ymsino-adapter';
+} from '~/utils/thirdparty/ymsino-adapter.ts';
 
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
