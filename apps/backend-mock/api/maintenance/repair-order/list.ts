@@ -10,6 +10,53 @@ import {
 
 import { getParkWhereFromQuery } from './utils';
 
+function getRepairOrderStatusRisk(status?: null | string) {
+  const text = String(status || '');
+  if (text === '待接单') {
+    return 50;
+  }
+  if (text === '处理中') {
+    return 40;
+  }
+  if (text === '待验收') {
+    return 30;
+  }
+  return 0;
+}
+
+function getRepairOrderPriorityRisk(priority?: null | string) {
+  const text = String(priority || '');
+  if (text.includes('紧急')) {
+    return 100;
+  }
+  if (text.includes('高')) {
+    return 60;
+  }
+  return 0;
+}
+
+function getRepairOrderRiskScore(item: {
+  priority?: null | string;
+  status?: null | string;
+}) {
+  return (
+    getRepairOrderPriorityRisk(item.priority) +
+    getRepairOrderStatusRisk(item.status)
+  );
+}
+
+function compareRepairOrderRisk(first: any, second: any) {
+  const riskDiff =
+    getRepairOrderRiskScore(second) - getRepairOrderRiskScore(first);
+  if (riskDiff !== 0) {
+    return riskDiff;
+  }
+
+  const firstTime = new Date(first.createTime || 0).getTime();
+  const secondTime = new Date(second.createTime || 0).getTime();
+  return secondTime - firstTime;
+}
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -73,7 +120,6 @@ export default eventHandler(async (event) => {
       }
     }
 
-    const total = await prismaClient.repairOrder.count({ where });
     const result = await prismaClient.repairOrder.findMany({
       include: {
         factory: {
@@ -87,19 +133,18 @@ export default eventHandler(async (event) => {
           },
         },
       },
-      orderBy: {
-        createTime: 'desc',
-      },
-      skip: (currentPage - 1) * pageSize,
-      take: pageSize,
       where,
     });
 
-    const items = result.map(({ factory, park, ...item }) => ({
-      ...item,
-      factory: factory?.factoryName || '',
-      park: park?.parkName || '',
-    }));
+    const sortedItems = result.sort(compareRepairOrderRisk);
+    const total = sortedItems.length;
+    const items = sortedItems
+      .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+      .map(({ factory, park, ...item }) => ({
+        ...item,
+        factory: factory?.factoryName || '',
+        park: park?.parkName || '',
+      }));
 
     return useResponseSuccess({
       currentPage,

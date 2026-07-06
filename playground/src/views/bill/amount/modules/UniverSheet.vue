@@ -311,6 +311,17 @@ function setTextCellValue(worksheet: any, rangeText: string, value: unknown) {
   }
 }
 
+function formatDateForSheet(value: unknown) {
+  if (!value) return '';
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return '';
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 async function init() {
   if (!univerContainer.value) {
     return;
@@ -772,15 +783,9 @@ async function init() {
       .setValue('收款时间')
       .setHorizontalAlignment('center');
     if (props.billData.receiptTime) {
-      try {
-        const date = new Date(props.billData.receiptTime);
-        const year = date.getFullYear();
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const day = date.getDate().toString().padStart(2, '0');
-        worksheet.getRange('K2').setValue(`${year}-${month}-${day}`);
-      } catch {
-        worksheet.getRange('K2').setValue(props.billData.receiptTime);
-      }
+      worksheet
+        .getRange('K2')
+        .setValue(formatDateForSheet(props.billData.receiptTime));
     }
 
     worksheet

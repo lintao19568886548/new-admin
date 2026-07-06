@@ -12,6 +12,7 @@ import {
   reactive,
   ref,
 } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { useVbenModal } from '@vben/common-ui';
 import { Search } from '@vben/icons';
@@ -44,6 +45,7 @@ import {
 } from '#/api/investment';
 import MobileDateRange from '#/components/MobileDateRange.vue';
 import { $t } from '#/locales';
+import { getInvestmentTodoPriorityInfo } from '#/utils/workbench-todo-priority';
 
 import { searchableDropdownProps, useSearchHistory } from '../search-history';
 import { getTagTypeOptions } from './data';
@@ -72,6 +74,7 @@ const parkOptions = ref<{ label: string; value: number }[]>([
   { label: '全部区域', value: -1 },
 ]);
 const selectedParkId = ref<number | undefined>(undefined);
+const route = useRoute();
 const parkNameMap = ref<Record<number, string>>({});
 
 const loading = ref(false);
@@ -110,6 +113,14 @@ function formatIntentArea(value?: number) {
 
 function formatMeetingTime(value?: string) {
   return formatValue(value ? formatDateTime(value) : '');
+}
+
+function getInvestmentPriorityInfo(item: InvestmentAgent) {
+  return getInvestmentTodoPriorityInfo(
+    item.progress,
+    item.meetingTime,
+    item.intentLevel,
+  );
 }
 
 const [FormModal, formModalApi] = useVbenModal({
@@ -319,7 +330,32 @@ function onParkChange(value: any) {
   handleSearch();
 }
 
+function getRouteQueryText(value: unknown) {
+  if (Array.isArray(value)) {
+    return String(value[0] || '').trim();
+  }
+
+  return String(value || '').trim();
+}
+
+function applyRouteFilters() {
+  const parkId = Number(route.query.parkId ?? route.query.currentPark);
+  const tenantName = getRouteQueryText(route.query.tenantName);
+  const progress = getRouteQueryText(route.query.progress);
+
+  if (Number.isInteger(parkId) && parkId > 0) {
+    selectedParkId.value = parkId;
+  }
+  if (tenantName) {
+    searchForm.tenantName = tenantName;
+  }
+  if (progress) {
+    searchForm.progress = progress;
+  }
+}
+
 onMounted(() => {
+  applyRouteFilters();
   fetchList();
   getInvestmentParkList()
     .then((list: any[]) => {
@@ -517,6 +553,12 @@ function resolveParkName(id?: null | number, name?: string) {
           </div>
 
           <div class="investment-card-tags">
+            <Tag
+              v-if="getInvestmentPriorityInfo(item).visible"
+              :color="getInvestmentPriorityInfo(item).color"
+            >
+              {{ getInvestmentPriorityInfo(item).label }}
+            </Tag>
             <Tag color="blue">{{ formatValue(item.progress) }}</Tag>
             <span :title="resolveParkName(item.parkId, item.parkName) || '-'">
               园区：{{ resolveParkName(item.parkId, item.parkName) || '-' }}
@@ -540,6 +582,10 @@ function resolveParkName(id?: null | number, name?: string) {
               <div class="meta-tenant">
                 <span>租户名称</span>
                 <strong>{{ formatValue(item.tenantName) }}</strong>
+              </div>
+              <div v-if="getInvestmentPriorityInfo(item).visible">
+                <span>处理提醒</span>
+                <strong>{{ getInvestmentPriorityInfo(item).reason }}</strong>
               </div>
             </div>
 

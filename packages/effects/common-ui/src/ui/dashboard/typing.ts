@@ -48,6 +48,9 @@ interface RentalProjectItem {
   date: string;
   group: string;
   imgUrl: string;
+  priorityColor?: string;
+  priorityLabel?: string;
+  priorityReason?: string;
   tag: string;
   title: string;
 }

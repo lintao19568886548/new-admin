@@ -73,6 +73,19 @@ function isBillInProjectMonthRange(
   );
 }
 
+function getRemainingAmount(item: { remainingAmount?: unknown }) {
+  const amount = Number(item.remainingAmount ?? 0);
+  return Number.isFinite(amount) ? Math.max(amount, 0) : 0;
+}
+
+function compareAmountBillCollectionRisk(first: any, second: any) {
+  const amountDiff = getRemainingAmount(second) - getRemainingAmount(first);
+  if (amountDiff !== 0) {
+    return amountDiff;
+  }
+  return compareAmountBillProjectDesc(first, second);
+}
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -158,7 +171,11 @@ export default eventHandler(async (event) => {
     enrichedItems,
     collectionStatus as string | undefined,
   );
-  const sortedItems = filteredItems.sort(compareAmountBillProjectDesc);
+  const sortedItems = filteredItems.sort(
+    collectionStatus === 'unreceived'
+      ? compareAmountBillCollectionRisk
+      : compareAmountBillProjectDesc,
+  );
   const summary = buildAmountBillListSummary(sortedItems);
   const total = sortedItems.length;
   const items = sortedItems.slice((page - 1) * size, page * size);

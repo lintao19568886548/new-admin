@@ -1,8 +1,7 @@
 import { requestClient } from '#/api/request';
+import { notifyWorkbenchTodoChangedAfter } from '#/utils/workbench-todo-sync';
 
 export async function getTenantList(params?: any) {
-  console.warn('API调用参数:', params);
-
   // 处理查询参数，移除空值
   const cleanParams: Record<string, any> = { ...params };
   Object.keys(cleanParams).forEach((key) => {
@@ -62,19 +61,31 @@ export async function getTenantSelectList(params?: any) {
 }
 
 export async function createTenant(data: any) {
-  return requestClient.post('/rental/tenant', data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.post('/rental/tenant', data),
+    { reason: 'tenant-saved', source: 'tenant-api' },
+  );
 }
 
 export async function updateTenant(id: number, data: any) {
-  return requestClient.put(`/rental/tenant/${id}`, data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.put(`/rental/tenant/${id}`, data),
+    { reason: 'tenant-saved', source: 'tenant-api' },
+  );
 }
 
 export async function deleteTenant(id: number) {
-  return requestClient.delete(`/rental/tenant/${id}`);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.delete(`/rental/tenant/${id}`),
+    { reason: 'tenant-deleted', source: 'tenant-api' },
+  );
 }
 
 export async function clearTenants(params?: any) {
-  return requestClient.post('/rental/tenant/clear', params);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.post('/rental/tenant/clear', params),
+    { reason: 'tenant-cleared', source: 'tenant-api' },
+  );
 }
 
 // 获取租户短信信息

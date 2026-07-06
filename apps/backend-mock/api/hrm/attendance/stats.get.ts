@@ -25,7 +25,14 @@ export default eventHandler(async (event) => {
   try {
     const query = getQuery(event);
     const roleNames = userinfo.roles ?? [];
-    const isSuper = roleNames.includes('Super');
+    const canViewTeamAttendance = roleNames.some((role: unknown) => {
+      const roleName = String(role || '').toLowerCase();
+      return (
+        roleName.includes('super') ||
+        roleName.includes('hr') ||
+        roleName.includes('人事')
+      );
+    });
     const requestedUsername =
       typeof query.username === 'string' ? query.username.trim() : '';
 
@@ -35,7 +42,7 @@ export default eventHandler(async (event) => {
     let scopeWhere: { userId: number } | { username: string } = {
       userId: userinfo.id,
     };
-    if (isSuper && requestedUsername) {
+    if (canViewTeamAttendance && requestedUsername) {
       scopeWhere = { username: requestedUsername };
     }
 
@@ -58,7 +65,7 @@ export default eventHandler(async (event) => {
       },
       status: 1,
     };
-    if (isSuper) {
+    if (canViewTeamAttendance) {
       if (requestedUsername) {
         leaveWhere.user = requestedUsername;
       }

@@ -21,6 +21,7 @@ import { Button, message } from 'ant-design-vue';
 
 import IonicPullToRefresh from '#/components/IonicPullToRefresh.vue';
 import { usePullToRefresh } from '#/hooks/usePullToRefresh';
+import { useWorkbenchTodoPush } from '#/hooks/useWorkbenchTodoPush';
 import { useAuthStore } from '#/store';
 import { useLayoutStore } from '#/store/layout';
 import { isNativeRuntime } from '#/utils/native-runtime';
@@ -67,11 +68,14 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
+  stopWorkbenchTodoPush();
 
   void backButtonListener?.remove();
 });
 
 const router = useRouter();
+const { startWorkbenchTodoPush, stopWorkbenchTodoPush } =
+  useWorkbenchTodoPush(router);
 const layoutStore = useLayoutStore();
 
 const showBackButton = computed(
@@ -217,6 +221,19 @@ const avatar = computed(() => {
 
 const shouldRenderAutoUpdateChecker = computed(
   () => isNativeRuntime() && !!accessStore.accessToken,
+);
+
+watch(
+  () => accessStore.accessToken,
+  (accessToken) => {
+    if (accessToken) {
+      startWorkbenchTodoPush({ immediate: true });
+      return;
+    }
+
+    stopWorkbenchTodoPush();
+  },
+  { immediate: true },
 );
 
 async function handleLogout() {

@@ -1,6 +1,148 @@
 import { prismaClient } from '~/utils/db';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function getDayDiff(target: Date, reference: Date) {
+  return Math.ceil(
+    (startOfDay(target).getTime() - startOfDay(reference).getTime()) /
+      86_400_000,
+  );
+}
+
+function getInvestmentProgressStage(progress?: null | string) {
+  const text = String(progress || '');
+  if (text.includes('签约')) {
+    return 'signed';
+  }
+  if (text.includes('合同')) {
+    return 'contract';
+  }
+  if (
+    text.includes('深入') ||
+    text.includes('沟通') ||
+    text.includes('谈判') ||
+    text.includes('报价') ||
+    text.includes('看房') ||
+    text.includes('跟进')
+  ) {
+    return 'active';
+  }
+  if (text.includes('初步') || text.includes('接洽')) {
+    return 'initial';
+  }
+  return 'unknown';
+}
+
+function getInvestmentIntentLevel(intentLevel?: null | string) {
+  const level = String(intentLevel || '').toLowerCase();
+  if (level.includes('很高') || level.startsWith('a')) {
+    return 'very_high';
+  }
+  if (level.includes('高')) {
+    return 'high';
+  }
+  if (level.includes('中') || level.includes('一般') || level.startsWith('b')) {
+    return 'medium';
+  }
+  return 'low';
+}
+
+function getInvestmentMeetingRisk(
+  progress?: null | string,
+  meetingTime?: Date | null,
+) {
+  if (!meetingTime) {
+    return 0;
+  }
+
+  const stage = getInvestmentProgressStage(progress);
+  const daysUntilMeeting = getDayDiff(meetingTime, new Date());
+  if (daysUntilMeeting >= 0) {
+    return Math.max(30 - daysUntilMeeting, 0);
+  }
+
+  const overdueDays = Math.min(Math.abs(daysUntilMeeting), 60);
+  switch (stage) {
+    case 'active': {
+      return 55 + overdueDays;
+    }
+    case 'contract': {
+      return 90 + overdueDays;
+    }
+    case 'initial': {
+      return 25 + Math.min(overdueDays, 20);
+    }
+    default: {
+      return 40 + Math.min(overdueDays, 30);
+    }
+  }
+}
+
+function getInvestmentProgressRisk(progress?: null | string) {
+  switch (getInvestmentProgressStage(progress)) {
+    case 'active': {
+      return 45;
+    }
+    case 'contract': {
+      return 80;
+    }
+    case 'initial': {
+      return 10;
+    }
+    default: {
+      return 0;
+    }
+  }
+}
+
+function getInvestmentIntentRisk(intentLevel?: null | string) {
+  switch (getInvestmentIntentLevel(intentLevel)) {
+    case 'high': {
+      return 40;
+    }
+    case 'medium': {
+      return 20;
+    }
+    case 'very_high': {
+      return 50;
+    }
+    default: {
+      return 0;
+    }
+  }
+}
+
+function getInvestmentRiskScore(item: {
+  intentLevel?: null | string;
+  meetingTime?: Date | null;
+  progress?: null | string;
+}) {
+  return (
+    getInvestmentMeetingRisk(item.progress, item.meetingTime) +
+    getInvestmentProgressRisk(item.progress) +
+    getInvestmentIntentRisk(item.intentLevel)
+  );
+}
+
+function compareInvestmentRisk(first: any, second: any) {
+  const riskDiff =
+    getInvestmentRiskScore(second) - getInvestmentRiskScore(first);
+  if (riskDiff !== 0) {
+    return riskDiff;
+  }
+
+  const firstTime = new Date(
+    first.meetingTime || first.createTime || 0,
+  ).getTime();
+  const secondTime = new Date(
+    second.meetingTime || second.createTime || 0,
+  ).getTime();
+  return secondTime - firstTime;
+}
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -81,10 +223,6 @@ export default eventHandler(async (event) => {
   const size = Number(pageSize) || 20;
 
   const { items, total } = await runWithRadarSharedScope(async () => {
-    const total = await prismaClient.investment.count({
-      where,
-    });
-
     const result = await prismaClient.investment.findMany({
       include: {
         images: {
@@ -98,14 +236,14 @@ export default eventHandler(async (event) => {
           },
         },
       },
-      orderBy: [{ meetingTime: 'desc' }, { investmentId: 'desc' }],
-      skip: (page - 1) * size,
-      take: size,
       where,
     });
+    const sortedItems = result.sort(compareInvestmentRisk);
+    const total = sortedItems.length;
+    const paginatedItems = sortedItems.slice((page - 1) * size, page * size);
 
     return {
-      items: result.map((item) => {
+      items: paginatedItems.map((item) => {
         const imageUrls = item.images.map((img) => img.image.imgUrl);
 
         return {

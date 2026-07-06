@@ -2,7 +2,7 @@
 import type { FactoryListItem } from './types';
 
 import { computed, onActivated, onMounted, onUnmounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import { RentalProject } from '@vben/common-ui';
 import { formatDateTime } from '@vben/utils';
@@ -11,8 +11,10 @@ import { Button, message, Spin, Tag } from 'ant-design-vue';
 
 import { getAvailableFactoryList } from '#/api/factory';
 import { useParkStore } from '#/store';
+import { getVacantFactoryTodoPriorityInfo } from '#/utils/workbench-todo-priority';
 
 const store = useParkStore();
+const route = useRoute();
 
 // 厂房列表数据
 const projectItems = ref<FactoryListItem[]>([]);
@@ -25,9 +27,16 @@ const total = ref(0);
 // 搜索相关状态
 const searchParams = ref({
   group: '',
+  parkId: undefined as number | undefined,
   tag: '',
   title: '',
 });
+
+function applyRouteFilters() {
+  const parkId = Number(route.query.parkId ?? route.query.currentPark);
+  searchParams.value.parkId =
+    Number.isInteger(parkId) && parkId > 0 ? parkId : undefined;
+}
 
 // 获取有空闲面积的厂房列表数据
 async function fetchFactoryList(isLoadMore = false) {
@@ -59,18 +68,28 @@ async function fetchFactoryList(isLoadMore = false) {
     const items = res.items.map((item: any) => {
       // 直接使用后端返回的imgUrl，如果没有则使用默认图片
       const imgUrl = item.imgUrl || store.defaultImgUrl;
+      const availableArea = item.availableArea || 0;
+      const priorityInfo = getVacantFactoryTodoPriorityInfo(
+        Number(availableArea || 0),
+      );
+      const description = item.description || '暂无描述';
 
       return {
         address: item.address,
         area: item.area || 0,
-        availableArea: item.availableArea || 0,
+        availableArea,
         buildingNumber: item.buildingNumber || item.factoryName,
-        content: item.description || '暂无描述',
+        content: priorityInfo.visible
+          ? `处理提醒：${priorityInfo.reason}。${description}`
+          : description,
         date: item.createTime ? formatDateTime(item.createTime) : 'N/A',
         floorCount: item.floorCount || (item.floors ? item.floors.length : 0),
         group: item.factoryName, // 使用厂房名称作为分组
         id: item.factoryId,
         imgUrl,
+        priorityColor: priorityInfo.visible ? priorityInfo.color : undefined,
+        priorityLabel: priorityInfo.visible ? priorityInfo.label : undefined,
+        priorityReason: priorityInfo.visible ? priorityInfo.reason : undefined,
         rentPrice: item.rentPrice || 0,
         tag: item.status || '正常', // 直接使用status值，如果为空则显示"正常"
         title: item.factoryName,
@@ -161,6 +180,7 @@ async function handleScroll() {
 const refreshListData = () => {
   currentPage.value = 1; // 重置到第一页
   projectItems.value = []; // 清空现有项目，以便显示加载状态或避免旧数据闪烁
+  applyRouteFilters();
   fetchFactoryList(); // 获取第一页数据
 };
 
@@ -197,6 +217,13 @@ onUnmounted(() => {
               </div>
             </template>
             <template #tag="item">
+              <Tag
+                v-if="item.priorityLabel"
+                class="font-sma rounded-md px-2 text-base"
+                :color="item.priorityColor || 'blue'"
+              >
+                {{ item.priorityLabel }}
+              </Tag>
               <Tag class="font-sma rounded-md px-2 text-base">
                 {{ item.tag }}
               </Tag>

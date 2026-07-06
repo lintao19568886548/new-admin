@@ -1,4 +1,5 @@
 import { requestClient } from '#/api/request';
+import { notifyWorkbenchTodoChangedAfter } from '#/utils/workbench-todo-sync';
 
 export interface ReimbursementAnalysisQuery {
   endDate?: string;
@@ -42,7 +43,10 @@ export interface ReimbursementSummaryResponse {
 
 // 创建报销申请
 export async function createReimbursement(data: any) {
-  return requestClient.post('/reimbursement', data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.post('/reimbursement', data),
+    { reason: 'reimbursement-saved', source: 'reimbursement-api' },
+  );
 }
 
 // 获取报销列表
@@ -60,7 +64,10 @@ export async function getReimbursementList(params?: any) {
 
 // 提交报销申请
 export async function submitReimbursement(data: any) {
-  return requestClient.post('/reimbursement', data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.post('/reimbursement', data),
+    { reason: 'reimbursement-saved', source: 'reimbursement-api' },
+  );
 }
 
 // 获取报销详情
@@ -70,12 +77,18 @@ export async function getReimbursementDetail(id: number) {
 
 // 更新报销信息
 export async function updateReimbursement(id: number, data: any) {
-  return requestClient.put(`/reimbursement/${id}`, data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.put(`/reimbursement/${id}`, data),
+    { reason: 'reimbursement-saved', source: 'reimbursement-api' },
+  );
 }
 
 // 删除报销信息
 export async function deleteReimbursement(id: number) {
-  return requestClient.delete(`/reimbursement/${id}`);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.delete(`/reimbursement/${id}`),
+    { reason: 'reimbursement-deleted', source: 'reimbursement-api' },
+  );
 }
 
 export async function getPendingReimbursementCount() {

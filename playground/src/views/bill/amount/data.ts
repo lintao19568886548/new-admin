@@ -9,6 +9,10 @@ import { formatDate, formatDateTime } from '@vben/utils';
 import { getAmountBillProjectOptions } from '#/api/bill';
 import { getVisitorParkList } from '#/api/park';
 import { $t } from '#/locales';
+import {
+  getRentTodoPriorityInfo,
+  renderWorkbenchTodoPriorityInfo,
+} from '#/utils/workbench-todo-priority';
 
 /**
  * 总账单接口
@@ -57,6 +61,16 @@ export interface AmountBill {
   waterItem?: string; // 水费原始数据
   waterTax?: number; // 水费税金
   waterTaxRate?: number; // 水费税金
+}
+
+function getAmountBillRemainingAmount(row: AmountBill) {
+  return Math.max(
+    Number(
+      row.remainingAmount ??
+        Number(row.totalFee || 0) - Number(row.receiptAmount || 0),
+    ),
+    0,
+  );
 }
 
 export interface AmountBillListSummary {
@@ -350,6 +364,21 @@ export function useColumns<T = AmountBill>(
       formatter: ({ cellValue }) => formatAmountBillMoney(cellValue),
       minWidth: 130,
       title: '未收金额',
+    },
+    {
+      field: 'todoPriority',
+      minWidth: 260,
+      slots: {
+        default: ({ row }) => {
+          const remainingAmount = getAmountBillRemainingAmount(row);
+          const info = getRentTodoPriorityInfo(remainingAmount);
+          if (!info.visible) {
+            return '';
+          }
+          return renderWorkbenchTodoPriorityInfo(info);
+        },
+      },
+      title: '处理提醒',
     },
     {
       field: 'overpaidAmount',

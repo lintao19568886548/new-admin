@@ -62,18 +62,28 @@ interface AmountBillLlmResult {
   waterItems?: AmountBillLlmMeterItem[];
 }
 
+interface AmountBillLlmAnalyzeResult extends AmountBillLlmResult {
+  bills?: AmountBillLlmResult[];
+}
+
 const AMOUNT_BILL_CACHE_TTL_MS = 10 * 60_000;
 const AMOUNT_BILL_FILE_MAX_SIZE_BYTES = 150 * 1024 * 1024;
 const AMOUNT_BILL_FILE_READY_MAX_WAIT_MS = 90_000;
 const AMOUNT_BILL_FILE_READY_POLL_INTERVAL_MS = 1500;
 const AMOUNT_BILL_FORMULA_CONTEXT_MAX_CHARS = 20_000;
+const AMOUNT_BILL_LLM_CHAT_TIMEOUT_MS = Number(
+  process.env.AMOUNT_BILL_LLM_CHAT_TIMEOUT_MS || 260_000,
+);
+const AMOUNT_BILL_WORKBOOK_TEXT_MAX_CHARS = 80_000;
 const AMOUNT_BILL_PRIMARY_MODEL = 'qwen-doc-turbo';
 const AMOUNT_BILL_FALLBACK_MODEL = 'qwen-long';
+const AMOUNT_BILL_TEXT_MODEL =
+  process.env.AMOUNT_BILL_TEXT_MODEL || 'qwen-plus';
 const amountBillResultCache = new Map<
   string,
   {
     expiresAt: number;
-    result: AmountBillLlmResult;
+    result: AmountBillLlmAnalyzeResult;
   }
 >();
 
@@ -86,10 +96,18 @@ function hasMeaningfulText(value: unknown) {
 }
 
 function hasMeaningfulAmountBillResult(
-  result: AmountBillLlmResult | null | undefined,
+  result: AmountBillLlmAnalyzeResult | AmountBillLlmResult | null | undefined,
 ) {
   if (!result) {
     return false;
+  }
+
+  if (
+    'bills' in result &&
+    Array.isArray(result.bills) &&
+    result.bills.length > 0
+  ) {
+    return result.bills.some((bill) => hasMeaningfulAmountBillResult(bill));
   }
 
   return Boolean(
@@ -140,33 +158,50 @@ function getMultipartText(part: undefined | { data?: Uint8Array }) {
     .trim();
 }
 
-async function requestAmountBillCompletion(
-  uploadedFileId: string,
-  prompt: string,
+function getMultipartTextWithLimit(
+  part: undefined | { data?: Uint8Array },
+  maxChars: number,
 ) {
-  const models = [AMOUNT_BILL_PRIMARY_MODEL, AMOUNT_BILL_FALLBACK_MODEL];
+  if (!part?.data) return '';
+  return Buffer.from(part.data).toString('utf8').slice(0, maxChars).trim();
+}
+
+async function requestAmountBillCompletion(
+  prompt: string,
+  uploadedFileId = '',
+) {
+  const models = uploadedFileId
+    ? [AMOUNT_BILL_PRIMARY_MODEL, AMOUNT_BILL_FALLBACK_MODEL]
+    : [AMOUNT_BILL_TEXT_MODEL, AMOUNT_BILL_FALLBACK_MODEL];
   let lastError: any;
 
   for (const [index, model] of models.entries()) {
     try {
+      const messages = [
+        {
+          content:
+            'You extract bill fields from uploaded Excel workbooks and return JSON only.',
+          role: 'system' as const,
+        },
+        ...(uploadedFileId
+          ? [
+              {
+                content: `fileid://${uploadedFileId}`,
+                role: 'system' as const,
+              },
+            ]
+          : []),
+        {
+          content: prompt,
+          role: 'user' as const,
+        },
+      ];
+
       return await requestBailianChat({
-        messages: [
-          {
-            content:
-              'You extract bill fields from uploaded Excel workbooks and return JSON only.',
-            role: 'system',
-          },
-          {
-            content: `fileid://${uploadedFileId}`,
-            role: 'system',
-          },
-          {
-            content: prompt,
-            role: 'user',
-          },
-        ],
+        messages,
         model,
         temperature: 0,
+        timeoutMs: AMOUNT_BILL_LLM_CHAT_TIMEOUT_MS,
       });
     } catch (error) {
       lastError = error;
@@ -230,6 +265,10 @@ export default eventHandler(async (event) => {
   const formulaContext = getMultipartText(
     formData?.find((part) => part.name === 'formulaContext'),
   );
+  const workbookText = getMultipartTextWithLimit(
+    formData?.find((part) => part.name === 'workbookText'),
+    AMOUNT_BILL_WORKBOOK_TEXT_MAX_CHARS,
+  );
 
   if (!file?.data || file.data.length === 0) {
     return badRequestResponse('Missing Excel file', event);
@@ -254,8 +293,18 @@ export default eventHandler(async (event) => {
   }
 
   const prompt = [
-    'Please read the uploaded Excel bill workbook and extract the bill fields.',
+    workbookText
+      ? 'Please read the extracted Excel workbook text below and extract the bill fields.'
+      : 'Please read the uploaded Excel bill workbook and extract the bill fields.',
     'Return JSON only, and do not wrap the JSON in markdown code fences.',
+    workbookText
+      ? [
+          'Extracted workbook text format: each sheet starts with "# Sheet:", each row starts with the Excel row number like R12, and cells are separated by tabs.',
+          'Use row order and sheet names to identify separated parks, projects, tenants and bill sections.',
+          'Extracted workbook text:',
+          workbookText,
+        ].join('\n')
+      : '',
     formulaContext
       ? [
           'The application also parsed this formula context from the same workbook.',
@@ -273,8 +322,10 @@ export default eventHandler(async (event) => {
     '5. tenantName, parkName and projectName must be concise entity names, not document titles.',
     '6. If a candidate name contains words like 明细, 通知单, 账单, 水电, 房租, 租金, 收费 or looks like a heading, return "" instead.',
     '7. Keep remark short and useful.',
-    '8. Use exactly this JSON object schema:',
-    '{"tenantName":"","projectName":"","parkName":"","receiptTime":"","receiptAmount":"","eleFee":"","waterFee":"","factoryRent":"","managementFee":"","garbageFee":"","serviceFee":"","invoiceTax":"","penaltyFee":"","totalFee":"","remark":"","publicBankAccount":{"name":"","number":"","bank":""},"privateBankAccount":{"name":"","number":"","bank":""},"eleItems":[{"meterName":"","previousReading":"","currentReading":"","monthlyUsage":"","multiplier":"","totalUsage":"","unitPrice":"","amount":"","remark":""}],"waterItems":[{"meterName":"","previousReading":"","currentReading":"","monthlyUsage":"","multiplier":"","totalUsage":"","unitPrice":"","amount":"","remark":""}],"extraProjectItems":[{"itemName":"","value":""}]}',
+    '8. If the workbook contains multiple parks, projects, tenants, sheets, or separated bill sections, split them into separate bills. Do not merge different parks into one bill.',
+    '9. Return one JSON object with a bills array. Each bills item must use exactly this bill schema:',
+    '{"bills":[{"tenantName":"","projectName":"","parkName":"","receiptTime":"","receiptAmount":"","eleFee":"","waterFee":"","factoryRent":"","managementFee":"","garbageFee":"","serviceFee":"","invoiceTax":"","penaltyFee":"","totalFee":"","remark":"","publicBankAccount":{"name":"","number":"","bank":""},"privateBankAccount":{"name":"","number":"","bank":""},"eleItems":[{"meterName":"","previousReading":"","currentReading":"","monthlyUsage":"","multiplier":"","totalUsage":"","unitPrice":"","amount":"","remark":""}],"waterItems":[{"meterName":"","previousReading":"","currentReading":"","monthlyUsage":"","multiplier":"","totalUsage":"","unitPrice":"","amount":"","remark":""}],"extraProjectItems":[{"itemName":"","value":""}]}]}',
+    '10. If there is only one bill, still return {"bills":[...]} with one item.',
   ]
     .filter(Boolean)
     .join('\n');
@@ -288,29 +339,32 @@ export default eventHandler(async (event) => {
       fileSize: file.data.length,
       fallbackModel: AMOUNT_BILL_FALLBACK_MODEL,
       primaryModel: AMOUNT_BILL_PRIMARY_MODEL,
+      textMode: Boolean(workbookText),
     });
 
-    const uploadedFile = await uploadBailianFile({
-      contentType:
-        file.type ||
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      data: file.data,
-      filename: fileName,
-    });
+    if (!workbookText) {
+      const uploadedFile = await uploadBailianFile({
+        contentType:
+          file.type ||
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        data: file.data,
+        filename: fileName,
+      });
 
-    uploadedFileId = String(uploadedFile?.id || '').trim();
-    if (!uploadedFileId) {
-      throw new Error('Bailian file upload returned no file id');
+      uploadedFileId = String(uploadedFile?.id || '').trim();
+      if (!uploadedFileId) {
+        throw new Error('Bailian file upload returned no file id');
+      }
+
+      await waitForBailianFileReady(uploadedFileId);
     }
 
-    await waitForBailianFileReady(uploadedFileId);
-
     const completion = await requestAmountBillCompletion(
-      uploadedFileId,
       prompt,
+      uploadedFileId,
     );
 
-    const result = parseBailianJson<AmountBillLlmResult>(completion);
+    const result = parseBailianJson<AmountBillLlmAnalyzeResult>(completion);
     console.info('[llm][amount-bill] request done', {
       durationMs: Date.now() - requestStartedAt,
       hasResult: hasMeaningfulAmountBillResult(result),

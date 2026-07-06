@@ -1,4 +1,5 @@
 import { requestClient } from '#/api/request';
+import { notifyWorkbenchTodoChangedAfter } from '#/utils/workbench-todo-sync';
 
 export interface RepairOrderListParams {
   assignee?: string;
@@ -40,6 +41,13 @@ export interface RepairOrder {
   updateTime?: string;
 }
 
+export type RepairOrderWorkflowAction =
+  | 'accept'
+  | 'cancel'
+  | 'finish'
+  | 'return'
+  | 'verify';
+
 function filterParams(params?: Record<string, any>) {
   return Object.fromEntries(
     Object.entries(params ?? {}).filter(
@@ -59,13 +67,32 @@ export async function getRepairOrderDetail(id: number) {
 }
 
 export async function createRepairOrder(data: Record<string, any>) {
-  return requestClient.post('/maintenance/repair-order', data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.post('/maintenance/repair-order', data),
+    { reason: 'repair-order-saved', source: 'repair-order-api' },
+  );
 }
 
 export async function updateRepairOrder(id: number, data: Record<string, any>) {
-  return requestClient.put(`/maintenance/repair-order/${id}`, data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.put(`/maintenance/repair-order/${id}`, data),
+    { reason: 'repair-order-saved', source: 'repair-order-api' },
+  );
+}
+
+export async function updateRepairOrderWorkflow(
+  id: number,
+  data: { action: RepairOrderWorkflowAction; remark?: string },
+) {
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.post(`/maintenance/repair-order/${id}/workflow`, data),
+    { reason: 'repair-order-workflow', source: 'repair-order-api' },
+  );
 }
 
 export async function deleteRepairOrder(id: number) {
-  return requestClient.delete(`/maintenance/repair-order/${id}`);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.delete(`/maintenance/repair-order/${id}`),
+    { reason: 'repair-order-deleted', source: 'repair-order-api' },
+  );
 }

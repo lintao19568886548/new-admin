@@ -10,6 +10,10 @@ import { getInvestmentParkList } from '#/api/investment';
 import ParkLabel from '#/components/LabelRouter.vue';
 import MultiSelect from '#/components/MultiSelect.vue'; // 导入 MultiSelect 组件
 import { $t } from '#/locales';
+import {
+  getInvestmentTodoPriorityInfo,
+  renderWorkbenchTodoPriorityInfo,
+} from '#/utils/workbench-todo-priority';
 
 import {
   getSearchHistoryOptions,
@@ -316,6 +320,24 @@ export function useColumns<T = InvestmentAgent>(
       field: 'progress',
       minWidth: 120,
       title: $t('page.agent.progress'),
+    },
+    {
+      field: 'todoPriority',
+      minWidth: 280,
+      slots: {
+        default: ({ row }) => {
+          const info = getInvestmentTodoPriorityInfo(
+            row.progress,
+            row.meetingTime,
+            row.intentLevel,
+          );
+          if (!info.visible) {
+            return '';
+          }
+          return renderWorkbenchTodoPriorityInfo(info);
+        },
+      },
+      title: '处理提醒',
     },
     {
       field: 'phoneNumber',

@@ -7,6 +7,10 @@ import { z } from '#/adapter/form';
 import { getFactoryListByParkId } from '#/api/factory';
 import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
+import {
+  getRepairOrderTodoPriorityInfo,
+  renderWorkbenchTodoPriorityInfo,
+} from '#/utils/workbench-todo-priority';
 
 export const REPAIR_SOURCE_OPTIONS = [
   { label: '租户报修', value: '租户报修' },
@@ -285,6 +289,20 @@ export function useColumns(
       title: '状态',
     },
     {
+      field: 'todoPriority',
+      minWidth: 280,
+      slots: {
+        default: ({ row }) => {
+          const info = getRepairOrderTodoPriorityInfo(row.priority, row.status);
+          if (!info.visible) {
+            return '';
+          }
+          return renderWorkbenchTodoPriorityInfo(info);
+        },
+      },
+      title: '处理提醒',
+    },
+    {
       field: 'assignee',
       minWidth: 120,
       title: '维修人员',
@@ -305,11 +323,44 @@ export function useColumns(
           onClick: onActionClick,
         },
         name: 'CellOperation',
-        options: ['edit', 'delete'],
+        options: [
+          {
+            code: 'accept',
+            show: (row: Record<string, any>) => row.status === '待接单',
+            text: '接单',
+            type: 'primary',
+          },
+          {
+            code: 'finish',
+            show: (row: Record<string, any>) => row.status === '处理中',
+            text: '提交完工',
+            type: 'primary',
+          },
+          {
+            code: 'verify',
+            show: (row: Record<string, any>) => row.status === '待验收',
+            text: '验收通过',
+            type: 'primary',
+          },
+          {
+            code: 'return',
+            show: (row: Record<string, any>) => row.status === '待验收',
+            text: '退回处理',
+          },
+          {
+            code: 'cancel',
+            danger: true,
+            show: (row: Record<string, any>) =>
+              ['处理中', '待接单'].includes(String(row.status || '')),
+            text: '取消',
+          },
+          'edit',
+          'delete',
+        ],
       },
       field: 'operation',
       fixed: 'right',
-      minWidth: 150,
+      minWidth: 300,
       title: '操作',
     },
   ];

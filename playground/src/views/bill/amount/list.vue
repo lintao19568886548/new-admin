@@ -61,6 +61,14 @@ const DELETE_VERIFY_STORAGE_KEY = 'bill-delete-verified-at';
 const deleteVerificationModalRef =
   ref<InstanceType<typeof SmsVerificationModal>>();
 const collectionSmsModalRef = ref<InstanceType<typeof CollectionSmsModal>>();
+const createModeModalVisible = ref(false);
+const aiImportLoading = ref(false);
+
+interface BillFormOpenOptions {
+  aiImportReview?: boolean;
+  aiReviewBills?: AmountBill[];
+  isNextMonth?: boolean;
+}
 
 onMounted(async () => {
   const [parkResult, tenantResult] = await Promise.allSettled([
@@ -92,7 +100,10 @@ onMounted(async () => {
 // 账单表单包含 Univer 表格，体积很大，只在用户打开表单时加载。
 const billFormComponent = shallowRef();
 const billFormRef = ref<{
-  open: (data: AmountBill, options?: { isNextMonth?: boolean }) => void;
+  open: (
+    data: AmountBill,
+    options?: BillFormOpenOptions,
+  ) => Promise<void> | void;
 }>();
 
 // 账单详情组件引用
@@ -149,13 +160,10 @@ async function ensureBillFormReady() {
   return billFormRef.value;
 }
 
-async function openBillForm(
-  data: AmountBill,
-  options?: { isNextMonth?: boolean },
-) {
+async function openBillForm(data: AmountBill, options?: BillFormOpenOptions) {
   try {
     const billForm = await ensureBillFormReady();
-    billForm.open(data, options);
+    await billForm.open(data, options);
   } catch (error) {
     console.error('打开账单表单失败:', error);
     message.error(error instanceof Error ? error.message : '打开账单表单失败');
@@ -171,10 +179,19 @@ function onNext(row: AmountBill) {
 }
 
 /**
- * 创建新账单
+ * 打开新增方式选择
  */
 function onCreate() {
-  const newBill: AmountBill = {
+  if (aiImportLoading.value) {
+    message.info('AI 导入处理中，请稍后再试');
+    return;
+  }
+
+  createModeModalVisible.value = true;
+}
+
+function createEmptyAmountBill(): AmountBill {
+  return {
     eleBills: [],
     eleFee: 0,
     factoryRent: 0,
@@ -187,7 +204,11 @@ function onCreate() {
     waterBills: [],
     waterFee: 0,
   };
-  void openBillForm(newBill);
+}
+
+function onManualCreate() {
+  createModeModalVisible.value = false;
+  void openBillForm(createEmptyAmountBill());
 }
 
 async function onOpenCollectionSms() {
@@ -207,8 +228,6 @@ async function onOpenCollectionSms() {
   });
 }
 
-const aiImportLoading = ref(false);
-
 async function handleAiImportBeforeUpload(file: File) {
   const fileName = String(file?.name || '');
   if (!/\.xlsx$/i.test(fileName)) {
@@ -219,15 +238,16 @@ async function handleAiImportBeforeUpload(file: File) {
     return false;
   }
 
+  createModeModalVisible.value = false;
   aiImportLoading.value = true;
   message.loading({
-    content: '正在上传 Excel 到千问并解析账单字段...',
+    content: '正在读取 Excel 并快速解析账单字段...',
     duration: 0,
     key: 'bill_ai_import',
   });
 
   try {
-    const { analyzeAmountBillExcel, mapLlmResultToAmountBill } =
+    const { analyzeAmountBillExcel, mapLlmResultToAmountBills } =
       await retryImport(() => import('./llm'));
     const llmResult = await analyzeAmountBillExcel(file);
     if (!llmResult) {
@@ -238,11 +258,30 @@ async function handleAiImportBeforeUpload(file: File) {
       return false;
     }
 
-    const mapped = mapLlmResultToAmountBill(llmResult, options.value as any);
-    await openBillForm(mapped);
+    const mappedBills = mapLlmResultToAmountBills(
+      llmResult,
+      options.value as any,
+    );
+    if (mappedBills.length === 0) {
+      message.warning({
+        content: '未拆分出可核对的园区账单',
+        key: 'bill_ai_import',
+      });
+      return false;
+    }
+
+    const firstBill = mappedBills[0];
+    if (!firstBill) {
+      return false;
+    }
+
+    await openBillForm(firstBill, {
+      aiImportReview: true,
+      aiReviewBills: mappedBills,
+    });
 
     message.success({
-      content: '已完成字段提取，并填充到账单表单',
+      content: `已按园区拆出 ${mappedBills.length} 份账单，请逐一核对后保存`,
       key: 'bill_ai_import',
     });
   } catch (error: any) {
@@ -667,7 +706,10 @@ const router = useRouter();
  * 表单提交成功回调
  */
 function handleFormSuccess(_data: any) {
-  message.success('保存成功');
+  const savedCount = Number(_data?.savedCount || 0);
+  message.success(
+    savedCount > 1 ? `已保存 ${savedCount} 份园区账单` : '保存成功',
+  );
   refreshGrid();
 }
 
@@ -725,6 +767,44 @@ function handlePrintCancel() {
       @success="handleFormSuccess"
     />
     <CollectionSmsModal ref="collectionSmsModalRef" />
+
+    <Modal
+      v-model:open="createModeModalVisible"
+      :closable="!aiImportLoading"
+      :footer="null"
+      :mask-closable="!aiImportLoading"
+      title="新增总账单"
+      width="560px"
+    >
+      <div class="bill-create-options">
+        <AUpload
+          :before-upload="handleAiImportBeforeUpload"
+          :disabled="aiImportLoading"
+          :show-upload-list="false"
+          accept=".xlsx"
+          class="bill-create-upload"
+        >
+          <button
+            type="button"
+            class="bill-create-option"
+            :disabled="aiImportLoading"
+          >
+            <span class="bill-create-option-title">AI Excel 自动导入</span>
+            <span class="bill-create-option-desc">上传 .xlsx 识别账单字段</span>
+          </button>
+        </AUpload>
+
+        <button
+          type="button"
+          class="bill-create-option"
+          :disabled="aiImportLoading"
+          @click="onManualCreate"
+        >
+          <span class="bill-create-option-title">手动录入</span>
+          <span class="bill-create-option-desc">打开总账单录入表单</span>
+        </button>
+      </div>
+    </Modal>
 
     <!-- --- 新增代码开始 --- -->
     <!-- 打印设置模态框 -->
@@ -831,15 +911,6 @@ function handlePrintCancel() {
     </div>
     <Grid table-title="总账单" class="amount-bill-grid">
       <template #toolbar-tools>
-        <AUpload
-          :before-upload="handleAiImportBeforeUpload"
-          :show-upload-list="false"
-          accept=".xlsx"
-        >
-          <Button :loading="aiImportLoading" style="margin-right: 10px">
-            AI导入Excel
-          </Button>
-        </AUpload>
         <Button style="margin-right: 10px" @click="onOpenCollectionSms">
           催收短信补发
         </Button>
@@ -862,4 +933,69 @@ function handlePrintCancel() {
   </Page>
 </template>
 
-<style lang="less" scoped></style>
+<style lang="less" scoped>
+.bill-create-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.bill-create-upload {
+  display: block;
+  width: 100%;
+}
+
+:deep(.bill-create-upload .ant-upload) {
+  display: block;
+  width: 100%;
+}
+
+.bill-create-option {
+  display: flex;
+  min-height: 104px;
+  width: 100%;
+  cursor: pointer;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  background: #fff;
+  padding: 18px;
+  text-align: left;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: #1677ff;
+    box-shadow: 0 0 0 2px rgb(22 119 255 / 10%);
+    outline: none;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+.bill-create-option-title {
+  color: #1f2937;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.bill-create-option-desc {
+  margin-top: 8px;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+@media (max-width: 575px) {
+  .bill-create-options {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

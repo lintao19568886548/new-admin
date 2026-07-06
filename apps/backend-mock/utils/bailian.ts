@@ -30,6 +30,7 @@ interface RequestBailianChatOptions {
   model?: string;
   responseFormat?: Record<string, any>;
   temperature?: number;
+  timeoutMs?: number;
 }
 
 interface RequestBailianChatStreamOptions extends Omit<
@@ -230,6 +231,7 @@ export async function requestBailianChat({
   model = DEFAULT_MODEL,
   responseFormat,
   temperature = 0,
+  timeoutMs,
 }: RequestBailianChatOptions) {
   const apiKey = await ensureBailianApiKey();
   const payload = buildBailianChatPayload({
@@ -247,7 +249,7 @@ export async function requestBailianChat({
       headers: {
         Authorization: `Bearer ${apiKey}`,
       },
-      timeout: BAILIAN_CHAT_TIMEOUT_MS,
+      timeout: timeoutMs ?? BAILIAN_CHAT_TIMEOUT_MS,
     },
   );
   return response.data;

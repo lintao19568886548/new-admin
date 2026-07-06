@@ -1,7 +1,13 @@
 <script lang="ts" setup>
 import type { RouteLocationRaw } from 'vue-router';
 
-import { computed, onMounted, ref, watch } from 'vue';
+import type {
+  DashboardWorkbenchTodo,
+  DashboardWorkbenchTodoSection,
+  DashboardWorkbenchTodoType,
+} from '#/api/dashboard';
+
+import { computed, onActivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { VbenIcon } from '@vben/common-ui';
@@ -10,19 +16,12 @@ import { useAccessStore, useUserStore } from '@vben/stores';
 import { Card, Col, Row, Skeleton } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
-import { getVisitorList } from '#/api/access/visitor';
-import { getDashboardContractStats } from '#/api/dashboard';
+import { getDashboardWorkbenchTodos } from '#/api/dashboard';
 import { getTodayRecord } from '#/api/hrm/attendance';
 import { getReimbursementSummary } from '#/api/reimbursement/reimbursement';
 import { useAuthStore } from '#/store';
 import { requireLogin } from '#/utils/require-login';
-
-interface VisitorPreview {
-  name: string;
-  reason?: string;
-  status: string;
-  time: string;
-}
+import { subscribeWorkbenchTodoChanged } from '#/utils/workbench-todo-sync';
 
 interface CheckInPreview {
   hasSignedIn: boolean;
@@ -33,33 +32,40 @@ interface CheckInPreview {
 interface WorkItemRoute {
   names?: string[];
   path: string;
+  query?: Record<string, number | string>;
 }
 
 interface WorkItemDefinition {
   badge?: () => string;
+  emptyText?: string;
   icon: string;
   key: string;
   route: WorkItemRoute;
   summary?: () => string;
   title: string;
+  todoTypes?: DashboardWorkbenchTodoType[];
 }
 
 const ROLE_WORK_ITEMS = {
-  access: ['attendance', 'visitor-management', 'car-access', 'access-brand'],
+  access: ['attendance', 'car-access', 'access-brand'],
   finance: [
     'attendance',
+    'rent-unreceived',
     'reimbursement-audit',
     'finance-manage',
     'smart-billing',
   ],
   hrm: [
     'attendance',
+    'attendance-abnormal',
     'leave-application',
     'attendance-trajectory',
     'hrm-information',
   ],
   investment: [
     'attendance',
+    'vacant-factory',
+    'investment-leads',
     'customer-registration',
     'investment-radar',
     'public-demands',
@@ -67,18 +73,29 @@ const ROLE_WORK_ITEMS = {
   ],
   maintenance: [
     'attendance',
+    'maintenance-orders',
     'transformer-maintenance',
     'factory-maintenance',
     'elevator-management',
     'firefighting-management',
   ],
+  park: [
+    'attendance',
+    'contract-expiry',
+    'rent-unreceived',
+    'vacant-factory',
+    'investment-leads',
+    'maintenance-orders',
+  ],
   super: [
     'attendance',
     'pending-reimbursement',
     'contract-expiry',
-    'visitor-activity',
+    'rent-unreceived',
+    'vacant-factory',
     'investment-leads',
     'maintenance-orders',
+    'attendance-abnormal',
   ],
 } as const;
 
@@ -88,18 +105,19 @@ const ROLE_ALIASES = {
   hrm: ['人事', '人事部', 'HR', 'hr'],
   investment: ['招商', '招商部'],
   maintenance: ['维护', '维修', '维保', '维护部'],
-  super: ['Super', '超管', '超级管理员', '董事长', '总经理'],
+  park: ['园区经理', '园区', '运营', '项目经理', '物业'],
+  super: ['Super', '超管', '超级管理员', '老板', '董事长', '总经理'],
 } as const;
 
 const loading = ref(true);
+const WORKBENCH_PREVIEW_REFRESH_INTERVAL = 3 * 60 * 60 * 1000;
 const route = useRoute();
 const router = useRouter();
 const accessStore = useAccessStore();
 const authStore = useAuthStore();
 const userStore = useUserStore();
 const reimburse = ref({ approved: 0, pending: 0, rejected: 0, total: 0 });
-const contractExpiringCount = ref(0);
-const visitors = ref<VisitorPreview[]>([]);
+const workbenchTodoSections = ref<DashboardWorkbenchTodoSection[]>([]);
 const checkIn = ref<CheckInPreview>({
   hasSignedIn: false,
   punchIn: '',
@@ -112,6 +130,8 @@ const canFetchPreviewData = computed(
 const checkInStatusText = computed(() =>
   checkIn.value.hasSignedIn ? '已签到' : '未签到',
 );
+let previewRefreshTimer: ReturnType<typeof setInterval> | undefined;
+let stopWorkbenchTodoChanged: (() => void) | undefined;
 const roleNames = computed(() => {
   const roles =
     userStore.userRoles.length > 0
@@ -145,6 +165,9 @@ const roleWorkItemKeys = computed(() => {
   if (hasAnyRole(ROLE_ALIASES.maintenance)) {
     keys.push(...ROLE_WORK_ITEMS.maintenance);
   }
+  if (hasAnyRole(ROLE_ALIASES.park)) {
+    keys.push(...ROLE_WORK_ITEMS.park);
+  }
 
   return [...new Set(keys)];
 });
@@ -157,6 +180,11 @@ const workItems = computed(() => {
     }
   }
   return items;
+});
+const workbenchTodoSectionMap = computed(() => {
+  return new Map(
+    workbenchTodoSections.value.map((section) => [section.key, section]),
+  );
 });
 
 const WORK_ITEM_DEFINITIONS: Record<string, WorkItemDefinition> = {
@@ -183,6 +211,21 @@ const WORK_ITEM_DEFINITIONS: Record<string, WorkItemDefinition> = {
       }`,
     title: '考勤打卡',
   },
+  'attendance-abnormal': {
+    badge: () => getTodoBadge(['attendance_abnormal']),
+    emptyText: '暂无考勤异常',
+    icon: 'mdi:calendar-alert-outline',
+    key: 'attendance-abnormal',
+    route: {
+      names: ['HrmAttendanceStats'],
+      path: '/hrm/attendance/stats',
+      query: {
+        attendanceStatus: 'abnormal',
+      },
+    },
+    title: '考勤异常',
+    todoTypes: ['attendance_abnormal'],
+  },
   'attendance-trajectory': {
     icon: 'mdi:map-marker-path',
     key: 'attendance-trajectory',
@@ -199,21 +242,19 @@ const WORK_ITEM_DEFINITIONS: Record<string, WorkItemDefinition> = {
     title: '车辆出入管理',
   },
   'contract-expiry': {
-    badge: () =>
-      contractExpiringCount.value > 0
-        ? `${contractExpiringCount.value} 条`
-        : '',
+    badge: () => getTodoBadge(['contract_expire']),
+    emptyText: '暂无即将到期合同',
     icon: 'mdi:file-clock-outline',
     key: 'contract-expiry',
     route: {
       names: ['TenantMobileList', 'TenantManage'],
       path: '/rental/tenant/mobile',
+      query: {
+        contractView: 'attention',
+      },
     },
-    summary: () =>
-      contractExpiringCount.value > 0
-        ? `${contractExpiringCount.value} 条合同即将到期`
-        : '查看即将到期合同',
     title: '合同到期提醒',
+    todoTypes: ['contract_expire'],
   },
   'customer-registration': {
     icon: 'mdi:account-plus-outline',
@@ -270,13 +311,16 @@ const WORK_ITEM_DEFINITIONS: Record<string, WorkItemDefinition> = {
     title: '人员信息',
   },
   'investment-leads': {
+    badge: () => getTodoBadge(['investment_lead']),
+    emptyText: '暂无待跟进招商线索',
     icon: 'mdi:radar',
     key: 'investment-leads',
     route: {
-      names: ['InvestmentRadarMobileList'],
-      path: '/investment/radar/mobile',
+      names: ['InvestmentAgentMobileList', 'InvestmentAgent'],
+      path: '/investment/mobile',
     },
     title: '招商线索',
+    todoTypes: ['investment_lead'],
   },
   'investment-radar': {
     icon: 'mdi:radar',
@@ -297,6 +341,8 @@ const WORK_ITEM_DEFINITIONS: Record<string, WorkItemDefinition> = {
     title: '请假申请/审批',
   },
   'maintenance-orders': {
+    badge: () => getTodoBadge(['repair_order']),
+    emptyText: '暂无待处理维护工单',
     icon: 'mdi:clipboard-text-clock',
     key: 'maintenance-orders',
     route: {
@@ -304,6 +350,7 @@ const WORK_ITEM_DEFINITIONS: Record<string, WorkItemDefinition> = {
       path: '/maintenance/repair-order/mobile',
     },
     title: '维护工单',
+    todoTypes: ['repair_order'],
   },
   'pending-reimbursement': {
     badge: () =>
@@ -344,6 +391,21 @@ const WORK_ITEM_DEFINITIONS: Record<string, WorkItemDefinition> = {
         : '查看报销审核',
     title: '报销审核',
   },
+  'rent-unreceived': {
+    badge: () => getTodoBadge(['rent_unreceived']),
+    emptyText: '暂无未收租账单',
+    icon: 'mdi:cash-clock',
+    key: 'rent-unreceived',
+    route: {
+      names: ['BillMobileList', 'Bill'],
+      path: '/bill/mobile-list',
+      query: {
+        collectionStatus: 'unreceived',
+      },
+    },
+    title: '未收租提醒',
+    todoTypes: ['rent_unreceived'],
+  },
   'smart-billing': {
     icon: 'mdi:file-document-edit-outline',
     key: 'smart-billing',
@@ -359,35 +421,17 @@ const WORK_ITEM_DEFINITIONS: Record<string, WorkItemDefinition> = {
     },
     title: '变压器维保',
   },
-  'visitor-activity': {
-    badge: () =>
-      visitors.value.length > 0 ? `${visitors.value.length} 条` : '',
-    icon: 'carbon:user-profile',
-    key: 'visitor-activity',
+  'vacant-factory': {
+    badge: () => getTodoBadge(['vacant_factory']),
+    emptyText: '暂无空置厂房提醒',
+    icon: 'mdi:office-building-marker-outline',
+    key: 'vacant-factory',
     route: {
-      names: ['VisitorMobileList', 'VisitorAccess'],
-      path: '/access/visitor/mobile',
+      names: ['FactoryList'],
+      path: '/rental/factory',
     },
-    summary: () =>
-      visitors.value[0]
-        ? `${visitors.value[0].name} ${visitors.value[0].status}`
-        : '查看访客动态',
-    title: '访客动态',
-  },
-  'visitor-management': {
-    badge: () =>
-      visitors.value.length > 0 ? `${visitors.value.length} 条` : '',
-    icon: 'carbon:user-profile',
-    key: 'visitor-management',
-    route: {
-      names: ['VisitorMobileList', 'VisitorAccess'],
-      path: '/access/visitor/mobile',
-    },
-    summary: () =>
-      visitors.value[0]
-        ? `${visitors.value[0].name} ${visitors.value[0].status}`
-        : '查看访客管理',
-    title: '访客管理',
+    title: '空置厂房',
+    todoTypes: ['vacant_factory'],
   },
   'public-factory-listings': {
     icon: 'mdi:office-building-marker-outline',
@@ -401,95 +445,120 @@ const WORK_ITEM_DEFINITIONS: Record<string, WorkItemDefinition> = {
 };
 
 onMounted(() => {
+  stopWorkbenchTodoChanged = subscribeWorkbenchTodoChanged(() => {
+    void fetchPreviewData({ forceTodos: true, showLoading: false });
+  });
+
   if (canFetchPreviewData.value) {
+    loading.value = false;
     void fetchPreviewData();
+    startPreviewRefresh();
     return;
   }
   loading.value = false;
 });
 
-async function fetchPreviewData() {
+onActivated(() => {
+  if (canFetchPreviewData.value) {
+    void fetchPreviewData({ forceTodos: true, showLoading: false });
+  }
+});
+
+onUnmounted(() => {
+  stopPreviewRefresh();
+  stopWorkbenchTodoChanged?.();
+  stopWorkbenchTodoChanged = undefined;
+});
+
+function startPreviewRefresh() {
+  if (previewRefreshTimer) {
+    return;
+  }
+
+  previewRefreshTimer = setInterval(() => {
+    if (canFetchPreviewData.value) {
+      void fetchPreviewData({ showLoading: false });
+    }
+  }, WORKBENCH_PREVIEW_REFRESH_INTERVAL);
+}
+
+function stopPreviewRefresh() {
+  if (!previewRefreshTimer) {
+    return;
+  }
+
+  clearInterval(previewRefreshTimer);
+  previewRefreshTimer = undefined;
+}
+
+async function fetchPreviewData(
+  options: { forceTodos?: boolean; showLoading?: boolean } = {},
+) {
   if (!canFetchPreviewData.value) {
     loading.value = false;
     return;
   }
 
-  loading.value = true;
+  const showLoading = options.showLoading ?? true;
+  if (showLoading) {
+    loading.value = true;
+  }
   try {
-    try {
-      const summary = await getReimbursementSummary();
-      reimburse.value = {
-        approved: summary?.approved || 0,
-        pending: summary?.pending || 0,
-        rejected: summary?.rejected || 0,
-        total: summary?.total || 0,
-      };
-    } catch (error) {
-      console.error('reimbursement stats failed', error);
-    }
-
-    try {
-      const stats = await getDashboardContractStats();
-      contractExpiringCount.value = stats?.summary?.expiring || 0;
-    } catch (error) {
-      console.error('contract stats failed', error);
-      contractExpiringCount.value = 0;
-    }
-
-    try {
-      const res = await getVisitorList({
-        currentPage: 1,
-        currentPark: -1,
-        pageSize: 3,
-      });
-
-      const items = Array.isArray(res?.items) ? res.items : [];
-      visitors.value = items.map((it: any) => {
-        let statusNum = 1;
-        if (typeof it.status === 'number') {
-          statusNum = it.status;
-        } else if (String(it.status).includes('入')) {
-          statusNum = 0;
-        }
-
-        return {
-          name: it.visitorName,
-          reason: it.remark || it.parkName,
-          status: statusNum === 0 ? '进入' : '离开',
-          time: it.registerTime || it.createTime || '',
-        };
-      });
-    } catch (error) {
-      console.error('visitor list failed', error);
-      visitors.value = [];
-    }
-
-    try {
-      const username = userStore.userInfo?.realName;
-      if (username) {
-        const data = await getTodayRecord({ username });
-        checkIn.value = {
-          hasSignedIn: Boolean(data?.punchIn),
-          punchIn: data?.punchIn ? dayjs(data.punchIn).format('HH:mm:ss') : '',
-          punchOut: data?.punchOut
-            ? dayjs(data.punchOut).format('HH:mm:ss')
-            : '',
-        };
-      } else {
-        checkIn.value = { hasSignedIn: false, punchIn: '', punchOut: '' };
-      }
-    } catch (error) {
-      console.error('today attendance failed', error);
-      checkIn.value = { hasSignedIn: false, punchIn: '', punchOut: '' };
-    }
+    await Promise.allSettled([
+      refreshReimbursementSummary(),
+      refreshWorkbenchTodos(options.forceTodos),
+      refreshTodayAttendance(),
+    ]);
   } finally {
-    loading.value = false;
+    if (showLoading) {
+      loading.value = false;
+    }
+  }
+}
+
+async function refreshReimbursementSummary() {
+  try {
+    const summary = await getReimbursementSummary();
+    reimburse.value = {
+      approved: summary?.approved || 0,
+      pending: summary?.pending || 0,
+      rejected: summary?.rejected || 0,
+      total: summary?.total || 0,
+    };
+  } catch (error) {
+    console.error('reimbursement stats failed', error);
+  }
+}
+
+async function refreshTodayAttendance() {
+  try {
+    const username = userStore.userInfo?.realName;
+    if (username) {
+      const data = await getTodayRecord({ username });
+      checkIn.value = {
+        hasSignedIn: Boolean(data?.punchIn),
+        punchIn: data?.punchIn ? dayjs(data.punchIn).format('HH:mm:ss') : '',
+        punchOut: data?.punchOut ? dayjs(data.punchOut).format('HH:mm:ss') : '',
+      };
+      return;
+    }
+
+    checkIn.value = { hasSignedIn: false, punchIn: '', punchOut: '' };
+  } catch (error) {
+    console.error('today attendance failed', error);
+    checkIn.value = { hasSignedIn: false, punchIn: '', punchOut: '' };
   }
 }
 
 watch(canFetchPreviewData, (canFetch, previousCanFetch) => {
   if (canFetch && !previousCanFetch) {
     void fetchPreviewData();
+    startPreviewRefresh();
+    return;
+  }
+
+  if (!canFetch) {
+    stopPreviewRefresh();
   }
 });
 
@@ -499,6 +568,24 @@ async function goWorkItem(item: WorkItemDefinition) {
   }
 
   await pushAvailableRoute(item.route);
+}
+
+async function goTodo(todo: DashboardWorkbenchTodo) {
+  if (!(await requireLogin(router, todo.routePath))) {
+    return;
+  }
+
+  await pushAvailableRoute({
+    names: todo.routeName ? [todo.routeName] : undefined,
+    path: todo.routePath,
+    query: todo.routeQuery,
+  });
+}
+
+async function refreshWorkbenchTodos(force = false) {
+  const todos = await getDashboardWorkbenchTodos({ force });
+  const sections = Array.isArray(todos?.sections) ? todos.sections : [];
+  workbenchTodoSections.value = sections;
 }
 
 async function pushAvailableRoute(routeConfig: WorkItemRoute) {
@@ -516,7 +603,7 @@ async function pushAvailableRoute(routeConfig: WorkItemRoute) {
       return;
     }
 
-    await router.push(buildPathRouteLocation(routeConfig.path));
+    await router.push(buildPathRouteLocation(routeConfig));
   } catch (error) {
     console.error('go work item failed:', error);
   }
@@ -529,31 +616,42 @@ function resolveAvailableRouteLocation(
 
   for (const name of routeNames) {
     if (!router.hasRoute(name)) continue;
-    return buildNamedRouteLocation(name, routeConfig.path);
+    return buildNamedRouteLocation(name, routeConfig);
   }
 
   const targetPath = normalizeRoutePath(routeConfig.path);
   const hasPathRoute = router
     .getRoutes()
     .some((route) => normalizeRoutePath(route.path) === targetPath);
-  return hasPathRoute ? buildPathRouteLocation(routeConfig.path) : null;
+  return hasPathRoute ? buildPathRouteLocation(routeConfig) : null;
 }
 
-function buildNamedRouteLocation(name: string, path: string): RouteLocationRaw {
+function buildNamedRouteLocation(
+  name: string,
+  routeConfig: WorkItemRoute,
+): RouteLocationRaw {
+  const query = normalizeRouteQuery(routeConfig.query);
+  if (Object.keys(query).length > 0) {
+    return {
+      name,
+      query,
+    };
+  }
+
   if (name === 'TenantMobileList' || name === 'TenantManage') {
     return {
       name,
       query: {
-        contractView: 'expiring',
+        contractView: 'attention',
       },
     };
   }
 
-  if (path.includes('tenant')) {
+  if (routeConfig.path.includes('tenant')) {
     return {
-      path,
+      path: routeConfig.path,
       query: {
-        contractView: 'expiring',
+        contractView: 'attention',
       },
     };
   }
@@ -561,34 +659,100 @@ function buildNamedRouteLocation(name: string, path: string): RouteLocationRaw {
   return { name };
 }
 
-function buildPathRouteLocation(path: string): RouteLocationRaw {
-  if (path.includes('tenant')) {
+function buildPathRouteLocation(routeConfig: WorkItemRoute): RouteLocationRaw {
+  const query = normalizeRouteQuery(routeConfig.query);
+  if (Object.keys(query).length > 0) {
     return {
-      path,
+      path: routeConfig.path,
+      query,
+    };
+  }
+
+  if (routeConfig.path.includes('tenant')) {
+    return {
+      path: routeConfig.path,
       query: {
-        contractView: 'expiring',
+        contractView: 'attention',
       },
     };
   }
 
-  return path;
+  return routeConfig.path;
 }
 
 function normalizeRoutePath(path: string) {
   return path.replace(/\/+$/, '') || '/';
 }
 
+function normalizeRouteQuery(query?: Record<string, number | string>) {
+  return Object.fromEntries(
+    Object.entries(query ?? {}).filter(
+      ([, value]) => value !== undefined && value !== null && value !== '',
+    ),
+  ) as Record<string, number | string>;
+}
+
+function getTodoItems(types?: DashboardWorkbenchTodoType[]) {
+  if (!types?.length) {
+    return [];
+  }
+
+  return types.flatMap(
+    (type) => workbenchTodoSectionMap.value.get(type)?.items ?? [],
+  );
+}
+
+function getTodoCount(types?: DashboardWorkbenchTodoType[]) {
+  if (!types?.length) {
+    return 0;
+  }
+
+  return types.reduce(
+    (total, type) =>
+      total + (workbenchTodoSectionMap.value.get(type)?.count ?? 0),
+    0,
+  );
+}
+
+function getTodoBadge(types?: DashboardWorkbenchTodoType[]) {
+  const count = getTodoCount(types);
+  return count > 0 ? `${count} 条` : '';
+}
+
+function priorityText(priority: DashboardWorkbenchTodo['priority']) {
+  if (priority === 'urgent') {
+    return '紧急处理';
+  }
+  if (priority === 'warning') {
+    return '重点关注';
+  }
+  return '常规提醒';
+}
+
+function priorityTagClass(priority: DashboardWorkbenchTodo['priority']) {
+  if (priority === 'urgent') {
+    return 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-200';
+  }
+  if (priority === 'warning') {
+    return 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200';
+  }
+  return 'bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-200';
+}
+
+function priorityClass(priority: DashboardWorkbenchTodo['priority']) {
+  if (priority === 'urgent') {
+    return 'border-red-100 bg-red-50/80 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300';
+  }
+  if (priority === 'warning') {
+    return 'border-amber-100 bg-amber-50/80 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300';
+  }
+  return 'border-sky-100 bg-sky-50/80 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-300';
+}
+
 function hasAnyRole(aliases: readonly string[]) {
   return roleNames.value.some((role) =>
     aliases.some((alias) => role.toLowerCase().includes(alias.toLowerCase())),
   );
-}
-
-function statusClass(status: string) {
-  const s = status.toLowerCase();
-  if (s.includes('通过')) return 'text-green-600 border-green-400/50';
-  if (s.includes('拒')) return 'text-red-500 border-red-400/50';
-  return 'text-amber-500 border-amber-400/50';
 }
 </script>
 
@@ -760,56 +924,6 @@ function statusClass(status: string) {
             </Card>
 
             <Card
-              v-else-if="
-                item.key === 'visitor-activity' ||
-                item.key === 'visitor-management'
-              "
-              class="cursor-pointer rounded-xl bg-white shadow-[0_8px_22px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(245,158,11,0.12)] dark:bg-gray-800 dark:ring-slate-700/70"
-              @click="goWorkItem(item)"
-            >
-              <div class="mb-2 flex items-center justify-between">
-                <div
-                  class="text-base font-semibold text-gray-800 dark:text-gray-200"
-                >
-                  {{ item.title }}
-                </div>
-              </div>
-              <div v-if="visitors.length > 0" class="flex flex-col gap-2.5">
-                <div
-                  v-for="v in visitors"
-                  :key="v.name + v.time"
-                  class="grid grid-cols-[36px_1fr_auto] items-center gap-2.5 rounded-xl border border-slate-200 bg-gradient-to-b from-[#f6f9fc] to-[#e9eef5] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_6px_16px_rgba(0,0,0,0.16)] dark:border-gray-700 dark:bg-gradient-to-b dark:from-[#111827] dark:to-[#0f172a]"
-                >
-                  <div
-                    class="flex items-center justify-center text-slate-500 dark:text-slate-300"
-                  >
-                    <VbenIcon icon="carbon:user-avatar" class="text-[22px]" />
-                  </div>
-                  <div class="min-w-0">
-                    <div class="font-semibold">{{ v.name }}</div>
-                    <div
-                      class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400"
-                    >
-                      {{ v.time }} · {{ v.reason }}
-                    </div>
-                  </div>
-                  <div
-                    class="rounded-full border border-slate-200 px-2 py-0.5 text-xs"
-                    :class="statusClass(v.status)"
-                  >
-                    {{ v.status }}
-                  </div>
-                </div>
-              </div>
-              <div
-                v-else
-                class="rounded-xl border border-slate-200 bg-gradient-to-b from-[#f6f9fc] to-[#e9eef5] px-3 py-2.5 text-sm font-semibold text-gray-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_6px_16px_rgba(0,0,0,0.16)] dark:border-gray-700 dark:bg-gradient-to-b dark:from-[#111827] dark:to-[#0f172a] dark:text-gray-200"
-              >
-                暂无访客动态
-              </div>
-            </Card>
-
-            <Card
               v-else
               class="cursor-pointer rounded-xl bg-white shadow-[0_8px_22px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(14,165,233,0.12)] dark:bg-gray-800 dark:ring-slate-700/70"
               @click="goWorkItem(item)"
@@ -835,12 +949,51 @@ function statusClass(status: string) {
                 </span>
               </div>
               <div
+                v-if="getTodoItems(item.todoTypes).length > 0"
+                class="space-y-2"
+              >
+                <div
+                  v-for="todo in getTodoItems(item.todoTypes)"
+                  :key="todo.todoId"
+                  class="rounded-[10px] border px-3 py-2.5 transition-colors hover:border-sky-200 hover:bg-sky-50/70 dark:hover:border-sky-800/70 dark:hover:bg-sky-950/30"
+                  :class="priorityClass(todo.priority)"
+                  @click.stop="goTodo(todo)"
+                >
+                  <div
+                    class="line-clamp-2 text-sm font-semibold leading-5 text-slate-800 dark:text-slate-100"
+                  >
+                    {{ todo.content }}
+                  </div>
+                  <div
+                    class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400"
+                  >
+                    <span
+                      class="rounded-full px-2 py-0.5 font-semibold"
+                      :class="priorityTagClass(todo.priority)"
+                    >
+                      {{ priorityText(todo.priority) }}
+                    </span>
+                    <span v-if="todo.parkName">{{ todo.parkName }}</span>
+                    <a
+                      v-if="todo.phoneNumber"
+                      :href="`tel:${todo.phoneNumber}`"
+                      class="font-semibold text-sky-600 dark:text-sky-300"
+                      @click.stop
+                    >
+                      {{ todo.phoneNumber }}
+                    </a>
+                    <span>进入处理</span>
+                  </div>
+                </div>
+              </div>
+              <div
+                v-else
                 class="rounded-[10px] bg-gradient-to-r from-sky-50 to-slate-50 px-3 py-2.5 ring-1 ring-sky-50 dark:from-gray-900 dark:to-gray-900 dark:ring-slate-700/60"
               >
                 <div
                   class="truncate text-sm font-semibold text-gray-700 dark:text-gray-200"
                 >
-                  {{ item.summary?.() || item.title }}
+                  {{ item.emptyText || item.summary?.() || item.title }}
                 </div>
               </div>
             </Card>

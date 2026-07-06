@@ -1,9 +1,12 @@
 <script lang="ts" setup>
 import type { Dayjs } from 'dayjs';
 
+import type { RepairOrderWorkflowAction } from './workflow';
+
 import type { RepairOrder } from '#/api/maintenance';
 
-import { onMounted, reactive, ref } from 'vue';
+import { h, onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { useVbenModal } from '@vben/common-ui';
 import { Search } from '@vben/icons';
@@ -25,10 +28,15 @@ import {
 } from 'ant-design-vue';
 
 import { getFactoryListByParkId } from '#/api/factory';
-import { deleteRepairOrder, getRepairOrderList } from '#/api/maintenance';
+import {
+  deleteRepairOrder,
+  getRepairOrderList,
+  updateRepairOrderWorkflow,
+} from '#/api/maintenance';
 import { getParkList as fetchParks } from '#/api/park';
 import MobileDateRange from '#/components/MobileDateRange.vue';
 import { $t } from '#/locales';
+import { getRepairOrderTodoPriorityInfo } from '#/utils/workbench-todo-priority';
 
 import {
   REPAIR_PRIORITY_OPTIONS,
@@ -36,6 +44,7 @@ import {
   REPAIR_TYPE_OPTIONS,
 } from './data';
 import FormComponent from './modules/form.vue';
+import { getRepairOrderWorkflowActions } from './workflow';
 
 type RepairOrderRow = RepairOrder & { factory?: string; park?: string };
 type FactoryCascaderValue = Array<number | string>;
@@ -62,8 +71,10 @@ const STATUS_COLOR_MAP: Record<string, string> = {
 
 const loading = ref(false);
 const list = ref<RepairOrderRow[]>([]);
+const workflowLoadingIds = ref<number[]>([]);
 const factoryOptions = ref<FactoryOption[]>([]);
 const parkOptions = ref<{ label: string; value: number }[]>([]);
+const route = useRoute();
 
 const pagination = reactive({
   current: 1,
@@ -103,6 +114,24 @@ function getParkName(record: RepairOrderRow) {
   const parkId = record.parkId;
   if (parkId === undefined || parkId === null) return '';
   return parkOptions.value.find((p) => p.value === Number(parkId))?.label ?? '';
+}
+
+function getRepairTodoPriorityInfo(item: RepairOrderRow) {
+  return getRepairOrderTodoPriorityInfo(item.priority, item.status);
+}
+
+function isWorkflowLoading(record: RepairOrderRow) {
+  return workflowLoadingIds.value.includes(record.repairOrderId);
+}
+
+function getWorkflowButtonType(action: RepairOrderWorkflowAction) {
+  return action === 'accept' || action === 'finish' || action === 'verify'
+    ? 'primary'
+    : 'default';
+}
+
+function isWorkflowDanger(action: RepairOrderWorkflowAction) {
+  return action === 'cancel';
 }
 
 function processSearchParams(values: typeof searchForm) {
@@ -233,7 +262,96 @@ function onDelete(record: RepairOrderRow) {
   });
 }
 
+async function submitWorkflowAction(
+  record: RepairOrderRow,
+  action: RepairOrderWorkflowAction,
+  remark?: string,
+) {
+  workflowLoadingIds.value = [
+    ...workflowLoadingIds.value,
+    record.repairOrderId,
+  ];
+  try {
+    await updateRepairOrderWorkflow(record.repairOrderId, {
+      action,
+      remark,
+    });
+    message.success('工单状态已更新');
+    await fetchData();
+  } catch (error: any) {
+    console.error('处理报修工单失败:', error);
+    message.error(error?.message || '处理报修工单失败');
+  } finally {
+    workflowLoadingIds.value = workflowLoadingIds.value.filter(
+      (id) => id !== record.repairOrderId,
+    );
+  }
+}
+
+function onWorkflowAction(
+  record: RepairOrderRow,
+  actionMeta: ReturnType<typeof getRepairOrderWorkflowActions>[number],
+) {
+  let remark = '';
+  Modal.confirm({
+    content: () =>
+      h('div', { class: 'space-y-3' }, [
+        h('p', actionMeta.content),
+        actionMeta.placeholder
+          ? h(Input.TextArea, {
+              autoSize: { maxRows: 5, minRows: 3 },
+              maxlength: 500,
+              onChange: (event: Event) => {
+                remark = (event.target as HTMLTextAreaElement).value;
+              },
+              placeholder: actionMeta.placeholder,
+              showCount: true,
+            })
+          : null,
+      ]),
+    okText: actionMeta.okText,
+    onOk: () => {
+      const text = remark.trim();
+      if (actionMeta.requireRemark && !text) {
+        message.warning(actionMeta.placeholder || '请填写处理说明');
+        return Promise.reject(new Error('REMARK_REQUIRED'));
+      }
+      return submitWorkflowAction(record, actionMeta.action, text);
+    },
+    title: actionMeta.title,
+  });
+}
+
+function getRouteQueryText(value: unknown) {
+  if (Array.isArray(value)) {
+    return String(value[0] || '').trim();
+  }
+
+  return String(value || '').trim();
+}
+
+function applyRouteFilters() {
+  const parkId = Number(route.query.parkId ?? route.query.currentPark);
+  const orderNo = getRouteQueryText(route.query.orderNo);
+  const status = getRouteQueryText(route.query.status);
+  const tenantName = getRouteQueryText(route.query.tenantName);
+
+  if (Number.isInteger(parkId) && parkId > 0) {
+    searchForm.parkId = parkId;
+  }
+  if (orderNo) {
+    searchForm.orderNo = orderNo;
+  }
+  if (status) {
+    searchForm.status = status;
+  }
+  if (tenantName) {
+    searchForm.tenantName = tenantName;
+  }
+}
+
 onMounted(() => {
+  applyRouteFilters();
   fetchParkOptions();
   fetchFactoryOptions();
   fetchData();
@@ -339,9 +457,21 @@ onMounted(() => {
               <span class="maint-item">
                 {{ item.orderNo || `工单 #${item.repairOrderId}` }}
               </span>
-              <Tag :color="STATUS_COLOR_MAP[item.status] || 'default'">
-                {{ item.status }}
-              </Tag>
+              <div class="flex shrink-0 flex-wrap justify-end gap-1">
+                <Tag
+                  v-if="getRepairTodoPriorityInfo(item).visible"
+                  class="mr-0"
+                  :color="getRepairTodoPriorityInfo(item).color"
+                >
+                  {{ getRepairTodoPriorityInfo(item).label }}
+                </Tag>
+                <Tag
+                  class="mr-0"
+                  :color="STATUS_COLOR_MAP[item.status] || 'default'"
+                >
+                  {{ item.status }}
+                </Tag>
+              </div>
             </div>
             <div class="card-body">
               <p v-if="getParkName(item)">
@@ -366,6 +496,10 @@ onMounted(() => {
                   {{ item.priority }}
                 </Tag>
               </p>
+              <p v-if="getRepairTodoPriorityInfo(item).visible">
+                <strong>提醒:</strong>
+                {{ getRepairTodoPriorityInfo(item).reason }}
+              </p>
               <p v-if="item.assignee">
                 <strong>维修人:</strong> {{ item.assignee }}
               </p>
@@ -379,6 +513,17 @@ onMounted(() => {
               </p>
             </div>
             <div class="card-footer">
+              <Button
+                v-for="action in getRepairOrderWorkflowActions(item)"
+                :key="action.action"
+                :danger="isWorkflowDanger(action.action)"
+                :loading="isWorkflowLoading(item)"
+                :type="getWorkflowButtonType(action.action)"
+                size="small"
+                @click="onWorkflowAction(item, action)"
+              >
+                {{ action.text }}
+              </Button>
               <Button type="primary" size="small" @click="onEdit(item)">
                 编辑
               </Button>

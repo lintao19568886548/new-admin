@@ -10,6 +10,9 @@ export interface FactoryListItem {
   group: string;
   id: number;
   imgUrl: string;
+  priorityColor?: string;
+  priorityLabel?: string;
+  priorityReason?: string;
   rentPrice: number;
   tag: string;
   title: string;
