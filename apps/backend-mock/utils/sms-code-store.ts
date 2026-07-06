@@ -11,6 +11,10 @@ const SEND_LOCK_SECONDS = Number(process.env.LOGIN_SMS_SEND_LOCK_SECONDS ?? 30);
 
 export type SmsCodePurpose = 'attendanceDevice' | 'login' | 'pageAccess';
 
+export interface SmsCodeLogContext {
+  requestId?: string;
+}
+
 interface SmsCodeEntry {
   attempts: number;
   code: string;
@@ -36,6 +40,7 @@ export class SmsCodeError extends Error {
 
 const smsStore = new Map<string, SmsCodeEntry>();
 const sendingStore = new Map<string, number>();
+const LOG_MODULE = 'sms-code';
 
 const VERIFY_SMS_CODE_SCRIPT = `
 local codeKey = KEYS[1]
@@ -78,6 +83,60 @@ function getPositiveSeconds(value: number, fallback: number) {
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
 }
 
+function shouldMaskCode() {
+  return process.env.NODE_ENV === 'production';
+}
+
+function maskSmsCode(code: unknown) {
+  if (code === null || code === undefined || code === '') {
+    return '';
+  }
+  const text = String(code);
+  return shouldMaskCode() ? '*'.repeat(Math.max(text.length, 4)) : text;
+}
+
+export function maskSmsCodeForLog(code: unknown) {
+  return maskSmsCode(code);
+}
+
+function serializeError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+    };
+  }
+  return {
+    message: String(error),
+    name: typeof error,
+    stack: undefined,
+  };
+}
+
+export function logSmsCodeDebug(
+  eventName: string,
+  payload: Record<string, unknown> = {},
+  level: 'error' | 'info' | 'warn' = 'info',
+) {
+  const logPayload = {
+    module: LOG_MODULE,
+    time: new Date().toISOString(),
+    event: eventName,
+    ...payload,
+  };
+  const message = `[${LOG_MODULE}] ${JSON.stringify(logPayload)}`;
+  if (level === 'error') {
+    console.error(message);
+    return;
+  }
+  if (level === 'warn') {
+    console.warn(message);
+    return;
+  }
+  console.info(message);
+}
+
 function isSmsCodeRedisRequired() {
   const value = String(
     process.env.SMS_CODE_REDIS_REQUIRED || process.env.REDIS_REQUIRED || '',
@@ -94,14 +153,30 @@ async function getSmsCodeRedisClient() {
   try {
     const redis = await getRedisClient();
     if (!redis && isSmsCodeRedisRequired()) {
-      throw new SmsCodeError('验证码服务暂不可用，请稍后重试');
+      const error = new SmsCodeError('验证码服务暂不可用，请稍后重试');
+      logSmsCodeDebug(
+        'redis_operation_error',
+        {
+          error: serializeError(error),
+          operation: 'get_redis_client',
+        },
+        'error',
+      );
+      throw error;
     }
     return redis;
   } catch (error) {
     if (error instanceof SmsCodeError) {
       throw error;
     }
-    console.error('验证码 Redis 服务不可用:', error);
+    logSmsCodeDebug(
+      'redis_operation_error',
+      {
+        error: serializeError(error),
+        operation: 'get_redis_client',
+      },
+      'error',
+    );
     throw new SmsCodeError('验证码服务暂不可用，请稍后重试');
   }
 }
@@ -147,6 +222,7 @@ function readRedisEntry(raw: null | string): null | RedisSmsCodeEntry {
 async function ensureCanSendCodeInRedis(
   purpose: SmsCodePurpose,
   phoneNumber: string,
+  context: SmsCodeLogContext = {},
 ) {
   const redis = await getSmsCodeRedisClient();
   if (!redis) {
@@ -154,7 +230,24 @@ async function ensureCanSendCodeInRedis(
   }
 
   const codeKey = buildRedisCodeKey(purpose, phoneNumber);
-  const raw = await redis.get(codeKey);
+  let raw: null | string;
+  try {
+    raw = await redis.get(codeKey);
+  } catch (error) {
+    logSmsCodeDebug(
+      'redis_operation_error',
+      {
+        error: serializeError(error),
+        operation: 'get_existing_code_for_send_check',
+        phoneNumber,
+        purpose,
+        redisKey: codeKey,
+        requestId: context.requestId,
+      },
+      'error',
+    );
+    throw error;
+  }
   const entry = readRedisEntry(raw);
   if (!entry?.sentAt) {
     return true;
@@ -204,8 +297,13 @@ function ensureCanSendCodeInMemory(
 export async function ensureCanSendCode(
   purpose: SmsCodePurpose,
   phoneNumber: string,
+  context: SmsCodeLogContext = {},
 ) {
-  const handledByRedis = await ensureCanSendCodeInRedis(purpose, phoneNumber);
+  const handledByRedis = await ensureCanSendCodeInRedis(
+    purpose,
+    phoneNumber,
+    context,
+  );
   if (!handledByRedis) {
     ensureCanSendCodeInMemory(purpose, phoneNumber);
   }
@@ -214,8 +312,9 @@ export async function ensureCanSendCode(
 export async function reserveSmsCodeSend(
   purpose: SmsCodePurpose,
   phoneNumber: string,
+  context: SmsCodeLogContext = {},
 ) {
-  await ensureCanSendCode(purpose, phoneNumber);
+  await ensureCanSendCode(purpose, phoneNumber, context);
 
   const lockSeconds = getPositiveSeconds(SEND_LOCK_SECONDS, 30);
   const redis = await getSmsCodeRedisClient();
@@ -226,12 +325,56 @@ export async function reserveSmsCodeSend(
   }
 
   const lockKey = buildRedisSendLockKey(purpose, phoneNumber);
-  const locked = await redis.set(lockKey, '1', {
-    EX: lockSeconds,
-    NX: true,
-  });
+  let locked: null | string = null;
+  try {
+    locked = await redis.set(lockKey, '1', {
+      EX: lockSeconds,
+      NX: true,
+    });
+  } catch (error) {
+    logSmsCodeDebug(
+      'redis_operation_error',
+      {
+        error: serializeError(error),
+        operation: 'reserve_send_lock',
+        phoneNumber,
+        purpose,
+        redisKey: lockKey,
+        requestId: context.requestId,
+      },
+      'error',
+    );
+    throw error;
+  }
+
   if (locked !== 'OK') {
-    const ttl = await redis.ttl(lockKey);
+    let ttl: number;
+    try {
+      ttl = await redis.ttl(lockKey);
+    } catch (error) {
+      logSmsCodeDebug(
+        'redis_operation_error',
+        {
+          error: serializeError(error),
+          operation: 'get_send_lock_ttl',
+          phoneNumber,
+          purpose,
+          redisKey: lockKey,
+          requestId: context.requestId,
+        },
+        'error',
+      );
+      throw error;
+    }
+
+    logSmsCodeDebug('send_lock_exists', {
+      phoneNumber,
+      purpose,
+      redisKey: lockKey,
+      requestId: context.requestId,
+      ttl,
+    });
+
     throw new SmsCodeError(
       '验证码正在发送中，请稍后再试',
       ttl > 0 ? ttl : lockSeconds,
@@ -242,15 +385,35 @@ export async function reserveSmsCodeSend(
 export async function releaseSmsCodeSend(
   purpose: SmsCodePurpose,
   phoneNumber: string,
+  context: SmsCodeLogContext = {},
 ) {
   try {
     const redis = await getSmsCodeRedisClient();
     if (redis) {
-      await redis.del(buildRedisSendLockKey(purpose, phoneNumber));
+      const lockKey = buildRedisSendLockKey(purpose, phoneNumber);
+      logSmsCodeDebug('delete_before', {
+        deleteReason: '释放验证码发送锁',
+        phoneNumber,
+        purpose,
+        redisKey: lockKey,
+        requestId: context.requestId,
+      });
+      await redis.del(lockKey);
       return;
     }
   } catch (error) {
-    console.error('释放验证码发送锁失败:', error);
+    logSmsCodeDebug(
+      'redis_operation_error',
+      {
+        error: serializeError(error),
+        operation: 'release_send_lock',
+        phoneNumber,
+        purpose,
+        redisKey: buildRedisSendLockKey(purpose, phoneNumber),
+        requestId: context.requestId,
+      },
+      'error',
+    );
   }
 
   sendingStore.delete(buildStoreKey(purpose, phoneNumber));
@@ -260,24 +423,116 @@ export async function saveSmsCode(
   purpose: SmsCodePurpose,
   phoneNumber: string,
   code: string,
+  context: SmsCodeLogContext = {},
 ) {
   const now = Date.now();
   const ttlSeconds = getPositiveSeconds(CODE_TTL_SECONDS, 300);
   const redis = await getSmsCodeRedisClient();
   if (redis) {
-    await redis
-      .multi()
-      .del(buildRedisSendLockKey(purpose, phoneNumber))
-      .setEx(
-        buildRedisCodeKey(purpose, phoneNumber),
-        ttlSeconds,
-        JSON.stringify({
-          attempts: 0,
-          code,
-          sentAt: now,
-        } satisfies RedisSmsCodeEntry),
-      )
-      .exec();
+    const codeKey = buildRedisCodeKey(purpose, phoneNumber);
+    const lockKey = buildRedisSendLockKey(purpose, phoneNumber);
+    try {
+      try {
+        const existingRaw = await redis.get(codeKey);
+        const existingEntry = readRedisEntry(existingRaw);
+        if (existingEntry?.code) {
+          logSmsCodeDebug('delete_before', {
+            deleteReason: '重新发送验证码覆盖旧验证码',
+            phoneNumber,
+            purpose,
+            redisKey: codeKey,
+            redisCode: maskSmsCode(existingEntry.code),
+            requestId: context.requestId,
+          });
+        }
+      } catch (error) {
+        logSmsCodeDebug(
+          'redis_operation_error',
+          {
+            error: serializeError(error),
+            operation: 'get_existing_code_before_save',
+            phoneNumber,
+            purpose,
+            redisKey: codeKey,
+            requestId: context.requestId,
+          },
+          'error',
+        );
+      }
+
+      logSmsCodeDebug('redis_write_before', {
+        code: maskSmsCode(code),
+        phoneNumber,
+        purpose,
+        redisKey: codeKey,
+        requestId: context.requestId,
+        ttl: ttlSeconds,
+      });
+      logSmsCodeDebug('delete_before', {
+        deleteReason: '验证码发送完成释放发送锁',
+        phoneNumber,
+        purpose,
+        redisKey: lockKey,
+        requestId: context.requestId,
+      });
+
+      await redis
+        .multi()
+        .del(lockKey)
+        .setEx(
+          codeKey,
+          ttlSeconds,
+          JSON.stringify({
+            attempts: 0,
+            code,
+            sentAt: now,
+          } satisfies RedisSmsCodeEntry),
+        )
+        .exec();
+
+      let currentTtl: null | number = null;
+      let ttlReadSuccess = true;
+      try {
+        currentTtl = await redis.ttl(codeKey);
+      } catch (error) {
+        ttlReadSuccess = false;
+        logSmsCodeDebug(
+          'redis_operation_error',
+          {
+            error: serializeError(error),
+            operation: 'get_code_ttl_after_save',
+            phoneNumber,
+            purpose,
+            redisKey: codeKey,
+            requestId: context.requestId,
+          },
+          'error',
+        );
+      }
+      logSmsCodeDebug('redis_write_after', {
+        phoneNumber,
+        purpose,
+        redisKey: codeKey,
+        requestId: context.requestId,
+        success: true,
+        ttl: currentTtl,
+        ttlReadSuccess,
+      });
+    } catch (error) {
+      logSmsCodeDebug(
+        'redis_operation_error',
+        {
+          error: serializeError(error),
+          operation: 'save_code',
+          phoneNumber,
+          purpose,
+          redisKey: codeKey,
+          requestId: context.requestId,
+        },
+        'error',
+      );
+      throw error;
+    }
     return;
   }
 
@@ -295,21 +550,109 @@ export async function verifySmsCode(
   purpose: SmsCodePurpose,
   phoneNumber: string,
   code: string,
+  context: SmsCodeLogContext = {},
 ) {
   const redis = await getSmsCodeRedisClient();
   if (redis) {
-    const result = (await redis.eval(VERIFY_SMS_CODE_SCRIPT, {
-      arguments: [code, String(getPositiveSeconds(MAX_VERIFY_ATTEMPTS, 5))],
-      keys: [buildRedisCodeKey(purpose, phoneNumber)],
-    })) as string | string[];
-    const status = Array.isArray(result) ? result[0] : result;
-    if (status === 'ok') {
-      return;
+    const codeKey = buildRedisCodeKey(purpose, phoneNumber);
+    try {
+      let preReadSuccess = true;
+      let raw: null | string = null;
+      let ttl: null | number = null;
+      try {
+        [raw, ttl] = await Promise.all([
+          redis.get(codeKey),
+          redis.ttl(codeKey),
+        ]);
+      } catch (error) {
+        preReadSuccess = false;
+        logSmsCodeDebug(
+          'redis_operation_error',
+          {
+            error: serializeError(error),
+            operation: 'read_code_before_verify',
+            phoneNumber,
+            purpose,
+            redisKey: codeKey,
+            requestId: context.requestId,
+          },
+          'error',
+        );
+      }
+      const entry = readRedisEntry(raw);
+      const maxVerifyAttempts = getPositiveSeconds(MAX_VERIFY_ATTEMPTS, 5);
+      const matched = entry?.code === code;
+      logSmsCodeDebug('redis_verify_before', {
+        inputCode: maskSmsCode(code),
+        isMatched: matched,
+        phoneNumber,
+        purpose,
+        preReadSuccess,
+        redisCode: maskSmsCode(entry?.code),
+        redisKey: codeKey,
+        requestId: context.requestId,
+        ttl,
+      });
+      if (matched) {
+        logSmsCodeDebug('delete_before', {
+          deleteReason: purpose === 'login' ? '登录成功' : '验证码校验成功',
+          phoneNumber,
+          purpose,
+          redisKey: codeKey,
+          requestId: context.requestId,
+        });
+      } else if (
+        entry &&
+        Number(entry.attempts || 0) + 1 >= maxVerifyAttempts
+      ) {
+        logSmsCodeDebug('delete_before', {
+          deleteReason: '验证码错误次数达到上限',
+          phoneNumber,
+          purpose,
+          redisKey: codeKey,
+          requestId: context.requestId,
+        });
+      }
+
+      const result = (await redis.eval(VERIFY_SMS_CODE_SCRIPT, {
+        arguments: [code, String(maxVerifyAttempts)],
+        keys: [codeKey],
+      })) as string | string[];
+      const status = Array.isArray(result) ? result[0] : result;
+      logSmsCodeDebug('redis_verify_after', {
+        inputCode: maskSmsCode(code),
+        isMatched: status === 'ok',
+        phoneNumber,
+        purpose,
+        redisKey: codeKey,
+        requestId: context.requestId,
+        verifyStatus: status,
+      });
+      if (status === 'ok') {
+        return;
+      }
+      if (status === 'invalid') {
+        throw new SmsCodeError('验证码不正确');
+      }
+      throw new SmsCodeError('验证码不存在或已失效');
+    } catch (error) {
+      if (error instanceof SmsCodeError) {
+        throw error;
+      }
+      logSmsCodeDebug(
+        'redis_operation_error',
+        {
+          error: serializeError(error),
+          operation: 'verify_code',
+          phoneNumber,
+          purpose,
+          redisKey: codeKey,
+          requestId: context.requestId,
+        },
+        'error',
+      );
+      throw error;
     }
-    if (status === 'invalid') {
-      throw new SmsCodeError('验证码不正确');
-    }
-    throw new SmsCodeError('验证码不存在或已失效');
   }
 
   cleanupExpiredEntries();

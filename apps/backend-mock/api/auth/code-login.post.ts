@@ -19,7 +19,12 @@ import {
   serverErrorResponse,
   useResponseSuccess,
 } from '~/utils/response';
-import { SmsCodeError, verifySmsCode } from '~/utils/sms-code-store';
+import {
+  logSmsCodeDebug,
+  maskSmsCodeForLog,
+  SmsCodeError,
+  verifySmsCode,
+} from '~/utils/sms-code-store';
 import { resolveTenantUserForCenterUser } from '~/utils/user-customer-mapping';
 import {
   getActiveCustomerForCenterUser,
@@ -35,6 +40,20 @@ export default defineEventHandler(async (event) => {
   const body = (await readBody(event)) as CodeLoginBody;
   const phoneNumber = body?.phoneNumber?.trim();
   const code = body?.code?.trim();
+  const requestId =
+    getHeader(event, 'x-request-id') ||
+    getHeader(event, 'x-correlation-id') ||
+    getHeader(event, 'x-trace-id') ||
+    undefined;
+  const logContext = requestId ? { requestId } : {};
+
+  logSmsCodeDebug('login_verify_request', {
+    inputCode: maskSmsCodeForLog(code),
+    phoneNumber: phoneNumber || '',
+    purpose: 'login',
+    requestId,
+    requestTime: new Date().toISOString(),
+  });
 
   if (!phoneNumber || !code) {
     return badRequestResponse('手机号和验证码均不能为空', event);
@@ -45,7 +64,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    await verifySmsCode('login', phoneNumber, code);
+    await verifySmsCode('login', phoneNumber, code, logContext);
   } catch (error) {
     if (error instanceof SmsCodeError) {
       return badRequestResponse(error.message, event);

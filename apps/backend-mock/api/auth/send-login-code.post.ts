@@ -6,6 +6,7 @@ import {
 import { sendLoginVerificationCode } from '~/utils/shlianlu-sms';
 import {
   generateNumericCode,
+  logSmsCodeDebug,
   releaseSmsCodeSend,
   reserveSmsCodeSend,
   saveSmsCode,
@@ -19,6 +20,19 @@ interface SendCodeBody {
 export default defineEventHandler(async (event) => {
   const body = (await readBody(event)) as SendCodeBody;
   const phoneNumber = body?.phoneNumber?.trim();
+  const requestId =
+    getHeader(event, 'x-request-id') ||
+    getHeader(event, 'x-correlation-id') ||
+    getHeader(event, 'x-trace-id') ||
+    undefined;
+  const logContext = requestId ? { requestId } : {};
+
+  logSmsCodeDebug('login_send_code_request', {
+    phoneNumber: phoneNumber || '',
+    purpose: 'login',
+    requestId,
+    requestTime: new Date().toISOString(),
+  });
 
   if (!phoneNumber) {
     return badRequestResponse('手机号不能为空', event);
@@ -29,7 +43,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    await reserveSmsCodeSend('login', phoneNumber);
+    await reserveSmsCodeSend('login', phoneNumber, logContext);
   } catch (error) {
     if (error instanceof SmsCodeError) {
       const retryAfter = error.retryAfter ?? 0;
@@ -55,7 +69,7 @@ export default defineEventHandler(async (event) => {
       code,
       phoneNumber,
     });
-    await saveSmsCode('login', phoneNumber, code);
+    await saveSmsCode('login', phoneNumber, code, logContext);
 
     const responsePayload: Record<string, unknown> = {
       expiresIn: Number(process.env.LOGIN_SMS_CODE_TTL ?? 300),
@@ -67,7 +81,7 @@ export default defineEventHandler(async (event) => {
 
     return useResponseSuccess(responsePayload, '验证码发送成功');
   } catch (error) {
-    await releaseSmsCodeSend('login', phoneNumber);
+    await releaseSmsCodeSend('login', phoneNumber, logContext);
     console.error('发送联麓短信失败:', error);
     return serverErrorResponse('验证码发送失败，请稍后重试', event);
   }
