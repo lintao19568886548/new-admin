@@ -89,7 +89,11 @@ export default eventHandler(async (event) => {
           return badRequestResponse('请输入短信验证码', event);
         }
         try {
-          verifySmsCode(phoneNumber, normalizedSmsCode);
+          await verifySmsCode(
+            'attendanceDevice',
+            phoneNumber,
+            normalizedSmsCode,
+          );
         } catch (error) {
           if (error instanceof SmsCodeError) {
             return badRequestResponse(error.message, event);
@@ -110,7 +114,7 @@ export default eventHandler(async (event) => {
           return badRequestResponse('当前账号未绑定有效手机号', event);
         }
         try {
-          reserveSmsCodeSend(phoneNumber);
+          await reserveSmsCodeSend('attendanceDevice', phoneNumber);
         } catch (error) {
           if (error instanceof SmsCodeError) {
             const retryAfter = error.retryAfter ?? 0;
@@ -139,10 +143,10 @@ export default eventHandler(async (event) => {
             code,
             phoneNumber,
           });
-          saveSmsCode(phoneNumber, code);
+          await saveSmsCode('attendanceDevice', phoneNumber, code);
           return useResponseSuccess(responsePayload, '验证码发送成功');
         } catch (error) {
-          releaseSmsCodeSend(phoneNumber);
+          await releaseSmsCodeSend('attendanceDevice', phoneNumber);
           console.error('发送设备更换短信验证码失败:', error);
           if (process.env.NODE_ENV !== 'production' && error instanceof Error) {
             return serverErrorResponse(error.message, event);

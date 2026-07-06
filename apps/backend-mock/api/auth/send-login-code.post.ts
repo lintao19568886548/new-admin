@@ -3,6 +3,7 @@ import {
   serverErrorResponse,
   useResponseSuccess,
 } from '~/utils/response';
+import { sendLoginVerificationCode } from '~/utils/shlianlu-sms';
 import {
   generateNumericCode,
   releaseSmsCodeSend,
@@ -28,7 +29,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    reserveSmsCodeSend(phoneNumber);
+    await reserveSmsCodeSend('login', phoneNumber);
   } catch (error) {
     if (error instanceof SmsCodeError) {
       const retryAfter = error.retryAfter ?? 0;
@@ -54,7 +55,7 @@ export default defineEventHandler(async (event) => {
       code,
       phoneNumber,
     });
-    saveSmsCode(phoneNumber, code);
+    await saveSmsCode('login', phoneNumber, code);
 
     const responsePayload: Record<string, unknown> = {
       expiresIn: Number(process.env.LOGIN_SMS_CODE_TTL ?? 300),
@@ -66,7 +67,7 @@ export default defineEventHandler(async (event) => {
 
     return useResponseSuccess(responsePayload, '验证码发送成功');
   } catch (error) {
-    releaseSmsCodeSend(phoneNumber);
+    await releaseSmsCodeSend('login', phoneNumber);
     console.error('发送联麓短信失败:', error);
     return serverErrorResponse('验证码发送失败，请稍后重试', event);
   }

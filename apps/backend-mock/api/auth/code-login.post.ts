@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    verifySmsCode(phoneNumber, code);
+    await verifySmsCode('login', phoneNumber, code);
   } catch (error) {
     if (error instanceof SmsCodeError) {
       return badRequestResponse(error.message, event);

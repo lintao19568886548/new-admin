@@ -185,11 +185,16 @@ function setFormulaOrValue(
   }
 
   if (isFormulaText(value)) {
-    range.setValue({
-      f: sanitizeFormulaText(String(value)),
-      p: null,
-      v: normalizeFormulaFallbackValue(fallbackValue),
-    });
+    const formula = sanitizeFormulaText(String(value));
+    if (typeof range.setFormula === 'function') {
+      range.setFormula(formula);
+    } else {
+      range.setValue({
+        f: formula,
+        p: null,
+        v: normalizeFormulaFallbackValue(fallbackValue),
+      });
+    }
     if (numberFormat) {
       setNumberFormat(worksheet, rangeText, numberFormat);
     }

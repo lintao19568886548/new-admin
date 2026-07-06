@@ -3,12 +3,46 @@ import type * as ExcelJSTypes from 'exceljs';
 import { retryImport } from '#/utils/retry-import';
 
 type ExcelJSModule = typeof ExcelJSTypes;
+type ExcelCellValue = ExcelJSTypes.CellValue;
+type FormulaCellInput = {
+  formula: string;
+  result?: number | string;
+};
+type ExcelExportCell = FormulaCellInput | number | string;
 
 let excelJSImportPromise: null | Promise<ExcelJSModule> = null;
 
 function loadExcelJS() {
   excelJSImportPromise ??= retryImport(() => import('exceljs'));
   return excelJSImportPromise;
+}
+
+function isFormulaCellInput(value: unknown): value is FormulaCellInput {
+  return (
+    Boolean(value) &&
+    typeof value === 'object' &&
+    typeof (value as FormulaCellInput).formula === 'string'
+  );
+}
+
+function toExcelCellValue(value: unknown): ExcelCellValue {
+  if (isFormulaCellInput(value)) {
+    return {
+      formula: value.formula.replace(/^=/, ''),
+      result: value.result,
+    };
+  }
+
+  return value as ExcelCellValue;
+}
+
+function setCellValue(
+  worksheet: ExcelJSTypes.Worksheet,
+  rowIndex: number,
+  colIndex: number,
+  value: unknown,
+) {
+  worksheet.getCell(rowIndex, colIndex).value = toExcelCellValue(value);
 }
 
 // 辅助函数：保存工作簿到文件
@@ -229,24 +263,11 @@ export async function exportJsonToExcel<T = any>(
     const headerRow = aoaData[0];
 
     if (Array.isArray(headerRow)) {
-      // 设置列定义
-      worksheet.columns = headerRow.map((header, index) => ({
-        header: String(header),
-        key: `col${index}`,
-      }));
-
-      // 添加数据行（如果有）
-      if (aoaData.length > 1) {
-        // 将数据行转换为对象格式并添加到工作表
-        const dataRows = aoaData.slice(1).map((rowArray) => {
-          const rowObject: Record<string, any> = {};
-          headerRow.forEach((_, colIdx) => {
-            rowObject[`col${colIdx}`] = rowArray[colIdx];
-          });
-          return rowObject;
+      aoaData.forEach((row, rowIndex) => {
+        row.forEach((cellValue, colIndex) => {
+          setCellValue(worksheet, rowIndex + 1, colIndex + 1, cellValue);
         });
-        worksheet.addRows(dataRows);
-      }
+      });
     } else {
       // 如果第一行不是数组，则作为普通二维数组处理
       worksheet.addRows(aoaData);
@@ -295,7 +316,7 @@ export async function executeBill(data: any): Promise<void> {
   const yearMonthText = `${year}年${month}月份`;
 
   // 创建表头（添加标题行）
-  const exportData = [
+  const exportData: ExcelExportCell[][] = [
     [
       '各园区房租水电明细表',
       '',
@@ -355,13 +376,26 @@ export async function executeBill(data: any): Promise<void> {
   // 添加数据行
   const dataMeta = [];
   let currentRow = 4; // 从第4行开始（前三行是标题和表头）
+  const createFormulaCell = (
+    formula: string,
+    result: number | string = 0,
+  ): FormulaCellInput => ({
+    formula,
+    result,
+  });
+  const roundNumber = (value: unknown) => Math.round(Number(value) || 0);
+  const sumBillField = (bills: any[], field: string) =>
+    bills.reduce(
+      (sum: number, bill: any) => sum + (Number(bill[field]) || 0),
+      0,
+    );
 
   for (const item of data) {
     const startRow = currentRow; // 记录当前园区数据的起始行
     // 添加该园区的所有账单数据
     for (const bill of item.bills) {
-      // 计算总费用并四舍五入到整数
-      const totalFee = Math.round(
+      const rowNumber = currentRow;
+      const totalFee = roundNumber(
         Number(bill.factoryRent) +
           Number(bill.eleFee) +
           Number(bill.waterFee) +
@@ -381,7 +415,10 @@ export async function executeBill(data: any): Promise<void> {
         '',
         '',
         '',
-        totalFee, // 转换为字符串
+        createFormulaCell(
+          `ROUND(SUM(D${rowNumber}:G${rowNumber}),0)`,
+          totalFee,
+        ),
         bill.receiptTime,
         bill.receiveFee,
       ]);
@@ -389,42 +426,31 @@ export async function executeBill(data: any): Promise<void> {
     }
 
     // 添加该园区的合计行
+    const totalRowNumber = currentRow;
+    const endRow = currentRow - 1;
+    const hasBills = endRow >= startRow;
+    const totalFormula = (column: string) =>
+      hasBills ? `ROUND(SUM(${column}${startRow}:${column}${endRow}),0)` : '0';
     const totalRow = [
       '合计', // A列显示"合计"
       '', // B列空白
       '0', // C列空白，改为空字符串
       // 计算该园区所有账单的各项费用合计，并四舍五入，转换为字符串
-      String(
-        Math.round(
-          item.bills.reduce(
-            (sum: number, bill: any) => sum + (Number(bill.factoryRent) || 0),
-            0,
-          ),
-        ),
+      createFormulaCell(
+        totalFormula('D'),
+        roundNumber(sumBillField(item.bills, 'factoryRent')),
       ),
-      String(
-        Math.round(
-          item.bills.reduce(
-            (sum: number, bill: any) => sum + (Number(bill.eleFee) || 0),
-            0,
-          ),
-        ),
+      createFormulaCell(
+        totalFormula('E'),
+        roundNumber(sumBillField(item.bills, 'eleFee')),
       ),
-      String(
-        Math.round(
-          item.bills.reduce(
-            (sum: number, bill: any) => sum + (Number(bill.waterFee) || 0),
-            0,
-          ),
-        ),
+      createFormulaCell(
+        totalFormula('F'),
+        roundNumber(sumBillField(item.bills, 'waterFee')),
       ),
-      String(
-        Math.round(
-          item.bills.reduce(
-            (sum: number, bill: any) => sum + (Number(bill.invoiceTax) || 0),
-            0,
-          ),
-        ),
+      createFormulaCell(
+        totalFormula('G'),
+        roundNumber(sumBillField(item.bills, 'invoiceTax')),
       ),
       '',
       '',
@@ -433,13 +459,11 @@ export async function executeBill(data: any): Promise<void> {
       '',
       '', // M列空白
       // 计算该园区所有账单的总金额合计，并四舍五入，转换为字符串
-      String(
-        Math.round(
-          item.bills.reduce(
-            (sum: number, bill: any) => sum + (Number(bill.totalFee) || 0),
-            0,
-          ),
-        ),
+      createFormulaCell(
+        hasBills
+          ? `ROUND(SUM(N${startRow}:N${endRow}),0)`
+          : `ROUND(SUM(D${totalRowNumber}:G${totalRowNumber}),0)`,
+        roundNumber(sumBillField(item.bills, 'totalFee')),
       ),
       '', // O列空白
       '', // P列空白
