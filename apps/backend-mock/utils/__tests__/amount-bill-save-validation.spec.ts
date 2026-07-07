@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { validateAndNormalizeAmountBillData } from '../../api/bill/amount/utils';
+import {
+  validateAmountBillReconciliation,
+  validateAndNormalizeAmountBillData,
+} from '../../api/bill/amount/utils';
 
 describe('amount bill save validation', () => {
   it('rejects empty required fields and invalid amounts', () => {
@@ -101,5 +104,42 @@ describe('amount bill save validation', () => {
         totalFee: 100,
       }),
     ).toBeNull();
+  });
+
+  it('validates amount reconciliation with tolerance', () => {
+    expect(
+      validateAmountBillReconciliation({
+        eleBills: [{ amount: 100.2 }, { amount: 99.5 }],
+        eleFee: 200,
+        extraProjectItem: JSON.stringify([{ itemName: '保洁费', value: 30 }]),
+        factoryRent: 100,
+        totalFee: 380,
+        waterBills: [{ amount: 50 }],
+        waterFee: 50,
+      }),
+    ).toEqual([]);
+
+    expect(
+      validateAmountBillReconciliation({
+        eleBills: [{ amount: 100 }, { amount: 30 }],
+        eleFee: 100,
+        factoryRent: 100,
+        totalFee: 200,
+        waterBills: [],
+        waterFee: 0,
+      })[0],
+    ).toContain('电费明细合计不一致');
+
+    expect(
+      validateAmountBillReconciliation({
+        eleBills: [{ amount: 100 }],
+        eleFee: 100,
+        extraProjectItem: JSON.stringify([{ itemName: '保洁费', value: 30 }]),
+        factoryRent: 100,
+        totalFee: 200,
+        waterBills: [],
+        waterFee: 0,
+      })[0],
+    ).toContain('费用合计不一致');
   });
 });

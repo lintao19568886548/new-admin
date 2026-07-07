@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import type { Factory } from '../data';
 
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue';
 
 import { useVbenForm, useVbenModal } from '@vben/common-ui';
 
@@ -14,18 +21,37 @@ import { useParkStore } from '#/store';
 import { useFactoryItemFormSchema } from '../data';
 
 const props = defineProps({
+  autoCreate: {
+    default: false,
+    type: Boolean,
+  },
   modelValue: {
     default: () => [],
     type: Array,
   },
+  setupFlow: {
+    default: false,
+    type: Boolean,
+  },
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits<{
+  success: [
+    payload: {
+      action: 'create' | 'update';
+      record?: Factory;
+      setupFlow: boolean;
+    },
+  ];
+  'update:modelValue': [value: Factory[]];
+}>();
 
 const store = useParkStore();
 const factoryData = ref<Factory[]>([]);
 const isMobileViewport = ref(false);
+const isMounted = ref(false);
 const currentEditIndex = ref<null | number>(null);
+let autoCreateHandled = false;
 
 const getTitle = computed(() => {
   return currentEditIndex.value === null
@@ -72,6 +98,17 @@ function handleAddFactory() {
   openFactoryModal();
 }
 
+function maybeOpenAutoCreateDialog() {
+  if (!isMounted.value || !props.autoCreate || autoCreateHandled) {
+    return;
+  }
+
+  autoCreateHandled = true;
+  void nextTick(() => {
+    handleAddFactory();
+  });
+}
+
 function handleEditFactory(index: number) {
   factoryItemFormApi.setValues(factoryData.value[index] || {});
   currentEditIndex.value = index;
@@ -114,6 +151,8 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
         values.buildTime = new Date(values.buildTime).toISOString();
       }
 
+      let action: 'create' | 'update' = 'update';
+      let savedFactory: Factory | undefined;
       if (currentEditIndex.value === null) {
         if (!store.parkId) {
           message.error('园区ID缺失，无法新增厂房');
@@ -124,25 +163,45 @@ const [FactoryItemModal, factoryModalApi] = useVbenModal({
           ...values,
         });
         factoryData.value.push(factory);
+        action = 'create';
+        savedFactory = factory;
       } else {
         const currentFactory = factoryData.value[currentEditIndex.value];
         if (currentFactory?.factoryId) {
           const factory = await updateFactory(currentFactory.factoryId, values);
           factoryData.value[currentEditIndex.value] = factory;
+          savedFactory = factory;
         }
         currentEditIndex.value = null;
       }
       emit('update:modelValue', factoryData.value);
       factoryModalApi.close();
+      emit('success', {
+        action,
+        record: savedFactory,
+        setupFlow: props.setupFlow,
+      });
     } finally {
       factoryModalApi.lock(false);
     }
   },
 });
 
+watch(
+  () => props.autoCreate,
+  (autoCreate) => {
+    if (!autoCreate) {
+      autoCreateHandled = false;
+    }
+    maybeOpenAutoCreateDialog();
+  },
+);
+
 onMounted(() => {
+  isMounted.value = true;
   updateViewport();
   window.addEventListener('resize', updateViewport);
+  maybeOpenAutoCreateDialog();
 });
 
 onBeforeUnmount(() => {

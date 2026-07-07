@@ -11,7 +11,15 @@ import { $t } from '#/locales';
 
 import { useFormSchema } from '../data';
 
-const emit = defineEmits(['success']);
+const emit = defineEmits<{
+  success: [
+    payload: {
+      action: 'create' | 'update';
+      record?: any;
+      setupFlow: boolean;
+    },
+  ];
+}>();
 const formData = ref();
 const getTitle = computed(() => {
   return formData.value?.parkId
@@ -36,13 +44,17 @@ const [Modal, modalApi] = useVbenModal({
     if (valid) {
       modalApi.lock();
       const data = await formApi.getValues();
-      const { parkId } = modalApi.getData();
+      const modalData =
+        modalApi.getData<{ parkId?: number; setupFlow?: boolean }>() || {};
+      const { parkId } = modalData;
+      const action = parkId ? 'update' : 'create';
+      const setupFlow = action === 'create' && modalData.setupFlow === true;
       try {
-        await (parkId
+        const record = await (parkId
           ? updateSystemPark(parkId, data)
           : createSystemPark(data));
         modalApi.close();
-        emit('success');
+        emit('success', { action, record, setupFlow });
       } finally {
         modalApi.lock(false);
       }

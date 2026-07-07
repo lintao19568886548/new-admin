@@ -1,12 +1,15 @@
 import { getAmountBillProjectPeriodError } from '~/utils/amount-bill-project-period';
 
+const AMOUNT_BILL_RECONCILIATION_TOLERANCE = Number(
+  process.env.AMOUNT_BILL_RECONCILIATION_TOLERANCE ?? 0.5,
+);
 const MAX_BANK_ACCOUNT_FIELD_LENGTH = 60;
 const MAX_METER_NAME_LENGTH = 120;
 const MAX_PROJECT_NAME_LENGTH = 120;
 const MAX_REMARK_LENGTH = 100;
 const MAX_TENANT_NAME_LENGTH = 60;
 
-function toPositiveInteger(value: unknown) {
+export function toPositiveInteger(value: unknown) {
   const normalized = Number(value);
   return Number.isInteger(normalized) && normalized > 0
     ? Math.floor(normalized)
@@ -28,6 +31,82 @@ function clipText(value: unknown, maxLength: number) {
   }
 
   return text.slice(0, maxLength);
+}
+
+function toAmount(value: unknown) {
+  const amount = Number(value || 0);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function sumItemAmount(items: unknown) {
+  if (!Array.isArray(items)) {
+    return 0;
+  }
+
+  let sum = 0;
+  for (const item of items) {
+    sum += toAmount((item as Record<string, unknown>)?.amount);
+  }
+
+  return roundMoney(sum);
+}
+
+const STANDARD_FEE_ITEM_NAMES = new Set([
+  '厂房租金',
+  '垃圾处理费',
+  '垃圾管理费',
+  '基本管理费',
+  '开票税金',
+  '服务费',
+  '本月收费金额',
+  '水费',
+  '滞纳金',
+  '电费',
+]);
+
+function isStandardFeeItem(itemName: string) {
+  const normalized = itemName.trim();
+  if (!normalized) {
+    return true;
+  }
+
+  return (
+    STANDARD_FEE_ITEM_NAMES.has(normalized) || normalized.includes('厂房租金')
+  );
+}
+
+function sumExtraFeeItems(extraProjectItem: unknown) {
+  const text = normalizeText(extraProjectItem);
+  if (!text) {
+    return 0;
+  }
+
+  try {
+    const items = JSON.parse(text) as Array<{
+      itemName?: string;
+      value?: unknown;
+    }>;
+    if (!Array.isArray(items)) {
+      return 0;
+    }
+
+    let sum = 0;
+    for (const item of items) {
+      const itemName = normalizeText(item?.itemName);
+      if (!itemName || isStandardFeeItem(itemName)) {
+        continue;
+      }
+      sum += toAmount(item?.value);
+    }
+
+    return roundMoney(sum);
+  } catch {
+    return 0;
+  }
 }
 
 function sanitizeBankAccountJson(value: unknown) {
@@ -97,6 +176,58 @@ export function sanitizeAmountBillPayload(
   };
 
   return sanitized;
+}
+
+function buildReconciliationError(
+  title: string,
+  expected: number,
+  actual: number,
+) {
+  return `${title}不一致：账单金额 ${expected.toFixed(
+    2,
+  )} 元，校验金额 ${actual.toFixed(2)} 元`;
+}
+
+export function validateAmountBillReconciliation(
+  payload: Record<string, any>,
+  tolerance = AMOUNT_BILL_RECONCILIATION_TOLERANCE,
+) {
+  const issues: string[] = [];
+  const eleDetailAmount = sumItemAmount(payload.eleBills);
+  const eleFee = roundMoney(toAmount(payload.eleFee));
+  if (Math.abs(eleDetailAmount - eleFee) > tolerance) {
+    issues.push(
+      buildReconciliationError('电费明细合计', eleFee, eleDetailAmount),
+    );
+  }
+
+  const waterDetailAmount = sumItemAmount(payload.waterBills);
+  const waterFee = roundMoney(toAmount(payload.waterFee));
+  if (Math.abs(waterDetailAmount - waterFee) > tolerance) {
+    issues.push(
+      buildReconciliationError('水费明细合计', waterFee, waterDetailAmount),
+    );
+  }
+
+  const standardFeeTotal = roundMoney(
+    toAmount(payload.eleFee) +
+      toAmount(payload.waterFee) +
+      toAmount(payload.factoryRent) +
+      toAmount(payload.managementFee) +
+      toAmount(payload.garbageFee) +
+      toAmount(payload.serviceFee) +
+      toAmount(payload.invoiceTax) +
+      toAmount(payload.penaltyFee),
+  );
+  const expectedTotal = roundMoney(
+    standardFeeTotal + sumExtraFeeItems(payload.extraProjectItem),
+  );
+  const totalFee = roundMoney(toAmount(payload.totalFee));
+  if (Math.abs(expectedTotal - totalFee) > tolerance) {
+    issues.push(buildReconciliationError('费用合计', totalFee, expectedTotal));
+  }
+
+  return issues;
 }
 
 export function validateAndNormalizeAmountBillData(

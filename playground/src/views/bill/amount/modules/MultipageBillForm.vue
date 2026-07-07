@@ -3,27 +3,35 @@ import type { Dayjs } from 'dayjs';
 
 import type { AmountBill } from '../data';
 
-import { computed, nextTick, reactive, ref, shallowRef, watch } from 'vue';
+import { computed, h, nextTick, reactive, ref, shallowRef, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
 import {
+  Alert,
   Modal as AntModal,
   Button,
   DatePicker,
   Input,
   message,
   Skeleton,
+  Tag,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import {
+  checkAmountBillDuplicate,
   createAmountBill,
   getAmountBillDetail,
   updateAmountBill,
 } from '#/api/bill';
 
 import { getAmountBillProjectPeriodError } from '../project-period';
+import {
+  AMOUNT_BILL_AI_SPLIT_MODE_LABEL,
+  checkAmountBillReconciliation,
+  checkAmountBillRiskWarnings,
+} from '../risk-control';
 
 /**
  * 多页账单表单配置接口
@@ -239,6 +247,49 @@ interface MultipageBillOpenOptions {
 const activeAiReviewBill = computed(() => {
   return aiReviewBills.value[activeAiReviewIndex.value];
 });
+const reconciliationResult = computed(() =>
+  checkAmountBillReconciliation(billData),
+);
+const riskWarnings = computed(() => checkAmountBillRiskWarnings(billData));
+const aiImportParkStatus = computed(() => {
+  if (!aiImportReview.value) {
+    return null;
+  }
+
+  return billData.parkId
+    ? {
+        message: '园区已匹配',
+        status: 'success' as const,
+      }
+    : {
+        message: '园区未匹配，请在表格顶部“园区”单元格选择正确园区',
+        status: 'error' as const,
+      };
+});
+const aiImportAuditIssues = computed(() => {
+  if (!aiImportReview.value) {
+    return [];
+  }
+
+  return [
+    ...(aiImportParkStatus.value?.status === 'error'
+      ? [
+          {
+            message: aiImportParkStatus.value.message,
+            severity: 'error' as const,
+          },
+        ]
+      : []),
+    ...reconciliationResult.value.issues.map((issue) => ({
+      message: issue.message,
+      severity: issue.severity,
+    })),
+    ...riskWarnings.value.map((issue) => ({
+      message: issue.message,
+      severity: issue.severity,
+    })),
+  ];
+});
 
 function getParkName(parkId?: number) {
   if (!parkId) return '';
@@ -322,7 +373,10 @@ function normalizeReceiptFields(data: Partial<AmountBill>) {
   };
 }
 
-function validateBillFields(data: Partial<AmountBill>) {
+function validateBillFields(
+  data: Partial<AmountBill>,
+  options: { aiImport?: boolean } = {},
+) {
   if (!String(data.projectName || '').trim()) {
     throw new Error('项目名称不能为空');
   }
@@ -339,10 +393,17 @@ function validateBillFields(data: Partial<AmountBill>) {
   if (!Number.isFinite(totalFee) || totalFee <= 0) {
     throw new Error('本月收费金额必须大于0');
   }
+
+  if (options.aiImport && !data.parkId) {
+    throw new Error('AI导入账单园区不能为空，请选择园区后再保存');
+  }
 }
 
-function buildAmountBillSaveData(data: Partial<AmountBill>) {
-  validateBillFields(data);
+function buildAmountBillSaveData(
+  data: Partial<AmountBill>,
+  options: { aiImport?: boolean } = {},
+) {
+  validateBillFields(data, options);
   const receiptFields = normalizeReceiptFields(data);
 
   return {
@@ -369,11 +430,91 @@ function buildAmountBillSaveData(data: Partial<AmountBill>) {
     waterBills: data.waterBills,
     waterFee: Number(data.waterFee) || 0,
     waterItem: data.waterItem,
+    ...(options.aiImport ? { source: 'ai-import' } : {}),
   };
+}
+
+function confirmWarning(messageText: string) {
+  return new Promise<boolean>((resolve) => {
+    AntModal.confirm({
+      cancelText: '返回核对',
+      content: () =>
+        messageText.split('\n').map((line) => h('div', { key: line }, line)),
+      okText: '继续保存',
+      onCancel: () => resolve(false),
+      onOk: () => resolve(true),
+      title: '账单风险提醒',
+    });
+  });
+}
+
+function getBillRiskWarnings(data: Partial<AmountBill>) {
+  return [
+    ...checkAmountBillReconciliation(data).warnings,
+    ...checkAmountBillRiskWarnings(data),
+  ];
+}
+
+async function ensureDuplicateCheckPassed(
+  data: Partial<AmountBill>,
+  saveData: Record<string, unknown>,
+) {
+  if (data.billId || !saveData.parkId) {
+    return true;
+  }
+
+  let result: any;
+  try {
+    result = await checkAmountBillDuplicate({
+      billId: data.billId,
+      parkId: saveData.parkId,
+      projectName: saveData.projectName,
+      tenantId: saveData.tenantId,
+      tenantName: saveData.tenantName,
+      totalFee: saveData.totalFee,
+    });
+  } catch (error) {
+    message.error(
+      error instanceof Error ? error.message : '重复账单检查失败，请重试',
+    );
+    return false;
+  }
+
+  if (result?.hasExactDuplicate) {
+    message.error('疑似重复账单：园区、租户、项目和金额完全一致，已禁止保存');
+    return false;
+  }
+
+  if (result?.hasSimilarDuplicate) {
+    return await confirmWarning(
+      '存在同园区、同租户、同项目的历史账单，请确认是否继续新增。',
+    );
+  }
+
+  return true;
+}
+
+async function ensureBillRisksConfirmed(data: Partial<AmountBill>) {
+  const warnings = getBillRiskWarnings(data);
+  if (warnings.length === 0) {
+    return true;
+  }
+
+  return await confirmWarning(
+    warnings.map((issue) => `- ${issue.message}`).join('\n'),
+  );
 }
 
 async function saveSingleBill(data: AmountBill) {
   const saveData = buildAmountBillSaveData(data);
+  if (!(await ensureDuplicateCheckPassed(data, saveData))) {
+    return null;
+  }
+
+  if (!(await ensureBillRisksConfirmed(data))) {
+    return null;
+  }
+
   await (data.billId
     ? updateAmountBill(data.billId, saveData)
     : createAmountBill(saveData));
@@ -388,9 +529,19 @@ async function handleAiReviewSave() {
 
   for (const [index, bill] of reviewBills.entries()) {
     try {
+      const reconciliation = checkAmountBillReconciliation(bill);
+      if (reconciliation.errors.length > 0) {
+        const title = getAiReviewBillTitle(bill, index);
+        await switchAiReviewBill(index);
+        message.error(
+          `${title}：${reconciliation.errors[0]?.message || '金额勾稽失败'}`,
+        );
+        return;
+      }
+
       saveItems.push({
         bill,
-        saveData: buildAmountBillSaveData(bill),
+        saveData: buildAmountBillSaveData(bill, { aiImport: true }),
       });
     } catch (error) {
       const title = getAiReviewBillTitle(bill, index);
@@ -402,8 +553,30 @@ async function handleAiReviewSave() {
     }
   }
 
+  for (const [index, item] of saveItems.entries()) {
+    if (!(await ensureDuplicateCheckPassed(item.bill, item.saveData))) {
+      await switchAiReviewBill(index);
+      return;
+    }
+  }
+
   const confirmed = await confirmAiReviewSave();
   if (!confirmed) {
+    return;
+  }
+
+  const warningMessages = saveItems.flatMap((item, index) => {
+    const title = getAiReviewBillTitle(item.bill, index);
+    return getBillRiskWarnings(item.bill).map(
+      (issue) => `${title}：${issue.message}`,
+    );
+  });
+  if (
+    warningMessages.length > 0 &&
+    !(await confirmWarning(
+      warningMessages.map((item) => `- ${item}`).join('\n'),
+    ))
+  ) {
     return;
   }
 
@@ -444,6 +617,9 @@ async function handleSave() {
   // 提交数据
   try {
     const saveData = await saveSingleBill(billData);
+    if (!saveData) {
+      return;
+    }
     emit('success', { ...saveData });
   } catch (error) {
     message.error(error instanceof Error ? error.message : '保存失败，请重试');
@@ -518,7 +694,8 @@ defineExpose({ open });
           <div>
             <div class="ai-review-title">AI导入结果</div>
             <div class="ai-review-desc">
-              已按园区拆出 {{ aiReviewBills.length }} 份账单，请逐一核对后保存
+              已按{{ AMOUNT_BILL_AI_SPLIT_MODE_LABEL }}拆出
+              {{ aiReviewBills.length }} 份账单，请逐一核对后保存
             </div>
           </div>
           <div class="ai-review-count">
@@ -550,6 +727,61 @@ defineExpose({ open });
           当前核对：{{
             getAiReviewBillTitle(activeAiReviewBill, activeAiReviewIndex)
           }}
+        </div>
+        <div class="ai-audit-panel">
+          <div class="ai-audit-header">
+            <div class="ai-audit-title">
+              当前账单审核
+              <Tag color="blue">{{ AMOUNT_BILL_AI_SPLIT_MODE_LABEL }}</Tag>
+            </div>
+            <Tag
+              :color="
+                reconciliationResult.status === 'error'
+                  ? 'red'
+                  : reconciliationResult.status === 'warning'
+                    ? 'orange'
+                    : 'green'
+              "
+            >
+              {{
+                reconciliationResult.status === 'error'
+                  ? '勾稽错误'
+                  : reconciliationResult.status === 'warning'
+                    ? '勾稽提醒'
+                    : '勾稽通过'
+              }}
+            </Tag>
+          </div>
+          <div class="ai-audit-tags">
+            <Tag
+              :color="aiImportParkStatus?.status === 'error' ? 'red' : 'green'"
+            >
+              {{ aiImportParkStatus?.message }}
+            </Tag>
+            <Tag>租户：{{ billData.tenantName || '未识别' }}</Tag>
+            <Tag>项目：{{ billData.projectName || '未识别' }}</Tag>
+          </div>
+          <Alert
+            v-if="aiImportAuditIssues.length > 0"
+            :type="
+              aiImportAuditIssues.some((issue) => issue.severity === 'error')
+                ? 'error'
+                : 'warning'
+            "
+            show-icon
+          >
+            <template #message>
+              <div class="ai-audit-issue-list">
+                <div
+                  v-for="issue in aiImportAuditIssues"
+                  :key="issue.message"
+                  class="ai-audit-issue"
+                >
+                  {{ issue.message }}
+                </div>
+              </div>
+            </template>
+          </Alert>
         </div>
       </div>
       <div class="receipt-time-bar mb-3 flex items-center gap-2">
@@ -702,6 +934,47 @@ defineExpose({ open });
   margin-top: 10px;
   font-size: 13px;
   color: #374151;
+}
+
+.ai-audit-panel {
+  padding: 10px 12px;
+  margin-top: 10px;
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  border-radius: 6px;
+}
+
+.ai-audit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ai-audit-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ai-audit-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.ai-audit-issue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-audit-issue {
+  line-height: 1.45;
 }
 
 // 底部按钮样式

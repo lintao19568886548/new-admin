@@ -8,7 +8,9 @@ import {
 import {
   resolveAmountBillParkId,
   sanitizeAmountBillPayload,
+  toPositiveInteger,
   upsertFinanceRecord,
+  validateAmountBillReconciliation,
   validateAndNormalizeAmountBillData,
 } from './utils';
 
@@ -22,10 +24,27 @@ export default eventHandler(async (event) => {
   const {
     eleBills = [],
     parkId: rawParkId,
+    source,
     tenantId,
     waterBills = [],
     ...billData
   } = sanitizedBody;
+  const isAiImport = source === 'ai-import';
+  if (isAiImport && !toPositiveInteger(rawParkId)) {
+    return useResponseError('AI导入账单必须选择园区，不能使用默认园区');
+  }
+
+  if (isAiImport) {
+    const reconciliationErrors = validateAmountBillReconciliation({
+      ...billData,
+      eleBills,
+      waterBills,
+    });
+    if (reconciliationErrors.length > 0) {
+      return useResponseError(reconciliationErrors[0]);
+    }
+  }
+
   const validateError = validateAndNormalizeAmountBillData(billData, {
     tenantId,
   });
@@ -38,7 +57,7 @@ export default eventHandler(async (event) => {
     const bill = await prismaClient.$transaction(async (prisma) => {
       const parkId = await resolveAmountBillParkId(prisma, {
         parkId: rawParkId,
-        tenantId,
+        tenantId: isAiImport ? undefined : tenantId,
         userinfo,
       });
 

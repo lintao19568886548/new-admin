@@ -22,9 +22,10 @@ import {
 } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { createPark, getParkList } from '#/api/park/park';
+import { createPark } from '#/api/park/park';
 // 引入菜单 API 用于权限树
 import { getMenuList, getMenusByParentRole } from '#/api/system/menu';
+import { getSystemParkList } from '#/api/system/park';
 import {
   createRole,
   createRoleCodeAssociation,
@@ -43,7 +44,14 @@ type UpsertRole = Omit<
   'children' | 'createTime' | 'roleId' | 'updateTime'
 >;
 
-const emits = defineEmits(['success']);
+const emits = defineEmits<{
+  success: [
+    payload: {
+      action: 'create' | 'update';
+      setupFlow: boolean;
+    },
+  ];
+}>();
 
 // 使用角色store
 const roleStore = useRoleStore();
@@ -168,7 +176,12 @@ async function loadParkOptions() {
   if (parkLoading.value) return;
   parkLoading.value = true;
   try {
-    parkOptions.value = normalizeParkOptions(await getParkList());
+    parkOptions.value = normalizeParkOptions(
+      await getSystemParkList({
+        currentPage: 1,
+        pageSize: 1000,
+      }),
+    );
   } catch (error) {
     console.error('加载园区列表失败:', error);
     message.error('加载园区列表失败');
@@ -280,6 +293,13 @@ const [Drawer, drawerApi] = useVbenDrawer({
       return;
     }
 
+    const action = id.value ? 'update' : 'create';
+    const drawerData = drawerApi.getData<
+      SystemRoleApi.SystemRole & {
+        setupFlow?: boolean;
+      }
+    >();
+    const setupFlow = action === 'create' && drawerData?.setupFlow === true;
     drawerApi.lock();
 
     try {
@@ -325,7 +345,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         }
       }
 
-      emits('success');
+      emits('success', { action, setupFlow });
       drawerApi.close();
     } catch (error) {
       console.error('保存角色失败:', error);
@@ -334,7 +354,9 @@ const [Drawer, drawerApi] = useVbenDrawer({
   },
   onOpenChange(isOpen) {
     if (isOpen) {
-      const data = drawerApi.getData<SystemRoleApi.SystemRole>();
+      const data = drawerApi.getData<
+        SystemRoleApi.SystemRole & { setupFlow?: boolean }
+      >();
       formApi.resetForm();
       if (data) {
         formData.value = data;

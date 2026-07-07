@@ -24,6 +24,10 @@ export async function createAmountBill(data: any) {
   );
 }
 
+export async function checkAmountBillDuplicate(data: any) {
+  return requestClient.post('/bill/amount/duplicate-check', data);
+}
+
 export async function updateAmountBill(id: number, data: any) {
   return notifyWorkbenchTodoChangedAfter(
     requestClient.put(`/bill/amount/${id}`, data),

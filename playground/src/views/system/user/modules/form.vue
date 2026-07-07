@@ -12,10 +12,21 @@ import { getParkList } from '#/api/park';
 import { createSystemUser, updateSystemUser } from '#/api/system/user';
 import { $t } from '#/locales';
 
-import { useFormSchema } from '../data';
+import { getRoleOptions, useFormSchema } from '../data';
 
-const emit = defineEmits(['success']);
-const formData = ref<null | SystemUserApi.SystemUser>(null);
+type UserFormData = SystemUserApi.SystemUser & {
+  setupFlow?: boolean;
+};
+
+const emit = defineEmits<{
+  success: [
+    payload: {
+      action: 'create' | 'update';
+      setupFlow: boolean;
+    },
+  ];
+}>();
+const formData = ref<null | UserFormData>(null);
 const parkOptions = ref<Array<{ label: string; value: number }>>([]);
 const isEdit = computed(() => Boolean(formData.value?.id));
 
@@ -97,6 +108,8 @@ const [Modal, modalApi] = useVbenModal({
       payload.password = String(values.password);
     }
 
+    const action = isEdit.value ? 'update' : 'create';
+    const setupFlow = !isEdit.value && formData.value?.setupFlow === true;
     modalApi.lock();
     try {
       await (isEdit.value && formData.value?.id
@@ -107,7 +120,7 @@ const [Modal, modalApi] = useVbenModal({
           }));
 
       modalApi.close();
-      emit('success');
+      emit('success', { action, setupFlow });
     } catch (error) {
       console.error('保存账号失败:', error);
     } finally {
@@ -119,8 +132,9 @@ const [Modal, modalApi] = useVbenModal({
       return;
     }
 
-    const data = modalApi.getData<SystemUserApi.SystemUser>();
+    const data = modalApi.getData<UserFormData>();
     formData.value = data || null;
+    const setupFlow = !data?.id && data?.setupFlow === true;
     formApi.resetForm();
     loadParkOptions();
 
@@ -138,6 +152,14 @@ const [Modal, modalApi] = useVbenModal({
         },
         fieldName: 'password',
         label: data?.id ? '密码（留空不修改）' : '密码',
+      },
+      {
+        componentProps: {
+          api: setupFlow ? async () => [] : getRoleOptions,
+          disabled: setupFlow,
+          placeholder: setupFlow ? '下一步创建角色' : '请选择角色',
+        },
+        fieldName: 'roleIds',
       },
     ]);
 

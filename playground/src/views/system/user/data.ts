@@ -7,7 +7,7 @@ import { formatDateTime } from '@vben/utils';
 import { getRoleList } from '#/api/system/role';
 import { $t } from '#/locales';
 
-async function getRoleOptions() {
+export async function getRoleOptions() {
   const result = await getRoleList();
   const roles: SystemRoleApi.SystemRole[] = Array.isArray(result)
     ? result

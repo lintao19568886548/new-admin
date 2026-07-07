@@ -7,7 +7,8 @@ import type {
 } from '#/adapter/vxe-table';
 import type { SystemRoleApi } from '#/api';
 
-import { ref } from 'vue';
+import { nextTick, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon, Plus } from '@vben/icons';
@@ -23,9 +24,16 @@ import { useRoleStore } from '#/store/modules/role';
 import { useColumns, useGridFormSchema } from './data';
 import { BatchEdit, FormDrawer } from './modules';
 
+interface RoleFormSuccessPayload {
+  action?: 'create' | 'update';
+  setupFlow?: boolean;
+}
+
 // 组件引用
 const formDrawerRef = ref();
 const batchEditRef = ref();
+const route = useRoute();
+const router = useRouter();
 
 // 使用角色store
 const roleStore = useRoleStore();
@@ -196,15 +204,31 @@ function onDelete(row: SystemRoleApi.SystemRole) {
     });
 }
 
-function onRefresh() {
+function showSetupCompleteModal() {
+  Modal.success({
+    okText: '返回系统管理首页',
+    onOk: () => router.push('/system/user'),
+    title: '系统初始化完成。',
+  });
+}
+
+function onRefresh(payload?: RoleFormSuccessPayload) {
   // 刷新store中的数据
   roleStore.refreshRoles();
   gridApi.query();
+
+  if (payload?.action === 'create' && payload.setupFlow === true) {
+    showSetupCompleteModal();
+  }
+}
+
+function openCreateDrawer(options: { setupFlow?: boolean } = {}) {
+  formDrawerRef.value?.setData(options.setupFlow ? { setupFlow: true } : {});
+  formDrawerRef.value?.open();
 }
 
 function onCreate() {
-  formDrawerRef.value?.setData({});
-  formDrawerRef.value?.open();
+  openCreateDrawer();
 }
 
 /**
@@ -213,6 +237,53 @@ function onCreate() {
 function onBatchEdit() {
   batchEditRef.value?.open();
 }
+
+function getQueryText(value: unknown) {
+  if (Array.isArray(value)) {
+    return String(value[0] || '').trim();
+  }
+  return String(value || '').trim();
+}
+
+function isTrueQuery(value: unknown) {
+  return ['1', 'true'].includes(getQueryText(value).toLowerCase());
+}
+
+function isAutoCreateRoleQuery() {
+  const autoCreate = getQueryText(route.query.autoCreate).toLowerCase();
+  return autoCreate === 'role' || autoCreate === 'true';
+}
+
+function clearAutoCreateQuery() {
+  const query = { ...route.query };
+  delete query.autoCreate;
+  delete query.setupFlow;
+  void router.replace({
+    path: route.path,
+    query,
+  });
+}
+
+async function handleAutoCreateQuery() {
+  if (!isAutoCreateRoleQuery()) {
+    return;
+  }
+
+  await nextTick();
+  openCreateDrawer({ setupFlow: isTrueQuery(route.query.setupFlow) });
+  clearAutoCreateQuery();
+}
+
+watch(
+  () => route.query.autoCreate,
+  () => {
+    void handleAutoCreateQuery();
+  },
+);
+
+onMounted(() => {
+  void handleAutoCreateQuery();
+});
 </script>
 <template>
   <Page auto-content-height>
