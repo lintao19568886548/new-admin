@@ -5,7 +5,8 @@ import type {
 } from '#/adapter/vxe-table';
 import type { SystemUserApi } from '#/api';
 
-import { ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
@@ -14,6 +15,7 @@ import { Button, message, Tabs } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteSystemUser, getSystemUserList } from '#/api/system/user';
+import OnboardingStepAlert from '#/components/onboarding/OnboardingStepAlert.vue';
 import { $t } from '#/locales';
 
 import ParkManagePanel from '../park/modules/manage-panel.vue';
@@ -21,6 +23,7 @@ import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 const activeTab = ref('parks');
+const route = useRoute();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -127,10 +130,24 @@ const [Grid, gridApi] = useVbenVxeGrid({
 function refreshGrid() {
   gridApi.query();
 }
+
+function syncTabFromQuery() {
+  const tab = Array.isArray(route.query.tab)
+    ? route.query.tab[0]
+    : route.query.tab;
+  if (tab === 'accounts' || tab === 'parks') {
+    activeTab.value = tab;
+  }
+}
+
+watch(() => route.query.tab, syncTabFromQuery);
+
+onMounted(syncTabFromQuery);
 </script>
 
 <template>
   <Page auto-content-height content-class="system-account-page-content">
+    <OnboardingStepAlert step-key="accounts" />
     <Tabs v-model:active-key="activeTab" class="system-account-tabs">
       <Tabs.TabPane key="parks" :tab="$t('system.park.title')">
         <div class="system-account-tab-pane">

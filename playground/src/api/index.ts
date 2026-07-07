@@ -12,6 +12,7 @@ export * from './hezhong';
 export * from './investment';
 export * from './maintenance';
 export * from './notices';
+export * from './onboarding';
 export * from './reimbursement';
 export * from './rental';
 export * from './system';

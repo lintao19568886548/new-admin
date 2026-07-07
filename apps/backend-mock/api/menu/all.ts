@@ -673,6 +673,21 @@ const WORKBENCH_ROUTE_MENUS = [
   },
 ] as const;
 
+const ONBOARDING_ROUTE_MENUS = [
+  {
+    authCode: 'onboarding:park-setup',
+    component: '/onboarding/park-setup',
+    meta: {
+      hideInMenu: true,
+      icon: 'lucide:list-checks',
+      title: '园区初始化',
+    },
+    name: 'OnboardingParkSetup',
+    path: '/onboarding/park-setup',
+    type: 'menu',
+  },
+] as const;
+
 const MENU_COMPONENT_REWRITE_MAP: Record<string, string> = {
   '/access/brand/list': '/access/brand/responsive',
   '/access/car/list': '/access/car/responsive',
@@ -1852,26 +1867,29 @@ function normalizeRouteMenus(
 ) {
   return normalizeMenuComponents(
     appendRouteMenus(
-      applyWorkbenchAppFlags(
-        ensureRepairOrderMenu(
-          ensureAccessMenus(
-            ensureSmartMeterMenu(
-              normalizeSystemChildMenuPlacement(
-                normalizeAiToolsMenuPlacement(
-                  normalizeParkManagementMenuPlacement(menus, {
-                    ensureParkWhenMissing: false,
-                    includeCompatibilityRoutes: true,
-                    includeMobileRoute: true,
-                    preferLegacyMenu: false,
-                  }),
-                  { exposeLocalAgentMenus: shouldExposeLocalAgentMenus() },
+      appendRouteMenus(
+        applyWorkbenchAppFlags(
+          ensureRepairOrderMenu(
+            ensureAccessMenus(
+              ensureSmartMeterMenu(
+                normalizeSystemChildMenuPlacement(
+                  normalizeAiToolsMenuPlacement(
+                    normalizeParkManagementMenuPlacement(menus, {
+                      ensureParkWhenMissing: false,
+                      includeCompatibilityRoutes: true,
+                      includeMobileRoute: true,
+                      preferLegacyMenu: false,
+                    }),
+                    { exposeLocalAgentMenus: shouldExposeLocalAgentMenus() },
+                  ),
                 ),
               ),
             ),
           ),
         ),
+        WORKBENCH_ROUTE_MENUS,
       ),
-      WORKBENCH_ROUTE_MENUS,
+      ONBOARDING_ROUTE_MENUS,
     ),
   );
 }

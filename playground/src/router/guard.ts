@@ -17,6 +17,11 @@ import {
   resolveMembershipAccessState,
 } from '#/utils/membership-access';
 import { syncMembershipAccessWatch } from '#/utils/membership-access-watch';
+import {
+  buildOnboardingRedirect,
+  fetchOnboardingStatus,
+  isOnboardingAllowedPath,
+} from '#/utils/onboarding';
 
 import { resolveUserHomePath } from './home-path';
 
@@ -689,6 +694,55 @@ function setupMembershipAccessGuard(router: Router) {
   });
 }
 
+function setupOnboardingGuard(router: Router) {
+  router.beforeEach(async (to) => {
+    const accessStore = useAccessStore();
+    const userStore = useUserStore();
+    const authStore = useAuthStore();
+
+    if (isCrmInvitePublicPath(to.path)) {
+      return true;
+    }
+
+    if (!accessStore.accessToken) {
+      return true;
+    }
+
+    if (coreRouteNames.includes(to.name as string)) {
+      return true;
+    }
+
+    const userInfo =
+      userStore.userInfo || (await authStore.ensureSessionReady());
+    if (!userInfo) {
+      return true;
+    }
+
+    try {
+      const status = await fetchOnboardingStatus(userInfo);
+      const redirect = buildOnboardingRedirect(status, to);
+      if (redirect) {
+        return redirect;
+      }
+
+      if (
+        status.status === 'completed' &&
+        isOnboardingAllowedPath(to.path) &&
+        to.path === '/onboarding/park-setup'
+      ) {
+        return {
+          path: resolveUserHomePath(userInfo.homePath),
+          replace: true,
+        };
+      }
+    } catch (error) {
+      console.warn('Onboarding guard skipped:', error);
+    }
+
+    return true;
+  });
+}
+
 /**
  * 项目守卫配置
  * @param router
@@ -700,6 +754,8 @@ function createRouterGuard(router: Router) {
   setupAccessGuard(router);
   /** 会员访问 */
   setupMembershipAccessGuard(router);
+  /** 初始化引导 */
+  setupOnboardingGuard(router);
 }
 
 export { createRouterGuard };

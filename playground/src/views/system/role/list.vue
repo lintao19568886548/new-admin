@@ -16,6 +16,7 @@ import { Button, message, Modal } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteRole, updateRole } from '#/api';
+import OnboardingStepAlert from '#/components/onboarding/OnboardingStepAlert.vue';
 import { $t } from '#/locales';
 import { useRoleStore } from '#/store/modules/role';
 
@@ -215,6 +216,7 @@ function onBatchEdit() {
 </script>
 <template>
   <Page auto-content-height>
+    <OnboardingStepAlert step-key="permissions" />
     <FormDrawer ref="formDrawerRef" @success="onRefresh" />
     <BatchEdit ref="batchEditRef" @success="onRefresh" />
     <Grid :table-title="$t('system.role.list')">
