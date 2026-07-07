@@ -9,7 +9,6 @@ import {
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
-    console.log('userinfo', userinfo);
     return unAuthorizedResponse(event);
   }
 
@@ -22,13 +21,32 @@ export default eventHandler(async (event) => {
     // 查询报销记录
     const reimbursement = await prismaClient.reimbursement.findUnique({
       where: { id },
+      include: {
+        park: true,
+        images: {
+          include: {
+            image: {
+              select: {
+                imgUrl: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!reimbursement) {
       return useResponseError('未找到报销记录', 404);
     }
 
-    return useResponseSuccess(reimbursement);
+    return useResponseSuccess({
+      ...reimbursement,
+      imageCount: reimbursement.images.length,
+      images: reimbursement.images
+        .map((imageItem) => imageItem.image?.imgUrl)
+        .filter(Boolean),
+      park: reimbursement.park?.parkName || '',
+    });
   } catch (error) {
     console.error('查询报销详情失败:', error);
     return useResponseError('查询报销详情失败', 500);

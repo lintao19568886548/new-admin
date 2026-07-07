@@ -15,6 +15,7 @@ export interface RepairOrderListParams {
   startTime?: string;
   status?: string;
   tenantName?: string;
+  todoView?: string;
 }
 
 export interface RepairOrder {

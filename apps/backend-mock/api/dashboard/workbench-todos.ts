@@ -5,7 +5,10 @@ import {
   enrichAmountBillPaymentInfo,
   filterAmountBillsByCollectionStatus,
 } from '~/utils/amount-bill-list-summary';
-import { compareAmountBillProjectDesc } from '~/utils/amount-bill-project-period';
+import {
+  compareAmountBillProjectDesc,
+  getAmountBillProjectSortKey,
+} from '~/utils/amount-bill-project-period';
 import {
   AttendanceStatus,
   getApprovedLeaveRangesByUserIds,
@@ -28,6 +31,7 @@ type WorkbenchTodoType =
   | 'attendance_abnormal'
   | 'contract_expire'
   | 'investment_lead'
+  | 'reimbursement_audit'
   | 'rent_unreceived'
   | 'repair_order'
   | 'vacant_factory';
@@ -62,6 +66,15 @@ interface WorkbenchTodoSection {
 const TODO_LIMIT = 5;
 const TODO_CANDIDATE_LIMIT = 50;
 const NOTIFICATION_TODO_LIMIT = 30;
+const REIMBURSEMENT_URGENT_WAITING_DAYS = 7;
+const REIMBURSEMENT_WARNING_WAITING_DAYS = 3;
+const REIMBURSEMENT_URGENT_AMOUNT = 100_000;
+const REIMBURSEMENT_WARNING_AMOUNT = 10_000;
+const INVESTMENT_FOLLOWUP_PROGRESS_VALUES = [
+  '初步接洽',
+  '深入沟通',
+  '合同准备',
+];
 const DEFAULT_ATTENDANCE_SCHEDULE: Pick<
   AttendanceScheduleConfig,
   'scheduledCheckIn' | 'scheduledCheckOut' | 'source'
@@ -85,6 +98,7 @@ const ALL_TODO_TYPES: WorkbenchTodoType[] = [
   'attendance_abnormal',
   'contract_expire',
   'investment_lead',
+  'reimbursement_audit',
   'rent_unreceived',
   'repair_order',
   'vacant_factory',
@@ -111,6 +125,7 @@ function getAllowedTodoTypes(userinfo: any) {
   }
 
   if (hasAnyRoleName(roleNames, ROLE_ALIASES.finance)) {
+    allowed.add('reimbursement_audit');
     allowed.add('rent_unreceived');
   }
 
@@ -126,6 +141,7 @@ function getAllowedTodoTypes(userinfo: any) {
   if (hasAnyRoleName(roleNames, ROLE_ALIASES.park)) {
     allowed.add('contract_expire');
     allowed.add('investment_lead');
+    allowed.add('reimbursement_audit');
     allowed.add('rent_unreceived');
     allowed.add('repair_order');
     allowed.add('vacant_factory');
@@ -133,6 +149,10 @@ function getAllowedTodoTypes(userinfo: any) {
 
   if (hasAnyRoleName(roleNames, ROLE_ALIASES.maintenance)) {
     allowed.add('repair_order');
+  }
+
+  if (Number(userinfo?.reimbursementAuth || 0) > 0) {
+    allowed.add('reimbursement_audit');
   }
 
   return allowed;
@@ -202,12 +222,104 @@ function getRentPriority(remainingAmount: number): TodoPriority {
   return 'normal';
 }
 
-function compareAmountBillRemainingRisk(first: any, second: any) {
+function getReimbursementAuditBaseTime(item: {
+  createTime?: Date | null;
+  date?: Date | null;
+}) {
+  return item.createTime || item.date || new Date();
+}
+
+function getReimbursementAuditWaitingDays(item: {
+  createTime?: Date | null;
+  date?: Date | null;
+}) {
+  const baseTime = getReimbursementAuditBaseTime(item).getTime();
+  if (!Number.isFinite(baseTime)) {
+    return 0;
+  }
+
+  return Math.max(
+    Math.floor((Date.now() - baseTime) / (24 * 60 * 60 * 1000)),
+    0,
+  );
+}
+
+function getReimbursementAuditPriority(item: {
+  amount?: unknown;
+  createTime?: Date | null;
+  date?: Date | null;
+}): TodoPriority {
+  const waitingDays = getReimbursementAuditWaitingDays(item);
+  const amount = toNumber(item.amount);
+  if (
+    waitingDays >= REIMBURSEMENT_URGENT_WAITING_DAYS ||
+    amount >= REIMBURSEMENT_URGENT_AMOUNT
+  ) {
+    return 'urgent';
+  }
+  if (
+    waitingDays >= REIMBURSEMENT_WARNING_WAITING_DAYS ||
+    amount >= REIMBURSEMENT_WARNING_AMOUNT
+  ) {
+    return 'warning';
+  }
+  return 'normal';
+}
+
+function getReimbursementAuditRiskScore(item: {
+  amount?: unknown;
+  createTime?: Date | null;
+  date?: Date | null;
+}) {
+  return (
+    getReimbursementAuditWaitingDays(item) * 10_000 + toNumber(item.amount)
+  );
+}
+
+function getCurrentProjectMonthKey() {
+  const now = new Date();
+  return now.getFullYear() * 12 + now.getMonth() + 1;
+}
+
+function getAmountBillOverdueRisk(item: {
+  createTime?: Date | null;
+  projectName?: null | string;
+  receiptTime?: Date | null;
+}) {
+  const projectKey = getAmountBillProjectSortKey(item);
+  return projectKey !== null && projectKey < getCurrentProjectMonthKey()
+    ? 1
+    : 0;
+}
+
+function compareAmountBillCollectionRisk(first: any, second: any) {
+  const overdueDiff =
+    getAmountBillOverdueRisk(second) - getAmountBillOverdueRisk(first);
+  if (overdueDiff !== 0) {
+    return overdueDiff;
+  }
+
   const amountDiff =
     toNumber(second.remainingAmount) - toNumber(first.remainingAmount);
   if (amountDiff !== 0) {
     return amountDiff;
   }
+
+  const firstProjectKey = getAmountBillProjectSortKey(first);
+  const secondProjectKey = getAmountBillProjectSortKey(second);
+  if (firstProjectKey !== null && secondProjectKey !== null) {
+    const projectDiff = firstProjectKey - secondProjectKey;
+    if (projectDiff !== 0) {
+      return projectDiff;
+    }
+  }
+  if (firstProjectKey === null && secondProjectKey !== null) {
+    return 1;
+  }
+  if (firstProjectKey !== null && secondProjectKey === null) {
+    return -1;
+  }
+
   return compareAmountBillProjectDesc(first, second);
 }
 
@@ -636,7 +748,10 @@ async function buildRentUnreceivedTodos(parkIds: number[]) {
   const summaryItems = await prismaClient.amountBill.findMany({
     select: {
       billId: true,
+      createTime: true,
+      projectName: true,
       receiptAmount: true,
+      receiptTime: true,
       totalFee: true,
     },
     where,
@@ -646,14 +761,17 @@ async function buildRentUnreceivedTodos(parkIds: number[]) {
     .map((bill) =>
       enrichAmountBillPaymentInfo({
         billId: bill.billId,
+        createTime: bill.createTime,
+        projectName: bill.projectName,
         receiptAmount: bill.receiptAmount,
+        receiptTime: bill.receiptTime,
         totalFee: bill.totalFee,
       }),
     )
     .filter((bill) => ['partial', 'unpaid'].includes(bill.collectionStatus));
   const summary = buildAmountBillListSummary(summarySource);
   const topBillIds = summarySource
-    .sort(compareAmountBillRemainingRisk)
+    .sort(compareAmountBillCollectionRisk)
     .slice(0, TODO_CANDIDATE_LIMIT)
     .map((bill) => bill.billId);
 
@@ -696,7 +814,7 @@ async function buildRentUnreceivedTodos(parkIds: number[]) {
       }),
     ),
     'unreceived',
-  ).sort(compareAmountBillRemainingRisk);
+  ).sort(compareAmountBillCollectionRisk);
 
   const todos = unreceivedBills.map((bill: any): WorkbenchTodo => {
     const remainingAmount = Math.max(toNumber(bill.remainingAmount), 0);
@@ -744,7 +862,7 @@ async function buildInvestmentLeadTodos(parkIds: number[]) {
       in: parkIds,
     },
     progress: {
-      not: '签约完成',
+      in: INVESTMENT_FOLLOWUP_PROGRESS_VALUES,
     },
   };
   const select = {
@@ -861,11 +979,89 @@ async function buildInvestmentLeadTodos(parkIds: number[]) {
       routeQuery: {
         currentPark: lead.parkId || -1,
         tenantName,
+        todoView: 'followup',
       },
       status: 'pending',
       title: '招商线索',
       todoId: `investment-lead-${lead.investmentId}`,
       type: 'investment_lead',
+    };
+  });
+
+  return { count, todos };
+}
+
+async function buildReimbursementAuditTodos(parkIds: number[], userinfo: any) {
+  if (Number(userinfo?.reimbursementAuth || 0) <= 0) {
+    return { count: 0, todos: [] as WorkbenchTodo[] };
+  }
+
+  const where = {
+    isDeleted: false,
+    parkId: {
+      in: parkIds,
+    },
+    status: 0,
+  };
+  const [count, reimbursements] = await Promise.all([
+    prismaClient.reimbursement.count({ where }),
+    prismaClient.reimbursement.findMany({
+      orderBy: [{ createTime: 'asc' }, { amount: 'desc' }, { id: 'desc' }],
+      select: {
+        amount: true,
+        createTime: true,
+        date: true,
+        department: true,
+        id: true,
+        park: {
+          select: {
+            parkName: true,
+          },
+        },
+        parkId: true,
+        payee: true,
+        purpose: true,
+        username: true,
+      },
+      take: TODO_CANDIDATE_LIMIT,
+      where,
+    }),
+  ]);
+
+  const todos = reimbursements.map((item): WorkbenchTodo => {
+    const amount = toNumber(item.amount);
+    const waitingDays = getReimbursementAuditWaitingDays(item);
+    const applicant = item.username || item.payee || '申请人';
+    const purpose = item.purpose || '报销';
+    return {
+      businessId: String(item.id),
+      businessName: `${applicant}报销`,
+      content: `${applicant}提交${purpose}报销${amount.toFixed(2)}元${
+        waitingDays > 0 ? `，已等待${waitingDays}天` : '，今日提交'
+      }`,
+      createTime:
+        item.createTime?.toISOString?.() || item.date?.toISOString?.(),
+      meta: {
+        amount,
+        department: item.department,
+        payee: item.payee,
+        purpose,
+        riskScore: getReimbursementAuditRiskScore(item),
+        waitingDays,
+      },
+      parkId: item.parkId ?? undefined,
+      parkName: item.park?.parkName,
+      priority: getReimbursementAuditPriority(item),
+      routeName: 'ReimbursementMobileAudit',
+      routePath: '/reimbursement/mobile-audit',
+      routeQuery: {
+        parkId: item.parkId ?? '',
+        status: 0,
+      },
+      status: 'pending',
+      title: '报销审核',
+      todoId: `reimbursement-audit-${item.id}`,
+      type: 'reimbursement_audit',
     };
   });
 
@@ -1268,6 +1464,7 @@ export default eventHandler(async (event) => {
     const [
       contractTodos,
       rentTodos,
+      reimbursementTodos,
       investmentTodos,
       repairTodos,
       attendanceTodos,
@@ -1287,6 +1484,11 @@ export default eventHandler(async (event) => {
             summary: { remainingAmount: 0 },
             todos: [] as WorkbenchTodo[],
           }),
+      hasTodoType('reimbursement_audit')
+        ? runTimedTodoBuilder('reimbursement_audit', () =>
+            buildReimbursementAuditTodos(parkIds, userinfo),
+          )
+        : Promise.resolve({ count: 0, todos: [] as WorkbenchTodo[] }),
       hasTodoType('investment_lead')
         ? runTimedTodoBuilder('investment_lead', () =>
             buildInvestmentLeadTodos(parkIds),
@@ -1321,6 +1523,12 @@ export default eventHandler(async (event) => {
         rentTodos.todos,
         rentTodos.count,
       ),
+      buildSection(
+        'reimbursement_audit',
+        '报销审核',
+        reimbursementTodos.todos,
+        reimbursementTodos.count,
+      ),
       buildSection('vacant_factory', '空置厂房', vacantFactoryTodos),
       buildSection(
         'investment_lead',
@@ -1340,6 +1548,7 @@ export default eventHandler(async (event) => {
     const notificationItems = buildNotificationItems([
       ...contractTodos.todos,
       ...rentTodos.todos,
+      ...reimbursementTodos.todos,
       ...vacantFactoryTodos,
       ...investmentTodos.todos,
       ...repairTodos.todos,

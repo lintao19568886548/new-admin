@@ -19,7 +19,11 @@ import {
   getMonthStats,
 } from '#/api/hrm/attendance';
 import MobileDateRange from '#/components/MobileDateRange.vue';
-import { getAttendanceRecordPriorityInfo } from '#/utils/workbench-todo-priority';
+import {
+  getAttendanceRecordPriorityInfo,
+  getWorkbenchPriorityColor,
+  getWorkbenchPriorityLabel,
+} from '#/utils/workbench-todo-priority';
 
 // ================================= 类型定义 =================================
 interface MonthStats extends MonthAttendanceStats {
@@ -173,6 +177,43 @@ const getStatusInfo = (status: null | number) => {
 const getAttendanceTodoPriorityInfo = (status: null | number) =>
   getAttendanceRecordPriorityInfo(getStatusInfo(status).text);
 
+const createAttendanceAbnormalPriorityInfo = (
+  priority: 'normal' | 'urgent' | 'warning',
+  reason: string,
+) => ({
+  color: getWorkbenchPriorityColor(priority),
+  label: getWorkbenchPriorityLabel(priority),
+  priority,
+  reason,
+  visible: true,
+});
+
+const getAttendanceAbnormalPriorityInfo = (record: AttendanceRecord) => {
+  if (!record.isGroup) {
+    return getAttendanceTodoPriorityInfo(record.status);
+  }
+
+  const abnormalCount = Number(record.abnormalCount || 0);
+  if (abnormalCount >= 10) {
+    return createAttendanceAbnormalPriorityInfo(
+      'urgent',
+      `本期累计异常${abnormalCount}次，需优先处理`,
+    );
+  }
+  if (abnormalCount >= 3) {
+    return createAttendanceAbnormalPriorityInfo(
+      'warning',
+      `本期累计异常${abnormalCount}次，需重点关注`,
+    );
+  }
+  return createAttendanceAbnormalPriorityInfo(
+    'normal',
+    abnormalCount > 0
+      ? `本期累计异常${abnormalCount}次，常规确认`
+      : '暂无待处理考勤异常',
+  );
+};
+
 const getAttendanceAbnormalSummaryText = (record: AttendanceRecord) => {
   const abnormalCount = Number(record.abnormalCount || 0);
   const lateCount = Number(record.lateCount || 0);
@@ -272,13 +313,28 @@ const getAttendanceRiskScore = (status: null | number) => {
   return 0;
 };
 
+const getAttendanceRecordRiskScore = (record: AttendanceRecord) => {
+  const statusRisk = getAttendanceRiskScore(record.status);
+  if (!record.isGroup) {
+    return statusRisk;
+  }
+
+  const abnormalCount = Number(record.abnormalCount || 0);
+  if (abnormalCount >= 10) {
+    return 1000 + abnormalCount;
+  }
+  if (abnormalCount >= 3) {
+    return 500 + abnormalCount;
+  }
+  return abnormalCount * 10 + statusRisk;
+};
+
 const compareAttendanceRisk = (
   first: AttendanceRecord,
   second: AttendanceRecord,
 ) => {
   const riskDiff =
-    getAttendanceRiskScore(second.status) -
-    getAttendanceRiskScore(first.status);
+    getAttendanceRecordRiskScore(second) - getAttendanceRecordRiskScore(first);
   if (riskDiff !== 0) {
     return riskDiff;
   }
@@ -363,22 +419,33 @@ const handleConfirmAbnormal = async (record: AttendanceRecord) => {
   const attendanceIds = getAttendanceRecordIds(record);
   handlingRecordIds.value = [...handlingRecordIds.value, ...attendanceIds];
   try {
-    const [result] = await Promise.all(
+    const results = await Promise.all(
       attendanceIds.map((attendanceId) =>
         confirmAttendanceAbnormal(attendanceId),
       ),
     );
+    const confirmedAttendanceIds = results
+      .filter((result) => result?.handled !== false)
+      .map((result) => Number(result?.attendanceId))
+      .filter((attendanceId) => Number.isFinite(attendanceId));
+    const removableAttendanceIds =
+      confirmedAttendanceIds.length > 0
+        ? confirmedAttendanceIds
+        : attendanceIds;
+
     attendanceRecords.value = attendanceRecords.value.filter(
       (item) =>
         !getAttendanceRecordIds(item).some((attendanceId) =>
-          attendanceIds.includes(attendanceId),
+          removableAttendanceIds.includes(attendanceId),
         ),
     );
     pagination.total = Math.max(
-      pagination.total - (record.isGroup ? 1 : attendanceIds.length),
+      pagination.total - (record.isGroup ? 1 : removableAttendanceIds.length),
       0,
     );
+    const result = results.find((item) => item?.message);
     message.success(result?.message || '已确认处理');
+    await loadAttendanceRecords();
   } catch (error: any) {
     console.error('确认处理考勤异常失败:', error);
     message.error(`确认处理失败: ${error.message || '未知错误'}`);
@@ -565,9 +632,9 @@ watch(dateRange, (newRange) => {
             <div class="flex flex-wrap gap-2">
               <Tag
                 v-if="showOnlyAbnormal"
-                :color="getAttendanceTodoPriorityInfo(record.status).color"
+                :color="getAttendanceAbnormalPriorityInfo(record).color"
               >
-                {{ getAttendanceTodoPriorityInfo(record.status).label }}
+                {{ getAttendanceAbnormalPriorityInfo(record).label }}
               </Tag>
               <Tag
                 v-if="
@@ -600,9 +667,7 @@ watch(dateRange, (newRange) => {
           </div>
           <div class="flex flex-col gap-2">
             <div v-if="showOnlyAbnormal" class="text-sm text-[#64748b]">
-              处理提醒：{{
-                getAttendanceTodoPriorityInfo(record.status).reason
-              }}
+              处理提醒：{{ getAttendanceAbnormalPriorityInfo(record).reason }}
             </div>
             <div
               v-if="

@@ -15,10 +15,16 @@ export interface ReimbursementItem {
   amount: number;
   auditOpinion?: string;
   auditorLevel?: number;
+  auditPriority?: 'done' | 'normal' | 'urgent' | 'warning';
+  auditPriorityLabel?: string;
+  auditPriorityReason?: string;
+  auditRiskScore?: number;
+  auditWaitingDays?: number;
   createTime?: string;
   date: string;
   department?: string;
   id: number | string;
+  imageCount?: number;
   images?: string[];
   park?: string;
   parkId?: number | string;

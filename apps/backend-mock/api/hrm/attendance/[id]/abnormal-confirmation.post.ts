@@ -78,6 +78,7 @@ export default eventHandler(async (event) => {
         attendanceId: true,
         punchIn: true,
         punchOut: true,
+        status: true,
         userId: true,
         username: true,
       },
@@ -94,26 +95,28 @@ export default eventHandler(async (event) => {
       return useResponseError('没有处理该考勤记录的权限');
     }
 
-    const rangeStart = dayjs(record.punchIn).startOf('day').toDate();
-    const rangeEnd = dayjs(record.punchIn).endOf('day').toDate();
-    const leaveMap = record.userId
-      ? await getApprovedLeaveRangesByUserIds(
-          [record.userId],
-          rangeStart,
-          rangeEnd,
-        )
-      : new Map<number, { end: Date; start: Date }[]>();
-    const attendanceState = await resolveAttendanceState({
-      leaveRanges: record.userId ? (leaveMap.get(record.userId) ?? []) : [],
-      punchIn: record.punchIn,
-      punchOut: record.punchOut,
-      realName: record.userId ? undefined : record.username,
-      userId: record.userId ?? userinfo.id,
-      username: record.userId ? undefined : record.username,
-    });
-    const abnormalTypes = getAttendanceRecordAbnormalTypes(
-      attendanceState.status,
-    );
+    let status = record.status;
+    if (status === null) {
+      const rangeStart = dayjs(record.punchIn).startOf('day').toDate();
+      const rangeEnd = dayjs(record.punchIn).endOf('day').toDate();
+      const leaveMap = record.userId
+        ? await getApprovedLeaveRangesByUserIds(
+            [record.userId],
+            rangeStart,
+            rangeEnd,
+          )
+        : new Map<number, { end: Date; start: Date }[]>();
+      const attendanceState = await resolveAttendanceState({
+        leaveRanges: record.userId ? (leaveMap.get(record.userId) ?? []) : [],
+        punchIn: record.punchIn,
+        punchOut: record.punchOut,
+        realName: record.userId ? undefined : record.username,
+        userId: record.userId ?? userinfo.id,
+        username: record.userId ? undefined : record.username,
+      });
+      status = attendanceState.status;
+    }
+    const abnormalTypes = getAttendanceRecordAbnormalTypes(status);
     if (abnormalTypes.length === 0) {
       return useResponseSuccess({
         attendanceId,

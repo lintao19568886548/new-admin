@@ -78,11 +78,57 @@ function getRemainingAmount(item: { remainingAmount?: unknown }) {
   return Number.isFinite(amount) ? Math.max(amount, 0) : 0;
 }
 
+function getCurrentProjectMonthKey() {
+  const now = new Date();
+  return now.getFullYear() * 12 + now.getMonth() + 1;
+}
+
+function getCollectionProjectSortKey(item: {
+  createTime?: Date | null;
+  projectName?: null | string;
+  receiptTime?: Date | null;
+}) {
+  return getAmountBillProjectSortKey(item);
+}
+
+function getAmountBillOverdueRisk(item: {
+  createTime?: Date | null;
+  projectName?: null | string;
+  receiptTime?: Date | null;
+}) {
+  const projectKey = getCollectionProjectSortKey(item);
+  return projectKey !== null && projectKey < getCurrentProjectMonthKey()
+    ? 1
+    : 0;
+}
+
 function compareAmountBillCollectionRisk(first: any, second: any) {
+  const overdueDiff =
+    getAmountBillOverdueRisk(second) - getAmountBillOverdueRisk(first);
+  if (overdueDiff !== 0) {
+    return overdueDiff;
+  }
+
   const amountDiff = getRemainingAmount(second) - getRemainingAmount(first);
   if (amountDiff !== 0) {
     return amountDiff;
   }
+
+  const firstProjectKey = getCollectionProjectSortKey(first);
+  const secondProjectKey = getCollectionProjectSortKey(second);
+  if (firstProjectKey !== null && secondProjectKey !== null) {
+    const projectDiff = firstProjectKey - secondProjectKey;
+    if (projectDiff !== 0) {
+      return projectDiff;
+    }
+  }
+  if (firstProjectKey === null && secondProjectKey !== null) {
+    return 1;
+  }
+  if (firstProjectKey !== null && secondProjectKey === null) {
+    return -1;
+  }
+
   return compareAmountBillProjectDesc(first, second);
 }
 
@@ -107,12 +153,35 @@ export default eventHandler(async (event) => {
   } = query;
 
   const where: any = {};
+  const accessibleParkIds =
+    userinfo.parks
+      ?.map((park: { parkId: number }) => Number(park.parkId))
+      .filter((parkId: number) => Number.isInteger(parkId) && parkId > 0) ?? [];
+
+  if (accessibleParkIds.length === 0) {
+    return useResponseSuccess({
+      items: [],
+      summary: buildAmountBillListSummary([]),
+      total: 0,
+    });
+  }
 
   if (currentPark) {
     const parkId = Number(currentPark);
     if (parkId !== -1 && Number.isInteger(parkId) && parkId > 0) {
+      if (!accessibleParkIds.includes(parkId)) {
+        return useResponseError('没有查看权限');
+      }
       where.parkId = parkId;
+    } else {
+      where.parkId = {
+        in: accessibleParkIds,
+      };
     }
+  } else {
+    where.parkId = {
+      in: accessibleParkIds,
+    };
   }
 
   if (tenantName) {
@@ -138,35 +207,28 @@ export default eventHandler(async (event) => {
     projectEndDate,
   );
 
-  const result = await prismaClient.amountBill.findMany({
+  const candidates = await prismaClient.amountBill.findMany({
     where,
-    include: {
-      tenant: {
-        select: {
-          tenantName: true,
-        },
-      },
-      park: {
-        select: {
-          parkName: true,
-        },
-      },
+    select: {
+      billId: true,
+      createTime: true,
+      invoiceTax: true,
+      parkId: true,
+      projectName: true,
+      receiptAmount: true,
+      receiptTime: true,
+      tenantName: true,
+      totalFee: true,
     },
   });
 
-  const enrichedItems = result
+  const enrichedItems = candidates
     .filter((item) => Number(item.totalFee || 0) > 0)
     .filter((item) =>
       isAmountBillProjectNameMatched(item.projectName, projectName),
     )
     .filter((item) => isBillInProjectMonthRange(item, projectMonthRange))
-    .map((item) =>
-      enrichAmountBillPaymentInfo({
-        ...item,
-        tenantName: item.tenant?.tenantName || item.tenantName,
-        parkName: item.park?.parkName,
-      }),
-    );
+    .map((item) => enrichAmountBillPaymentInfo(item));
   const filteredItems = filterAmountBillsByCollectionStatus(
     enrichedItems,
     collectionStatus as string | undefined,
@@ -178,7 +240,46 @@ export default eventHandler(async (event) => {
   );
   const summary = buildAmountBillListSummary(sortedItems);
   const total = sortedItems.length;
-  const items = sortedItems.slice((page - 1) * size, page * size);
+  const paginatedIds = sortedItems
+    .slice((page - 1) * size, page * size)
+    .map((item) => item.billId);
+  const detailItems =
+    paginatedIds.length === 0
+      ? []
+      : await prismaClient.amountBill.findMany({
+          include: {
+            park: {
+              select: {
+                parkName: true,
+              },
+            },
+            tenant: {
+              select: {
+                tenantName: true,
+              },
+            },
+          },
+          where: {
+            billId: {
+              in: paginatedIds,
+            },
+          },
+        });
+  const detailItemMap = new Map(detailItems.map((item) => [item.billId, item]));
+  const items = paginatedIds.flatMap((billId) => {
+    const item = detailItemMap.get(billId);
+    if (!item) {
+      return [];
+    }
+
+    return [
+      enrichAmountBillPaymentInfo({
+        ...item,
+        parkName: item.park?.parkName,
+        tenantName: item.tenant?.tenantName || item.tenantName,
+      }),
+    ];
+  });
 
   return useResponseSuccess({
     items,

@@ -1,7 +1,8 @@
 <script lang="ts" setup>
 // 从本地类型定义中导入 ReimbursementItem 类型
 
-import { onMounted, ref } from 'vue';
+import { defineAsyncComponent, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { Search } from '@vben/icons';
 import { formatDateTime } from '@vben/utils';
@@ -25,12 +26,16 @@ import {
   Tag,
 } from 'ant-design-vue';
 
+import { getReimbursementDetail } from '#/api/reimbursement';
 import { $t } from '#/locales';
 import { openMobileImagePreview } from '#/utils/mobile-image-preview';
 
 import { STATUS_MAP, useFormRules } from './data';
-import AnalysisPanel from './modules/analysis-panel.vue';
 import { statusOptions, useReimbursementAudit } from './modules/type';
+
+const AnalysisPanel = defineAsyncComponent(
+  () => import('./modules/analysis-panel.vue'),
+);
 
 // 使用组合式函数
 const {
@@ -50,6 +55,7 @@ const {
   reimbursementList,
   resetSearch,
   searchForm,
+  setListImageMode,
   showAuditModal,
   submitting,
 } = useReimbursementAudit();
@@ -57,15 +63,43 @@ const {
 // 表单相关 for the audit modal
 const auditModalFormRef = ref();
 const activeTab = ref('audit');
+const route = useRoute();
 
 // 表单验证规则
 const rules = useFormRules();
 
 // 组件挂载时初始化
 onMounted(() => {
+  pagination.pageSize = 6;
+  setListImageMode('summary');
+  applyRouteFilters();
   fetchReimbursements();
-  fetchParkOptions();
+  window.setTimeout(() => {
+    void fetchParkOptions();
+  }, 300);
 });
+
+function getRouteQueryNumber(value: unknown) {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  if (rawValue === undefined || rawValue === null || rawValue === '') {
+    return undefined;
+  }
+
+  const numberValue = Number(rawValue);
+  return Number.isFinite(numberValue) ? numberValue : undefined;
+}
+
+function applyRouteFilters() {
+  const status = getRouteQueryNumber(route.query.status);
+  const parkId = getRouteQueryNumber(route.query.parkId);
+
+  if (status !== undefined) {
+    searchForm.status = status;
+  }
+  if (parkId !== undefined && parkId > 0) {
+    searchForm.park = String(parkId);
+  }
+}
 
 function handlePageChange(page: number, pageSize: number) {
   pagination.current = page;
@@ -83,11 +117,137 @@ function getStatusDisplay(status: number) {
   );
 }
 
+function getAuditWaitingDays(item: {
+  auditWaitingDays?: number;
+  createTime?: string;
+  date?: string;
+  status: number;
+}) {
+  if (item.status !== 0) {
+    return 0;
+  }
+  if (typeof item.auditWaitingDays === 'number') {
+    return Math.max(item.auditWaitingDays, 0);
+  }
+
+  const rawDate = item.date || item.createTime;
+  const dateValue = rawDate ? new Date(rawDate).getTime() : Number.NaN;
+  if (!Number.isFinite(dateValue)) {
+    return 0;
+  }
+
+  return Math.max(
+    Math.floor((Date.now() - dateValue) / (24 * 60 * 60 * 1000)),
+    0,
+  );
+}
+
+function getAuditPriorityDisplay(item: {
+  amount: number;
+  auditPriority?: 'done' | 'normal' | 'urgent' | 'warning';
+  auditPriorityLabel?: string;
+  auditPriorityReason?: string;
+  auditWaitingDays?: number;
+  createTime?: string;
+  date?: string;
+  status: number;
+}) {
+  if (item.status !== 0) {
+    return null;
+  }
+
+  const waitingDays = getAuditWaitingDays(item);
+  const amount = Number(item.amount || 0);
+  let priority = item.auditPriority;
+  if (!priority) {
+    if (waitingDays >= 7 || amount >= 100_000) {
+      priority = 'urgent';
+    } else if (waitingDays >= 3 || amount >= 10_000) {
+      priority = 'warning';
+    } else {
+      priority = 'normal';
+    }
+  }
+
+  if (priority === 'urgent') {
+    return {
+      className: 'priority-urgent',
+      color: 'red',
+      label: item.auditPriorityLabel || '紧急处理',
+      reason:
+        item.auditPriorityReason ||
+        (waitingDays >= 7 ? `已等待 ${waitingDays} 天` : '大额报销'),
+    };
+  }
+
+  if (priority === 'warning') {
+    return {
+      className: 'priority-warning',
+      color: 'orange',
+      label: item.auditPriorityLabel || '重点关注',
+      reason:
+        item.auditPriorityReason ||
+        (waitingDays >= 3 ? `已等待 ${waitingDays} 天` : '金额较高'),
+    };
+  }
+
+  return {
+    className: 'priority-normal',
+    color: 'blue',
+    label: item.auditPriorityLabel || '常规审核',
+    reason:
+      item.auditPriorityReason ||
+      (waitingDays > 0 ? `已等待 ${waitingDays} 天` : '今日提交'),
+  };
+}
+
+function formatAuditWaitingDays(item: {
+  auditWaitingDays?: number;
+  createTime?: string;
+  date?: string;
+  status: number;
+}) {
+  const waitingDays = getAuditWaitingDays(item);
+  return waitingDays > 0 ? `${waitingDays} 天` : '今日提交';
+}
+
 function handleImagePreview(images: string[] | undefined, index: number) {
   if (!images || images.length === 0) {
     return;
   }
   void openMobileImagePreview(images, index);
+}
+
+function getRecordImageCount(item: { imageCount?: number; images?: string[] }) {
+  return Number(item.imageCount ?? item.images?.length ?? 0);
+}
+
+async function handleRecordImagePreview(item: {
+  id: number | string;
+  imageCount?: number;
+  images?: string[];
+}) {
+  const currentImages = item.images || [];
+  if (
+    item.imageCount &&
+    item.imageCount > currentImages.length &&
+    Number.isFinite(Number(item.id))
+  ) {
+    try {
+      const detail = (await getReimbursementDetail(Number(item.id))) as any;
+      const fullImages = Array.isArray(detail?.images) ? detail.images : [];
+      if (fullImages.length > 0) {
+        item.images = fullImages;
+        item.imageCount = Number(detail.imageCount ?? fullImages.length);
+        handleImagePreview(fullImages, 0);
+        return;
+      }
+    } catch (error) {
+      console.error('load reimbursement detail images failed:', error);
+    }
+  }
+
+  handleImagePreview(currentImages, 0);
 }
 
 // Wrapper for showAuditModal to handle all cases
@@ -175,9 +335,17 @@ function handleImagePreview(images: string[] | undefined, index: number) {
             >
               <div class="card-header">
                 <span class="purpose-title">{{ item.purpose }}</span>
-                <Tag :color="getStatusDisplay(item.status).color">
-                  {{ getStatusDisplay(item.status).text }}
-                </Tag>
+                <div class="card-tags">
+                  <Tag
+                    v-if="getAuditPriorityDisplay(item)"
+                    :color="getAuditPriorityDisplay(item)?.color"
+                  >
+                    {{ getAuditPriorityDisplay(item)?.label }}
+                  </Tag>
+                  <Tag :color="getStatusDisplay(item.status).color">
+                    {{ getStatusDisplay(item.status).text }}
+                  </Tag>
+                </div>
               </div>
               <div class="card-content">
                 <div class="amount-display">
@@ -185,6 +353,13 @@ function handleImagePreview(images: string[] | undefined, index: number) {
                   <span class="amount">
                     ￥{{ Number(item.amount).toFixed(2) }}
                   </span>
+                  <div
+                    v-if="getAuditPriorityDisplay(item)"
+                    class="priority-summary"
+                    :class="getAuditPriorityDisplay(item)?.className"
+                  >
+                    {{ getAuditPriorityDisplay(item)?.reason }}
+                  </div>
                 </div>
 
                 <div class="info-grid">
@@ -200,6 +375,12 @@ function handleImagePreview(images: string[] | undefined, index: number) {
                     <span class="info-label">申请日期</span>
                     <span class="info-value">
                       {{ formatDateTime(item.date) }}
+                    </span>
+                  </div>
+                  <div v-if="item.status === 0" class="info-item">
+                    <span class="info-label">待审时长</span>
+                    <span class="info-value audit-age-value">
+                      {{ formatAuditWaitingDays(item) }}
                     </span>
                   </div>
                   <div v-if="item.park" class="info-item">
@@ -226,21 +407,24 @@ function handleImagePreview(images: string[] | undefined, index: number) {
                   v-if="item.images && item.images.length > 0"
                   class="card-images"
                 >
-                  <Carousel
-                    class="image-carousel"
-                    :dots="item.images.length > 1"
-                    :infinite="false"
-                    :adaptive-height="true"
+                  <button
+                    type="button"
+                    class="image-preview-button"
+                    @click="handleRecordImagePreview(item)"
                   >
-                    <Image
-                      v-for="(img, index) in item.images"
-                      :key="index"
-                      :src="img"
-                      :preview="false"
-                      class="carousel-main-image"
-                      @click="handleImagePreview(item.images, index)"
+                    <img
+                      :src="item.images[0]"
+                      alt="报销凭证"
+                      class="card-main-image"
+                      loading="lazy"
                     />
-                  </Carousel>
+                    <span
+                      v-if="getRecordImageCount(item) > 1"
+                      class="image-count"
+                    >
+                      共 {{ getRecordImageCount(item) }} 张
+                    </span>
+                  </button>
                 </div>
               </div>
               <div class="card-actions">
@@ -472,6 +656,7 @@ function handleImagePreview(images: string[] | undefined, index: number) {
 
 .card-header {
   display: flex;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
@@ -479,12 +664,22 @@ function handleImagePreview(images: string[] | undefined, index: number) {
 }
 
 .purpose-title {
+  min-width: 0;
   margin-right: 8px; /* Add space between title and tag */
   font-size: 16px;
   font-weight: 600;
   color: #323233;
   word-break: break-word; /* Break long words if necessary */
   white-space: normal; /* Allow text to wrap */
+}
+
+.card-tags {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+  max-width: 148px;
 }
 
 .card-content {
@@ -507,6 +702,38 @@ function handleImagePreview(images: string[] | undefined, index: number) {
   font-size: 24px;
   font-weight: 600;
   color: #fa541c;
+}
+
+.priority-summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 2px 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+.priority-urgent {
+  color: #cf1322;
+  background: #fff1f0;
+}
+
+.priority-warning {
+  color: #d46b08;
+  background: #fff7e6;
+}
+
+.priority-normal {
+  color: #0958d9;
+  background: #e6f4ff;
+}
+
+.audit-age-value {
+  font-weight: 600;
+  color: #d46b08;
 }
 
 .info-grid {
@@ -560,6 +787,37 @@ function handleImagePreview(images: string[] | undefined, index: number) {
 
 .card-images {
   margin-top: 16px;
+}
+
+.image-preview-button {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  cursor: zoom-in;
+  background: #f7f8fa;
+  border: 0;
+  border-radius: 6px;
+}
+
+.card-main-image {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+}
+
+.image-count {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 20px;
+  color: #fff;
+  background: rgb(0 0 0 / 55%);
+  border-radius: 999px;
 }
 
 .card-actions {

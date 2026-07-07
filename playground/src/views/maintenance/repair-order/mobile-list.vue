@@ -91,6 +91,7 @@ const searchForm = reactive<{
   repairType?: string;
   status?: string;
   tenantName: string;
+  todoView?: string;
 }>({
   createTimeRange: undefined,
   factoryId: undefined,
@@ -100,6 +101,7 @@ const searchForm = reactive<{
   repairType: undefined,
   status: undefined,
   tenantName: '',
+  todoView: undefined,
 });
 
 const [FormModal, formModalApi] = useVbenModal({
@@ -153,6 +155,9 @@ function processSearchParams(values: typeof searchForm) {
   }
   if (values.priority) {
     params.priority = values.priority;
+  }
+  if (values.todoView) {
+    params.todoView = values.todoView;
   }
   if (Array.isArray(values.factoryId) && values.factoryId.length > 0) {
     const selectedFactoryId = values.factoryId[values.factoryId.length - 1];
@@ -227,6 +232,7 @@ function resetSearch() {
   searchForm.status = undefined;
   searchForm.priority = undefined;
   searchForm.createTimeRange = undefined;
+  searchForm.todoView = undefined;
   handleSearch();
 }
 
@@ -335,6 +341,7 @@ function applyRouteFilters() {
   const orderNo = getRouteQueryText(route.query.orderNo);
   const status = getRouteQueryText(route.query.status);
   const tenantName = getRouteQueryText(route.query.tenantName);
+  const todoView = getRouteQueryText(route.query.todoView);
 
   if (Number.isInteger(parkId) && parkId > 0) {
     searchForm.parkId = parkId;
@@ -347,6 +354,9 @@ function applyRouteFilters() {
   }
   if (tenantName) {
     searchForm.tenantName = tenantName;
+  }
+  if (todoView) {
+    searchForm.todoView = todoView;
   }
 }
 

@@ -3,6 +3,25 @@ import { useResponseError, useResponseSuccess } from '~/utils/response';
 
 const IMG_BASE_URL = '';
 
+function getFloorAreaSummary(
+  floors: Array<{ totalArea?: unknown; usedArea?: unknown }>,
+) {
+  const totalArea = floors.reduce(
+    (sum, floor) => sum + Number(floor.totalArea || 0),
+    0,
+  );
+  const usedArea = floors.reduce(
+    (sum, floor) => sum + Number(floor.usedArea || 0),
+    0,
+  );
+
+  return {
+    availableArea: totalArea - usedArea,
+    totalArea,
+    usedArea,
+  };
+}
+
 /**
  * 获取有空闲面积的厂房列表接口
  * 支持分页查询和条件筛选，只返回空闲面积大于0的厂房
@@ -39,77 +58,99 @@ export default eventHandler(async (event) => {
       where.isOwn = query.isOwn === 'true' || query.isOwn === true;
     }
 
-    // 获取所有符合条件的厂房数据（不分页，用于过滤空闲面积）
-    const allFactories = await prismaClient.factory.findMany({
+    const factoryCandidates = await prismaClient.factory.findMany({
       where,
       orderBy: {
         createTime: 'desc',
       },
       include: {
-        // 包含园区信息
         park: {
           select: {
             parkId: true,
             parkName: true,
           },
         },
-        // 包含楼层信息用于统计
         floors: {
           where: {
             isDeleted: false,
           },
-          include: {
-            // 包含楼层图片
-            images: {
-              include: {
-                image: {
-                  select: {
-                    imgUrl: true,
-                  },
-                },
-              },
-            },
+          select: {
+            totalArea: true,
+            usedArea: true,
           },
         },
       },
     });
 
-    // 过滤出有空闲面积的厂房，并按空闲面积降序排序
-    const availableFactories = allFactories
-      .filter((factory) => {
-        // 计算厂房总的空闲面积
-        const totalArea = factory.floors.reduce(
-          (sum, floor) => sum + Number(floor.totalArea),
-          0,
-        );
-        const usedArea = factory.floors.reduce(
-          (sum, floor) => sum + Number(floor.usedArea),
-          0,
-        );
-        const availableArea = totalArea - usedArea;
-
-        // 只返回空闲面积大于0的厂房
-        return availableArea > 0;
+    const availableFactorySummaries = factoryCandidates
+      .map((factory) => {
+        const areaSummary = getFloorAreaSummary(factory.floors);
+        return {
+          ...factory,
+          ...areaSummary,
+        };
       })
+      .filter((factory) => factory.availableArea > 0)
       .sort((first, second) => {
-        const firstAvailableArea = first.floors.reduce(
-          (sum, floor) =>
-            sum + Number(floor.totalArea) - Number(floor.usedArea),
-          0,
+        const areaDiff = second.availableArea - first.availableArea;
+        if (areaDiff !== 0) {
+          return areaDiff;
+        }
+        return (
+          new Date(second.createTime || 0).getTime() -
+          new Date(first.createTime || 0).getTime()
         );
-        const secondAvailableArea = second.floors.reduce(
-          (sum, floor) =>
-            sum + Number(floor.totalArea) - Number(floor.usedArea),
-          0,
-        );
-        return secondAvailableArea - firstAvailableArea;
       });
 
-    // 计算过滤后的总数
-    const total = availableFactories.length;
+    const total = availableFactorySummaries.length;
+    const paginatedSummaries = availableFactorySummaries.slice(
+      skip,
+      skip + pageSize,
+    );
+    const paginatedFactoryIds = paginatedSummaries.map(
+      (factory) => factory.factoryId,
+    );
 
-    // 对过滤后的结果进行分页
-    const paginatedFactories = availableFactories.slice(skip, skip + pageSize);
+    const factoryDetails =
+      paginatedFactoryIds.length === 0
+        ? []
+        : await prismaClient.factory.findMany({
+            where: {
+              factoryId: {
+                in: paginatedFactoryIds,
+              },
+            },
+            include: {
+              park: {
+                select: {
+                  parkId: true,
+                  parkName: true,
+                },
+              },
+              floors: {
+                where: {
+                  isDeleted: false,
+                },
+                include: {
+                  images: {
+                    include: {
+                      image: {
+                        select: {
+                          imgUrl: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          });
+    const factoryDetailMap = new Map(
+      factoryDetails.map((factory) => [factory.factoryId, factory]),
+    );
+    const paginatedFactories = paginatedSummaries
+      .map((summary) => factoryDetailMap.get(summary.factoryId))
+      .filter(Boolean);
 
     // 处理返回数据
     const items = paginatedFactories.map((factory) => {

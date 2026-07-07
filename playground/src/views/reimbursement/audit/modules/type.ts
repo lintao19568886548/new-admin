@@ -141,6 +141,7 @@ export function useReimbursementAudit() {
 
   // 表格数据
   const reimbursementList = ref<ReimbursementItem[]>([]);
+  const listImageMode = ref<'full' | 'summary'>('full');
   const loading = ref(false);
   const pagination = reactive({
     current: 1,
@@ -215,6 +216,9 @@ export function useReimbursementAudit() {
       if (searchForm.status !== undefined) {
         params.status = searchForm.status;
       }
+      if (listImageMode.value === 'summary') {
+        params.imageMode = 'summary';
+      }
 
       // 日期范围
       if (searchForm.dateRange && searchForm.dateRange.length === 2) {
@@ -280,6 +284,10 @@ export function useReimbursementAudit() {
   function handleSearch() {
     pagination.current = 1;
     fetchReimbursementList();
+  }
+
+  function setListImageMode(mode: 'full' | 'summary') {
+    listImageMode.value = mode;
   }
 
   // 处理审核提交
@@ -422,6 +430,7 @@ export function useReimbursementAudit() {
     reimbursementList,
     resetSearch,
     searchForm,
+    setListImageMode,
     showAuditModal,
     submitting,
   };

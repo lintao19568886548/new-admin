@@ -4,6 +4,7 @@ export type DashboardWorkbenchTodoType =
   | 'attendance_abnormal'
   | 'contract_expire'
   | 'investment_lead'
+  | 'reimbursement_audit'
   | 'rent_unreceived'
   | 'repair_order'
   | 'vacant_factory';

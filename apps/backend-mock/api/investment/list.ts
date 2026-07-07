@@ -1,6 +1,12 @@
 import { prismaClient } from '~/utils/db';
 import { runWithRadarSharedScope } from '~/utils/investment-radar/shared-scope';
 
+const INVESTMENT_FOLLOWUP_PROGRESS_VALUES = [
+  '初步接洽',
+  '深入沟通',
+  '合同准备',
+];
+
 function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
@@ -161,12 +167,32 @@ export default eventHandler(async (event) => {
     progress,
     startTime,
     tenantName,
+    todoView,
   } = query;
 
   const where: any = {};
+  const accessibleParkIds =
+    userinfo.parks
+      ?.map((park: { parkId: number }) => Number(park.parkId))
+      .filter((parkId: number) => Number.isInteger(parkId) && parkId > 0) ?? [];
+
+  if (accessibleParkIds.length === 0) {
+    return useResponseSuccess({
+      items: [],
+      total: 0,
+    });
+  }
 
   if (currentPark && Number(currentPark) > 0) {
-    where.parkId = Number(currentPark);
+    const parkId = Number(currentPark);
+    if (!accessibleParkIds.includes(parkId)) {
+      return useResponseError('没有查看权限');
+    }
+    where.parkId = parkId;
+  } else {
+    where.parkId = {
+      in: accessibleParkIds,
+    };
   }
 
   if (agentName) {
@@ -210,6 +236,10 @@ export default eventHandler(async (event) => {
     where.progress = {
       equals: progress,
     };
+  } else if (todoView === 'followup') {
+    where.progress = {
+      in: INVESTMENT_FOLLOWUP_PROGRESS_VALUES,
+    };
   }
 
   if (startTime && endTime) {
@@ -223,36 +253,71 @@ export default eventHandler(async (event) => {
   const size = Number(pageSize) || 20;
 
   const { items, total } = await runWithRadarSharedScope(async () => {
-    const result = await prismaClient.investment.findMany({
-      include: {
-        images: {
-          include: {
-            image: true,
-          },
-        },
-        park: {
-          select: {
-            parkName: true,
-          },
-        },
+    const candidateItems = await prismaClient.investment.findMany({
+      select: {
+        agentName: true,
+        createTime: true,
+        intentArea: true,
+        intentLevel: true,
+        investmentId: true,
+        meetingTime: true,
+        parkId: true,
+        phoneNumber: true,
+        progress: true,
+        tenantName: true,
+        updateTime: true,
       },
       where,
     });
-    const sortedItems = result.sort(compareInvestmentRisk);
-    const total = sortedItems.length;
-    const paginatedItems = sortedItems.slice((page - 1) * size, page * size);
+    const sortedCandidates = candidateItems.sort(compareInvestmentRisk);
+    const total = sortedCandidates.length;
+    const paginatedIds = sortedCandidates
+      .slice((page - 1) * size, page * size)
+      .map((item) => item.investmentId);
+    const detailItems =
+      paginatedIds.length === 0
+        ? []
+        : await prismaClient.investment.findMany({
+            include: {
+              images: {
+                include: {
+                  image: true,
+                },
+              },
+              park: {
+                select: {
+                  parkName: true,
+                },
+              },
+            },
+            where: {
+              investmentId: {
+                in: paginatedIds,
+              },
+            },
+          });
+    const detailItemMap = new Map(
+      detailItems.map((item) => [item.investmentId, item]),
+    );
 
     return {
-      items: paginatedItems.map((item) => {
+      items: paginatedIds.flatMap((investmentId) => {
+        const item = detailItemMap.get(investmentId);
+        if (!item) {
+          return [];
+        }
+
         const imageUrls = item.images.map((img) => img.image.imgUrl);
 
-        return {
-          ...item,
-          imageUrlList: imageUrls,
-          images: undefined,
-          park: undefined,
-          parkName: item.park?.parkName,
-        };
+        return [
+          {
+            ...item,
+            imageUrlList: imageUrls,
+            images: undefined,
+            park: undefined,
+            parkName: item.park?.parkName,
+          },
+        ];
       }),
       total,
     };

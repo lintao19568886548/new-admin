@@ -10,5 +10,8 @@ model Attendance {
   username     String    @map("username")
 
   @@index([userId])
+  @@index([status, punchIn])
+  @@index([username, punchIn])
+  @@index([userId, punchIn])
   @@map("attendances")
 }

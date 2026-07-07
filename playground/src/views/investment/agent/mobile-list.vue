@@ -62,6 +62,7 @@ const searchForm = reactive({
   intentLevel: undefined as string | undefined,
   progress: undefined as string | undefined,
   tenantName: '',
+  todoView: undefined as 'followup' | undefined,
 });
 const tenantNameSearchHistory = useSearchHistory(
   'agent.mobile-list.tenantName',
@@ -281,6 +282,7 @@ async function fetchList() {
     progress: searchForm.progress || undefined,
     startTime,
     tenantName: searchForm.tenantName || undefined,
+    todoView: searchForm.todoView,
   };
   try {
     const result = await getInvestmentList(params);
@@ -320,6 +322,7 @@ function resetSearch() {
   searchForm.tenantName = '';
   searchForm.intentLevel = undefined;
   searchForm.progress = undefined;
+  searchForm.todoView = undefined;
   filterOpen.value = false;
   pagination.current = 1;
   fetchList();
@@ -341,6 +344,7 @@ function getRouteQueryText(value: unknown) {
 function applyRouteFilters() {
   const parkId = Number(route.query.parkId ?? route.query.currentPark);
   const tenantName = getRouteQueryText(route.query.tenantName);
+  const todoView = getRouteQueryText(route.query.todoView);
   const progress = getRouteQueryText(route.query.progress);
 
   if (Number.isInteger(parkId) && parkId > 0) {
@@ -351,6 +355,9 @@ function applyRouteFilters() {
   }
   if (progress) {
     searchForm.progress = progress;
+  }
+  if (todoView === 'followup') {
+    searchForm.todoView = todoView;
   }
 }
 

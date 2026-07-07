@@ -93,6 +93,11 @@ export default eventHandler(async (event) => {
     if (query.repairType) {
       where.repairType = String(query.repairType);
     }
+    if (query.todoView === 'processing') {
+      where.status = {
+        in: ['待接单', '处理中', '待验收'],
+      };
+    }
     if (query.status) {
       where.status = String(query.status);
     }
@@ -120,31 +125,61 @@ export default eventHandler(async (event) => {
       }
     }
 
-    const result = await prismaClient.repairOrder.findMany({
-      include: {
-        factory: {
-          select: {
-            factoryName: true,
-          },
-        },
-        park: {
-          select: {
-            parkName: true,
-          },
-        },
+    const candidateItems = await prismaClient.repairOrder.findMany({
+      select: {
+        createTime: true,
+        priority: true,
+        repairOrderId: true,
+        status: true,
       },
       where,
     });
 
-    const sortedItems = result.sort(compareRepairOrderRisk);
-    const total = sortedItems.length;
-    const items = sortedItems
+    const sortedCandidates = candidateItems.sort(compareRepairOrderRisk);
+    const total = sortedCandidates.length;
+    const paginatedIds = sortedCandidates
       .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-      .map(({ factory, park, ...item }) => ({
-        ...item,
-        factory: factory?.factoryName || '',
-        park: park?.parkName || '',
-      }));
+      .map((item) => item.repairOrderId);
+    const detailItems =
+      paginatedIds.length === 0
+        ? []
+        : await prismaClient.repairOrder.findMany({
+            include: {
+              factory: {
+                select: {
+                  factoryName: true,
+                },
+              },
+              park: {
+                select: {
+                  parkName: true,
+                },
+              },
+            },
+            where: {
+              repairOrderId: {
+                in: paginatedIds,
+              },
+            },
+          });
+    const detailItemMap = new Map(
+      detailItems.map((item) => [item.repairOrderId, item]),
+    );
+    const items = paginatedIds.flatMap((repairOrderId) => {
+      const item = detailItemMap.get(repairOrderId);
+      if (!item) {
+        return [];
+      }
+
+      const { factory, park, ...rest } = item;
+      return [
+        {
+          ...rest,
+          factory: factory?.factoryName || '',
+          park: park?.parkName || '',
+        },
+      ];
+    });
 
     return useResponseSuccess({
       currentPage,

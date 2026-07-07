@@ -9,6 +9,7 @@ import { useAccessStore, useUserStore } from '@vben/stores';
 import { notification } from 'ant-design-vue';
 
 import { getDashboardWorkbenchTodos } from '#/api/dashboard';
+import { subscribeWorkbenchTodoChanged } from '#/utils/workbench-todo-sync';
 
 const WORKBENCH_TODO_PUSH_INTERVAL = 3 * 60 * 60 * 1000;
 const WORKBENCH_TODO_PUSH_STORAGE_KEY = 'dashboard-workbench-todo-pushed-ids';
@@ -16,6 +17,7 @@ const WORKBENCH_TODO_PUSH_STORAGE_KEY = 'dashboard-workbench-todo-pushed-ids';
 let activeRouter: null | Router = null;
 let isRefreshing = false;
 let pushedWorkbenchTodoIds = new Set<string>();
+let stopWorkbenchTodoChanged: (() => void) | undefined;
 let workbenchTodoPushTimer: ReturnType<typeof setInterval> | undefined;
 
 export function useWorkbenchTodoPush(router?: Router) {
@@ -35,6 +37,12 @@ export function useWorkbenchTodoPush(router?: Router) {
 
     restorePushedWorkbenchTodoIds();
 
+    if (!stopWorkbenchTodoChanged) {
+      stopWorkbenchTodoChanged = subscribeWorkbenchTodoChanged(() => {
+        void refreshAndPushWorkbenchTodos({ force: true });
+      });
+    }
+
     if (options.immediate) {
       void refreshAndPushWorkbenchTodos();
     }
@@ -49,22 +57,25 @@ export function useWorkbenchTodoPush(router?: Router) {
   }
 
   function stopWorkbenchTodoPush() {
-    if (!workbenchTodoPushTimer) {
-      return;
+    if (workbenchTodoPushTimer) {
+      clearInterval(workbenchTodoPushTimer);
+      workbenchTodoPushTimer = undefined;
     }
 
-    clearInterval(workbenchTodoPushTimer);
-    workbenchTodoPushTimer = undefined;
+    stopWorkbenchTodoChanged?.();
+    stopWorkbenchTodoChanged = undefined;
   }
 
-  async function refreshAndPushWorkbenchTodos() {
+  async function refreshAndPushWorkbenchTodos(
+    options: { force?: boolean } = {},
+  ) {
     if (!isAuthenticated.value || isRefreshing) {
       return;
     }
 
     isRefreshing = true;
     try {
-      const todos = await getDashboardWorkbenchTodos();
+      const todos = await getDashboardWorkbenchTodos({ force: options.force });
       const sections = Array.isArray(todos?.sections) ? todos.sections : [];
       const notificationItems = Array.isArray(todos?.notificationItems)
         ? todos.notificationItems

@@ -3,7 +3,10 @@ import { getQuery } from 'h3';
 import {
   AttendanceStatus,
   getApprovedLeaveRangesByUserIds,
+  getAttendanceScheduleMapForUsers,
+  LeaveScope,
   resolveAttendanceState,
+  resolveAttendanceStateWithSchedule,
 } from '~/utils/attendance';
 import { getConfirmedAttendanceRecordAbnormalIdSet } from '~/utils/attendance-abnormal-confirmation';
 import { getAttendanceDeviceRecordInfoMap } from '~/utils/attendance-device';
@@ -15,7 +18,13 @@ import {
   useResponseSuccess,
 } from '~/utils/response';
 
-function getAttendanceStatusRisk(status: number) {
+const abnormalAttendanceStatuses = [
+  AttendanceStatus.Late,
+  AttendanceStatus.EarlyLeave,
+  AttendanceStatus.LateAndEarlyLeave,
+];
+
+function getAttendanceStatusRisk(status: null | number) {
   if (status === AttendanceStatus.LateAndEarlyLeave) {
     return 30;
   }
@@ -101,6 +110,11 @@ export default eventHandler(async (event) => {
         lte: endDate,
       };
     }
+    if (abnormalOnly) {
+      where.status = {
+        in: abnormalAttendanceStatuses,
+      };
+    }
 
     const total = abnormalOnly
       ? 0
@@ -116,8 +130,17 @@ export default eventHandler(async (event) => {
       orderBy: {
         punchIn: 'desc',
       },
+      select: {
+        attendanceId: true,
+        punchIn: true,
+        punchOut: true,
+        status: true,
+        userId: true,
+        username: true,
+      },
     });
 
+    const shouldResolveAttendanceState = !abnormalOnly;
     const rangeStart =
       records.length > 0
         ? dayjs(records[records.length - 1].punchIn)
@@ -129,16 +152,30 @@ export default eventHandler(async (event) => {
         ? dayjs(records[0].punchIn).endOf('day').toDate()
         : endDate;
     const leaveMap =
-      rangeStart && rangeEnd
+      shouldResolveAttendanceState && rangeStart && rangeEnd
         ? await getApprovedLeaveRangesByUserIds(
             records.map((record) => record.userId).filter(Boolean),
             rangeStart,
             rangeEnd,
           )
         : new Map<number, { end: Date; start: Date }[]>();
-    const deviceInfoMap = await getAttendanceDeviceRecordInfoMap(
-      records.map((record) => record.attendanceId),
-    );
+    const deviceInfoMap = groupByUser
+      ? new Map<
+          number,
+          { abnormalTypes: string[]; status: 'abnormal' | 'normal' }
+        >()
+      : await getAttendanceDeviceRecordInfoMap(
+          records.map((record) => record.attendanceId),
+        );
+    const attendanceScheduleMap = shouldResolveAttendanceState
+      ? await getAttendanceScheduleMapForUsers(
+          records
+            .filter((record) => Boolean(record.userId))
+            .map((record) => ({
+              userId: record.userId,
+            })),
+        )
+      : new Map();
 
     const formattedItems = await Promise.all(
       records.map(async (record) => {
@@ -152,14 +189,36 @@ export default eventHandler(async (event) => {
           workHours = Math.round(workDuration * 100) / 100;
         }
 
-        const attendanceState = await resolveAttendanceState({
-          punchIn: record.punchIn,
-          punchOut: record.punchOut,
-          leaveRanges: record.userId ? (leaveMap.get(record.userId) ?? []) : [],
-          realName: record.userId ? undefined : record.username,
-          userId: record.userId ?? userinfo.id,
-          username: record.userId ? undefined : record.username,
-        });
+        const leaveRanges = record.userId
+          ? (leaveMap.get(record.userId) ?? [])
+          : [];
+        const schedule = record.userId
+          ? attendanceScheduleMap.get(record.userId)
+          : undefined;
+        let attendanceState;
+        if (!shouldResolveAttendanceState) {
+          attendanceState = {
+            leaveMinutes: 0,
+            leaveScope: LeaveScope.None,
+            status: record.status ?? AttendanceStatus.Normal,
+          };
+        } else if (schedule) {
+          attendanceState = resolveAttendanceStateWithSchedule({
+            punchIn: record.punchIn,
+            punchOut: record.punchOut,
+            leaveRanges,
+            schedule,
+          });
+        } else {
+          attendanceState = await resolveAttendanceState({
+            punchIn: record.punchIn,
+            punchOut: record.punchOut,
+            leaveRanges,
+            realName: record.userId ? undefined : record.username,
+            userId: record.userId ?? userinfo.id,
+            username: record.userId ? undefined : record.username,
+          });
+        }
 
         const item = {
           attendanceId: record.attendanceId,
