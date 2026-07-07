@@ -35,6 +35,7 @@ import {
   Select,
   Spin,
   Switch,
+  Tag,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
@@ -49,6 +50,7 @@ import MobileDateRange from '#/components/MobileDateRange.vue';
 import SmsVerificationModal from '#/components/SmsVerificationModal.vue';
 import { useSmsActionVerification } from '#/hooks/useSmsActionVerification';
 import { $t } from '#/locales';
+import { getRentTodoPriorityInfo } from '#/utils/workbench-todo-priority';
 
 import { emptyAmountBillListSummary } from './data';
 
@@ -168,6 +170,10 @@ function getRemainingAmount(item: AmountBill) {
     ),
     0,
   );
+}
+
+function getBillTodoPriorityInfo(item: AmountBill) {
+  return getRentTodoPriorityInfo(getRemainingAmount(item));
 }
 
 function getOverpaidAmount(item: AmountBill) {
@@ -820,10 +826,25 @@ function resetSearch() {
               class="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-neutral-700"
             >
               <span
-                class="break-words text-[16px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
+                class="min-w-0 break-words text-[16px] font-semibold leading-5 text-gray-800 dark:text-gray-100"
               >
                 {{ item.projectName || '未填写项目名称' }}
               </span>
+              <div
+                v-if="getBillTodoPriorityInfo(item).visible"
+                class="ml-3 flex shrink-0 flex-col items-end gap-1 text-right"
+              >
+                <Tag
+                  class="mr-0"
+                  :bordered="false"
+                  :color="getBillTodoPriorityInfo(item).color"
+                >
+                  {{ getBillTodoPriorityInfo(item).label }}
+                </Tag>
+                <span class="text-[12px] leading-4 text-gray-500">
+                  {{ getBillTodoPriorityInfo(item).reason }}
+                </span>
+              </div>
             </div>
             <div class="p-4">
               <div class="mb-4 text-center">

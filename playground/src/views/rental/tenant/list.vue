@@ -195,8 +195,11 @@ async function buildTenantQueryParams(
     delete params.contractStart;
     delete params.contractEnd;
   }
-  if (route.query.contractView === 'expiring') {
-    params.contractView = 'expiring';
+  if (
+    route.query.contractView === 'attention' ||
+    route.query.contractView === 'expiring'
+  ) {
+    params.contractView = route.query.contractView;
   }
   if (route.query.date) {
     params.date = String(route.query.date);

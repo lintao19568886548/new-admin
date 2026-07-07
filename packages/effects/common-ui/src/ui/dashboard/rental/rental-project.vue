@@ -136,7 +136,7 @@ function handleSearch() {
           <!-- 现有内容保持不变 -->
           <div class="flex items-center justify-between">
             <span class="ml-4 text-lg font-medium">{{ item.title }}</span>
-            <slot name="tag" :tag="item.tag"></slot>
+            <slot name="tag" v-bind="item" :item="item" :tag="item.tag"></slot>
           </div>
           <div
             class="image-foreground mt-3 flex h-40 items-center justify-center overflow-hidden rounded-md"

@@ -8,7 +8,7 @@ import dayjs from 'dayjs';
 import { validateAttendanceLocation } from '~/utils/attendance-location';
 import { prismaClient } from '~/utils/db';
 
-type AttendanceAbnormalCategory = 'device' | 'location';
+type AttendanceAbnormalCategory = 'attendance_record' | 'device' | 'location';
 
 interface AttendanceAbnormalConfirmationItem {
   abnormalCategory: AttendanceAbnormalCategory;
@@ -140,6 +140,25 @@ function buildDeviceAbnormalConfirmationItems(params: {
         ]),
       };
     });
+}
+
+function buildAttendanceRecordAbnormalConfirmationItems(params: {
+  abnormalTypes: string[];
+  attendanceId: number;
+  username?: null | string;
+}): AttendanceAbnormalConfirmationItem[] {
+  return normalizeDeviceAbnormalTypes(params.abnormalTypes).map(
+    (abnormalType) => ({
+      abnormalCategory: 'attendance_record',
+      abnormalType,
+      fingerprint: normalizeFingerprint([
+        'attendance_record',
+        params.attendanceId,
+        abnormalType,
+        params.username,
+      ]),
+    }),
+  );
 }
 
 function buildLocationAbnormalConfirmationItem(params: {
@@ -334,6 +353,56 @@ export async function createDeviceAbnormalConfirmations(params: {
       userId: params.userId,
     });
   }
+}
+
+export async function createAttendanceRecordAbnormalConfirmations(params: {
+  abnormalTypes: string[];
+  attendanceId: number;
+  punchTime: Date | string;
+  userId: number;
+  username?: null | string;
+}) {
+  const items = buildAttendanceRecordAbnormalConfirmationItems({
+    abnormalTypes: params.abnormalTypes,
+    attendanceId: params.attendanceId,
+    username: params.username,
+  });
+  for (const item of items) {
+    await createAttendanceAbnormalConfirmation({
+      attendanceId: params.attendanceId,
+      item,
+      punchTime: params.punchTime,
+      userId: params.userId,
+    });
+  }
+}
+
+export async function getConfirmedAttendanceRecordAbnormalIdSet(
+  attendanceIds: number[],
+) {
+  const ids = [
+    ...new Set(
+      attendanceIds
+        .map(Number)
+        .filter((attendanceId) => Number.isInteger(attendanceId)),
+    ),
+  ];
+  if (ids.length === 0) {
+    return new Set<number>();
+  }
+
+  await ensureAttendanceAbnormalConfirmationSchema();
+  const rows = await prismaClient.$queryRaw<Array<{ attendanceId: number }>>(
+    Prisma.sql`
+      SELECT DISTINCT attendance_id AS attendanceId
+      FROM attendance_abnormal_confirmation
+      WHERE abnormal_category = 'attendance_record'
+        AND attendance_id IN (${Prisma.join(ids)})
+        AND expire_at >= NOW(3)
+    `,
+  );
+
+  return new Set(rows.map(({ attendanceId }) => Number(attendanceId)));
 }
 
 export function hasUnconfirmedDeviceAbnormalConfirmation(

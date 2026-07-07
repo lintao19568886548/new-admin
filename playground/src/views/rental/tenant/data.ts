@@ -12,6 +12,10 @@ import dayjs from 'dayjs';
 import { z } from '#/adapter/form';
 import { getParkList } from '#/api/park';
 import { $t } from '#/locales';
+import {
+  getContractTodoPriorityInfo,
+  renderWorkbenchTodoPriorityInfo,
+} from '#/utils/workbench-todo-priority';
 
 import IncreaseForm from './modules/increase-form.vue';
 
@@ -870,6 +874,21 @@ export function useColumns<T = any>(
       },
       title: $t('system.rental.tenant.contractDate'),
       width: 160,
+    },
+    {
+      field: 'todoPriority',
+      minWidth: 260,
+      slots: {
+        default: ({ row }) => {
+          const info = getContractTodoPriorityInfo(row.contractEnd);
+          if (!info.visible) {
+            return '';
+          }
+          return renderWorkbenchTodoPriorityInfo(info);
+        },
+      },
+      title: '处理提醒',
+      width: 260,
     },
     {
       field: 'area',

@@ -5,13 +5,16 @@ import type { AmountBill } from './data';
 import { requestClient } from '#/api/request';
 import { retryImport } from '#/utils/retry-import';
 
-const AI_REQUEST_TIMEOUT_MS = 300_000;
+const AI_REQUEST_TIMEOUT_MS = 420_000;
 const MAX_FORMULA_CONTEXT_CHARS = 20_000;
 const MAX_FORMULA_ROWS = 200;
 const MAX_METER_NAME_LENGTH = 120;
 const MAX_NAME_LENGTH = 60;
 const MAX_PROJECT_NAME_LENGTH = 120;
 const MAX_REMARK_LENGTH = 100;
+const MAX_WORKBOOK_TEXT_CHARS = 80_000;
+const MAX_WORKBOOK_TEXT_COLUMNS = 24;
+const MAX_WORKBOOK_TEXT_ROWS = 800;
 const TITLE_LIKE_KEYWORDS = [
   '明细',
   '通知单',
@@ -78,6 +81,10 @@ export interface AmountBillLlmResult {
   waterItems?: AmountBillLlmMeterItem[];
 }
 
+export interface AmountBillLlmAnalyzeResult extends AmountBillLlmResult {
+  bills?: AmountBillLlmResult[];
+}
+
 interface FormulaRow {
   formulas: Partial<
     Record<'amount' | 'monthlyUsage' | 'totalUsage' | 'value', string>
@@ -91,6 +98,7 @@ interface FormulaRow {
 interface FormulaContext {
   rows: FormulaRow[];
   summary: string;
+  workbookText: string;
 }
 
 const FORMULA_FIELD_BY_COLUMN: Record<
@@ -125,7 +133,7 @@ function parseDate(value: unknown): string | undefined {
   if (!Number.isNaN(date.getTime())) {
     return date.toISOString();
   }
-  return text;
+  return undefined;
 }
 
 function normalizeText(value: unknown) {
@@ -349,6 +357,15 @@ function buildFormulaContextSummary(rows: FormulaRow[]) {
   return summary.slice(0, MAX_FORMULA_CONTEXT_CHARS);
 }
 
+function appendWorkbookTextLine(lines: string[], line: string) {
+  const currentLength = lines.reduce((sum, item) => sum + item.length + 1, 0);
+  if (currentLength + line.length + 1 > MAX_WORKBOOK_TEXT_CHARS) {
+    return false;
+  }
+  lines.push(line);
+  return true;
+}
+
 async function extractFormulaContext(
   file: File,
 ): Promise<FormulaContext | null> {
@@ -358,13 +375,24 @@ async function extractFormulaContext(
     await workbook.xlsx.load((await file.arrayBuffer()) as any);
 
     const rows: FormulaRow[] = [];
+    const workbookTextLines: string[] = [
+      `Workbook: ${file.name || 'uploaded.xlsx'}`,
+    ];
+    let workbookTextRowCount = 0;
     workbook.worksheets.forEach((worksheet) => {
+      if (workbookTextRowCount < MAX_WORKBOOK_TEXT_ROWS) {
+        appendWorkbookTextLine(
+          workbookTextLines,
+          `\n# Sheet: ${worksheet.name}`,
+        );
+      }
       worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-        if (rows.length >= MAX_FORMULA_ROWS) return;
-
         const values: string[] = [];
         const formulas: FormulaRow['formulas'] = {};
-        const maxColumn = Math.max(row.actualCellCount || 0, 10);
+        const maxColumn = Math.max(
+          row.cellCount || row.actualCellCount || 0,
+          10,
+        );
 
         for (let columnNumber = 1; columnNumber <= maxColumn; columnNumber++) {
           const cell = row.getCell(columnNumber);
@@ -379,6 +407,21 @@ async function extractFormulaContext(
           }
         }
 
+        if (workbookTextRowCount < MAX_WORKBOOK_TEXT_ROWS) {
+          const displayValues = values
+            .slice(0, MAX_WORKBOOK_TEXT_COLUMNS)
+            .map((value) => normalizeText(value));
+          if (displayValues.some(Boolean)) {
+            const line = `R${rowNumber}\t${displayValues.join('\t')}`;
+            if (appendWorkbookTextLine(workbookTextLines, line)) {
+              workbookTextRowCount += 1;
+            } else {
+              workbookTextRowCount = MAX_WORKBOOK_TEXT_ROWS;
+            }
+          }
+        }
+
+        if (rows.length >= MAX_FORMULA_ROWS) return;
         if (Object.keys(formulas).length === 0) return;
 
         rows.push({
@@ -392,7 +435,8 @@ async function extractFormulaContext(
     });
 
     const summary = buildFormulaContextSummary(rows);
-    return summary ? { rows, summary } : null;
+    const workbookText = workbookTextLines.join('\n').trim();
+    return summary || workbookText ? { rows, summary, workbookText } : null;
   } catch (error) {
     console.warn('Failed to extract Excel formula context:', error);
     return null;
@@ -485,10 +529,24 @@ function mergeExtraProjectFormulaRows(
 }
 
 function mergeFormulaContext(
-  result: AmountBillLlmResult | null,
+  result: AmountBillLlmAnalyzeResult | null,
   context: FormulaContext | null,
 ) {
   if (!result || !context?.rows.length) return result;
+  if (Array.isArray(result.bills) && result.bills.length > 0) {
+    return {
+      ...result,
+      bills: result.bills.map((bill) => ({
+        ...bill,
+        eleItems: mergeMeterFormulaRows(bill.eleItems, context.rows),
+        extraProjectItems: mergeExtraProjectFormulaRows(
+          bill.extraProjectItems,
+          context.rows,
+        ),
+        waterItems: mergeMeterFormulaRows(bill.waterItems, context.rows),
+      })),
+    };
+  }
   return {
     ...result,
     eleItems: mergeMeterFormulaRows(result.eleItems, context.rows),
@@ -502,13 +560,14 @@ function mergeFormulaContext(
 
 export async function analyzeAmountBillExcel(
   file: File,
-): Promise<AmountBillLlmResult | null> {
+): Promise<AmountBillLlmAnalyzeResult | null> {
   const formulaContext = await extractFormulaContext(file);
-  const result = await requestClient.upload<AmountBillLlmResult | null>(
+  const result = await requestClient.upload<AmountBillLlmAnalyzeResult | null>(
     '/llm/amount-bill-analyze',
     {
       file,
       formulaContext: formulaContext?.summary ?? '',
+      workbookText: formulaContext?.workbookText ?? '',
     },
     {
       timeout: AI_REQUEST_TIMEOUT_MS,
@@ -516,6 +575,11 @@ export async function analyzeAmountBillExcel(
   );
 
   return mergeFormulaContext(result, formulaContext);
+}
+
+function getLlmBills(result: AmountBillLlmAnalyzeResult) {
+  const bills = Array.isArray(result.bills) ? result.bills : [];
+  return bills.length > 0 ? bills : [result];
 }
 
 export function mapLlmResultToAmountBill(
@@ -576,4 +640,24 @@ export function mapLlmResultToAmountBill(
     waterFee: parseNumber(result.waterFee) ?? 0,
     waterItem: toMeterItemJson(waterItems),
   };
+}
+
+export function mapLlmResultToAmountBills(
+  result: AmountBillLlmAnalyzeResult,
+  parkOptions: Array<{ label: string; value: number | string }> = [],
+): AmountBill[] {
+  return getLlmBills(result)
+    .map((bill) => mapLlmResultToAmountBill(bill, parkOptions))
+    .filter((bill) => {
+      return Boolean(
+        String(bill.tenantName || '').trim() ||
+        String(bill.projectName || '').trim() ||
+        bill.parkId ||
+        Number(bill.totalFee || 0) > 0 ||
+        Number(bill.eleFee || 0) > 0 ||
+        Number(bill.waterFee || 0) > 0 ||
+        (bill.eleBills?.length ?? 0) > 0 ||
+        (bill.waterBills?.length ?? 0) > 0,
+      );
+    });
 }

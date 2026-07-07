@@ -1,4 +1,5 @@
 import { requestClient } from '#/api/request';
+import { notifyWorkbenchTodoChangedAfter } from '#/utils/workbench-todo-sync';
 
 const API = {
   ATTENDANCE: '/hrm/attendance',
@@ -14,16 +15,24 @@ export type AttendanceDeviceAbnormalType =
 export type AttendanceDeviceRecordStatus = 'abnormal' | 'normal';
 
 export interface AttendanceListItem {
+  abnormalCount?: number;
   attendanceId: number;
+  attendanceIds?: number[];
+  attendanceUserKey?: string;
   date: string;
   deviceAbnormalTypes: AttendanceDeviceAbnormalType[];
   deviceStatus: AttendanceDeviceRecordStatus;
+  earlyLeaveCount?: number;
   id: number;
+  isGroup?: boolean;
+  lateCount?: number;
   leaveMinutes: number;
   leaveScope: AttendanceLeaveScope;
   punchIn: string;
   punchOut: string;
+  records?: AttendanceListItem[];
   status: null | number;
+  username?: string;
   workHours: number;
 }
 
@@ -139,7 +148,10 @@ export function punchIn(data: {
   longitude: number;
   punchTime: string;
 }) {
-  return requestClient.post(`${API.ATTENDANCE}/`, data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.post(`${API.ATTENDANCE}/`, data),
+    { reason: 'attendance-punched', source: 'attendance-api' },
+  );
 }
 
 export function punchOut(
@@ -154,7 +166,10 @@ export function punchOut(
     punchTime: string;
   },
 ) {
-  return requestClient.put(`${API.ATTENDANCE}/${id}`, data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.put(`${API.ATTENDANCE}/${id}`, data),
+    { reason: 'attendance-punched', source: 'attendance-api' },
+  );
 }
 
 export function getTodayRecord(params: { username: string }) {
@@ -168,6 +183,18 @@ export function getMonthStats(params: { username: string }) {
   return requestClient.get<MonthAttendanceStats>(`${API.ATTENDANCE}/stats`, {
     params,
   });
+}
+
+export function confirmAttendanceAbnormal(attendanceId: number) {
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.post<{
+      abnormalTypes?: string[];
+      attendanceId: number;
+      handled: boolean;
+      message?: string;
+    }>(`${API.ATTENDANCE}/${attendanceId}/abnormal-confirmation`),
+    { reason: 'attendance-abnormal-confirmed', source: 'attendance-api' },
+  );
 }
 
 export function getAttendanceConfig() {

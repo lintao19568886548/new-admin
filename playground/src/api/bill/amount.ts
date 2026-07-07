@@ -1,4 +1,5 @@
 import { requestClient } from '#/api/request';
+import { notifyWorkbenchTodoChangedAfter } from '#/utils/workbench-todo-sync';
 
 export async function getAmountBillList(params: any) {
   return requestClient.get('/bill/amount/list', { params });
@@ -17,19 +18,31 @@ export async function getExportData(data: any) {
 }
 
 export async function createAmountBill(data: any) {
-  return requestClient.post('/bill/amount', data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.post('/bill/amount', data),
+    { reason: 'bill-saved', source: 'bill-amount-api' },
+  );
 }
 
 export async function updateAmountBill(id: number, data: any) {
-  return requestClient.put(`/bill/amount/${id}`, data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.put(`/bill/amount/${id}`, data),
+    { reason: 'bill-saved', source: 'bill-amount-api' },
+  );
 }
 
 export async function deleteAmountBill(id: number) {
-  return requestClient.delete(`/bill/amount/${id}`);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.delete(`/bill/amount/${id}`),
+    { reason: 'bill-deleted', source: 'bill-amount-api' },
+  );
 }
 
 export async function deleteAllAmountBill() {
-  return requestClient.delete('/bill/amount');
+  return notifyWorkbenchTodoChangedAfter(requestClient.delete('/bill/amount'), {
+    reason: 'bill-deleted',
+    source: 'bill-amount-api',
+  });
 }
 
 export async function previewAmountBillCollectionSms(data: any) {

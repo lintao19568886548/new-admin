@@ -27,6 +27,8 @@ export default eventHandler(async (event) => {
     const currentPage = Number(query.currentPage) || 1;
     const pageSize = Number(query.pageSize) || 20;
     const skip = (currentPage - 1) * pageSize;
+    const contractAttentionView = query.contractView === 'attention';
+    const includeImages = String(query.includeImages || '') === 'true';
     const referenceDate = query.date
       ? new Date(String(query.date))
       : new Date();
@@ -35,8 +37,32 @@ export default eventHandler(async (event) => {
       referenceDate.getMonth(),
       referenceDate.getDate(),
     );
+    const contractAttentionStart = new Date(referenceDay);
+    contractAttentionStart.setDate(contractAttentionStart.getDate() - 90);
+    const contractAttentionEnd = new Date(referenceDay);
+    contractAttentionEnd.setDate(contractAttentionEnd.getDate() + 30);
     const expiringLimit = new Date(referenceDay);
     expiringLimit.setMonth(expiringLimit.getMonth() + 1);
+    const listSelect = {
+      address: true,
+      area: true,
+      contractEnd: true,
+      contractStart: true,
+      createTime: true,
+      increaseData: true,
+      increaseDate: true,
+      increaseRate: true,
+      parkId: true,
+      phoneNumber: true,
+      remark: true,
+      rent: true,
+      rentalTenantId: true,
+      sendMessage: true,
+      status: true,
+      tenantName: true,
+      transactionType: true,
+      updateTime: true,
+    } as const;
 
     const accessibleParkIds =
       userinfo.parks
@@ -110,6 +136,13 @@ export default eventHandler(async (event) => {
       };
       delete where.OR;
     }
+    if (query.contractView === 'attention') {
+      where.contractEnd = {
+        gte: contractAttentionStart,
+        lte: contractAttentionEnd,
+      };
+      delete where.OR;
+    }
     if (query.contractDate) {
       const [start, end] = (query.contractDate as string).split(',');
       where.contractStart = {
@@ -139,23 +172,34 @@ export default eventHandler(async (event) => {
     const total = await prismaClient.rentalTenant.count({ where });
 
     // 获取分页数据
-    const tenants = await prismaClient.rentalTenant.findMany({
-      where,
-      skip,
-      take: pageSize,
-      orderBy: {
-        createTime: 'desc',
-      },
-      include: {
-        images: {
-          include: {
-            image: true,
-          },
-        },
-      },
-    });
+    const orderBy = contractAttentionView
+      ? [{ contractEnd: 'asc' as const }, { rentalTenantId: 'desc' as const }]
+      : { createTime: 'desc' as const };
 
-    const items = tenants.map(({ images, ...rest }) => {
+    const tenants = includeImages
+      ? await prismaClient.rentalTenant.findMany({
+          include: {
+            images: {
+              include: {
+                image: true,
+              },
+            },
+          },
+          orderBy,
+          skip,
+          take: pageSize,
+          where,
+        })
+      : await prismaClient.rentalTenant.findMany({
+          orderBy,
+          select: listSelect,
+          skip,
+          take: pageSize,
+          where,
+        });
+
+    const items = tenants.map((tenant: any) => {
+      const { images, ...rest } = tenant;
       const mappedImages =
         images
           ?.map((item) => {

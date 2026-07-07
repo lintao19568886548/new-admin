@@ -1,0 +1,48 @@
+import { rechargeCus, ymsinoDefaultPtId } from '~/utils/thirdparty/ymsino';
+import {
+  badRequestResponse,
+  optionalYmsinoParam,
+  requiredYmsinoParam,
+  requireYmsinoUser,
+  ymsinoRawSuccess,
+  ymsinoServerError,
+  ymsinoVendorError,
+} from '~/utils/thirdparty/ymsino-raw-response';
+
+export default eventHandler(async (event) => {
+  const authError = await requireYmsinoUser(event);
+  if (authError) return authError;
+
+  const body = await readBody(event);
+  const rmId = requiredYmsinoParam(body?.rmId || body?.roomId, 'rmId', event);
+  const money = requiredYmsinoParam(body?.money, 'money', event);
+  const sid = requiredYmsinoParam(body?.sid, 'sid', event);
+  if (rmId.error) return rmId.error;
+  if (money.error) return money.error;
+  if (sid.error) return sid.error;
+  if (Number(money.value) <= 0) {
+    return badRequestResponse('money must be greater than 0', event);
+  }
+
+  try {
+    const response = await rechargeCus({
+      Ctime: optionalYmsinoParam(body?.ctime),
+      Money: money.value,
+      PayFrom: optionalYmsinoParam(body?.payFrom),
+      PtId: optionalYmsinoParam(body?.ptId) || ymsinoDefaultPtId,
+      RmId: rmId.value,
+      Sid: sid.value,
+    });
+    if (!ymsinoRawSuccess(response)) {
+      return ymsinoVendorError(
+        response,
+        event,
+        'Failed to recharge ymsino customer',
+      );
+    }
+
+    return { code: 0, data: response, error: null, message: 'ok' };
+  } catch (error) {
+    return ymsinoServerError(error, event, 'Ymsino customer recharge failed');
+  }
+});

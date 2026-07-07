@@ -74,22 +74,36 @@ export default eventHandler(async (event) => {
       },
     });
 
-    // 过滤出有空闲面积的厂房
-    const availableFactories = allFactories.filter((factory) => {
-      // 计算厂房总的空闲面积
-      const totalArea = factory.floors.reduce(
-        (sum, floor) => sum + Number(floor.totalArea),
-        0,
-      );
-      const usedArea = factory.floors.reduce(
-        (sum, floor) => sum + Number(floor.usedArea),
-        0,
-      );
-      const availableArea = totalArea - usedArea;
+    // 过滤出有空闲面积的厂房，并按空闲面积降序排序
+    const availableFactories = allFactories
+      .filter((factory) => {
+        // 计算厂房总的空闲面积
+        const totalArea = factory.floors.reduce(
+          (sum, floor) => sum + Number(floor.totalArea),
+          0,
+        );
+        const usedArea = factory.floors.reduce(
+          (sum, floor) => sum + Number(floor.usedArea),
+          0,
+        );
+        const availableArea = totalArea - usedArea;
 
-      // 只返回空闲面积大于0的厂房
-      return availableArea > 0;
-    });
+        // 只返回空闲面积大于0的厂房
+        return availableArea > 0;
+      })
+      .sort((first, second) => {
+        const firstAvailableArea = first.floors.reduce(
+          (sum, floor) =>
+            sum + Number(floor.totalArea) - Number(floor.usedArea),
+          0,
+        );
+        const secondAvailableArea = second.floors.reduce(
+          (sum, floor) =>
+            sum + Number(floor.totalArea) - Number(floor.usedArea),
+          0,
+        );
+        return secondAvailableArea - firstAvailableArea;
+      });
 
     // 计算过滤后的总数
     const total = availableFactories.length;

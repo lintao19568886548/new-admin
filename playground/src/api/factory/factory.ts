@@ -1,4 +1,5 @@
 import { requestClient } from '#/api/request';
+import { notifyWorkbenchTodoChangedAfter } from '#/utils/workbench-todo-sync';
 
 export async function getFactoryList(params?: any) {
   return requestClient.get('/factory/list', { params });
@@ -17,7 +18,10 @@ export async function getFactoryDetail(id: number) {
  * @param data 厂房数据
  */
 export async function createOwnFactory(data: any) {
-  return requestClient.post('/factory/own', data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.post('/factory/own', data),
+    { reason: 'factory-saved', source: 'factory-api' },
+  );
 }
 
 /**
@@ -25,7 +29,10 @@ export async function createOwnFactory(data: any) {
  * @param data 厂房数据
  */
 export async function createSettledFactory(data: any) {
-  return requestClient.post('/factory/settled', data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.post('/factory/settled', data),
+    { reason: 'factory-saved', source: 'factory-api' },
+  );
 }
 
 /**
@@ -34,15 +41,24 @@ export async function createSettledFactory(data: any) {
  * @deprecated 建议使用 createOwnFactory 或 createRentalFactory
  */
 export async function createFactory(data: any) {
-  return requestClient.post('/factory', data);
+  return notifyWorkbenchTodoChangedAfter(requestClient.post('/factory', data), {
+    reason: 'factory-saved',
+    source: 'factory-api',
+  });
 }
 
 export async function updateFactory(id: number, data: any) {
-  return requestClient.put(`/factory/${id}`, data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.put(`/factory/${id}`, data),
+    { reason: 'factory-saved', source: 'factory-api' },
+  );
 }
 
 export async function deleteFactory(id: number) {
-  return requestClient.delete(`/factory/${id}`);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.delete(`/factory/${id}`),
+    { reason: 'factory-deleted', source: 'factory-api' },
+  );
 }
 
 // 添加获取厂房列表的API函数

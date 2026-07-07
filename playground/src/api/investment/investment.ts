@@ -2,6 +2,7 @@ import type { InvestmentAgent } from '#/views/investment/agent/data';
 import type { RadarLead } from '#/views/investment/radar/data';
 
 import { requestClient } from '#/api/request';
+import { notifyWorkbenchTodoChangedAfter } from '#/utils/workbench-todo-sync';
 
 export interface RadarLeadListParams {
   currentPage?: number;
@@ -1391,18 +1392,27 @@ export async function getInvestmentDetail(billId: number) {
 }
 
 export async function createInvestment(data: any) {
-  return requestClient.post('/investment', data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.post('/investment', data),
+    { reason: 'investment-saved', source: 'investment-api' },
+  );
 }
 
 export async function updateInvestment(
   id: number | string,
   data: Partial<InvestmentAgent>,
 ) {
-  return requestClient.put(`/investment/${id}`, data);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.put(`/investment/${id}`, data),
+    { reason: 'investment-saved', source: 'investment-api' },
+  );
 }
 
 export async function deleteInvestment(billId: number) {
-  return requestClient.delete(`/investment/${billId}`);
+  return notifyWorkbenchTodoChangedAfter(
+    requestClient.delete(`/investment/${billId}`),
+    { reason: 'investment-deleted', source: 'investment-api' },
+  );
 }
 
 export async function getRadarLeadList(params: RadarLeadListParams) {

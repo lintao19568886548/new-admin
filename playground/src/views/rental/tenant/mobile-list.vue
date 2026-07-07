@@ -2,6 +2,7 @@
 import type { RentalManagementItem } from './types';
 
 import { computed, h, onMounted, onUnmounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Search } from '@vben/icons';
@@ -41,6 +42,7 @@ import {
 import { $t } from '#/locales';
 import { useLayoutStore } from '#/store/layout';
 import { useParkStore } from '#/store/park';
+import { getContractTodoPriorityInfo } from '#/utils/workbench-todo-priority';
 
 import {
   calculateIncreaseDateDisplay,
@@ -57,7 +59,7 @@ const currentPark = ref();
 const loading = ref(false);
 const searchForm = ref({
   phoneNumber: '',
-  status: undefined,
+  status: undefined as 'active' | 'expired' | undefined,
   tenantName: '',
   transactionType: undefined as string | undefined,
 });
@@ -70,6 +72,7 @@ const pagination = ref({
 
 const layoutStore = useLayoutStore();
 const parkStore = useParkStore();
+const route = useRoute();
 const userStore = useUserStore();
 
 const isLastPage = computed(
@@ -96,6 +99,21 @@ function getTransactionTypeTag(value?: boolean) {
       label: '未知',
       value: true,
     }
+  );
+}
+
+function getContractPriorityInfo(item: RentalManagementItem) {
+  return getContractTodoPriorityInfo(item.contractEnd);
+}
+
+function shouldShowContractPriority(item: RentalManagementItem) {
+  const info = getContractPriorityInfo(item);
+  return (
+    info.visible &&
+    (route.query.contractView === 'attention' ||
+      route.query.contractView === 'expiring' ||
+      info.reason.includes('到期') ||
+      info.reason.includes('过期'))
   );
 }
 
@@ -192,6 +210,7 @@ async function onSendSms(row: RentalManagementItem) {
 }
 
 async function fetchList(isLoadMore = false) {
+  if (loading.value) return;
   loading.value = true;
   if (!isLoadMore) {
     pagination.value.currentPage = 1;
@@ -202,6 +221,14 @@ async function fetchList(isLoadMore = false) {
     currentPark: currentPark.value ?? -1,
     pageSize: pagination.value.pageSize,
   };
+  if (
+    route.query.contractView === 'attention' ||
+    route.query.contractView === 'expiring'
+  ) {
+    Object.assign(params, {
+      contractView: route.query.contractView,
+    });
+  }
   try {
     const result = await getTenantList(params);
     const newItems = result.items || [];
@@ -216,6 +243,34 @@ async function fetchList(isLoadMore = false) {
     message.error('获取租户列表失败');
   } finally {
     loading.value = false;
+  }
+}
+
+function getRouteQueryText(value: unknown) {
+  if (Array.isArray(value)) {
+    return String(value[0] || '').trim();
+  }
+
+  return String(value || '').trim();
+}
+
+function applyRouteFilters() {
+  const parkId = Number(route.query.parkId ?? route.query.currentPark);
+  const phoneNumber = getRouteQueryText(route.query.phoneNumber);
+  const status = getRouteQueryText(route.query.status);
+  const tenantName = getRouteQueryText(route.query.tenantName);
+
+  if (Number.isInteger(parkId) && parkId > 0) {
+    currentPark.value = parkId;
+  }
+  if (phoneNumber) {
+    searchForm.value.phoneNumber = phoneNumber;
+  }
+  if (status === 'active' || status === 'expired') {
+    searchForm.value.status = status;
+  }
+  if (tenantName) {
+    searchForm.value.tenantName = tenantName;
   }
 }
 
@@ -391,6 +446,7 @@ function updateHeaderActions() {
 }
 
 onMounted(() => {
+  applyRouteFilters();
   parkStore.fetchParkList();
   fetchList();
   updateHeaderActions();
@@ -498,8 +554,16 @@ onUnmounted(() => {
               <template #title>
                 <div class="card-header">
                   <span class="tenant-name">{{ item.tenantName }}</span>
-                  <div class="flex items-center gap-2">
+                  <div class="tenant-tags">
                     <Tag
+                      v-if="shouldShowContractPriority(item)"
+                      class="mr-0"
+                      :color="getContractPriorityInfo(item).color"
+                    >
+                      {{ getContractPriorityInfo(item).label }}
+                    </Tag>
+                    <Tag
+                      class="mr-0"
                       :color="getTransactionTypeTag(item.transactionType).color"
                     >
                       {{ getTransactionTypeTag(item.transactionType).label }}
@@ -532,6 +596,13 @@ onUnmounted(() => {
                   <span>{{
                     formatContractDateDisplay(item) || '暂无合同日期'
                   }}</span>
+                </div>
+                <div
+                  v-if="shouldShowContractPriority(item)"
+                  class="info-item full-width"
+                >
+                  <span class="info-label">处理提醒:</span>
+                  <span>{{ getContractPriorityInfo(item).reason }}</span>
                 </div>
                 <div class="info-item full-width">
                   <span class="info-label">下次递增:</span>
@@ -686,14 +757,26 @@ onUnmounted(() => {
 .card-header {
   display: flex;
   gap: 8px;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  min-width: 0;
 }
 
 .tenant-name {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 17px;
   font-weight: 500;
   word-break: break-all;
+}
+
+.tenant-tags {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+  max-width: 46%;
 }
 
 .info-grid {
