@@ -31,9 +31,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
       componentProps: {
         allowClear: true,
         options: [
-          { label: '小时冻结数据', value: 1 },
           { label: '日冻结数据', value: 2 },
-          { label: '月冻结数据', value: 3 },
         ],
       },
       defaultValue: 2,

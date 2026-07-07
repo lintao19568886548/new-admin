@@ -25,11 +25,11 @@ import {
 import dayjs from 'dayjs';
 
 import {
-  getMeterData,
-  getMeterTree,
-  getWaterData,
-  getWaterTree,
-} from '#/api/hezhong';
+  getYmsinoElectricData,
+  getYmsinoElectricTree,
+  getYmsinoWaterData,
+  getYmsinoWaterTree,
+} from '#/api/ymsino';
 import MobilePage from '#/components/mobile/MobilePage.vue';
 import MobilePagination from '#/components/mobile/MobilePagination.vue';
 import MobilePanel from '#/components/mobile/MobilePanel.vue';
@@ -79,8 +79,8 @@ const readingConfigs: Record<ReadingTab, ReadingConfig> = {
     amountClass: 'text-orange-500',
     cardKey: (item) =>
       `${item.comAddress}${String(item.freezeTime)}${String(item.writeTime)}`,
-    getData: getMeterData,
-    getTree: getMeterTree,
+    getData: getYmsinoElectricData,
+    getTree: getYmsinoElectricTree,
     inputLabel: '电表编号',
     inputPlaceholder: '请输入电表编号',
     label: '电表',
@@ -93,8 +93,8 @@ const readingConfigs: Record<ReadingTab, ReadingConfig> = {
   water: {
     amountClass: 'text-blue-500',
     cardKey: (item) => `${item.comAddress}${String(item.freezeTime)}`,
-    getData: getWaterData,
-    getTree: getWaterTree,
+    getData: getYmsinoWaterData,
+    getTree: getYmsinoWaterTree,
     inputLabel: '水表编号',
     inputPlaceholder: '请输入水表编号',
     label: '水表',
@@ -107,9 +107,7 @@ const readingConfigs: Record<ReadingTab, ReadingConfig> = {
 };
 
 const typeOptions = [
-  { label: '小时冻结数据', value: 1 },
   { label: '日冻结数据', value: 2 },
-  { label: '月冻结数据', value: 3 },
 ];
 
 const tabOptions = [

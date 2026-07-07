@@ -8,7 +8,7 @@ import { ColPage } from '@vben/common-ui';
 import { Card, Empty, Input, message, Tree } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { getMeterData, getMeterTree } from '#/api/hezhong';
+import { getYmsinoElectricData, getYmsinoElectricTree } from '#/api/ymsino';
 import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
@@ -50,7 +50,7 @@ const collectLeafAddresses = (node: any): string[] => {
 async function fetchTree(kw?: string) {
   try {
     treeLoading.value = true;
-    const nodes = await getMeterTree(kw ? { keyword: kw } : undefined);
+    const nodes = await getYmsinoElectricTree(kw ? { keyword: kw } : undefined);
     treeData.value = nodes;
     const keys: string[] = [];
     const stack = Array.isArray(nodes) ? [...nodes] : [];
@@ -156,7 +156,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
             ) {
               payload.comAddress = effectiveComAddresses.join(',');
             }
-            const resp = await getMeterData(payload);
+            const resp = await getYmsinoElectricData(payload);
             let items: any[] = (resp as any)?.items ?? (resp as any);
             items = Array.isArray(items) ? items : [];
             const nameMap: Record<string, string> = {};

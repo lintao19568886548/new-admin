@@ -23,7 +23,7 @@ import {
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
-import { getWaterData, getWaterTree } from '#/api/hezhong';
+import { getYmsinoWaterData, getYmsinoWaterTree } from '#/api/ymsino';
 import MobileDateRange from '#/components/MobileDateRange.vue';
 import { $t } from '#/locales';
 
@@ -46,7 +46,7 @@ const waterTreeRaw = ref<any[]>([]);
 async function fetchTreeNameMap() {
   try {
     treeLoading.value = true;
-    const nodes: any[] = await getWaterTree();
+    const nodes: any[] = await getYmsinoWaterTree();
     waterTreeRaw.value = nodes || [];
     const map: Record<string, string> = {};
     const stack = Array.isArray(nodes) ? [...nodes] : [];
@@ -150,7 +150,7 @@ async function fetchList() {
     } else if (effectiveComAddresses && effectiveComAddresses.length > 0) {
       payload.comAddress = effectiveComAddresses.join(',');
     }
-    const resp = await getWaterData(payload);
+    const resp = await getYmsinoWaterData(payload);
     let items: any[] = (resp as any)?.items ?? (resp as any);
     items = Array.isArray(items) ? items : [];
     items = items.map((it) => {
@@ -196,9 +196,7 @@ onMounted(async () => {
 });
 
 const typeOptions = [
-  { label: '小时冻结数据', value: 1 },
   { label: '日冻结数据', value: 2 },
-  { label: '月冻结数据', value: 3 },
 ];
 </script>
 
