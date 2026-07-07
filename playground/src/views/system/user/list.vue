@@ -1,55 +1,37 @@
 <script lang="ts" setup>
-import type { LocationQueryRaw } from 'vue-router';
-
 import type {
   OnActionClickParams,
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
 import type { SystemUserApi } from '#/api';
 
-import { nextTick, onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
-import { useUserStore } from '@vben/stores';
 
 import { Button, message, Tabs } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { createSourceOrganizationApi } from '#/api/organization';
-import { getSystemParkList } from '#/api/system/park';
 import { deleteSystemUser, getSystemUserList } from '#/api/system/user';
 import OnboardingStepAlert from '#/components/onboarding/OnboardingStepAlert.vue';
 import { $t } from '#/locales';
-import { useAuthStore } from '#/store';
 
 import ParkManagePanel from '../park/modules/manage-panel.vue';
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
-interface UserFormSuccessPayload {
-  action?: 'create' | 'update';
-  setupFlow?: boolean;
-}
-
 const activeTab = ref('parks');
 const route = useRoute();
-const router = useRouter();
-const authStore = useAuthStore();
-const userStore = useUserStore();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
   destroyOnClose: true,
 });
 
-function openCreateDialog(options: { setupFlow?: boolean } = {}) {
-  formModalApi.setData(options.setupFlow ? { setupFlow: true } : null).open();
-}
-
 function onCreate() {
-  openCreateDialog();
+  formModalApi.setData(null).open();
 }
 
 function onEdit(row: SystemUserApi.SystemUser) {
@@ -158,119 +140,9 @@ function syncTabFromQuery() {
   }
 }
 
-function getQueryText(value: unknown) {
-  if (Array.isArray(value)) {
-    return String(value[0] || '').trim();
-  }
-  return String(value || '').trim();
-}
-
-function isTrueQuery(value: unknown) {
-  return ['1', 'true'].includes(getQueryText(value).toLowerCase());
-}
-
-function isAutoCreateAccountQuery() {
-  const autoCreate = getQueryText(route.query.autoCreate).toLowerCase();
-  return autoCreate === 'account' || autoCreate === 'true';
-}
-
-function extractCity(address: unknown) {
-  const text = String(address || '').trim();
-  const cityMatch = text.match(/([\u4E00-\u9FA5]{2,20})市/u);
-  if (cityMatch?.[1]) {
-    return cityMatch[1];
-  }
-
-  const provinceMatch = text.match(/([\u4E00-\u9FA5]{2,20})省/u);
-  return provinceMatch?.[1] || '本地';
-}
-
-function getCompanyShortName(parkName: unknown) {
-  const name = String(parkName || '').trim();
-  return name.slice(0, 50) || '园区';
-}
-
-async function ensureSetupOrganization() {
-  const userInfo = (userStore.userInfo || {}) as Record<string, unknown>;
-  if (String(userInfo.customerId || '') !== 'public') {
-    return;
-  }
-  if (userInfo.sourceOrganization) {
-    return;
-  }
-
-  try {
-    const parkResult = await getSystemParkList({
-      currentPage: 1,
-      pageSize: 1,
-    });
-    const park = Array.isArray(parkResult?.items)
-      ? parkResult.items[0]
-      : undefined;
-    await createSourceOrganizationApi({
-      organizationIdentity: {
-        city: extractCity(park?.address),
-        companyShortName: getCompanyShortName(park?.parkName),
-      },
-    });
-    await authStore.fetchUserInfo().catch((error) => {
-      console.warn('创建组织后刷新用户信息失败:', error);
-    });
-  } catch (error) {
-    console.warn('初始化流程自动创建组织锚点失败:', error);
-  }
-}
-
-function clearAutoCreateQuery() {
-  const query: LocationQueryRaw = { ...route.query, tab: 'accounts' };
-  delete query.autoCreate;
-  delete query.setupFlow;
-  void router.replace({
-    path: route.path,
-    query,
-  });
-}
-
-async function handleAutoCreateQuery() {
-  if (!isAutoCreateAccountQuery()) {
-    return;
-  }
-
-  activeTab.value = 'accounts';
-  await nextTick();
-  openCreateDialog({ setupFlow: isTrueQuery(route.query.setupFlow) });
-  clearAutoCreateQuery();
-}
-
-async function onFormSuccess(payload?: UserFormSuccessPayload) {
-  refreshGrid();
-
-  if (payload?.action !== 'create' || payload.setupFlow !== true) {
-    return;
-  }
-
-  await ensureSetupOrganization();
-  void router.push({
-    path: '/system/role',
-    query: {
-      autoCreate: 'true',
-      setupFlow: '1',
-    },
-  });
-}
-
 watch(() => route.query.tab, syncTabFromQuery);
-watch(
-  () => route.query.autoCreate,
-  () => {
-    void handleAutoCreateQuery();
-  },
-);
 
-onMounted(() => {
-  syncTabFromQuery();
-  void handleAutoCreateQuery();
-});
+onMounted(syncTabFromQuery);
 </script>
 
 <template>
@@ -285,7 +157,7 @@ onMounted(() => {
 
       <Tabs.TabPane key="accounts" :tab="$t('system.user.list')">
         <div class="system-account-tab-pane">
-          <FormModal @success="onFormSuccess" />
+          <FormModal @success="refreshGrid" />
           <Grid :table-title="$t('system.user.list')">
             <template #toolbar-tools>
               <Button type="primary" @click="onCreate">

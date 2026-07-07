@@ -17,6 +17,10 @@ function isMembershipAllowedApiRequest(method: string, requestPath: string) {
     return true;
   }
 
+  if (requestPath.startsWith('/api/alipay/pay')) {
+    return true;
+  }
+
   if (requestPath.startsWith('/api/organization/invitation')) {
     return true;
   }
@@ -145,6 +149,10 @@ export default defineEventHandler(async (event) => {
     event.method === 'POST' && requestPath === '/api/wechat/pay/notify';
   const isPublicWechatPayRefundNotifyApi =
     event.method === 'POST' && requestPath === '/api/wechat/pay/refund-notify';
+  const isPublicAlipayPayConfigApi =
+    event.method === 'GET' && requestPath === '/api/alipay/pay/app/config';
+  const isPublicAlipayPayNotifyApi =
+    event.method === 'POST' && requestPath === '/api/alipay/pay/notify';
   const isPublicCrmApi =
     (event.method === 'POST' &&
       [
@@ -164,11 +172,15 @@ export default defineEventHandler(async (event) => {
       requestPath === '/api/wework/callback');
   const isWechatPayOrderQueryApi =
     event.method === 'GET' && requestPath === '/api/wechat/pay/query';
+  const isAlipayPayOrderQueryApi =
+    event.method === 'GET' && requestPath === '/api/alipay/pay/query';
   const isOrganizationProvisioningStatusApi =
     event.method === 'GET' &&
     requestPath === '/api/organization/provisioning/status';
   const isVipCheckoutFlowApi =
-    isWechatPayOrderQueryApi || isOrganizationProvisioningStatusApi;
+    isWechatPayOrderQueryApi ||
+    isAlipayPayOrderQueryApi ||
+    isOrganizationProvisioningStatusApi;
   const isPublicAppVersionApi =
     event.method === 'GET' && requestPath === '/api/system/version';
   const vipCheckoutFlow = isVipCheckoutFlowApi
@@ -182,6 +194,8 @@ export default defineEventHandler(async (event) => {
     isPublicWechatPayConfigApi ||
     isPublicWechatPayNotifyApi ||
     isPublicWechatPayRefundNotifyApi ||
+    isPublicAlipayPayConfigApi ||
+    isPublicAlipayPayNotifyApi ||
     isPublicCrmApi ||
     isPublicAppVersionApi ||
     Boolean(vipCheckoutFlow);
@@ -290,6 +304,7 @@ export default defineEventHandler(async (event) => {
     const isProvisioningWriteAllowed =
       requestPath.startsWith('/api/auth') ||
       requestPath.startsWith('/api/wechat/pay') ||
+      requestPath.startsWith('/api/alipay/pay') ||
       isOrganizationProvisioningStatusApi ||
       requestPath === '/api/user/info';
 

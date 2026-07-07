@@ -1,7 +1,8 @@
+import { Prisma } from '@prisma/.prisma/client/index.js';
 import { prismaClient, prismaScopeStorage, systemDbClient } from '~/utils/db';
 import { verifyAccessToken } from '~/utils/jwt-utils';
 import { unAuthorizedResponse, useResponseSuccess } from '~/utils/response';
-import { getLegacyUserPark, getUserDirectParks } from '~/utils/user-park-scope';
+import { dedupeParks } from '~/utils/user-park-scope';
 
 function toSafeInt(value: unknown, fallback: number, min = 1, max = 200) {
   const num = Number(value);
@@ -30,6 +31,16 @@ function normalizeStatus(value: unknown): null | number {
     return 0;
   }
   return null;
+}
+
+function addParkToMap(
+  map: Map<number, Array<{ parkId: number; parkName: string }>>,
+  userId: number,
+  park: { parkId: number; parkName: string },
+) {
+  const list = map.get(userId) ?? [];
+  list.push(park);
+  map.set(userId, list);
 }
 
 export default eventHandler(async (event) => {
@@ -89,6 +100,12 @@ export default eventHandler(async (event) => {
             realName: true,
             phone: true,
             parkId: true,
+            park: {
+              select: {
+                parkId: true,
+                parkName: true,
+              },
+            },
             status: true,
             tokenVersion: true,
             customerType: true,
@@ -116,18 +133,40 @@ export default eventHandler(async (event) => {
   }
 
   const tenantUserIds = tenantUsers.map((item) => item.id);
-  const mappings = await systemDbClient.userCustomerMapping.findMany({
-    where: {
-      customerId,
-      customerUserId: {
-        in: tenantUserIds,
+  const [mappings, directParkRows] = await Promise.all([
+    systemDbClient.userCustomerMapping.findMany({
+      where: {
+        customerId,
+        customerUserId: {
+          in: tenantUserIds,
+        },
       },
-    },
-    select: {
-      centerUserId: true,
-      customerUserId: true,
-    },
-  });
+      select: {
+        centerUserId: true,
+        customerUserId: true,
+      },
+    }),
+    prismaScopeStorage.run({ customerId }, async () =>
+      prismaClient.$queryRaw<
+        Array<{
+          parkId: bigint | number | string;
+          parkName: null | string;
+          userId: bigint | number | string;
+        }>
+      >(Prisma.sql`
+        SELECT
+          up.user_id AS userId,
+          p.park_id AS parkId,
+          p.park_name AS parkName
+        FROM user_park up
+        INNER JOIN park p ON p.park_id = up.park_id
+        WHERE up.user_id IN (${Prisma.join(tenantUserIds)})
+          AND up.is_deleted = false
+          AND p.is_deleted = false
+        ORDER BY up.user_id ASC, p.park_id ASC
+      `),
+    ),
+  ]);
 
   const centerUserIds = [...new Set(mappings.map((item) => item.centerUserId))];
   const centerUsers =
@@ -153,24 +192,16 @@ export default eventHandler(async (event) => {
   );
   const centerUserById = new Map(centerUsers.map((item) => [item.id, item]));
 
-  const userParkEntries = await prismaScopeStorage.run(
-    { customerId },
-    async () =>
-      Promise.all(
-        tenantUsers.map(async (item) => {
-          const directParks = await getUserDirectParks(
-            Number(item.id),
-            prismaClient,
-          ).catch(() => []);
-          const parks =
-            directParks.length > 0
-              ? directParks
-              : await getLegacyUserPark(Number(item.id), prismaClient);
-          return [Number(item.id), parks] as const;
-        }),
-      ),
-  );
-  const parksByUserId = new Map(userParkEntries);
+  const directParksByUserId = new Map<
+    number,
+    Array<{ parkId: number; parkName: string }>
+  >();
+  directParkRows.forEach((row) => {
+    addParkToMap(directParksByUserId, Number(row.userId), {
+      parkId: Number(row.parkId),
+      parkName: String(row.parkName || ''),
+    });
+  });
 
   const items = tenantUsers.map((item) => {
     const roleIds = [...new Set(item.roles.map((row) => Number(row.roleId)))];
@@ -183,7 +214,16 @@ export default eventHandler(async (event) => {
     ];
     const centerUserId = mappingByTenantUserId.get(item.id);
     const centerUser = centerUserId ? centerUserById.get(centerUserId) : null;
-    const parks = parksByUserId.get(Number(item.id)) || [];
+    const directParks = directParksByUserId.get(Number(item.id)) || [];
+    let parks = directParks.length > 0 ? dedupeParks(directParks) : [];
+    if (parks.length === 0 && item.parkId && item.park) {
+      parks = [
+        {
+          parkId: Number(item.park.parkId),
+          parkName: String(item.park.parkName || ''),
+        },
+      ];
+    }
 
     return {
       id: Number(item.id),

@@ -642,6 +642,18 @@ function buildNotificationItems(items: WorkbenchTodo[]) {
   return [...items].sort(compareTodoPriority).slice(0, NOTIFICATION_TODO_LIMIT);
 }
 
+function createEmptyCountedTodos() {
+  return { count: 0, todos: [] as WorkbenchTodo[] };
+}
+
+function createEmptyRentUnreceivedTodos() {
+  return {
+    count: 0,
+    summary: buildAmountBillListSummary([]),
+    todos: [] as WorkbenchTodo[],
+  };
+}
+
 async function runTimedTodoBuilder<T>(
   label: string,
   builder: () => Promise<T>,
@@ -654,6 +666,19 @@ async function runTimedTodoBuilder<T>(
     if (shouldLog) {
       console.info(`[workbench-todos] ${label} ${Date.now() - start}ms`);
     }
+  }
+}
+
+async function runSafeTodoBuilder<T>(
+  label: string,
+  fallback: T,
+  builder: () => Promise<T>,
+) {
+  try {
+    return await runTimedTodoBuilder(label, builder);
+  } catch (error) {
+    console.error(`[workbench-todos] ${label} failed:`, error);
+    return fallback;
   }
 }
 
@@ -1471,45 +1496,46 @@ export default eventHandler(async (event) => {
       vacantFactoryTodos,
     ] = await Promise.all([
       hasTodoType('contract_expire')
-        ? runTimedTodoBuilder('contract_expire', () =>
+        ? runSafeTodoBuilder('contract_expire', createEmptyCountedTodos(), () =>
             buildContractExpireTodos(parkIds, referenceDate),
           )
-        : Promise.resolve({ count: 0, todos: [] as WorkbenchTodo[] }),
+        : Promise.resolve(createEmptyCountedTodos()),
       hasTodoType('rent_unreceived')
-        ? runTimedTodoBuilder('rent_unreceived', () =>
-            buildRentUnreceivedTodos(parkIds),
+        ? runSafeTodoBuilder(
+            'rent_unreceived',
+            createEmptyRentUnreceivedTodos(),
+            () => buildRentUnreceivedTodos(parkIds),
           )
-        : Promise.resolve({
-            count: 0,
-            summary: { remainingAmount: 0 },
-            todos: [] as WorkbenchTodo[],
-          }),
+        : Promise.resolve(createEmptyRentUnreceivedTodos()),
       hasTodoType('reimbursement_audit')
-        ? runTimedTodoBuilder('reimbursement_audit', () =>
-            buildReimbursementAuditTodos(parkIds, userinfo),
+        ? runSafeTodoBuilder(
+            'reimbursement_audit',
+            createEmptyCountedTodos(),
+            () => buildReimbursementAuditTodos(parkIds, userinfo),
           )
-        : Promise.resolve({ count: 0, todos: [] as WorkbenchTodo[] }),
+        : Promise.resolve(createEmptyCountedTodos()),
       hasTodoType('investment_lead')
-        ? runTimedTodoBuilder('investment_lead', () =>
+        ? runSafeTodoBuilder('investment_lead', createEmptyCountedTodos(), () =>
             buildInvestmentLeadTodos(parkIds),
           )
-        : Promise.resolve({ count: 0, todos: [] as WorkbenchTodo[] }),
+        : Promise.resolve(createEmptyCountedTodos()),
       hasTodoType('repair_order')
-        ? runTimedTodoBuilder('repair_order', () =>
+        ? runSafeTodoBuilder('repair_order', createEmptyCountedTodos(), () =>
             buildRepairOrderTodos(parkIds),
           )
-        : Promise.resolve({ count: 0, todos: [] as WorkbenchTodo[] }),
+        : Promise.resolve(createEmptyCountedTodos()),
       hasTodoType('attendance_abnormal')
-        ? runTimedTodoBuilder('attendance_abnormal', () =>
+        ? runSafeTodoBuilder('attendance_abnormal', [] as WorkbenchTodo[], () =>
             buildAttendanceAbnormalTodos(userinfo),
           )
-        : Promise.resolve([]),
+        : Promise.resolve([] as WorkbenchTodo[]),
       hasTodoType('vacant_factory')
-        ? runTimedTodoBuilder('vacant_factory', () =>
+        ? runSafeTodoBuilder('vacant_factory', [] as WorkbenchTodo[], () =>
             buildVacantFactoryTodos(parkIds),
           )
-        : Promise.resolve([]),
+        : Promise.resolve([] as WorkbenchTodo[]),
     ]);
+    const rentSummary = rentTodos.summary || buildAmountBillListSummary([]);
     const sections = [
       buildSection(
         'contract_expire',
@@ -1564,7 +1590,7 @@ export default eventHandler(async (event) => {
           sections.map((section) => [section.key, section.count]),
         ),
         total,
-        unreceivedAmount: rentTodos.summary.remainingAmount,
+        unreceivedAmount: rentSummary.remainingAmount,
       },
     });
   } catch (error) {

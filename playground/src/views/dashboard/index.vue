@@ -182,6 +182,7 @@ function cloneRevenueDates(dates: [Dayjs, Dayjs]): [Dayjs, Dayjs] {
 }
 
 const loading = ref(true);
+const PRIORITY_TODO_LIMIT = 6;
 const WORKBENCH_PREVIEW_REFRESH_INTERVAL = 3 * 60 * 60 * 1000;
 const route = useRoute();
 const router = useRouter();
@@ -311,11 +312,72 @@ const priorityTodoItems = computed<DashboardWorkbenchTodo[]>(() => {
     }
   }
 
-  return workbenchTodoSections.value
+  const visibleSections = workbenchTodoSections.value
     .filter((section) => visibleTypes.has(section.key))
-    .flatMap((section) => section.items)
-    .sort(compareDashboardTodo)
-    .slice(0, 5);
+    .map((section) => ({
+      ...section,
+      items: [...section.items].sort(compareDashboardTodo),
+    }))
+    .filter((section) => section.items.length > 0)
+    .sort((first, second) =>
+      compareDashboardTodo(first.items[0]!, second.items[0]!),
+    );
+  const prioritySections = visibleSections.filter(
+    (section) => section.items[0]!.priority !== 'normal',
+  );
+  const representativeSections =
+    prioritySections.length > 0 ? prioritySections : visibleSections;
+  const selectedTodos = new Map<string, DashboardWorkbenchTodo>();
+
+  for (const section of representativeSections) {
+    if (selectedTodos.size >= PRIORITY_TODO_LIMIT) {
+      break;
+    }
+    selectedTodos.set(section.items[0]!.todoId, section.items[0]!);
+  }
+
+  if (selectedTodos.size < PRIORITY_TODO_LIMIT) {
+    const remainingTodos = visibleSections
+      .flatMap((section) => section.items)
+      .sort(compareDashboardTodo);
+
+    for (const todo of remainingTodos) {
+      if (selectedTodos.size >= PRIORITY_TODO_LIMIT) {
+        break;
+      }
+      selectedTodos.set(todo.todoId, todo);
+    }
+  }
+
+  return [...selectedTodos.values()].sort(compareDashboardTodo);
+});
+const priorityTodoSummary = computed(() => {
+  const moduleCount = new Set(priorityTodoItems.value.map((todo) => todo.type))
+    .size;
+  const urgentCount = priorityTodoItems.value.filter(
+    (todo) => todo.priority === 'urgent',
+  ).length;
+  const warningCount = priorityTodoItems.value.filter(
+    (todo) => todo.priority === 'warning',
+  ).length;
+  const normalCount =
+    priorityTodoItems.value.length - urgentCount - warningCount;
+  const summaryParts: string[] = [];
+
+  if (moduleCount > 0) {
+    summaryParts.push(`${moduleCount} 个模块`);
+  }
+  if (urgentCount > 0) {
+    summaryParts.push(`${urgentCount} 条紧急`);
+  }
+  if (warningCount > 0) {
+    summaryParts.push(`${warningCount} 条关注`);
+  }
+  if (normalCount > 0) {
+    summaryParts.push(`${normalCount} 条常规`);
+  }
+
+  return summaryParts.join(' / ');
 });
 const revenueMetrics = computed<RevenueMetric[]>(() => [
   {
@@ -1209,6 +1271,64 @@ function getDashboardTodoPriorityClass(
   return 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-900/70 dark:text-slate-300 dark:ring-slate-700';
 }
 
+function getDashboardTodoRailClass(
+  priority: DashboardWorkbenchTodo['priority'],
+) {
+  if (priority === 'urgent') {
+    return 'bg-rose-500';
+  }
+  if (priority === 'warning') {
+    return 'bg-amber-400';
+  }
+  return 'bg-slate-300 dark:bg-slate-600';
+}
+
+function getDashboardTodoIndexClass(
+  priority: DashboardWorkbenchTodo['priority'],
+) {
+  if (priority === 'urgent') {
+    return 'bg-rose-50 text-rose-600 ring-rose-100 dark:bg-rose-950/30 dark:text-rose-300 dark:ring-rose-900/60';
+  }
+  if (priority === 'warning') {
+    return 'bg-amber-50 text-amber-600 ring-amber-100 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-900/60';
+  }
+  return 'bg-slate-100 text-slate-500 ring-slate-200 dark:bg-slate-900/70 dark:text-slate-300 dark:ring-slate-700';
+}
+
+function getDashboardTodoActionClass(
+  priority: DashboardWorkbenchTodo['priority'],
+) {
+  if (priority === 'urgent') {
+    return 'bg-rose-50 text-rose-600 ring-rose-100 group-active:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300 dark:ring-rose-900/60';
+  }
+  if (priority === 'warning') {
+    return 'bg-amber-50 text-amber-600 ring-amber-100 group-active:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-900/60';
+  }
+  return 'bg-slate-100 text-slate-600 ring-slate-200 group-active:bg-slate-200 dark:bg-slate-900/70 dark:text-slate-300 dark:ring-slate-700';
+}
+
+function getDashboardTodoTypeClass(type: DashboardWorkbenchTodoType) {
+  if (type === 'rent_unreceived') {
+    return 'bg-red-50 text-red-600 ring-red-100 dark:bg-red-950/30 dark:text-red-300 dark:ring-red-900/60';
+  }
+  if (type === 'reimbursement_audit') {
+    return 'bg-blue-50 text-blue-600 ring-blue-100 dark:bg-blue-950/30 dark:text-blue-300 dark:ring-blue-900/60';
+  }
+  if (type === 'investment_lead') {
+    return 'bg-cyan-50 text-cyan-600 ring-cyan-100 dark:bg-cyan-950/30 dark:text-cyan-300 dark:ring-cyan-900/60';
+  }
+  if (type === 'contract_expire') {
+    return 'bg-amber-50 text-amber-600 ring-amber-100 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-900/60';
+  }
+  if (type === 'repair_order') {
+    return 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-900/70 dark:text-slate-300 dark:ring-slate-700';
+  }
+  if (type === 'attendance_abnormal') {
+    return 'bg-orange-50 text-orange-600 ring-orange-100 dark:bg-orange-950/30 dark:text-orange-300 dark:ring-orange-900/60';
+  }
+  return 'bg-teal-50 text-teal-600 ring-teal-100 dark:bg-teal-950/30 dark:text-teal-300 dark:ring-teal-900/60';
+}
+
 function getDashboardTodoTimeText(todo: DashboardWorkbenchTodo) {
   const value = todo.dueTime || todo.createTime;
   if (!value) {
@@ -1224,9 +1344,7 @@ function getDashboardTodoTimeText(todo: DashboardWorkbenchTodo) {
 }
 
 function getDashboardTodoMetaItems(todo: DashboardWorkbenchTodo) {
-  return [todo.title, todo.parkName, getDashboardTodoTimeText(todo)].filter(
-    Boolean,
-  );
+  return [todo.parkName, getDashboardTodoTimeText(todo)].filter(Boolean);
 }
 
 function getWorkItemCount(item: WorkItemDefinition) {
@@ -1458,61 +1576,97 @@ function hasAnyRole(aliases: readonly string[]) {
             v-if="priorityTodoItems.length > 0"
             class="mt-4 border-t border-slate-100 pt-3 dark:border-slate-700"
           >
-            <div class="mb-2 flex items-center justify-between gap-2">
+            <div class="mb-2.5 flex items-end justify-between gap-3">
+              <div class="min-w-0">
+                <div
+                  class="text-[13px] font-bold text-slate-900 dark:text-slate-100"
+                >
+                  优先处理
+                </div>
+                <div
+                  class="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500"
+                >
+                  跨模块急件
+                </div>
+              </div>
               <span
-                class="text-[13px] font-bold text-slate-900 dark:text-slate-100"
+                class="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-slate-900/70 dark:text-slate-300"
               >
-                优先处理
-              </span>
-              <span class="text-[11px] text-slate-400 dark:text-slate-500">
-                {{ priorityTodoItems.length }} 条
+                {{ priorityTodoSummary }}
               </span>
             </div>
-            <div class="space-y-2">
+            <div
+              class="overflow-hidden rounded-[14px] border border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-900/40"
+            >
               <button
-                v-for="todo in priorityTodoItems"
+                v-for="(todo, index) in priorityTodoItems"
                 :key="todo.todoId"
                 type="button"
-                class="w-full rounded-[12px] border border-slate-100 bg-slate-50/80 px-3 py-2.5 text-left transition-all duration-200 active:scale-[0.99] dark:border-slate-700 dark:bg-slate-900/55"
+                class="group flex w-full items-stretch border-b border-slate-100 text-left transition-colors duration-200 last:border-b-0 active:bg-slate-50 dark:border-slate-800 dark:active:bg-slate-800/70"
                 @click="goTodo(todo)"
               >
-                <div class="flex items-start justify-between gap-2">
-                  <span
-                    class="min-w-0 flex-1 truncate text-[13px] font-bold text-slate-900 dark:text-slate-50"
+                <span
+                  class="w-1 shrink-0 self-stretch"
+                  :class="getDashboardTodoRailClass(todo.priority)"
+                ></span>
+                <div class="min-w-0 flex-1 px-2.5 py-2.5">
+                  <div class="flex min-w-0 items-center gap-2">
+                    <span
+                      class="inline-flex h-[22px] min-w-[22px] shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none ring-1"
+                      :class="getDashboardTodoIndexClass(todo.priority)"
+                    >
+                      {{ index + 1 }}
+                    </span>
+                    <span
+                      class="max-w-[72px] shrink-0 truncate rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1"
+                      :class="getDashboardTodoTypeClass(todo.type)"
+                    >
+                      {{ todo.title }}
+                    </span>
+                    <span
+                      class="min-w-0 flex-1 truncate text-[13px] font-bold text-slate-900 dark:text-slate-50"
+                    >
+                      {{ todo.businessName }}
+                    </span>
+                    <span
+                      class="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1"
+                      :class="getDashboardTodoPriorityClass(todo.priority)"
+                    >
+                      {{ getDashboardTodoPriorityText(todo.priority) }}
+                    </span>
+                  </div>
+                  <p
+                    class="mt-1 line-clamp-1 text-[12px] leading-5 text-slate-600 dark:text-slate-300"
                   >
-                    {{ todo.businessName }}
-                  </span>
-                  <span
-                    class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1"
-                    :class="getDashboardTodoPriorityClass(todo.priority)"
+                    {{ todo.content }}
+                  </p>
+                  <div
+                    class="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-slate-400 dark:text-slate-500"
                   >
-                    {{ getDashboardTodoPriorityText(todo.priority) }}
-                  </span>
+                    <span
+                      v-for="metaItem in getDashboardTodoMetaItems(todo)"
+                      :key="metaItem"
+                      class="min-w-0 truncate"
+                    >
+                      {{ metaItem }}
+                    </span>
+                    <a
+                      v-if="todo.phoneNumber"
+                      :href="`tel:${todo.phoneNumber}`"
+                      class="shrink-0 font-semibold text-sky-600 dark:text-sky-300"
+                      @click.stop
+                    >
+                      {{ todo.phoneNumber }}
+                    </a>
+                  </div>
                 </div>
-                <p
-                  class="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-600 dark:text-slate-300"
+                <span
+                  class="mr-2.5 mt-2.5 inline-flex h-7 shrink-0 items-center gap-0.5 rounded-full px-2 text-[11px] font-bold ring-1"
+                  :class="getDashboardTodoActionClass(todo.priority)"
                 >
-                  {{ todo.content }}
-                </p>
-                <div
-                  class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-4 text-slate-400 dark:text-slate-500"
-                >
-                  <span
-                    v-for="metaItem in getDashboardTodoMetaItems(todo)"
-                    :key="metaItem"
-                    class="max-w-full truncate"
-                  >
-                    {{ metaItem }}
-                  </span>
-                  <a
-                    v-if="todo.phoneNumber"
-                    :href="`tel:${todo.phoneNumber}`"
-                    class="font-semibold text-sky-600 dark:text-sky-300"
-                    @click.stop
-                  >
-                    {{ todo.phoneNumber }}
-                  </a>
-                </div>
+                  处理
+                  <VbenIcon icon="mdi:chevron-right" />
+                </span>
               </button>
             </div>
           </div>

@@ -32,6 +32,22 @@ export async function getRoleOptions() {
   return options;
 }
 
+export function getAccountPasswordInputProps(placeholder: string) {
+  return {
+    autoComplete: 'off',
+    autocomplete: 'off',
+    'data-1p-ignore': 'true',
+    'data-form-type': 'other',
+    'data-lpignore': 'true',
+    name: 'tenantAccountCredential',
+    placeholder,
+    spellcheck: false,
+    style: {
+      WebkitTextSecurity: 'disc',
+    },
+  };
+}
+
 export function useFormSchema(): VbenFormSchema[] {
   return [
     {
@@ -61,12 +77,10 @@ export function useFormSchema(): VbenFormSchema[] {
       label: '手机号',
     },
     {
-      component: 'InputPassword',
-      componentProps: {
-        placeholder: '请输入密码',
-      },
+      component: 'Input',
+      componentProps: getAccountPasswordInputProps('请输入初始密码'),
       fieldName: 'password',
-      label: '密码',
+      label: '初始密码',
     },
     {
       component: 'ApiSelect',

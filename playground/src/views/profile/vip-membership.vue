@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { AlipayPayOrderStatus } from '#/api/alipay-pay';
 import type {
   OrganizationProvisioningStatus,
   WechatPayOrderStatus,
@@ -12,10 +13,13 @@ import { useUserStore } from '@vben/stores';
 
 import { Button, Checkbox, Input, message, Modal, Tag } from 'ant-design-vue';
 
+import { queryAlipayPayOrder } from '#/api/alipay-pay';
 import { createSourceOrganizationApi } from '#/api/organization';
 import { joinOrganizationByInvitationCodeApi } from '#/api/organization-invitation';
 import { getOrganizationProvisioningStatus } from '#/api/wechat-pay';
 import { useAuthStore } from '#/store';
+import { loadAlipayPayAppConfig } from '#/utils/alipay-pay-app-config';
+import { payWithAlipayWap } from '#/utils/alipay-wap-pay';
 import { resolveMembershipAccessState } from '#/utils/membership-access';
 import {
   canUseNativeWechatPay,
@@ -31,7 +35,11 @@ import { loadWechatPayAppConfig } from '#/utils/wechat-pay-app-config';
 defineOptions({ name: 'VipMembershipPage' });
 
 const PAY_MESSAGE_KEY = 'vip-membership-pay';
-const ORDER_PENDING_STATES = new Set(['NOTPAY', 'USERPAYING']);
+const ORDER_PENDING_STATES = new Set([
+  'NOTPAY',
+  'USERPAYING',
+  'WAIT_BUYER_PAY',
+]);
 const ORGANIZATION_PROVISIONING_PENDING_STATES = new Set([
   'pending',
   'provisioning',
@@ -47,6 +55,7 @@ const ORGANIZATION_PROVISIONING_PAYMENT_BLOCKED_STATES = new Set([
 ]);
 
 type MembershipPlanId = 'monthly' | 'quarterly' | 'yearly';
+type PaymentChannel = 'alipay' | 'wechat';
 
 interface MembershipPlan {
   badge: string;
@@ -149,6 +158,7 @@ interface SourceOrganizationState {
 }
 
 type MembershipCheckoutResult = 'failed' | 'ready' | 'syncing' | 'unknown';
+type MembershipOrderStatus = AlipayPayOrderStatus | WechatPayOrderStatus;
 type OrganizationWorkflowStepStatus = 'current' | 'done' | 'pending';
 
 interface CheckoutResultModalView {
@@ -219,6 +229,13 @@ const organizationInvitationTouched = ref(false);
 const organizationJoinLoading = ref(false);
 const payLoading = ref(false);
 const selectedMembershipPlanId = ref<MembershipPlanId>('yearly');
+const selectedPaymentChannel = ref<PaymentChannel>('wechat');
+const alipayConfigLoading = ref(false);
+const alipayAppId = ref('');
+const alipayGatewayUrl = ref('');
+const alipayPayConfigError = ref('');
+const alipayPayConfigured = ref(false);
+const alipayPayMissingConfig = ref<string[]>([]);
 const wechatConfigLoading = ref(false);
 const latestPaymentState = ref<MembershipPaymentState | null>(null);
 const latestOrganizationProvisioningStatus =
@@ -519,6 +536,24 @@ const wechatPayConfigReady = computed(
     Boolean(wechatOpenAppId.value) &&
     Boolean(wechatPayMerchantId.value),
 );
+const alipayPayConfigReady = computed(
+  () => alipayPayConfigured.value && Boolean(alipayAppId.value),
+);
+const selectedPaymentConfigLoading = computed(() =>
+  selectedPaymentChannel.value === 'alipay'
+    ? alipayConfigLoading.value
+    : wechatConfigLoading.value,
+);
+const selectedPaymentConfigReady = computed(() =>
+  selectedPaymentChannel.value === 'alipay'
+    ? alipayPayConfigReady.value
+    : wechatPayConfigReady.value,
+);
+const selectedPaymentConfigError = computed(() =>
+  selectedPaymentChannel.value === 'alipay'
+    ? alipayPayConfigError.value
+    : wechatPayConfigError.value,
+);
 const appPaySupported = computed(
   () => wechatPayConfigReady.value && canUseNativeWechatPay(),
 );
@@ -578,6 +613,72 @@ const wechatPayRuntimeState = computed(() => {
     tone: 'success',
   };
 });
+const alipayPayRuntimeState = computed(() => {
+  if (alipayConfigLoading.value) {
+    return {
+      description: '正在读取后端支付宝 AppID 与网关地址。',
+      icon: 'mdi:loading',
+      title: '支付宝配置读取中',
+      tone: 'processing',
+    };
+  }
+
+  if (alipayPayConfigError.value) {
+    return {
+      description: alipayPayConfigError.value,
+      icon: 'mdi:alert-circle-outline',
+      title: '支付宝配置待完善',
+      tone: 'warning',
+    };
+  }
+
+  if (!alipayPayConfigReady.value) {
+    return {
+      description: '后端尚未返回支付宝 AppID 或支付网关。',
+      icon: 'mdi:alert-circle-outline',
+      title: '支付宝未配置',
+      tone: 'warning',
+    };
+  }
+
+  return {
+    description: '将跳转到支付宝手机网站支付收银台。',
+    icon: 'mdi:check-circle-outline',
+    title: '支付宝支付可用',
+    tone: 'success',
+  };
+});
+const selectedPaymentRuntimeState = computed(() =>
+  selectedPaymentChannel.value === 'alipay'
+    ? alipayPayRuntimeState.value
+    : wechatPayRuntimeState.value,
+);
+const selectedPaymentLabel = computed(() =>
+  selectedPaymentChannel.value === 'alipay' ? '支付宝' : '微信支付',
+);
+const selectedPaymentModeLabel = computed(() => {
+  if (selectedPaymentChannel.value === 'alipay') {
+    return '支付宝 WAP 支付';
+  }
+
+  return activeWechatPayMode.value === 'app' ? '微信 App 支付' : '微信 H5 支付';
+});
+const paymentChannelOptions = computed(() => [
+  {
+    description: activeWechatPayMode.value === 'app' ? 'App 拉起' : 'H5 收银台',
+    disabled: !wechatPayConfigReady.value,
+    icon: 'mdi:wechat',
+    key: 'wechat' as const,
+    title: '微信支付',
+  },
+  {
+    description: '手机网站支付',
+    disabled: !alipayPayConfigReady.value,
+    icon: 'mdi:credit-card-outline',
+    key: 'alipay' as const,
+    title: '支付宝',
+  },
+]);
 const payButtonText = computed(() => {
   if (payLoading.value) {
     return '正在处理支付...';
@@ -589,12 +690,14 @@ const payButtonText = computed(() => {
       : '先免费创建团队';
   }
 
-  if (wechatConfigLoading.value) {
+  if (selectedPaymentConfigLoading.value) {
     return '正在读取支付配置...';
   }
 
-  if (!wechatPayConfigReady.value) {
-    return wechatPayConfigError.value ? '支付配置待完善' : '未配置微信支付';
+  if (!selectedPaymentConfigReady.value) {
+    return selectedPaymentConfigError.value
+      ? '支付配置待完善'
+      : `未配置${selectedPaymentLabel.value}`;
   }
 
   if (organizationProvisioningPaymentBlocked.value) {
@@ -615,19 +718,19 @@ const payButtonText = computed(() => {
     return '填写组织信息';
   }
 
-  return `微信支付 ¥${membershipPlan.value.price}`;
+  return `${selectedPaymentLabel.value} ¥${membershipPlan.value.price}`;
 });
 const payButtonDisabled = computed(
   () =>
     payLoading.value ||
-    wechatConfigLoading.value ||
+    selectedPaymentConfigLoading.value ||
     organizationCreateLoading.value ||
     organizationProvisioningPaymentBlocked.value ||
     !organizationPaymentPrerequisiteReady.value ||
     sourceOrganizationConflict.value ||
     !sourceOrganizationPaymentAllowed.value ||
     !organizationIdentityReady.value ||
-    !wechatPayConfigReady.value,
+    !selectedPaymentConfigReady.value,
 );
 const paymentAgreementHint = computed(() => {
   if (!organizationPaymentPrerequisiteReady.value) {
@@ -636,12 +739,18 @@ const paymentAgreementHint = computed(() => {
       : '请先免费创建团队，创建完成后再开通组织会员。';
   }
 
-  if (wechatPayConfigError.value) {
-    return wechatPayConfigError.value;
+  if (selectedPaymentConfigError.value) {
+    return selectedPaymentConfigError.value;
   }
 
-  if (!wechatPayConfigReady.value) {
-    return '微信支付需要后端返回开放平台移动应用 AppID 和微信支付商户号。';
+  if (!selectedPaymentConfigReady.value) {
+    return selectedPaymentChannel.value === 'alipay'
+      ? '支付宝支付需要后端返回 AppID、网关、公钥与私钥配置。'
+      : '微信支付需要后端返回开放平台移动应用 AppID 和微信支付商户号。';
+  }
+
+  if (selectedPaymentChannel.value === 'alipay') {
+    return '当前环境将跳转支付宝手机网站支付，支付完成后请返回页面查看开通状态。';
   }
 
   if (activeWechatPayMode.value === 'h5') {
@@ -683,6 +792,21 @@ watch(
   },
   { immediate: true },
 );
+
+watch([wechatPayConfigReady, alipayPayConfigReady], () => {
+  if (selectedPaymentConfigReady.value) {
+    return;
+  }
+
+  if (wechatPayConfigReady.value) {
+    selectedPaymentChannel.value = 'wechat';
+    return;
+  }
+
+  if (alipayPayConfigReady.value) {
+    selectedPaymentChannel.value = 'alipay';
+  }
+});
 
 const membershipGateNotice = computed(() => {
   const accessState = membershipAccessState.value;
@@ -1018,32 +1142,38 @@ function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function getMembershipOrderTransactionId(orderStatus: MembershipOrderStatus) {
+  return 'transactionId' in orderStatus
+    ? orderStatus.transactionId
+    : orderStatus.tradeNo;
+}
+
 function normalizeMembershipPaymentState(
-  orderStatus: WechatPayOrderStatus,
+  orderStatus: MembershipOrderStatus,
 ): MembershipPaymentState {
   return {
     outTradeNo: orderStatus.outTradeNo,
     success: orderStatus.success,
     tradeState: orderStatus.tradeState,
     tradeStateDesc: orderStatus.tradeStateDesc || orderStatus.tradeState,
-    transactionId: orderStatus.transactionId,
+    transactionId: getMembershipOrderTransactionId(orderStatus),
   };
 }
 
 function normalizeStalePaymentState(
-  orderStatus: WechatPayOrderStatus,
+  orderStatus: MembershipOrderStatus,
 ): MembershipPaymentState {
   return {
     outTradeNo: orderStatus.outTradeNo,
     success: false,
     tradeState: 'STALE_PAYMENT',
     tradeStateDesc: '该支付订单已不是当前开通订单，请联系客服处理退款或对账',
-    transactionId: orderStatus.transactionId,
+    transactionId: getMembershipOrderTransactionId(orderStatus),
   };
 }
 
 function resolveVipMembershipApplyFailureMessage(
-  orderStatus: WechatPayOrderStatus,
+  orderStatus: MembershipOrderStatus,
 ) {
   const result = orderStatus.vipMembershipResult;
   if (!orderStatus.success || result?.applied || result?.alreadyApplied) {
@@ -1073,7 +1203,7 @@ function resolveVipMembershipApplyFailureMessage(
 }
 
 function normalizeVipMembershipApplyFailureState(
-  orderStatus: WechatPayOrderStatus,
+  orderStatus: MembershipOrderStatus,
 ): MembershipPaymentState | null {
   const failureMessage = resolveVipMembershipApplyFailureMessage(orderStatus);
   if (!failureMessage) {
@@ -1088,14 +1218,14 @@ function normalizeVipMembershipApplyFailureState(
       ? `VIP_${reason.toUpperCase().replaceAll('-', '_')}`
       : 'VIP_APPLY_UNCONFIRMED',
     tradeStateDesc: failureMessage,
-    transactionId: orderStatus.transactionId,
+    transactionId: getMembershipOrderTransactionId(orderStatus),
   };
 }
 
-async function pollWechatOrderStatus(
-  queryOrderStatus: () => Promise<WechatPayOrderStatus>,
+async function pollPaymentOrderStatus(
+  queryOrderStatus: () => Promise<MembershipOrderStatus>,
 ) {
-  let lastStatus: null | WechatPayOrderStatus = null;
+  let lastStatus: MembershipOrderStatus | null = null;
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const currentStatus = await queryOrderStatus();
@@ -1306,7 +1436,52 @@ async function refreshWechatPayAppConfig(options: { silent?: boolean } = {}) {
   }
 }
 
-async function requestWechatPay(options: { scrollToPayment?: boolean } = {}) {
+async function refreshAlipayPayAppConfig(options: { silent?: boolean } = {}) {
+  if (alipayPayConfigReady.value) {
+    return alipayPayConfigured.value ? alipayAppId.value : '';
+  }
+
+  alipayConfigLoading.value = true;
+  try {
+    const config = await loadAlipayPayAppConfig();
+    alipayAppId.value = config.appId;
+    alipayGatewayUrl.value = config.gatewayUrl;
+    alipayPayConfigured.value = config.configured === true;
+    alipayPayMissingConfig.value = Array.isArray(config.missing)
+      ? config.missing
+      : [];
+    alipayPayConfigError.value = alipayPayConfigured.value
+      ? ''
+      : `缺少支付宝配置：${alipayPayMissingConfig.value.join('、')}`;
+    return alipayPayConfigured.value ? alipayAppId.value : '';
+  } catch (error) {
+    console.error('获取支付宝配置失败:', error);
+    alipayAppId.value = '';
+    alipayGatewayUrl.value = '';
+    alipayPayConfigured.value = false;
+    alipayPayMissingConfig.value = [];
+    alipayPayConfigError.value =
+      error instanceof Error ? error.message : '获取支付宝配置失败';
+    if (!options.silent) {
+      message.error(alipayPayConfigError.value);
+    }
+    return '';
+  } finally {
+    alipayConfigLoading.value = false;
+  }
+}
+
+async function refreshSelectedPaymentConfig() {
+  if (selectedPaymentChannel.value === 'alipay') {
+    return await refreshAlipayPayAppConfig();
+  }
+
+  return await refreshWechatPayAppConfig();
+}
+
+async function requestMembershipPay(
+  options: { scrollToPayment?: boolean } = {},
+) {
   if (payLoading.value) {
     return;
   }
@@ -1328,14 +1503,19 @@ async function requestWechatPay(options: { scrollToPayment?: boolean } = {}) {
     return;
   }
 
-  const currentWechatOpenAppId = await refreshWechatPayAppConfig();
-  if (!currentWechatOpenAppId) {
-    message.error('未获取到微信开放平台移动应用 AppID');
+  const paymentConfigId = await refreshSelectedPaymentConfig();
+  if (!paymentConfigId) {
+    message.error(`未获取到${selectedPaymentLabel.value}配置`);
     return;
   }
 
   if (!agreedToTerms.value) {
     agreementModalOpen.value = true;
+    return;
+  }
+
+  if (selectedPaymentChannel.value === 'alipay') {
+    await handleAlipayPay();
     return;
   }
 
@@ -1358,9 +1538,9 @@ async function handleAgreementModalConfirm() {
     return;
   }
 
-  const currentWechatOpenAppId = await refreshWechatPayAppConfig();
-  if (!currentWechatOpenAppId) {
-    message.error('未获取到微信开放平台移动应用 AppID');
+  const paymentConfigId = await refreshSelectedPaymentConfig();
+  if (!paymentConfigId) {
+    message.error(`未获取到${selectedPaymentLabel.value}配置`);
     return;
   }
 
@@ -1370,6 +1550,11 @@ async function handleAgreementModalConfirm() {
 
   agreedToTerms.value = true;
   agreementModalOpen.value = false;
+  if (selectedPaymentChannel.value === 'alipay') {
+    await handleAlipayPay();
+    return;
+  }
+
   await handleWechatPay();
 }
 
@@ -1442,6 +1627,176 @@ async function showCheckoutResultAfterPaid(checkoutFlowToken?: string) {
 
   message.destroy(PAY_MESSAGE_KEY);
   checkoutResultModalOpen.value = true;
+}
+
+async function handleAlipayOrderStatus(
+  orderStatus: AlipayPayOrderStatus,
+  checkoutFlowToken?: string,
+) {
+  latestPaymentState.value = normalizeMembershipPaymentState(orderStatus);
+
+  if (orderStatus.vipMembershipResult?.reason === 'stale-payment') {
+    latestPaymentState.value = normalizeStalePaymentState(orderStatus);
+    await refreshOrganizationProvisioningStatus(checkoutFlowToken).catch(
+      (error) => {
+        console.warn('旧支付宝订单同步后刷新组织空间状态失败:', error);
+      },
+    );
+    message.warning({
+      content: '该支付宝订单已不是当前开通订单，请联系客服处理退款或对账。',
+      duration: 6,
+      key: PAY_MESSAGE_KEY,
+    });
+    return;
+  }
+
+  const membershipApplyFailureState =
+    normalizeVipMembershipApplyFailureState(orderStatus);
+  if (membershipApplyFailureState) {
+    latestPaymentState.value = membershipApplyFailureState;
+    message.error({
+      content: membershipApplyFailureState.tradeStateDesc,
+      duration: 6,
+      key: PAY_MESSAGE_KEY,
+    });
+    return;
+  }
+
+  if (orderStatus.success) {
+    await showCheckoutResultAfterPaid(checkoutFlowToken);
+    return;
+  }
+
+  const statusText = orderStatus.tradeStateDesc || orderStatus.tradeState;
+  message.warning({
+    content: `支付未完成，当前订单状态：${statusText}`,
+    duration: 4,
+    key: PAY_MESSAGE_KEY,
+  });
+}
+
+async function handleAlipayReturnOrder(outTradeNo: string) {
+  if (!outTradeNo || payLoading.value) {
+    return;
+  }
+
+  payLoading.value = true;
+  message.loading({
+    content: '正在确认支付宝支付结果...',
+    duration: 0,
+    key: PAY_MESSAGE_KEY,
+  });
+
+  try {
+    const orderStatus = (await pollPaymentOrderStatus(() =>
+      queryAlipayPayOrder(outTradeNo),
+    )) as AlipayPayOrderStatus | null;
+    if (!orderStatus) {
+      throw new Error('未获取到支付宝订单状态');
+    }
+    await handleAlipayOrderStatus(orderStatus);
+  } catch (error) {
+    console.error('确认支付宝支付结果失败:', error);
+    latestPaymentState.value = {
+      outTradeNo,
+      success: false,
+      tradeState: 'PENDING_CONFIRM',
+      tradeStateDesc: '支付宝支付结果待确认，请稍后根据订单号查单',
+    };
+    message.error({
+      content:
+        error instanceof Error ? error.message : '确认支付宝支付结果失败',
+      duration: 4,
+      key: PAY_MESSAGE_KEY,
+    });
+  } finally {
+    payLoading.value = false;
+  }
+}
+
+async function handleAlipayPay() {
+  if (payLoading.value) {
+    return;
+  }
+
+  if (!agreedToTerms.value) {
+    agreementModalOpen.value = true;
+    return;
+  }
+
+  if (organizationProvisioningPaymentBlocked.value) {
+    return;
+  }
+
+  if (!sourceOrganizationPaymentAllowed.value) {
+    message.warning('只有组织所有者可以为该组织开通或续费会员');
+    return;
+  }
+
+  if (!validateOrganizationIdentity()) {
+    return;
+  }
+
+  const currentAlipayAppId = await refreshAlipayPayAppConfig();
+  if (!currentAlipayAppId) {
+    message.error('未配置支付宝 AppID');
+    return;
+  }
+
+  payLoading.value = true;
+  let currentOutTradeNo = '';
+  membershipCheckoutResult.value = 'unknown';
+
+  message.loading({
+    content: '正在创建支付宝支付订单...',
+    duration: 0,
+    key: PAY_MESSAGE_KEY,
+  });
+
+  try {
+    const selectedPlan = membershipPlan.value;
+    const execution = await payWithAlipayWap({
+      amount: selectedPlan.price * 100,
+      attach: 'vip-membership',
+      body: `${membershipScopeName.value} ${selectedPlan.name}`,
+      description: `${membershipScopeName.value} ${selectedPlan.name}`,
+      organizationIdentity: resolveOrganizationIdentityPayload(),
+      planId: selectedPlan.id,
+      quitUrl: window.location.href,
+    });
+
+    currentOutTradeNo = execution.outTradeNo;
+    latestPaymentState.value = {
+      outTradeNo: currentOutTradeNo,
+      success: false,
+      tradeState: 'ALIPAY_REDIRECT',
+      tradeStateDesc: '已创建支付宝支付订单，等待支付完成',
+    };
+    message.loading({
+      content: '正在打开支付宝支付页面...',
+      duration: 1,
+      key: PAY_MESSAGE_KEY,
+    });
+    window.location.href = execution.payUrl;
+  } catch (error) {
+    console.error('发起会员支付宝支付失败:', error);
+    latestPaymentState.value = {
+      outTradeNo: currentOutTradeNo,
+      success: false,
+      tradeState: 'PENDING_CONFIRM',
+      tradeStateDesc: currentOutTradeNo
+        ? '支付结果待确认，请稍后根据订单号查单'
+        : '创建支付宝支付订单失败',
+    };
+    message.error({
+      content:
+        error instanceof Error ? error.message : '发起会员支付宝支付失败',
+      duration: 4,
+      key: PAY_MESSAGE_KEY,
+    });
+  } finally {
+    payLoading.value = false;
+  }
 }
 
 async function handleWechatPay() {
@@ -1564,7 +1919,9 @@ async function handleWechatPay() {
       key: PAY_MESSAGE_KEY,
     });
 
-    const orderStatus = await pollWechatOrderStatus(execution.queryOrderStatus);
+    const orderStatus = await pollPaymentOrderStatus(
+      execution.queryOrderStatus,
+    );
     if (!orderStatus) {
       throw new Error('未获取到支付订单状态');
     }
@@ -1631,9 +1988,17 @@ async function handleWechatPay() {
 
 onMounted(() => {
   void refreshWechatPayAppConfig({ silent: true });
+  void refreshAlipayPayAppConfig({ silent: true });
   void refreshOrganizationProvisioningStatus().catch((error) => {
     console.warn('读取组织空间信息草稿失败:', error);
   });
+  const alipayOutTradeNo = Array.isArray(route.query.alipayOutTradeNo)
+    ? route.query.alipayOutTradeNo[0]
+    : route.query.alipayOutTradeNo;
+  if (alipayOutTradeNo) {
+    selectedPaymentChannel.value = 'alipay';
+    void handleAlipayReturnOrder(String(alipayOutTradeNo));
+  }
   if (route.query.section === 'org') {
     window.setTimeout(handleOrganizationSetupNavigate, 80);
   }
@@ -1923,14 +2288,35 @@ onMounted(() => {
               <strong>{{ membershipScopeName }}</strong>
             </div>
 
+            <div class="payment-channel-grid">
+              <button
+                v-for="channel in paymentChannelOptions"
+                :key="channel.key"
+                type="button"
+                class="payment-channel"
+                :class="{
+                  'payment-channel--active':
+                    selectedPaymentChannel === channel.key,
+                }"
+                :disabled="channel.disabled"
+                @click="selectedPaymentChannel = channel.key"
+              >
+                <VbenIcon :icon="channel.icon" />
+                <span>
+                  <strong>{{ channel.title }}</strong>
+                  <em>{{ channel.description }}</em>
+                </span>
+              </button>
+            </div>
+
             <div
               class="order-card__runtime"
-              :class="`order-card__runtime--${wechatPayRuntimeState.tone}`"
+              :class="`order-card__runtime--${selectedPaymentRuntimeState.tone}`"
             >
-              <VbenIcon :icon="wechatPayRuntimeState.icon" />
+              <VbenIcon :icon="selectedPaymentRuntimeState.icon" />
               <div>
-                <strong>{{ wechatPayRuntimeState.title }}</strong>
-                <p>{{ wechatPayRuntimeState.description }}</p>
+                <strong>{{ selectedPaymentRuntimeState.title }}</strong>
+                <p>{{ selectedPaymentRuntimeState.description }}</p>
               </div>
             </div>
 
@@ -1945,13 +2331,7 @@ onMounted(() => {
               </div>
               <div class="order-card__row">
                 <span>支付方式</span>
-                <span>
-                  {{
-                    activeWechatPayMode === 'app'
-                      ? '微信 App 支付'
-                      : '微信 H5 支付'
-                  }}
-                </span>
+                <span>{{ selectedPaymentModeLabel }}</span>
               </div>
               <div class="order-card__row order-card__row--wrap">
                 <span>支付后有效期</span>
@@ -1991,7 +2371,7 @@ onMounted(() => {
                 v-if="latestPaymentState.transactionId"
                 class="order-card__row order-card__row--wrap"
               >
-                <span>微信流水号</span>
+                <span>支付流水号</span>
                 <span>{{ latestPaymentState.transactionId }}</span>
               </div>
             </div>
@@ -2020,7 +2400,7 @@ onMounted(() => {
                 type="primary"
                 :disabled="payButtonDisabled"
                 :loading="payLoading"
-                @click="requestWechatPay()"
+                @click="requestMembershipPay()"
               >
                 {{ payButtonText }}
               </Button>
@@ -2051,7 +2431,7 @@ onMounted(() => {
         type="primary"
         :disabled="payButtonDisabled"
         :loading="payLoading"
-        @click="requestWechatPay({ scrollToPayment: true })"
+        @click="requestMembershipPay({ scrollToPayment: true })"
       >
         {{ payButtonText }}
       </Button>
@@ -2061,7 +2441,7 @@ onMounted(() => {
       v-model:open="agreementModalOpen"
       centered
       cancel-text="取消"
-      ok-text="同意并微信支付"
+      :ok-text="`同意并${selectedPaymentLabel}`"
       title="确认会员服务协议"
       :confirm-loading="payLoading"
       :mask-closable="!payLoading"
@@ -2070,7 +2450,9 @@ onMounted(() => {
     >
       <div class="agreement-confirm">
         <p>
-          开通组织会员前，请先阅读并同意《会员服务协议》和《隐私政策》。确认后将直接发起微信支付。
+          开通组织会员前，请先阅读并同意《会员服务协议》和《隐私政策》。确认后将直接发起{{
+            selectedPaymentLabel
+          }}。
         </p>
         <div class="agreement-confirm__links">
           <button type="button" @click="openServiceAgreementDialog">
@@ -2406,6 +2788,75 @@ onMounted(() => {
   margin-top: 20px;
   background: var(--vip-accent-soft);
   border-radius: 14px;
+}
+
+.payment-channel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.payment-channel {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  text-align: left;
+  cursor: pointer;
+  background: var(--vip-card);
+  border: 1px solid var(--vip-border);
+  border-radius: 12px;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.payment-channel:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.payment-channel > :first-child {
+  flex: 0 0 auto;
+  font-size: 22px;
+  color: var(--vip-text-soft);
+}
+
+.payment-channel span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.payment-channel strong {
+  overflow: hidden;
+  font-size: 14px;
+  color: var(--vip-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payment-channel em {
+  overflow: hidden;
+  font-size: 12px;
+  font-style: normal;
+  color: var(--vip-text-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payment-channel--active {
+  background: rgb(23 100 255 / 7%);
+  border-color: rgb(23 100 255 / 35%);
+  box-shadow: 0 10px 24px rgb(23 100 255 / 10%);
+}
+
+.payment-channel--active > :first-child,
+.payment-channel--active strong {
+  color: var(--vip-accent);
 }
 
 .order-card__runtime {

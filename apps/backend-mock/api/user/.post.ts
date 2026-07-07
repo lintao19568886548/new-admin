@@ -78,11 +78,19 @@ export default eventHandler(async (event) => {
     async () =>
       prismaClient.user.findUnique({
         where: { username },
-        select: { id: true },
+        select: { id: true, status: true },
       }),
   );
 
   if (existingTenantUser) {
+    if (Number(existingTenantUser.status ?? 1) !== 2) {
+      return useResponseSuccess({
+        existed: true,
+        id: Number(existingTenantUser.id),
+        tenantUserId: Number(existingTenantUser.id),
+      });
+    }
+
     setResponseStatus(event, 409);
     return useResponseError('租户库账号已存在', '租户库账号已存在', 409);
   }
