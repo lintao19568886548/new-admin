@@ -11,6 +11,8 @@ dist.war
 *-dist.tar
 *-dist.war
 coverage
+target
+**/target/
 *.local
 **/.vitepress/cache
 .cache

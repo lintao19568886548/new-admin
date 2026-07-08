@@ -1,0 +1,144 @@
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: backend-springboot
+  datasource:
+    center:
+      jdbc-url: ${CENTER_DATABASE_URL:}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      maximum-pool-size: ${CENTER_DATABASE_POOL_MAX:10}
+      minimum-idle: ${CENTER_DATABASE_POOL_MIN_IDLE:1}
+    tenant:
+      default-jdbc-url: ${DATABASE_URL:}
+      public-jdbc-url: ${PUBLIC_DATABASE_URL:}
+      jdbc-url-template: ${CUSTOMER_DATABASE_URL_TEMPLATE:}
+      db-prefix: ${CUSTOMER_DB_PREFIX:customer_}
+      maximum-pool-size: ${TENANT_DATABASE_POOL_MAX:10}
+      minimum-idle: ${TENANT_DATABASE_POOL_MIN_IDLE:1}
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:backend-springboot}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+    producer:
+      acks: all
+      retries: 3
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+mybatis-plus:
+  configuration:
+    cache-enabled: false
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  mapper-locations: classpath*:/mapper/**/*.xml
+
+app:
+  default-customer-id: ${DEFAULT_CUSTOMER_ID:default}
+  ios-store-url: ${IOS_STORE_URL:https://apps.apple.com/cn/app/%E7%9E%B0%E7%BB%B4%E6%99%BA%E7%AE%A1/id6760279136}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+  jwt:
+    access-token-secret: ${ACCESS_TOKEN_SECRET:access-secret}
+    refresh-token-secret: ${REFRESH_TOKEN_SECRET:refresh-secret}
+    access-token-expires-in: ${ACCESS_TOKEN_EXPIRES_IN:30m}
+    refresh-token-expires-in: ${REFRESH_TOKEN_EXPIRES_IN:7d}
+  refresh-cookie:
+    name: jwt
+    secure: ${REFRESH_TOKEN_COOKIE_SECURE:false}
+    max-age-seconds: ${REFRESH_TOKEN_COOKIE_MAX_AGE_SECONDS:604800}
+  redis:
+    organization-provisioning-refresh-enabled: ${REDIS_ORGANIZATION_PROVISIONING_REFRESH_ENABLED:false}
+  sms:
+    code-length: ${LOGIN_SMS_CODE_LENGTH:6}
+    code-ttl-seconds: ${LOGIN_SMS_CODE_TTL:300}
+    resend-interval-seconds: ${LOGIN_SMS_RESEND_INTERVAL:60}
+    max-verify-attempts: ${LOGIN_SMS_MAX_VERIFY_ATTEMPTS:5}
+  kafka:
+    required: ${KAFKA_REQUIRED:true}
+    consumer-enabled: ${KAFKA_CONSUMER_ENABLED:false}
+    outbox-dispatch-enabled: ${KAFKA_OUTBOX_DISPATCH_ENABLED:false}
+    outbox-event-write-enabled: ${KAFKA_OUTBOX_EVENT_WRITE_ENABLED:false}
+    outbox-dispatch-interval-ms: ${KAFKA_OUTBOX_DISPATCH_INTERVAL_MS:5000}
+  hezhong:
+    base-url: ${TP_BASE_URL:https://devhzeb.szhzzd.top}
+    login-username: ${TP_LOGIN_USERNAME:}
+    login-key: ${TP_LOGIN_KEY:}
+    timeout-ms: ${TP_TIMEOUT_MS:15000}
+    token-refresh-leeway-ms: ${TP_TOKEN_REFRESH_LEEWAY_MS:120000}
+  ymsino:
+    base-url: ${TP_YMSINO_BASE_URL:http://pt.ymsino1.com/ymcb/inter}
+    username: ${TP_YMSINO_USERNAME:}
+    password: ${TP_YMSINO_PASSWORD:}
+    org-id: ${TP_YMSINO_ORG_ID:1024}
+    default-pt-id: ${TP_YMSINO_PT_ID:YZWL}
+    electric-tj-type: ${TP_YMSINO_ELECTRIC_TJ_TYPE:0}
+    water-tj-type: ${TP_YMSINO_WATER_TJ_TYPE:1}
+    timeout-ms: ${TP_YMSINO_TIMEOUT_MS:15000}
+    refresh-leeway-ms: ${TP_YMSINO_REFRESH_LEEWAY_MS:600000}
+  rabbit-mq:
+    consumer-enabled: ${RABBITMQ_CONSUMER_ENABLED:false}
+    enabled: ${RABBITMQ_ENABLED:true}
+    notification-consumer-delegation-enabled: ${RABBITMQ_NOTIFICATION_CONSUMER_DELEGATION_ENABLED:false}
+    notification-consumer-delegation-route-guard: ${RABBITMQ_NOTIFICATION_CONSUMER_DELEGATION_ROUTE_GUARD:organization_provisioning_completed}
+    notification-dispatch-enabled: ${RABBITMQ_NOTIFICATION_DISPATCH_ENABLED:false}
+    notification-routing-consumer-enabled: ${RABBITMQ_NOTIFICATION_ROUTING_CONSUMER_ENABLED:false}
+    organization-provisioning-notification-consumer-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_NOTIFICATION_CONSUMER_ENABLED:false}
+    organization-provisioning-in-app-notification-ddl-applied: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_NOTIFICATION_DDL_APPLIED:false}
+    organization-provisioning-in-app-notification-insert-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_NOTIFICATION_INSERT_ENABLED:false}
+    organization-provisioning-in-app-provider-claim-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_CLAIM_ENABLED:false}
+    organization-provisioning-in-app-provider-listener-auto-execution-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_LISTENER_AUTO_EXECUTION_ENABLED:false}
+    organization-provisioning-in-app-provider-mark-failure-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_MARK_FAILURE_ENABLED:false}
+    organization-provisioning-in-app-provider-mark-success-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_MARK_SUCCESS_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-listener-noop-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_LISTENER_NOOP_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-validator-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_VALIDATOR_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-bridge-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_BRIDGE_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-bridge-decision-dry-run-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_BRIDGE_DECISION_DRY_RUN_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-bridge-decision-dry-run-observation-log-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_BRIDGE_DECISION_DRY_RUN_OBSERVATION_LOG_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-bridge-return-throw-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_BRIDGE_RETURN_THROW_ENABLED:false}
+    organization-provisioning-provider-channel-guard: ${RABBITMQ_ORGANIZATION_PROVISIONING_PROVIDER_CHANNEL_GUARD:in_app}
+    organization-provisioning-provider-send-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_PROVIDER_SEND_ENABLED:false}
+    notification-publish-enabled: ${RABBITMQ_NOTIFICATION_PUBLISH_ENABLED:false}
+    required: ${RABBITMQ_REQUIRED:true}
+    retry-delay-ms: ${RABBITMQ_RETRY_DELAY_MS:60000}
+  xxl-job:
+    enabled: ${XXL_JOB_ENABLED:false}
+    admin-addresses: ${XXL_JOB_ADMIN_ADDRESSES:}
+    access-token: ${XXL_JOB_ACCESS_TOKEN:default_token}
+    executor-appname: ${XXL_JOB_EXECUTOR_APPNAME:magic-backend-springboot}
+    executor-address: ${XXL_JOB_EXECUTOR_ADDRESS:}
+    executor-ip: ${XXL_JOB_EXECUTOR_IP:}
+    executor-port: ${XXL_JOB_EXECUTOR_PORT:9999}
+    log-path: ${XXL_JOB_LOG_PATH:./logs/xxl-job}
+    log-retention-days: ${XXL_JOB_LOG_RETENTION_DAYS:30}

@@ -1,0 +1,39 @@
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+app:
+  kafka:
+    required: ${KAFKA_REQUIRED:false}
+    consumer-enabled: ${KAFKA_CONSUMER_ENABLED:false}
+    outbox-dispatch-enabled: ${KAFKA_OUTBOX_DISPATCH_ENABLED:false}
+    outbox-event-write-enabled: ${KAFKA_OUTBOX_EVENT_WRITE_ENABLED:false}
+  rabbit-mq:
+    consumer-enabled: ${RABBITMQ_CONSUMER_ENABLED:false}
+    enabled: ${RABBITMQ_ENABLED:true}
+    notification-consumer-delegation-enabled: ${RABBITMQ_NOTIFICATION_CONSUMER_DELEGATION_ENABLED:false}
+    notification-consumer-delegation-route-guard: ${RABBITMQ_NOTIFICATION_CONSUMER_DELEGATION_ROUTE_GUARD:organization_provisioning_completed}
+    notification-dispatch-enabled: ${RABBITMQ_NOTIFICATION_DISPATCH_ENABLED:false}
+    notification-routing-consumer-enabled: ${RABBITMQ_NOTIFICATION_ROUTING_CONSUMER_ENABLED:false}
+    organization-provisioning-notification-consumer-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_NOTIFICATION_CONSUMER_ENABLED:false}
+    organization-provisioning-in-app-notification-ddl-applied: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_NOTIFICATION_DDL_APPLIED:false}
+    organization-provisioning-in-app-notification-insert-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_NOTIFICATION_INSERT_ENABLED:false}
+    organization-provisioning-in-app-provider-claim-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_CLAIM_ENABLED:false}
+    organization-provisioning-in-app-provider-listener-auto-execution-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_LISTENER_AUTO_EXECUTION_ENABLED:false}
+    organization-provisioning-in-app-provider-mark-failure-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_MARK_FAILURE_ENABLED:false}
+    organization-provisioning-in-app-provider-mark-success-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_MARK_SUCCESS_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-listener-noop-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_LISTENER_NOOP_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-validator-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_VALIDATOR_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-bridge-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_BRIDGE_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-bridge-decision-dry-run-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_BRIDGE_DECISION_DRY_RUN_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-bridge-decision-dry-run-observation-log-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_BRIDGE_DECISION_DRY_RUN_OBSERVATION_LOG_ENABLED:false}
+    organization-provisioning-in-app-provider-result-adapter-bridge-return-throw-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_IN_APP_PROVIDER_RESULT_ADAPTER_BRIDGE_RETURN_THROW_ENABLED:false}
+    organization-provisioning-provider-channel-guard: ${RABBITMQ_ORGANIZATION_PROVISIONING_PROVIDER_CHANNEL_GUARD:in_app}
+    organization-provisioning-provider-send-enabled: ${RABBITMQ_ORGANIZATION_PROVISIONING_PROVIDER_SEND_ENABLED:false}
+    notification-publish-enabled: ${RABBITMQ_NOTIFICATION_PUBLISH_ENABLED:false}
+    required: ${RABBITMQ_REQUIRED:false}
+  redis:
+    organization-provisioning-refresh-enabled: ${REDIS_ORGANIZATION_PROVISIONING_REFRESH_ENABLED:false}
+  xxl-job:
+    enabled: ${XXL_JOB_ENABLED:false}

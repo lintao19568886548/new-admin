@@ -1,0 +1,25 @@
+package cn.yizuw.magic.backend.menu;
+
+public record MenuMetaResponse(
+    String activeIcon,
+    String activePath,
+    Boolean affixTab,
+    Integer affixTabOrder,
+    String badge,
+    String badgeType,
+    String badgeVariants,
+    String color,
+    Boolean hideChildrenInMenu,
+    Boolean hideInBreadcrumb,
+    Boolean hideInMenu,
+    Boolean hideInTab,
+    String icon,
+    String iframeSrc,
+    Boolean isApp,
+    Boolean keepAlive,
+    String link,
+    Integer maxNumOfOpenTab,
+    Boolean noBasicLayout,
+    Boolean openInNewWindow,
+    Integer order,
+    String title) {}

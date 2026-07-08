@@ -15,8 +15,8 @@ import CryptoJS from 'crypto-js';
 import { request } from './token-manager';
 
 const baseURL = process.env.TP_BASE_URL || 'https://devhzeb.szhzzd.top';
-const userName = process.env.TP_LOGIN_USERNAME || 'qcwyapi01';
-const key = process.env.TP_LOGIN_KEY || '41b1076bfe116a9ccfddd0c365';
+const userName = process.env.TP_LOGIN_USERNAME || '';
+const key = process.env.TP_LOGIN_KEY || '';
 
 export const http: AxiosInstance = axios.create({
   baseURL,
@@ -32,6 +32,10 @@ const getSignature = (userName: string, key: string) => {
 };
 
 export async function login(): Promise<ThirdPartyLoginResponse> {
+  if (!userName || !key) {
+    throw new Error('TP_LOGIN_USERNAME and TP_LOGIN_KEY are required');
+  }
+
   const res = await http.post<ThirdPartyLoginResponse>(
     `/hzeb-push/app/xcx/login`,
     {},
