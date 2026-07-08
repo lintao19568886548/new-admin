@@ -4,16 +4,48 @@ import type { SystemRoleApi, SystemUserApi } from '#/api';
 
 import { formatDateTime } from '@vben/utils';
 
+import { getParkList } from '#/api/park';
 import { getRoleList } from '#/api/system/role';
 import { $t } from '#/locales';
 
-export async function getRoleOptions() {
+type SelectOption = { label: string; value: number };
+
+const OPTION_CACHE_TTL = 60_000;
+let roleOptionsCache: null | { expiresAt: number; value: SelectOption[] } =
+  null;
+let roleOptionsRequest: null | Promise<SelectOption[]> = null;
+let parkOptionsCache: null | { expiresAt: number; value: SelectOption[] } =
+  null;
+let parkOptionsRequest: null | Promise<SelectOption[]> = null;
+
+function removeReadonlyOnInteract(event: Event) {
+  const target = event.target as null | {
+    removeAttribute?: (name: string) => void;
+  };
+  target?.removeAttribute?.('readonly');
+}
+
+function readCache(cache: null | { expiresAt: number; value: SelectOption[] }) {
+  if (!cache || cache.expiresAt <= Date.now()) {
+    return null;
+  }
+  return cache.value;
+}
+
+function writeCache(value: SelectOption[]) {
+  return {
+    expiresAt: Date.now() + OPTION_CACHE_TTL,
+    value,
+  };
+}
+
+async function fetchRoleOptions() {
   const result = await getRoleList();
   const roles: SystemRoleApi.SystemRole[] = Array.isArray(result)
     ? result
     : (result?.items ?? []);
 
-  const options: Array<{ label: string; value: number }> = [];
+  const options: SelectOption[] = [];
   const walk = (nodes: SystemRoleApi.SystemRole[]) => {
     nodes.forEach((node) => {
       if (node.roleId && node.name) {
@@ -32,19 +64,116 @@ export async function getRoleOptions() {
   return options;
 }
 
-export function getAccountPasswordInputProps(placeholder: string) {
+export async function getRoleOptions() {
+  const cached = readCache(roleOptionsCache);
+  if (cached) {
+    return cached;
+  }
+
+  roleOptionsRequest ??= fetchRoleOptions()
+    .then((options) => {
+      roleOptionsCache = writeCache(options);
+      return options;
+    })
+    .finally(() => {
+      roleOptionsRequest = null;
+    });
+
+  return roleOptionsRequest;
+}
+
+export async function getParkOptions() {
+  const cached = readCache(parkOptionsCache);
+  if (cached) {
+    return cached;
+  }
+
+  parkOptionsRequest ??= getParkList()
+    .then((result) => {
+      let parks: any[] = [];
+      if (Array.isArray(result)) {
+        parks = result;
+      } else if (Array.isArray((result as any)?.items)) {
+        parks = (result as any).items;
+      }
+
+      const options = parks
+        .map((park: any) => ({
+          label: String(park.parkName || ''),
+          value: Number(park.parkId),
+        }))
+        .filter(
+          (park: SelectOption) => park.label && Number.isInteger(park.value),
+        );
+
+      parkOptionsCache = writeCache(options);
+      return options;
+    })
+    .finally(() => {
+      parkOptionsRequest = null;
+    });
+
+  return parkOptionsRequest;
+}
+
+export function prefetchSystemUserFormOptions() {
+  void Promise.all([getRoleOptions(), getParkOptions()]).catch((error) => {
+    console.warn('预加载账号表单选项失败:', error);
+  });
+}
+
+function getNoAutofillInputProps(options: {
+  inputName: string;
+  maskText?: boolean;
+  placeholder: string;
+}) {
   return {
-    autoComplete: 'off',
-    autocomplete: 'off',
+    'aria-autocomplete': 'none',
+    autoCapitalize: 'off',
+    autoComplete: 'new-password',
+    autocomplete: 'new-password',
+    autoCorrect: 'off',
     'data-1p-ignore': 'true',
     'data-form-type': 'other',
     'data-lpignore': 'true',
-    name: 'tenantAccountCredential',
-    placeholder,
+    name: options.inputName,
+    onFocus: removeReadonlyOnInteract,
+    onPointerdown: removeReadonlyOnInteract,
+    placeholder: options.placeholder,
+    readonly: true,
+    readOnly: true,
     spellcheck: false,
-    style: {
-      WebkitTextSecurity: 'disc',
-    },
+    ...(options.maskText
+      ? {
+          style: {
+            WebkitTextSecurity: 'disc',
+          },
+        }
+      : null),
+  };
+}
+
+export function getAccountUsernameInputProps(
+  placeholder: string,
+  nameSuffix = '',
+) {
+  return getNoAutofillInputProps({
+    inputName: `tenantAccountName${nameSuffix}`,
+    placeholder,
+  });
+}
+
+export function getAccountPasswordInputProps(
+  placeholder: string,
+  nameSuffix = '',
+) {
+  return {
+    ...getNoAutofillInputProps({
+      inputName: `tenantAccountCredential${nameSuffix}`,
+      maskText: true,
+      placeholder,
+    }),
+    type: 'text',
   };
 }
 
@@ -52,10 +181,8 @@ export function useFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      componentProps: {
-        placeholder: '请输入账号',
-      },
-      fieldName: 'username',
+      componentProps: getAccountUsernameInputProps('请输入账号'),
+      fieldName: 'accountName',
       label: '账号',
       rules: 'required',
     },
@@ -79,7 +206,7 @@ export function useFormSchema(): VbenFormSchema[] {
     {
       component: 'Input',
       componentProps: getAccountPasswordInputProps('请输入初始密码'),
-      fieldName: 'password',
+      fieldName: 'accountSecret',
       label: '初始密码',
     },
     {

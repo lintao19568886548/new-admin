@@ -43,6 +43,23 @@ function addParkToMap(
   map.set(userId, list);
 }
 
+function mapParkRowsByUserId(
+  rows: Array<{
+    parkId: bigint | number | string;
+    parkName: null | string;
+    userId: bigint | number | string;
+  }>,
+) {
+  const result = new Map<number, Array<{ parkId: number; parkName: string }>>();
+  rows.forEach((row) => {
+    addParkToMap(result, Number(row.userId), {
+      parkId: Number(row.parkId),
+      parkName: String(row.parkName || ''),
+    });
+  });
+  return result;
+}
+
 export default eventHandler(async (event) => {
   const userinfo = await verifyAccessToken(event);
   if (!userinfo) {
@@ -133,7 +150,7 @@ export default eventHandler(async (event) => {
   }
 
   const tenantUserIds = tenantUsers.map((item) => item.id);
-  const [mappings, directParkRows] = await Promise.all([
+  const [mappings, directParkRows, roleParkRows] = await Promise.all([
     systemDbClient.userCustomerMapping.findMany({
       where: {
         customerId,
@@ -166,6 +183,27 @@ export default eventHandler(async (event) => {
         ORDER BY up.user_id ASC, p.park_id ASC
       `),
     ),
+    prismaScopeStorage.run({ customerId }, async () =>
+      prismaClient.$queryRaw<
+        Array<{
+          parkId: bigint | number | string;
+          parkName: null | string;
+          userId: bigint | number | string;
+        }>
+      >(Prisma.sql`
+        SELECT
+          ur.user_id AS userId,
+          p.park_id AS parkId,
+          p.park_name AS parkName
+        FROM user_role ur
+        INNER JOIN role_park rp ON rp.role_id = ur.role_id
+        INNER JOIN park p ON p.park_id = rp.park_id
+        WHERE ur.user_id IN (${Prisma.join(tenantUserIds)})
+          AND rp.is_deleted = false
+          AND p.is_deleted = false
+        ORDER BY ur.user_id ASC, p.park_id ASC
+      `),
+    ),
   ]);
 
   const centerUserIds = [...new Set(mappings.map((item) => item.centerUserId))];
@@ -192,16 +230,8 @@ export default eventHandler(async (event) => {
   );
   const centerUserById = new Map(centerUsers.map((item) => [item.id, item]));
 
-  const directParksByUserId = new Map<
-    number,
-    Array<{ parkId: number; parkName: string }>
-  >();
-  directParkRows.forEach((row) => {
-    addParkToMap(directParksByUserId, Number(row.userId), {
-      parkId: Number(row.parkId),
-      parkName: String(row.parkName || ''),
-    });
-  });
+  const directParksByUserId = mapParkRowsByUserId(directParkRows);
+  const roleParksByUserId = mapParkRowsByUserId(roleParkRows);
 
   const items = tenantUsers.map((item) => {
     const roleIds = [...new Set(item.roles.map((row) => Number(row.roleId)))];
@@ -215,15 +245,17 @@ export default eventHandler(async (event) => {
     const centerUserId = mappingByTenantUserId.get(item.id);
     const centerUser = centerUserId ? centerUserById.get(centerUserId) : null;
     const directParks = directParksByUserId.get(Number(item.id)) || [];
-    let parks = directParks.length > 0 ? dedupeParks(directParks) : [];
-    if (parks.length === 0 && item.parkId && item.park) {
-      parks = [
-        {
-          parkId: Number(item.park.parkId),
-          parkName: String(item.park.parkName || ''),
-        },
-      ];
-    }
+    const roleParks = roleParksByUserId.get(Number(item.id)) || [];
+    const legacyPark =
+      item.parkId && item.park
+        ? [
+            {
+              parkId: Number(item.park.parkId),
+              parkName: String(item.park.parkName || ''),
+            },
+          ]
+        : [];
+    const parks = dedupeParks([...directParks, ...roleParks, ...legacyPark]);
 
     return {
       id: Number(item.id),

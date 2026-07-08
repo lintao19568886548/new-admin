@@ -5,6 +5,7 @@ import {
   assertOrganizationRolesRequireActiveMembership,
   ensureLegacyOrganizationMembershipsForRoleAssignment,
   OrganizationLifecycleError,
+  syncSourceOrganizationMembershipsAfterRoleChange,
 } from '~/utils/organization-role-policy';
 import { bumpPermissionCacheVersion } from '~/utils/permission-cache';
 import {
@@ -78,13 +79,242 @@ export default eventHandler(async (event) => {
     async () =>
       prismaClient.user.findUnique({
         where: { username },
-        select: { id: true, status: true },
+        select: { id: true, password: true, status: true },
       }),
   );
 
   if (existingTenantUser) {
     if (Number(existingTenantUser.status ?? 1) !== 2) {
+      const centerUserBeforeSync = await systemDbClient.user.findUnique({
+        where: { username },
+        select: {
+          customerType: true,
+          id: true,
+        },
+      });
+      if (centerUserBeforeSync) {
+        const mappedCustomerType = centerUserBeforeSync.customerType
+          ? String(centerUserBeforeSync.customerType)
+          : '';
+        if (mappedCustomerType && mappedCustomerType !== customerId) {
+          setResponseStatus(event, 409);
+          return useResponseError(
+            `中心库账号已被租户 ${mappedCustomerType} 占用`,
+            `中心库账号已被租户 ${mappedCustomerType} 占用`,
+            409,
+          );
+        }
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      let centerUserId = centerUserBeforeSync?.id
+        ? Number(centerUserBeforeSync.id)
+        : null;
+      let createdExistingCenterUserId: null | number = null;
+      let createdOrganizationMemberIds: number[] = [];
+      let ensuredRoleAssignmentOrganizationIds: number[] = [];
+      let tenantTransactionCommitted = false;
+
+      try {
+        if (!centerUserId && status !== 0) {
+          const createdCenterUser = await systemDbClient.user.create({
+            data: {
+              customerType: customerId,
+              password: hashedPassword || existingTenantUser.password,
+              phone: phone || null,
+              realName,
+              status,
+              tokenVersion: 1,
+              username,
+            },
+            select: { id: true },
+          });
+          centerUserId = Number(createdCenterUser.id);
+          createdExistingCenterUserId = centerUserId;
+        }
+
+        await prismaScopeStorage.run({ customerId }, async () =>
+          prismaClient.$transaction(async (prisma) => {
+            if (status !== 0 && roleIds.length > 0 && centerUserId) {
+              const membershipResult =
+                await ensureLegacyOrganizationMembershipsForRoleAssignment({
+                  centerUserId,
+                  prisma,
+                  roleIds,
+                  sourceCustomerId: customerId,
+                  sourceUserId: Number(existingTenantUser.id),
+                });
+              ensuredRoleAssignmentOrganizationIds = [
+                ...ensuredRoleAssignmentOrganizationIds,
+                ...membershipResult.ensuredOrganizationIds,
+              ];
+              createdOrganizationMemberIds = [
+                ...createdOrganizationMemberIds,
+                ...membershipResult.createdMemberIds,
+              ];
+              await assertOrganizationRolesRequireActiveMembership({
+                centerUserId,
+                prisma,
+                roleIds,
+                sourceCustomerId: customerId,
+              });
+            } else if (status !== 0 && roleIds.length > 0) {
+              await assertOrganizationRolesRequireActiveMembership({
+                centerUserId,
+                prisma,
+                roleIds,
+                sourceCustomerId: customerId,
+              });
+            }
+
+            await prisma.user.update({
+              data: {
+                password: hashedPassword,
+                phone: phone || null,
+                realName,
+                status,
+              },
+              where: { id: Number(existingTenantUser.id) },
+            });
+
+            await prisma.userRole.deleteMany({
+              where: { userId: Number(existingTenantUser.id) },
+            });
+
+            if (roleIds.length > 0) {
+              const existingRoles = await prisma.role.findMany({
+                select: { roleId: true },
+                where: {
+                  roleId: {
+                    in: roleIds,
+                  },
+                },
+              });
+              const existingRoleIds = existingRoles.map((item) => item.roleId);
+              if (existingRoleIds.length > 0) {
+                await prisma.userRole.createMany({
+                  data: existingRoleIds.map((roleId) => ({
+                    roleId,
+                    userId: Number(existingTenantUser.id),
+                  })),
+                });
+              }
+            }
+
+            await syncUserParks({
+              parkIds,
+              prisma,
+              userId: Number(existingTenantUser.id),
+            });
+          }),
+        );
+        tenantTransactionCommitted = true;
+
+        if (centerUserId) {
+          await systemDbClient.user.update({
+            data: {
+              customerType: customerId,
+              password: hashedPassword,
+              phone: phone || null,
+              realName,
+              status,
+              tokenVersion: { increment: 1 },
+            },
+            where: { id: centerUserId },
+          });
+          await systemDbClient.refreshToken.updateMany({
+            data: { revokedAt: new Date() },
+            where: {
+              revokedAt: null,
+              userId: centerUserId,
+            },
+          });
+          if (status !== 0) {
+            await syncSourceOrganizationMembershipsAfterRoleChange({
+              centerUserId,
+              excludeOrganizationIds: ensuredRoleAssignmentOrganizationIds,
+              roleIds,
+              sourceCustomerId: customerId,
+            });
+          }
+        } else {
+          const createdCenterUser = await systemDbClient.user.create({
+            data: {
+              customerType: customerId,
+              password: hashedPassword,
+              phone: phone || null,
+              realName,
+              status,
+              tokenVersion: 1,
+              username,
+            },
+            select: { id: true },
+          });
+          centerUserId = Number(createdCenterUser.id);
+          createdExistingCenterUserId = centerUserId;
+        }
+
+        await systemDbClient.userCustomerMapping.upsert({
+          create: {
+            centerUserId: Number(centerUserId),
+            customerId,
+            customerUserId: Number(existingTenantUser.id),
+            dbName: centerCustomer.dbName
+              ? String(centerCustomer.dbName)
+              : null,
+          },
+          update: {
+            customerUserId: Number(existingTenantUser.id),
+            dbName: centerCustomer.dbName
+              ? String(centerCustomer.dbName)
+              : null,
+          },
+          where: {
+            centerUserId_customerId: {
+              centerUserId: Number(centerUserId),
+              customerId,
+            },
+          },
+        });
+
+        await bumpPermissionCacheVersion(customerId).catch(() => undefined);
+      } catch (error) {
+        if (!tenantTransactionCommitted) {
+          if (createdOrganizationMemberIds.length > 0) {
+            await systemDbClient.organizationMember
+              .deleteMany({
+                where: { id: { in: createdOrganizationMemberIds } },
+              })
+              .catch(() => undefined);
+          }
+          if (createdExistingCenterUserId) {
+            await systemDbClient.userCustomerMapping
+              .deleteMany({
+                where: {
+                  centerUserId: createdExistingCenterUserId,
+                  customerId,
+                },
+              })
+              .catch(() => undefined);
+            await systemDbClient.user
+              .delete({
+                where: { id: createdExistingCenterUserId },
+              })
+              .catch(() => undefined);
+          }
+        }
+        if (error instanceof UserParkScopeError) {
+          return badRequestResponse(error.message, event, error.statusCode);
+        }
+        if (error instanceof OrganizationLifecycleError) {
+          return badRequestResponse(error.message, event, error.statusCode);
+        }
+        console.error('同步已存在账号失败:', error);
+        return serverErrorResponse('同步已存在账号失败', event);
+      }
+
       return useResponseSuccess({
+        centerUserId,
         existed: true,
         id: Number(existingTenantUser.id),
         tenantUserId: Number(existingTenantUser.id),

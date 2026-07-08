@@ -19,8 +19,18 @@ import OnboardingStepAlert from '#/components/onboarding/OnboardingStepAlert.vue
 import { $t } from '#/locales';
 
 import ParkManagePanel from '../park/modules/manage-panel.vue';
-import { useColumns, useGridFormSchema } from './data';
+import {
+  prefetchSystemUserFormOptions,
+  useColumns,
+  useGridFormSchema,
+} from './data';
 import Form from './modules/form.vue';
+
+interface AccountFormSuccessPayload {
+  id: null | number;
+  mode: 'create' | 'edit';
+  username: string;
+}
 
 const activeTab = ref('parks');
 const route = useRoute();
@@ -30,11 +40,17 @@ const [FormModal, formModalApi] = useVbenModal({
   destroyOnClose: true,
 });
 
+function prefetchFormOptions() {
+  prefetchSystemUserFormOptions();
+}
+
 function onCreate() {
+  prefetchFormOptions();
   formModalApi.setData(null).open();
 }
 
 function onEdit(row: SystemUserApi.SystemUser) {
+  prefetchFormOptions();
   formModalApi.setData(row).open();
 }
 
@@ -131,6 +147,14 @@ function refreshGrid() {
   gridApi.query();
 }
 
+function onFormSuccess(payload: AccountFormSuccessPayload) {
+  if (payload.mode === 'create') {
+    gridApi.reload();
+    return;
+  }
+  refreshGrid();
+}
+
 function syncTabFromQuery() {
   const tab = Array.isArray(route.query.tab)
     ? route.query.tab[0]
@@ -141,8 +165,18 @@ function syncTabFromQuery() {
 }
 
 watch(() => route.query.tab, syncTabFromQuery);
+watch(activeTab, (tab) => {
+  if (tab === 'accounts') {
+    prefetchFormOptions();
+  }
+});
 
-onMounted(syncTabFromQuery);
+onMounted(() => {
+  syncTabFromQuery();
+  if (activeTab.value === 'accounts') {
+    prefetchFormOptions();
+  }
+});
 </script>
 
 <template>
@@ -157,10 +191,15 @@ onMounted(syncTabFromQuery);
 
       <Tabs.TabPane key="accounts" :tab="$t('system.user.list')">
         <div class="system-account-tab-pane">
-          <FormModal @success="refreshGrid" />
+          <FormModal @success="onFormSuccess" />
           <Grid :table-title="$t('system.user.list')">
             <template #toolbar-tools>
-              <Button type="primary" @click="onCreate">
+              <Button
+                type="primary"
+                @click="onCreate"
+                @focus="prefetchFormOptions"
+                @mouseenter="prefetchFormOptions"
+              >
                 <Plus class="size-5" />
                 {{ $t('ui.actionTitle.create', [$t('system.user.name')]) }}
               </Button>

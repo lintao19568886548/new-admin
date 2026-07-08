@@ -1,23 +1,33 @@
 <script lang="ts" setup>
 import type { SystemUserApi } from '#/api';
 
-import { computed, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
 import { Button, message, Select } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { getParkList } from '#/api/park';
 import { createSystemUser, updateSystemUser } from '#/api/system/user';
 import { $t } from '#/locales';
 
-import { useFormSchema } from '../data';
+import {
+  getAccountPasswordInputProps,
+  getAccountUsernameInputProps,
+  getParkOptions,
+  useFormSchema,
+} from '../data';
 
-const emit = defineEmits(['success']);
+const emit = defineEmits<{
+  success: [
+    payload: { id: null | number; mode: 'create' | 'edit'; username: string },
+  ];
+}>();
 const formData = ref<null | SystemUserApi.SystemUser>(null);
 const parkOptions = ref<Array<{ label: string; value: number }>>([]);
 const isEdit = computed(() => Boolean(formData.value?.id));
+let clearCreateFormTimers: Array<ReturnType<typeof setTimeout>> = [];
+let openSequence = 0;
 
 const title = computed(() => {
   return isEdit.value
@@ -42,24 +52,55 @@ function normalizeIdList(value: unknown) {
   ];
 }
 
+function clearScheduledCreateFormReset() {
+  clearCreateFormTimers.forEach((timer) => clearTimeout(timer));
+  clearCreateFormTimers = [];
+}
+
+function getCreateFormValues() {
+  return {
+    accountName: '',
+    accountSecret: '',
+    parkIds: [],
+    phone: '',
+    realName: '',
+    roleIds: [],
+    status: 1,
+  };
+}
+
+function getEditFormValues(data: SystemUserApi.SystemUser) {
+  return {
+    accountName: data.username || '',
+    accountSecret: '',
+    parkIds: normalizeIdList(data.parkIds),
+    phone: data.phone || '',
+    realName: data.realName || '',
+    roleIds: data.roleIds || [],
+    status: Number(data.status ?? 1),
+  };
+}
+
+function clearCreateFormValues(sequence: number) {
+  if (sequence !== openSequence || isEdit.value) {
+    return;
+  }
+  formApi.setValues(getCreateFormValues());
+}
+
+function scheduleCreateFormClear(sequence: number) {
+  clearScheduledCreateFormReset();
+  void nextTick(() => {
+    clearCreateFormValues(sequence);
+    clearCreateFormTimers = [80, 300, 800, 2000].map((delay) =>
+      setTimeout(() => clearCreateFormValues(sequence), delay),
+    );
+  });
+}
+
 async function loadParkOptions() {
   try {
-    const result = await getParkList();
-    let parks: any[] = [];
-    if (Array.isArray(result)) {
-      parks = result;
-    } else if (Array.isArray((result as any)?.items)) {
-      parks = (result as any).items;
-    }
-    parkOptions.value = parks
-      .map((park: any) => ({
-        label: String(park.parkName || ''),
-        value: Number(park.parkId),
-      }))
-      .filter(
-        (park: { label: string; value: number }) =>
-          park.label && Number.isInteger(park.value),
-      );
+    parkOptions.value = await getParkOptions();
   } catch (error) {
     console.error('加载园区列表失败:', error);
     message.error('加载园区列表失败');
@@ -68,7 +109,9 @@ async function loadParkOptions() {
 
 function resetForm() {
   formApi.resetForm();
-  formApi.setValues(formData.value || { status: 1 });
+  formApi.setValues(
+    formData.value ? getEditFormValues(formData.value) : getCreateFormValues(),
+  );
 }
 
 const [Modal, modalApi] = useVbenModal({
@@ -79,35 +122,46 @@ const [Modal, modalApi] = useVbenModal({
     }
 
     const values = await formApi.getValues<Record<string, any>>();
+    const accountName = String(values.accountName || '').trim();
+    const accountSecret = String(values.accountSecret || '').trim();
     const payload: Record<string, any> = {
       parkIds: normalizeIdList(values.parkIds),
       phone: values.phone || '',
       realName: values.realName,
       roleIds: Array.isArray(values.roleIds) ? values.roleIds : [],
       status: Number(values.status ?? 1),
-      username: values.username,
+      username: accountName,
     };
 
-    if (!isEdit.value && !String(values.password || '').trim()) {
+    if (!isEdit.value && !accountSecret) {
       message.error('新增账号时密码不能为空');
       return;
     }
 
-    if (String(values.password || '').trim()) {
-      payload.password = String(values.password);
+    if (accountSecret) {
+      payload.password = accountSecret;
     }
 
     modalApi.lock();
     try {
-      await (isEdit.value && formData.value?.id
+      const result = await (isEdit.value && formData.value?.id
         ? updateSystemUser(Number(formData.value.id), payload)
         : createSystemUser({
             ...payload,
-            password: String(values.password),
+            password: accountSecret,
           }));
+      const resultData = result as undefined | { id?: number | string };
+      const mode = isEdit.value ? 'edit' : 'create';
 
       modalApi.close();
-      emit('success');
+      message.success(mode === 'create' ? '账号添加成功' : '账号保存成功');
+      emit('success', {
+        id: resultData?.id
+          ? Number(resultData.id)
+          : (formData.value?.id ?? null),
+        mode,
+        username: accountName,
+      });
     } catch (error) {
       console.error('保存账号失败:', error);
     } finally {
@@ -115,53 +169,59 @@ const [Modal, modalApi] = useVbenModal({
     }
   },
   onOpenChange(open) {
+    openSequence += 1;
+    clearScheduledCreateFormReset();
     if (!open) {
       return;
     }
 
+    const sequence = openSequence;
     const data = modalApi.getData<SystemUserApi.SystemUser>();
     formData.value = data || null;
     formApi.resetForm();
     loadParkOptions();
+    const inputNameSuffix = `_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2)}`;
 
     formApi.updateSchema([
       {
         componentProps: {
+          ...getAccountUsernameInputProps('请输入账号', inputNameSuffix),
           disabled: Boolean(data?.id),
-          placeholder: '请输入账号',
         },
-        fieldName: 'username',
+        fieldName: 'accountName',
       },
       {
-        componentProps: {
-          placeholder: data?.id ? '留空则不修改密码' : '请输入密码',
-        },
-        fieldName: 'password',
+        componentProps: getAccountPasswordInputProps(
+          data?.id ? '留空则不修改密码' : '请输入密码',
+          inputNameSuffix,
+        ),
+        fieldName: 'accountSecret',
         label: data?.id ? '密码（留空不修改）' : '密码',
       },
     ]);
 
     if (data) {
-      formApi.setValues({
-        parkIds: normalizeIdList(data.parkIds),
-        phone: data.phone || '',
-        realName: data.realName || '',
-        roleIds: data.roleIds || [],
-        status: Number(data.status ?? 1),
-        username: data.username || '',
-      });
+      formApi.setValues(getEditFormValues(data));
     } else {
-      formApi.setValues({
-        parkIds: [],
-        status: 1,
-      });
+      formApi.setValues(getCreateFormValues());
+      scheduleCreateFormClear(sequence);
     }
   },
+});
+
+onBeforeUnmount(() => {
+  clearScheduledCreateFormReset();
 });
 </script>
 
 <template>
   <Modal :title="title">
+    <div aria-hidden="true" class="system-user-autofill-decoys">
+      <input autocomplete="username" name="username" tabindex="-1" />
+      <input autocomplete="current-password" name="password" tabindex="-1" />
+    </div>
     <Form class="mx-4">
       <template #parkIds="slotProps">
         <Select
@@ -197,3 +257,15 @@ const [Modal, modalApi] = useVbenModal({
     </template>
   </Modal>
 </template>
+
+<style scoped>
+.system-user-autofill-decoys {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-9999px, -9999px);
+}
+</style>
