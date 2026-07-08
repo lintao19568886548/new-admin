@@ -68,9 +68,11 @@ app:
   ios-store-url: ${IOS_STORE_URL:https://apps.apple.com/cn/app/%E7%9E%B0%E7%BB%B4%E6%99%BA%E7%AE%A1/id6760279136}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+  internal-api:
+    token: ${INTERNAL_API_TOKEN:}
   jwt:
-    access-token-secret: ${ACCESS_TOKEN_SECRET:access-secret}
-    refresh-token-secret: ${REFRESH_TOKEN_SECRET:refresh-secret}
+    access-token-secret: ${ACCESS_TOKEN_SECRET:}
+    refresh-token-secret: ${REFRESH_TOKEN_SECRET:}
     access-token-expires-in: ${ACCESS_TOKEN_EXPIRES_IN:30m}
     refresh-token-expires-in: ${REFRESH_TOKEN_EXPIRES_IN:7d}
   refresh-cookie:
@@ -135,7 +137,7 @@ app:
   xxl-job:
     enabled: ${XXL_JOB_ENABLED:false}
     admin-addresses: ${XXL_JOB_ADMIN_ADDRESSES:}
-    access-token: ${XXL_JOB_ACCESS_TOKEN:default_token}
+    access-token: ${XXL_JOB_ACCESS_TOKEN:}
     executor-appname: ${XXL_JOB_EXECUTOR_APPNAME:magic-backend-springboot}
     executor-address: ${XXL_JOB_EXECUTOR_ADDRESS:}
     executor-ip: ${XXL_JOB_EXECUTOR_IP:}

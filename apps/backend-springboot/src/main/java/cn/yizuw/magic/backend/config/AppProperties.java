@@ -10,6 +10,7 @@ public class AppProperties {
   private final Hezhong hezhong = new Hezhong();
   private String iosStoreUrl =
       "https://apps.apple.com/cn/app/%E7%9E%B0%E7%BB%B4%E6%99%BA%E7%AE%A1/id6760279136";
+  private final InternalApi internalApi = new InternalApi();
   private final Jwt jwt = new Jwt();
   private final Kafka kafka = new Kafka();
   private final RabbitMq rabbitMq = new RabbitMq();
@@ -33,6 +34,10 @@ public class AppProperties {
 
   public void setDefaultCustomerId(String defaultCustomerId) {
     this.defaultCustomerId = defaultCustomerId;
+  }
+
+  public InternalApi getInternalApi() {
+    return internalApi;
   }
 
   public String getIosStoreUrl() {
@@ -89,9 +94,9 @@ public class AppProperties {
 
   public static class Jwt {
     private String accessTokenExpiresIn = "30m";
-    private String accessTokenSecret = "access-secret";
+    private String accessTokenSecret = "";
     private String refreshTokenExpiresIn = "7d";
-    private String refreshTokenSecret = "refresh-secret";
+    private String refreshTokenSecret = "";
 
     public String getAccessTokenExpiresIn() {
       return accessTokenExpiresIn;
@@ -570,7 +575,7 @@ public class AppProperties {
   }
 
   public static class XxlJob {
-    private String accessToken = "default_token";
+    private String accessToken = "";
     private String adminAddresses = "";
     private boolean enabled;
     private String executorAddress = "";
@@ -734,6 +739,18 @@ public class AppProperties {
 
     public void setWaterTjType(String waterTjType) {
       this.waterTjType = waterTjType;
+    }
+  }
+
+  public static class InternalApi {
+    private String token = "";
+
+    public String getToken() {
+      return token;
+    }
+
+    public void setToken(String token) {
+      this.token = token;
     }
   }
 }

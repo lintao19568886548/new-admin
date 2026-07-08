@@ -13,6 +13,11 @@ dist.war
 coverage
 target
 **/target/
+**/target/**
+**/target/surefire-reports/
+**/target/*.jar
+**/target/*.war
+**/target/*.ear
 *.local
 **/.vitepress/cache
 .cache

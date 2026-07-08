@@ -1,4 +1,6 @@
 app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
   refresh-cookie:
     secure: ${REFRESH_TOKEN_COOKIE_SECURE:true}
   kafka:
